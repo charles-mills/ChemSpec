@@ -1,0 +1,4 @@
+{
+  "charges": [{ "magnitude": "0" }, { "magnitude": "1", "sign": { "kind": "positive" } }, { "magnitude": "3", "sign": { "kind": "negative" } }],
+  "phases": [{ "kind": "aqueous" }, { "kind": "solid" }, { "kind": "liquid" }, { "kind": "gas" }]
+}

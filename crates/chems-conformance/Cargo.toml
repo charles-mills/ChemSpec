@@ -1,6 +1,6 @@
 [package]
-name = "chems-lang"
-description = "Lossless source frontend and formatter for .chems"
+name = "chems-conformance"
+description = "Executable specification and conformance scaffold for .chems"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -8,18 +8,17 @@ rust-version.workspace = true
 version.workspace = true
 
 [lib]
-name = "chems_lang"
+name = "chems_conformance"
 
 [[bin]]
-name = "chems"
+name = "chems-conformance"
 path = "src/main.rs"
 
 [dependencies]
+chem-domain = { path = "../chem-domain" }
+jsonschema.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-
-[dev-dependencies]
-sha2.workspace = true
 
 [lints]
 workspace = true

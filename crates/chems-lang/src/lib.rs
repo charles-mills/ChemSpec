@@ -1,9 +1,19 @@
-//! Source-language concerns for `.chems`: lexer, parser, source spans,
-//! syntax tree, formatter, syntax diagnostics, and serialization.
-//!
-//! This crate may use domain primitives such as formulas and quantities, but
-//! it never decides whether a reaction is chemically supported — that is
-//! `chem-engine` authority.
-//!
-//! Parser work (`L-101`) begins only after the `.chems` v0 grammar is frozen
-//! at Gate 0 (`F-003`).
+mod diagnostic;
+mod formatter;
+mod lexer;
+mod parser;
+mod span;
+mod syntax;
+
+pub use diagnostic::{Diagnostic, PipelineStage, Severity};
+pub use formatter::{FormatError, format_source};
+pub use lexer::{LexResult, lex_bytes, lex_source};
+pub use parser::{ParseResult, parse_bytes, parse_source};
+pub use span::{ByteSpan, SourcePosition};
+pub use syntax::{
+    ChemicalSyntaxKind, ClaimKind, CommentAttachment, CommentPlacement, Cst, DeclarationKind,
+    EquationSyntaxKind, HeaderKind, NameSyntaxKind, ObservationKind, OperationKind,
+    QuantitySyntaxKind, SectionKind, SourceAst, SourceCatalogueSelection, SourceExpectation,
+    SourceExperiment, SourceLanguageVersion, SourceNode, SourceNodeKind, SyntaxNode, TacticKind,
+    Token, TokenKind,
+};

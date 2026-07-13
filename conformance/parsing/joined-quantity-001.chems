@@ -1,0 +1,13 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+experiment JoinedQuantity where
+  conditions
+    temperature := 25degC
+  given
+    sample := 1 mol of H2O(l)
+  vessels
+    beaker := open vessel 100 mL
+  procedure
+    place sample in beaker
+  by
+    close

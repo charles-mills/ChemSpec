@@ -1,0 +1,19 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+experiment Demo where
+  conditions
+    temperature := 25.00 degC
+    pressure := 1 atm -- room pressure
+    -- medium follows
+    medium := aqueous
+  given
+    water := 10 mL of H2O(l)
+  vessels
+    beaker := open vessel 100 mL
+  procedure
+    place water in beaker
+  expect
+    /- authored hole -/
+    class := ?
+  by
+    close

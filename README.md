@@ -9,20 +9,6 @@ simulation.
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
 
-```mermaid
-flowchart TD
-    U["User request"] --> P["Codex or API provider"]
-    P --> R["Visible research and evidence"]
-    R --> S["Generated .chems v1 source"]
-    S --> V["Compiler and chemistry kernel"]
-    V -->|"Invalid / Incomplete"| X["Diagnostics and bounded repair"]
-    X --> S
-    V -->|"Unsupported"| Y["Honest unsupported result"]
-    V -->|"Proved"| A["ValidatedExperiment"]
-    A --> M["Deterministic simulation model"]
-    M --> I["Iced / wgpu presentation"]
-```
-
 ## Product contract
 
 ChemSpec separates proposal, trust, meaning, and presentation:
@@ -60,51 +46,61 @@ general redox, combustion, quantitative kinetics, or molecular dynamics.
 ## Example
 
 ```chems
+chems 1
 use catalog ChemSpec.Aqueous@1
 
 experiment SilverChloridePrecipitation where
   conditions
     temperature := 25 degC
-    pressure    := 1 atm
-    medium      := aqueous
+    pressure := 1 atm
+    medium := aqueous
 
   given
-    silverNitrate  := 50 mL of 0.100 M AgNO3(aq)
-    sodiumChloride := 50 mL of 0.100 M NaCl(aq)
+    silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
+    sodiumChloride := 50 mL of 0.100 mol/L NaCl(aq)
 
-  mix silverNitrate with sodiumChloride
+  vessels
+    reaction := open vessel 250 mL
 
-  expect
+  procedure
+    place silverNitrate in reaction
+    mixed: add sodiumChloride to reaction
+    stir reaction
+
+  expect at final
     class := precipitation
+    produces AgCl(s)
 
-    molecular :=
-      AgNO3(aq) + NaCl(aq)
-        -> AgCl(s) + NaNO3(aq)
+    molecular := AgNO3(aq) + NaCl(aq) -> AgCl(s) + NaNO3(aq)
 
-    completeIonic :=
-      Ag^+(aq) + NO3^-(aq) + Na^+(aq) + Cl^-(aq)
-        -> AgCl(s) + Na^+(aq) + NO3^-(aq)
-
-    netIonic :=
-      Ag^+(aq) + Cl^-(aq)
-        -> AgCl(s)
+    completeIonic := ?
+    netIonic := ?
+    amount AgCl(s) := ?
 
     observe
       precipitate AgCl(s)
-      colour white
+      colour := white
 
   by
     dissociate aqueous
-    apply solubilityRules
+    infer products using solubilityRules
+    balance molecular
+    derive completeIonic
+    cancel spectators
+    solve stoichiometry
     verify atoms
     verify charge
-    solve stoichiometry
+    prove observations
+    close
 ```
 
 ## Documentation
 
 - [Product specification](docs/product-spec.md)
 - [The `.chems` language](docs/chems-language.md)
+- [`.chems` language specification](docs/chems-specification.md)
+- [`.chems` implementation plan](docs/chems-implementation-plan.md)
+- [`.chems` conformance contract](conformance/README.md)
 - [Chemistry engine and validator](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
@@ -113,11 +109,31 @@ experiment SilverChloridePrecipitation where
 - [Build Week delivery plan](docs/delivery-plan.md)
 - [Build Week implementation plan](docs/implementation-plan.md)
 
+## Language toolchain
+
+Slices 0–2 provide the executable specification boundary, exact domain
+foundation, and lossless source frontend. `chems-lang` implements `chems 1`
+dispatch, encoding/layout validation, nested comments, the complete normative
+grammar, lossless CST and source AST output, recovery diagnostics, comment
+attachment, and canonical formatting.
+
+```sh
+cargo run -p chems-conformance -- validate
+cargo run -p chems-conformance -- report
+cargo run -p chems-lang -- parse experiment.chems
+cargo run -p chems-lang -- format --check experiment.chems
+cargo run -p chems-lang -- format --write experiment.chems
+```
+
+The normative grammar is [`grammar/chems.ebnf`](grammar/chems.ebnf). There is no
+legacy grammar or compatibility path. Formatting refuses incomplete source;
+plain `chems format <path>` writes canonical source to standard output.
+
 ## Current status
 
-ChemSpec is in the design and initial implementation phase. The documents above
-define the agreed product and technical contracts; implementation status should
-be tracked separately from those contracts as the workspace is scaffolded.
+ChemSpec is in active implementation. The language design and Slices 0–2 are
+complete. Slice 3 is the catalogue foundation; chemistry validation, agent
+integration, simulation, and the application shell follow it.
 
 ## License
 

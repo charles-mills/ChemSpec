@@ -1,32 +1,27 @@
 [workspace]
-resolver = "2"
-members = [
-    "crates/chem-domain",
-    "crates/chems-lang",
-    "crates/chem-engine",
-    "crates/agent",
-    "crates/simulation",
-    "crates/chemspec-app",
-]
+members = ["crates/chem-domain", "crates/chems-conformance", "crates/chems-lang"]
+resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
 edition = "2024"
 license = "MIT"
-rust-version = "1.95"
+repository = "https://github.com/charles-mills/ChemSpec"
+rust-version = "1.96"
+version = "0.1.0"
 
 [workspace.dependencies]
-chem-domain = { path = "crates/chem-domain" }
-chems-lang = { path = "crates/chems-lang" }
-chem-engine = { path = "crates/chem-engine" }
-agent = { path = "crates/agent" }
-simulation = { path = "crates/simulation" }
+jsonschema = { version = "0.40", default-features = false }
+num-bigint = { version = "0.4", features = ["serde"] }
+num-rational = "0.4"
+num-traits = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
 
-iced = { version = "=0.14.0", features = ["canvas"] }
+[workspace.lints.rust]
+missing_debug_implementations = "warn"
+unsafe_code = "forbid"
 
-[profile.dev]
-# wgpu and iced are unusably slow at opt-level 0; keep dependencies optimized.
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

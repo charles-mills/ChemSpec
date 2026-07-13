@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "requirements": "conformance/requirements.json",
+  "components": [
+    { "id": "specification", "fixture_directory": "conformance/specification", "description": "Specification structure, requirement mapping, and language-data integrity." },
+    { "id": "encoding-layout", "fixture_directory": "conformance/encoding-layout", "description": "Source encoding, lexical structure, comments, whitespace, and layout." },
+    { "id": "parsing", "fixture_directory": "conformance/parsing", "description": "Grammar, CST, AST, names, scopes, and source compatibility." },
+    { "id": "formatting", "fixture_directory": "conformance/formatting", "description": "Canonical formatting and comment preservation." },
+    { "id": "quantities-types", "fixture_directory": "conformance/quantities-types", "description": "Exact numbers, dimensions, units, temperatures, and type judgments." },
+    { "id": "formula-species", "fixture_directory": "conformance/formula-species", "description": "Formulae, elements, charge, phase, substances, and species." },
+    { "id": "materials", "fixture_directory": "conformance/materials", "description": "Material constructors, premises, compositions, and linear identity." },
+    { "id": "procedures", "fixture_directory": "conformance/procedures", "description": "Vessels, inventories, operations, stages, and deterministic transitions." },
+    { "id": "claims-holes", "fixture_directory": "conformance/claims-holes", "description": "Claims, assumptions, holes, proof contexts, and goal generation." },
+    { "id": "kernel-tactics", "fixture_directory": "conformance/kernel-tactics", "description": "Kernel judgments, tactics, reaction rules, and derivations." },
+    { "id": "catalogue", "fixture_directory": "conformance/catalogue", "description": "Catalogue bundles, empirical facts, evidence, and coverage." },
+    { "id": "diagnostics-tooling", "fixture_directory": "conformance/diagnostics-tooling", "description": "Diagnostics, edits, editor services, and agent editing." },
+    { "id": "artifacts", "fixture_directory": "conformance/artifacts", "description": "Validated artifacts, identities, serialization, digesting, and replay." },
+    { "id": "end-to-end", "fixture_directory": "conformance/end-to-end", "description": "Complete result envelopes and reviewed experiment journeys." }
+  ],
+  "cases": [
+    {
+      "id": "numeric-precision-001",
+      "component": "quantities-types",
+      "requirements": ["TYP-002", "TYP-003"],
+      "input": "conformance/quantities-types/numeric-precision-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/quantities-types/numeric-precision-001.domain.json"
+      }
+    },
+    {
+      "id": "unit-temperature-001",
+      "component": "quantities-types",
+      "requirements": ["TYP-004", "TYP-005", "TYP-006"],
+      "input": "conformance/quantities-types/unit-temperature-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/quantities-types/unit-temperature-001.domain.json"
+      }
+    },
+    {
+      "id": "quantity-conversion-001",
+      "component": "quantities-types",
+      "requirements": ["TYP-006"],
+      "input": "conformance/quantities-types/quantity-conversion-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/quantities-types/quantity-conversion-001.domain.json"
+      }
+    },
+    {
+      "id": "formula-normalization-001",
+      "component": "formula-species",
+      "requirements": ["TYP-008", "TYP-009"],
+      "input": "conformance/formula-species/formula-normalization-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/formula-species/formula-normalization-001.domain.json"
+      }
+    },
+    {
+      "id": "charge-phase-001",
+      "component": "formula-species",
+      "requirements": ["TYP-011"],
+      "input": "conformance/formula-species/charge-phase-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/formula-species/charge-phase-001.domain.json"
+      }
+    },
+    {
+      "id": "canonical-identity-001",
+      "component": "artifacts",
+      "requirements": ["ART-009"],
+      "input": "conformance/artifacts/canonical-identity-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/artifacts/canonical-identity-001.domain.json"
+      }
+    },
+    {
+      "id": "nested-comments-001",
+      "component": "encoding-layout",
+      "requirements": [
+        "LEX-001", "LEX-002", "LEX-003", "LEX-004", "LEX-005",
+        "LEX-006", "LEX-007", "LEX-019"
+      ],
+      "source": "conformance/encoding-layout/nested-comments-001.chems",
+      "expected": {
+        "state": "validated"
+      }
+    },
+    {
+      "id": "all-productions-001",
+      "component": "parsing",
+      "requirements": [
+        "SRC-001", "SRC-002", "SRC-003", "SRC-005", "LEX-009", "LEX-010",
+        "LEX-011", "LEX-012", "LEX-013", "LEX-014", "LEX-015", "LEX-016",
+        "LEX-017", "LEX-018", "LEX-020", "ART-002", "ART-003", "ART-011"
+      ],
+      "source": "conformance/parsing/all-productions-001.chems",
+      "expected": {
+        "state": "validated",
+        "cst_sha256": "conformance/parsing/all-productions-001.cst.digest",
+        "ast_sha256": "conformance/parsing/all-productions-001.ast.digest"
+      }
+    },
+    {
+      "id": "canonical-comments-001",
+      "component": "formatting",
+      "requirements": ["CAT-016", "CAT-017"],
+      "source": "conformance/formatting/canonical-comments-001.input.chems",
+      "expected": {
+        "state": "validated",
+        "formatted_source": "conformance/formatting/canonical-comments-001.formatted.chems"
+      }
+    },
+    {
+      "id": "formula-whitespace-001",
+      "component": "parsing",
+      "requirements": ["LEX-016"],
+      "source": "conformance/parsing/formula-whitespace-001.chems",
+      "expected": {
+        "state": "malformed",
+        "diagnostics": [{
+          "code": "CHEMS-P005",
+          "severity": "Error",
+          "primary_span": {
+            "fixture": "conformance/parsing/formula-whitespace-001.chems",
+            "start": 147,
+            "end": 148
+          }
+        }]
+      }
+    },
+    {
+      "id": "joined-quantity-001",
+      "component": "parsing",
+      "requirements": ["LEX-017"],
+      "source": "conformance/parsing/joined-quantity-001.chems",
+      "expected": {
+        "state": "malformed",
+        "diagnostics": [{
+          "code": "CHEMS-P006",
+          "severity": "Error",
+          "primary_span": {
+            "fixture": "conformance/parsing/joined-quantity-001.chems",
+            "start": 105,
+            "end": 105
+          }
+        }]
+      }
+    },
+    {
+      "id": "unsupported-major-001",
+      "component": "parsing",
+      "requirements": ["SRC-003", "ART-011"],
+      "source": "conformance/parsing/unsupported-major-001.chems",
+      "expected": {
+        "state": "malformed",
+        "diagnostics": [{
+          "code": "CHEMS-P002",
+          "severity": "Error",
+          "primary_span": {
+            "fixture": "conformance/parsing/unsupported-major-001.chems",
+            "start": 6,
+            "end": 60
+          }
+        }]
+      }
+    }
+  ]
+}
