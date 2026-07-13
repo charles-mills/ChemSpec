@@ -1,0 +1,46 @@
+chems 1
+use catalog ChemSpec.Aqueous@1.0
+
+experiment SilverChloridePrecipitation where
+  conditions
+    temperature := 25 degC
+    pressure := 1 atm
+    medium := aqueous
+
+  given
+    silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
+    sodiumChloride := 50 mL of 0.100 mol/L NaCl(aq)
+
+  vessels
+    reaction := open vessel 250 mL
+
+  procedure
+    place silverNitrate in reaction
+    mixed: add sodiumChloride to reaction
+    stir reaction
+
+  expect at final
+    class := precipitation
+    produces AgCl(s)
+
+    molecular := AgNO3(aq) + NaCl(aq) -> AgCl(s) + NaNO3(aq)
+
+    completeIonic := ?
+    netIonic := ?
+    amount AgCl(s) := ?
+
+    observe
+      precipitate AgCl(s)
+      colour := white
+
+  by
+    dissociate aqueous
+    infer products using solubilityRules
+    balance molecular
+    derive completeIonic
+    cancel spectators
+    solve stoichiometry
+    verify atoms
+    verify charge
+    prove observations
+    close

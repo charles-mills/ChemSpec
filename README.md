@@ -123,6 +123,7 @@ cargo run -p chems-conformance -- report
 cargo run -p chems-lang -- parse experiment.chems
 cargo run -p chems-lang -- format --check experiment.chems
 cargo run -p chems-lang -- format --write experiment.chems
+cargo run -p chemspec-app
 ```
 
 The normative grammar is [`grammar/chems.ebnf`](grammar/chems.ebnf). There is no
@@ -132,8 +133,9 @@ plain `chems format <path>` writes canonical source to standard output.
 ## Current status
 
 ChemSpec is in active implementation. The language design and Slices 0–2 are
-complete. Slice 3 is the catalogue foundation; chemistry validation, agent
-integration, simulation, and the application shell follow it.
+complete, and the static Iced application shell is available. Slice 3 is the
+catalogue foundation; chemistry validation, agent integration, and live
+simulation follow it.
 
 ## License
 
