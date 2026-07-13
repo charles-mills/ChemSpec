@@ -1,0 +1,10 @@
+[package]
+name = "chems-lang"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = ".chems lexer, parser, formatter, and syntax diagnostics"
+
+[dependencies]
+chem-domain.workspace = true

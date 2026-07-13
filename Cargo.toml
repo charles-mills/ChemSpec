@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/chem-domain",
+    "crates/chems-lang",
+    "crates/chem-engine",
+    "crates/agent",
+    "crates/simulation",
+    "crates/chemspec-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.95"
+
+[workspace.dependencies]
+chem-domain = { path = "crates/chem-domain" }
+chems-lang = { path = "crates/chems-lang" }
+chem-engine = { path = "crates/chem-engine" }
+agent = { path = "crates/agent" }
+simulation = { path = "crates/simulation" }
+
+iced = { version = "=0.14.0", features = ["canvas"] }
+
+[profile.dev]
+# wgpu and iced are unusably slow at opt-level 0; keep dependencies optimized.
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

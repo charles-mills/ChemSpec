@@ -1,0 +1,15 @@
+[package]
+name = "chemspec-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "ChemSpec desktop application"
+
+[dependencies]
+chem-domain.workspace = true
+chems-lang.workspace = true
+chem-engine.workspace = true
+agent.workspace = true
+simulation.workspace = true
+iced.workspace = true

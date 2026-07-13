@@ -1,0 +1,9 @@
+[package]
+name = "chem-domain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Pure, stable ChemSpec domain types"
+
+[dependencies]
