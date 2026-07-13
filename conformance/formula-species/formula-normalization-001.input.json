@@ -1,0 +1,19 @@
+{
+  "elements": [
+    { "id": 1, "symbol": "H" },
+    { "id": 8, "symbol": "O" },
+    { "id": 16, "symbol": "S" },
+    { "id": 20, "symbol": "Ca" },
+    { "id": 29, "symbol": "Cu" }
+  ],
+  "formulae": [
+    {
+      "name": "calciumHydroxide",
+      "segments": [{ "coefficient": "1", "parts": [{ "kind": "element", "symbol": "Ca", "count": "1" }, { "kind": "group", "parts": [{ "kind": "element", "symbol": "O", "count": "1" }, { "kind": "element", "symbol": "H", "count": "1" }], "count": "2" }] }]
+    },
+    {
+      "name": "copperSulfatePentahydrate",
+      "segments": [{ "coefficient": "1", "parts": [{ "kind": "element", "symbol": "Cu", "count": "1" }, { "kind": "element", "symbol": "S", "count": "1" }, { "kind": "element", "symbol": "O", "count": "4" }] }, { "coefficient": "5", "parts": [{ "kind": "element", "symbol": "H", "count": "2" }, { "kind": "element", "symbol": "O", "count": "1" }] }]
+    }
+  ]
+}

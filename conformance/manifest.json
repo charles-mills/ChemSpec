@@ -17,5 +17,66 @@
     { "id": "artifacts", "fixture_directory": "conformance/artifacts", "description": "Validated artifacts, identities, serialization, digesting, and replay." },
     { "id": "end-to-end", "fixture_directory": "conformance/end-to-end", "description": "Complete result envelopes and reviewed experiment journeys." }
   ],
-  "cases": []
+  "cases": [
+    {
+      "id": "numeric-precision-001",
+      "component": "quantities-types",
+      "requirements": ["TYP-002", "TYP-003"],
+      "input": "conformance/quantities-types/numeric-precision-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/quantities-types/numeric-precision-001.domain.json"
+      }
+    },
+    {
+      "id": "unit-temperature-001",
+      "component": "quantities-types",
+      "requirements": ["TYP-004", "TYP-005", "TYP-006"],
+      "input": "conformance/quantities-types/unit-temperature-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/quantities-types/unit-temperature-001.domain.json"
+      }
+    },
+    {
+      "id": "quantity-conversion-001",
+      "component": "quantities-types",
+      "requirements": ["TYP-006"],
+      "input": "conformance/quantities-types/quantity-conversion-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/quantities-types/quantity-conversion-001.domain.json"
+      }
+    },
+    {
+      "id": "formula-normalization-001",
+      "component": "formula-species",
+      "requirements": ["TYP-008", "TYP-009"],
+      "input": "conformance/formula-species/formula-normalization-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/formula-species/formula-normalization-001.domain.json"
+      }
+    },
+    {
+      "id": "charge-phase-001",
+      "component": "formula-species",
+      "requirements": ["TYP-011"],
+      "input": "conformance/formula-species/charge-phase-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/formula-species/charge-phase-001.domain.json"
+      }
+    },
+    {
+      "id": "canonical-identity-001",
+      "component": "artifacts",
+      "requirements": ["ART-009"],
+      "input": "conformance/artifacts/canonical-identity-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/artifacts/canonical-identity-001.domain.json"
+      }
+    }
+  ]
 }

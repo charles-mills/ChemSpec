@@ -9,15 +9,16 @@ fn workspace_root() -> PathBuf {
 
 #[test]
 fn repository_contract_is_internally_valid() {
-    let summary = validate_repository(&workspace_root()).expect("Slice 0 contract should validate");
+    let summary =
+        validate_repository(&workspace_root()).expect("repository contract should validate");
     assert_eq!(summary.grammar_productions, 95);
     assert_eq!(summary.components, 14);
-    assert_eq!(summary.cases, 0);
+    assert_eq!(summary.cases, 6);
     assert!(!summary.is_complete());
 }
 
 #[test]
-fn empty_suite_reports_incomplete_coverage() {
+fn partial_suite_reports_incomplete_coverage() {
     let output = Command::new(env!("CARGO_BIN_EXE_chems-conformance"))
         .arg("report")
         .output()

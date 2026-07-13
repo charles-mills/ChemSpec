@@ -1,0 +1,9 @@
+{
+  "units": ["kg", "g", "mg", "m", "cm", "mm", "L", "mL", "uL", "mol", "mmol", "umol", "s", "min", "h", "K", "degC", "Pa", "kPa", "atm", "M", "mM", "%"],
+  "temperatures": [
+    { "source": "0.00", "scale": { "kind": "degreesCelsius" } },
+    { "source": "-10", "scale": { "kind": "degreesCelsius" } },
+    { "source": "273.15", "scale": { "kind": "kelvin" } },
+    { "source": "-273.15", "scale": { "kind": "degreesCelsius" } }
+  ]
+}

@@ -14,10 +14,13 @@ requirement coverage, and affected conformance cases.
 ## Current state
 
 The language specification and normative grammar are the only source contract.
-Slice 0 is complete: stable requirement IDs, manifest schemas, fixture
-directories, grammar and reserved-word validation, canonical JSON/SHA-256
-helpers, coverage reporting, and CI validation are implemented. No parser or
-legacy grammar is retained.
+Slices 0 and 1 are complete. The executable conformance scaffold has stable
+requirement IDs, schemas, fixture validation, grammar and reserved-word checks,
+and coverage reporting. `chem-domain` now implements exact decimals and
+rationals, written precision, dimensions, the closed unit registry, affine
+temperature points, exact conversion derivations, formula normalization,
+charge/phase values, typed IDs, and canonical JSON/SHA-256 primitives. No
+parser or legacy grammar is retained.
 
 ## Target crate boundaries
 
@@ -96,7 +99,9 @@ It has no alternative path around `chem-kernel`.
 1. Every slice starts by adding or selecting its conformance cases.
 2. Golden chemistry outputs are independently authored before implementation
    produces them.
-3. Every public serialized type carries its schema version.
+3. Every public interchange envelope carries its relevant schema version.
+   Nested domain values are governed by that envelope and do not repeat the
+   version on every scalar, identifier, or formula node.
 4. No chemistry value uses binary floating point.
 5. No invalid, unsupported, or incomplete result can construct an artifact.
 6. Normal tests are deterministic and require no provider, API, or network.
@@ -590,6 +595,8 @@ Do not make the code's current behavior normative after the fact.
 
 ## Immediate next action
 
-Begin Slice 1 against the completed `G0` boundary. Implement `chem-domain` and
-select the first exact-value, unit, formula, charge, phase, and canonical-
-serialization conformance cases before writing their behavior.
+Begin Slice 2 against the completed exact-domain boundary. Implement the
+lossless source frontend in `chems-lang`: version dispatch, encoding/layout
+validation, lexer, CST/source AST, recovery, source spans, initial diagnostics,
+and the canonical formatter. Drive it from grammar-production and
+parse/format/parse conformance fixtures.

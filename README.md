@@ -113,9 +113,12 @@ experiment SilverChloridePrecipitation where
 
 ## Language toolchain
 
-Slice 0 provides the executable specification and conformance scaffold. It
-validates requirement coverage, the normative grammar, reserved words, manifest
-structure, fixture paths, and canonical serialization helpers.
+Slices 0 and 1 provide the executable specification boundary and exact domain
+foundation. The workspace validates requirement coverage, the normative
+grammar, reserved words, manifest structure, and fixture paths; `chem-domain`
+supplies exact decimals/rationals, dimensions and units, affine temperatures,
+formula normalization, charge/phase values, typed identities, and canonical
+JSON/SHA-256 primitives.
 
 ```sh
 cargo run -p chems-conformance -- validate
@@ -128,10 +131,10 @@ compatibility path is retained.
 
 ## Current status
 
-ChemSpec is in active implementation. The language design and Slice 0
-conformance scaffold are complete. The exact domain foundation, parser,
-chemistry validation, agent integration, simulation, and application shell
-remain under development.
+ChemSpec is in active implementation. The language design, Slice 0 conformance
+scaffold, and Slice 1 exact domain foundation are complete. Slice 2 is the
+lossless `.chems` source frontend; chemistry validation, agent integration,
+simulation, and the application shell follow it.
 
 ## License
 

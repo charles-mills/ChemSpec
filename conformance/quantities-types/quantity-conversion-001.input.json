@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "gramsToKilograms",
+      "source_decimal": "1000",
+      "source_unit": { "dividend": { "factors": [{ "symbol": "g", "exponent": 1 }] }, "divisors": [] },
+      "target_unit": { "dividend": { "factors": [{ "symbol": "kg", "exponent": 1 }] }, "divisors": [] }
+    },
+    {
+      "name": "molesPerLitreToMolar",
+      "source_decimal": "2",
+      "source_unit": { "dividend": { "factors": [{ "symbol": "mol", "exponent": 1 }] }, "divisors": [{ "factors": [{ "symbol": "L", "exponent": 1 }] }] },
+      "target_unit": { "dividend": { "factors": [{ "symbol": "M", "exponent": 1 }] }, "divisors": [] }
+    },
+    {
+      "name": "atmospheresToKilopascals",
+      "source_decimal": "1",
+      "source_unit": { "dividend": { "factors": [{ "symbol": "atm", "exponent": 1 }] }, "divisors": [] },
+      "target_unit": { "dividend": { "factors": [{ "symbol": "kPa", "exponent": 1 }] }, "divisors": [] }
+    }
+  ]
+}

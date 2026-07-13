@@ -37,9 +37,9 @@ conformance/
 ```
 
 Each case names requirement IDs owned by its component, its expected primary
-result, structured diagnostic codes/severities/exact byte spans, and any source,
-catalogue, canonical formatted source, AST, HIR, derivation, or artifact fixtures
-it consumes.
+result, structured diagnostic codes/severities/exact byte spans, and any domain
+input/output, source, catalogue, canonical formatted source, AST, HIR,
+derivation, or artifact fixtures it consumes.
 
 Fixture names equal the lowercase-kebab case ID plus a three-digit sequence and
 lowercase extension, for example `tab-indentation-001.chems` and
@@ -58,3 +58,11 @@ cargo run -p chems-conformance -- report
 schemas, manifest, and referenced paths are internally coherent. `report`
 prints per-component coverage and exits with status 3 until all requirements
 have conformance cases. An empty suite therefore cannot silently appear green.
+
+Slice 1 checks in six executable domain cases covering exact decimal
+precision, every registered unit and affine temperature behavior, authored
+quantity conversions with exact derivations, grouped and adduct formula
+normalization, charge/phase values, and canonical serialization. The
+`chem-domain` integration suite evaluates these inputs and byte-compares its
+canonical output with the independently authored, canonical `.domain.json`
+files.

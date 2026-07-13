@@ -32,6 +32,7 @@
           "id": { "type": "string", "pattern": "^[a-z]+(?:-[a-z]+)*-[0-9]{3}$" },
           "component": { "type": "string" },
           "requirements": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "input": { "type": "string" },
           "source": { "type": "string" },
           "catalogue": { "type": "string" },
           "expected": {
@@ -70,6 +71,7 @@
                   }
                 }
               },
+              "domain": { "type": "string" },
               "formatted_source": { "type": "string" },
               "ast": { "type": "string" },
               "hir": { "type": "string" },
