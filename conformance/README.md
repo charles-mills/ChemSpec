@@ -66,3 +66,10 @@ normalization, charge/phase values, and canonical serialization. The
 `chem-domain` integration suite evaluates these inputs and byte-compares its
 canonical output with the independently authored, canonical `.domain.json`
 files.
+
+Slice 2 adds executable source cases for encoding/layout, all 95 normative
+grammar productions, lossless comment attachment, and canonical formatting.
+The parser test suite hashes the complete serialized CST and source AST against
+checked-in SHA-256 goldens, checks exact lexical diagnostic spans, exercises
+parse/format/parse and formatter idempotence, and smoke-fuzzes arbitrary bytes
+and UTF-8 for panic freedom.

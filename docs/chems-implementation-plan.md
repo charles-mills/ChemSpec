@@ -198,6 +198,8 @@ No `.chems` lexer/parser, catalogue facts, materials, or reactions.
 
 ## Slice 2 — lossless source frontend
 
+**Status:** complete.
+
 ### Depends on
 
 Slices 0 and 1.
@@ -595,8 +597,8 @@ Do not make the code's current behavior normative after the fact.
 
 ## Immediate next action
 
-Begin Slice 2 against the completed exact-domain boundary. Implement the
-lossless source frontend in `chems-lang`: version dispatch, encoding/layout
-validation, lexer, CST/source AST, recovery, source spans, initial diagnostics,
-and the canonical formatter. Drive it from grammar-production and
-parse/format/parse conformance fixtures.
+Begin Slice 3 against the completed source frontend and exact-domain boundary.
+Implement immutable catalogue bundle types, validation, canonical digesting,
+element/substance/species records, typed empirical facts, evidence records,
+condition domains, and coverage declarations without beginning experiment
+elaboration or proof semantics.

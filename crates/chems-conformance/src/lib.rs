@@ -81,6 +81,10 @@ pub struct ExpectedResult {
     #[serde(default)]
     pub formatted_source: Option<String>,
     #[serde(default)]
+    pub cst_sha256: Option<String>,
+    #[serde(default)]
+    pub ast_sha256: Option<String>,
+    #[serde(default)]
     pub ast: Option<String>,
     #[serde(default)]
     pub hir: Option<String>,
@@ -624,6 +628,8 @@ fn case_fixture_paths(case: &Case) -> Vec<&str> {
         .chain(case.catalogue.iter())
         .chain(case.expected.domain.iter())
         .chain(case.expected.formatted_source.iter())
+        .chain(case.expected.cst_sha256.iter())
+        .chain(case.expected.ast_sha256.iter())
         .chain(case.expected.ast.iter())
         .chain(case.expected.hir.iter())
         .chain(case.expected.derivation.iter())
@@ -1019,6 +1025,8 @@ mod tests {
                 diagnostics: Vec::new(),
                 domain: None,
                 formatted_source: None,
+                cst_sha256: None,
+                ast_sha256: None,
                 ast: None,
                 hir: None,
                 derivation: None,

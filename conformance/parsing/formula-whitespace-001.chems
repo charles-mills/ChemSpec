@@ -1,0 +1,13 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+experiment FormulaWhitespace where
+  conditions
+    temperature := 25 degC
+  given
+    sample := 1 mol of Ca (OH)2(s)
+  vessels
+    beaker := open vessel 100 mL
+  procedure
+    place sample in beaker
+  by
+    close

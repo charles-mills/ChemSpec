@@ -1,0 +1,13 @@
+chems 999999999999999999999999999999999999999999999999999999
+use catalog ChemSpec.Aqueous@1
+experiment UnsupportedMajor where
+  conditions
+    temperature := 25 degC
+  given
+    sample := 1 mol of H2O(l)
+  vessels
+    beaker := open vessel 100 mL
+  procedure
+    place sample in beaker
+  by
+    close

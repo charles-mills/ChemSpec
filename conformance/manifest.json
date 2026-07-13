@@ -77,6 +77,97 @@
         "state": "validated",
         "domain": "conformance/artifacts/canonical-identity-001.domain.json"
       }
+    },
+    {
+      "id": "nested-comments-001",
+      "component": "encoding-layout",
+      "requirements": [
+        "LEX-001", "LEX-002", "LEX-003", "LEX-004", "LEX-005",
+        "LEX-006", "LEX-007", "LEX-019"
+      ],
+      "source": "conformance/encoding-layout/nested-comments-001.chems",
+      "expected": {
+        "state": "validated"
+      }
+    },
+    {
+      "id": "all-productions-001",
+      "component": "parsing",
+      "requirements": [
+        "SRC-001", "SRC-002", "SRC-003", "SRC-005", "LEX-009", "LEX-010",
+        "LEX-011", "LEX-012", "LEX-013", "LEX-014", "LEX-015", "LEX-016",
+        "LEX-017", "LEX-018", "LEX-020", "ART-002", "ART-003", "ART-011"
+      ],
+      "source": "conformance/parsing/all-productions-001.chems",
+      "expected": {
+        "state": "validated",
+        "cst_sha256": "conformance/parsing/all-productions-001.cst.digest",
+        "ast_sha256": "conformance/parsing/all-productions-001.ast.digest"
+      }
+    },
+    {
+      "id": "canonical-comments-001",
+      "component": "formatting",
+      "requirements": ["CAT-016", "CAT-017"],
+      "source": "conformance/formatting/canonical-comments-001.input.chems",
+      "expected": {
+        "state": "validated",
+        "formatted_source": "conformance/formatting/canonical-comments-001.formatted.chems"
+      }
+    },
+    {
+      "id": "formula-whitespace-001",
+      "component": "parsing",
+      "requirements": ["LEX-016"],
+      "source": "conformance/parsing/formula-whitespace-001.chems",
+      "expected": {
+        "state": "malformed",
+        "diagnostics": [{
+          "code": "CHEMS-P005",
+          "severity": "Error",
+          "primary_span": {
+            "fixture": "conformance/parsing/formula-whitespace-001.chems",
+            "start": 147,
+            "end": 148
+          }
+        }]
+      }
+    },
+    {
+      "id": "joined-quantity-001",
+      "component": "parsing",
+      "requirements": ["LEX-017"],
+      "source": "conformance/parsing/joined-quantity-001.chems",
+      "expected": {
+        "state": "malformed",
+        "diagnostics": [{
+          "code": "CHEMS-P006",
+          "severity": "Error",
+          "primary_span": {
+            "fixture": "conformance/parsing/joined-quantity-001.chems",
+            "start": 105,
+            "end": 105
+          }
+        }]
+      }
+    },
+    {
+      "id": "unsupported-major-001",
+      "component": "parsing",
+      "requirements": ["SRC-003", "ART-011"],
+      "source": "conformance/parsing/unsupported-major-001.chems",
+      "expected": {
+        "state": "malformed",
+        "diagnostics": [{
+          "code": "CHEMS-P002",
+          "severity": "Error",
+          "primary_span": {
+            "fixture": "conformance/parsing/unsupported-major-001.chems",
+            "start": 6,
+            "end": 60
+          }
+        }]
+      }
     }
   ]
 }

@@ -1,0 +1,19 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+experiment Comments where
+  conditions
+    /- outer /- nested -/ comment -/
+    temperature := 25 degC -- trailing
+    pressure := 1 atm
+    medium := aqueous
+  given
+    -- leading material comment
+    water := 10 mL of H2O(l)
+  vessels
+    beaker := open vessel 100 mL
+  procedure
+    place water in beaker
+  expect
+    class := noReaction
+  by
+    close

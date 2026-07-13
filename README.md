@@ -52,8 +52,8 @@ use catalog ChemSpec.Aqueous@1
 experiment SilverChloridePrecipitation where
   conditions
     temperature := 25 degC
-    pressure    := 1 atm
-    medium      := aqueous
+    pressure := 1 atm
+    medium := aqueous
 
   given
     silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
@@ -71,9 +71,7 @@ experiment SilverChloridePrecipitation where
     class := precipitation
     produces AgCl(s)
 
-    molecular :=
-      AgNO3(aq) + NaCl(aq)
-        -> AgCl(s) + NaNO3(aq)
+    molecular := AgNO3(aq) + NaCl(aq) -> AgCl(s) + NaNO3(aq)
 
     completeIonic := ?
     netIonic := ?
@@ -113,28 +111,29 @@ experiment SilverChloridePrecipitation where
 
 ## Language toolchain
 
-Slices 0 and 1 provide the executable specification boundary and exact domain
-foundation. The workspace validates requirement coverage, the normative
-grammar, reserved words, manifest structure, and fixture paths; `chem-domain`
-supplies exact decimals/rationals, dimensions and units, affine temperatures,
-formula normalization, charge/phase values, typed identities, and canonical
-JSON/SHA-256 primitives.
+Slices 0–2 provide the executable specification boundary, exact domain
+foundation, and lossless source frontend. `chems-lang` implements `chems 1`
+dispatch, encoding/layout validation, nested comments, the complete normative
+grammar, lossless CST and source AST output, recovery diagnostics, comment
+attachment, and canonical formatting.
 
 ```sh
 cargo run -p chems-conformance -- validate
 cargo run -p chems-conformance -- report
+cargo run -p chems-lang -- parse experiment.chems
+cargo run -p chems-lang -- format --check experiment.chems
+cargo run -p chems-lang -- format --write experiment.chems
 ```
 
-The normative grammar is [`grammar/chems.ebnf`](grammar/chems.ebnf). The parser
-will be implemented in Slice 2 against this grammar; no legacy grammar or
-compatibility path is retained.
+The normative grammar is [`grammar/chems.ebnf`](grammar/chems.ebnf). There is no
+legacy grammar or compatibility path. Formatting refuses incomplete source;
+plain `chems format <path>` writes canonical source to standard output.
 
 ## Current status
 
-ChemSpec is in active implementation. The language design, Slice 0 conformance
-scaffold, and Slice 1 exact domain foundation are complete. Slice 2 is the
-lossless `.chems` source frontend; chemistry validation, agent integration,
-simulation, and the application shell follow it.
+ChemSpec is in active implementation. The language design and Slices 0–2 are
+complete. Slice 3 is the catalogue foundation; chemistry validation, agent
+integration, simulation, and the application shell follow it.
 
 ## License
 

@@ -28,8 +28,8 @@ use catalog ChemSpec.Aqueous@1
 experiment SilverChloridePrecipitation where
   conditions
     temperature := 25 degC
-    pressure    := 1 atm
-    medium      := aqueous
+    pressure := 1 atm
+    medium := aqueous
 
   given
     silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
@@ -47,9 +47,7 @@ experiment SilverChloridePrecipitation where
     class := precipitation
     produces AgCl(s)
 
-    molecular :=
-      AgNO3(aq) + NaCl(aq)
-        -> AgCl(s) + NaNO3(aq)
+    molecular := AgNO3(aq) + NaCl(aq) -> AgCl(s) + NaNO3(aq)
 
     completeIonic := ?
     netIonic := ?
@@ -117,23 +115,25 @@ Only the chemistry engine may construct the final layer.
 ## Normative contract and implementation status
 
 The only language grammar is [`grammar/chems.ebnf`](../grammar/chems.ebnf).
-There is no legacy grammar or migration surface. The compiler frontend will be
-built in Slice 2 after Slice 1 supplies exact shared domain types.
+There is no legacy grammar or migration surface. `chems-lang` implements the
+complete source frontend against that grammar.
 
-Slice 0 implements the executable specification boundary rather than a parser:
+The executable specification and source-tooling commands are:
 
 ```text
 cargo run -p chems-conformance -- validate
 cargo run -p chems-conformance -- report
+cargo run -p chems-lang -- parse experiment.chems
+cargo run -p chems-lang -- format --check experiment.chems
+cargo run -p chems-lang -- format --write experiment.chems
 ```
 
 `validate` checks the requirement registry, manifest, fixture paths, grammar
 reachability, reserved words, and schema documents. `report` additionally exits
 non-zero until all normative requirements are covered by conformance cases.
-
-The future `chems-lang` crate will own source syntax, diagnostics, and
-formatting. Catalogue resolution and the kernel will remain separate trusted
-boundaries as fixed by the specification.
+`chems-lang` owns lossless source syntax, `CHEMS-L`/`CHEMS-P` diagnostics,
+comment attachment, and formatting. Catalogue resolution and the kernel remain
+separate trusted boundaries as fixed by the specification.
 
 ## Derived values
 

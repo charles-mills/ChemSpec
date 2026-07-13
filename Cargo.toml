@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/chem-domain", "crates/chems-conformance"]
+members = ["crates/chem-domain", "crates/chems-conformance", "crates/chems-lang"]
 resolver = "3"
 
 [workspace.package]

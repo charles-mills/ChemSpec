@@ -73,6 +73,8 @@
               },
               "domain": { "type": "string" },
               "formatted_source": { "type": "string" },
+              "cst_sha256": { "type": "string" },
+              "ast_sha256": { "type": "string" },
               "ast": { "type": "string" },
               "hir": { "type": "string" },
               "derivation": { "type": "string" },
