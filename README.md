@@ -139,6 +139,21 @@ silver-chloride fixture.
 cargo run -p chemspec-app
 ```
 
+## Development
+
+With [`just`](https://github.com/casey/just) installed, run `just` to list the
+available project commands. The main workflows are:
+
+```sh
+just build
+just run
+just test
+just ci
+```
+
+Short aliases are also available for the common commands: `just b`, `just r`,
+and `just t`.
+
 ## Current status
 
 ChemSpec is in active implementation. The language design and Slices 0–2 are
