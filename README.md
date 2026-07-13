@@ -97,6 +97,7 @@ experiment SilverChloridePrecipitation where
 - [Safety policy](docs/safety.md)
 - [Verification strategy](docs/verification.md)
 - [Build Week delivery plan](docs/delivery-plan.md)
+- [Build Week implementation plan](docs/implementation-plan.md)
 
 ## Current status
 

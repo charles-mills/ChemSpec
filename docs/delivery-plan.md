@@ -15,6 +15,10 @@ Natural-language request
 
 Breadth is secondary to completing this trust loop.
 
+This document defines milestone strategy. Task IDs, dependencies, timeboxes,
+integration gates, and the dated team sequence live in the
+[implementation plan](implementation-plan.md).
+
 ## Team ownership
 
 ### Workstream 1 — Language and kernel
