@@ -1,0 +1,182 @@
+{
+  "base": "silver-chloride-001.catalogue.json",
+  "corruptions": [
+    {
+      "mutation": "runtime-research-in-trusted-bundle",
+      "expected_code": "CHEMS-C001",
+      "rebind_digest": false,
+      "operations": [{ "kind": "add", "path": "/bundle/research", "value": { "claims": [] } }]
+    },
+    {
+      "mutation": "malformed-density-quantity",
+      "expected_code": "CHEMS-C001",
+      "rebind_digest": false,
+      "operations": [
+        { "kind": "appendCopy", "path": "/bundle/facts", "from": "/bundle/facts/7" },
+        { "kind": "replace", "path": "/bundle/facts/8/id", "value": "density.water" },
+        { "kind": "replace", "path": "/bundle/facts/8/proposition", "value": { "kind": "hasDensity", "substance": "water", "density": { "value": 1 } } }
+      ]
+    },
+    {
+      "mutation": "unsupported-schema-version",
+      "expected_code": "CHEMS-C002",
+      "rebind_digest": false,
+      "operations": [{ "kind": "replace", "path": "/bundle/schema_version", "value": 2 }]
+    },
+    {
+      "mutation": "stale-digest-binding",
+      "expected_code": "CHEMS-C003",
+      "rebind_digest": false,
+      "operations": [{ "kind": "replace", "path": "/bundle/created/notes", "value": "semantically changed" }]
+    },
+    {
+      "mutation": "empty-catalogue-creator",
+      "expected_code": "CHEMS-C004",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/created/created_by", "value": "" }]
+    },
+    {
+      "mutation": "duplicate-element-id",
+      "expected_code": "CHEMS-C005",
+      "rebind_digest": true,
+      "operations": [{ "kind": "appendCopy", "path": "/bundle/elements", "from": "/bundle/elements/0" }]
+    },
+    {
+      "mutation": "duplicate-premise-id",
+      "expected_code": "CHEMS-C005",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/substances/0/provenance/id", "value": "identity.element.hydrogen" }]
+    },
+    {
+      "mutation": "duplicate-substance-alias",
+      "expected_code": "CHEMS-C006",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/substances/1/aliases", "value": ["water"] }]
+    },
+    {
+      "mutation": "unknown-medium-solvent",
+      "expected_code": "CHEMS-C007",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/media/0/solvent", "value": "unknown-substance" }]
+    },
+    {
+      "mutation": "unknown-dissociation-product",
+      "expected_code": "CHEMS-C007",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/facts/0/proposition/products/1/species", "value": "unknown-species" }]
+    },
+    {
+      "mutation": "duplicate-formula-element",
+      "expected_code": "CHEMS-C008",
+      "rebind_digest": true,
+      "operations": [{ "kind": "appendCopy", "path": "/bundle/substances/0/formula/elements", "from": "/bundle/substances/0/formula/elements/0" }]
+    },
+    {
+      "mutation": "species-formula-mismatch",
+      "expected_code": "CHEMS-C009",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/species/1/formula", "value": { "elements": [{ "symbol": "H", "count": "2" }, { "symbol": "O", "count": "1" }] } }]
+    },
+    {
+      "mutation": "gas-model-for-aqueous-species",
+      "expected_code": "CHEMS-C009",
+      "rebind_digest": true,
+      "operations": [
+        { "kind": "appendCopy", "path": "/bundle/facts", "from": "/bundle/facts/7" },
+        { "kind": "replace", "path": "/bundle/facts/8/id", "value": "gas-model.sodium-chloride" },
+        { "kind": "replace", "path": "/bundle/facts/8/proposition", "value": { "kind": "supportsGasModel", "species": "sodium-chloride.aq" } },
+        { "kind": "replace", "path": "/bundle/facts/8/condition/phases", "value": [{ "kind": "aqueous" }] }
+      ]
+    },
+    {
+      "mutation": "gas-pattern-without-gas-product",
+      "expected_code": "CHEMS-C009",
+      "rebind_digest": true,
+      "operations": [
+        { "kind": "appendCopy", "path": "/bundle/facts", "from": "/bundle/facts/7" },
+        { "kind": "replace", "path": "/bundle/facts/8/id", "value": "gas-pattern.no-gas" },
+        { "kind": "replace", "path": "/bundle/facts/8/proposition", "value": { "kind": "supportsGasPattern", "reactants": [{ "species": "sodium.aq.plus", "coefficient": "1" }], "products": [{ "species": "chloride.aq.minus", "coefficient": "1" }] } },
+        { "kind": "replace", "path": "/bundle/facts/8/condition/phases", "value": [{ "kind": "aqueous" }] }
+      ]
+    },
+    {
+      "mutation": "dissociation-with-solid-product",
+      "expected_code": "CHEMS-C009",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/facts/0/proposition/products/1/species", "value": "silver-chloride.s" }]
+    },
+    {
+      "mutation": "unsupported-phase-proposition",
+      "expected_code": "CHEMS-C009",
+      "rebind_digest": true,
+      "operations": [
+        { "kind": "appendCopy", "path": "/bundle/facts", "from": "/bundle/facts/7" },
+        { "kind": "replace", "path": "/bundle/facts/8/id", "value": "phase.water-gas" },
+        { "kind": "replace", "path": "/bundle/facts/8/proposition", "value": { "kind": "hasPhase", "substance": "water", "phase": { "kind": "gas" } } },
+        { "kind": "replace", "path": "/bundle/facts/8/condition/phases", "value": [{ "kind": "gas" }] }
+      ]
+    },
+    {
+      "mutation": "species-condition-excludes-own-phase",
+      "expected_code": "CHEMS-C010",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/species/1/condition/phases", "value": [{ "kind": "solid" }] }]
+    },
+    {
+      "mutation": "non-positive-atomic-mass",
+      "expected_code": "CHEMS-C011",
+      "rebind_digest": true,
+      "operations": [
+        { "kind": "appendCopy", "path": "/bundle/facts", "from": "/bundle/facts/7" },
+        { "kind": "replace", "path": "/bundle/facts/8/id", "value": "atomic-mass.hydrogen" },
+        { "kind": "replace", "path": "/bundle/facts/8/proposition", "value": { "kind": "hasAtomicMass", "element": 1, "relative_atomic_mass": { "lexeme": "-1.0", "coefficient": "-10", "scale": 1, "precision": { "decimal_places": 1, "written_digits": 2, "significant_digits": 2 } } } }
+      ]
+    },
+    {
+      "mutation": "reviewed-identity-without-evidence",
+      "expected_code": "CHEMS-C012",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/elements/0/provenance/evidence", "value": [] }]
+    },
+    {
+      "mutation": "reviewed-fact-without-reviewer",
+      "expected_code": "CHEMS-C013",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/facts/0/review/reviewers", "value": [] }]
+    },
+    {
+      "mutation": "contradictory-colour-facts",
+      "expected_code": "CHEMS-C014",
+      "rebind_digest": true,
+      "operations": [
+        { "kind": "appendCopy", "path": "/bundle/facts", "from": "/bundle/facts/7" },
+        { "kind": "replace", "path": "/bundle/facts/8/id", "value": "observation.silver-chloride-colour-conflict" },
+        { "kind": "replace", "path": "/bundle/facts/8/proposition/colour", "value": "black" }
+      ]
+    },
+    {
+      "mutation": "empty-coverage-domain",
+      "expected_code": "CHEMS-C015",
+      "rebind_digest": true,
+      "operations": [{ "kind": "append", "path": "/bundle/coverage", "value": { "id": "coverage.empty", "species": [], "condition": {}, "families": ["precipitation"], "exclusions": [], "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] } } }]
+    },
+    {
+      "mutation": "coverage-phase-excludes-species",
+      "expected_code": "CHEMS-C015",
+      "rebind_digest": true,
+      "operations": [{ "kind": "append", "path": "/bundle/coverage", "value": { "id": "coverage.phase-mismatch", "species": ["silver-chloride.s"], "condition": { "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" }, "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" }, "media": ["water"], "phases": [{ "kind": "aqueous" }] }, "families": ["precipitation"], "exclusions": [], "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] } } }]
+    },
+    {
+      "mutation": "unconserved-dissociation",
+      "expected_code": "CHEMS-C016",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/facts/0/proposition/products/0/coefficient", "value": "2" }]
+    },
+    {
+      "mutation": "provisional-production-fact",
+      "expected_code": "CHEMS-C017",
+      "rebind_digest": true,
+      "operations": [{ "kind": "replace", "path": "/bundle/facts/0/review/status", "value": "provisional" }]
+    }
+  ]
+}

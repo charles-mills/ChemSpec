@@ -1,0 +1,484 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chemspec.dev/schema/chem-catalogue-1.json",
+  "title": "ChemSpec catalogue envelope schema 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["digest", "bundle"],
+  "properties": {
+    "digest": { "$ref": "#/$defs/digest" },
+    "bundle": { "$ref": "#/$defs/bundle" }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "nonempty": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exactScalar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)$" },
+        "denominator": { "type": "string", "pattern": "^[1-9][0-9]*$" }
+      }
+    },
+    "sourceDecimal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lexeme", "coefficient", "scale", "precision"],
+      "properties": {
+        "lexeme": { "type": "string", "pattern": "^[+-]?[0-9]+(?:\\.[0-9]+)?$" },
+        "coefficient": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)$" },
+        "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "precision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["decimal_places", "written_digits"],
+          "properties": {
+            "decimal_places": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+            "written_digits": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+            "significant_digits": { "type": "integer", "minimum": 1, "maximum": 4294967295 }
+          }
+        }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["aqueous", "solid", "liquid", "gas"] }
+      }
+    },
+    "formula": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elements"],
+      "properties": {
+        "elements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["symbol", "count"],
+            "properties": {
+              "symbol": { "type": "string", "pattern": "^[A-Z][a-z]?$" },
+              "count": { "type": "string", "pattern": "^[1-9][0-9]*$" }
+            }
+          }
+        }
+      }
+    },
+    "exactRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum", "maximum", "minimum_bound", "maximum_bound"],
+      "properties": {
+        "minimum": { "$ref": "#/$defs/exactScalar" },
+        "maximum": { "$ref": "#/$defs/exactScalar" },
+        "minimum_bound": { "enum": ["inclusive", "exclusive"] },
+        "maximum_bound": { "enum": ["inclusive", "exclusive"] }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "temperature_kelvin": { "$ref": "#/$defs/exactRange" },
+        "pressure_pascal": { "$ref": "#/$defs/exactRange" },
+        "media": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "phases": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/phase" }
+        }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer", "reviewed_on"],
+      "properties": {
+        "reviewer": { "$ref": "#/$defs/nonempty" },
+        "reviewed_on": { "$ref": "#/$defs/date" },
+        "reference": { "$ref": "#/$defs/nonempty" },
+        "notes": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reviewers"],
+      "properties": {
+        "status": { "enum": ["reviewed", "provisional", "rejected"] },
+        "reviewers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reviewer" }
+        }
+      }
+    },
+    "recordProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "evidence", "review", "rule_version"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "evidence": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "review": { "$ref": "#/$defs/review" },
+        "rule_version": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "coefficient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["species", "coefficient"],
+      "properties": {
+        "species": { "$ref": "#/$defs/id" },
+        "coefficient": { "type": "string", "pattern": "^[1-9][0-9]*$" }
+      }
+    },
+    "quantity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_value", "dimension", "source_decimal", "source_unit", "conversion_derivation"],
+      "properties": {
+        "canonical_value": { "$ref": "#/$defs/exactScalar" },
+        "dimension": { "$ref": "#/$defs/dimension" },
+        "source_decimal": { "$ref": "#/$defs/sourceDecimal" },
+        "source_unit": { "$ref": "#/$defs/unitExpression" },
+        "conversion_derivation": { "$ref": "#/$defs/unitConversionDerivation" }
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mass", "length", "time", "amount", "temperature"],
+      "properties": {
+        "mass": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+        "length": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+        "time": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+        "amount": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+        "temperature": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }
+      }
+    },
+    "unitSymbol": {
+      "enum": ["kg", "g", "mg", "m", "cm", "mm", "L", "mL", "uL", "mol", "mmol", "umol", "s", "min", "h", "K", "degC", "Pa", "kPa", "atm", "M", "mM", "%"]
+    },
+    "unitPower": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbol", "exponent"],
+      "properties": {
+        "symbol": { "$ref": "#/$defs/unitSymbol" },
+        "exponent": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+        "authored_exponent": { "type": "string", "pattern": "^[+-]?[0-9]+$" }
+      }
+    },
+    "unitProduct": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factors"],
+      "properties": {
+        "factors": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/unitPower" } }
+      }
+    },
+    "unitExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dividend", "divisors"],
+      "properties": {
+        "dividend": { "$ref": "#/$defs/unitProduct" },
+        "divisors": { "type": "array", "items": { "$ref": "#/$defs/unitProduct" } }
+      }
+    },
+    "unitConversionStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbol", "exponent", "unit_dimension", "unit_factor", "expanded_dimension", "expanded_factor"],
+      "properties": {
+        "symbol": { "$ref": "#/$defs/unitSymbol" },
+        "exponent": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+        "unit_dimension": { "$ref": "#/$defs/dimension" },
+        "unit_factor": { "$ref": "#/$defs/exactScalar" },
+        "expanded_dimension": { "$ref": "#/$defs/dimension" },
+        "expanded_factor": { "$ref": "#/$defs/exactScalar" }
+      }
+    },
+    "unitConversionDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "result_dimension", "result_factor"],
+      "properties": {
+        "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/unitConversionStep" } },
+        "result_dimension": { "$ref": "#/$defs/dimension" },
+        "result_factor": { "$ref": "#/$defs/exactScalar" }
+      }
+    },
+    "factProposition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "element", "relative_atomic_mass"],
+          "properties": {
+            "kind": { "const": "hasAtomicMass" },
+            "element": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "relative_atomic_mass": { "$ref": "#/$defs/sourceDecimal" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "analytical_species", "products"],
+          "properties": {
+            "kind": { "const": "dissociates" },
+            "analytical_species": { "$ref": "#/$defs/id" },
+            "products": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/coefficient" } }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "species"],
+          "properties": {
+            "kind": { "enum": ["soluble", "insoluble", "supportsGasModel"] },
+            "species": { "$ref": "#/$defs/id" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "species", "colour"],
+          "properties": {
+            "kind": { "const": "hasColour" },
+            "species": { "$ref": "#/$defs/id" },
+            "colour": { "$ref": "#/$defs/nonempty" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "substance", "density"],
+          "properties": {
+            "kind": { "const": "hasDensity" },
+            "substance": { "$ref": "#/$defs/id" },
+            "density": { "$ref": "#/$defs/quantity" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "substance", "phase"],
+          "properties": {
+            "kind": { "const": "hasPhase" },
+            "substance": { "$ref": "#/$defs/id" },
+            "phase": { "$ref": "#/$defs/phase" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "reactants", "products"],
+          "properties": {
+            "kind": { "const": "supportsGasPattern" },
+            "reactants": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/coefficient" } },
+            "products": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/coefficient" } }
+          }
+        }
+      ]
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "name", "version", "publication", "created",
+        "elements", "substances", "species", "media", "facts",
+        "assumption_kinds", "coverage", "evidence"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$" },
+        "version": { "type": "string", "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$" },
+        "publication": { "enum": ["working", "production"] },
+        "created": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["created_on", "created_by"],
+          "properties": {
+            "created_on": { "$ref": "#/$defs/date" },
+            "created_by": { "$ref": "#/$defs/nonempty" },
+            "notes": { "$ref": "#/$defs/nonempty" }
+          }
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "symbol", "name", "aliases", "provenance"],
+            "properties": {
+              "id": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "symbol": { "type": "string", "pattern": "^[A-Z][a-z]?$" },
+              "name": { "$ref": "#/$defs/nonempty" },
+              "aliases": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } },
+              "provenance": { "$ref": "#/$defs/recordProvenance" }
+            }
+          }
+        },
+        "substances": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "formula", "aliases", "provenance"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "name": { "$ref": "#/$defs/nonempty" },
+              "formula": { "$ref": "#/$defs/formula" },
+              "aliases": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } },
+              "provenance": { "$ref": "#/$defs/recordProvenance" }
+            }
+          }
+        },
+        "species": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "substance", "formula", "charge", "phase", "condition", "provenance"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "substance": { "$ref": "#/$defs/id" },
+              "formula": { "$ref": "#/$defs/formula" },
+              "charge": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)$" },
+              "phase": { "$ref": "#/$defs/phase" },
+              "condition": { "$ref": "#/$defs/condition" },
+              "provenance": { "$ref": "#/$defs/recordProvenance" }
+            }
+          }
+        },
+        "media": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "solvent", "supported_phases", "aliases", "provenance"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "name": { "$ref": "#/$defs/nonempty" },
+              "solvent": { "$ref": "#/$defs/id" },
+              "supported_phases": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/phase" } },
+              "aliases": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } },
+              "provenance": { "$ref": "#/$defs/recordProvenance" }
+            }
+          }
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "proposition", "condition", "evidence", "review", "rule_version"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "proposition": { "$ref": "#/$defs/factProposition" },
+              "condition": { "$ref": "#/$defs/condition" },
+              "evidence": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+              "review": { "$ref": "#/$defs/review" },
+              "rule_version": { "$ref": "#/$defs/nonempty" }
+            }
+          }
+        },
+        "assumption_kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "version", "proposition", "required_target", "stage_scope", "condition", "permitted_goals", "explanation", "safety", "evidence", "review"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "version": { "$ref": "#/$defs/nonempty" },
+              "proposition": { "enum": ["idealGasBehaviour", "negligibleVolumeChange", "idealFiltration", "idealDecanting"] },
+              "required_target": { "enum": ["environment", "material", "species", "vessel", "stage"] },
+              "stage_scope": { "enum": ["initial", "singleStage", "remainingProcedure"] },
+              "condition": { "$ref": "#/$defs/condition" },
+              "permitted_goals": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["gasState", "volumeComposition", "phasePartition"] } },
+              "explanation": { "$ref": "#/$defs/nonempty" },
+              "safety": { "enum": ["educationalModel", "physicalApproximation"] },
+              "evidence": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+              "review": { "$ref": "#/$defs/review" }
+            }
+          }
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "species", "condition", "families", "exclusions", "evidence", "review"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "species": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+              "condition": { "$ref": "#/$defs/condition" },
+              "families": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["precipitation", "strongAcidBase", "curatedGasFormation"] } },
+              "exclusions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["species", "families", "reason"],
+                  "properties": {
+                    "species": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+                    "families": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["precipitation", "strongAcidBase", "curatedGasFormation"] } },
+                    "reason": { "$ref": "#/$defs/nonempty" }
+                  }
+                }
+              },
+              "evidence": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+              "review": { "$ref": "#/$defs/review" }
+            }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "title", "publisher", "locator", "reference", "retrieved_on", "usage"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "title": { "$ref": "#/$defs/nonempty" },
+              "publisher": { "$ref": "#/$defs/nonempty" },
+              "locator": { "$ref": "#/$defs/nonempty" },
+              "reference": { "$ref": "#/$defs/nonempty" },
+              "publication_date": { "$ref": "#/$defs/date" },
+              "retrieved_on": { "$ref": "#/$defs/date" },
+              "usage": { "$ref": "#/$defs/nonempty" },
+              "review_notes": { "$ref": "#/$defs/nonempty" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

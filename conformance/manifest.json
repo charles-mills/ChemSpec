@@ -168,6 +168,29 @@
           }
         }]
       }
+    },
+    {
+      "id": "silver-chloride-001",
+      "component": "catalogue",
+      "requirements": [
+        "SRC-004", "CAT-001", "CAT-002", "CAT-003", "CAT-004", "CAT-005",
+        "CAT-006", "CAT-007", "CAT-008"
+      ],
+      "catalogue": "conformance/catalogue/silver-chloride-001.catalogue.json",
+      "expected": {
+        "state": "validated",
+        "catalogue_sha256": "conformance/catalogue/silver-chloride-001.catalogue.digest",
+        "catalogue_review": "conformance/catalogue/silver-chloride-001.review.json"
+      }
+    },
+    {
+      "id": "catalogue-corruptions-001",
+      "component": "catalogue",
+      "requirements": ["CAT-009", "CAT-011"],
+      "input": "conformance/catalogue/catalogue-corruptions-001.input.json",
+      "expected": {
+        "state": "system-error"
+      }
     }
   ]
 }

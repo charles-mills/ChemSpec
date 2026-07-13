@@ -1,0 +1,388 @@
+{
+  "digest": "eb3a482dc98bb68653dd7748675da6e5adca7264ed0165a05cc930b9c1c6d595",
+  "bundle": {
+    "schema_version": 1,
+    "name": "ChemSpec.Aqueous",
+    "version": "1.0.0",
+    "publication": "production",
+    "created": {
+      "created_on": "2026-07-13",
+      "created_by": "ChemSpec build-week chemistry workstream",
+      "notes": "Minimal reviewed teaching domain for aqueous sodium chloride and silver nitrate precipitation."
+    },
+    "elements": [
+      { "id": 1, "symbol": "H", "name": "hydrogen", "aliases": [], "provenance": { "id": "identity.element.hydrogen", "evidence": ["iupac.periodic-table"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "element-identity-1" } },
+      { "id": 7, "symbol": "N", "name": "nitrogen", "aliases": [], "provenance": { "id": "identity.element.nitrogen", "evidence": ["iupac.periodic-table"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "element-identity-1" } },
+      { "id": 8, "symbol": "O", "name": "oxygen", "aliases": [], "provenance": { "id": "identity.element.oxygen", "evidence": ["iupac.periodic-table"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "element-identity-1" } },
+      { "id": 11, "symbol": "Na", "name": "sodium", "aliases": [], "provenance": { "id": "identity.element.sodium", "evidence": ["iupac.periodic-table"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "element-identity-1" } },
+      { "id": 17, "symbol": "Cl", "name": "chlorine", "aliases": ["chloride element"], "provenance": { "id": "identity.element.chlorine", "evidence": ["iupac.periodic-table"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "element-identity-1" } },
+      { "id": 47, "symbol": "Ag", "name": "silver", "aliases": [], "provenance": { "id": "identity.element.silver", "evidence": ["iupac.periodic-table"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "element-identity-1" } }
+    ],
+    "substances": [
+      {
+        "id": "water",
+        "name": "water",
+        "formula": { "elements": [{ "symbol": "H", "count": "2" }, { "symbol": "O", "count": "1" }] },
+        "aliases": ["H2O"],
+        "provenance": { "id": "identity.substance.water", "evidence": ["openstax.solubility"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "sodium-chloride",
+        "name": "sodium chloride",
+        "formula": { "elements": [{ "symbol": "Na", "count": "1" }, { "symbol": "Cl", "count": "1" }] },
+        "aliases": ["NaCl"],
+        "provenance": { "id": "identity.substance.sodium-chloride", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "silver-nitrate",
+        "name": "silver nitrate",
+        "formula": { "elements": [{ "symbol": "N", "count": "1" }, { "symbol": "O", "count": "3" }, { "symbol": "Ag", "count": "1" }] },
+        "aliases": ["AgNO3"],
+        "provenance": { "id": "identity.substance.silver-nitrate", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "sodium-nitrate",
+        "name": "sodium nitrate",
+        "formula": { "elements": [{ "symbol": "N", "count": "1" }, { "symbol": "O", "count": "3" }, { "symbol": "Na", "count": "1" }] },
+        "aliases": ["NaNO3"],
+        "provenance": { "id": "identity.substance.sodium-nitrate", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "silver-chloride",
+        "name": "silver chloride",
+        "formula": { "elements": [{ "symbol": "Cl", "count": "1" }, { "symbol": "Ag", "count": "1" }] },
+        "aliases": ["AgCl"],
+        "provenance": { "id": "identity.substance.silver-chloride", "evidence": ["openstax.reaction-classification", "pubchem.silver-chloride"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "sodium-ion",
+        "name": "sodium ion",
+        "formula": { "elements": [{ "symbol": "Na", "count": "1" }] },
+        "aliases": ["Na+"],
+        "provenance": { "id": "identity.substance.sodium-ion", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "chloride-ion",
+        "name": "chloride ion",
+        "formula": { "elements": [{ "symbol": "Cl", "count": "1" }] },
+        "aliases": ["Cl-"],
+        "provenance": { "id": "identity.substance.chloride-ion", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "silver-ion",
+        "name": "silver(I) ion",
+        "formula": { "elements": [{ "symbol": "Ag", "count": "1" }] },
+        "aliases": ["Ag+"],
+        "provenance": { "id": "identity.substance.silver-ion", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      },
+      {
+        "id": "nitrate-ion",
+        "name": "nitrate ion",
+        "formula": { "elements": [{ "symbol": "N", "count": "1" }, { "symbol": "O", "count": "3" }] },
+        "aliases": ["NO3-"],
+        "provenance": { "id": "identity.substance.nitrate-ion", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "substance-identity-1" }
+      }
+    ],
+    "species": [
+      {
+        "id": "water.l",
+        "substance": "water",
+        "formula": { "elements": [{ "symbol": "H", "count": "2" }, { "symbol": "O", "count": "1" }] },
+        "charge": "0",
+        "phase": { "kind": "liquid" },
+        "condition": {},
+        "provenance": { "id": "identity.species.water-liquid", "evidence": ["openstax.solubility"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "sodium-chloride.aq",
+        "substance": "sodium-chloride",
+        "formula": { "elements": [{ "symbol": "Na", "count": "1" }, { "symbol": "Cl", "count": "1" }] },
+        "charge": "0",
+        "phase": { "kind": "aqueous" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "provenance": { "id": "identity.species.sodium-chloride-aqueous", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "silver-nitrate.aq",
+        "substance": "silver-nitrate",
+        "formula": { "elements": [{ "symbol": "N", "count": "1" }, { "symbol": "O", "count": "3" }, { "symbol": "Ag", "count": "1" }] },
+        "charge": "0",
+        "phase": { "kind": "aqueous" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "provenance": { "id": "identity.species.silver-nitrate-aqueous", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "sodium-nitrate.aq",
+        "substance": "sodium-nitrate",
+        "formula": { "elements": [{ "symbol": "N", "count": "1" }, { "symbol": "O", "count": "3" }, { "symbol": "Na", "count": "1" }] },
+        "charge": "0",
+        "phase": { "kind": "aqueous" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "provenance": { "id": "identity.species.sodium-nitrate-aqueous", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "silver-chloride.s",
+        "substance": "silver-chloride",
+        "formula": { "elements": [{ "symbol": "Cl", "count": "1" }, { "symbol": "Ag", "count": "1" }] },
+        "charge": "0",
+        "phase": { "kind": "solid" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "solid" }]
+        },
+        "provenance": { "id": "identity.species.silver-chloride-solid", "evidence": ["openstax.reaction-classification", "pubchem.silver-chloride"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "sodium.aq.plus",
+        "substance": "sodium-ion",
+        "formula": { "elements": [{ "symbol": "Na", "count": "1" }] },
+        "charge": "1",
+        "phase": { "kind": "aqueous" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "provenance": { "id": "identity.species.sodium-aqueous", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "chloride.aq.minus",
+        "substance": "chloride-ion",
+        "formula": { "elements": [{ "symbol": "Cl", "count": "1" }] },
+        "charge": "-1",
+        "phase": { "kind": "aqueous" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "provenance": { "id": "identity.species.chloride-aqueous", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "silver.aq.plus",
+        "substance": "silver-ion",
+        "formula": { "elements": [{ "symbol": "Ag", "count": "1" }] },
+        "charge": "1",
+        "phase": { "kind": "aqueous" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "provenance": { "id": "identity.species.silver-aqueous", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      },
+      {
+        "id": "nitrate.aq.minus",
+        "substance": "nitrate-ion",
+        "formula": { "elements": [{ "symbol": "N", "count": "1" }, { "symbol": "O", "count": "3" }] },
+        "charge": "-1",
+        "phase": { "kind": "aqueous" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "provenance": { "id": "identity.species.nitrate-aqueous", "evidence": ["openstax.reaction-classification"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "species-identity-1" }
+      }
+    ],
+    "media": [
+      {
+        "id": "water",
+        "name": "water",
+        "solvent": "water",
+        "supported_phases": [{ "kind": "aqueous" }, { "kind": "solid" }, { "kind": "liquid" }],
+        "aliases": ["aqueous", "H2O"],
+        "provenance": { "id": "identity.medium.water", "evidence": ["openstax.solubility"], "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] }, "rule_version": "medium-identity-1" }
+      }
+    ],
+    "facts": [
+      {
+        "id": "dissociation.sodium-chloride",
+        "proposition": {
+          "kind": "dissociates",
+          "analytical_species": "sodium-chloride.aq",
+          "products": [{ "species": "sodium.aq.plus", "coefficient": "1" }, { "species": "chloride.aq.minus", "coefficient": "1" }]
+        },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "evidence": ["openstax.solubility"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001", "notes": "Equation and species were cross-checked against the cited source." }] },
+        "rule_version": "dissociation-1"
+      },
+      {
+        "id": "dissociation.silver-nitrate",
+        "proposition": {
+          "kind": "dissociates",
+          "analytical_species": "silver-nitrate.aq",
+          "products": [{ "species": "silver.aq.plus", "coefficient": "1" }, { "species": "nitrate.aq.minus", "coefficient": "1" }]
+        },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "evidence": ["openstax.reaction-classification"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001", "notes": "Equation and charge conservation were independently checked." }] },
+        "rule_version": "dissociation-1"
+      },
+      {
+        "id": "dissociation.sodium-nitrate",
+        "proposition": {
+          "kind": "dissociates",
+          "analytical_species": "sodium-nitrate.aq",
+          "products": [{ "species": "sodium.aq.plus", "coefficient": "1" }, { "species": "nitrate.aq.minus", "coefficient": "1" }]
+        },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "evidence": ["openstax.reaction-classification"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] },
+        "rule_version": "dissociation-1"
+      },
+      {
+        "id": "solubility.sodium-chloride",
+        "proposition": { "kind": "soluble", "species": "sodium-chloride.aq" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "evidence": ["openstax.solubility"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] },
+        "rule_version": "solubility-1"
+      },
+      {
+        "id": "solubility.silver-nitrate",
+        "proposition": { "kind": "soluble", "species": "silver-nitrate.aq" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "evidence": ["openstax.reaction-classification"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] },
+        "rule_version": "solubility-1"
+      },
+      {
+        "id": "solubility.sodium-nitrate",
+        "proposition": { "kind": "soluble", "species": "sodium-nitrate.aq" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "aqueous" }]
+        },
+        "evidence": ["openstax.reaction-classification"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] },
+        "rule_version": "solubility-1"
+      },
+      {
+        "id": "solubility.silver-chloride",
+        "proposition": { "kind": "insoluble", "species": "silver-chloride.s" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "solid" }]
+        },
+        "evidence": ["openstax.reaction-classification", "openstax.precipitation", "pubchem.silver-chloride"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001", "notes": "The teaching classification is bounded to the reviewed room-condition domain." }] },
+        "rule_version": "solubility-1"
+      },
+      {
+        "id": "observation.silver-chloride-colour",
+        "proposition": { "kind": "hasColour", "species": "silver-chloride.s", "colour": "white" },
+        "condition": {
+          "temperature_kelvin": { "minimum": { "numerator": "5963", "denominator": "20" }, "maximum": { "numerator": "5963", "denominator": "20" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "pressure_pascal": { "minimum": { "numerator": "101325", "denominator": "1" }, "maximum": { "numerator": "101325", "denominator": "1" }, "minimum_bound": "inclusive", "maximum_bound": "inclusive" },
+          "media": ["water"],
+          "phases": [{ "kind": "solid" }]
+        },
+        "evidence": ["pubchem.silver-chloride"],
+        "review": { "status": "reviewed", "reviewers": [{ "reviewer": "ChemSpec independent catalogue review CR-001", "reviewed_on": "2026-07-13", "reference": "review.catalogue.silver-chloride.cr-001" }] },
+        "rule_version": "observation-1"
+      }
+    ],
+    "assumption_kinds": [],
+    "coverage": [],
+    "evidence": [
+      {
+        "id": "iupac.periodic-table",
+        "title": "Periodic Table of Elements",
+        "publisher": "International Union of Pure and Applied Chemistry",
+        "locator": "Element names, symbols, and atomic numbers",
+        "reference": "https://iupac.org/what-we-do/periodic-table-of-elements/",
+        "retrieved_on": "2026-07-13",
+        "usage": "Link and concise typed identity records only; no copied table content."
+      },
+      {
+        "id": "openstax.reaction-classification",
+        "title": "Chemistry 2e: 4.2 Classifying Chemical Reactions",
+        "publisher": "OpenStax, Rice University",
+        "locator": "Section 4.2: AgNO3 + NaCl produces AgCl + NaNO3; nitrate and group 1 salts are soluble; net ionic equation Ag+ + Cl- produces AgCl",
+        "reference": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+        "retrieved_on": "2026-07-13",
+        "usage": "Link and concise typed propositions only; no copied textbook content."
+      },
+      {
+        "id": "openstax.solubility",
+        "title": "Chemistry: 11.3 Solubility",
+        "publisher": "OpenStax, Rice University",
+        "locator": "Section 11.3, dissolution of sodium chloride in water",
+        "reference": "https://openstax.org/books/chemistry/pages/11-3-solubility",
+        "retrieved_on": "2026-07-13",
+        "usage": "Link and concise typed propositions only; no copied textbook content."
+      },
+      {
+        "id": "openstax.precipitation",
+        "title": "Chemistry: 15.1 Precipitation and Dissolution",
+        "publisher": "OpenStax, Rice University",
+        "locator": "Section 15.1, silver chloride solubility equilibrium",
+        "reference": "https://openstax.org/books/chemistry/pages/15-1-precipitation-and-dissolution",
+        "retrieved_on": "2026-07-13",
+        "usage": "Link and concise typed propositions only; no copied textbook content."
+      },
+      {
+        "id": "pubchem.silver-chloride",
+        "title": "Silver Chloride, PubChem CID 24561",
+        "publisher": "National Center for Biotechnology Information",
+        "locator": "Physical Description and Solubility sections",
+        "reference": "https://pubchem.ncbi.nlm.nih.gov/compound/silver-chloride",
+        "retrieved_on": "2026-07-13",
+        "usage": "Link and concise typed propositions only; no copied database content.",
+        "review_notes": "Used to cross-check solid colour and low water solubility."
+      }
+    ]
+  }
+}

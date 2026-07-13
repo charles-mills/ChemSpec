@@ -14,13 +14,14 @@ requirement coverage, and affected conformance cases.
 ## Current state
 
 The language specification and normative grammar are the only source contract.
-Slices 0 and 1 are complete. The executable conformance scaffold has stable
+Slices 0–3 are complete. The executable conformance scaffold has stable
 requirement IDs, schemas, fixture validation, grammar and reserved-word checks,
-and coverage reporting. `chem-domain` now implements exact decimals and
-rationals, written precision, dimensions, the closed unit registry, affine
-temperature points, exact conversion derivations, formula normalization,
-charge/phase values, typed IDs, and canonical JSON/SHA-256 primitives. No
-parser or legacy grammar is retained.
+and coverage reporting. `chem-domain` implements exact values and stable
+chemistry identities; `chems-lang` implements the complete lossless source
+frontend and formatter; `chem-catalogue` implements versioned digest-bearing
+bundles, canonical record ordering, validation, deterministic indexes, and the
+reviewed silver-chloride fixture. No legacy grammar or compatibility parser is
+retained.
 
 ## Target crate boundaries
 
@@ -239,6 +240,8 @@ No name resolution, units, catalogue lookup, or proof semantics.
 
 ## Slice 3 — catalogue foundation
 
+**Status:** complete.
+
 ### Depends on
 
 Slices 0 and 1.
@@ -248,7 +251,8 @@ Slices 0 and 1.
 - `chem-catalogue` crate and versioned bundle schema.
 - Canonical catalogue JSON and SHA-256 digest binding.
 - element, substance/species, medium, fact, evidence, assumption, and coverage
-  record variants.
+  record variants, with stable evidence-bearing premise identity for both
+  identity records and empirical facts.
 - internal-consistency validator and lookup indexes.
 - independently reviewed minimal silver-chloride catalogue fixture.
 
@@ -259,7 +263,7 @@ Slices 0 and 1.
 - condition-domain boundaries;
 - evidence required for reviewed facts;
 - invalid coverage declarations;
-- digest changes for every semantic mutation;
+- digest binding across every semantic record category;
 - provisional facts excluded from production bundles.
 
 ### Acceptance
@@ -597,8 +601,10 @@ Do not make the code's current behavior normative after the fact.
 
 ## Immediate next action
 
-Begin Slice 3 against the completed source frontend and exact-domain boundary.
-Implement immutable catalogue bundle types, validation, canonical digesting,
-element/substance/species records, typed empirical facts, evidence records,
-condition domains, and coverage declarations without beginning experiment
-elaboration or proof semantics.
+Begin Slice 4 against the completed source frontend, exact-domain boundary, and
+validated catalogue. Implement namespaces and stable typed IDs, environment and
+catalogue-selection elaboration, exact quantity/unit typing, formula/species/
+substance/medium resolution, all material constructors, explicit assumption
+resolution, complete `TypedExperiment` HIR, source origins, and
+`CHEMS-T`/`CHEMS-C` diagnostics without beginning procedure execution, claims,
+goals, reactions, or artifact construction.

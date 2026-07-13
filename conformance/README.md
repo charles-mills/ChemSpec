@@ -73,3 +73,16 @@ The parser test suite hashes the complete serialized CST and source AST against
 checked-in SHA-256 goldens, checks exact lexical diagnostic spans, exercises
 parse/format/parse and formatter idempotence, and smoke-fuzzes arbitrary bytes
 and UTF-8 for panic freedom.
+
+Slice 3 adds the versioned catalogue-envelope schema, one digest-bound reviewed
+silver-chloride teaching bundle, its structured external review attestation,
+and executable corruption recipes. The attestation names the exact catalogue
+digest, and every fixture reviewer resolves to its stable review ID. Identity
+records and empirical facts both carry stable premise IDs,
+evidence, review metadata, and rule versions. The `chem-catalogue` integration
+suite checks exact schema and digest binding, strict quantity wire shape,
+order-independent canonical serialization, deterministic lookup and provenance,
+explicit condition and proposition-phase boundaries, evidence/review
+eligibility, formula/species consistency, conflicting facts, coverage validity,
+and all 17 catalogue-system-error codes. The catalogue component covers all
+eleven of its normative requirement IDs.

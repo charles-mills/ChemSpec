@@ -233,6 +233,18 @@ impl<K: IdKind> PartialEq for DeclaredId<K> {
 
 impl<K: IdKind> Eq for DeclaredId<K> {}
 
+impl<K: IdKind> PartialOrd for DeclaredId<K> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<K: IdKind> Ord for DeclaredId<K> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.value.cmp(&other.value)
+    }
+}
+
 impl<K: IdKind> std::hash::Hash for DeclaredId<K> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.value.hash(state);
@@ -267,6 +279,14 @@ impl<'de, K: IdKind> Deserialize<'de> for DeclaredId<K> {
     {
         let value = String::deserialize(deserializer)?;
         Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
+
+impl<K: IdKind> FromStr for DeclaredId<K> {
+    type Err = IdError;
+
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        Self::new(source)
     }
 }
 
@@ -328,3 +348,8 @@ digest_id_kind!(ReactionEventKind, ReactionEventId, "ReactionEventId");
 digest_id_kind!(DerivationNodeKind, DerivationNodeId, "DerivationNodeId");
 declared_id_kind!(FactKind, FactId, "FactId");
 declared_id_kind!(SubstanceKind, SubstanceId, "SubstanceId");
+declared_id_kind!(SpeciesKind, SpeciesId, "SpeciesId");
+declared_id_kind!(MediumKind, MediumId, "MediumId");
+declared_id_kind!(EvidenceSourceKind, EvidenceSourceId, "EvidenceSourceId");
+declared_id_kind!(AssumptionKindKind, AssumptionKindId, "AssumptionKindId");
+declared_id_kind!(CoverageKind, CoverageId, "CoverageId");

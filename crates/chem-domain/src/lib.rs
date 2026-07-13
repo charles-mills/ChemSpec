@@ -9,10 +9,12 @@ pub use formula::{
     FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,
 };
 pub use identity::{
-    ContentDigest, DeclaredId, DerivationNodeId, DerivationNodeKind, DigestId, ExperimentId,
-    ExperimentKind, FactId, FactKind, GoalId, GoalKind, HoleId, HoleKind, IdError, IdKind,
-    MaterialId, MaterialKind, OperationId, OperationKind, ReactionEventId, ReactionEventKind,
-    StageId, StageKind, SubstanceId, SubstanceKind, VesselId, VesselKind,
+    AssumptionKindId, AssumptionKindKind, ContentDigest, CoverageId, CoverageKind, DeclaredId,
+    DerivationNodeId, DerivationNodeKind, DigestId, EvidenceSourceId, EvidenceSourceKind,
+    ExperimentId, ExperimentKind, FactId, FactKind, GoalId, GoalKind, HoleId, HoleKind, IdError,
+    IdKind, MaterialId, MaterialKind, MediumId, MediumKind, OperationId, OperationKind,
+    ReactionEventId, ReactionEventKind, SpeciesId, SpeciesKind, StageId, StageKind, SubstanceId,
+    SubstanceKind, VesselId, VesselKind,
 };
 pub use scalar::{ExactScalar, ScalarError, SourceDecimal, SourceDecimalError, WrittenPrecision};
 pub use serialization::{CanonicalJsonError, canonical_json, lowercase_hex, sha256};

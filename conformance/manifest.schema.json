@@ -75,6 +75,8 @@
               "formatted_source": { "type": "string" },
               "cst_sha256": { "type": "string" },
               "ast_sha256": { "type": "string" },
+              "catalogue_sha256": { "type": "string" },
+              "catalogue_review": { "type": "string" },
               "ast": { "type": "string" },
               "hir": { "type": "string" },
               "derivation": { "type": "string" },

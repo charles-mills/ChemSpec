@@ -132,8 +132,11 @@ cargo run -p chems-lang -- format --write experiment.chems
 reachability, reserved words, and schema documents. `report` additionally exits
 non-zero until all normative requirements are covered by conformance cases.
 `chems-lang` owns lossless source syntax, `CHEMS-L`/`CHEMS-P` diagnostics,
-comment attachment, and formatting. Catalogue resolution and the kernel remain
-separate trusted boundaries as fixed by the specification.
+comment attachment, and formatting. `chem-catalogue` now owns immutable
+digest-bearing empirical bundles, evidence, reviewed facts, condition domains,
+coverage declarations, and deterministic indexes. Source-to-catalogue
+resolution remains Slice 4 work, and the kernel remains a separate trusted
+boundary as fixed by the specification.
 
 ## Derived values
 

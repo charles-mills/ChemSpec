@@ -111,11 +111,18 @@ experiment SilverChloridePrecipitation where
 
 ## Language toolchain
 
-Slices 0–2 provide the executable specification boundary, exact domain
-foundation, and lossless source frontend. `chems-lang` implements `chems 1`
-dispatch, encoding/layout validation, nested comments, the complete normative
-grammar, lossless CST and source AST output, recovery diagnostics, comment
-attachment, and canonical formatting.
+Slices 0–3 provide the executable specification boundary, exact domain
+foundation, lossless source frontend, and immutable catalogue trust store.
+`chems-lang` implements `chems 1` dispatch, encoding/layout validation, nested
+comments, the complete normative grammar, lossless CST and source AST output,
+recovery diagnostics, comment attachment, and canonical formatting.
+
+`chem-catalogue` loads versioned digest-bearing bundles, canonicalizes semantic
+record order, validates formula/species/condition/evidence/review consistency,
+rejects conflicting or ineligible production facts, and builds deterministic
+lookup indexes. The initial reviewed fixture is the exact room-condition
+silver-chloride teaching domain in
+[`conformance/catalogue`](conformance/catalogue).
 
 ```sh
 cargo run -p chems-conformance -- validate
@@ -131,9 +138,10 @@ plain `chems format <path>` writes canonical source to standard output.
 
 ## Current status
 
-ChemSpec is in active implementation. The language design and Slices 0–2 are
-complete. Slice 3 is the catalogue foundation; chemistry validation, agent
-integration, simulation, and the application shell follow it.
+ChemSpec is in active implementation. The language design and Slices 0–3 are
+complete. Slice 4 is typed elaboration: resolving parsed source into a complete
+typed experiment against the bound catalogue without yet executing procedures
+or proving reaction claims.
 
 ## License
 
