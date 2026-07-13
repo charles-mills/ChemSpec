@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "requirements": "conformance/requirements.json",
+  "components": [
+    { "id": "specification", "fixture_directory": "conformance/specification", "description": "Specification structure, requirement mapping, and language-data integrity." },
+    { "id": "encoding-layout", "fixture_directory": "conformance/encoding-layout", "description": "Source encoding, lexical structure, comments, whitespace, and layout." },
+    { "id": "parsing", "fixture_directory": "conformance/parsing", "description": "Grammar, CST, AST, names, scopes, and source compatibility." },
+    { "id": "formatting", "fixture_directory": "conformance/formatting", "description": "Canonical formatting and comment preservation." },
+    { "id": "quantities-types", "fixture_directory": "conformance/quantities-types", "description": "Exact numbers, dimensions, units, temperatures, and type judgments." },
+    { "id": "formula-species", "fixture_directory": "conformance/formula-species", "description": "Formulae, elements, charge, phase, substances, and species." },
+    { "id": "materials", "fixture_directory": "conformance/materials", "description": "Material constructors, premises, compositions, and linear identity." },
+    { "id": "procedures", "fixture_directory": "conformance/procedures", "description": "Vessels, inventories, operations, stages, and deterministic transitions." },
+    { "id": "claims-holes", "fixture_directory": "conformance/claims-holes", "description": "Claims, assumptions, holes, proof contexts, and goal generation." },
+    { "id": "kernel-tactics", "fixture_directory": "conformance/kernel-tactics", "description": "Kernel judgments, tactics, reaction rules, and derivations." },
+    { "id": "catalogue", "fixture_directory": "conformance/catalogue", "description": "Catalogue bundles, empirical facts, evidence, and coverage." },
+    { "id": "diagnostics-tooling", "fixture_directory": "conformance/diagnostics-tooling", "description": "Diagnostics, edits, editor services, and agent editing." },
+    { "id": "artifacts", "fixture_directory": "conformance/artifacts", "description": "Validated artifacts, identities, serialization, digesting, and replay." },
+    { "id": "end-to-end", "fixture_directory": "conformance/end-to-end", "description": "Complete result envelopes and reviewed experiment journeys." }
+  ],
+  "cases": []
+}

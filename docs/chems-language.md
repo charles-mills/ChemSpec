@@ -15,9 +15,14 @@ experiments and expected outcomes. It is designed to be:
 The design is inspired by Lean's separation of propositions and proof, without
 claiming that empirical chemistry becomes a purely mathematical theorem.
 
+The authoritative design is the
+[`.chems` language specification](chems-specification.md). This document is a
+short product-oriented introduction to that normative contract.
+
 ## Canonical example
 
 ```chems
+chems 1
 use catalog ChemSpec.Aqueous@1
 
 experiment SilverChloridePrecipitation where
@@ -27,36 +32,44 @@ experiment SilverChloridePrecipitation where
     medium      := aqueous
 
   given
-    silverNitrate  := 50 mL of 0.100 M AgNO3(aq)
-    sodiumChloride := 50 mL of 0.100 M NaCl(aq)
+    silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
+    sodiumChloride := 50 mL of 0.100 mol/L NaCl(aq)
 
-  mix silverNitrate with sodiumChloride
+  vessels
+    reaction := open vessel 250 mL
 
-  expect
+  procedure
+    place silverNitrate in reaction
+    mixed: add sodiumChloride to reaction
+    stir reaction
+
+  expect at final
     class := precipitation
+    produces AgCl(s)
 
     molecular :=
       AgNO3(aq) + NaCl(aq)
         -> AgCl(s) + NaNO3(aq)
 
-    completeIonic :=
-      Ag^+(aq) + NO3^-(aq) + Na^+(aq) + Cl^-(aq)
-        -> AgCl(s) + Na^+(aq) + NO3^-(aq)
-
-    netIonic :=
-      Ag^+(aq) + Cl^-(aq)
-        -> AgCl(s)
+    completeIonic := ?
+    netIonic := ?
+    amount AgCl(s) := ?
 
     observe
       precipitate AgCl(s)
-      colour white
+      colour := white
 
   by
     dissociate aqueous
-    apply solubilityRules
+    infer products using solubilityRules
+    balance molecular
+    derive completeIonic
+    cancel spectators
+    solve stoichiometry
     verify atoms
     verify charge
-    solve stoichiometry
+    prove observations
+    close
 ```
 
 ## Surface-language principles
@@ -75,7 +88,7 @@ trusted because they appear in a file.
 ### Proof tactics request deterministic work
 
 The `by` block selects bounded validation tactics. A tactic such as
-`apply solubilityRules` asks the trusted kernel to find and apply a rule; it
+`infer products using solubilityRules` asks the trusted kernel to apply a rule family; it
 does not allow the source author to assert that the rule succeeded.
 
 ### Empirical facts come from the catalogue
@@ -100,6 +113,27 @@ The implementation should distinguish:
 4. **Validated experiment** — supported claims and derivation artifact.
 
 Only the chemistry engine may construct the final layer.
+
+## Normative contract and implementation status
+
+The only language grammar is [`grammar/chems.ebnf`](../grammar/chems.ebnf).
+There is no legacy grammar or migration surface. The compiler frontend will be
+built in Slice 2 after Slice 1 supplies exact shared domain types.
+
+Slice 0 implements the executable specification boundary rather than a parser:
+
+```text
+cargo run -p chems-conformance -- validate
+cargo run -p chems-conformance -- report
+```
+
+`validate` checks the requirement registry, manifest, fixture paths, grammar
+reachability, reserved words, and schema documents. `report` additionally exits
+non-zero until all normative requirements are covered by conformance cases.
+
+The future `chems-lang` crate will own source syntax, diagnostics, and
+formatting. Catalogue resolution and the kernel will remain separate trusted
+boundaries as fixed by the specification.
 
 ## Derived values
 

@@ -1,0 +1,23 @@
+[package]
+name = "chems-conformance"
+description = "Executable specification and conformance scaffold for .chems"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[lib]
+name = "chems_conformance"
+
+[[bin]]
+name = "chems-conformance"
+path = "src/main.rs"
+
+[dependencies]
+jsonschema.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -46,6 +46,7 @@ general redox, combustion, quantitative kinetics, or molecular dynamics.
 ## Example
 
 ```chems
+chems 1
 use catalog ChemSpec.Aqueous@1
 
 experiment SilverChloridePrecipitation where
@@ -55,42 +56,53 @@ experiment SilverChloridePrecipitation where
     medium      := aqueous
 
   given
-    silverNitrate  := 50 mL of 0.100 M AgNO3(aq)
-    sodiumChloride := 50 mL of 0.100 M NaCl(aq)
+    silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
+    sodiumChloride := 50 mL of 0.100 mol/L NaCl(aq)
 
-  mix silverNitrate with sodiumChloride
+  vessels
+    reaction := open vessel 250 mL
 
-  expect
+  procedure
+    place silverNitrate in reaction
+    mixed: add sodiumChloride to reaction
+    stir reaction
+
+  expect at final
     class := precipitation
+    produces AgCl(s)
 
     molecular :=
       AgNO3(aq) + NaCl(aq)
         -> AgCl(s) + NaNO3(aq)
 
-    completeIonic :=
-      Ag^+(aq) + NO3^-(aq) + Na^+(aq) + Cl^-(aq)
-        -> AgCl(s) + Na^+(aq) + NO3^-(aq)
-
-    netIonic :=
-      Ag^+(aq) + Cl^-(aq)
-        -> AgCl(s)
+    completeIonic := ?
+    netIonic := ?
+    amount AgCl(s) := ?
 
     observe
       precipitate AgCl(s)
-      colour white
+      colour := white
 
   by
     dissociate aqueous
-    apply solubilityRules
+    infer products using solubilityRules
+    balance molecular
+    derive completeIonic
+    cancel spectators
+    solve stoichiometry
     verify atoms
     verify charge
-    solve stoichiometry
+    prove observations
+    close
 ```
 
 ## Documentation
 
 - [Product specification](docs/product-spec.md)
 - [The `.chems` language](docs/chems-language.md)
+- [`.chems` language specification](docs/chems-specification.md)
+- [`.chems` implementation plan](docs/chems-implementation-plan.md)
+- [`.chems` conformance contract](conformance/README.md)
 - [Chemistry engine and validator](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
@@ -99,11 +111,27 @@ experiment SilverChloridePrecipitation where
 - [Build Week delivery plan](docs/delivery-plan.md)
 - [Build Week implementation plan](docs/implementation-plan.md)
 
+## Language toolchain
+
+Slice 0 provides the executable specification and conformance scaffold. It
+validates requirement coverage, the normative grammar, reserved words, manifest
+structure, fixture paths, and canonical serialization helpers.
+
+```sh
+cargo run -p chems-conformance -- validate
+cargo run -p chems-conformance -- report
+```
+
+The normative grammar is [`grammar/chems.ebnf`](grammar/chems.ebnf). The parser
+will be implemented in Slice 2 against this grammar; no legacy grammar or
+compatibility path is retained.
+
 ## Current status
 
-ChemSpec is in the design and initial implementation phase. The documents above
-define the agreed product and technical contracts; implementation status should
-be tracked separately from those contracts as the workspace is scaffolded.
+ChemSpec is in active implementation. The language design and Slice 0
+conformance scaffold are complete. The exact domain foundation, parser,
+chemistry validation, agent integration, simulation, and application shell
+remain under development.
 
 ## License
 

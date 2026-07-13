@@ -1,0 +1,239 @@
+(*
+  .chems normative surface grammar
+
+  NEWLINE, INDENT, DEDENT, and EOF are produced by the layout lexer.
+  Horizontal whitespace is required where adjacent terminals would otherwise
+  join, and ignored between ordinary tokens. Comments behave as whitespace.
+*)
+
+document              = { NEWLINE }, language-header,
+                        { NEWLINE }, catalog-use,
+                        { NEWLINE }, experiment,
+                        { NEWLINE }, EOF ;
+
+language-header       = "chems", language-version, NEWLINE ;
+language-version      = positive-integer ;
+
+catalog-use           = "use", "catalog", qualified-name,
+                        "@", catalog-version, NEWLINE ;
+catalog-version       = integer, { ".", integer } ;
+
+experiment            = "experiment", type-identifier, "where",
+                        NEWLINE, INDENT,
+                        conditions-section,
+                        [ assumptions-section ],
+                        given-section,
+                        vessels-section,
+                        procedure-section,
+                        { expectation-section },
+                        proof-section,
+                        DEDENT ;
+
+conditions-section    = "conditions", NEWLINE, INDENT,
+                        condition-entry, { condition-entry },
+                        DEDENT, { NEWLINE } ;
+condition-entry       = temperature-entry |
+                        pressure-entry |
+                        medium-entry ;
+temperature-entry     = "temperature", ":=", quantity, NEWLINE ;
+pressure-entry        = "pressure", ":=", quantity, NEWLINE ;
+medium-entry          = "medium", ":=",
+                        ( "aqueous" | qualified-name ), NEWLINE ;
+
+assumptions-section   = "assuming", NEWLINE, INDENT,
+                        assumption-entry, { assumption-entry },
+                        DEDENT, { NEWLINE } ;
+assumption-entry      = qualified-name,
+                        [ "for", value-identifier ],
+                        [ "at", stage-reference ],
+                        NEWLINE ;
+
+given-section         = "given", NEWLINE, INDENT,
+                        material-declaration,
+                        { material-declaration },
+                        DEDENT, { NEWLINE } ;
+material-declaration  = value-identifier, ":=", material-expression ;
+material-expression   = simple-material, NEWLINE |
+                        prepared-material ;
+simple-material       = quantity, "of", [ quantity ], species ;
+prepared-material     = "prepared", NEWLINE, INDENT,
+                        component-entry, { component-entry },
+                        DEDENT ;
+component-entry       = quantity, "of", species, NEWLINE ;
+
+vessels-section       = "vessels", NEWLINE, INDENT,
+                        vessel-declaration, { vessel-declaration },
+                        DEDENT, { NEWLINE } ;
+vessel-declaration    = value-identifier, ":=", openness,
+                        "vessel", quantity, NEWLINE ;
+openness              = "open" | "closed" ;
+
+procedure-section     = "procedure", NEWLINE, INDENT,
+                        procedure-entry, { procedure-entry },
+                        DEDENT, { NEWLINE } ;
+procedure-entry       = [ stage-label, ":" ], operation, NEWLINE ;
+stage-label           = value-identifier ;
+
+operation             = place-operation |
+                        add-operation |
+                        combine-operation |
+                        transfer-operation |
+                        stir-operation |
+                        heat-operation |
+                        cool-operation |
+                        wait-operation |
+                        seal-operation |
+                        open-operation |
+                        filter-operation |
+                        decant-operation ;
+
+place-operation       = "place", value-identifier,
+                        "in", value-identifier ;
+add-operation         = "add", value-identifier,
+                        "to", value-identifier ;
+combine-operation     = "combine", value-identifier,
+                        "with", value-identifier,
+                        "in", value-identifier ;
+transfer-operation    = "transfer", [ quantity ],
+                        "from", value-identifier,
+                        "to", value-identifier ;
+stir-operation        = "stir", value-identifier,
+                        [ "for", quantity ] ;
+heat-operation        = "heat", value-identifier,
+                        "to", quantity ;
+cool-operation        = "cool", value-identifier,
+                        "to", quantity ;
+wait-operation        = "wait", quantity ;
+seal-operation        = "seal", value-identifier ;
+open-operation        = "open", value-identifier ;
+filter-operation      = "filter", value-identifier,
+                        "into", value-identifier,
+                        "and", value-identifier ;
+decant-operation      = "decant", value-identifier,
+                        "into", value-identifier ;
+
+expectation-section   = "expect", [ "at", stage-reference ],
+                        NEWLINE, INDENT,
+                        claim-entry, { claim-entry },
+                        DEDENT, { NEWLINE } ;
+stage-reference       = "initial" | "final" | stage-label ;
+
+claim-entry           = class-claim |
+                        identity-claim |
+                        equation-claim |
+                        amount-claim |
+                        limiting-claim |
+                        observation-section ;
+
+class-claim           = "class", ":=",
+                        ( reaction-class | hole ), NEWLINE ;
+reaction-class        = "precipitation" |
+                        "neutralization" |
+                        "gasFormation" |
+                        "noReaction" ;
+
+identity-claim        = identity-predicate,
+                        ( species | hole ), NEWLINE ;
+identity-predicate    = "produces" | "consumes" |
+                        "remains" | "spectator" ;
+
+equation-claim        = equation-kind, ":=", equation-claim-value ;
+equation-kind         = "molecular" | "completeIonic" | "netIonic" ;
+equation-claim-value  = hole, NEWLINE |
+                        equation, NEWLINE |
+                        NEWLINE, INDENT, equation, NEWLINE, DEDENT ;
+
+amount-claim          = "amount", species, ":=",
+                        ( quantity | hole ), NEWLINE ;
+limiting-claim        = "limiting", ":=",
+                        ( value-identifier | "none" | hole ), NEWLINE ;
+
+observation-section   = "observe", NEWLINE, INDENT,
+                        observation-entry, { observation-entry },
+                        DEDENT, { NEWLINE } ;
+observation-entry     = precipitate-observation |
+                        gas-observation |
+                        colour-observation |
+                        temperature-observation ;
+precipitate-observation = "precipitate", ( species | hole ), NEWLINE ;
+gas-observation       = "gas", ( species | hole ), NEWLINE ;
+colour-observation    = "colour", ":=", ( qualified-name | hole ), NEWLINE ;
+temperature-observation = "temperatureChange", ":=",
+                          ( temperature-direction | hole ), NEWLINE ;
+temperature-direction = "increase" | "decrease" | "none" ;
+
+proof-section         = "by", NEWLINE, INDENT,
+                        tactic, { tactic },
+                        DEDENT ;
+tactic                = dissociate-tactic |
+                        infer-products-tactic |
+                        balance-tactic |
+                        derive-tactic |
+                        cancel-spectators-tactic |
+                        solve-stoichiometry-tactic |
+                        verify-atoms-tactic |
+                        verify-charge-tactic |
+                        prove-observations-tactic |
+                        close-tactic |
+                        auto-tactic ;
+dissociate-tactic     = "dissociate", "aqueous", NEWLINE ;
+infer-products-tactic = "infer", "products", "using",
+                        qualified-name, NEWLINE ;
+balance-tactic        = "balance", equation-kind, NEWLINE ;
+derive-tactic         = "derive", equation-kind, NEWLINE ;
+cancel-spectators-tactic = "cancel", "spectators", NEWLINE ;
+solve-stoichiometry-tactic = "solve", "stoichiometry", NEWLINE ;
+verify-atoms-tactic   = "verify", "atoms", NEWLINE ;
+verify-charge-tactic  = "verify", "charge", NEWLINE ;
+prove-observations-tactic = "prove", "observations", NEWLINE ;
+close-tactic          = "close", NEWLINE ;
+auto-tactic           = "auto", NEWLINE ;
+
+equation              = equation-side,
+                        ( "->" | NEWLINE, "->" ),
+                        [ NEWLINE ], equation-side ;
+equation-side         = equation-term,
+                        { ( "+" | NEWLINE, "+" ),
+                          [ NEWLINE ], equation-term } ;
+equation-term         = [ positive-integer ], species ;
+
+species               = formula, [ charge ], phase ;
+formula               = formula-segment,
+                        { ".", [ positive-integer ], formula-segment } ;
+formula-segment       = formula-part, { formula-part } ;
+formula-part          = element, [ positive-integer ] |
+                        "(", formula-segment, ")", [ positive-integer ] ;
+element               = UPPER, [ LOWER ] ;
+charge                = "^", [ positive-integer ], ( "+" | "-" ) ;
+phase                 = "(", ( "aq" | "s" | "l" | "g" ), ")" ;
+
+quantity              = decimal, unit-expression ;
+decimal               = [ "+" | "-" ], integer,
+                        [ ".", DIGIT, { DIGIT } ] ;
+unit-expression       = unit-product, { "/", unit-product } ;
+unit-product          = unit-factor, { "*", unit-factor } ;
+unit-factor           = unit-symbol, [ "^", signed-integer ] ;
+unit-symbol           = unit-name | "%" ;
+unit-name             = LETTER, { LETTER | DIGIT | "_" } ;
+signed-integer        = [ "+" | "-" ], integer ;
+
+hole                  = "?" ;
+
+qualified-name        = name-segment, { ".", name-segment } ;
+name-segment          = value-identifier | type-identifier ;
+value-identifier      = LOWER, { LETTER | DIGIT | "_" } ;
+type-identifier       = UPPER, { LETTER | DIGIT | "_" } ;
+
+integer               = DIGIT, { DIGIT } ;
+positive-integer      = NON_ZERO_DIGIT, { DIGIT } ;
+
+(*
+  UPPER          = ASCII A through Z
+  LOWER          = ASCII a through z
+  LETTER         = UPPER or LOWER
+  DIGIT          = ASCII 0 through 9
+  NON_ZERO_DIGIT = ASCII 1 through 9
+
+  Reserved keywords cannot be used as identifiers. The reserved-word set is
+  specified in docs/chems-specification.md.
+*)
