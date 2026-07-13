@@ -1,47 +1,67 @@
 # ChemSpec
 
-ChemSpec is an AI-assisted virtual chemistry laboratory. A learner asks what
-happens when substances are mixed; an agent researches the expected reaction,
-writes a chemistry-native `.chems` program, and submits it to a deterministic
-validator. Only validated experiments can drive the explanatory particle
-simulation.
+ChemSpec is an AI-assisted virtual chemistry laboratory. A learner proposes a
+reaction, and ChemSpec first uses chemistry rules and algorithms to determine,
+where supported, whether that reaction is likely to occur. If it is possible,
+an AI agent supplies the expected observations. ChemSpec then presents a
+macroscopic simulation of those observations beside a molecular simulation of
+the bond changes involved, before providing an AI-generated overview of the
+reaction and the conditions it requires.
 
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
 
 ## Product contract
 
-ChemSpec separates proposal, trust, meaning, and presentation:
+ChemSpec separates feasibility, observed behaviour, molecular meaning, and
+presentation:
 
 ```text
 User request
-    -> agent research and cited evidence
-    -> generated .chems source
-    -> parser and deterministic chemistry validation
-    -> validated experiment
-    -> explanatory particle simulation
+    -> rule-based reaction feasibility check
+    -> AI request for expected observations
+    -> validated experiment data
+    -> side-by-side observation and molecular-change simulations
+    -> AI overview, notable points, and required conditions
 ```
 
-- The agent may research and propose chemistry.
+- Chemistry rules and algorithms make the first determination of whether a
+  supported reaction is likely to occur.
+- The AI agent is asked for observations only after the viability check finds
+  a possible reaction.
+- If chemistry rules cannot confidently determine reaction viability, 
+  the AI agent estimates the likelihood of the reaction before proceeding.
 - The `.chems` file is visible and editable by humans.
 - The validator is the only component that can promote source into a validated
   experiment.
-- The simulation visualizes validated chemistry; it does not discover reaction
-  outcomes through particle collisions.
-- Unsupported chemistry is reported as unsupported, not treated as false.
+- The observation simulation shows the visible, macroscopic changes in the
+  reaction.
+- Alongside it, the molecular simulation follows one representative molecule
+  or reaction event and shows bonds being formed, broken, or rearranged. For
+  example, alcohol dehydration shows removal of an `OH` group and a hydrogen
+  from a neighbouring carbon, while covalent bond formation shows the reacting
+  species joining through the new bond.
+- After the visual simulation, the AI overview explains any notable features or applications of this reaction and
+  the conditions required for the reaction to take place.
+- Unsupported chemistry is reported as unsupported and returns the reactants as products, not treated as false.
 
 ## Initial chemistry domain
 
-The first complete domain is closed-world aqueous ionic chemistry under
-ordinary classroom-laboratory conditions:
+The viability engine is intended to cover predominantly inorganic chemistry
+using explicit reaction rules and algorithms. It also includes a corresponding
+reaction map for organic compounds and transformations up to A-Level standard.
+The initial implemented domain remains closed-world aqueous ionic chemistry
+under ordinary classroom-laboratory conditions:
 
 - precipitation reactions;
 - strong acid/strong base neutralization;
 - a small, curated set of gas-forming reactions;
 - explicit no-net-reaction outcomes.
 
-The initial domain does not attempt arbitrary materials, organic mechanisms,
-general redox, combustion, quantitative kinetics, or molecular dynamics.
+Chemistry outside the available inorganic rules or A-Level organic reaction map
+is reported as unsupported rather than being guessed by the AI. The simulations
+are explanatory representations of validated reactions, not quantitative
+kinetics or general molecular dynamics.
 
 ## Example
 
@@ -138,21 +158,6 @@ silver-chloride fixture.
 ```sh
 cargo run -p chemspec-app
 ```
-
-## Development
-
-With [`just`](https://github.com/casey/just) installed, run `just` to list the
-available project commands. The main workflows are:
-
-```sh
-just build
-just run
-just test
-just ci
-```
-
-Short aliases are also available for the common commands: `just b`, `just r`,
-and `just t`.
 
 ## Current status
 
