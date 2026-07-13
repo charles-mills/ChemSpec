@@ -9,6 +9,20 @@ simulation.
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
 
+```mermaid
+flowchart TD
+    U["User request"] --> P["Codex or API provider"]
+    P --> R["Visible research and evidence"]
+    R --> S["Generated .chems v1 source"]
+    S --> V["Compiler and chemistry kernel"]
+    V -->|"Invalid / Incomplete"| X["Diagnostics and bounded repair"]
+    X --> S
+    V -->|"Unsupported"| Y["Honest unsupported result"]
+    V -->|"Proved"| A["ValidatedExperiment"]
+    A --> M["Deterministic simulation model"]
+    M --> I["Iced / wgpu presentation"]
+```
+
 ## Product contract
 
 ChemSpec separates proposal, trust, meaning, and presentation:
