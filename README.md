@@ -123,12 +123,21 @@ cargo run -p chems-conformance -- report
 cargo run -p chems-lang -- parse experiment.chems
 cargo run -p chems-lang -- format --check experiment.chems
 cargo run -p chems-lang -- format --write experiment.chems
-cargo run -p chemspec-app
 ```
 
 The normative grammar is [`grammar/chems.ebnf`](grammar/chems.ebnf). There is no
 legacy grammar or compatibility path. Formatting refuses incomplete source;
 plain `chems format <path>` writes canonical source to standard output.
+
+## Application shell
+
+The static Iced shell presents the request, workflow, experiment source,
+validation, evidence, and simulation regions using the canonical
+silver-chloride fixture.
+
+```sh
+cargo run -p chemspec-app
+```
 
 ## Current status
 

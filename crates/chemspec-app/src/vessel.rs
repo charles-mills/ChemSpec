@@ -35,7 +35,7 @@ impl Vessel {
         }
     }
 
-    pub fn legend<Message: 'static>(&self) -> Element<'_, Message> {
+    pub fn legend<Message: 'static>() -> Element<'static, Message> {
         let entry = |label, color| text(label).size(12).color(color);
 
         row![
@@ -126,5 +126,5 @@ fn unit(seed: u32) -> f32 {
         .rotate_left(13)
         .wrapping_mul(2_654_435_761);
 
-    (hashed >> 8) as f32 / (1u32 << 24) as f32
+    f32::from_bits(0x3f80_0000 | (hashed >> 9)) - 1.0
 }

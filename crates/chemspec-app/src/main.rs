@@ -1,4 +1,4 @@
-//! ChemSpec application shell (`U-101`).
+//! `ChemSpec` application shell (`U-101`).
 //!
 //! Shows the six product regions — request, workflow, source, validation,
 //! sources, and simulation — populated from the canonical silver-chloride
@@ -58,20 +58,20 @@ impl App {
         }
     }
 
-    fn theme(&self) -> Theme {
+    fn theme(_: &Self) -> Theme {
         Theme::TokyoNight
     }
 
     fn view(&self) -> Element<'_, Message> {
         let left = column![
             self.request_panel(),
-            self.workflow_panel(),
-            self.sources_panel(),
+            Self::workflow_panel(),
+            Self::sources_panel(),
         ]
         .spacing(10)
         .width(FillPortion(3));
 
-        let middle = column![self.source_panel(), self.validation_panel()]
+        let middle = column![self.source_panel(), Self::validation_panel()]
             .spacing(10)
             .width(FillPortion(4));
 
@@ -111,7 +111,7 @@ impl App {
         )
     }
 
-    fn workflow_panel(&self) -> Element<'_, Message> {
+    fn workflow_panel() -> Element<'static, Message> {
         let steps = [
             ("✓", "Identified the requested substances"),
             ("✓", "Researched aqueous behaviour"),
@@ -137,7 +137,7 @@ impl App {
         )
     }
 
-    fn sources_panel(&self) -> Element<'_, Message> {
+    fn sources_panel() -> Element<'static, Message> {
         let card = |title: &'static str, claim: &'static str| {
             container(column![text(title).size(13), text(claim).size(11)].spacing(3))
                 .style(container::bordered_box)
@@ -171,7 +171,7 @@ impl App {
         )
     }
 
-    fn validation_panel(&self) -> Element<'_, Message> {
+    fn validation_panel() -> Element<'static, Message> {
         let checks = [
             "Syntax and types",
             "Known substances",
@@ -216,7 +216,7 @@ impl App {
             column![
                 text("Canonical initial state — dissolved ions after mixing").size(12),
                 canvas(&self.vessel).width(Fill).height(Fill),
-                self.vessel.legend(),
+                Vessel::legend(),
                 text(SIMULATION_DISCLOSURE).size(11),
             ]
             .spacing(10)
