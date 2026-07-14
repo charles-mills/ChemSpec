@@ -457,6 +457,29 @@ fn genuinely_non_equivalent_sites_are_not_collapsed_by_automorphism() {
 }
 
 #[test]
+fn complete_structure_automorphisms_are_bijective_over_duplicate_relationships() {
+    let catalogue = catalogue();
+    let water = catalogue
+        .structure_automorphisms(&StructureId::from_str("Water").unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(water.len(), 2);
+
+    let duplicates = catalogue
+        .structure_automorphisms(&StructureId::from_str("GroupMultiplicityProbe").unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(duplicates.len(), 2);
+    for automorphism in duplicates {
+        let group_targets = ["first", "second", "third"]
+            .into_iter()
+            .map(|group| automorphism.sites()[group].clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(group_targets.len(), 3);
+    }
+}
+
+#[test]
 fn provisional_matches_are_bound_to_their_catalogue_digest() {
     let catalogue = catalogue();
     let local = catalogue
@@ -517,6 +540,91 @@ fn element_parameters_are_typed_match_inputs_not_runtime_inference() {
         .raw_pattern_matches(&input, &BTreeMap::new())
         .unwrap_err();
     assert_eq!(error.code(), CatalogueErrorCode::InvalidGraphPattern);
+}
+
+#[test]
+fn raw_matching_rejects_factorial_work_before_materializing_candidates() {
+    let mut value = with_g2(fixture());
+    value["bundle"]["structures"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "id":"SevenHydrogenProbe","premise_id":"premise.structure.dative-water",
+            "formula":"H7","representation":"molecular",
+            "atoms":(1..=7).map(|index| json!({
+                "label":format!("h{index}"),"element":"H","formal_charge":0,
+                "non_bonding_electrons":1,"unpaired_electrons":1
+            })).collect::<Vec<_>>()
+        }));
+    value["bundle"]["graph_patterns"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "id":"Patterns.SevenHydrogenProbe",
+            "variables":(1..=7).map(|index| (format!("h{index}"), json!({"atom":{"element":"H"}}))).collect::<serde_json::Map<_,_>>(),
+            "premise_ids":["premise.pattern.hydrogen-pair"]
+        }));
+    let catalogue = ValidatedCatalogueBundle::validate(envelope(value)).unwrap();
+    let error = catalogue
+        .raw_pattern_matches(
+            &[request(
+                "probe",
+                "Patterns.SevenHydrogenProbe",
+                "SevenHydrogenProbe",
+            )],
+            &BTreeMap::new(),
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), CatalogueErrorCode::InvalidGraphPattern);
+    assert!(error.to_string().contains("work limit"));
+}
+
+#[test]
+fn public_automorphism_comparison_reports_exhaustion_instead_of_false() {
+    let mut value = with_g2(fixture());
+    let groups = (1..=8)
+        .flat_map(|atom| {
+            (1..=atom).map(move |ordinal| {
+                json!({"label":format!("g{atom}_{ordinal}"),"atoms":[format!("h{atom}")]})
+            })
+        })
+        .collect::<Vec<_>>();
+    value["bundle"]["structures"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "id":"AutomorphismWorkProbe","premise_id":"premise.structure.dative-water",
+            "formula":"H8","representation":"molecular",
+            "atoms":(1..=8).map(|index| json!({
+                "label":format!("h{index}"),"element":"H","formal_charge":0,
+                "non_bonding_electrons":1,"unpaired_electrons":1
+            })).collect::<Vec<_>>(),
+            "groups":groups
+        }));
+    let catalogue = ValidatedCatalogueBundle::validate(envelope(value)).unwrap();
+    let matches = catalogue
+        .raw_pattern_matches(
+            &[request(
+                "probe",
+                "Patterns.AnyHydrogen",
+                "AutomorphismWorkProbe",
+            )],
+            &BTreeMap::new(),
+        )
+        .unwrap();
+    let h1 = matches
+        .iter()
+        .find(|matched| matched.roles()["probe"].atoms()["hydrogen"].to_string() == "h1")
+        .unwrap();
+    let h2 = matches
+        .iter()
+        .find(|matched| matched.roles()["probe"].atoms()["hydrogen"].to_string() == "h2")
+        .unwrap();
+    let error = catalogue
+        .pattern_matches_are_automorphism_related(h1, h2)
+        .unwrap_err();
+    assert_eq!(error.code(), CatalogueErrorCode::InvalidGraphPattern);
+    assert!(error.to_string().contains("work limit"));
 }
 
 #[test]

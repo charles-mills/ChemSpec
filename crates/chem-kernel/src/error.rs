@@ -9,6 +9,7 @@ use serde::Serialize;
 pub enum ExpansionFailureClass {
     InvalidSource,
     UnsupportedChemistry,
+    AmbiguousChemistry,
     CorruptTrustedData,
 }
 
@@ -38,6 +39,15 @@ impl ExpansionError {
     pub(crate) fn unsupported(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             class: ExpansionFailureClass::UnsupportedChemistry,
+            code,
+            message: message.into(),
+            span: None,
+        }
+    }
+
+    pub(crate) fn ambiguous(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            class: ExpansionFailureClass::AmbiguousChemistry,
             code,
             message: message.into(),
             span: None,

@@ -19,6 +19,8 @@ use super::{
 
 const MAX_GENERALIZED_PARAMETER_BINDINGS: usize = 4_096;
 const MAX_GENERALIZED_PARAMETERS: usize = 64;
+const MAX_GENERALIZED_ROLE_COEFFICIENT: u32 = 8;
+const MAX_GENERALIZED_TOTAL_INSTANCES: u32 = 32;
 
 #[derive(Debug, Clone)]
 pub struct ValidatedGeneralizedRule {
@@ -351,12 +353,24 @@ fn validate_roles_and_selectors(
     }
     for (role, schema) in &record.roles {
         validate_label(role, CatalogueErrorCode::InvalidGeneralizedRule)?;
-        if schema.coefficient == 0 {
+        if schema.coefficient == 0 || schema.coefficient > MAX_GENERALIZED_ROLE_COEFFICIENT {
             return generalized_error(format!(
-                "generalized rule `{}` role `{role}` has zero coefficient",
+                "generalized rule `{}` role `{role}` has an unsupported coefficient",
                 record.id
             ));
         }
+    }
+    if record
+        .roles
+        .values()
+        .map(|schema| schema.coefficient)
+        .try_fold(0_u32, u32::checked_add)
+        .is_none_or(|total| total > MAX_GENERALIZED_TOTAL_INSTANCES)
+    {
+        return generalized_error(format!(
+            "generalized rule `{}` exceeds the total instance limit",
+            record.id
+        ));
     }
     for selector in record.reactants.values() {
         validate_selector_shape(
@@ -1132,7 +1146,7 @@ fn enumerate_bindings(
     bindings
 }
 
-fn resolve_selector(
+pub(super) fn resolve_selector(
     selector: &GeneralizedStructureSelectorRecord,
     binding: &BTreeMap<String, String>,
     structures: &BTreeMap<StructureId, StructureDefinition>,

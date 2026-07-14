@@ -13,6 +13,20 @@ use super::{
     StructuralTraitSiteKindRecord, ValidatedCatalogueBundle, require_premise, validate_label,
 };
 
+const MAX_RAW_PATTERN_MATCHES: usize = 4_096;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureAutomorphism {
+    sites: BTreeMap<String, String>,
+}
+
+impl StructureAutomorphism {
+    #[must_use]
+    pub const fn sites(&self) -> &BTreeMap<String, String> {
+        &self.sites
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternRoleInput {
     pub role: String,
@@ -79,6 +93,17 @@ impl RolePatternMatchBinding {
     pub const fn metallic_domains(&self) -> &BTreeMap<String, MetallicDomainId> {
         &self.metallic_domains
     }
+
+    #[must_use]
+    pub fn resolved_site(&self, name: &str) -> Option<String> {
+        self.atoms
+            .get(name)
+            .map(ToString::to_string)
+            .or_else(|| self.covalent_bonds.get(name).map(ToString::to_string))
+            .or_else(|| self.groups.get(name).map(ToString::to_string))
+            .or_else(|| self.ionic_associations.get(name).map(ToString::to_string))
+            .or_else(|| self.metallic_domains.get(name).map(ToString::to_string))
+    }
 }
 
 impl ValidatedCatalogueBundle {
@@ -123,6 +148,7 @@ impl ValidatedCatalogueBundle {
                     format!("match structure `{}` does not resolve", input.structure),
                 )
             })?;
+            validate_match_work(pattern, structure.graph())?;
             role_matches.insert(
                 input.role.clone(),
                 enumerate_role_matches(
@@ -137,6 +163,15 @@ impl ValidatedCatalogueBundle {
 
         let mut combined = vec![BTreeMap::new()];
         for (role, matches) in role_matches {
+            if combined
+                .len()
+                .checked_mul(matches.len())
+                .is_none_or(|work| work > MAX_RAW_PATTERN_MATCHES)
+            {
+                return pattern_error(format!(
+                    "multi-role match exceeds the work limit of {MAX_RAW_PATTERN_MATCHES}"
+                ));
+            }
             let mut next = Vec::new();
             for prefix in &combined {
                 for role_match in &matches {
@@ -154,6 +189,26 @@ impl ValidatedCatalogueBundle {
                 roles,
             })
             .collect())
+    }
+
+    pub(super) fn pattern_match_work_is_bounded(
+        &self,
+        pattern: &GraphPatternId,
+        structure: &StructureId,
+    ) -> Result<bool, CatalogueError> {
+        let pattern = self.graph_pattern(pattern).ok_or_else(|| {
+            CatalogueError::new(
+                CatalogueErrorCode::UnknownReference,
+                format!("graph pattern `{pattern}` does not resolve"),
+            )
+        })?;
+        let structure = self.structure(structure).ok_or_else(|| {
+            CatalogueError::new(
+                CatalogueErrorCode::UnknownReference,
+                format!("match structure `{structure}` does not resolve"),
+            )
+        })?;
+        Ok(match_work_is_bounded(pattern, structure.graph()))
     }
 
     /// Tests reactant-graph automorphism equivalence between two raw matches.
@@ -186,12 +241,363 @@ impl ValidatedCatalogueBundle {
                 .structure(&left_binding.structure)
                 .ok_or_else(|| pattern_error_value("match structure no longer resolves"))?
                 .graph();
-            if !bindings_related_by_automorphism(graph, left_binding, right_binding) {
-                return Ok(false);
+            match bindings_related_by_automorphism(graph, left_binding, right_binding) {
+                Some(true) => {}
+                Some(false) => return Ok(false),
+                None => {
+                    return pattern_error(format!(
+                        "automorphism role `{role}` exceeds the work limit of {MAX_RAW_PATTERN_MATCHES}"
+                    ));
+                }
             }
         }
         Ok(true)
     }
+
+    /// Enumerates every structure automorphism in canonical order.
+    ///
+    /// `None` means the fixed work limit was reached before completeness could
+    /// be established. Callers must not treat an incomplete enumeration as a
+    /// proof of uniqueness.
+    ///
+    /// # Errors
+    ///
+    /// Returns a catalogue error if the structure does not resolve or its
+    /// already validated relationship identities cannot be reconstructed.
+    pub fn structure_automorphisms(
+        &self,
+        structure: &StructureId,
+    ) -> Result<Option<Vec<StructureAutomorphism>>, CatalogueError> {
+        let graph = self
+            .structure(structure)
+            .ok_or_else(|| {
+                pattern_error_value(format!("structure `{structure}` does not resolve"))
+            })?
+            .graph();
+        let sources = graph.atoms().keys().cloned().collect::<Vec<_>>();
+        let mut atom_mappings = Vec::new();
+        let mut work = 0_usize;
+        let complete = enumerate_automorphisms(
+            0,
+            &sources,
+            graph,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            &mut atom_mappings,
+            &mut work,
+        );
+        if !complete {
+            return Ok(None);
+        }
+        let mut automorphisms = Vec::new();
+        for mapping in atom_mappings {
+            let Some(mut relationship_mappings) = build_structure_automorphisms(graph, &mapping)?
+            else {
+                return Ok(None);
+            };
+            if automorphisms
+                .len()
+                .checked_add(relationship_mappings.len())
+                .is_none_or(|count| count > MAX_RAW_PATTERN_MATCHES)
+            {
+                return Ok(None);
+            }
+            automorphisms.append(&mut relationship_mappings);
+        }
+        automorphisms.sort_by(|left, right| left.sites.cmp(&right.sites));
+        Ok(Some(automorphisms))
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn enumerate_automorphisms(
+    index: usize,
+    sources: &[AtomId],
+    graph: &StructuralGraph,
+    mapping: &mut BTreeMap<AtomId, AtomId>,
+    used: &mut BTreeSet<AtomId>,
+    results: &mut Vec<BTreeMap<AtomId, AtomId>>,
+    work: &mut usize,
+) -> bool {
+    *work += 1;
+    if *work > MAX_RAW_PATTERN_MATCHES {
+        return false;
+    }
+    if index == sources.len() {
+        if automorphism_preserves_relationships(graph, mapping) {
+            results.push(mapping.clone());
+        }
+        return true;
+    }
+    let source = &sources[index];
+    for target in graph.atoms().keys() {
+        if used.contains(target)
+            || atom_signature(&graph.atoms()[source]) != atom_signature(&graph.atoms()[target])
+            || !partial_bonds_preserved(graph, source, target, mapping)
+        {
+            continue;
+        }
+        mapping.insert(source.clone(), target.clone());
+        used.insert(target.clone());
+        if !enumerate_automorphisms(index + 1, sources, graph, mapping, used, results, work) {
+            return false;
+        }
+        mapping.remove(source);
+        used.remove(target);
+    }
+    true
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_structure_automorphisms(
+    graph: &StructuralGraph,
+    atoms: &BTreeMap<AtomId, AtomId>,
+) -> Result<Option<Vec<StructureAutomorphism>>, CatalogueError> {
+    let mut base = atoms
+        .iter()
+        .map(|(source, target)| (source.to_string(), target.to_string()))
+        .collect::<BTreeMap<_, _>>();
+    for (id, bond) in graph.covalent_bonds() {
+        let left = &atoms[bond.left()];
+        let right = &atoms[bond.right()];
+        let target = graph
+            .covalent_bonds()
+            .iter()
+            .find(|(_, candidate)| {
+                ((candidate.left() == left && candidate.right() == right)
+                    || (candidate.left() == right && candidate.right() == left))
+                    && edge_signature(graph, bond.left(), bond.right())
+                        == edge_signature(graph, left, right)
+            })
+            .map(|(target, _)| target)
+            .ok_or_else(|| pattern_error_value("automorphism lost a covalent relationship"))?;
+        base.insert(id.to_string(), target.to_string());
+    }
+
+    let mut group_candidates = BTreeMap::new();
+    for (id, group) in graph.groups() {
+        let mapped = group
+            .atoms()
+            .iter()
+            .map(|atom| atoms[atom].clone())
+            .collect::<BTreeSet<_>>();
+        let targets = graph
+            .groups()
+            .iter()
+            .filter(|(_, candidate)| candidate.atoms() == &mapped)
+            .map(|(target, _)| target.to_string())
+            .collect::<Vec<_>>();
+        if targets.is_empty() {
+            return Err(pattern_error_value("automorphism lost an atom group"));
+        }
+        group_candidates.insert(id.to_string(), targets);
+    }
+    let Some(group_maps) = enumerate_relationship_bijections(&group_candidates) else {
+        return Ok(None);
+    };
+
+    let mut association_candidates = BTreeMap::new();
+    for (id, association) in graph.ionic_associations() {
+        let mapped = association
+            .components()
+            .iter()
+            .map(|group| {
+                graph.groups()[group]
+                    .atoms()
+                    .iter()
+                    .map(|atom| atoms[atom].clone())
+                    .collect::<BTreeSet<_>>()
+            })
+            .collect::<BTreeSet<_>>();
+        let targets = graph
+            .ionic_associations()
+            .iter()
+            .filter(|(_, candidate)| {
+                candidate
+                    .components()
+                    .iter()
+                    .map(|group| graph.groups()[group].atoms().clone())
+                    .collect::<BTreeSet<_>>()
+                    == mapped
+            })
+            .map(|(target, _)| target.to_string())
+            .collect::<Vec<_>>();
+        if targets.is_empty() {
+            return Err(pattern_error_value(
+                "automorphism lost an ionic association",
+            ));
+        }
+        association_candidates.insert(id.to_string(), targets);
+    }
+    let Some(association_maps) = enumerate_relationship_bijections(&association_candidates) else {
+        return Ok(None);
+    };
+
+    let mut domain_candidates = BTreeMap::new();
+    for (id, domain) in graph.metallic_domains() {
+        let mapped = domain
+            .sites()
+            .iter()
+            .map(|atom| atoms[atom].clone())
+            .collect::<BTreeSet<_>>();
+        let targets = graph
+            .metallic_domains()
+            .iter()
+            .filter(|(_, candidate)| {
+                candidate.sites() == &mapped
+                    && candidate.delocalized_electrons() == domain.delocalized_electrons()
+            })
+            .map(|(target, _)| target.to_string())
+            .collect::<Vec<_>>();
+        if targets.is_empty() {
+            return Err(pattern_error_value("automorphism lost a metallic domain"));
+        }
+        domain_candidates.insert(id.to_string(), targets);
+    }
+    let Some(domain_maps) = enumerate_relationship_bijections(&domain_candidates) else {
+        return Ok(None);
+    };
+
+    let relation_count = group_maps
+        .len()
+        .checked_mul(association_maps.len())
+        .and_then(|count| count.checked_mul(domain_maps.len()));
+    if relation_count.is_none_or(|count| count > MAX_RAW_PATTERN_MATCHES) {
+        return Ok(None);
+    }
+    let mut results = Vec::with_capacity(relation_count.unwrap_or_default());
+    for groups in &group_maps {
+        for associations in &association_maps {
+            for domains in &domain_maps {
+                let mut sites = base.clone();
+                sites.extend(groups.clone());
+                sites.extend(associations.clone());
+                sites.extend(domains.clone());
+                results.push(StructureAutomorphism { sites });
+            }
+        }
+    }
+    Ok(Some(results))
+}
+
+fn enumerate_relationship_bijections(
+    candidates: &BTreeMap<String, Vec<String>>,
+) -> Option<Vec<BTreeMap<String, String>>> {
+    fn append(
+        index: usize,
+        candidates: &[(&String, &Vec<String>)],
+        current: &mut BTreeMap<String, String>,
+        used: &mut BTreeSet<String>,
+        output: &mut Vec<BTreeMap<String, String>>,
+        work: &mut usize,
+    ) -> bool {
+        *work += 1;
+        if *work > MAX_RAW_PATTERN_MATCHES {
+            return false;
+        }
+        if index == candidates.len() {
+            output.push(current.clone());
+            return true;
+        }
+        let (source, targets) = candidates[index];
+        for target in targets {
+            if used.insert(target.clone()) {
+                current.insert(source.clone(), target.clone());
+                if !append(index + 1, candidates, current, used, output, work) {
+                    return false;
+                }
+                current.remove(source);
+                used.remove(target);
+            }
+        }
+        true
+    }
+    let candidates = candidates.iter().collect::<Vec<_>>();
+    let mut output = Vec::new();
+    let mut work = 0_usize;
+    append(
+        0,
+        &candidates,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+        &mut output,
+        &mut work,
+    )
+    .then_some(output)
+}
+
+fn validate_match_work(
+    pattern: &GraphPatternRecord,
+    graph: &StructuralGraph,
+) -> Result<(), CatalogueError> {
+    if !match_work_is_bounded(pattern, graph) {
+        return pattern_error(format!(
+            "pattern `{}` exceeds the match work limit of {MAX_RAW_PATTERN_MATCHES}",
+            pattern.id
+        ));
+    }
+    Ok(())
+}
+
+fn match_work_is_bounded(pattern: &GraphPatternRecord, graph: &StructuralGraph) -> bool {
+    let atom_count = graph.atoms().len();
+    let variable_count = pattern.variables.len();
+    let mut work = 1_usize;
+    for remaining in (atom_count.saturating_sub(variable_count) + 1)..=atom_count {
+        let Some(next) = work.checked_mul(remaining) else {
+            return false;
+        };
+        work = next;
+        if work > MAX_RAW_PATTERN_MATCHES {
+            return false;
+        }
+    }
+    for (count, relationships) in [
+        (
+            graph.groups().len(),
+            pattern
+                .relationships
+                .iter()
+                .filter(|item| {
+                    matches!(item, GraphPatternRelationshipRecord::GroupMembership { .. })
+                })
+                .count(),
+        ),
+        (
+            graph.ionic_associations().len(),
+            pattern
+                .relationships
+                .iter()
+                .filter(|item| {
+                    matches!(
+                        item,
+                        GraphPatternRelationshipRecord::IonicAssociation { .. }
+                    )
+                })
+                .count(),
+        ),
+        (
+            graph.metallic_domains().len(),
+            pattern
+                .relationships
+                .iter()
+                .filter(|item| {
+                    matches!(item, GraphPatternRelationshipRecord::MetallicDomain { .. })
+                })
+                .count(),
+        ),
+    ] {
+        for _ in 0..relationships {
+            let Some(next) = work.checked_mul(count) else {
+                return false;
+            };
+            work = next;
+            if work > MAX_RAW_PATTERN_MATCHES {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 pub(super) fn validate_graph_patterns(
@@ -483,10 +889,9 @@ fn atom_matches(
             .unpaired_electrons
             .is_none_or(|value| value == electrons.unpaired_electrons())
         && constraint.bond_order_sum.is_none_or(|value| {
-            u64::from(value)
-                == graph
-                    .covalent_bond_order_sum(atom.id())
-                    .expect("matched atom belongs to graph")
+            graph
+                .covalent_bond_order_sum(atom.id())
+                .is_some_and(|sum| u64::from(value) == sum)
         }))
 }
 
@@ -788,9 +1193,9 @@ fn bindings_related_by_automorphism(
     graph: &StructuralGraph,
     left: &RolePatternMatchBinding,
     right: &RolePatternMatchBinding,
-) -> bool {
+) -> Option<bool> {
     if left.atoms.keys().collect::<Vec<_>>() != right.atoms.keys().collect::<Vec<_>>() {
-        return false;
+        return Some(false);
     }
     let required = left
         .atoms
@@ -798,6 +1203,7 @@ fn bindings_related_by_automorphism(
         .map(|(name, atom)| (atom.clone(), right.atoms[name].clone()))
         .collect::<BTreeMap<_, _>>();
     let sources = graph.atoms().keys().cloned().collect::<Vec<_>>();
+    let mut work = 0_usize;
     automorphism_search(
         0,
         &sources,
@@ -807,6 +1213,7 @@ fn bindings_related_by_automorphism(
         &required,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
+        &mut work,
     )
 }
 
@@ -820,10 +1227,17 @@ fn automorphism_search(
     required: &BTreeMap<AtomId, AtomId>,
     mapping: &mut BTreeMap<AtomId, AtomId>,
     used: &mut BTreeSet<AtomId>,
-) -> bool {
+    work: &mut usize,
+) -> Option<bool> {
+    *work += 1;
+    if *work > MAX_RAW_PATTERN_MATCHES {
+        return None;
+    }
     if index == sources.len() {
-        return automorphism_preserves_relationships(graph, mapping)
-            && automorphism_preserves_bindings(graph, left, right, mapping);
+        return Some(
+            automorphism_preserves_relationships(graph, mapping)
+                && automorphism_preserves_bindings(graph, left, right, mapping),
+        );
     }
     let source = &sources[index];
     let candidates = if let Some(target) = required.get(source) {
@@ -840,7 +1254,7 @@ fn automorphism_search(
         }
         mapping.insert(source.clone(), target.clone());
         used.insert(target.clone());
-        if automorphism_search(
+        match automorphism_search(
             index + 1,
             sources,
             graph,
@@ -849,13 +1263,16 @@ fn automorphism_search(
             required,
             mapping,
             used,
+            work,
         ) {
-            return true;
+            Some(true) => return Some(true),
+            Some(false) => {}
+            None => return None,
         }
         mapping.remove(source);
         used.remove(target);
     }
-    false
+    Some(false)
 }
 
 fn atom_signature(atom: &Atom) -> (&ElementSymbol, i16, u8, u8) {

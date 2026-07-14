@@ -168,6 +168,20 @@ pub struct ResolvedRuleApplication {
     pub rule: ReactionRuleId,
     pub bindings: BTreeMap<String, ResolvedRuleBinding>,
     pub applicability: ResolvedApplicability,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generalized: Option<ResolvedGeneralizedRuleApplication>,
+    pub provenance: Provenance,
+}
+
+/// Deterministic family selection and match-class evidence retained by G4.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ResolvedGeneralizedRuleApplication {
+    pub parameters: BTreeMap<String, String>,
+    pub parameter_premises: BTreeMap<String, BTreeSet<PremiseId>>,
+    pub case_id: String,
+    pub equivalent_match_count: usize,
+    pub matched_sites: BTreeMap<String, BTreeMap<String, String>>,
+    pub role_premises: BTreeMap<String, BTreeSet<PremiseId>>,
     pub provenance: Provenance,
 }
 
@@ -346,6 +360,31 @@ impl ExpandedStructuralReaction {
             &format!("reaction: {}", self.claim.reaction),
         );
         push_line(&mut output, 0, &format!("rule: {}", self.claim.rule.rule));
+        if let Some(generalized) = &self.claim.rule.generalized {
+            push_line(
+                &mut output,
+                1,
+                &format!(
+                    "generalized: parameters={:?} case={} equivalent_matches={}",
+                    generalized.parameters, generalized.case_id, generalized.equivalent_match_count
+                ),
+            );
+            push_line(
+                &mut output,
+                2,
+                &format!("matched_sites: {:?}", generalized.matched_sites),
+            );
+            push_line(
+                &mut output,
+                2,
+                &format!("parameter_premises: {:?}", generalized.parameter_premises),
+            );
+            push_line(
+                &mut output,
+                2,
+                &format!("role_premises: {:?}", generalized.role_premises),
+            );
+        }
         push_line(
             &mut output,
             1,

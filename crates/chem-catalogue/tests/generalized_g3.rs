@@ -1,9 +1,16 @@
-use std::{collections::BTreeMap, fs, path::PathBuf, str::FromStr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+    str::FromStr,
+};
 
 use chem_catalogue::{
-    CatalogueEnvelope, CatalogueErrorCode, GeneralizedCaseSelection, ValidatedCatalogueBundle,
+    CatalogueEnvelope, CatalogueErrorCode, GeneralizedCaseSelection,
+    GeneralizedElaborationFailureClass, GeneralizedRoleInput, RepresentationRecord, RuleSideRecord,
+    ValidatedCatalogueBundle,
 };
-use chem_domain::ReactionRuleId;
+use chem_domain::{ReactionRuleId, StructureId};
 use serde_json::{Value, json};
 
 fn fixture() -> Value {
@@ -528,6 +535,55 @@ fn catalogue() -> ValidatedCatalogueBundle {
     ValidatedCatalogueBundle::validate(envelope(with_g3(fixture()))).unwrap()
 }
 
+fn role_input(
+    role: &str,
+    structure: &str,
+    coefficient: u32,
+    side: RuleSideRecord,
+    representation: RepresentationRecord,
+) -> GeneralizedRoleInput {
+    GeneralizedRoleInput {
+        role: role.to_owned(),
+        structure: StructureId::from_str(structure).unwrap(),
+        coefficient,
+        side,
+        representation,
+    }
+}
+
+fn water_inputs(metal: &str, hydroxide: &str) -> Vec<GeneralizedRoleInput> {
+    vec![
+        role_input(
+            "metal",
+            metal,
+            2,
+            RuleSideRecord::Reactant,
+            RepresentationRecord::Metallic,
+        ),
+        role_input(
+            "water",
+            "Water",
+            2,
+            RuleSideRecord::Reactant,
+            RepresentationRecord::Molecular,
+        ),
+        role_input(
+            "hydroxide",
+            hydroxide,
+            2,
+            RuleSideRecord::Product,
+            RepresentationRecord::Ionic,
+        ),
+        role_input(
+            "gasProduct",
+            "Hydrogen",
+            1,
+            RuleSideRecord::Product,
+            RepresentationRecord::Molecular,
+        ),
+    ]
+}
+
 #[test]
 fn finite_domains_select_disjoint_supported_and_unsupported_cases() {
     let catalogue = catalogue();
@@ -648,6 +704,263 @@ fn family_and_trait_provenance_is_bound_for_every_finite_member() {
                 .any(|premise| premise == required)
         );
     }
+}
+
+#[test]
+fn generalized_family_elaborates_member_specific_concrete_certificates() {
+    let catalogue = catalogue();
+    let rule = ReactionRuleId::from_str("Rules.AlkaliMetalWithWater").unwrap();
+    for (symbol, metal, hydroxide) in [
+        ("Li", "LithiumMetal", "LithiumHydroxide"),
+        ("Na", "SodiumMetal", "SodiumHydroxide"),
+        ("K", "PotassiumMetal", "PotassiumHydroxide"),
+    ] {
+        let elaborated = catalogue
+            .elaborate_generalized_rule(&rule, &water_inputs(metal, hydroxide))
+            .unwrap()
+            .unwrap();
+        assert_eq!(elaborated.parameter_binding["M"], symbol);
+        assert_eq!(elaborated.case_id, "common");
+        assert_eq!(elaborated.equivalent_match_count, 4);
+        let parameter_premises = elaborated.parameter_premise_ids["M"]
+            .iter()
+            .map(ToString::to_string)
+            .collect::<BTreeSet<_>>();
+        assert!(parameter_premises.contains("premise.category.alkali"));
+        assert!(parameter_premises.contains(&format!("premise.element.{}", symbol.to_lowercase())));
+        let metal_premises = elaborated.role_premise_ids["metal"]
+            .iter()
+            .map(ToString::to_string)
+            .collect::<BTreeSet<_>>();
+        assert!(metal_premises.contains("premise.template.metal"));
+        assert!(metal_premises.contains("premise.pattern.metal"));
+        assert!(metal_premises.contains(&format!(
+            "premise.application.{}-metal",
+            symbol.to_lowercase()
+        )));
+        assert_eq!(elaborated.matched_sites.len(), 4);
+        assert!(elaborated.matched_sites["water[1]"].contains_key("broken"));
+        assert!(elaborated.matched_sites["metal[1]"].contains_key("domain"));
+        assert_eq!(
+            elaborated.rule.reactant_pattern[0].structure_id.to_string(),
+            metal
+        );
+        assert_eq!(
+            elaborated.rule.product_pattern[1].structure_id.to_string(),
+            hydroxide
+        );
+        assert!(
+            elaborated
+                .rule
+                .mapping_template
+                .iter()
+                .any(|pair| pair.reactant == "water[1].h1" || pair.reactant == "water[1].h2")
+        );
+    }
+}
+
+#[test]
+fn certificate_symmetry_never_rewrites_reference_shaped_free_text() {
+    let mut value = with_g3(fixture());
+    value["bundle"]["generalized_rules"][0]["applicability"]["required_context"] =
+        json!("water[1]");
+    value["bundle"]["generalized_rules"][0]["cases"][0]["observation_compatibility"][0]["evidence_subject"] =
+        json!("water[2]");
+    let catalogue = ValidatedCatalogueBundle::validate(envelope(value)).unwrap();
+    let rule = ReactionRuleId::from_str("Rules.AlkaliMetalWithWater").unwrap();
+    let elaborated = catalogue
+        .elaborate_generalized_rule(&rule, &water_inputs("LithiumMetal", "LithiumHydroxide"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(elaborated.rule.applicability.required_context, "water[1]");
+    assert_eq!(
+        elaborated.rule.observation_compatibility[0].evidence_subject,
+        "water[2]"
+    );
+}
+
+#[test]
+fn generalized_dative_elaboration_uses_checked_directed_trait_sites() {
+    let catalogue = catalogue();
+    let rule = ReactionRuleId::from_str("Rules.DativeDonorAcceptorFixture").unwrap();
+    let inputs = vec![
+        role_input(
+            "donor",
+            "DativeDonor",
+            1,
+            RuleSideRecord::Reactant,
+            RepresentationRecord::Ion,
+        ),
+        role_input(
+            "acceptor",
+            "DativeAcceptor",
+            1,
+            RuleSideRecord::Reactant,
+            RepresentationRecord::Ion,
+        ),
+        role_input(
+            "adduct",
+            "DativeAdduct",
+            1,
+            RuleSideRecord::Product,
+            RepresentationRecord::Ion,
+        ),
+    ];
+    let elaborated = catalogue
+        .elaborate_generalized_rule(&rule, &inputs)
+        .unwrap()
+        .unwrap();
+    assert_eq!(elaborated.parameter_binding["D"], "DativeDonor");
+    assert_eq!(elaborated.parameter_binding["A"], "DativeAcceptor");
+    let serialized = serde_json::to_value(&elaborated.rule.operation_template[0]).unwrap();
+    assert_eq!(serialized["kind"], "form_dative");
+    assert_eq!(serialized["donor"], "donor[1].donor");
+    assert_eq!(serialized["acceptor"], "acceptor[1].acceptor");
+    assert_eq!(elaborated.matched_sites["donor[1]"]["donor"], "donor");
+    assert_eq!(
+        elaborated.matched_sites["acceptor[1]"]["acceptor"],
+        "acceptor"
+    );
+    for required in [
+        "premise.trait.donor.definition",
+        "premise.trait.donor.assertion",
+        "premise.pattern.dative-donor",
+    ] {
+        assert!(
+            elaborated.role_premise_ids["donor"]
+                .iter()
+                .any(|premise| premise.to_string() == required)
+        );
+    }
+
+    let mut wrong = inputs;
+    wrong[0].structure = StructureId::from_str("DativeAcceptor").unwrap();
+    let failure = catalogue
+        .elaborate_generalized_rule(&rule, &wrong)
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(
+        failure.class,
+        GeneralizedElaborationFailureClass::Unsupported
+    );
+}
+
+#[test]
+fn unsupported_bindings_and_cases_stop_before_graph_matching() {
+    let catalogue = catalogue();
+    let water = ReactionRuleId::from_str("Rules.AlkaliMetalWithWater").unwrap();
+    let outside = catalogue
+        .elaborate_generalized_rule(
+            &water,
+            &water_inputs("LegacyLithiumMetal", "LithiumHydroxide"),
+        )
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(
+        outside.class,
+        GeneralizedElaborationFailureClass::Unsupported
+    );
+
+    let oxygen = ReactionRuleId::from_str("Rules.AlkaliMetalWithOxygenDesign").unwrap();
+    let selected_gap = catalogue
+        .elaborate_generalized_rule(
+            &oxygen,
+            &[
+                role_input(
+                    "metal",
+                    "PotassiumMetal",
+                    1,
+                    RuleSideRecord::Reactant,
+                    RepresentationRecord::Metallic,
+                ),
+                role_input(
+                    "oxygen",
+                    "Oxygen",
+                    1,
+                    RuleSideRecord::Reactant,
+                    RepresentationRecord::Molecular,
+                ),
+                role_input(
+                    "oxide",
+                    "LithiumHydroxide",
+                    1,
+                    RuleSideRecord::Product,
+                    RepresentationRecord::Ionic,
+                ),
+            ],
+        )
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(
+        selected_gap.required_feature.as_deref(),
+        Some("Features.SuperoxideBonding")
+    );
+}
+
+#[test]
+fn non_automorphic_graph_matches_are_ambiguous_not_first_match() {
+    let mut value = with_g3(fixture());
+    let premise = "premise.case.generalized-water";
+    value["bundle"]["graph_patterns"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "id":"Patterns.AsymmetricUnconstrained",
+            "variables":{"a":{"atom":{}},"b":{"atom":{}},"c":{"atom":{}}},
+            "premise_ids":[premise]
+        }));
+    let proof_premises = value["bundle"]["generalized_rules"][0]["premise_ids"].clone();
+    value["bundle"]["generalized_rules"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "id":"Rules.AsymmetricAmbiguityProbe",
+            "parameters":{"mode":{"kind":"enum","values":["probe"]}},
+            "roles":{
+                "substrate":{"side":"reactant","representation":"ionic","coefficient":1},
+                "product":{"side":"product","representation":"ionic","coefficient":1}
+            },
+            "reactants":{"substrate":{"kind":"exact","structure":"LithiumHydroxide"}},
+            "cases":[{
+                "id":"probe","status":"supported","when":{"kind":"always"},
+                "products":{"product":{"kind":"exact","structure":"LithiumHydroxide"}},
+                "patterns":{"substrate":"Patterns.AsymmetricUnconstrained"},
+                "correspondence":[
+                    {"reactant":"substrate[1].a","product":"product[1].hydroxide.hydrogen","premise_ids":[premise]},
+                    {"reactant":"substrate[1].b","product":"product[1].hydroxide.oxygen","premise_ids":[premise]},
+                    {"reactant":"substrate[1].c","product":"product[1].cation.metal","premise_ids":[premise]}
+                ],
+                "rewrite":[{"kind":"assign_product","atoms":["substrate[1].a","substrate[1].b","substrate[1].c"],"product":"product[1]","premise_ids":[premise]}],
+                "premise_ids":[premise]
+            }],
+            "applicability":{"premise_id":premise,"request_relation":"contact","required_context":"ambiguity probe"},
+            "model_assumptions":{"event":"representative","sequence":"explanatory","premise_ids":[premise]},
+            "premise_ids":proof_premises
+        }));
+    let catalogue = ValidatedCatalogueBundle::validate(envelope(value)).unwrap();
+    let failure = catalogue
+        .elaborate_generalized_rule(
+            &ReactionRuleId::from_str("Rules.AsymmetricAmbiguityProbe").unwrap(),
+            &[
+                role_input(
+                    "substrate",
+                    "LithiumHydroxide",
+                    1,
+                    RuleSideRecord::Reactant,
+                    RepresentationRecord::Ionic,
+                ),
+                role_input(
+                    "product",
+                    "LithiumHydroxide",
+                    1,
+                    RuleSideRecord::Product,
+                    RepresentationRecord::Ionic,
+                ),
+            ],
+        )
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(failure.class, GeneralizedElaborationFailureClass::Ambiguous);
 }
 
 #[test]

@@ -1,9 +1,8 @@
 # Generalized chemistry rules and structural templates
 
-> **Status:** locked design, implemented through inert generalized families,
-> finite parameter domains, and statically checked cases/rewrites (G3).
-> Elaboration, migration, and authoring support remain queued as G4 through
-> G6.
+> **Status:** locked design, implemented through deterministic generalized
+> elaboration into the existing concrete certificate boundary (G4). Migration,
+> conformance promotion, and authoring support remain queued as G5 and G6.
 >
 > This document defines the intended catalogue and elaboration architecture for
 > generalized chemistry. The implemented `.chems 1` source grammar and concrete
@@ -429,6 +428,13 @@ Catalogue validation admits at most 64 parameters and rejects a rule whose
 Cartesian parameter domain exceeds 4,096 bindings. These are deterministic
 validation-work bounds: catalogue JSON is untrusted input, so finite must also
 mean safely enumerable.
+
+Generalized role coefficients are limited to eight, with at most 32 total
+reactant and product instances per rule. Raw matching and certificate
+canonicalization each admit at most 4,096 candidates. Reaching a runtime
+matching or symmetry bound cannot authorize a first-match result: elaboration
+returns typed Ambiguous unless the unique complete certificate has been
+established within the bound.
 
 Every generalized rule has at least one case. There is no implicit default. A
 case predicate uses a separate closed typed AST over parameter identities:

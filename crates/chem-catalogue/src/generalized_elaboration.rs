@@ -1,0 +1,1264 @@
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    str::FromStr,
+};
+
+use chem_domain::{ElementSymbol, PremiseId, StructureId, canonical_json};
+
+use super::{
+    ApplicabilityRecord, CatalogueError, CleavageAllocationRecord, GeneralizedArgumentRecord,
+    GeneralizedCaseSelection, GeneralizedParameterRecord, GeneralizedReactionCaseRecord,
+    GeneralizedReactionRuleRecord, GeneralizedStructureSelectorRecord, MappingPairRecord,
+    OperationTemplateRecord, PatternRoleInput, PatternTermRecord, ReactionRuleId,
+    ReactionRuleRecord, RolePatternMatchBinding, RoleSchemaRecord, RuleSideRecord,
+    StructureAutomorphism, ValidatedCatalogueBundle,
+};
+
+const MAX_CERTIFICATE_CANDIDATES: usize = 4_096;
+
+type InstancePatternMatches = BTreeMap<String, Vec<RolePatternMatchBinding>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneralizedRoleInput {
+    pub role: String,
+    pub structure: StructureId,
+    pub coefficient: u32,
+    pub side: RuleSideRecord,
+    pub representation: super::RepresentationRecord,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneralizedElaborationFailureClass {
+    InvalidSource,
+    Unsupported,
+    Ambiguous,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneralizedElaborationFailure {
+    pub class: GeneralizedElaborationFailureClass,
+    pub message: String,
+    pub required_feature: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElaboratedGeneralizedRule {
+    pub rule: ReactionRuleRecord,
+    pub parameter_binding: BTreeMap<String, String>,
+    pub parameter_premise_ids: BTreeMap<String, BTreeSet<PremiseId>>,
+    pub case_id: String,
+    pub equivalent_match_count: usize,
+    pub matched_sites: BTreeMap<String, BTreeMap<String, String>>,
+    pub role_premise_ids: BTreeMap<String, BTreeSet<PremiseId>>,
+    pub selected_premise_ids: BTreeSet<PremiseId>,
+}
+
+impl ValidatedCatalogueBundle {
+    /// Deterministically compiles one validated generalized rule application
+    /// into the existing concrete rule-record boundary without executing it.
+    ///
+    /// # Errors
+    ///
+    /// Returns a catalogue error only if already validated catalogue state is
+    /// internally inconsistent. Request-level failures are returned as typed
+    /// invalid, unsupported, or ambiguous outcomes.
+    #[allow(clippy::too_many_lines)]
+    pub fn elaborate_generalized_rule(
+        &self,
+        id: &ReactionRuleId,
+        inputs: &[GeneralizedRoleInput],
+    ) -> Result<Result<ElaboratedGeneralizedRule, GeneralizedElaborationFailure>, CatalogueError>
+    {
+        let Some(rule) = self.generalized_rule(id) else {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Unsupported,
+                format!("generalized rule `{id}` does not resolve"),
+            )));
+        };
+        let by_role = inputs
+            .iter()
+            .map(|input| (input.role.clone(), input))
+            .collect::<BTreeMap<_, _>>();
+        if by_role.len() != inputs.len()
+            || by_role.keys().collect::<BTreeSet<_>>() != rule.roles.keys().collect::<BTreeSet<_>>()
+        {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::InvalidSource,
+                "generalized rule role binding is incomplete or duplicated",
+            )));
+        }
+        for (role, schema) in &rule.roles {
+            if by_role[role].coefficient != schema.coefficient
+                || by_role[role].side != schema.side
+                || by_role[role].representation != schema.representation
+            {
+                return Ok(Err(failure(
+                    GeneralizedElaborationFailureClass::InvalidSource,
+                    format!("role `{role}` shape does not match generalized rule"),
+                )));
+            }
+        }
+
+        let domains = self.generalized_parameter_domains(id).ok_or_else(|| {
+            CatalogueError::new(
+                super::CatalogueErrorCode::InvalidGeneralizedRule,
+                format!("generalized rule `{id}` lost its validated parameter domains"),
+            )
+        })?;
+        let mut binding = BTreeMap::new();
+        for (role, selector) in &rule.reactants {
+            if let Err(result) = infer_selector_binding(
+                self,
+                selector,
+                &by_role[role].structure,
+                &mut binding,
+                domains,
+            ) {
+                return Ok(Err(result));
+            }
+        }
+        for (parameter, domain) in domains {
+            if !binding.contains_key(parameter) {
+                if domain.len() != 1 {
+                    return Ok(Err(failure(
+                        GeneralizedElaborationFailureClass::Ambiguous,
+                        format!("parameter `{parameter}` is not uniquely induced by source roles"),
+                    )));
+                }
+                let Some(value) = domain.first() else {
+                    return Err(CatalogueError::new(
+                        super::CatalogueErrorCode::InvalidGeneralizedRule,
+                        format!("generalized parameter `{parameter}` lost its finite domain"),
+                    ));
+                };
+                binding.insert(parameter.clone(), value.clone());
+            }
+        }
+
+        let Some(selection) = self.select_generalized_case(id, &binding)? else {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Unsupported,
+                format!("rule `{id}` has no reviewed case for the inferred parameter binding"),
+            )));
+        };
+        let case = match selection {
+            GeneralizedCaseSelection::Unsupported(case) => {
+                let GeneralizedReactionCaseRecord::Unsupported {
+                    required_feature,
+                    explanation,
+                    ..
+                } = case
+                else {
+                    return Err(CatalogueError::new(
+                        super::CatalogueErrorCode::InvalidGeneralizedCase,
+                        "generalized case selection has the wrong status",
+                    ));
+                };
+                return Ok(Err(GeneralizedElaborationFailure {
+                    class: GeneralizedElaborationFailureClass::Unsupported,
+                    message: explanation.clone(),
+                    required_feature: Some(required_feature.clone()),
+                }));
+            }
+            GeneralizedCaseSelection::Supported(case) => case,
+        };
+        let GeneralizedReactionCaseRecord::Supported { products, .. } = case else {
+            return Err(CatalogueError::new(
+                super::CatalogueErrorCode::InvalidGeneralizedCase,
+                "generalized case selection has the wrong status",
+            ));
+        };
+        for (role, selector) in products {
+            let resolved = super::generalized::resolve_selector(
+                selector,
+                &binding,
+                self.structures(),
+                &self.structure_traits,
+                &self.document().structure_applications,
+            )?;
+            if resolved.len() != 1 || !resolved.contains(&by_role[role].structure) {
+                return Ok(Err(failure(
+                    GeneralizedElaborationFailureClass::InvalidSource,
+                    format!(
+                        "authored product role `{role}` does not match selected family product"
+                    ),
+                )));
+            }
+        }
+        elaborate_supported(self, rule, case, &binding, &by_role)
+    }
+}
+
+fn infer_selector_binding(
+    catalogue: &ValidatedCatalogueBundle,
+    selector: &GeneralizedStructureSelectorRecord,
+    actual: &StructureId,
+    binding: &mut BTreeMap<String, String>,
+    domains: &BTreeMap<String, BTreeSet<String>>,
+) -> Result<(), GeneralizedElaborationFailure> {
+    match selector {
+        GeneralizedStructureSelectorRecord::Exact { structure } => {
+            if structure != actual {
+                return Err(failure(
+                    GeneralizedElaborationFailureClass::Unsupported,
+                    format!("structure `{actual}` does not satisfy exact selector `{structure}`"),
+                ));
+            }
+        }
+        GeneralizedStructureSelectorRecord::Template {
+            template,
+            arguments,
+        } => {
+            let Some(application) = catalogue.structure_application(actual) else {
+                return Err(failure(
+                    GeneralizedElaborationFailureClass::Unsupported,
+                    format!("structure `{actual}` is not a reviewed template application"),
+                ));
+            };
+            if &application.template != template {
+                return Err(failure(
+                    GeneralizedElaborationFailureClass::Unsupported,
+                    format!("structure `{actual}` uses a different template"),
+                ));
+            }
+            for (name, argument) in arguments {
+                let actual_value = &application.arguments[name];
+                match argument {
+                    GeneralizedArgumentRecord::Literal(expected) if expected != actual_value => {
+                        return Err(failure(
+                            GeneralizedElaborationFailureClass::Unsupported,
+                            format!("structure `{actual}` has a different template argument"),
+                        ));
+                    }
+                    GeneralizedArgumentRecord::Parameter(reference) => {
+                        assign_parameter(&reference.parameter, actual_value, binding, domains)?;
+                    }
+                    GeneralizedArgumentRecord::Literal(_) => {}
+                }
+            }
+        }
+        GeneralizedStructureSelectorRecord::Trait { trait_id } => {
+            if catalogue
+                .structure_trait_assertion(actual, trait_id)
+                .is_none()
+            {
+                return Err(failure(
+                    GeneralizedElaborationFailureClass::Unsupported,
+                    format!("structure `{actual}` does not satisfy trait `{trait_id}`"),
+                ));
+            }
+        }
+        GeneralizedStructureSelectorRecord::StructureParameter { parameter } => {
+            assign_parameter(parameter, &actual.to_string(), binding, domains)?;
+        }
+    }
+    Ok(())
+}
+
+fn assign_parameter(
+    parameter: &str,
+    value: &str,
+    binding: &mut BTreeMap<String, String>,
+    domains: &BTreeMap<String, BTreeSet<String>>,
+) -> Result<(), GeneralizedElaborationFailure> {
+    if !domains
+        .get(parameter)
+        .is_some_and(|domain| domain.contains(value))
+    {
+        return Err(failure(
+            GeneralizedElaborationFailureClass::Unsupported,
+            format!("value `{value}` is outside parameter `{parameter}` domain"),
+        ));
+    }
+    if binding
+        .insert(parameter.to_owned(), value.to_owned())
+        .is_some_and(|previous| previous != value)
+    {
+        return Err(failure(
+            GeneralizedElaborationFailureClass::InvalidSource,
+            format!("source roles infer conflicting values for parameter `{parameter}`"),
+        ));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn elaborate_supported(
+    catalogue: &ValidatedCatalogueBundle,
+    generalized: &GeneralizedReactionRuleRecord,
+    case: &GeneralizedReactionCaseRecord,
+    binding: &BTreeMap<String, String>,
+    by_role: &BTreeMap<String, &GeneralizedRoleInput>,
+) -> Result<Result<ElaboratedGeneralizedRule, GeneralizedElaborationFailure>, CatalogueError> {
+    let GeneralizedReactionCaseRecord::Supported {
+        id: case_id,
+        products,
+        patterns,
+        correspondence,
+        rewrite,
+        observation_compatibility,
+        ..
+    } = case
+    else {
+        return Err(CatalogueError::new(
+            super::CatalogueErrorCode::InvalidGeneralizedCase,
+            "generalized supported elaboration received an unsupported case",
+        ));
+    };
+    let element_parameters = generalized
+        .parameters
+        .iter()
+        .filter_map(|(name, parameter)| {
+            matches!(parameter, GeneralizedParameterRecord::Element { .. })
+                .then_some((name, &binding[name]))
+        })
+        .map(|(name, value)| {
+            ElementSymbol::from_str(value)
+                .map(|symbol| (name.clone(), symbol))
+                .map_err(|error| {
+                    CatalogueError::new(
+                        super::CatalogueErrorCode::InvalidGeneralizedRule,
+                        format!("validated element parameter is corrupt: {error}"),
+                    )
+                })
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
+    let matches = match enumerate_instance_matches(
+        catalogue,
+        generalized,
+        patterns,
+        by_role,
+        &element_parameters,
+    )? {
+        Ok(matches) => matches,
+        Err(result) => return Ok(Err(result)),
+    };
+    if matches.is_empty() {
+        return Ok(Err(failure(
+            GeneralizedElaborationFailureClass::Unsupported,
+            "selected generalized case has no graph match",
+        )));
+    }
+    let symmetry_maps = match certificate_symmetry_maps(catalogue, generalized, by_role)? {
+        Ok(maps) => maps,
+        Err(result) => return Ok(Err(result)),
+    };
+    let mut work = 0_usize;
+    let mut classes =
+        BTreeMap::<Vec<u8>, (Vec<u8>, ReactionRuleRecord, InstancePatternMatches)>::new();
+    for matched in &matches {
+        let concrete = instantiate_rule(
+            generalized,
+            case_id,
+            products,
+            patterns,
+            correspondence,
+            rewrite,
+            observation_compatibility,
+            by_role,
+            matched,
+        )?;
+        let raw_key = canonical_rule_key(&concrete)?;
+        let certificate_key = match canonical_certificate_key(&concrete, &symmetry_maps, &mut work)?
+        {
+            Ok(key) => key,
+            Err(result) => return Ok(Err(result)),
+        };
+        classes
+            .entry(certificate_key)
+            .and_modify(|representative| {
+                if raw_key < representative.0 {
+                    *representative = (raw_key.clone(), concrete.clone(), matched.clone());
+                }
+            })
+            .or_insert((raw_key, concrete, matched.clone()));
+    }
+    if classes.len() != 1 {
+        return Ok(Err(failure(
+            GeneralizedElaborationFailureClass::Ambiguous,
+            "selected generalized case has multiple non-equivalent complete certificates",
+        )));
+    }
+    let Some((_, mut representative, representative_match)) = classes.into_values().next() else {
+        return Err(CatalogueError::new(
+            super::CatalogueErrorCode::InvalidGeneralizedCase,
+            "generalized certificate class vanished after non-empty matching",
+        ));
+    };
+    let provenance =
+        generalized_provenance(catalogue, generalized, case, patterns, binding, by_role)?;
+    attach_local_premises(&mut representative, &provenance.selected, &provenance.roles)?;
+    Ok(Ok(ElaboratedGeneralizedRule {
+        rule: representative,
+        parameter_binding: binding.clone(),
+        parameter_premise_ids: provenance.parameters,
+        case_id: case_id.clone(),
+        equivalent_match_count: matches.len(),
+        matched_sites: matched_sites(&representative_match),
+        role_premise_ids: provenance.roles,
+        selected_premise_ids: provenance.selected,
+    }))
+}
+
+struct GeneralizedProvenance {
+    parameters: BTreeMap<String, BTreeSet<PremiseId>>,
+    roles: BTreeMap<String, BTreeSet<PremiseId>>,
+    selected: BTreeSet<PremiseId>,
+}
+
+fn generalized_provenance(
+    catalogue: &ValidatedCatalogueBundle,
+    generalized: &GeneralizedReactionRuleRecord,
+    case: &GeneralizedReactionCaseRecord,
+    patterns: &BTreeMap<String, super::GraphPatternId>,
+    binding: &BTreeMap<String, String>,
+    by_role: &BTreeMap<String, &GeneralizedRoleInput>,
+) -> Result<GeneralizedProvenance, CatalogueError> {
+    let mut selected = generalized.premise_ids.clone();
+    selected.extend(case.premise_ids().iter().cloned());
+    selected.insert(generalized.applicability.premise_id.clone());
+    selected.extend(generalized.model_assumptions.premise_ids.iter().cloned());
+
+    let mut parameters = BTreeMap::new();
+    for (name, parameter) in &generalized.parameters {
+        let mut premises = BTreeSet::new();
+        match parameter {
+            GeneralizedParameterRecord::Element { category } => {
+                let symbol = ElementSymbol::from_str(&binding[name]).map_err(|error| {
+                    CatalogueError::new(
+                        super::CatalogueErrorCode::InvalidGeneralizedRule,
+                        format!("validated element binding is corrupt: {error}"),
+                    )
+                })?;
+                let membership = catalogue
+                    .element_membership_provenance(&symbol, category)
+                    .ok_or_else(|| {
+                        CatalogueError::new(
+                            super::CatalogueErrorCode::InvalidGeneralizedRule,
+                            format!("element parameter `{name}` lost membership provenance"),
+                        )
+                    })?;
+                premises.extend(membership.element_premise_ids.iter().cloned());
+                premises.extend(membership.category_premise_ids.iter().cloned());
+            }
+            GeneralizedParameterRecord::Structure { trait_id } => {
+                let structure = StructureId::from_str(&binding[name]).map_err(|error| {
+                    CatalogueError::new(
+                        super::CatalogueErrorCode::InvalidGeneralizedRule,
+                        format!("validated structure binding is corrupt: {error}"),
+                    )
+                })?;
+                premises.extend(
+                    catalogue
+                        .structure_premises(&structure)
+                        .into_iter()
+                        .flatten()
+                        .cloned(),
+                );
+                premises.extend(
+                    catalogue
+                        .structural_trait(trait_id)
+                        .into_iter()
+                        .flat_map(|record| record.premise_ids.iter().cloned()),
+                );
+                premises.extend(
+                    catalogue
+                        .structure_trait_assertion(&structure, trait_id)
+                        .into_iter()
+                        .flat_map(|record| record.premise_ids.iter().cloned()),
+                );
+            }
+            GeneralizedParameterRecord::Enum { .. } => {}
+        }
+        selected.extend(premises.iter().cloned());
+        parameters.insert(name.clone(), premises);
+    }
+
+    let mut roles = BTreeMap::new();
+    for role in generalized.roles.keys() {
+        let mut premises = selected.clone();
+        premises.extend(
+            catalogue
+                .structure_premises(&by_role[role].structure)
+                .into_iter()
+                .flatten()
+                .cloned(),
+        );
+        if let Some(pattern) = patterns
+            .get(role)
+            .and_then(|id| catalogue.graph_pattern(id))
+        {
+            premises.extend(pattern.premise_ids.iter().cloned());
+        }
+        roles.insert(role.clone(), premises);
+    }
+    Ok(GeneralizedProvenance {
+        parameters,
+        roles,
+        selected,
+    })
+}
+
+fn attach_local_premises(
+    rule: &mut ReactionRuleRecord,
+    selected: &BTreeSet<PremiseId>,
+    roles: &BTreeMap<String, BTreeSet<PremiseId>>,
+) -> Result<(), CatalogueError> {
+    rule.premise_ids.extend(selected.iter().cloned());
+    rule.premise_ids.extend(roles.values().flatten().cloned());
+    for pair in &mut rule.mapping_template {
+        pair.premise_ids.extend(selected.iter().cloned());
+        for role in referenced_roles([pair.reactant.as_str(), pair.product.as_str()], roles) {
+            pair.premise_ids.extend(roles[role].iter().cloned());
+        }
+    }
+    for operation in &mut rule.operation_template {
+        let value = serde_json::to_value(&*operation).map_err(|error| {
+            CatalogueError::new(
+                super::CatalogueErrorCode::InvalidGeneralizedRule,
+                error.to_string(),
+            )
+        })?;
+        let mut strings = Vec::new();
+        collect_strings(&value, &mut strings);
+        let mut premises = operation.premise_ids().clone();
+        premises.extend(selected.iter().cloned());
+        for role in referenced_roles(strings.iter().map(String::as_str), roles) {
+            premises.extend(roles[role].iter().cloned());
+        }
+        set_operation_premises(operation, premises);
+    }
+    Ok(())
+}
+
+fn referenced_roles<'a>(
+    references: impl IntoIterator<Item = &'a str>,
+    roles: &'a BTreeMap<String, BTreeSet<PremiseId>>,
+) -> BTreeSet<&'a String> {
+    references
+        .into_iter()
+        .filter_map(|reference| reference.split_once('[').map(|(role, _)| role))
+        .filter_map(|role| roles.get_key_value(role).map(|(role, _)| role))
+        .collect()
+}
+
+fn collect_strings(value: &serde_json::Value, output: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(text) => output.push(text.clone()),
+        serde_json::Value::Array(values) => {
+            for value in values {
+                collect_strings(value, output);
+            }
+        }
+        serde_json::Value::Object(values) => {
+            for value in values.values() {
+                collect_strings(value, output);
+            }
+        }
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
+    }
+}
+
+fn set_operation_premises(operation: &mut OperationTemplateRecord, premises: BTreeSet<PremiseId>) {
+    match operation {
+        OperationTemplateRecord::CleaveCovalent { premise_ids, .. }
+        | OperationTemplateRecord::FormCovalent { premise_ids, .. }
+        | OperationTemplateRecord::CleaveDative { premise_ids, .. }
+        | OperationTemplateRecord::FormDative { premise_ids, .. }
+        | OperationTemplateRecord::ChangeCovalent { premise_ids, .. }
+        | OperationTemplateRecord::AssociateIonic { premise_ids, .. }
+        | OperationTemplateRecord::DissociateIonic { premise_ids, .. }
+        | OperationTemplateRecord::ReleaseMetallic { premise_ids, .. }
+        | OperationTemplateRecord::JoinMetallic { premise_ids, .. }
+        | OperationTemplateRecord::TransferElectron { premise_ids, .. }
+        | OperationTemplateRecord::AssignProduct { premise_ids, .. } => *premise_ids = premises,
+    }
+}
+
+fn matched_sites(matched: &InstancePatternMatches) -> BTreeMap<String, BTreeMap<String, String>> {
+    let mut result = BTreeMap::new();
+    for (role, instances) in matched {
+        for (index, binding) in instances.iter().enumerate() {
+            let sites = binding
+                .atoms()
+                .iter()
+                .map(|(name, value)| (name.clone(), value.to_string()))
+                .chain(
+                    binding
+                        .covalent_bonds()
+                        .iter()
+                        .map(|(name, value)| (name.clone(), value.to_string())),
+                )
+                .chain(
+                    binding
+                        .groups()
+                        .iter()
+                        .map(|(name, value)| (name.clone(), value.to_string())),
+                )
+                .chain(
+                    binding
+                        .ionic_associations()
+                        .iter()
+                        .map(|(name, value)| (name.clone(), value.to_string())),
+                )
+                .chain(
+                    binding
+                        .metallic_domains()
+                        .iter()
+                        .map(|(name, value)| (name.clone(), value.to_string())),
+                )
+                .collect();
+            result.insert(format!("{role}[{}]", index + 1), sites);
+        }
+    }
+    result
+}
+
+fn enumerate_instance_matches(
+    catalogue: &ValidatedCatalogueBundle,
+    generalized: &GeneralizedReactionRuleRecord,
+    patterns: &BTreeMap<String, super::GraphPatternId>,
+    by_role: &BTreeMap<String, &GeneralizedRoleInput>,
+    element_parameters: &BTreeMap<String, ElementSymbol>,
+) -> Result<Result<Vec<InstancePatternMatches>, GeneralizedElaborationFailure>, CatalogueError> {
+    let mut combined = vec![BTreeMap::new()];
+    for (role, pattern) in patterns {
+        if !catalogue.pattern_match_work_is_bounded(pattern, &by_role[role].structure)? {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Ambiguous,
+                format!("role `{role}` graph matching exceeds the work limit"),
+            )));
+        }
+        let raw = catalogue.raw_pattern_matches(
+            &[PatternRoleInput {
+                role: role.clone(),
+                pattern: pattern.clone(),
+                structure: by_role[role].structure.clone(),
+            }],
+            element_parameters,
+        )?;
+        let role_matches = raw
+            .iter()
+            .filter_map(|matched| matched.roles().get(role).cloned())
+            .collect::<Vec<_>>();
+        let coefficient = generalized.roles[role].coefficient as usize;
+        let selection_count = role_matches
+            .len()
+            .checked_pow(generalized.roles[role].coefficient)
+            .unwrap_or(usize::MAX);
+        if selection_count > MAX_CERTIFICATE_CANDIDATES
+            || combined
+                .len()
+                .checked_mul(selection_count)
+                .is_none_or(|count| count > MAX_CERTIFICATE_CANDIDATES)
+        {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Ambiguous,
+                "independent pattern-instance enumeration exceeds the work limit",
+            )));
+        }
+        let mut selections = vec![Vec::new()];
+        for _ in 0..coefficient {
+            selections = selections
+                .into_iter()
+                .flat_map(|prefix| {
+                    role_matches.iter().cloned().map(move |matched| {
+                        let mut value = prefix.clone();
+                        value.push(matched);
+                        value
+                    })
+                })
+                .collect();
+        }
+        let mut next = Vec::with_capacity(combined.len() * selections.len());
+        for prefix in &combined {
+            for selection in &selections {
+                let mut value = prefix.clone();
+                value.insert(role.clone(), selection.clone());
+                next.push(value);
+            }
+        }
+        combined = next;
+    }
+    Ok(Ok(combined))
+}
+
+fn certificate_symmetry_maps(
+    catalogue: &ValidatedCatalogueBundle,
+    generalized: &GeneralizedReactionRuleRecord,
+    by_role: &BTreeMap<String, &GeneralizedRoleInput>,
+) -> Result<Result<Vec<BTreeMap<String, String>>, GeneralizedElaborationFailure>, CatalogueError> {
+    let mut combined = vec![BTreeMap::new()];
+    for (role, schema) in &generalized.roles {
+        let Some(automorphisms) = catalogue.structure_automorphisms(&by_role[role].structure)?
+        else {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Ambiguous,
+                format!("role `{role}` exceeds the automorphism work limit"),
+            )));
+        };
+        let Some(role_maps) = role_symmetry_maps(role, schema.coefficient, &automorphisms) else {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Ambiguous,
+                format!("role `{role}` exceeds the certificate symmetry limit"),
+            )));
+        };
+        if combined
+            .len()
+            .checked_mul(role_maps.len())
+            .is_none_or(|count| count > MAX_CERTIFICATE_CANDIDATES)
+        {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Ambiguous,
+                "complete-certificate symmetry exceeds the work limit",
+            )));
+        }
+        let mut next = Vec::with_capacity(combined.len() * role_maps.len());
+        for prefix in &combined {
+            for role_map in &role_maps {
+                let mut value = prefix.clone();
+                value.extend(role_map.clone());
+                next.push(value);
+            }
+        }
+        combined = next;
+    }
+    Ok(Ok(combined))
+}
+
+fn role_symmetry_maps(
+    role: &str,
+    coefficient: u32,
+    automorphisms: &[StructureAutomorphism],
+) -> Option<Vec<BTreeMap<String, String>>> {
+    let coefficient = coefficient as usize;
+    let permutations = bounded_permutations(coefficient)?;
+    let automorphism_choices = automorphisms
+        .len()
+        .checked_pow(u32::try_from(coefficient).ok()?)?;
+    if permutations
+        .len()
+        .checked_mul(automorphism_choices)
+        .is_none_or(|count| count > MAX_CERTIFICATE_CANDIDATES)
+    {
+        return None;
+    }
+    let mut results = Vec::new();
+    for permutation in permutations {
+        append_automorphism_choices(
+            role,
+            &permutation,
+            automorphisms,
+            0,
+            &mut Vec::new(),
+            &mut results,
+        );
+    }
+    Some(results)
+}
+
+fn append_automorphism_choices(
+    role: &str,
+    permutation: &[usize],
+    automorphisms: &[StructureAutomorphism],
+    ordinal: usize,
+    chosen: &mut Vec<usize>,
+    results: &mut Vec<BTreeMap<String, String>>,
+) {
+    if ordinal == permutation.len() {
+        let mut map = BTreeMap::new();
+        for (source_ordinal, target_ordinal) in permutation.iter().copied().enumerate() {
+            let source_instance = format!("{role}[{}]", source_ordinal + 1);
+            let target_instance = format!("{role}[{}]", target_ordinal + 1);
+            map.insert(source_instance.clone(), target_instance.clone());
+            for (source, target) in automorphisms[chosen[source_ordinal]].sites() {
+                map.insert(
+                    format!("{source_instance}.{source}"),
+                    format!("{target_instance}.{target}"),
+                );
+            }
+        }
+        results.push(map);
+        return;
+    }
+    for index in 0..automorphisms.len() {
+        chosen.push(index);
+        append_automorphism_choices(
+            role,
+            permutation,
+            automorphisms,
+            ordinal + 1,
+            chosen,
+            results,
+        );
+        chosen.pop();
+    }
+}
+
+fn bounded_permutations(count: usize) -> Option<Vec<Vec<usize>>> {
+    fn append(
+        count: usize,
+        current: &mut Vec<usize>,
+        used: &mut BTreeSet<usize>,
+        results: &mut Vec<Vec<usize>>,
+    ) -> bool {
+        if results.len() > MAX_CERTIFICATE_CANDIDATES {
+            return false;
+        }
+        if current.len() == count {
+            results.push(current.clone());
+            return results.len() <= MAX_CERTIFICATE_CANDIDATES;
+        }
+        for value in 0..count {
+            if used.insert(value) {
+                current.push(value);
+                if !append(count, current, used, results) {
+                    return false;
+                }
+                current.pop();
+                used.remove(&value);
+            }
+        }
+        true
+    }
+    let mut results = Vec::new();
+    append(count, &mut Vec::new(), &mut BTreeSet::new(), &mut results).then_some(results)
+}
+
+fn canonical_rule_key(rule: &ReactionRuleRecord) -> Result<Vec<u8>, CatalogueError> {
+    let value = serde_json::to_value(rule).map_err(|error| {
+        CatalogueError::new(
+            super::CatalogueErrorCode::InvalidGeneralizedRule,
+            error.to_string(),
+        )
+    })?;
+    canonical_json(&value).map_err(|error| {
+        CatalogueError::new(
+            super::CatalogueErrorCode::InvalidGeneralizedRule,
+            error.to_string(),
+        )
+    })
+}
+
+fn canonical_certificate_key(
+    rule: &ReactionRuleRecord,
+    symmetry_maps: &[BTreeMap<String, String>],
+    work: &mut usize,
+) -> Result<Result<Vec<u8>, GeneralizedElaborationFailure>, CatalogueError> {
+    let mut minimum = None::<Vec<u8>>;
+    for map in symmetry_maps {
+        *work += 1;
+        if *work > MAX_CERTIFICATE_CANDIDATES {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Ambiguous,
+                "complete-certificate comparison exceeds the work limit",
+            )));
+        }
+        let mut transformed = rule.clone();
+        transform_rule_references(&mut transformed, map);
+        let key = canonical_rule_key(&transformed)?;
+        if minimum.as_ref().is_none_or(|current| key < *current) {
+            minimum = Some(key);
+        }
+    }
+    minimum.map_or_else(
+        || {
+            Err(CatalogueError::new(
+                super::CatalogueErrorCode::InvalidGeneralizedRule,
+                "validated generalized role symmetry set is empty",
+            ))
+        },
+        |key| Ok(Ok(key)),
+    )
+}
+
+fn transform_rule_references(rule: &mut ReactionRuleRecord, map: &BTreeMap<String, String>) {
+    for pair in &mut rule.mapping_template {
+        transform_reference(&mut pair.reactant, map);
+        transform_reference(&mut pair.product, map);
+    }
+    for operation in &mut rule.operation_template {
+        transform_operation_references(operation, map);
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn transform_operation_references(
+    operation: &mut OperationTemplateRecord,
+    map: &BTreeMap<String, String>,
+) {
+    match operation {
+        OperationTemplateRecord::CleaveCovalent {
+            edge, allocation, ..
+        } => {
+            transform_reference(&mut edge.0, map);
+            transform_reference(&mut edge.1, map);
+            transform_allocation_reference(allocation, map);
+        }
+        OperationTemplateRecord::FormCovalent { edge, .. } => {
+            transform_reference(&mut edge.0, map);
+            transform_reference(&mut edge.1, map);
+        }
+        OperationTemplateRecord::CleaveDative {
+            donor,
+            acceptor,
+            allocation,
+            ..
+        } => {
+            transform_reference(donor, map);
+            transform_reference(acceptor, map);
+            transform_allocation_reference(allocation, map);
+        }
+        OperationTemplateRecord::FormDative {
+            donor, acceptor, ..
+        }
+        | OperationTemplateRecord::TransferElectron {
+            donor, acceptor, ..
+        } => {
+            transform_reference(donor, map);
+            transform_reference(acceptor, map);
+        }
+        OperationTemplateRecord::ChangeCovalent {
+            edge, allocation, ..
+        } => {
+            transform_reference(&mut edge.0, map);
+            transform_reference(&mut edge.1, map);
+            transform_allocation_reference(allocation, map);
+        }
+        OperationTemplateRecord::AssociateIonic { components, .. } => {
+            for component in components {
+                for site in component {
+                    transform_reference(site, map);
+                }
+            }
+        }
+        OperationTemplateRecord::DissociateIonic { association, .. } => {
+            transform_reference(association, map);
+        }
+        OperationTemplateRecord::ReleaseMetallic { site, domain, .. }
+        | OperationTemplateRecord::JoinMetallic { site, domain, .. } => {
+            transform_reference(site, map);
+            transform_reference(domain, map);
+        }
+        OperationTemplateRecord::AssignProduct { atoms, product, .. } => {
+            for atom in atoms {
+                transform_reference(atom, map);
+            }
+            transform_reference(product, map);
+        }
+    }
+}
+
+fn transform_allocation_reference(
+    allocation: &mut CleavageAllocationRecord,
+    map: &BTreeMap<String, String>,
+) {
+    if let CleavageAllocationRecord::Heterolytic { heterolytic_to } = allocation {
+        transform_reference(heterolytic_to, map);
+    }
+}
+
+fn transform_reference(reference: &mut String, map: &BTreeMap<String, String>) {
+    if let Some(replacement) = map.get(reference) {
+        *reference = replacement.clone();
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn instantiate_rule(
+    generalized: &GeneralizedReactionRuleRecord,
+    _case_id: &str,
+    _products: &BTreeMap<String, GeneralizedStructureSelectorRecord>,
+    _patterns: &BTreeMap<String, super::GraphPatternId>,
+    correspondence: &[MappingPairRecord],
+    rewrite: &[OperationTemplateRecord],
+    observations: &[super::ObservationCompatibilityRecord],
+    by_role: &BTreeMap<String, &GeneralizedRoleInput>,
+    matched: &InstancePatternMatches,
+) -> Result<ReactionRuleRecord, CatalogueError> {
+    let roles = generalized
+        .roles
+        .iter()
+        .map(|(role, schema)| {
+            (
+                role.clone(),
+                RoleSchemaRecord {
+                    side: schema.side,
+                    representation: schema.representation,
+                },
+            )
+        })
+        .collect();
+    let terms = |side| {
+        generalized
+            .roles
+            .iter()
+            .filter(|(_, schema)| schema.side == side)
+            .map(|(role, schema)| PatternTermRecord {
+                role: role.clone(),
+                structure_id: by_role[role].structure.clone(),
+                coefficient: schema.coefficient,
+            })
+            .collect()
+    };
+    Ok(ReactionRuleRecord {
+        id: generalized.id.clone(),
+        premise_ids: generalized.premise_ids.clone(),
+        roles,
+        reactant_pattern: terms(RuleSideRecord::Reactant),
+        product_pattern: terms(RuleSideRecord::Product),
+        applicability: ApplicabilityRecord {
+            premise_id: generalized.applicability.premise_id.clone(),
+            request_relation: generalized.applicability.request_relation,
+            reactant_structure_ids: generalized
+                .roles
+                .iter()
+                .filter(|(_, schema)| schema.side == RuleSideRecord::Reactant)
+                .map(|(role, _)| by_role[role].structure.clone())
+                .collect(),
+            required_context: generalized.applicability.required_context.clone(),
+        },
+        mapping_template: correspondence
+            .iter()
+            .map(|pair| {
+                Ok(MappingPairRecord {
+                    reactant: instantiate_reference(&pair.reactant, matched)?,
+                    product: pair.product.clone(),
+                    premise_ids: pair.premise_ids.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, CatalogueError>>()?,
+        operation_template: rewrite
+            .iter()
+            .map(|operation| instantiate_operation(operation, matched))
+            .collect::<Result<Vec<_>, CatalogueError>>()?,
+        model_assumptions: generalized.model_assumptions.clone(),
+        observation_compatibility: observations.to_vec(),
+    })
+}
+
+#[allow(clippy::too_many_lines)]
+fn instantiate_operation(
+    operation: &OperationTemplateRecord,
+    matched: &InstancePatternMatches,
+) -> Result<OperationTemplateRecord, CatalogueError> {
+    let reference = |value: &str| instantiate_reference(value, matched);
+    Ok(match operation {
+        OperationTemplateRecord::CleaveCovalent {
+            premise_ids,
+            edge,
+            allocation,
+            before,
+            after,
+        } => OperationTemplateRecord::CleaveCovalent {
+            premise_ids: premise_ids.clone(),
+            edge: (reference(&edge.0)?, reference(&edge.1)?, edge.2),
+            allocation: instantiate_allocation(allocation, matched)?,
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::FormCovalent {
+            premise_ids,
+            edge,
+            electron_contribution,
+            before,
+            after,
+        } => OperationTemplateRecord::FormCovalent {
+            premise_ids: premise_ids.clone(),
+            edge: (reference(&edge.0)?, reference(&edge.1)?, edge.2),
+            electron_contribution: electron_contribution.clone(),
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::CleaveDative {
+            premise_ids,
+            donor,
+            acceptor,
+            allocation,
+            before,
+            after,
+        } => OperationTemplateRecord::CleaveDative {
+            premise_ids: premise_ids.clone(),
+            donor: reference(donor)?,
+            acceptor: reference(acceptor)?,
+            allocation: instantiate_allocation(allocation, matched)?,
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::FormDative {
+            premise_ids,
+            donor,
+            acceptor,
+            before,
+            after,
+        } => OperationTemplateRecord::FormDative {
+            premise_ids: premise_ids.clone(),
+            donor: reference(donor)?,
+            acceptor: reference(acceptor)?,
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::ChangeCovalent {
+            premise_ids,
+            edge,
+            old_order,
+            new_order,
+            allocation,
+            before,
+            after,
+        } => OperationTemplateRecord::ChangeCovalent {
+            premise_ids: premise_ids.clone(),
+            edge: (reference(&edge.0)?, reference(&edge.1)?),
+            old_order: *old_order,
+            new_order: *new_order,
+            allocation: instantiate_allocation(allocation, matched)?,
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::AssociateIonic {
+            premise_ids,
+            label,
+            components,
+            component_charges,
+        } => OperationTemplateRecord::AssociateIonic {
+            premise_ids: premise_ids.clone(),
+            label: label.clone(),
+            components: components
+                .iter()
+                .map(|component| {
+                    component
+                        .iter()
+                        .map(|site| reference(site))
+                        .collect::<Result<Vec<_>, CatalogueError>>()
+                })
+                .collect::<Result<Vec<_>, CatalogueError>>()?,
+            component_charges: component_charges.clone(),
+        },
+        OperationTemplateRecord::DissociateIonic {
+            premise_ids,
+            association,
+        } => OperationTemplateRecord::DissociateIonic {
+            premise_ids: premise_ids.clone(),
+            association: reference(association)?,
+        },
+        OperationTemplateRecord::ReleaseMetallic {
+            premise_ids,
+            site,
+            domain,
+            allocation,
+            before,
+            after,
+        } => OperationTemplateRecord::ReleaseMetallic {
+            premise_ids: premise_ids.clone(),
+            site: reference(site)?,
+            domain: reference(domain)?,
+            allocation: *allocation,
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::JoinMetallic {
+            premise_ids,
+            site,
+            domain,
+            allocation,
+            before,
+            after,
+        } => OperationTemplateRecord::JoinMetallic {
+            premise_ids: premise_ids.clone(),
+            site: reference(site)?,
+            domain: reference(domain)?,
+            allocation: *allocation,
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::TransferElectron {
+            premise_ids,
+            count,
+            donor,
+            acceptor,
+            before,
+            after,
+        } => OperationTemplateRecord::TransferElectron {
+            premise_ids: premise_ids.clone(),
+            count: *count,
+            donor: reference(donor)?,
+            acceptor: reference(acceptor)?,
+            before: before.clone(),
+            after: after.clone(),
+        },
+        OperationTemplateRecord::AssignProduct {
+            premise_ids,
+            atoms,
+            product,
+        } => OperationTemplateRecord::AssignProduct {
+            premise_ids: premise_ids.clone(),
+            atoms: atoms
+                .iter()
+                .map(|atom| reference(atom))
+                .collect::<Result<Vec<_>, CatalogueError>>()?,
+            product: product.clone(),
+        },
+    })
+}
+
+fn instantiate_allocation(
+    allocation: &CleavageAllocationRecord,
+    matched: &InstancePatternMatches,
+) -> Result<CleavageAllocationRecord, CatalogueError> {
+    Ok(match allocation {
+        CleavageAllocationRecord::Homolytic(value) => {
+            CleavageAllocationRecord::Homolytic(value.clone())
+        }
+        CleavageAllocationRecord::Heterolytic { heterolytic_to } => {
+            CleavageAllocationRecord::Heterolytic {
+                heterolytic_to: instantiate_reference(heterolytic_to, matched)?,
+            }
+        }
+    })
+}
+
+fn instantiate_reference(
+    reference: &str,
+    matched: &InstancePatternMatches,
+) -> Result<String, CatalogueError> {
+    let Some((instance, site)) = reference.split_once('.') else {
+        return Ok(reference.to_owned());
+    };
+    let Some((role, ordinal)) = instance.split_once('[') else {
+        return Ok(reference.to_owned());
+    };
+    let Some(ordinal) = ordinal
+        .strip_suffix(']')
+        .and_then(|value| value.parse::<usize>().ok())
+        .and_then(|value| value.checked_sub(1))
+    else {
+        return Err(CatalogueError::new(
+            super::CatalogueErrorCode::InvalidGeneralizedCase,
+            format!("validated generalized reference `{reference}` has an invalid ordinal"),
+        ));
+    };
+    let Some(role_binding) = matched
+        .get(role)
+        .and_then(|instances| instances.get(ordinal))
+    else {
+        return Ok(reference.to_owned());
+    };
+    let resolved = role_binding.resolved_site(site).ok_or_else(|| {
+        CatalogueError::new(
+            super::CatalogueErrorCode::InvalidGeneralizedCase,
+            format!("validated generalized rewrite site `{reference}` no longer resolves"),
+        )
+    })?;
+    Ok(format!("{instance}.{resolved}"))
+}
+
+fn failure(
+    class: GeneralizedElaborationFailureClass,
+    message: impl Into<String>,
+) -> GeneralizedElaborationFailure {
+    GeneralizedElaborationFailure {
+        class,
+        message: message.into(),
+        required_feature: None,
+    }
+}

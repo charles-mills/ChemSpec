@@ -31,9 +31,9 @@ pub use hir::{
     CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidenceTrust,
     ExpandedElectronContribution, ExpandedInstance, ExpandedIonicComponent, ExpandedOperation,
     ExpandedStructuralReaction, Provenance, ReactionSideKind, ResolvedApplicability,
-    ResolvedEquationTerm, ResolvedEvidence, ResolvedModel, ResolvedObservation,
-    ResolvedReactionClaim, ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding,
-    SourceOrigin, SourceReference, TrustedExpandedStructuralReaction,
+    ResolvedEquationTerm, ResolvedEvidence, ResolvedGeneralizedRuleApplication, ResolvedModel,
+    ResolvedObservation, ResolvedReactionClaim, ResolvedRuleApplication, ResolvedRuleBinding,
+    ResolvedStructureBinding, SourceOrigin, SourceReference, TrustedExpandedStructuralReaction,
 };
 pub use validate::{
     DerivationTrust, KernelError, KernelFailureClass, ReviewCandidateStructuralDerivation,

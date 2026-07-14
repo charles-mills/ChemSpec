@@ -6,6 +6,7 @@
 //! digest and an exact external review attestation.
 
 mod generalized;
+mod generalized_elaboration;
 mod model;
 mod pattern;
 
@@ -23,6 +24,7 @@ use chem_domain::{
     StaticElementRegistry, StructuralGraph, StructureDefinition, StructureId, canonical_json,
 };
 pub use generalized::*;
+pub use generalized_elaboration::*;
 pub use model::*;
 pub use pattern::*;
 

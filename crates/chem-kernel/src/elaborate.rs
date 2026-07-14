@@ -1,14 +1,16 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     str::FromStr,
 };
 
 use chem_catalogue::{
-    BinaryElectronStateRecord, BondOrderRecord, CleavageAllocationRecord, ElectronStateRecord,
-    EventModel, MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord,
+    BinaryElectronStateRecord, BondOrderRecord, CleavageAllocationRecord,
+    ElaboratedGeneralizedRule, ElectronStateRecord, EventModel, GeneralizedElaborationFailureClass,
+    GeneralizedRoleInput, MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord,
     ObservationPredicate, OperationTemplateRecord, ReactionRuleRecord, RepresentationRecord,
     RuleSideRecord, SequenceModel, TransferElectronStateRecord, TrustedCatalogue,
-    ValidatedCatalogueBundle, ValidatedReactionRule,
+    ValidatedCatalogueBundle,
 };
 use chem_domain::{
     AtomGroup, AtomGroupId, AtomId, AtomMapping, AtomMappingId, BondOrder, ClaimId, ContentDigest,
@@ -28,10 +30,10 @@ use crate::{
     CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidencePredicate,
     EvidenceTrust, ExpandedElectronContribution, ExpandedInstance, ExpandedIonicComponent,
     ExpandedOperation, ExpandedStructuralReaction, ExpansionError, Provenance, ReactionSideKind,
-    ResolvedApplicability, ResolvedEquationTerm, ResolvedEvidence, ResolvedModel,
-    ResolvedObservation, ResolvedReactionClaim, ResolvedRuleApplication, ResolvedRuleBinding,
-    ResolvedStructureBinding, SourceOrigin, SourceReference, TrustedExpandedStructuralReaction,
-    ValidatedEvidencePacket,
+    ResolvedApplicability, ResolvedEquationTerm, ResolvedEvidence,
+    ResolvedGeneralizedRuleApplication, ResolvedModel, ResolvedObservation, ResolvedReactionClaim,
+    ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin,
+    SourceReference, TrustedExpandedStructuralReaction, ValidatedEvidencePacket,
 };
 
 /// Elaborates source against a structurally valid but explicitly untrusted
@@ -158,24 +160,25 @@ fn expand(
     let rule_id = ReactionRuleId::from_str(&rule_application.rule).map_err(|error| {
         ExpansionError::invalid("CHEMS-X004", error.to_string(), Some(rule_application.span))
     })?;
-    let rule = catalogue
-        .require_rule(&rule_id)
-        .map_err(|error| ExpansionError::unsupported("CHEMS-X010", error.to_string()))?;
+    let selected_rule = select_rule(&rule_id, rule_application, &reactants, &products, catalogue)?;
+    let rule = selected_rule.record.as_ref();
     let resolved_rule = resolve_rule(
         source_name,
         rule_application,
+        &rule_id,
         rule,
         &reactants,
         &products,
         catalogue.digest(),
+        selected_rule.generalized.as_ref(),
     )?;
-    validate_applicability(rule.record(), &reactants)?;
-    let model = resolve_model(source_name, reaction, rule.record(), catalogue.digest())?;
+    validate_applicability(rule, &reactants)?;
+    let model = resolve_model(source_name, reaction, rule, catalogue.digest())?;
     let resolved_evidence = resolve_evidence(
         source_name,
         reaction,
         evidence,
-        rule.record(),
+        rule,
         &resolved_rule.bindings,
         &reactants,
         &products,
@@ -198,7 +201,7 @@ fn expand(
     .map_err(system_structural)?;
     let (mapping, mapping_entry_provenance) = expand_mapping(
         reaction,
-        rule.record(),
+        rule,
         &resolved_rule.bindings,
         &reactant_side,
         &product_side,
@@ -207,7 +210,7 @@ fn expand(
     let operations = expand_operations(
         source_name,
         reaction,
-        rule.record(),
+        rule,
         &resolved_rule.bindings,
         catalogue.digest(),
     )?;
@@ -234,7 +237,6 @@ fn expand(
         })
         .collect();
     let mapping_premises = rule
-        .record()
         .mapping_template
         .iter()
         .flat_map(|entry| entry.premise_ids.iter().cloned())
@@ -246,12 +248,12 @@ fn expand(
             .flat_map(|binding| binding.provenance.source.iter().cloned()),
         [catalogue_origin(
             catalogue.digest(),
-            format!("rule {} atom mapping template", rule.id()),
+            format!("rule {} atom mapping template", rule.id),
             mapping_premises,
         )],
         [],
     );
-    let premises = rule.record().premise_ids.clone();
+    let premises = rule.premise_ids.clone();
     let premise_provenance = premises
         .iter()
         .map(|premise| {
@@ -315,24 +317,18 @@ fn resolve_bindings<'a>(
                 format!("unsupported structure `{structure_id}`"),
             )
         })?;
-        let record = catalogue
-            .document()
-            .structures
-            .iter()
-            .find(|record| record.id() == &structure_id)
-            .ok_or_else(|| {
-                ExpansionError::system(
-                    "CHEMS-X091",
-                    format!("indexed structure `{structure_id}` has no catalogue record"),
-                )
-            })?;
-        let premise = record.premise_id().clone();
+        let structure_premises = catalogue.structure_premises(&structure_id).ok_or_else(|| {
+            ExpansionError::system(
+                "CHEMS-X091",
+                format!("indexed structure `{structure_id}` has no premise closure"),
+            )
+        })?;
         let formula = formula_map_from_definition(definition);
         let resolved = ResolvedStructureBinding {
             side,
             name: binding.name.clone(),
             coefficient,
-            structure: structure_id,
+            structure: structure_id.clone(),
             formula,
             representation: definition.representation(),
             provenance: Provenance::derived(
@@ -343,8 +339,8 @@ fn resolve_bindings<'a>(
                 )],
                 [catalogue_origin(
                     catalogue.digest(),
-                    format!("structure {}", record.id()),
-                    [premise],
+                    format!("structure {structure_id}"),
+                    structure_premises.iter().cloned(),
                 )],
                 [],
             ),
@@ -459,18 +455,108 @@ fn resolve_equation_side(
     Ok(())
 }
 
-#[allow(clippy::too_many_lines)]
+struct SelectedRule<'a> {
+    record: Cow<'a, ReactionRuleRecord>,
+    generalized: Option<ElaboratedGeneralizedRule>,
+}
+
+fn select_rule<'a>(
+    rule_id: &ReactionRuleId,
+    application: &chems_lang::SourceRuleApplication,
+    reactants: &BTreeMap<String, ResolvedStructureBinding>,
+    products: &BTreeMap<String, ResolvedStructureBinding>,
+    catalogue: &'a ValidatedCatalogueBundle,
+) -> Result<SelectedRule<'a>, ExpansionError> {
+    if let Some(rule) = catalogue.rule(rule_id) {
+        return Ok(SelectedRule {
+            record: Cow::Borrowed(rule.record()),
+            generalized: None,
+        });
+    }
+    if catalogue.generalized_rule(rule_id).is_none() {
+        return Err(ExpansionError::unsupported(
+            "CHEMS-X010",
+            format!("unsupported reaction rule `{rule_id}`"),
+        ));
+    }
+    let inputs = application
+        .bindings
+        .iter()
+        .map(|binding| {
+            let (side, resolved) = if let Some(resolved) = reactants.get(&binding.value) {
+                (RuleSideRecord::Reactant, resolved)
+            } else if let Some(resolved) = products.get(&binding.value) {
+                (RuleSideRecord::Product, resolved)
+            } else {
+                return Err(ExpansionError::invalid(
+                    "CHEMS-X012",
+                    format!("rule role refers to unknown binding `{}`", binding.value),
+                    Some(binding.span),
+                ));
+            };
+            Ok(GeneralizedRoleInput {
+                role: binding.role.clone(),
+                structure: resolved.structure.clone(),
+                coefficient: resolved.coefficient,
+                side,
+                representation: representation_record(resolved.representation),
+            })
+        })
+        .collect::<Result<Vec<_>, ExpansionError>>()?;
+    let selected = catalogue
+        .elaborate_generalized_rule(rule_id, &inputs)
+        .map_err(|error| ExpansionError::system("CHEMS-X095", error.to_string()))?;
+    match selected {
+        Ok(generalized) => Ok(SelectedRule {
+            record: Cow::Owned(generalized.rule.clone()),
+            generalized: Some(generalized),
+        }),
+        Err(failure) => {
+            let message = failure
+                .required_feature
+                .map_or(failure.message.clone(), |feature| {
+                    format!("{} (requires {feature})", failure.message)
+                });
+            match failure.class {
+                GeneralizedElaborationFailureClass::InvalidSource => Err(ExpansionError::invalid(
+                    "CHEMS-X013",
+                    message,
+                    Some(application.span),
+                )),
+                GeneralizedElaborationFailureClass::Unsupported => {
+                    Err(ExpansionError::unsupported("CHEMS-X015", message))
+                }
+                GeneralizedElaborationFailureClass::Ambiguous => {
+                    Err(ExpansionError::ambiguous("CHEMS-X016", message))
+                }
+            }
+        }
+    }
+}
+
+const fn representation_record(value: RepresentationKind) -> RepresentationRecord {
+    match value {
+        RepresentationKind::Molecular => RepresentationRecord::Molecular,
+        RepresentationKind::Ion => RepresentationRecord::Ion,
+        RepresentationKind::Ionic => RepresentationRecord::Ionic,
+        RepresentationKind::Metallic => RepresentationRecord::Metallic,
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn resolve_rule(
     source_name: &str,
     application: &chems_lang::SourceRuleApplication,
-    rule: &ValidatedReactionRule,
+    rule_id: &ReactionRuleId,
+    rule: &ReactionRuleRecord,
     reactants: &BTreeMap<String, ResolvedStructureBinding>,
     products: &BTreeMap<String, ResolvedStructureBinding>,
     catalogue_digest: ContentDigest,
+    generalized: Option<&ElaboratedGeneralizedRule>,
 ) -> Result<ResolvedRuleApplication, ExpansionError> {
     let mut bindings = BTreeMap::new();
     for binding in &application.bindings {
-        let schema = rule.record().roles.get(&binding.role).ok_or_else(|| {
+        let schema = rule.roles.get(&binding.role).ok_or_else(|| {
             ExpansionError::invalid(
                 "CHEMS-X012",
                 format!("rule has no role `{}`", binding.role),
@@ -498,7 +584,7 @@ fn resolve_rule(
                 Some(binding.span),
             ));
         }
-        let pattern = pattern_for_role(rule.record(), &binding.role).ok_or_else(|| {
+        let pattern = pattern_for_role(rule, &binding.role).ok_or_else(|| {
             ExpansionError::system(
                 "CHEMS-X092",
                 format!("role `{}` has no pattern", binding.role),
@@ -527,9 +613,22 @@ fn resolve_rule(
                 )],
                 [catalogue_origin(
                     catalogue_digest,
-                    format!("rule {} role {}", rule.id(), binding.role),
-                    [rule.record().applicability.premise_id.clone()],
-                )],
+                    format!("rule {rule_id} role {}", binding.role),
+                    [rule.applicability.premise_id.clone()],
+                )]
+                .into_iter()
+                .chain(generalized.and_then(|selected| {
+                    selected
+                        .role_premise_ids
+                        .get(&binding.role)
+                        .map(|premises| {
+                            catalogue_origin(
+                                catalogue_digest,
+                                format!("generalized rule {rule_id} role {}", binding.role),
+                                premises.iter().cloned(),
+                            )
+                        })
+                })),
                 [],
             ),
         };
@@ -544,7 +643,7 @@ fn resolve_rule(
             ));
         }
     }
-    let expected_roles = rule.record().roles.keys().cloned().collect::<BTreeSet<_>>();
+    let expected_roles = rule.roles.keys().cloned().collect::<BTreeSet<_>>();
     if bindings.keys().cloned().collect::<BTreeSet<_>>() != expected_roles {
         return Err(ExpansionError::invalid(
             "CHEMS-X012",
@@ -569,13 +668,13 @@ fn resolve_rule(
         ));
     }
     Ok(ResolvedRuleApplication {
-        rule: rule.id().clone(),
+        rule: rule_id.clone(),
         bindings,
         applicability: ResolvedApplicability {
-            request_relation: rule.record().applicability.request_relation,
-            required_context: rule.record().applicability.required_context.clone(),
-            reactant_structures: rule.record().applicability.reactant_structure_ids.clone(),
-            premise: rule.record().applicability.premise_id.clone(),
+            request_relation: rule.applicability.request_relation,
+            required_context: rule.applicability.required_context.clone(),
+            reactant_structures: rule.applicability.reactant_structure_ids.clone(),
+            premise: rule.applicability.premise_id.clone(),
             provenance: Provenance::derived(
                 [source_origin(
                     source_name,
@@ -584,12 +683,45 @@ fn resolve_rule(
                 )],
                 [catalogue_origin(
                     catalogue_digest,
-                    format!("rule {} applicability", rule.id()),
-                    [rule.record().applicability.premise_id.clone()],
-                )],
+                    format!("rule {rule_id} applicability"),
+                    [rule.applicability.premise_id.clone()],
+                )]
+                .into_iter()
+                .chain(generalized.map(|selected| {
+                    catalogue_origin(
+                        catalogue_digest,
+                        format!("generalized rule {rule_id} selected applicability"),
+                        selected
+                            .selected_premise_ids
+                            .iter()
+                            .cloned()
+                            .chain(selected.role_premise_ids.values().flatten().cloned()),
+                    )
+                })),
                 [],
             ),
         },
+        generalized: generalized.map(|selected| ResolvedGeneralizedRuleApplication {
+            parameters: selected.parameter_binding.clone(),
+            parameter_premises: selected.parameter_premise_ids.clone(),
+            case_id: selected.case_id.clone(),
+            equivalent_match_count: selected.equivalent_match_count,
+            matched_sites: selected.matched_sites.clone(),
+            role_premises: selected.role_premise_ids.clone(),
+            provenance: Provenance::derived(
+                [source_origin(
+                    source_name,
+                    application.span,
+                    "generalized rule parameter and case selection",
+                )],
+                [catalogue_origin(
+                    catalogue_digest,
+                    format!("generalized rule {rule_id} case {}", selected.case_id),
+                    selected.selected_premise_ids.iter().cloned(),
+                )],
+                [],
+            ),
+        }),
         provenance: Provenance::derived(
             [source_origin(
                 source_name,
@@ -598,9 +730,21 @@ fn resolve_rule(
             )],
             [catalogue_origin(
                 catalogue_digest,
-                format!("rule {}", rule.id()),
-                [rule.record().applicability.premise_id.clone()],
-            )],
+                format!("rule {rule_id}"),
+                [rule.applicability.premise_id.clone()],
+            )]
+            .into_iter()
+            .chain(generalized.map(|selected| {
+                catalogue_origin(
+                    catalogue_digest,
+                    format!("generalized rule {rule_id} selected certificate"),
+                    selected
+                        .selected_premise_ids
+                        .iter()
+                        .cloned()
+                        .chain(selected.role_premise_ids.values().flatten().cloned()),
+                )
+            })),
             [],
         ),
     })

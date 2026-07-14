@@ -73,6 +73,11 @@ atom correspondence and product assignment, closed rewrite references, and
 complete premise binding. Uncovered finite bindings remain unsupported, and a
 selected unsupported case exposes its reviewed feature gap without a rewrite.
 
-Source parameter inference, graph matching during elaboration, concrete
-rewrite instantiation, product-certificate equivalence, and kernel execution
-remain unimplemented after G3.
+G4 deterministically infers family parameters from concrete source roles and
+reviewed template applications or checked traits, selects one unordered case,
+matches typed graphs independently for every coefficient instance, and
+canonicalizes complete instantiated certificates under reactant and product
+automorphisms plus repeated-instance permutations. The unique certificate is
+instantiated through the existing concrete mapping and operation boundary with
+matched-site and premise-local provenance. Concrete execution, canonical
+catalogue migration, and frame conformance remain G5 work.
