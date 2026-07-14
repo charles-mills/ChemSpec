@@ -30,6 +30,12 @@ slices remain outstanding. A listed case may have expected state `incomplete`
 to record an independently authored future oracle without claiming that the
 current implementation supports it.
 
+For component-level cases, expected state `validated` means that component's
+fixture constructed and passed its owned invariants. It is not the public
+reaction result `Validated`, which remains unreachable for initial-language
+reactions because their required model assumptions produce
+`ValidatedWithAssumptions`.
+
 ## Authority
 
 - `requirements.json` maps every normative specification section to exactly one
@@ -65,7 +71,8 @@ No implementation may convert that status into production trust.
 
 ## Slice progression
 
-- Slice 1 turns structural-domain oracles into executable domain tests.
+- Slice 1 turns structural-domain oracles into executable domain tests and
+  promotes them only after those tests pass.
 - Slice 2 replaces parser/formatter cases and their independent CST/AST oracles.
 - Slice 3 validates reviewed catalogue and rule fixtures.
 - Slice 4 validates expansion and certificate oracles.

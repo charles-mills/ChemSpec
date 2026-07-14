@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "atom_formal_charge_sum": 2,
+  "delocalized_domain_electrons": 2,
+  "system_net_charge": 0,
+  "explicit_valence_electrons": 2,
+  "site_and_domain_ownership_disjoint": true
+}

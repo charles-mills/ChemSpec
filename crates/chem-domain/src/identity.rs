@@ -380,3 +380,28 @@ declared_id_kind!(MediumKind, MediumId, "MediumId");
 declared_id_kind!(EvidenceSourceKind, EvidenceSourceId, "EvidenceSourceId");
 declared_id_kind!(AssumptionKindKind, AssumptionKindId, "AssumptionKindId");
 declared_id_kind!(CoverageKind, CoverageId, "CoverageId");
+declared_id_kind!(StructureKind, StructureId, "StructureId");
+declared_id_kind!(AtomKind, AtomId, "AtomId");
+declared_id_kind!(AtomGroupKind, AtomGroupId, "AtomGroupId");
+declared_id_kind!(CovalentBondKind, CovalentBondId, "CovalentBondId");
+declared_id_kind!(
+    IonicAssociationKind,
+    IonicAssociationId,
+    "IonicAssociationId"
+);
+declared_id_kind!(MetallicDomainKind, MetallicDomainId, "MetallicDomainId");
+declared_id_kind!(
+    StructureInstanceKind,
+    StructureInstanceId,
+    "StructureInstanceId"
+);
+declared_id_kind!(ReactionRuleKind, ReactionRuleId, "ReactionRuleId");
+declared_id_kind!(
+    StructuralOperationIdKind,
+    StructuralOperationId,
+    "StructuralOperationId"
+);
+declared_id_kind!(AtomMappingKind, AtomMappingId, "AtomMappingId");
+declared_id_kind!(EvidencePacketKind, EvidencePacketId, "EvidencePacketId");
+declared_id_kind!(ClaimKind, ClaimId, "ClaimId");
+declared_id_kind!(PremiseKind, PremiseId, "PremiseId");
