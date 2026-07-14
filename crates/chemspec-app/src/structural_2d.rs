@@ -5,8 +5,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use chem_catalogue::{AtomState, StructuralOperation};
-use chem_engine::StructuralFrame;
+use chem_domain::StructuralOperationView;
+use chem_kernel::SimulationFrame;
 use chem_presentation::{
     ContextLabel, EducationalPlan, EducationalSceneKind, ExplanationLabel, ExplanationLabelKind,
 };
@@ -106,10 +106,215 @@ impl<Message> canvas::Program<Message> for TimelineGuide {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RenderAtom {
+    id: String,
+    element: String,
+    formal_charge: i16,
+    non_bonding_electrons: u8,
+    unpaired_electrons: u8,
+}
+
+#[derive(Debug, Clone)]
+struct RenderBond {
+    left: String,
+    right: String,
+    order: u8,
+}
+
+#[derive(Debug, Clone)]
+struct RenderIonicAssociation {
+    left: String,
+    right: String,
+}
+
+#[derive(Debug, Clone)]
+struct RenderMetallicDomain {
+    id: String,
+    sites: Vec<String>,
+    delocalized_electrons: u16,
+}
+
+#[derive(Debug, Clone)]
+enum RenderOperation {
+    TransferMetallicElectron {
+        domain: String,
+        donor_site: String,
+        acceptor: String,
+        count: u8,
+    },
+    CleaveCovalent {
+        left: String,
+        right: String,
+        order: u8,
+    },
+    FormCovalent {
+        left: String,
+        right: String,
+        order: u8,
+    },
+    AssociateIonic {
+        atoms: Vec<String>,
+    },
+    AssignProduct {
+        atoms: Vec<String>,
+    },
+    Other {
+        atoms: Vec<String>,
+    },
+}
+
+type StructuralFrame = RenderFrame;
+type AtomState = RenderAtom;
+type StructuralOperation = RenderOperation;
+
+#[derive(Debug, Clone)]
+struct RenderFrame {
+    atoms: Vec<RenderAtom>,
+    covalent_bonds: Vec<RenderBond>,
+    ionic_associations: Vec<RenderIonicAssociation>,
+    metallic_domains: Vec<RenderMetallicDomain>,
+    active_operation: Option<RenderOperation>,
+}
+
+impl From<&SimulationFrame> for RenderFrame {
+    fn from(frame: &SimulationFrame) -> Self {
+        let atoms = frame
+            .atoms()
+            .values()
+            .map(|atom| RenderAtom {
+                id: atom.id.as_str().to_owned(),
+                element: atom.element.as_str().to_owned(),
+                formal_charge: atom.electrons.formal_charge(),
+                non_bonding_electrons: atom.electrons.non_bonding_electrons(),
+                unpaired_electrons: atom.electrons.unpaired_electrons(),
+            })
+            .collect();
+        let covalent_bonds = frame
+            .covalent_edges()
+            .values()
+            .map(|bond| RenderBond {
+                left: bond.left.as_str().to_owned(),
+                right: bond.right.as_str().to_owned(),
+                order: bond.order.order(),
+            })
+            .collect();
+        let ionic_associations = frame
+            .ionic_associations()
+            .values()
+            .filter_map(|association| {
+                let mut components = association.components.values();
+                let left = components.next()?.iter().next()?;
+                let right = components.next()?.iter().next()?;
+                Some(RenderIonicAssociation {
+                    left: left.as_str().to_owned(),
+                    right: right.as_str().to_owned(),
+                })
+            })
+            .collect();
+        let metallic_domains = frame
+            .metallic_domains()
+            .values()
+            .map(|domain| RenderMetallicDomain {
+                id: domain.id.as_str().to_owned(),
+                sites: domain
+                    .sites
+                    .iter()
+                    .map(|site| site.as_str().to_owned())
+                    .collect(),
+                delocalized_electrons: u16::try_from(domain.delocalized_electrons)
+                    .unwrap_or(u16::MAX),
+            })
+            .collect();
+        let active_operation = frame
+            .active_operation()
+            .map(|active| render_operation(active.operation.view(), frame));
+        Self {
+            atoms,
+            covalent_bonds,
+            ionic_associations,
+            metallic_domains,
+            active_operation,
+        }
+    }
+}
+
+fn render_operation(
+    operation: StructuralOperationView<'_>,
+    frame: &SimulationFrame,
+) -> RenderOperation {
+    match operation {
+        StructuralOperationView::CleaveCovalent {
+            left,
+            right,
+            expected_order,
+            ..
+        } => RenderOperation::CleaveCovalent {
+            left: left.as_str().to_owned(),
+            right: right.as_str().to_owned(),
+            order: expected_order.order(),
+        },
+        StructuralOperationView::FormCovalent {
+            left, right, order, ..
+        } => RenderOperation::FormCovalent {
+            left: left.as_str().to_owned(),
+            right: right.as_str().to_owned(),
+            order: order.order(),
+        },
+        StructuralOperationView::CleaveDative {
+            donor, acceptor, ..
+        }
+        | StructuralOperationView::FormDative {
+            donor, acceptor, ..
+        } => RenderOperation::Other {
+            atoms: vec![donor.as_str().to_owned(), acceptor.as_str().to_owned()],
+        },
+        StructuralOperationView::ChangeCovalent { left, right, .. } => RenderOperation::Other {
+            atoms: vec![left.as_str().to_owned(), right.as_str().to_owned()],
+        },
+        StructuralOperationView::AssociateIonic { association } => {
+            RenderOperation::AssociateIonic {
+                atoms: association
+                    .components()
+                    .iter()
+                    .filter_map(|group| frame.groups().get(group))
+                    .flat_map(|group| group.atoms.iter())
+                    .map(|atom| atom.as_str().to_owned())
+                    .collect(),
+            }
+        }
+        StructuralOperationView::DissociateIonic { .. } => {
+            RenderOperation::Other { atoms: Vec::new() }
+        }
+        StructuralOperationView::ReleaseMetallic { site, .. }
+        | StructuralOperationView::JoinMetallic { site, .. } => RenderOperation::Other {
+            atoms: vec![site.as_str().to_owned()],
+        },
+        StructuralOperationView::TransferElectron {
+            donor,
+            acceptor,
+            count,
+            ..
+        } => RenderOperation::TransferMetallicElectron {
+            domain: frame
+                .metallic_domains()
+                .values()
+                .find(|domain| domain.sites.contains(donor))
+                .map_or_else(String::new, |domain| domain.id.as_str().to_owned()),
+            donor_site: donor.as_str().to_owned(),
+            acceptor: acceptor.as_str().to_owned(),
+            count,
+        },
+        StructuralOperationView::AssignProduct { atoms, .. } => RenderOperation::AssignProduct {
+            atoms: atoms.iter().map(|atom| atom.as_str().to_owned()).collect(),
+        },
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Diagram {
-    before: StructuralFrame,
-    after: StructuralFrame,
+    before: RenderFrame,
+    after: RenderFrame,
     progress: f32,
     explanation: Option<ExplanationLabel>,
     context_labels: Vec<ContextLabel>,
@@ -121,8 +326,8 @@ pub struct Diagram {
 impl Diagram {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        before: &StructuralFrame,
-        after: &StructuralFrame,
+        before: &SimulationFrame,
+        after: &SimulationFrame,
         progress: f32,
         explanation: Option<&ExplanationLabel>,
         context_labels: &[ContextLabel],
@@ -131,8 +336,8 @@ impl Diagram {
         show_structure_labels: bool,
     ) -> Self {
         Self {
-            before: before.clone(),
-            after: after.clone(),
+            before: RenderFrame::from(before),
+            after: RenderFrame::from(after),
             progress: progress.clamp(0.0, 1.0),
             explanation: explanation.cloned(),
             context_labels: context_labels.to_vec(),
@@ -1035,7 +1240,9 @@ fn operation_moves_atom_electrons(operation: Option<&StructuralOperation>, atom_
             | StructuralOperation::FormCovalent { left, right, .. },
         ) => left == atom_id || right == atom_id,
         Some(
-            StructuralOperation::AssociateIonic { .. } | StructuralOperation::AssignProduct { .. },
+            StructuralOperation::AssociateIonic { .. }
+            | StructuralOperation::AssignProduct { .. }
+            | StructuralOperation::Other { .. },
         )
         | None => false,
     }
@@ -1129,7 +1336,7 @@ fn draw_charge_transition(
     }
 }
 
-fn draw_charge(frame: &mut canvas::Frame, center: Point, charge: i8, alpha: f32, scale: f32) {
+fn draw_charge(frame: &mut canvas::Frame, center: Point, charge: i16, alpha: f32, scale: f32) {
     let Some(label) = charge_label(charge) else {
         return;
     };
@@ -1155,7 +1362,7 @@ fn draw_charge(frame: &mut canvas::Frame, center: Point, charge: i8, alpha: f32,
     });
 }
 
-fn charge_label(charge: i8) -> Option<String> {
+fn charge_label(charge: i16) -> Option<String> {
     match charge {
         0 => None,
         1 => Some("+".to_owned()),
@@ -1309,7 +1516,9 @@ fn draw_operation_motion(
             frame, before, after, operation, positions, progress, phase, scale,
         ),
         Some(
-            StructuralOperation::AssociateIonic { .. } | StructuralOperation::AssignProduct { .. },
+            StructuralOperation::AssociateIonic { .. }
+            | StructuralOperation::AssignProduct { .. }
+            | StructuralOperation::Other { .. },
         )
         | None => {}
     }
@@ -2008,21 +2217,22 @@ fn average_position<'a>(
     ))
 }
 
-fn active_atoms(operation: Option<&StructuralOperation>) -> BTreeSet<&str> {
+fn active_atoms(operation: Option<&RenderOperation>) -> BTreeSet<&str> {
     match operation {
-        Some(
-            StructuralOperation::AssociateIonic { left, right }
-            | StructuralOperation::CleaveCovalent { left, right, .. }
-            | StructuralOperation::FormCovalent { left, right, .. },
-        ) => BTreeSet::from([left.as_str(), right.as_str()]),
-        Some(StructuralOperation::AssignProduct { atoms, .. }) => {
-            atoms.iter().map(String::as_str).collect()
-        }
-        Some(StructuralOperation::TransferMetallicElectron {
+        Some(RenderOperation::TransferMetallicElectron {
             donor_site,
             acceptor,
             ..
         }) => BTreeSet::from([donor_site.as_str(), acceptor.as_str()]),
+        Some(
+            RenderOperation::CleaveCovalent { left, right, .. }
+            | RenderOperation::FormCovalent { left, right, .. },
+        ) => BTreeSet::from([left.as_str(), right.as_str()]),
+        Some(
+            RenderOperation::AssociateIonic { atoms }
+            | RenderOperation::AssignProduct { atoms }
+            | RenderOperation::Other { atoms },
+        ) => atoms.iter().map(String::as_str).collect(),
         None => BTreeSet::new(),
     }
 }

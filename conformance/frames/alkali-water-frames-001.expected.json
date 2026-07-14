@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "fixture": "alkali-water-frames-001",
+  "catalogue": "conformance/catalogue/alkali-metal-water-001.catalogue.json",
+  "trust": "review_candidate",
+  "result": "validated_with_assumptions",
+  "frame_count": 13,
+  "members": [
+    {
+      "symbol": "Li",
+      "source": "conformance/end-to-end/alkali-water-li-001.chems",
+      "evidence": "conformance/observations/alkali-water-li-001.evidence.json",
+      "metal_binding": "lithium",
+      "hydroxide_binding": "lithiumHydroxide"
+    },
+    {
+      "symbol": "Na",
+      "source": "conformance/end-to-end/alkali-water-na-001.chems",
+      "evidence": "conformance/observations/alkali-water-na-001.evidence.json",
+      "metal_binding": "sodium",
+      "hydroxide_binding": "sodiumHydroxide"
+    },
+    {
+      "symbol": "K",
+      "source": "conformance/end-to-end/alkali-water-k-001.chems",
+      "evidence": "conformance/observations/alkali-water-k-001.evidence.json",
+      "metal_binding": "potassium",
+      "hydroxide_binding": "potassiumHydroxide"
+    }
+  ],
+  "active_operations": [
+    null,
+    "operation[1]",
+    "operation[2]",
+    "operation[3]",
+    "operation[4]",
+    "operation[5]",
+    "operation[6]",
+    "operation[7]",
+    "operation[8]",
+    "operation[9]",
+    "operation[10]",
+    "operation[11]",
+    "operation[12]"
+  ],
+  "change_kinds": [
+    [],
+    ["electron_state", "metallic"],
+    ["electron_state", "metallic"],
+    ["electron_state", "electron_state", "covalent"],
+    ["electron_state", "electron_state", "covalent"],
+    ["electron_state", "electron_state"],
+    ["electron_state", "electron_state"],
+    ["electron_state", "electron_state", "covalent"],
+    ["group", "group", "ionic"],
+    ["group", "group", "ionic"],
+    ["product_assignment"],
+    ["product_assignment"],
+    ["product_assignment"]
+  ],
+  "final_electron_states": {
+    "metal": [1, 0, 0],
+    "oxygen": [-1, 6, 0],
+    "hydrogen": [0, 0, 0]
+  },
+  "final_counts": {
+    "atoms": 8,
+    "covalent_edges": 3,
+    "ionic_associations": 2,
+    "metallic_domains": 0,
+    "product_assignments": 3
+  }
+}

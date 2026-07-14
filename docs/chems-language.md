@@ -2,237 +2,127 @@
 
 ## Purpose
 
-`.chems` is a first-class, chemistry-native language for declaring virtual
-experiments and expected outcomes. It is designed to be:
+`.chems` is a concise chemistry-native language for stating a supported
+reaction outcome and binding it to a reviewed structural explanation. It is
+readable by learners, predictable for agent generation, statically checkable,
+and precise enough to drive atom-mapped animation.
 
-- familiar to people who read chemical equations;
-- concise and comfortable for human authors;
-- predictable for agent generation;
-- statically checkable;
-- readable in source control;
-- capable of producing precise, educational diagnostics.
-
-The design is inspired by Lean's separation of propositions and proof, without
-claiming that empirical chemistry becomes a purely mathematical theorem.
-
-The authoritative design is the
-[`.chems` language specification](chems-specification.md). This document is a
-short product-oriented introduction to that normative contract.
+The definitive language identifier is `chems 1`. The language has not been
+released previously and has no compatibility grammar.
 
 ## Canonical example
 
 ```chems
 chems 1
-use catalog ChemSpec.Aqueous@1
+use catalog ChemSpec.Theoretical@1
 
-experiment SilverChloridePrecipitation where
-  conditions
-    temperature := 25 degC
-    pressure := 1 atm
-    medium := aqueous
+reaction LithiumAndWater where
+  reactants
+    lithium := 2 of LithiumMetal
+    water := 2 of Water
 
-  given
-    silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
-    sodiumChloride := 50 mL of 0.100 mol/L NaCl(aq)
+  products
+    lithiumHydroxide := 2 of LithiumHydroxide
+    hydrogen := 1 of Hydrogen
 
-  vessels
-    reaction := open vessel 250 mL
+  equation
+    2 Li[metallic] + 2 H2O[molecular]
+    -> 2 LiOH[ionic] + H2[molecular]
 
-  procedure
-    place silverNitrate in reaction
-    mixed: add sodiumChloride to reaction
-    stir reaction
+  model
+    event := representative
+    sequence := explanatory
 
-  expect at final
-    class := precipitation
-    produces AgCl(s)
-
-    molecular := AgNO3(aq) + NaCl(aq) -> AgCl(s) + NaNO3(aq)
-
-    completeIonic := ?
-    netIonic := ?
-    amount AgCl(s) := ?
-
-    observe
-      precipitate AgCl(s)
-      colour := white
+  observe from Evidence.LithiumAndWater@1
+    gas hydrogen evolves claim R1
+    reactant lithium disappears claim R2
 
   by
-    dissociate aqueous
-    infer products using solubilityRules
-    balance molecular
-    derive completeIonic
-    cancel spectators
-    solve stoichiometry
-    verify atoms
-    verify charge
-    prove observations
-    close
+    apply Rules.AlkaliMetalWithWater
+      metal := lithium
+      water := water
+      hydroxide := lithiumHydroxide
+      gasProduct := hydrogen
 ```
 
-## Surface-language principles
+The file makes a readable claim. The reviewed rule supplies the detailed
+structures, applicability, instance expansion, atom map, electron allocations,
+and structural operations. The validator checks that the claim and every
+derived state agree.
 
-### Chemistry is syntax, not strings
+## Surface principles
 
-Formulas, ionic charges, phases, quantities, concentrations, and units are
-parsed as typed language constructs. They are never opaque strings passed to
-the model or renderer.
+### Formula is not structure
 
-### Claims are explicit
+Formulae are equation summaries. Catalogue identity and graph equality
+distinguish compounds and structural isomers.
 
-The `expect` block contains the author or agent's claims. These claims are not
-trusted because they appear in a file.
+### Bonding models remain distinct
 
-### Proof tactics request deterministic work
+Shared and directed dative covalent edges, ionic association, and metallic
+electron domains are different domain values and receive different visual
+treatment. A dative edge remains a single covalent bond, but its donor-to-
+acceptor electron origin is proof-relevant. The engine never encodes ionic or
+metallic bonding as convenient fake covalent edges.
 
-The `by` block selects bounded validation tactics. A tactic such as
-`infer products using solubilityRules` asks the trusted kernel to apply a rule family; it
-does not allow the source author to assert that the rule succeeded.
+### Applicability belongs to rules
 
-### Empirical facts come from the catalogue
+`.chems` describes the selected outcome rather than a laboratory setup. The
+catalogue rule owns the reviewed applicability context. If no rule applies
+uniquely, the request is Unsupported or must be clarified before authoring.
 
-`use catalog ChemSpec.Aqueous@1` establishes the versioned empirical universe
-against which the program is interpreted. A `.chems` program cannot inject new
-solubility, colour, dissociation, or hazard facts into that catalogue.
+### Detailed structure is derived, not hidden
 
-### Source remains keyboard friendly
+The author does not repeat an atom map and operation list already owned by the
+selected rule. The engine exposes a canonical expanded certificate containing
+that detail for inspection, diagnostics, education, and renderer frames.
 
-Canonical source uses forms such as `degC`, `->`, `Ag^+`, and `NO3^-`. The
-application may render these typographically as `°C`, `→`, subscripts, and
-superscripts without changing the saved source.
+### Validation is mandatory
+
+`by apply` binds one reviewed rule. It does not choose a subset of checks. The
+kernel always validates mapping, operation preconditions, valence, formal
+charge, explicit electrons, ionic and metallic invariants, conservation, and
+final product equality.
+
+### Observations remain evidence-backed claims
+
+Observation statements are typed references into a separate immutable evidence
+packet. They cannot change structures, applicability, or validation premises.
 
 ## Semantic layers
 
-The implementation should distinguish:
+The implementation distinguishes:
 
-1. **Source text** — bytes and source spans.
-2. **Syntax tree** — language structure, including unresolved names.
-3. **Resolved experiment** — names and units resolved against a catalogue.
-4. **Validated experiment** — supported claims and derivation artifact.
+1. source text and exact spans;
+2. lossless syntax and source AST;
+3. catalogue-resolved reaction claim;
+4. expanded structural HIR and certificate;
+5. immutable validated graph-state derivation; and
+6. renderer-independent paired frames.
 
-Only the chemistry engine may construct the final layer.
-
-## Normative contract and implementation status
-
-The only language grammar is [`grammar/chems.ebnf`](../grammar/chems.ebnf).
-There is no legacy grammar or migration surface. `chems-lang` implements the
-complete source frontend against that grammar.
-
-The executable specification and source-tooling commands are:
-
-```text
-cargo run -p chems-conformance -- validate
-cargo run -p chems-conformance -- report
-cargo run -p chems-lang -- parse experiment.chems
-cargo run -p chems-lang -- format --check experiment.chems
-cargo run -p chems-lang -- format --write experiment.chems
-```
-
-`validate` checks the requirement registry, manifest, fixture paths, grammar
-reachability, reserved words, and schema documents. `report` additionally exits
-non-zero until all normative requirements are covered by conformance cases.
-`chems-lang` owns lossless source syntax, `CHEMS-L`/`CHEMS-P` diagnostics,
-comment attachment, and formatting. Catalogue resolution and the kernel remain
-separate trusted boundaries as fixed by the specification.
-
-## Derived values
-
-Values that the validator can derive reliably should not be duplicated in
-source by default. Examples include:
-
-- limiting reagent;
-- consumed and remaining moles;
-- theoretical product quantity;
-- molar mass calculated from accepted elemental data.
-
-An author may explicitly assert a derived value for teaching or checking, in
-which case disagreement becomes a diagnostic.
-
-## Diagnostics
-
-Diagnostics attach to exact source spans and explain the chemical issue:
-
-```chems
-netIonic :=
-  Ag^+(aq) + Cl^2-(aq) -> AgCl(s)
-              ^^^^^
-```
-
-```text
-CHEM-E023 — Charge is not conserved
-
-Reactant charge: -1
-Product charge:   0
-
-Did you mean Cl^-(aq)?
-```
-
-Required diagnostic properties:
-
-- stable code;
-- severity;
-- primary source span;
-- concise summary;
-- chemistry-aware explanation;
-- optional related spans;
-- optional safe replacement;
-- machine-readable representation for the agent repair loop.
+Only the trusted chemistry kernel constructs the validated layer.
 
 ## Editing contract
 
-`.chems` is the experiment's source of truth. The editor supports human and
-agent authors equally.
+Source remains visible and editable. Editing invalidates the current expansion,
+validation, and frames immediately. An old result may remain visible only as
+explicitly stale. Agent patches are attributable, diffable, undoable, and may
+not overwrite unrelated human edits silently.
 
-Required editor states:
+Baseline tooling includes syntax highlighting, catalogue completion, hover
+information, formatting, diagnostics, expanded-certificate inspection, and
+simulation only after validation.
 
-- unmodified and validated;
-- modified, validation pending;
-- validating;
-- validated with or without assumptions;
-- invalid;
-- unsupported.
+## Diagnostics
 
-Editing validated source immediately makes the current simulation stale. The
-previous result may remain visible in a paused, dimmed state, but it must be
-labelled as the last validated version. Invalid source never drives the
-renderer.
+Diagnostics identify the exact declaration, equation term, evidence claim,
+rule role, expanded atom, mapping, operation, or structural invariant that
+failed. Invalid source and unsupported chemistry remain distinct.
 
-Baseline editing features:
+## Further authority
 
-- syntax highlighting;
-- automatic indentation;
-- completion for formulas, phases, charges, quantities, and units;
-- inline diagnostics;
-- hover information for catalogued substances;
-- format document;
-- validate;
-- simulate when valid;
-- open and save ordinary `.chems` files.
-
-Agent edits are patches. During an automatic repair loop, patches may apply
-without another confirmation, but they remain visible, attributable, and
-undoable. An agent must never silently overwrite unrelated human edits.
-
-## Source-to-simulation linking
-
-Where practical, the application connects the same concept across views:
-
-- selecting `Ag^+(aq)` highlights representative silver ions;
-- selecting `AgCl(s)` highlights the precipitate;
-- selecting `netIonic` isolates participating species;
-- selecting `dissociate aqueous` reveals the corresponding derivation step.
-
-This connection makes the language an educational representation rather than
-an implementation detail.
-
-## Evolution rules
-
-The initial language should remain deliberately small. New syntax is justified
-only when it represents a chemistry concept that cannot be expressed clearly
-with existing constructs. Catalogue data and UI preferences do not belong in
-the language grammar.
-
-Future versions may add redox half-equations, equilibria, weak acid/base
-systems, kinetics, or organic mechanisms, but those additions must be versioned
-and must preserve the distinction between deterministic invariants and
-empirical premises.
+- [Normative specification](chems-specification.md)
+- [Normative grammar](../grammar/chems.ebnf)
+- [Structural architecture](structural-chems-architecture.md)
+- [Implementation plan](chems-implementation-plan.md)
+- [Conformance contract](../conformance/README.md)

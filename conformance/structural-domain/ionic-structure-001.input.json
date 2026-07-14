@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "atoms": [
+    { "id": "salt.li", "element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "salt.o", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0 },
+    { "id": "salt.h", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 }
+  ],
+  "covalent_edges": [{ "id": "salt.oh", "left": "salt.o", "right": "salt.h", "order": "single" }],
+  "groups": [
+    { "id": "salt.lithium", "atoms": ["salt.li"] },
+    { "id": "salt.hydroxide", "atoms": ["salt.o", "salt.h"] }
+  ],
+  "ionic_associations": [{ "id": "salt.ionic", "components": ["salt.lithium", "salt.hydroxide"] }]
+}

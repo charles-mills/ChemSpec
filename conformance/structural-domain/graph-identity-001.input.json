@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "formula": { "C": 2, "H": 6, "O": 1 },
+  "atoms": [
+    { "id": "isomer.c1", "element": "C", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "isomer.c2", "element": "C", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "isomer.o", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0 },
+    { "id": "isomer.h1", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "isomer.h2", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "isomer.h3", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "isomer.h4", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "isomer.h5", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "isomer.h6", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 }
+  ],
+  "graphs": {
+    "alcohol": [
+      ["isomer.c1", "isomer.c2"], ["isomer.c1", "isomer.h1"],
+      ["isomer.c1", "isomer.h2"], ["isomer.c1", "isomer.h3"],
+      ["isomer.c2", "isomer.h4"], ["isomer.c2", "isomer.h5"],
+      ["isomer.c2", "isomer.o"], ["isomer.o", "isomer.h6"]
+    ],
+    "ether": [
+      ["isomer.c1", "isomer.o"], ["isomer.c2", "isomer.o"],
+      ["isomer.c1", "isomer.h1"], ["isomer.c1", "isomer.h2"],
+      ["isomer.c1", "isomer.h3"], ["isomer.c2", "isomer.h4"],
+      ["isomer.c2", "isomer.h5"], ["isomer.c2", "isomer.h6"]
+    ]
+  }
+}

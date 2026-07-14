@@ -9,9 +9,7 @@ version.workspace = true
 [dependencies]
 chem-catalogue = { path = "../chem-catalogue" }
 chem-domain = { path = "../chem-domain" }
-chem-engine = { path = "../chem-engine" }
-serde.workspace = true
-serde_json.workspace = true
+chem-kernel = { path = "../chem-kernel" }
 
 [lints]
 workspace = true

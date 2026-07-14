@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "same_formula_inventory": true,
+  "same_atom_inventory": true,
+  "formal_charge_states_consistent": true,
+  "graphs_equal": false,
+  "declaration_order_changes_semantics": false
+}

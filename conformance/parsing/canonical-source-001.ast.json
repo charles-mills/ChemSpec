@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "complete": true,
+  "comments": [],
+  "language": { "lexeme": "1", "span": { "start": 6, "end": 7 } },
+  "catalogue": {
+    "name": "ChemSpec.Theoretical",
+    "version": "1",
+    "span": { "start": 8, "end": 43 }
+  },
+  "reaction": {
+    "name": "LithiumAndWater",
+    "span": { "start": 44, "end": 654 },
+    "reactants": [
+      { "name": "lithium", "coefficient": "2", "structure": "LithiumMetal", "span": { "start": 91, "end": 120 } },
+      { "name": "water", "coefficient": "2", "structure": "Water", "span": { "start": 124, "end": 144 } }
+    ],
+    "products": [
+      { "name": "lithiumHydroxide", "coefficient": "2", "structure": "LithiumHydroxide", "span": { "start": 160, "end": 202 } },
+      { "name": "hydrogen", "coefficient": "1", "structure": "Hydrogen", "span": { "start": 206, "end": 232 } }
+    ],
+    "equation": {
+      "span": { "start": 248, "end": 318 },
+      "reactants": [
+        { "coefficient": "2", "formula": "Li", "representation": "metallic", "span": { "start": 248, "end": 262 } },
+        { "coefficient": "2", "formula": "H2O", "representation": "molecular", "span": { "start": 265, "end": 281 } }
+      ],
+      "products": [
+        { "coefficient": "2", "formula": "LiOH", "representation": "ionic", "span": { "start": 289, "end": 302 } },
+        { "coefficient": null, "formula": "H2", "representation": "molecular", "span": { "start": 305, "end": 318 } }
+      ]
+    },
+    "model": { "event": "representative", "sequence": "explanatory", "span": { "start": 322, "end": 387 } },
+    "observations": {
+      "evidence": "Evidence.LithiumAndWater",
+      "version": "1",
+      "span": { "start": 387, "end": 505 },
+      "entries": [
+        { "kind": "gasEvolves", "subject": "hydrogen", "claim": "R1", "span": { "start": 431, "end": 461 } },
+        { "kind": "reactantDisappears", "subject": "lithium", "claim": "R2", "span": { "start": 465, "end": 502 } }
+      ]
+    },
+    "rule_application": {
+      "rule": "Rules.AlkaliMetalWithWater",
+      "span": { "start": 512, "end": 654 },
+      "bindings": [
+        { "role": "metal", "value": "lithium", "span": { "start": 551, "end": 568 } },
+        { "role": "water", "value": "water", "span": { "start": 574, "end": 589 } },
+        { "role": "hydroxide", "value": "lithiumHydroxide", "span": { "start": 595, "end": 625 } },
+        { "role": "gasProduct", "value": "hydrogen", "span": { "start": 631, "end": 654 } }
+      ]
+    }
+  }
+}

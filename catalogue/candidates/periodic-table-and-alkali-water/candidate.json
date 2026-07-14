@@ -1,0 +1,2440 @@
+{
+  "schema_version": 1,
+  "id": "periodic-table-and-alkali-water",
+  "evidence": [
+    {
+      "id": "evidence.openstax.chemistry-2e",
+      "title": "Chemistry 2e",
+      "publisher": "OpenStax",
+      "locator": "Periodic Variations in Element Properties; Writing and Balancing Chemical Equations",
+      "reference": "https://openstax.org/details/books/chemistry-2e",
+      "publication_date": "2019-02-14",
+      "retrieved_on": "2026-07-13",
+      "usage": "Lithium valence, water and hydrogen bonding, balancing, and alkali-metal reaction outcome"
+    },
+    {
+      "id": "evidence.iupac.goldbook",
+      "title": "Compendium of Chemical Terminology (the Gold Book)",
+      "publisher": "International Union of Pure and Applied Chemistry",
+      "locator": "ionic bond, metallic bond, formal charge, radical",
+      "reference": "https://goldbook.iupac.org/",
+      "retrieved_on": "2026-07-13",
+      "usage": "Structural terminology and electron-accounting review"
+    },
+    {
+      "id": "evidence.iupac.periodic-table",
+      "title": "IUPAC Periodic Table of the Elements",
+      "publisher": "International Union of Pure and Applied Chemistry",
+      "locator": "Periodic Table of Elements",
+      "reference": "https://iupac.org/what-we-do/periodic-table-of-elements/",
+      "publication_date": "2022-05-04",
+      "retrieved_on": "2026-07-14",
+      "usage": "Element symbols, names, atomic numbers, and conventional table placement; candidate group and block fields are covered by the host-selected AI review"
+    }
+  ],
+  "premises": [
+    {
+      "id": "premise.structure.alkali-metal",
+      "statement": "The representative alkali-metal fragment is an M+ site core with one domain-owned delocalized valence electron.",
+      "evidence": [
+        "evidence.iupac.goldbook",
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.water",
+      "statement": "Water is represented as neutral molecular H2O with two localized O-H single bonds.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.alkali-metal-hydroxide",
+      "statement": "Each supported alkali-metal hydroxide is an ionic association of M+ and covalently bonded OH- components.",
+      "evidence": [
+        "evidence.iupac.goldbook",
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.hydrogen",
+      "statement": "Hydrogen gas is represented as neutral molecular H2 with one localized H-H single bond.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.rule.alkali-metal-water.standard-outcome",
+      "statement": "Contact between Li, Na, or K metal and water has the reviewed representative outcome 2 M + 2 H2O -> 2 MOH + H2.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.valence.alkali-h-o.initial-domain",
+      "statement": "The listed Li, Na, K, Ca, H, and O tuples are the closed migration and unsupported-probe valence domain.",
+      "evidence": [
+        "evidence.iupac.goldbook",
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.hydrogen-evolves",
+      "statement": "Hydrogen is compatible with the authored observation predicate evolves for this rule outcome.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.alkali-metal-disappears",
+      "statement": "The selected alkali metal is compatible with the authored observation predicate disappears for this family outcome.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.elements.iupac-periodic-table",
+      "statement": "The 118 candidate records use IUPAC element symbols, names, atomic numbers, and periods; optional group values and conventional block assignments are candidate interpretations covered by the host-selected AI review.",
+      "evidence": [
+        "evidence.iupac.periodic-table"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    }
+  ],
+  "valence_premises": [
+    {
+      "premise_id": "premise.valence.alkali-h-o.initial-domain",
+      "neutral_valence": [
+        {
+          "element": "Li",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "H",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "O",
+          "neutral_valence_electrons": 6
+        },
+        {
+          "element": "Na",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "K",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "Ca",
+          "neutral_valence_electrons": 2
+        }
+      ],
+      "supported_states": [
+        {
+          "element": "Li",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Li",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "O",
+          "formal_charge": 0,
+          "non_bonding_electrons": 4,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 2
+        },
+        {
+          "element": "O",
+          "formal_charge": -1,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "H",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Na",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Na",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "K",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "K",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Ca",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        }
+      ],
+      "metallic_domain_states": [
+        {
+          "element": "Li",
+          "site_formal_charge": 1,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 1
+        },
+        {
+          "element": "Na",
+          "site_formal_charge": 1,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 1
+        },
+        {
+          "element": "K",
+          "site_formal_charge": 1,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 1
+        },
+        {
+          "element": "Ca",
+          "site_formal_charge": 2,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 2
+        }
+      ]
+    }
+  ],
+  "structures": [
+    {
+      "representation": "molecular",
+      "id": "Water",
+      "premise_id": "premise.structure.water",
+      "formula": "H2O",
+      "atoms": [
+        {
+          "label": "o",
+          "element": "O",
+          "formal_charge": 0,
+          "non_bonding_electrons": 4,
+          "unpaired_electrons": 0
+        },
+        {
+          "label": "h1",
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        },
+        {
+          "label": "h2",
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "bonds": [
+        {
+          "left": "o",
+          "right": "h1",
+          "order": "single"
+        },
+        {
+          "left": "o",
+          "right": "h2",
+          "order": "single"
+        }
+      ],
+      "groups": []
+    },
+    {
+      "representation": "molecular",
+      "id": "Hydrogen",
+      "premise_id": "premise.structure.hydrogen",
+      "formula": "H2",
+      "atoms": [
+        {
+          "label": "h1",
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        },
+        {
+          "label": "h2",
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "bonds": [
+        {
+          "left": "h1",
+          "right": "h2",
+          "order": "single"
+        }
+      ],
+      "groups": []
+    },
+    {
+      "representation": "metallic",
+      "id": "CalciumMetal",
+      "premise_id": "premise.rule.alkali-metal-water.standard-outcome",
+      "formula": "Ca",
+      "sites": [
+        {
+          "label": "ca",
+          "element": "Ca",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "ca"
+          ],
+          "delocalized_electrons": 2
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "elements": [
+    {
+      "symbol": "H",
+      "name": "Hydrogen",
+      "atomic_number": 1,
+      "period": 1,
+      "group": 1,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "He",
+      "name": "Helium",
+      "atomic_number": 2,
+      "period": 1,
+      "group": 18,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Li",
+      "name": "Lithium",
+      "atomic_number": 3,
+      "period": 2,
+      "group": 1,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Be",
+      "name": "Beryllium",
+      "atomic_number": 4,
+      "period": 2,
+      "group": 2,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "B",
+      "name": "Boron",
+      "atomic_number": 5,
+      "period": 2,
+      "group": 13,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "C",
+      "name": "Carbon",
+      "atomic_number": 6,
+      "period": 2,
+      "group": 14,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "N",
+      "name": "Nitrogen",
+      "atomic_number": 7,
+      "period": 2,
+      "group": 15,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "O",
+      "name": "Oxygen",
+      "atomic_number": 8,
+      "period": 2,
+      "group": 16,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "F",
+      "name": "Fluorine",
+      "atomic_number": 9,
+      "period": 2,
+      "group": 17,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ne",
+      "name": "Neon",
+      "atomic_number": 10,
+      "period": 2,
+      "group": 18,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Na",
+      "name": "Sodium",
+      "atomic_number": 11,
+      "period": 3,
+      "group": 1,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Mg",
+      "name": "Magnesium",
+      "atomic_number": 12,
+      "period": 3,
+      "group": 2,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Al",
+      "name": "Aluminium",
+      "atomic_number": 13,
+      "period": 3,
+      "group": 13,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Si",
+      "name": "Silicon",
+      "atomic_number": 14,
+      "period": 3,
+      "group": 14,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "P",
+      "name": "Phosphorus",
+      "atomic_number": 15,
+      "period": 3,
+      "group": 15,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "S",
+      "name": "Sulfur",
+      "atomic_number": 16,
+      "period": 3,
+      "group": 16,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cl",
+      "name": "Chlorine",
+      "atomic_number": 17,
+      "period": 3,
+      "group": 17,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ar",
+      "name": "Argon",
+      "atomic_number": 18,
+      "period": 3,
+      "group": 18,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "K",
+      "name": "Potassium",
+      "atomic_number": 19,
+      "period": 4,
+      "group": 1,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ca",
+      "name": "Calcium",
+      "atomic_number": 20,
+      "period": 4,
+      "group": 2,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Sc",
+      "name": "Scandium",
+      "atomic_number": 21,
+      "period": 4,
+      "group": 3,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ti",
+      "name": "Titanium",
+      "atomic_number": 22,
+      "period": 4,
+      "group": 4,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "V",
+      "name": "Vanadium",
+      "atomic_number": 23,
+      "period": 4,
+      "group": 5,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cr",
+      "name": "Chromium",
+      "atomic_number": 24,
+      "period": 4,
+      "group": 6,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Mn",
+      "name": "Manganese",
+      "atomic_number": 25,
+      "period": 4,
+      "group": 7,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Fe",
+      "name": "Iron",
+      "atomic_number": 26,
+      "period": 4,
+      "group": 8,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Co",
+      "name": "Cobalt",
+      "atomic_number": 27,
+      "period": 4,
+      "group": 9,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ni",
+      "name": "Nickel",
+      "atomic_number": 28,
+      "period": 4,
+      "group": 10,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cu",
+      "name": "Copper",
+      "atomic_number": 29,
+      "period": 4,
+      "group": 11,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Zn",
+      "name": "Zinc",
+      "atomic_number": 30,
+      "period": 4,
+      "group": 12,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ga",
+      "name": "Gallium",
+      "atomic_number": 31,
+      "period": 4,
+      "group": 13,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ge",
+      "name": "Germanium",
+      "atomic_number": 32,
+      "period": 4,
+      "group": 14,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "As",
+      "name": "Arsenic",
+      "atomic_number": 33,
+      "period": 4,
+      "group": 15,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Se",
+      "name": "Selenium",
+      "atomic_number": 34,
+      "period": 4,
+      "group": 16,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Br",
+      "name": "Bromine",
+      "atomic_number": 35,
+      "period": 4,
+      "group": 17,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Kr",
+      "name": "Krypton",
+      "atomic_number": 36,
+      "period": 4,
+      "group": 18,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Rb",
+      "name": "Rubidium",
+      "atomic_number": 37,
+      "period": 5,
+      "group": 1,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Sr",
+      "name": "Strontium",
+      "atomic_number": 38,
+      "period": 5,
+      "group": 2,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Y",
+      "name": "Yttrium",
+      "atomic_number": 39,
+      "period": 5,
+      "group": 3,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Zr",
+      "name": "Zirconium",
+      "atomic_number": 40,
+      "period": 5,
+      "group": 4,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Nb",
+      "name": "Niobium",
+      "atomic_number": 41,
+      "period": 5,
+      "group": 5,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Mo",
+      "name": "Molybdenum",
+      "atomic_number": 42,
+      "period": 5,
+      "group": 6,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Tc",
+      "name": "Technetium",
+      "atomic_number": 43,
+      "period": 5,
+      "group": 7,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ru",
+      "name": "Ruthenium",
+      "atomic_number": 44,
+      "period": 5,
+      "group": 8,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Rh",
+      "name": "Rhodium",
+      "atomic_number": 45,
+      "period": 5,
+      "group": 9,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Pd",
+      "name": "Palladium",
+      "atomic_number": 46,
+      "period": 5,
+      "group": 10,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ag",
+      "name": "Silver",
+      "atomic_number": 47,
+      "period": 5,
+      "group": 11,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cd",
+      "name": "Cadmium",
+      "atomic_number": 48,
+      "period": 5,
+      "group": 12,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "In",
+      "name": "Indium",
+      "atomic_number": 49,
+      "period": 5,
+      "group": 13,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Sn",
+      "name": "Tin",
+      "atomic_number": 50,
+      "period": 5,
+      "group": 14,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Sb",
+      "name": "Antimony",
+      "atomic_number": 51,
+      "period": 5,
+      "group": 15,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Te",
+      "name": "Tellurium",
+      "atomic_number": 52,
+      "period": 5,
+      "group": 16,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "I",
+      "name": "Iodine",
+      "atomic_number": 53,
+      "period": 5,
+      "group": 17,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Xe",
+      "name": "Xenon",
+      "atomic_number": 54,
+      "period": 5,
+      "group": 18,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cs",
+      "name": "Caesium",
+      "atomic_number": 55,
+      "period": 6,
+      "group": 1,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ba",
+      "name": "Barium",
+      "atomic_number": 56,
+      "period": 6,
+      "group": 2,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "La",
+      "name": "Lanthanum",
+      "atomic_number": 57,
+      "period": 6,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ce",
+      "name": "Cerium",
+      "atomic_number": 58,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Pr",
+      "name": "Praseodymium",
+      "atomic_number": 59,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Nd",
+      "name": "Neodymium",
+      "atomic_number": 60,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Pm",
+      "name": "Promethium",
+      "atomic_number": 61,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Sm",
+      "name": "Samarium",
+      "atomic_number": 62,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Eu",
+      "name": "Europium",
+      "atomic_number": 63,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Gd",
+      "name": "Gadolinium",
+      "atomic_number": 64,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Tb",
+      "name": "Terbium",
+      "atomic_number": 65,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Dy",
+      "name": "Dysprosium",
+      "atomic_number": 66,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ho",
+      "name": "Holmium",
+      "atomic_number": 67,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Er",
+      "name": "Erbium",
+      "atomic_number": 68,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Tm",
+      "name": "Thulium",
+      "atomic_number": 69,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Yb",
+      "name": "Ytterbium",
+      "atomic_number": 70,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Lu",
+      "name": "Lutetium",
+      "atomic_number": 71,
+      "period": 6,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Hf",
+      "name": "Hafnium",
+      "atomic_number": 72,
+      "period": 6,
+      "group": 4,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ta",
+      "name": "Tantalum",
+      "atomic_number": 73,
+      "period": 6,
+      "group": 5,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "W",
+      "name": "Tungsten",
+      "atomic_number": 74,
+      "period": 6,
+      "group": 6,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Re",
+      "name": "Rhenium",
+      "atomic_number": 75,
+      "period": 6,
+      "group": 7,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Os",
+      "name": "Osmium",
+      "atomic_number": 76,
+      "period": 6,
+      "group": 8,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ir",
+      "name": "Iridium",
+      "atomic_number": 77,
+      "period": 6,
+      "group": 9,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Pt",
+      "name": "Platinum",
+      "atomic_number": 78,
+      "period": 6,
+      "group": 10,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Au",
+      "name": "Gold",
+      "atomic_number": 79,
+      "period": 6,
+      "group": 11,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Hg",
+      "name": "Mercury",
+      "atomic_number": 80,
+      "period": 6,
+      "group": 12,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Tl",
+      "name": "Thallium",
+      "atomic_number": 81,
+      "period": 6,
+      "group": 13,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Pb",
+      "name": "Lead",
+      "atomic_number": 82,
+      "period": 6,
+      "group": 14,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Bi",
+      "name": "Bismuth",
+      "atomic_number": 83,
+      "period": 6,
+      "group": 15,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Po",
+      "name": "Polonium",
+      "atomic_number": 84,
+      "period": 6,
+      "group": 16,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "At",
+      "name": "Astatine",
+      "atomic_number": 85,
+      "period": 6,
+      "group": 17,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Rn",
+      "name": "Radon",
+      "atomic_number": 86,
+      "period": 6,
+      "group": 18,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Fr",
+      "name": "Francium",
+      "atomic_number": 87,
+      "period": 7,
+      "group": 1,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ra",
+      "name": "Radium",
+      "atomic_number": 88,
+      "period": 7,
+      "group": 2,
+      "block": "s",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ac",
+      "name": "Actinium",
+      "atomic_number": 89,
+      "period": 7,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Th",
+      "name": "Thorium",
+      "atomic_number": 90,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Pa",
+      "name": "Protactinium",
+      "atomic_number": 91,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "U",
+      "name": "Uranium",
+      "atomic_number": 92,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Np",
+      "name": "Neptunium",
+      "atomic_number": 93,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Pu",
+      "name": "Plutonium",
+      "atomic_number": 94,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Am",
+      "name": "Americium",
+      "atomic_number": 95,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cm",
+      "name": "Curium",
+      "atomic_number": 96,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Bk",
+      "name": "Berkelium",
+      "atomic_number": 97,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cf",
+      "name": "Californium",
+      "atomic_number": 98,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Es",
+      "name": "Einsteinium",
+      "atomic_number": 99,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Fm",
+      "name": "Fermium",
+      "atomic_number": 100,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Md",
+      "name": "Mendelevium",
+      "atomic_number": 101,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "No",
+      "name": "Nobelium",
+      "atomic_number": 102,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Lr",
+      "name": "Lawrencium",
+      "atomic_number": 103,
+      "period": 7,
+      "block": "f",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Rf",
+      "name": "Rutherfordium",
+      "atomic_number": 104,
+      "period": 7,
+      "group": 4,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Db",
+      "name": "Dubnium",
+      "atomic_number": 105,
+      "period": 7,
+      "group": 5,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Sg",
+      "name": "Seaborgium",
+      "atomic_number": 106,
+      "period": 7,
+      "group": 6,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Bh",
+      "name": "Bohrium",
+      "atomic_number": 107,
+      "period": 7,
+      "group": 7,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Hs",
+      "name": "Hassium",
+      "atomic_number": 108,
+      "period": 7,
+      "group": 8,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Mt",
+      "name": "Meitnerium",
+      "atomic_number": 109,
+      "period": 7,
+      "group": 9,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ds",
+      "name": "Darmstadtium",
+      "atomic_number": 110,
+      "period": 7,
+      "group": 10,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Rg",
+      "name": "Roentgenium",
+      "atomic_number": 111,
+      "period": 7,
+      "group": 11,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Cn",
+      "name": "Copernicium",
+      "atomic_number": 112,
+      "period": 7,
+      "group": 12,
+      "block": "d",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Nh",
+      "name": "Nihonium",
+      "atomic_number": 113,
+      "period": 7,
+      "group": 13,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Fl",
+      "name": "Flerovium",
+      "atomic_number": 114,
+      "period": 7,
+      "group": 14,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Mc",
+      "name": "Moscovium",
+      "atomic_number": 115,
+      "period": 7,
+      "group": 15,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Lv",
+      "name": "Livermorium",
+      "atomic_number": 116,
+      "period": 7,
+      "group": 16,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Ts",
+      "name": "Tennessine",
+      "atomic_number": 117,
+      "period": 7,
+      "group": 17,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    },
+    {
+      "symbol": "Og",
+      "name": "Oganesson",
+      "atomic_number": 118,
+      "period": 7,
+      "group": 18,
+      "block": "p",
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table"
+      ]
+    }
+  ],
+  "element_categories": [
+    {
+      "id": "Categories.AlkaliMetal",
+      "subject": "element",
+      "membership": {
+        "kind": "explicit",
+        "members": [
+          "K",
+          "Li",
+          "Na"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    }
+  ],
+  "structural_traits": [],
+  "structure_templates": [
+    {
+      "representation": "metallic",
+      "id": "Templates.AlkaliMetal",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.AlkaliMetal"
+        }
+      },
+      "sites": [
+        {
+          "label": "metal",
+          "element": {
+            "parameter": "member"
+          },
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 1
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "Templates.AlkaliMetalHydroxide",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.AlkaliMetal"
+        }
+      },
+      "components": [
+        {
+          "label": "metal",
+          "atoms": [
+            {
+              "label": "metal",
+              "element": {
+                "parameter": "member"
+              },
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "hydroxide",
+          "atoms": [
+            {
+              "label": "o",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o",
+              "right": "h",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "ionic",
+          "components": [
+            "metal",
+            "hydroxide"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    }
+  ],
+  "structure_applications": [
+    {
+      "id": "LithiumMetal",
+      "template": "Templates.AlkaliMetal",
+      "arguments": {
+        "member": "Li"
+      },
+      "formula": "Li",
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "SodiumMetal",
+      "template": "Templates.AlkaliMetal",
+      "arguments": {
+        "member": "Na"
+      },
+      "formula": "Na",
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "PotassiumMetal",
+      "template": "Templates.AlkaliMetal",
+      "arguments": {
+        "member": "K"
+      },
+      "formula": "K",
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "LithiumHydroxide",
+      "template": "Templates.AlkaliMetalHydroxide",
+      "arguments": {
+        "member": "Li"
+      },
+      "formula": "LiOH",
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "SodiumHydroxide",
+      "template": "Templates.AlkaliMetalHydroxide",
+      "arguments": {
+        "member": "Na"
+      },
+      "formula": "NaOH",
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "PotassiumHydroxide",
+      "template": "Templates.AlkaliMetalHydroxide",
+      "arguments": {
+        "member": "K"
+      },
+      "formula": "KOH",
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    }
+  ],
+  "graph_patterns": [
+    {
+      "id": "Patterns.AlkaliMetal",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": {
+              "parameter": "member"
+            }
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "metallic_domain",
+          "domain": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 1
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "Patterns.Water",
+      "variables": {
+        "h1": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "h2": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "o": {
+          "atom": {
+            "element": "O"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "covalent",
+          "bond": "oh1",
+          "left": "o",
+          "right": "h1",
+          "order": "single"
+        },
+        {
+          "kind": "covalent",
+          "bond": "oh2",
+          "left": "o",
+          "right": "h2",
+          "order": "single"
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    }
+  ],
+  "generalized_rules": [
+    {
+      "id": "Rules.AlkaliMetalWithWater",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.AlkaliMetal"
+        }
+      },
+      "roles": {
+        "gasProduct": {
+          "side": "product",
+          "representation": "molecular",
+          "coefficient": 1
+        },
+        "hydroxide": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 2
+        },
+        "metal": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 2
+        },
+        "water": {
+          "side": "reactant",
+          "representation": "molecular",
+          "coefficient": 2
+        }
+      },
+      "reactants": {
+        "metal": {
+          "kind": "template",
+          "template": "Templates.AlkaliMetal",
+          "arguments": {
+            "member": {
+              "parameter": "member"
+            }
+          }
+        },
+        "water": {
+          "kind": "exact",
+          "structure": "Water"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "standard",
+          "when": {
+            "kind": "always"
+          },
+          "products": {
+            "gasProduct": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            },
+            "hydroxide": {
+              "kind": "template",
+              "template": "Templates.AlkaliMetalHydroxide",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.AlkaliMetal",
+            "water": "Patterns.Water"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "hydroxide[1].metal.metal",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide"
+              ]
+            },
+            {
+              "reactant": "metal[2].metal",
+              "product": "hydroxide[2].metal.metal",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide"
+              ]
+            },
+            {
+              "reactant": "water[1].o",
+              "product": "hydroxide[1].hydroxide.o",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[1].h2",
+              "product": "hydroxide[1].hydroxide.h",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[2].o",
+              "product": "hydroxide[2].hydroxide.o",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[2].h2",
+              "product": "hydroxide[2].hydroxide.h",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[1].h1",
+              "product": "gasProduct[1].h1",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.hydrogen",
+                "premise.structure.water"
+              ]
+            },
+            {
+              "reactant": "water[2].h1",
+              "product": "gasProduct[1].h2",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.hydrogen",
+                "premise.structure.water"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "site": "metal[2].metal",
+              "domain": "metal[2].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.water",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[1].o",
+                "water[1].h1",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "water[1].o"
+              },
+              "before": {
+                "left": [
+                  0,
+                  4,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  -1,
+                  6,
+                  0
+                ],
+                "right": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.water",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[2].o",
+                "water[2].h1",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "water[2].o"
+              },
+              "before": {
+                "left": [
+                  0,
+                  4,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  -1,
+                  6,
+                  0
+                ],
+                "right": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.water",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "water[1].h1",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.water",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "water[2].h1",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "edge": [
+                "water[1].h1",
+                "water[2].h1",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "label": "ionic.product1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "water[1].o",
+                  "water[1].h2"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "label": "ionic.product2",
+              "components": [
+                [
+                  "metal[2].metal"
+                ],
+                [
+                  "water[2].o",
+                  "water[2].h2"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "water[1].o",
+                "water[1].h2"
+              ],
+              "product": "hydroxide[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide"
+              ],
+              "atoms": [
+                "metal[2].metal",
+                "water[2].o",
+                "water[2].h2"
+              ],
+              "product": "hydroxide[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.hydrogen"
+              ],
+              "atoms": [
+                "water[1].h1",
+                "water[2].h1"
+              ],
+              "product": "gasProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "gasProduct",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.observation.hydrogen-evolves"
+            },
+            {
+              "subject_role": "metal",
+              "predicate": "disappears",
+              "evidence_subject": "alkali metal",
+              "premise_id": "premise.observation.alkali-metal-disappears"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.alkali-metal-water.standard-outcome"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.alkali-metal-water.standard-outcome",
+        "request_relation": "contact",
+        "required_context": "representative educational outcome under the reviewed standard-outcome premise"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table",
+        "premise.observation.alkali-metal-disappears",
+        "premise.observation.hydrogen-evolves",
+        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.structure.alkali-metal",
+        "premise.structure.alkali-metal-hydroxide",
+        "premise.structure.hydrogen",
+        "premise.structure.water",
+        "premise.valence.alkali-h-o.initial-domain"
+      ]
+    }
+  ]
+}

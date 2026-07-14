@@ -10,6 +10,7 @@ const fn is_false(value: &bool) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TokenKind {
+    Bom,
     Word,
     Number,
     Space,
@@ -20,16 +21,11 @@ pub enum TokenKind {
     Arrow,
     At,
     Dot,
-    Colon,
-    Caret,
     Plus,
-    Minus,
-    Star,
-    Slash,
-    Percent,
     LeftParen,
     RightParen,
-    Hole,
+    LeftBracket,
+    RightBracket,
     Indent,
     Dedent,
     Eof,
@@ -39,7 +35,10 @@ pub enum TokenKind {
 impl TokenKind {
     #[must_use]
     pub const fn is_trivia(&self) -> bool {
-        matches!(self, Self::Space | Self::LineComment | Self::BlockComment)
+        matches!(
+            self,
+            Self::Bom | Self::Space | Self::LineComment | Self::BlockComment
+        )
     }
 
     #[must_use]
@@ -107,8 +106,7 @@ pub struct SourceAst {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalogue: Option<SourceCatalogueSelection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub experiment: Option<SourceExperiment>,
-    pub document: SourceNode,
+    pub reaction: Option<SourceReaction>,
     pub production_trace: Vec<String>,
     pub comments: Vec<CommentAttachment>,
 }
@@ -124,225 +122,130 @@ pub struct SourceLanguageVersion {
 #[serde(deny_unknown_fields)]
 pub struct SourceCatalogueSelection {
     pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
+    pub version: String,
     pub span: ByteSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SourceExperiment {
+pub struct SourceReaction {
     pub name: String,
     pub span: ByteSpan,
-    pub conditions: Vec<SourceNode>,
-    pub assumptions: Vec<SourceNode>,
-    pub materials: Vec<SourceNode>,
-    pub vessels: Vec<SourceNode>,
-    pub procedure: Vec<SourceNode>,
+    pub reactants: Vec<SourceStructureBinding>,
+    pub products: Vec<SourceStructureBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equation: Option<SourceEquation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<SourceModel>,
-    pub expectations: Vec<SourceExpectation>,
-    pub tactics: Vec<SourceNode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observations: Option<SourceObservationBlock>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_application: Option<SourceRuleApplication>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceStructureBinding {
+    pub name: String,
+    pub coefficient: String,
+    pub structure: String,
+    pub span: ByteSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceEquation {
+    pub reactants: Vec<SourceEquationTerm>,
+    pub products: Vec<SourceEquationTerm>,
+    pub span: ByteSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceEquationTerm {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coefficient: Option<String>,
+    pub formula: String,
+    pub representation: SourceRepresentationKind,
+    pub span: ByteSpan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SourceRepresentationKind {
+    Molecular,
+    Ion,
+    Ionic,
+    Metallic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SourceModel {
+    pub event: SourceEventModel,
+    pub sequence: SourceSequenceModel,
     pub span: ByteSpan,
-    pub event: String,
-    pub sequence: String,
-    pub structural_rule: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SourceEventModel {
+    Representative,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SourceSequenceModel {
+    Explanatory,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SourceExpectation {
+pub struct SourceObservationBlock {
+    pub evidence: String,
+    pub version: String,
+    pub entries: Vec<SourceObservation>,
     pub span: ByteSpan,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stage: Option<String>,
-    pub claims: Vec<SourceNode>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SourceNode {
-    pub kind: SourceNodeKind,
-    pub span: ByteSpan,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lexeme: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub children: Vec<SourceNode>,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub recovery: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-pub enum SourceNodeKind {
-    Document,
-    Header { form: HeaderKind },
-    Experiment,
-    Section { section: SectionKind },
-    Declaration { form: DeclarationKind },
-    Operation { operation: OperationKind },
-    Claim { claim: ClaimKind },
-    Observation { observation: ObservationKind },
-    Tactic { tactic: TacticKind },
-    Equation { form: EquationSyntaxKind },
-    Chemical { form: ChemicalSyntaxKind },
-    Quantity { form: QuantitySyntaxKind },
-    Name { form: NameSyntaxKind },
-    Hole,
-    Recovery,
+pub enum SourceObservation {
+    GasEvolves {
+        gas: String,
+        claim: String,
+        span: ByteSpan,
+    },
+    ReactantDisappears {
+        reactant: String,
+        claim: String,
+        span: ByteSpan,
+    },
+    ProductForms {
+        product: String,
+        claim: String,
+        span: ByteSpan,
+    },
+    ProductColour {
+        product: String,
+        colour: String,
+        claim: String,
+        span: ByteSpan,
+    },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum HeaderKind {
-    LanguageHeader,
-    LanguageVersion,
-    CatalogUse,
-    CatalogVersion,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceRuleApplication {
+    pub rule: String,
+    pub bindings: Vec<SourceRuleBinding>,
+    pub span: ByteSpan,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SectionKind {
-    Conditions,
-    Assumptions,
-    Given,
-    Vessels,
-    Procedure,
-    Model,
-    Expectation,
-    Observation,
-    Proof,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DeclarationKind {
-    ConditionEntry,
-    Temperature,
-    Pressure,
-    Medium,
-    Assumption,
-    Material,
-    MaterialExpression,
-    SimpleMaterial,
-    PreparedMaterial,
-    Component,
-    Vessel,
-    Openness,
-    ProcedureEntry,
-    StageLabel,
-    ModelEvent,
-    ModelSequence,
-    StructuralRule,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum OperationKind {
-    Operation,
-    Place,
-    Add,
-    Combine,
-    Transfer,
-    Stir,
-    Heat,
-    Cool,
-    Wait,
-    Seal,
-    Open,
-    Filter,
-    Decant,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ClaimKind {
-    Entry,
-    Class,
-    ReactionClass,
-    Identity,
-    IdentityPredicate,
-    Equation,
-    EquationValue,
-    Amount,
-    Limiting,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ObservationKind {
-    Entry,
-    Precipitate,
-    Gas,
-    Colour,
-    Temperature,
-    TemperatureDirection,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum TacticKind {
-    Tactic,
-    Dissociate,
-    InferProducts,
-    Balance,
-    Derive,
-    CancelSpectators,
-    SolveStoichiometry,
-    VerifyAtoms,
-    VerifyCharge,
-    ProveObservations,
-    Close,
-    Auto,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EquationSyntaxKind {
-    Equation,
-    Kind,
-    Side,
-    Term,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ChemicalSyntaxKind {
-    Species,
-    Formula,
-    FormulaSegment,
-    FormulaPart,
-    Element,
-    Charge,
-    Phase,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum QuantitySyntaxKind {
-    Quantity,
-    Decimal,
-    UnitExpression,
-    UnitProduct,
-    UnitFactor,
-    UnitSymbol,
-    UnitName,
-    SignedInteger,
-    Integer,
-    PositiveInteger,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum NameSyntaxKind {
-    QualifiedName,
-    NameSegment,
-    ValueIdentifier,
-    TypeIdentifier,
-    StageReference,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceRuleBinding {
+    pub role: String,
+    pub value: String,
+    pub span: ByteSpan,
 }

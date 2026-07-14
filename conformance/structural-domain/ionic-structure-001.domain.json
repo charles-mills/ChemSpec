@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "atom_formal_charge_sum": 0,
+  "system_net_charge": 0,
+  "explicit_valence_electrons": 8,
+  "covalent_edge_count": 1,
+  "ionic_association_count": 1,
+  "ionic_association_is_covalent": false
+}

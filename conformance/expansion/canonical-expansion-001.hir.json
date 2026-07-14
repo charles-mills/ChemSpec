@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "source": "conformance/expansion/canonical-expansion-001.chems",
+  "catalogue": "ChemSpec.Theoretical@1",
+  "rule": "Rules.AlkaliMetalWithWater",
+  "model": { "event": "representative", "sequence": "explanatory" },
+  "state_encoding": {
+    "atom_tuple": ["formal_charge", "non_bonding_electrons", "unpaired_electrons"],
+    "covalent_edge_tuple": ["left_atom", "right_atom", "order"],
+    "metallic_domain_tuple": ["domain_id", "site_atoms", "delocalized_electrons"],
+    "ionic_association_tuple": ["left_atoms", "right_atoms", "kind"],
+    "product_assignment_tuple": ["product_instance", "atoms"]
+  },
+  "atom_elements": {
+    "lithium[1].li": "Li", "lithium[2].li": "Li",
+    "water[1].o": "O", "water[1].h1": "H", "water[1].h2": "H",
+    "water[2].o": "O", "water[2].h1": "H", "water[2].h2": "H"
+  },
+  "instances": {
+    "reactants": ["lithium[1]", "lithium[2]", "water[1]", "water[2]"],
+    "products": ["lithiumHydroxide[1]", "lithiumHydroxide[2]", "hydrogen[1]"]
+  },
+  "mapping": [
+    ["lithium[1].li", "lithiumHydroxide[1].lithium.li"],
+    ["lithium[2].li", "lithiumHydroxide[2].lithium.li"],
+    ["water[1].o", "lithiumHydroxide[1].hydroxide.o"],
+    ["water[1].h2", "lithiumHydroxide[1].hydroxide.h"],
+    ["water[2].o", "lithiumHydroxide[2].hydroxide.o"],
+    ["water[2].h2", "lithiumHydroxide[2].hydroxide.h"],
+    ["water[1].h1", "hydrogen[1].h1"],
+    ["water[2].h1", "hydrogen[1].h2"]
+  ],
+  "states": [
+    {
+      "id": "state[0]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [0, 4, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [0, 4, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h1", "single"], ["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h1", "single"], ["water[2].o", "water[2].h2", "single"]],
+      "metallic_domains": [["lithium[1].metallic", ["lithium[1].li"], 1], ["lithium[2].metallic", ["lithium[2].li"], 1]],
+      "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 8, "covalent_bond_electrons": 8, "metallic_domain_electrons": 2, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 2, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[1]",
+      "atoms": {
+        "lithium[1].li": [0, 1, 1], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [0, 4, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [0, 4, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h1", "single"], ["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h1", "single"], ["water[2].o", "water[2].h2", "single"]],
+      "metallic_domains": [["lithium[2].metallic", ["lithium[2].li"], 1]],
+      "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 9, "covalent_bond_electrons": 8, "metallic_domain_electrons": 1, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 1, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[2]",
+      "atoms": {
+        "lithium[1].li": [0, 1, 1], "lithium[2].li": [0, 1, 1],
+        "water[1].o": [0, 4, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [0, 4, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h1", "single"], ["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h1", "single"], ["water[2].o", "water[2].h2", "single"]],
+      "metallic_domains": [], "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 10, "covalent_bond_electrons": 8, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[3]",
+      "atoms": {
+        "lithium[1].li": [0, 1, 1], "lithium[2].li": [0, 1, 1],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [1, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [0, 4, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h1", "single"], ["water[2].o", "water[2].h2", "single"]],
+      "metallic_domains": [], "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 12, "covalent_bond_electrons": 6, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[4]",
+      "atoms": {
+        "lithium[1].li": [0, 1, 1], "lithium[2].li": [0, 1, 1],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [1, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [1, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"]],
+      "metallic_domains": [], "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 14, "covalent_bond_electrons": 4, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[5]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [0, 1, 1],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 1, 1], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [1, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"]],
+      "metallic_domains": [], "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 14, "covalent_bond_electrons": 4, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[6]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 1, 1], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [0, 1, 1], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"]],
+      "metallic_domains": [], "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 14, "covalent_bond_electrons": 4, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[7]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"], ["water[1].h1", "water[2].h1", "single"]],
+      "metallic_domains": [], "ionic_associations": [], "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 12, "covalent_bond_electrons": 6, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[8]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"], ["water[1].h1", "water[2].h1", "single"]],
+      "metallic_domains": [],
+      "ionic_associations": [[["lithium[1].li"], ["water[1].o", "water[1].h2"], "ionic"]],
+      "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 12, "covalent_bond_electrons": 6, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[9]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"], ["water[1].h1", "water[2].h1", "single"]],
+      "metallic_domains": [],
+      "ionic_associations": [[["lithium[1].li"], ["water[1].o", "water[1].h2"], "ionic"], [["lithium[2].li"], ["water[2].o", "water[2].h2"], "ionic"]],
+      "product_assignments": [],
+      "ledger": { "atom_local_non_bonding": 12, "covalent_bond_electrons": 6, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[10]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"], ["water[1].h1", "water[2].h1", "single"]],
+      "metallic_domains": [],
+      "ionic_associations": [[["lithium[1].li"], ["water[1].o", "water[1].h2"], "ionic"], [["lithium[2].li"], ["water[2].o", "water[2].h2"], "ionic"]],
+      "product_assignments": [["lithiumHydroxide[1]", ["lithium[1].li", "water[1].o", "water[1].h2"]]],
+      "ledger": { "atom_local_non_bonding": 12, "covalent_bond_electrons": 6, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[11]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"], ["water[1].h1", "water[2].h1", "single"]],
+      "metallic_domains": [],
+      "ionic_associations": [[["lithium[1].li"], ["water[1].o", "water[1].h2"], "ionic"], [["lithium[2].li"], ["water[2].o", "water[2].h2"], "ionic"]],
+      "product_assignments": [["lithiumHydroxide[1]", ["lithium[1].li", "water[1].o", "water[1].h2"]], ["lithiumHydroxide[2]", ["lithium[2].li", "water[2].o", "water[2].h2"]]],
+      "ledger": { "atom_local_non_bonding": 12, "covalent_bond_electrons": 6, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    },
+    {
+      "id": "state[12]",
+      "atoms": {
+        "lithium[1].li": [1, 0, 0], "lithium[2].li": [1, 0, 0],
+        "water[1].o": [-1, 6, 0], "water[1].h1": [0, 0, 0], "water[1].h2": [0, 0, 0],
+        "water[2].o": [-1, 6, 0], "water[2].h1": [0, 0, 0], "water[2].h2": [0, 0, 0]
+      },
+      "covalent_edges": [["water[1].o", "water[1].h2", "single"], ["water[2].o", "water[2].h2", "single"], ["water[1].h1", "water[2].h1", "single"]],
+      "metallic_domains": [],
+      "ionic_associations": [[["lithium[1].li"], ["water[1].o", "water[1].h2"], "ionic"], [["lithium[2].li"], ["water[2].o", "water[2].h2"], "ionic"]],
+      "product_assignments": [["lithiumHydroxide[1]", ["lithium[1].li", "water[1].o", "water[1].h2"]], ["lithiumHydroxide[2]", ["lithium[2].li", "water[2].o", "water[2].h2"]], ["hydrogen[1]", ["water[1].h1", "water[2].h1"]]],
+      "ledger": { "atom_local_non_bonding": 12, "covalent_bond_electrons": 6, "metallic_domain_electrons": 0, "total_explicit_valence_electrons": 18, "atom_formal_charge_sum": 0, "system_net_charge": 0 }
+    }
+  ],
+  "operations": [
+    { "id": "operation[1]", "kind": "release_metallic", "before_state": "state[0]", "after_state": "state[1]", "site": "lithium[1].li", "domain": "lithium[1].metallic", "allocation": "retain_electron", "endpoint_after": [0, 1, 1] },
+    { "id": "operation[2]", "kind": "release_metallic", "before_state": "state[1]", "after_state": "state[2]", "site": "lithium[2].li", "domain": "lithium[2].metallic", "allocation": "retain_electron", "endpoint_after": [0, 1, 1] },
+    { "id": "operation[3]", "kind": "cleave_covalent", "before_state": "state[2]", "after_state": "state[3]", "edge": ["water[1].o", "water[1].h1", "single"], "allocation": { "heterolytic_to": "water[1].o" }, "endpoints_after": { "left": [-1, 6, 0], "right": [1, 0, 0] } },
+    { "id": "operation[4]", "kind": "cleave_covalent", "before_state": "state[3]", "after_state": "state[4]", "edge": ["water[2].o", "water[2].h1", "single"], "allocation": { "heterolytic_to": "water[2].o" }, "endpoints_after": { "left": [-1, 6, 0], "right": [1, 0, 0] } },
+    { "id": "operation[5]", "kind": "transfer_electron", "before_state": "state[4]", "after_state": "state[5]", "count": 1, "donor": "lithium[1].li", "acceptor": "water[1].h1", "endpoints_after": { "donor": [1, 0, 0], "acceptor": [0, 1, 1] } },
+    { "id": "operation[6]", "kind": "transfer_electron", "before_state": "state[5]", "after_state": "state[6]", "count": 1, "donor": "lithium[2].li", "acceptor": "water[2].h1", "endpoints_after": { "donor": [1, 0, 0], "acceptor": [0, 1, 1] } },
+    { "id": "operation[7]", "kind": "form_covalent", "before_state": "state[6]", "after_state": "state[7]", "edge": ["water[1].h1", "water[2].h1", "single"], "electron_contribution": { "left": 1, "right": 1 }, "endpoints_after": { "left": [0, 0, 0], "right": [0, 0, 0] } },
+    { "id": "operation[8]", "kind": "associate_ionic", "before_state": "state[7]", "after_state": "state[8]", "left": ["lithium[1].li"], "right": ["water[1].o", "water[1].h2"], "component_charges": [1, -1] },
+    { "id": "operation[9]", "kind": "associate_ionic", "before_state": "state[8]", "after_state": "state[9]", "left": ["lithium[2].li"], "right": ["water[2].o", "water[2].h2"], "component_charges": [1, -1] },
+    { "id": "operation[10]", "kind": "assign_product", "before_state": "state[9]", "after_state": "state[10]", "atoms": ["lithium[1].li", "water[1].o", "water[1].h2"], "product": "lithiumHydroxide[1]" },
+    { "id": "operation[11]", "kind": "assign_product", "before_state": "state[10]", "after_state": "state[11]", "atoms": ["lithium[2].li", "water[2].o", "water[2].h2"], "product": "lithiumHydroxide[2]" },
+    { "id": "operation[12]", "kind": "assign_product", "before_state": "state[11]", "after_state": "state[12]", "atoms": ["water[1].h1", "water[2].h1"], "product": "hydrogen[1]" }
+  ],
+  "review": {
+    "status": "host-selected-ai-reviewed",
+    "must_not_be_used_as_implemented_oracle_before_acceptance": false
+  }
+}

@@ -1,23 +1,19 @@
 chems 1
-use catalog ChemSpec.Aqueous@1
-experiment Comments where
-  conditions
-    /- outer /- nested -/ comment -/
-    temperature := 25 degC -- trailing
-    pressure := 1 atm
-    medium := aqueous
-  given
-    -- leading material comment
-    water := 10 mL of H2O(l)
-  vessels
-    beaker := open vessel 100 mL
-  procedure
-    place water in beaker
+use catalog ChemSpec.Structural@1
+reaction Comments where
+  /- outer /- nested -/ comment -/
+  reactants
+    water := 1 of Water -- trailing
+  products
+    waterProduct := 1 of Water
+  equation
+    H2O[molecular] -> H2O[molecular]
   model
     event := representative
     sequence := explanatory
-    structuralRule := ChemSpec.Structural.Test.Comments
-  expect
-    class := noReaction
+  observe from Evidence.Comments@1
+    -- leading observation comment
+    product waterProduct forms claim R1
   by
-    close
+    apply Rules.Identity
+      input := water

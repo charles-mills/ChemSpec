@@ -41,8 +41,8 @@ The new presentation behavior is entirely downstream of validation:
 .chems source
   -> parse and type-check
   -> reviewed catalogue and structural-rule resolution
-  -> ValidatedStructuralReaction
-     -> trusted StructuralFrame sequence
+  -> trusted SimulationFrames
+     -> immutable structural frame sequence
         -> deterministic educational scenes and labels
         -> reusable 2D renderer
      -> typed observations + reviewed presentation profile

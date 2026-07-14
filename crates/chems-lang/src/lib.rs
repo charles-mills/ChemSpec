@@ -5,15 +5,14 @@ mod parser;
 mod span;
 mod syntax;
 
-pub use diagnostic::{Diagnostic, PipelineStage, Severity};
+pub use diagnostic::{Diagnostic, EditError, PipelineStage, SafeEdit, Severity, apply_safe_edits};
 pub use formatter::{FormatError, format_source};
 pub use lexer::{LexResult, lex_bytes, lex_source};
 pub use parser::{ParseResult, parse_bytes, parse_source};
 pub use span::{ByteSpan, SourcePosition};
 pub use syntax::{
-    ChemicalSyntaxKind, ClaimKind, CommentAttachment, CommentPlacement, Cst, DeclarationKind,
-    EquationSyntaxKind, HeaderKind, NameSyntaxKind, ObservationKind, OperationKind,
-    QuantitySyntaxKind, SectionKind, SourceAst, SourceCatalogueSelection, SourceExpectation,
-    SourceExperiment, SourceLanguageVersion, SourceModel, SourceNode, SourceNodeKind, SyntaxNode,
-    TacticKind, Token, TokenKind,
+    CommentAttachment, CommentPlacement, Cst, SourceAst, SourceCatalogueSelection, SourceEquation,
+    SourceEquationTerm, SourceEventModel, SourceLanguageVersion, SourceModel, SourceObservation,
+    SourceObservationBlock, SourceReaction, SourceRepresentationKind, SourceRuleApplication,
+    SourceRuleBinding, SourceSequenceModel, SourceStructureBinding, SyntaxNode, Token, TokenKind,
 };

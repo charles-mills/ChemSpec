@@ -100,6 +100,7 @@ fn hex_nibble(byte: u8) -> Result<u8, IdError> {
 
 pub trait IdKind {
     const NAME: &'static str;
+    const ALLOW_BRACKET_INDEX: bool = false;
 }
 
 pub struct DigestId<K: IdKind> {
@@ -146,6 +147,18 @@ impl<K: IdKind> PartialEq for DigestId<K> {
 }
 
 impl<K: IdKind> Eq for DigestId<K> {}
+
+impl<K: IdKind> PartialOrd for DigestId<K> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<K: IdKind> Ord for DigestId<K> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.digest.cmp(&other.digest)
+    }
+}
 
 impl<K: IdKind> std::hash::Hash for DigestId<K> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -194,14 +207,12 @@ impl<K: IdKind> DeclaredId<K> {
     /// # Errors
     ///
     /// Returns [`IdError::InvalidDeclaredId`] unless the value is a nonempty
-    /// ASCII identifier containing only alphanumerics, `.`, `_`, `:`, or `-`.
+    /// ASCII identifier containing alphanumerics, `.`, `_`, `:`, or `-`.
+    /// Structural ID kinds additionally admit well-formed positive bracket
+    /// indices such as `water[1]` for deterministic coefficient expansion.
     pub fn new(value: impl Into<String>) -> Result<Self, IdError> {
         let value = value.into();
-        if value.is_empty()
-            || !value.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-')
-            })
-        {
+        if !valid_declared_id(&value, K::ALLOW_BRACKET_INDEX) {
             return Err(IdError::InvalidDeclaredId(value));
         }
         Ok(Self {
@@ -214,6 +225,47 @@ impl<K: IdKind> DeclaredId<K> {
     pub fn as_str(&self) -> &str {
         &self.value
     }
+}
+
+fn valid_declared_id(value: &str, allow_bracket_index: bool) -> bool {
+    if value.is_empty() {
+        return false;
+    }
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'[' {
+            if !allow_bracket_index {
+                return false;
+            }
+            if index == 0 || (!bytes[index - 1].is_ascii_alphanumeric() && bytes[index - 1] != b'_')
+            {
+                return false;
+            }
+            index += 1;
+            let digit_start = index;
+            if bytes.get(index) == Some(&b'0') {
+                return false;
+            }
+            while bytes.get(index).is_some_and(u8::is_ascii_digit) {
+                index += 1;
+            }
+            if digit_start == index || bytes.get(index) != Some(&b']') {
+                return false;
+            }
+            index += 1;
+            if index < bytes.len() && bytes[index] != b'.' {
+                return false;
+            }
+            continue;
+        }
+        if !byte.is_ascii_alphanumeric() && !matches!(byte, b'.' | b'_' | b':' | b'-') {
+            return false;
+        }
+        index += 1;
+    }
+    true
 }
 
 impl<K: IdKind> Clone for DeclaredId<K> {
@@ -337,18 +389,73 @@ macro_rules! declared_id_kind {
     };
 }
 
+macro_rules! indexed_declared_id_kind {
+    ($kind:ident, $alias:ident, $name:literal) => {
+        #[derive(Debug)]
+        pub enum $kind {}
+
+        impl IdKind for $kind {
+            const NAME: &'static str = $name;
+            const ALLOW_BRACKET_INDEX: bool = true;
+        }
+
+        pub type $alias = DeclaredId<$kind>;
+    };
+}
+
 digest_id_kind!(ExperimentKind, ExperimentId, "ExperimentId");
 digest_id_kind!(MaterialKind, MaterialId, "MaterialId");
 digest_id_kind!(VesselKind, VesselId, "VesselId");
 digest_id_kind!(OperationKind, OperationId, "OperationId");
 digest_id_kind!(StageKind, StageId, "StageId");
+digest_id_kind!(
+    AssumptionPremiseKind,
+    AssumptionPremiseId,
+    "AssumptionPremiseId"
+);
+digest_id_kind!(
+    InventoryPortionKind,
+    InventoryPortionId,
+    "InventoryPortionId"
+);
+digest_id_kind!(
+    ReactionOpportunityKind,
+    ReactionOpportunityId,
+    "ReactionOpportunityId"
+);
 digest_id_kind!(HoleKind, HoleId, "HoleId");
 digest_id_kind!(GoalKind, GoalId, "GoalId");
 digest_id_kind!(ReactionEventKind, ReactionEventId, "ReactionEventId");
 digest_id_kind!(DerivationNodeKind, DerivationNodeId, "DerivationNodeId");
 declared_id_kind!(FactKind, FactId, "FactId");
 declared_id_kind!(SubstanceKind, SubstanceId, "SubstanceId");
-declared_id_kind!(CatalogueKind, CatalogueId, "CatalogueId");
+declared_id_kind!(SpeciesKind, SpeciesId, "SpeciesId");
+declared_id_kind!(MediumKind, MediumId, "MediumId");
 declared_id_kind!(EvidenceSourceKind, EvidenceSourceId, "EvidenceSourceId");
-declared_id_kind!(StructuralRuleKind, StructuralRuleId, "StructuralRuleId");
-declared_id_kind!(AtomKind, AtomId, "AtomId");
+declared_id_kind!(AssumptionKindKind, AssumptionKindId, "AssumptionKindId");
+declared_id_kind!(CoverageKind, CoverageId, "CoverageId");
+declared_id_kind!(StructureKind, StructureId, "StructureId");
+indexed_declared_id_kind!(AtomKind, AtomId, "AtomId");
+indexed_declared_id_kind!(AtomGroupKind, AtomGroupId, "AtomGroupId");
+indexed_declared_id_kind!(CovalentBondKind, CovalentBondId, "CovalentBondId");
+indexed_declared_id_kind!(
+    IonicAssociationKind,
+    IonicAssociationId,
+    "IonicAssociationId"
+);
+indexed_declared_id_kind!(MetallicDomainKind, MetallicDomainId, "MetallicDomainId");
+indexed_declared_id_kind!(
+    StructureInstanceKind,
+    StructureInstanceId,
+    "StructureInstanceId"
+);
+declared_id_kind!(ReactionRuleKind, ReactionRuleId, "ReactionRuleId");
+indexed_declared_id_kind!(
+    StructuralOperationIdKind,
+    StructuralOperationId,
+    "StructuralOperationId"
+);
+declared_id_kind!(AtomMappingKind, AtomMappingId, "AtomMappingId");
+declared_id_kind!(EvidencePacketKind, EvidencePacketId, "EvidencePacketId");
+declared_id_kind!(ClaimKind, ClaimId, "ClaimId");
+declared_id_kind!(PremiseKind, PremiseId, "PremiseId");

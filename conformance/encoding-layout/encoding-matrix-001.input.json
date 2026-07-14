@@ -1,0 +1,25 @@
+{
+  "accepted": [
+    { "name": "utf8_bom", "bytes_hex": "efbbbf6368656d7320310a" },
+    { "name": "crlf", "bytes_hex": "6368656d7320310d0a" },
+    { "name": "bare_cr", "bytes_hex": "6368656d7320310d" },
+    { "name": "nested_comment_utf8", "source": "/- alpha /- beta -/ γ -/" }
+  ],
+  "reserved_words": [
+    "apply", "by", "catalog", "chems", "claim", "colour", "disappears",
+    "equation", "event", "evolves", "explanatory", "forms", "from", "gas",
+    "has", "ion", "ionic", "metallic", "model", "molecular", "observe", "of",
+    "product", "products", "reactant", "reactants", "reaction", "representative",
+    "sequence", "use", "where"
+  ],
+  "rejected": [
+    { "name": "invalid_utf8", "bytes_hex": "61ff", "code": "CHEMS-L001", "span": { "start": 1, "end": 2 } },
+    { "name": "nul", "bytes_hex": "00", "code": "CHEMS-L003", "span": { "start": 0, "end": 1 } },
+    { "name": "tab", "bytes_hex": "09", "code": "CHEMS-L004", "span": { "start": 0, "end": 1 } },
+    { "name": "bad_indent", "source": "chems 1\n   bad\n", "code": "CHEMS-L005", "span": { "start": 8, "end": 11 } },
+    { "name": "unclosed_comment", "source": "/- open", "code": "CHEMS-L006", "span": { "start": 0, "end": 7 } },
+    { "name": "unmatched_comment", "source": "-/", "code": "CHEMS-L007", "span": { "start": 0, "end": 2 } },
+    { "name": "unicode_source", "source": "é", "code": "CHEMS-L008", "span": { "start": 0, "end": 2 } },
+    { "name": "unexpected_character", "source": "&", "code": "CHEMS-L009", "span": { "start": 0, "end": 1 } }
+  ]
+}

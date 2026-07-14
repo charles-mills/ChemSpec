@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "fixture": "alkali-water-family-001",
+  "family_rule": "Rules.AlkaliMetalWithWater",
+  "supported_members": ["Li", "Na", "K"],
+  "unsupported_member": "Ca",
+  "expansion_input": "conformance/expansion/alkali-water-members-001.input.json",
+  "kernel_oracle": "conformance/validation-kernel/generalized-kernel-001.expected.json",
+  "frame_oracle": "conformance/frames/alkali-water-frames-001.expected.json",
+  "invariants": [
+    "one family rule supplies every supported member",
+    "all generic values are eliminated before kernel validation",
+    "member-specific product graphs are compared exactly",
+    "candidate derivations do not cross the human-attestation trust boundary",
+    "existing non-generalized concrete chemistry remains executable"
+  ]
+}

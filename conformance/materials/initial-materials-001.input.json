@@ -1,0 +1,20 @@
+{
+  "constructors": [
+    {
+      "declaration": "    silverNitrate := 5 mmol of NaCl(aq)",
+      "expected_form": "sampleByAmount"
+    },
+    {
+      "declaration": "    silverNitrate := 1 g of NaCl(aq)",
+      "expected_form": "sampleByMass"
+    },
+    {
+      "declaration": "    silverNitrate := 1 mL of H2O(l)",
+      "expected_form": "liquidSampleByVolume"
+    },
+    {
+      "declaration": "    silverNitrate := prepared\n      1 mmol of NaCl(aq)\n      2 mmol of NaCl(aq)",
+      "expected_form": "prepared"
+    }
+  ]
+}

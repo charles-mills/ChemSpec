@@ -1,23 +1,25 @@
 chems   1
-use catalog ChemSpec.Aqueous@1
-experiment Demo where
-  conditions
-    -- medium follows
-    medium:=aqueous
-    pressure:=1   atm -- room pressure
-    temperature:=25.00 degC
-  given
-    water:=10 mL of H2O(l)
-  vessels
-    beaker:=open vessel 100 mL
-  procedure
-    place water in beaker
+use catalog ChemSpec.Structural @ 1
+
+
+reaction   FormatMe where
+  reactants
+    -- retained reactant
+    water:=1   of Water
+
+  products
+    waterProduct := 1 of Water -- retained trailing
+
+  equation
+    H2O [ molecular ]->H2O[molecular]
+
   model
-    event := representative
-    sequence := explanatory
-    structuralRule := ChemSpec.Structural.Test.Comments
-  expect
-    /- authored hole -/
-    class:=?
+    event:=representative
+    sequence :=explanatory
+
+  observe from Evidence.FormatMe @1
+    product waterProduct forms claim R1
+
   by
-    close
+    apply Rules.Identity
+      input:=water

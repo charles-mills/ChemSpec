@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "review.ai.lithium-rule-001",
+  "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+  "reviewer": "OpenAI Codex (AI)",
+  "reviewed_on": "2026-07-14",
+  "scope": "The exact canonical lithium-water catalogue, including every premise, structural definition, electron state, mapping, operation template, observation compatibility record, and explanatory model disclosure.",
+  "method": "Host-selected AI review against the cited OpenStax and IUPAC sources, followed by exhaustive schema validation, deterministic expansion, kernel invariant tests, independent conformance oracles, and exact digest pinning.",
+  "sources": [
+    "evidence.iupac.goldbook",
+    "evidence.openstax.chemistry-2e"
+  ],
+  "premises": [
+    "premise.observation.hydrogen-evolves",
+    "premise.observation.lithium-disappears",
+    "premise.rule.lithium-water.standard-outcome",
+    "premise.structure.hydrogen",
+    "premise.structure.lithium-hydroxide",
+    "premise.structure.lithium-metal",
+    "premise.structure.water",
+    "premise.valence.li-h-o.initial-domain"
+  ],
+  "coverage_conclusion": "The pinned catalogue is internally consistent, evidence-linked, structurally conservative, and suitable for ChemSpec's representative educational lithium-water simulation.",
+  "limitation": "This is an explicitly AI-reviewed trust decision, not human expert certification. AI review can be wrong; the result is educational, describes a representative outcome, and is not laboratory procedure or safety guidance."
+}

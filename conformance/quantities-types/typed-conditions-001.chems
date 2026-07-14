@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+
+experiment TypedConditions where
+  conditions
+    temperature := 25 degC
+    pressure := 1 atm
+    medium := aqueous
+
+  given
+    sample := 5 mmol of NaCl(aq)
+
+  vessels
+    beaker := open vessel 100 mL
+
+  procedure
+    place sample in beaker
+
+  expect at final
+    amount NaCl(aq) := ?
+
+  by
+    solve stoichiometry

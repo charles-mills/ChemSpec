@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "state": "validated-with-assumptions",
+  "source": "conformance/end-to-end/lithium-outcome-001.chems",
+  "reason": "The exact catalogue and explicit AI review attestation are host-pinned; source, evidence, expansion, kernel derivation, and trusted frame projection complete successfully",
+  "required_oracles": {
+    "catalogue": "conformance/catalogue/lithium-rule-001.catalogue.json",
+    "evidence": "conformance/observations/lithium-observations-001.input.json",
+    "expanded": "conformance/expansion/canonical-expansion-001.hir.json",
+    "derivation": "conformance/validation-kernel/canonical-kernel-001.derivation.json",
+    "frames": "conformance/frames/canonical-frames-001.expected.json"
+  }
+}

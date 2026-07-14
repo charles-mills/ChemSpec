@@ -86,20 +86,23 @@ electron pairs between shell models; ionic associations do not reuse that cue.
 The consolidated composer and full periodic table occupy one fixed page. The
 builder itself has no scroll container. A supported pair receives the primary
 reaction action; unsupported combinations keep it disabled. Starting copies
-the exact draft identities into the internal preview state and opens the 2D
-storyboard directly, without an intermediate workspace screen.
+the exact draft identities into the internal request state and opens the 2D
+frame sequence only after the canonical language, catalogue, expansion, and
+kernel boundaries succeed.
 
-Before Stage 5, a full-height validation gate explains why a recognised formula
-cannot yet animate and lists the missing trusted pipeline evidence. It provides
-a clear return to reactant editing and never resembles a successful result.
+Stage 5 replaces the builder/table surface with a full-height guided renderer
+of the trusted `SimulationFrames` sequence. Deterministic educational scenes
+group the exact validated states without inventing chemistry. Stable atom IDs
+persist across frames; covalent edges, dative provenance, ionic associations,
+metallic domains, product membership, changes, and observations come directly
+from the kernel artifact. Controls expose pause, restart, return, and a gated
+transition into the macroscopic view.
 
-Validated Stage 5 will use two separate sequential pages. The first teaches the
-active structural operation in 2D with stable atom identity, relationship and
-electron highlights, concise captions, step position, and synchronized typed
-observations. A clear `Continue to 3D` action opens the second page. That page
-uses genuine 3D geometry, depth, camera transforms, and spatial exploration of
-the same frames. Both pages retain the representative/explanatory disclosure,
-visible focus states, reduced motion, and non-animating diagnostic states.
+The subsequent 3D page is a separate illustrative scale. It consumes a scene
+plan containing reusable visual assets and observation-gated effects, not the
+structural atom graph. Orbit, zoom, camera motion, timing, and fluid/effect
+motion are presentation controls and carry a persistent virtual-model
+disclosure.
 
 ## Tokens
 
@@ -141,7 +144,7 @@ mode removes spatial movement while preserving opacity and status feedback.
 
 The composer subscribes to slow orbital ticks only while its model is visible
 and motion is enabled. The internal workspace subscribes only while a recognised
-group is settling or the storyboard is playing. Native hover, press, focus,
+group is settling or the trusted frame sequence is playing. Native hover, press, focus,
 selected, and disabled feedback requires no unconditional subscription. `U-104`
 should apply these motion tokens when playback becomes real.
 

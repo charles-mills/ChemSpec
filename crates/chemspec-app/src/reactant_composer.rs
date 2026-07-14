@@ -9,10 +9,10 @@ use std::time::Duration;
 use iced::widget::{button, canvas, column, container, mouse_area, row, space, text};
 use iced::{Element, Fill, FillPortion, Length, Padding, Subscription};
 
+use crate::chemistry;
 use crate::composition_catalogue::{self, CompositionPreview};
 use crate::elements;
 use crate::particle_visualization::{AtomDiagram, CompoundAtomicDiagram};
-use crate::reaction_candidate_catalogue;
 use crate::theme::{self, color, space as spacing, type_scale};
 
 const MAX_ATOMS_PER_REACTANT: usize = 12;
@@ -170,8 +170,7 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
 }
 
 pub fn can_start_reaction(state: &State) -> bool {
-    reaction_candidate_catalogue::recognize_drafts(&state.drafts[0].atoms, &state.drafts[1].atoms)
-        .is_some()
+    chemistry::supports_drafts(&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
 
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {

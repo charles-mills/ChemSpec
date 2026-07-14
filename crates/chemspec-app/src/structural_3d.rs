@@ -4,7 +4,7 @@
 //! structural atoms, bonds, source, or catalogue rules.
 
 use bytemuck::{Pod, Zeroable};
-use chem_catalogue::{
+use chem_presentation::{
     AppearanceProfile, AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile,
     PresentationEffect, PresentationObject, PresentationTransform, SceneRole,
 };
@@ -766,11 +766,20 @@ fn plan_seed(plan: &ScenePlan) -> u64 {
 
 fn effect_seed(plan: &ScenePlan, effect: &PresentationEffect) -> u64 {
     plan_seed(plan)
-        ^ stable_seed(&effect.trigger_observation)
+        ^ observation_seed(effect.trigger)
         ^ effect_profile_seed(effect.effect)
         ^ u64::from(effect.start_ordinal).rotate_left(17)
         ^ u64::from(effect.end_ordinal).rotate_left(31)
         ^ intensity_seed(effect.intensity)
+}
+
+const fn observation_seed(predicate: chem_catalogue::ObservationPredicate) -> u64 {
+    match predicate {
+        chem_catalogue::ObservationPredicate::Evolves => 0x517c_c1b7_2722_0a95,
+        chem_catalogue::ObservationPredicate::Disappears => 0x6c8e_9cf5_7093_2bd5,
+        chem_catalogue::ObservationPredicate::Forms => 0x2d98_23f1_a57c_0ef3,
+        chem_catalogue::ObservationPredicate::Colour => 0x8a5c_d789_635d_2dff,
+    }
 }
 
 const fn effect_profile_seed(effect: EffectProfile) -> u64 {
@@ -1490,9 +1499,26 @@ fn add_particle_cluster(mesh: &mut Mesh, center: Vec3, scale: Vec3, color: [f32;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chem_catalogue::CatalogueBundle;
-    use chem_engine::{expand_structural_rule, validate_structural_reaction};
     use chem_presentation::compile_real_world_plan;
+
+    use crate::chemistry;
+
+    fn canonical_plan() -> ScenePlan {
+        let run = chemistry::run(chemistry::Experience::DEFAULT).expect("canonical run validates");
+        let last = u16::try_from(
+            run.frames()
+                .frames()
+                .last()
+                .expect("frames exist")
+                .ordinal(),
+        )
+        .expect("ordinal fits presentation range");
+        compile_real_world_plan(
+            run.frames(),
+            &chemistry::presentation_profile(chemistry::Experience::DEFAULT, last),
+        )
+        .expect("plan compiles from trusted frames")
+    }
 
     #[test]
     fn reusable_motion_is_continuous_across_stage_boundaries() {
@@ -1520,13 +1546,7 @@ mod tests {
 
     #[test]
     fn reaction_motion_is_seeded_repeatable_and_settles_at_effect_edges() {
-        const SOURCE: &str = include_str!("../../../fixtures/lithium-water.chems");
-        const CATALOGUE: &[u8] =
-            include_bytes!("../../../fixtures/catalogue/lithium-water.catalogue.json");
-        let catalogue = CatalogueBundle::load_json(CATALOGUE).expect("catalogue loads");
-        let expanded = expand_structural_rule(SOURCE, &catalogue).expect("rule expands");
-        let validated = validate_structural_reaction(expanded).expect("rule validates");
-        let plan = compile_real_world_plan(&validated).expect("plan compiles");
+        let plan = canonical_plan();
         let disturbance = plan
             .effects
             .iter()
@@ -1545,13 +1565,7 @@ mod tests {
 
     #[test]
     fn scene_mesh_is_deterministic_macroscopic_and_contains_depth_geometry() {
-        const SOURCE: &str = include_str!("../../../fixtures/silver-chloride.chems");
-        const CATALOGUE: &[u8] =
-            include_bytes!("../../../fixtures/catalogue/silver-chloride.catalogue.json");
-        let catalogue = CatalogueBundle::load_json(CATALOGUE).expect("catalogue loads");
-        let expanded = expand_structural_rule(SOURCE, &catalogue).expect("rule expands");
-        let validated = validate_structural_reaction(expanded).expect("rule validates");
-        let plan = compile_real_world_plan(&validated).expect("plan compiles");
+        let plan = canonical_plan();
         let first = build_scene(&plan, 3, 0.5);
         let second = build_scene(&plan, 3, 0.5);
         assert_eq!(
@@ -1573,14 +1587,8 @@ mod tests {
 
     #[test]
     fn lithium_scene_adds_visible_surface_and_reaction_effect_geometry() {
-        const SOURCE: &str = include_str!("../../../fixtures/lithium-water.chems");
-        const CATALOGUE: &[u8] =
-            include_bytes!("../../../fixtures/catalogue/lithium-water.catalogue.json");
-        let catalogue = CatalogueBundle::load_json(CATALOGUE).expect("catalogue loads");
-        let expanded = expand_structural_rule(SOURCE, &catalogue).expect("rule expands");
-        let validated = validate_structural_reaction(expanded).expect("rule validates");
-        let plan = compile_real_world_plan(&validated).expect("plan compiles");
-        let before = build_scene(&plan, 4, 0.5);
+        let plan = canonical_plan();
+        let before = build_scene(&plan, 0, 0.5);
         let reacting = build_scene(&plan, 6, 0.5);
         assert!(reacting.0.len() > before.0.len());
         assert!(plan.effects.iter().any(|effect| {
@@ -1594,13 +1602,7 @@ mod tests {
 
     #[test]
     fn resolved_layout_grounds_the_vessel_and_keeps_liquid_inside_it() {
-        const SOURCE: &str = include_str!("../../../fixtures/lithium-water.chems");
-        const CATALOGUE: &[u8] =
-            include_bytes!("../../../fixtures/catalogue/lithium-water.catalogue.json");
-        let catalogue = CatalogueBundle::load_json(CATALOGUE).expect("catalogue loads");
-        let expanded = expand_structural_rule(SOURCE, &catalogue).expect("rule expands");
-        let validated = validate_structural_reaction(expanded).expect("rule validates");
-        let plan = compile_real_world_plan(&validated).expect("plan compiles");
+        let plan = canonical_plan();
         let layout = SceneLayout::resolve(&plan);
         let vessel = plan
             .objects

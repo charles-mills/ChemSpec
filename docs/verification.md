@@ -143,30 +143,26 @@ extra reactants remain disabled; and repeated triggering cannot create a second
 queue event. These checks do not confer validation or authorize simulation
 playback.
 
-Until the trusted structural pipeline is implemented, Stage 5 tests require a
-recognised candidate to stop at the validation gate without constructing
-playback state. Later Stage 5 tests must prove that both plans derive from the
-same current validated reaction generation; source edits stale both pages
-immediately; and every non-success result remains non-animatable. The 2D suite
+Stage 5 tests prove that both plans derive from the same current trusted
+`SimulationFrames` generation; source edits stale both pages immediately; and
+every non-success result remains non-animatable. The 2D suite
 covers generated scene roles, operation-to-frame mapping, fluid interpolation,
 operation-specific changes, electron and charge presentation, metallic and
 covalent/ionic distinctions, product assignment, observation synchronization,
-and explanatory disclosure. The planned balanced equation must exactly
-preserve reviewed catalogue coefficients and formulae; renderer-side inference
-is forbidden.
+and explanatory disclosure. The display equation comes from the pinned
+experience profile; renderer-side inference is forbidden.
 
 Educational narration tests cover the complete trust path. They prove that:
 
-- `.chems` selects the source meaning and reviewed structural rule, while only
-  the current `ValidatedStructuralReaction` and trusted frames reach the
-  narration compiler;
+- `.chems` selects the source meaning, generalized rule, and evidence, while
+  only the current trusted `SimulationFrames` reach the narration compiler;
 - operation, reactant, product, summary, and observation wording is assembled
   locally from typed operations, element and charge state, electron counts,
-  reviewed equation terms, and typed observations;
+  and typed observations;
 - the same validated inputs produce identical labels, atom targets, connector
   policy, and adaptive reading duration without AI, provider, or network use;
-- at least two chemically distinct fixtures exercise the same reusable template
-  families and receive their own validated symbols, formulae, and values;
+- lithium, sodium, and potassium exercise the same reusable template family and
+  receive distinct trusted frame generations;
 - source, catalogue, or validated-generation changes invalidate the narration
   together with the rest of the educational plan;
 - every structural operation receives one merged learning beat containing its
@@ -176,7 +172,7 @@ Educational narration tests cover the complete trust path. They prove that:
   humanizes `species.*` or atom IDs, or selects reaction-specific copy.
 
 The 3D suite requires a deterministic `ScenePlan` compiled only from the current
-validated reaction and reviewed presentation metadata. It covers reviewed
+trusted frames and host-selected presentation profile. It covers display
 equation and typed-observation annotations, variable-duration macroscopic beat
 generation, reaction-independent asset/effect/camera registry resolution,
 distinct effect profiles, actual XYZ geometry, and use of the existing
@@ -215,9 +211,8 @@ Iced renderer.
 
 Macroscopic timeline tests similarly cover exact beat boundaries, duration
 totals, end clamping, playhead-to-ordinal synchronization, stable camera motion,
-and pause-on-scrub. Annotation tests prove initial/final text comes from reviewed
-equation terms and event text comes from typed observations, never internal IDs
-or renderer-authored chemistry wording.
+and pause-on-scrub. Annotation tests prove event text comes from typed
+observations, never internal IDs or renderer-authored chemistry wording.
 
 Live vessel checks additionally require an initial camera pitch above the rim,
 a grounded vessel, liquid contained below its rim, a visible liquid top

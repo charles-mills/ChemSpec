@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "atoms": [
+    { "id": "metal.li1", "element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+    { "id": "metal.li2", "element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0 }
+  ],
+  "metallic_domains": [{ "id": "metal.domain", "sites": ["metal.li1", "metal.li2"], "delocalized_electrons": 2 }]
+}

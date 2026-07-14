@@ -60,7 +60,7 @@
                   "additionalProperties": false,
                   "required": ["code", "severity", "primary_span"],
                   "properties": {
-                    "code": { "type": "string", "pattern": "^CHEMS-[LPTCKFI][0-9]{3}$" },
+                    "code": { "type": "string", "pattern": "^CHEMS-[LPTCXKFI][0-9]{3}$" },
                     "severity": { "enum": ["Error", "Warning", "Information"] },
                     "primary_span": { "$ref": "#/$defs/span" },
                     "related_spans": {
@@ -75,10 +75,17 @@
               "formatted_source": { "type": "string" },
               "cst_sha256": { "type": "string" },
               "ast_sha256": { "type": "string" },
+              "cst": { "type": "string" },
+              "catalogue_sha256": { "type": "string" },
+              "catalogue_review": { "type": "string" },
               "ast": { "type": "string" },
               "hir": { "type": "string" },
+              "expanded": { "type": "string" },
               "derivation": { "type": "string" },
-              "artifact": { "type": "string" }
+              "provenance": { "type": "string" },
+              "certificate": { "type": "string" },
+              "artifact": { "type": "string" },
+              "frames": { "type": "string" }
             }
           }
         }

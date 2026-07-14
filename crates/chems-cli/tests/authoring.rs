@@ -1,0 +1,380 @@
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::{Command, Output},
+    sync::atomic::{AtomicU64, Ordering},
+};
+
+use chem_catalogue::{CatalogueErrorCode, TrustedCatalogue};
+use chem_domain::ContentDigest;
+use serde_json::{Value, json};
+
+static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn candidate() -> Value {
+    serde_json::from_slice(
+        &fs::read(
+            root().join("catalogue/candidates/periodic-table-and-alkali-water/candidate.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+fn temp_root(label: &str) -> PathBuf {
+    let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "chems-authoring-{label}-{}-{sequence}",
+        std::process::id()
+    ))
+}
+
+fn write_package(path: &Path, candidate: &Value, source: &str) {
+    fs::create_dir_all(path).unwrap();
+    fs::write(
+        path.join("candidate.json"),
+        serde_json::to_vec_pretty(candidate).unwrap(),
+    )
+    .unwrap();
+    fs::write(path.join("example.chems"), source).unwrap();
+    fs::copy(
+        root().join("catalogue/candidates/periodic-table-and-alkali-water/evidence.json"),
+        path.join("evidence.json"),
+    )
+    .unwrap();
+}
+
+fn run(arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_chems"))
+        .args(arguments)
+        .current_dir(root())
+        .output()
+        .unwrap()
+}
+
+fn source() -> String {
+    fs::read_to_string(
+        root().join("catalogue/candidates/periodic-table-and-alkali-water/example.chems"),
+    )
+    .unwrap()
+}
+
+#[test]
+fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
+    let temporary = temp_root("physical");
+    fs::create_dir(&temporary).unwrap();
+    let output = temporary.join("output");
+    let package = root().join("catalogue/candidates/periodic-table-and-alkali-water");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        output.to_str().unwrap(),
+        package.to_str().unwrap(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+
+    let candidate = candidate();
+    assert_eq!(candidate["elements"].as_array().unwrap().len(), 118);
+    assert_eq!(candidate["elements"][0]["atomic_number"], 1);
+    assert_eq!(candidate["elements"][117]["atomic_number"], 118);
+    assert!(
+        candidate["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|record| {
+                record["premise_ids"] == json!(["premise.elements.iupac-periodic-table"])
+            })
+    );
+    let elements = candidate["elements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|record| (record["symbol"].as_str().unwrap(), record))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    assert_eq!(elements["Sc"]["group"], 3);
+    assert_eq!(elements["Y"]["group"], 3);
+    for disputed in ["La", "Lu", "Ac", "Lr"] {
+        assert!(elements[disputed].get("group").is_none(), "{disputed}");
+    }
+
+    let catalogue: Value =
+        serde_json::from_slice(&fs::read(output.join("catalogue.json")).unwrap()).unwrap();
+    let digest = fs::read_to_string(output.join("catalogue.digest")).unwrap();
+    assert_eq!(digest.trim(), catalogue["digest"]);
+    assert_eq!(
+        catalogue["bundle"]["elements"].as_array().unwrap().len(),
+        118
+    );
+
+    let request: Value =
+        serde_json::from_slice(&fs::read(output.join("review-request.json")).unwrap()).unwrap();
+    assert_eq!(request["status"], "pending-ai-review");
+    assert_eq!(request["promotable"], false);
+    assert_eq!(request["catalogue_digest"], catalogue["digest"]);
+    assert!(request.get("reviewer").is_none());
+    assert_eq!(
+        TrustedCatalogue::from_canonical_json(
+            &fs::read(output.join("catalogue.json")).unwrap(),
+            &fs::read(output.join("review-request.json")).unwrap(),
+        )
+        .unwrap_err()
+        .code(),
+        CatalogueErrorCode::InvalidReview
+    );
+
+    for (artifact, digest_key) in [
+        ("expanded-certificate.json", "expanded_certificate"),
+        ("derivation.json", "derivation"),
+        ("frames.json", "frames"),
+    ] {
+        let bytes = fs::read(
+            output
+                .join("inspections/periodic-table-and-alkali-water")
+                .join(artifact),
+        )
+        .unwrap();
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["status"], "candidate-inspection-only");
+        assert_eq!(value["promotable"], false);
+        assert_eq!(
+            request["inspections"]["periodic-table-and-alkali-water"][digest_key],
+            ContentDigest::sha256(&bytes).to_string()
+        );
+    }
+    fs::remove_dir_all(temporary).unwrap();
+}
+
+#[test]
+fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
+    let temporary = temp_root("promotion");
+    fs::create_dir(&temporary).unwrap();
+    let output = temporary.join("trusted");
+    let package = root().join("catalogue/candidates/periodic-table-and-alkali-water");
+    let attestation = root().join("catalogue/reviews/periodic-table-and-alkali-water.review.json");
+    let result = run(&[
+        "catalogue",
+        "promote",
+        "--out",
+        output.to_str().unwrap(),
+        "--attestation",
+        attestation.to_str().unwrap(),
+        package.to_str().unwrap(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(output.join("promotion.json")).unwrap()).unwrap();
+    assert_eq!(manifest["status"], "host-selected-ai-reviewed");
+    assert_eq!(
+        manifest["catalogue_digest"],
+        fs::read_to_string(output.join("catalogue.digest"))
+            .unwrap()
+            .trim()
+    );
+    TrustedCatalogue::from_canonical_json(
+        &fs::read(output.join("catalogue.json")).unwrap(),
+        &fs::read(output.join("review.json")).unwrap(),
+    )
+    .expect("the promoted files must match the compiled host trust root");
+
+    let mut wrong_review: Value = serde_json::from_slice(&fs::read(&attestation).unwrap()).unwrap();
+    wrong_review["catalogue_digest"] =
+        json!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    let wrong_review_path = temporary.join("wrong-review.json");
+    fs::write(
+        &wrong_review_path,
+        serde_json::to_vec_pretty(&wrong_review).unwrap(),
+    )
+    .unwrap();
+    let rejected_output = temporary.join("rejected");
+    let result = run(&[
+        "catalogue",
+        "promote",
+        "--out",
+        rejected_output.to_str().unwrap(),
+        "--attestation",
+        wrong_review_path.to_str().unwrap(),
+        package.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A041"));
+    assert!(!rejected_output.exists());
+    fs::remove_dir_all(temporary).unwrap();
+}
+
+#[test]
+fn shard_order_is_irrelevant_and_duplicates_fail_before_output() {
+    let temporary = temp_root("ordering");
+    fs::create_dir(&temporary).unwrap();
+    let mut left = candidate();
+    let mut right = json!({
+        "schema_version": 1,
+        "id": "second-half",
+        "elements": []
+    });
+    left["id"] = json!("first-half");
+    let elements = left["elements"].as_array_mut().unwrap().split_off(59);
+    right["elements"] = Value::Array(elements);
+    let left_path = temporary.join("left");
+    let right_path = temporary.join("right");
+    write_package(&left_path, &left, &source());
+    write_package(&right_path, &right, &source());
+
+    let first = temporary.join("first-output");
+    let second = temporary.join("second-output");
+    for (output, packages) in [
+        (&first, [&left_path, &right_path]),
+        (&second, [&right_path, &left_path]),
+    ] {
+        let result = run(&[
+            "catalogue",
+            "check",
+            "--out",
+            output.to_str().unwrap(),
+            packages[0].to_str().unwrap(),
+            packages[1].to_str().unwrap(),
+        ]);
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    assert_eq!(
+        fs::read(first.join("catalogue.json")).unwrap(),
+        fs::read(second.join("catalogue.json")).unwrap()
+    );
+    assert_eq!(
+        fs::read(first.join("catalogue.digest")).unwrap(),
+        fs::read(second.join("catalogue.digest")).unwrap()
+    );
+
+    let duplicate_path = temporary.join("duplicate");
+    let mut duplicate = right;
+    duplicate["id"] = json!("duplicate-element");
+    duplicate["elements"] = json!([left["elements"][0].clone()]);
+    write_package(&duplicate_path, &duplicate, &source());
+    let rejected_output = temporary.join("rejected-output");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        rejected_output.to_str().unwrap(),
+        left_path.to_str().unwrap(),
+        duplicate_path.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A005 duplicate element"));
+    assert!(!rejected_output.exists());
+    fs::remove_dir_all(temporary).unwrap();
+}
+
+#[test]
+fn package_surface_is_closed_and_unsupported_is_reported_honestly() {
+    let temporary = temp_root("closed");
+    fs::create_dir(&temporary).unwrap();
+    let mut forbidden = candidate();
+    forbidden["trust_root"] = json!("candidate-controlled");
+    let forbidden_path = temporary.join("forbidden");
+    write_package(&forbidden_path, &forbidden, &source());
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        temporary.join("forbidden-output").to_str().unwrap(),
+        forbidden_path.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A004"));
+
+    let mut self_reviewed = candidate();
+    self_reviewed["id"] = json!("self-reviewed");
+    self_reviewed["premises"][0]["review"] = json!({
+        "status": "reviewed",
+        "reviewers": [{
+            "reviewer": "Luna",
+            "reviewed_on": "2026-07-14",
+            "reference": "self-asserted"
+        }]
+    });
+    let self_reviewed_path = temporary.join("self-reviewed");
+    write_package(&self_reviewed_path, &self_reviewed, &source());
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        temporary.join("self-reviewed-output").to_str().unwrap(),
+        self_reviewed_path.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    let error = String::from_utf8_lossy(&result.stderr);
+    assert!(error.contains("only provisional premises with no reviewers"));
+
+    let mut alias_collision = candidate();
+    alias_collision["id"] = json!("alias-collision");
+    alias_collision["structure_applications"][0]["aliases"] = json!(["Water"]);
+    let alias_collision_path = temporary.join("alias-collision");
+    write_package(&alias_collision_path, &alias_collision, &source());
+    let alias_output = temporary.join("alias-output");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        alias_output.to_str().unwrap(),
+        alias_collision_path.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    let error = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        error.contains("CHEMS-A005 application alias `Water`"),
+        "{error}"
+    );
+    assert!(!alias_output.exists());
+
+    let unsupported_path = temporary.join("unsupported");
+    let unsupported_source = source().replace(
+        "apply Rules.AlkaliMetalWithWater",
+        "apply Rules.NotInCandidate",
+    );
+    write_package(&unsupported_path, &candidate(), &unsupported_source);
+    let unsupported_output = temporary.join("unsupported-output");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        unsupported_output.to_str().unwrap(),
+        unsupported_path.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    let error = String::from_utf8_lossy(&result.stderr);
+    assert!(error.contains("UnsupportedChemistry"), "{error}");
+    assert!(!unsupported_output.exists());
+
+    let extra_path = temporary.join("extra");
+    write_package(&extra_path, &candidate(), &source());
+    fs::write(extra_path.join("generated.json"), b"{}\n").unwrap();
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        temporary.join("extra-output").to_str().unwrap(),
+        extra_path.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A002"));
+    fs::remove_dir_all(temporary).unwrap();
+}

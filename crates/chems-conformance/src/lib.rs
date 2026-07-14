@@ -85,13 +85,27 @@ pub struct ExpectedResult {
     #[serde(default)]
     pub ast_sha256: Option<String>,
     #[serde(default)]
+    pub cst: Option<String>,
+    #[serde(default)]
+    pub catalogue_sha256: Option<String>,
+    #[serde(default)]
+    pub catalogue_review: Option<String>,
+    #[serde(default)]
     pub ast: Option<String>,
     #[serde(default)]
     pub hir: Option<String>,
     #[serde(default)]
+    pub expanded: Option<String>,
+    #[serde(default)]
     pub derivation: Option<String>,
     #[serde(default)]
+    pub provenance: Option<String>,
+    #[serde(default)]
+    pub certificate: Option<String>,
+    #[serde(default)]
     pub artifact: Option<String>,
+    #[serde(default)]
+    pub frames: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -127,6 +141,7 @@ pub struct ValidationSummary {
     pub reserved_words: usize,
     pub components: usize,
     pub cases: usize,
+    pub incomplete_cases: usize,
     pub coverage: Vec<ComponentCoverage>,
 }
 
@@ -135,6 +150,7 @@ impl ValidationSummary {
     pub fn is_complete(&self) -> bool {
         self.requirements > 0
             && self.cases > 0
+            && self.incomplete_cases == 0
             && self
                 .coverage
                 .iter()
@@ -226,12 +242,18 @@ pub fn validate_repository(root: &Path) -> Result<ValidationSummary, ValidationE
         &manifest.components,
         &manifest.cases,
     );
+    let incomplete_cases = manifest
+        .cases
+        .iter()
+        .filter(|case| case.expected.state == "incomplete")
+        .count();
     Ok(ValidationSummary {
         requirements: requirements.requirements.len(),
         grammar_productions: grammar_report.productions,
         reserved_words: reserved_words.len(),
         components: manifest.components.len(),
         cases: manifest.cases.len(),
+        incomplete_cases,
         coverage,
     })
 }
@@ -616,7 +638,10 @@ fn valid_diagnostic_code(code: &str) -> bool {
     let bytes = code.as_bytes();
     bytes.len() == 10
         && bytes.starts_with(b"CHEMS-")
-        && matches!(bytes[6], b'L' | b'P' | b'T' | b'C' | b'K' | b'F' | b'I')
+        && matches!(
+            bytes[6],
+            b'L' | b'P' | b'T' | b'C' | b'X' | b'K' | b'F' | b'I'
+        )
         && bytes[7..].iter().all(u8::is_ascii_digit)
 }
 
@@ -630,10 +655,17 @@ fn case_fixture_paths(case: &Case) -> Vec<&str> {
         .chain(case.expected.formatted_source.iter())
         .chain(case.expected.cst_sha256.iter())
         .chain(case.expected.ast_sha256.iter())
+        .chain(case.expected.cst.iter())
+        .chain(case.expected.catalogue_sha256.iter())
+        .chain(case.expected.catalogue_review.iter())
         .chain(case.expected.ast.iter())
         .chain(case.expected.hir.iter())
+        .chain(case.expected.expanded.iter())
         .chain(case.expected.derivation.iter())
+        .chain(case.expected.provenance.iter())
+        .chain(case.expected.certificate.iter())
         .chain(case.expected.artifact.iter())
+        .chain(case.expected.frames.iter())
         .map(String::as_str)
         .collect::<Vec<_>>();
     for diagnostic in &case.expected.diagnostics {
@@ -991,9 +1023,30 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        CanonicalJsonError, Case, ExpectedResult, canonical_json, lowercase_hex, sha256,
-        valid_case_id, valid_kebab_id, validate_cases, validate_fixture_path,
+        CanonicalJsonError, Case, ComponentCoverage, ExpectedResult, ValidationSummary,
+        canonical_json, lowercase_hex, sha256, valid_case_id, valid_kebab_id, validate_cases,
+        validate_fixture_path,
     };
+
+    #[test]
+    fn incomplete_expected_cases_prevent_complete_status() {
+        let summary = ValidationSummary {
+            requirements: 1,
+            grammar_productions: 1,
+            reserved_words: 1,
+            components: 1,
+            cases: 1,
+            incomplete_cases: 1,
+            coverage: vec![ComponentCoverage {
+                component: "parsing".to_owned(),
+                cases: 1,
+                covered_requirements: 1,
+                total_requirements: 1,
+            }],
+        };
+
+        assert!(!summary.is_complete());
+    }
 
     #[test]
     fn case_ids_require_kebab_case_and_a_three_digit_suffix() {
@@ -1027,10 +1080,17 @@ mod tests {
                 formatted_source: None,
                 cst_sha256: None,
                 ast_sha256: None,
+                cst: None,
+                catalogue_sha256: None,
+                catalogue_review: None,
                 ast: None,
                 hir: None,
+                expanded: None,
                 derivation: None,
+                provenance: None,
+                certificate: None,
                 artifact: None,
+                frames: None,
             },
         };
         let component_ids = ["parsing".to_owned(), "quantities-types".to_owned()]

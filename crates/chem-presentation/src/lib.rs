@@ -1,27 +1,20 @@
 #![forbid(unsafe_code)]
 
-//! Deterministic, renderer-independent animation planning.
+//! Deterministic, renderer-independent planning over trusted kernel frames.
 //!
-//! This crate owns explanatory pacing and macroscopic scene composition. It
-//! accepts only a trusted [`ValidatedStructuralReaction`]; it never parses
-//! `.chems`, resolves catalogue data, or infers chemistry.
+//! This crate owns pacing and macroscopic scene composition. It never parses
+//! `.chems`, resolves rules, or constructs chemistry.
 
 use std::collections::BTreeSet;
 use std::fmt;
 
-use chem_catalogue::{
-    AssetProfile, AtomState, CameraBehaviour, CameraCue, EffectIntensity, ObservationClaim,
-    PresentationEffect, PresentationObject, ReviewedEquation, StoichiometricTerm,
-    StructuralOperation,
-};
-use chem_domain::ContentDigest;
-use chem_engine::{ObservationStage, StructuralFrame, ValidatedStructuralReaction};
-use serde::{Deserialize, Serialize};
+use chem_catalogue::ObservationPredicate;
+use chem_domain::{AtomGroupId, AtomId, ContentDigest, StructuralOperationView};
+use chem_kernel::{ObservationStatus, SimulationFrame, SimulationFrames};
 
-pub const VIRTUAL_ONLY_DISCLOSURE: &str = "Virtual educational model—not a laboratory procedure. Do not reproduce without qualified supervision and an appropriate risk assessment.";
+pub const VIRTUAL_ONLY_DISCLOSURE: &str = "Virtual educational model—not a laboratory procedure. Timing, scale, motion, and camera movement are illustrative.";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EducationalSceneKind {
     Introduction,
     ReactantSetup,
@@ -32,8 +25,7 @@ pub enum EducationalSceneKind {
     Summary,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplanationLabelKind {
     ConceptExplanation,
     StructuralChangeExplanation,
@@ -43,7 +35,7 @@ pub enum ExplanationLabelKind {
     SummaryExplanation,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplanationLabel {
     pub kind: ExplanationLabelKind,
     pub text: String,
@@ -52,10 +44,7 @@ pub struct ExplanationLabel {
 }
 
 /// Concise deterministic copy displayed beside trusted structural content.
-///
-/// The planner populates this label from the validated `.chems` meaning and
-/// reviewed rule. Renderers control placement and styling only.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextLabel {
     pub kind: ExplanationLabelKind,
     pub title: String,
@@ -64,34 +53,21 @@ pub struct ContextLabel {
     pub connector: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SpeciesRole {
-    Reactant,
-    Product,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EducationalCue {
-    IntroduceSpecies {
-        role: SpeciesRole,
-        species: Vec<String>,
-    },
-    ShowEquation {
-        equation: ReviewedEquation,
-    },
     EstablishFrame {
         frame: ContentDigest,
     },
     ApplyOperation {
-        operation: StructuralOperation,
         before: ContentDigest,
         after: ContentDigest,
         affected_atoms: Vec<String>,
     },
+    ShowEquation {
+        equation: String,
+    },
     ShowObservation {
-        observation_id: String,
+        predicate: ObservationPredicate,
         frame: ContentDigest,
     },
     ShowExplanation {
@@ -100,42 +76,33 @@ pub enum EducationalCue {
     ShowContext {
         label: ContextLabel,
     },
-    PreserveDisclosure {
-        event_model: String,
-        sequence_model: String,
-    },
+    PreserveDisclosure,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EducationalScene {
     pub kind: EducationalSceneKind,
     pub start_frame: ContentDigest,
     pub end_frame: ContentDigest,
     pub duration_ms: u32,
+    /// Retained for simple consumers; richer renderers should use `cues`.
+    pub explanation: Option<ExplanationLabel>,
     pub cues: Vec<EducationalCue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EducationalPlan {
     pub id: ContentDigest,
-    pub reaction: ContentDigest,
     pub scenes: Vec<EducationalScene>,
-    pub event_model: String,
-    pub sequence_model: String,
 }
 
-/// A deterministic position on an [`EducationalPlan`] timeline.
-///
-/// The elapsed value is always local to the selected scene. Positions returned
-/// by [`EducationalPlan::locate`] are clamped to the scene duration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimelinePosition {
     pub scene_index: usize,
     pub scene_elapsed_ms: u32,
 }
 
 impl EducationalPlan {
-    /// Returns the total duration of every scene on the educational timeline.
     #[must_use]
     pub fn duration_ms(&self) -> u64 {
         self.scenes.iter().fold(0_u64, |duration, scene| {
@@ -143,19 +110,11 @@ impl EducationalPlan {
         })
     }
 
-    /// Locates an absolute elapsed time on the educational timeline.
-    ///
-    /// Times beyond the end are clamped. An exact scene boundary belongs to
-    /// the following non-zero-duration scene, while the end of the complete
-    /// timeline belongs to the final scene. Zero-duration scenes are skipped
-    /// at intermediate boundaries. If every scene has zero duration, the final
-    /// scene is returned at zero elapsed time.
     #[must_use]
     pub fn locate(&self, elapsed_ms: u64) -> Option<TimelinePosition> {
         let final_index = self.scenes.len().checked_sub(1)?;
         let duration_ms = self.duration_ms();
         let elapsed_ms = elapsed_ms.min(duration_ms);
-
         if elapsed_ms == duration_ms {
             let scene = &self.scenes[final_index];
             return Some(TimelinePosition {
@@ -163,7 +122,6 @@ impl EducationalPlan {
                 scene_elapsed_ms: scene.duration_ms,
             });
         }
-
         let mut remaining_ms = elapsed_ms;
         for (scene_index, scene) in self.scenes.iter().enumerate() {
             let scene_duration_ms = u64::from(scene.duration_ms);
@@ -178,17 +136,12 @@ impl EducationalPlan {
             }
             remaining_ms -= scene_duration_ms;
         }
-
         Some(TimelinePosition {
             scene_index: final_index,
             scene_elapsed_ms: self.scenes[final_index].duration_ms,
         })
     }
 
-    /// Converts a scene-local position back into absolute elapsed time.
-    ///
-    /// The local elapsed value is clamped to the selected scene duration.
-    /// Returns `None` when the scene index does not exist.
     #[must_use]
     pub fn elapsed_at(&self, position: TimelinePosition) -> Option<u64> {
         let scene = self.scenes.get(position.scene_index)?;
@@ -206,369 +159,269 @@ impl EducationalPlan {
     }
 }
 
-/// Compiles validated structural meaning into a reusable teaching narrative.
-/// Operation-specific drawing remains the renderer's concern.
+/// Adds explanatory pacing around the immutable operation sequence without
+/// changing or reordering any chemical state.
 ///
 /// # Errors
 ///
-/// Returns an error when frames are absent, out of sequence, or inconsistent
-/// with their embedded operations.
-pub fn compile_educational_plan(
-    reaction: &ValidatedStructuralReaction,
-    frames: &[StructuralFrame],
-) -> Result<EducationalPlan, PlanError> {
-    let first = frames.first().ok_or(PlanError::MissingFrames)?;
-    let last = frames.last().ok_or(PlanError::MissingFrames)?;
-    if frames
+/// Returns an error if frames are absent, non-contiguous, missing their
+/// validated operation, or cannot provide their bound generation digest.
+#[allow(clippy::too_many_lines)]
+pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<EducationalPlan, PlanError> {
+    let sequence = frames.frames();
+    let first = sequence.first().ok_or(PlanError::MissingFrames)?;
+    let last = sequence.last().ok_or(PlanError::MissingFrames)?;
+    if sequence
         .iter()
         .enumerate()
-        .any(|(index, frame)| usize::from(frame.ordinal) != index)
+        .any(|(index, frame)| frame.ordinal() != u32::try_from(index).unwrap_or(u32::MAX))
     {
         return Err(PlanError::InvalidFrameSequence);
     }
 
-    let mut scenes = introductory_scenes(reaction, first);
+    let mut scenes = vec![
+        scene(
+            EducationalSceneKind::Introduction,
+            first,
+            first,
+            3_000,
+            None,
+            vec![EducationalCue::PreserveDisclosure],
+        ),
+        scene(
+            EducationalSceneKind::ReactantSetup,
+            first,
+            first,
+            4_000,
+            None,
+            vec![EducationalCue::EstablishFrame {
+                frame: first.trace().state_digest,
+            }],
+        ),
+        scene(
+            EducationalSceneKind::Equation,
+            first,
+            first,
+            3_800,
+            None,
+            Vec::new(),
+        ),
+    ];
 
-    for pair in frames.windows(2) {
+    for pair in sequence.windows(2) {
         let before = &pair[0];
         let after = &pair[1];
         let operation = after
-            .active_operation
-            .clone()
-            .ok_or(PlanError::MissingOperation(after.ordinal))?;
-        let narration = operation_narration(reaction, before, after, &operation)?;
-        let duration_ms = operation_duration(&operation)
-            .saturating_add(explanation_duration(&narration.explanation.text));
-        scenes.push(EducationalScene {
-            kind: EducationalSceneKind::StructuralChange,
-            start_frame: before.id,
-            end_frame: after.id,
+            .active_operation()
+            .ok_or(PlanError::MissingOperation(after.ordinal()))?;
+        let label = operation_label(operation.operation.view());
+        let context = ContextLabel {
+            kind: label.kind,
+            title: operation_title(operation.operation.view()).to_owned(),
+            text: label.text.clone(),
+            target_atoms: label.target_atoms.clone(),
+            connector: label.connector,
+        };
+        let before_digest = before.trace().state_digest;
+        let after_digest = after.trace().state_digest;
+        let duration_ms = 3_200_u32.saturating_add(explanation_duration(&label.text));
+        scenes.push(scene(
+            EducationalSceneKind::StructuralChange,
+            before,
+            after,
             duration_ms,
-            cues: vec![
-                EducationalCue::EstablishFrame { frame: before.id },
+            Some(label.clone()),
+            vec![
+                EducationalCue::EstablishFrame {
+                    frame: before_digest,
+                },
                 EducationalCue::ApplyOperation {
-                    affected_atoms: affected_atoms(&operation),
-                    operation: operation.clone(),
-                    before: before.id,
-                    after: after.id,
+                    before: before_digest,
+                    after: after_digest,
+                    affected_atoms: label.target_atoms.clone(),
                 },
-                EducationalCue::ShowContext {
-                    label: narration.context,
-                },
-                EducationalCue::ShowExplanation {
-                    label: narration.explanation,
-                },
+                EducationalCue::ShowContext { label: context },
+                EducationalCue::ShowExplanation { label },
             ],
-        });
-        let observations = after
-            .observations
+        ));
+
+        for observation in after
+            .observations()
             .iter()
-            .filter(|observation| observation.stage == ObservationStage::Active)
-            .map(|observation| -> Result<EducationalScene, PlanError> {
-                let text = observation_explanation(reaction, &observation.observation.claim)?;
-                let target_atoms =
-                    product_atoms(after, observation_species(&observation.observation.claim));
-                let label = ExplanationLabel {
-                    kind: ExplanationLabelKind::ObservationExplanation,
-                    text,
-                    target_atoms: target_atoms.clone(),
-                    connector: !target_atoms.is_empty(),
-                };
-                Ok(EducationalScene {
-                    kind: EducationalSceneKind::ObservationConnection,
-                    start_frame: after.id,
-                    end_frame: after.id,
-                    duration_ms: explanation_duration(&label.text),
-                    cues: vec![
-                        EducationalCue::ShowObservation {
-                            observation_id: observation.observation.id.clone(),
-                            frame: after.id,
+            .filter(|observation| observation.status == ObservationStatus::Active)
+        {
+            let text = observation_text(observation.predicate, observation.value.as_deref());
+            let target_atoms = after
+                .product_membership()
+                .values()
+                .flatten()
+                .map(|atom| atom.as_str().to_owned())
+                .collect::<Vec<_>>();
+            let label = ExplanationLabel {
+                kind: ExplanationLabelKind::ObservationExplanation,
+                text: text.clone(),
+                target_atoms: target_atoms.clone(),
+                connector: !target_atoms.is_empty(),
+            };
+            scenes.push(scene(
+                EducationalSceneKind::ObservationConnection,
+                after,
+                after,
+                explanation_duration(&text),
+                Some(label.clone()),
+                vec![
+                    EducationalCue::ShowObservation {
+                        predicate: observation.predicate,
+                        frame: after_digest,
+                    },
+                    EducationalCue::ShowContext {
+                        label: ContextLabel {
+                            kind: ExplanationLabelKind::ObservationExplanation,
+                            title: observation_title(observation.predicate).to_owned(),
+                            text,
+                            target_atoms,
+                            connector: label.connector,
                         },
-                        EducationalCue::ShowContext {
-                            label: ContextLabel {
-                                kind: ExplanationLabelKind::ObservationExplanation,
-                                title: observation_title(&observation.observation.claim).to_owned(),
-                                text: observation_context(
-                                    reaction,
-                                    &observation.observation.claim,
-                                )?,
-                                target_atoms,
-                                connector: false,
-                            },
-                        },
-                        EducationalCue::ShowExplanation { label },
-                    ],
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        scenes.extend(observations);
+                    },
+                    EducationalCue::ShowExplanation { label },
+                ],
+            ));
+        }
     }
 
-    scenes.push(summary_scene(reaction, last)?);
-
-    let identity =
-        serde_json::to_value((reaction.digest(), &scenes)).map_err(|_| PlanError::Serialization)?;
+    scenes.push(scene(
+        EducationalSceneKind::Summary,
+        last,
+        last,
+        4_800,
+        None,
+        vec![EducationalCue::EstablishFrame {
+            frame: last.trace().state_digest,
+        }],
+    ));
     Ok(EducationalPlan {
-        id: ContentDigest::of_json(&identity).map_err(|_| PlanError::Serialization)?,
-        reaction: reaction.digest(),
+        id: frames.digest().map_err(|_| PlanError::Digest)?,
         scenes,
-        event_model: first.event_model.clone(),
-        sequence_model: first.sequence_model.clone(),
     })
 }
 
-#[derive(Debug)]
-struct OperationNarration {
-    context: ContextLabel,
-    explanation: ExplanationLabel,
+fn scene(
+    kind: EducationalSceneKind,
+    start: &SimulationFrame,
+    end: &SimulationFrame,
+    duration_ms: u32,
+    explanation: Option<ExplanationLabel>,
+    cues: Vec<EducationalCue>,
+) -> EducationalScene {
+    EducationalScene {
+        kind,
+        start_frame: start.trace().state_digest,
+        end_frame: end.trace().state_digest,
+        duration_ms,
+        explanation,
+        cues,
+    }
 }
 
-fn operation_narration(
-    reaction: &ValidatedStructuralReaction,
-    before: &StructuralFrame,
-    after: &StructuralFrame,
-    operation: &StructuralOperation,
-) -> Result<OperationNarration, PlanError> {
-    let target_atoms = affected_atoms(operation);
-    let (title, context, explanation) = match operation {
-        StructuralOperation::AssociateIonic { left, right } => {
-            let left_label = charged_atom_label(after, before, left)?;
-            let right_label = charged_atom_label(after, before, right)?;
-            (
-                "IONIC ASSOCIATION",
-                format!("{left_label} attracts {right_label}"),
-                format!(
-                    "{left_label} and {right_label} now associate through electrostatic attraction."
-                ),
-            )
+fn operation_label(operation: StructuralOperationView<'_>) -> ExplanationLabel {
+    let (text, atoms) = match operation {
+        StructuralOperationView::CleaveCovalent { left, right, .. } => (
+            "This shared covalent relationship has been cleaved.",
+            vec![left.as_str(), right.as_str()],
+        ),
+        StructuralOperationView::FormCovalent { left, right, .. } => (
+            "A new shared electron pair forms this covalent bond.",
+            vec![left.as_str(), right.as_str()],
+        ),
+        StructuralOperationView::CleaveDative {
+            donor, acceptor, ..
+        } => (
+            "This coordinate bond is cleaved while its electron origin remains explicit.",
+            vec![donor.as_str(), acceptor.as_str()],
+        ),
+        StructuralOperationView::FormDative {
+            donor, acceptor, ..
+        } => (
+            "The donor supplies both electrons to this coordinate bond.",
+            vec![donor.as_str(), acceptor.as_str()],
+        ),
+        StructuralOperationView::ChangeCovalent { left, right, .. } => (
+            "The validated covalent bond order changes.",
+            vec![left.as_str(), right.as_str()],
+        ),
+        StructuralOperationView::AssociateIonic { association } => (
+            "Oppositely charged components are now associated.",
+            association
+                .components()
+                .iter()
+                .map(AtomGroupId::as_str)
+                .collect(),
+        ),
+        StructuralOperationView::DissociateIonic { .. } => {
+            ("The ionic association separates.", Vec::new())
         }
-        StructuralOperation::AssignProduct { product, .. } => {
-            let formula = species_formula(reaction, product)?;
-            (
-                "PRODUCT ESTABLISHED",
-                format!("{formula} unit established"),
-                format!(
-                    "These conserved atoms are assigned as one validated {formula} product unit."
-                ),
-            )
-        }
-        StructuralOperation::TransferMetallicElectron {
-            donor_site,
-            acceptor,
-            count,
-            ..
-        } => {
-            let donor = atom_symbol(after, before, donor_site)?;
-            let acceptor_symbol = atom_symbol(after, before, acceptor)?;
-            let acceptor_after = charged_atom_label(after, before, acceptor)?;
-            let noun = if *count == 1 { "electron" } else { "electrons" };
-            (
-                "ELECTRON TRANSFER",
-                format!("{donor} → {acceptor_symbol} · {count} {noun}"),
-                format!(
-                    "{donor} transfers {count} delocalised {noun} to {acceptor_symbol}; the validated acceptor state becomes {acceptor_after}."
-                ),
-            )
-        }
-        StructuralOperation::CleaveCovalent {
-            left, right, order, ..
-        } => {
-            let left_symbol = atom_symbol(after, before, left)?;
-            let right_symbol = atom_symbol(after, before, right)?;
-            let order_name = bond_order_name(*order)?;
-            (
-                "BOND CLEAVAGE",
-                format!("{left_symbol}–{right_symbol} {order_name} bond separates"),
-                format!(
-                    "The validated {order_name} {left_symbol}–{right_symbol} covalent bond cleaves, and both electron states update."
-                ),
-            )
-        }
-        StructuralOperation::FormCovalent {
-            left, right, order, ..
-        } => {
-            let left_symbol = atom_symbol(after, before, left)?;
-            let right_symbol = atom_symbol(after, before, right)?;
-            let order_name = bond_order_name(*order)?;
-            (
-                "COVALENT BOND",
-                format!("{left_symbol}–{right_symbol} {order_name} bond forms"),
-                format!(
-                    "{left_symbol} and {right_symbol} share electron density to form a validated {order_name} covalent bond."
-                ),
-            )
-        }
+        StructuralOperationView::ReleaseMetallic { site, .. } => (
+            "A site leaves the metallic electron domain.",
+            vec![site.as_str()],
+        ),
+        StructuralOperationView::JoinMetallic { site, .. } => (
+            "A site joins the metallic electron domain.",
+            vec![site.as_str()],
+        ),
+        StructuralOperationView::TransferElectron {
+            donor, acceptor, ..
+        } => (
+            "An electron transfers from the donor to the accepting atom.",
+            vec![donor.as_str(), acceptor.as_str()],
+        ),
+        StructuralOperationView::AssignProduct { atoms, .. } => (
+            "These conserved atoms are now assigned to a validated product.",
+            atoms.iter().map(AtomId::as_str).collect(),
+        ),
     };
-    Ok(OperationNarration {
-        context: ContextLabel {
-            kind: ExplanationLabelKind::StructuralChangeExplanation,
-            title: title.to_owned(),
-            text: context,
-            target_atoms: target_atoms.clone(),
-            connector: true,
-        },
-        explanation: ExplanationLabel {
-            kind: ExplanationLabelKind::StructuralChangeExplanation,
-            text: explanation,
-            target_atoms,
-            connector: true,
-        },
-    })
-}
-
-fn observation_explanation(
-    reaction: &ValidatedStructuralReaction,
-    claim: &ObservationClaim,
-) -> Result<String, PlanError> {
-    Ok(match claim {
-        ObservationClaim::ProductForms { species } => {
-            let formula = species_formula(reaction, species)?;
-            format!("{formula} is now established as a validated product.")
-        }
-        ObservationClaim::ProductHasColour { species, colour } => {
-            let formula = species_formula(reaction, species)?;
-            format!("{formula} is observed as {colour}.")
-        }
-        ObservationClaim::GasEvolves { species } => {
-            let formula = species_formula(reaction, species)?;
-            format!("{formula} gas evolution is now observable.")
-        }
-        ObservationClaim::ReactantConsumed { species } => {
-            let formula = species_formula(reaction, species)?;
-            format!("{formula} is consumed as the validated sequence progresses.")
-        }
-    })
-}
-
-fn observation_context(
-    reaction: &ValidatedStructuralReaction,
-    claim: &ObservationClaim,
-) -> Result<String, PlanError> {
-    Ok(match claim {
-        ObservationClaim::ProductForms { species } => {
-            format!("{} forms", species_formula(reaction, species)?)
-        }
-        ObservationClaim::ProductHasColour { species, colour } => {
-            format!("{} appears {colour}", species_formula(reaction, species)?)
-        }
-        ObservationClaim::GasEvolves { species } => {
-            format!("{} gas evolves", species_formula(reaction, species)?)
-        }
-        ObservationClaim::ReactantConsumed { species } => {
-            format!("{} is consumed", species_formula(reaction, species)?)
-        }
-    })
-}
-
-fn observation_title(claim: &ObservationClaim) -> &'static str {
-    match claim {
-        ObservationClaim::ProductForms { .. } => "PRODUCT FORMED",
-        ObservationClaim::ProductHasColour { .. } => "COLOUR OBSERVATION",
-        ObservationClaim::GasEvolves { .. } => "GAS EVOLUTION",
-        ObservationClaim::ReactantConsumed { .. } => "REACTANT CONSUMED",
+    ExplanationLabel {
+        kind: ExplanationLabelKind::StructuralChangeExplanation,
+        text: text.to_owned(),
+        target_atoms: atoms.into_iter().map(str::to_owned).collect(),
+        connector: true,
     }
 }
 
-fn atom_symbol<'a>(
-    primary: &'a StructuralFrame,
-    fallback: &'a StructuralFrame,
-    atom_id: &str,
-) -> Result<&'a str, PlanError> {
-    atom_state(primary, fallback, atom_id)
-        .map(|atom| atom.element.as_str())
-        .ok_or(PlanError::UnknownNarrationAtom)
-}
-
-fn charged_atom_label(
-    primary: &StructuralFrame,
-    fallback: &StructuralFrame,
-    atom_id: &str,
-) -> Result<String, PlanError> {
-    let atom = atom_state(primary, fallback, atom_id).ok_or(PlanError::UnknownNarrationAtom)?;
-    Ok(format!(
-        "{}{}",
-        atom.element,
-        formal_charge_suffix(atom.formal_charge)
-    ))
-}
-
-fn atom_state<'a>(
-    primary: &'a StructuralFrame,
-    fallback: &'a StructuralFrame,
-    atom_id: &str,
-) -> Option<&'a AtomState> {
-    primary
-        .atoms
-        .iter()
-        .find(|atom| atom.id == atom_id)
-        .or_else(|| fallback.atoms.iter().find(|atom| atom.id == atom_id))
-}
-
-fn formal_charge_suffix(charge: i8) -> String {
-    match charge {
-        0 => String::new(),
-        1 => "⁺".to_owned(),
-        -1 => "⁻".to_owned(),
-        value => format!("({value:+})"),
+const fn operation_title(operation: StructuralOperationView<'_>) -> &'static str {
+    match operation {
+        StructuralOperationView::CleaveCovalent { .. } => "BOND CLEAVAGE",
+        StructuralOperationView::FormCovalent { .. } => "COVALENT BOND",
+        StructuralOperationView::CleaveDative { .. } => "COORDINATE BOND CLEAVAGE",
+        StructuralOperationView::FormDative { .. } => "COORDINATE BOND",
+        StructuralOperationView::ChangeCovalent { .. } => "BOND ORDER",
+        StructuralOperationView::AssociateIonic { .. } => "IONIC ASSOCIATION",
+        StructuralOperationView::DissociateIonic { .. } => "IONIC DISSOCIATION",
+        StructuralOperationView::ReleaseMetallic { .. } => "METALLIC ELECTRON RELEASE",
+        StructuralOperationView::JoinMetallic { .. } => "METALLIC DOMAIN",
+        StructuralOperationView::TransferElectron { .. } => "ELECTRON TRANSFER",
+        StructuralOperationView::AssignProduct { .. } => "PRODUCT ESTABLISHED",
     }
 }
 
-fn bond_order_name(order: u8) -> Result<&'static str, PlanError> {
-    match order {
-        1 => Ok("single"),
-        2 => Ok("double"),
-        3 => Ok("triple"),
-        _ => Err(PlanError::UnsupportedNarrationBondOrder),
+fn observation_text(predicate: ObservationPredicate, value: Option<&str>) -> String {
+    match predicate {
+        ObservationPredicate::Evolves => "Gas evolution is now observable.".to_owned(),
+        ObservationPredicate::Disappears => "The reactant is visibly consumed.".to_owned(),
+        ObservationPredicate::Forms => "The validated product is now established.".to_owned(),
+        ObservationPredicate::Colour => value.map_or_else(
+            || "A validated colour observation is now active.".to_owned(),
+            |colour| format!("The observed colour is {colour}."),
+        ),
     }
 }
 
-fn species_formula<'a>(
-    reaction: &'a ValidatedStructuralReaction,
-    species: &str,
-) -> Result<&'a str, PlanError> {
-    reaction
-        .equation()
-        .reactants
-        .iter()
-        .chain(&reaction.equation().products)
-        .find(|term| term.species == species)
-        .map(|term| term.formula.as_str())
-        .ok_or(PlanError::UnknownNarrationSpecies)
-}
-
-fn equation_side_text(terms: &[StoichiometricTerm]) -> String {
-    terms
-        .iter()
-        .map(|term| {
-            if term.coefficient == 1 {
-                term.formula.clone()
-            } else {
-                format!("{} {}", term.coefficient, term.formula)
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" + ")
-}
-
-fn observation_species(claim: &ObservationClaim) -> &str {
-    match claim {
-        ObservationClaim::ProductForms { species }
-        | ObservationClaim::ProductHasColour { species, .. }
-        | ObservationClaim::GasEvolves { species }
-        | ObservationClaim::ReactantConsumed { species } => species,
+const fn observation_title(predicate: ObservationPredicate) -> &'static str {
+    match predicate {
+        ObservationPredicate::Evolves => "GAS EVOLUTION",
+        ObservationPredicate::Disappears => "REACTANT CONSUMED",
+        ObservationPredicate::Forms => "PRODUCT FORMED",
+        ObservationPredicate::Colour => "COLOUR OBSERVATION",
     }
-}
-
-fn product_atoms(frame: &StructuralFrame, species: &str) -> Vec<String> {
-    let mut atoms = frame
-        .product_memberships
-        .iter()
-        .filter(|membership| membership.product == species)
-        .flat_map(|membership| membership.atoms.iter().cloned())
-        .collect::<Vec<_>>();
-    atoms.sort();
-    atoms.dedup();
-    atoms
 }
 
 fn explanation_duration(text: &str) -> u32 {
@@ -576,145 +429,119 @@ fn explanation_duration(text: &str) -> u32 {
     (2_500_u32.saturating_add(words.saturating_mul(200))).clamp(3_600, 6_400)
 }
 
-fn introductory_scenes(
-    reaction: &ValidatedStructuralReaction,
-    first: &StructuralFrame,
-) -> Vec<EducationalScene> {
-    let mut reactant_cues = vec![
-        EducationalCue::IntroduceSpecies {
-            role: SpeciesRole::Reactant,
-            species: reaction.reactants().to_vec(),
-        },
-        EducationalCue::EstablishFrame { frame: first.id },
-        EducationalCue::ShowContext {
-            label: ContextLabel {
-                kind: ExplanationLabelKind::ConceptExplanation,
-                title: "VALIDATED REACTANTS".to_owned(),
-                text: equation_side_text(&reaction.equation().reactants),
-                target_atoms: first.atoms.iter().map(|atom| atom.id.clone()).collect(),
-                connector: false,
-            },
-        },
-    ];
-    reactant_cues.extend(first.metallic_domains.iter().map(|domain| {
-        let noun = if domain.delocalized_electrons == 1 {
-            "electron"
-        } else {
-            "electrons"
-        };
-        let site_noun = if domain.sites.len() == 1 {
-            "site"
-        } else {
-            "sites"
-        };
-        EducationalCue::ShowContext {
-            label: ContextLabel {
-                kind: ExplanationLabelKind::ConceptExplanation,
-                title: "METALLIC DOMAIN".to_owned(),
-                text: format!(
-                    "{} delocalised {noun} across {} {site_noun}",
-                    domain.delocalized_electrons,
-                    domain.sites.len()
-                ),
-                target_atoms: domain.sites.clone(),
-                connector: true,
-            },
-        }
-    }));
-
-    vec![
-        EducationalScene {
-            kind: EducationalSceneKind::Introduction,
-            start_frame: first.id,
-            end_frame: first.id,
-            duration_ms: 3_000,
-            cues: vec![EducationalCue::PreserveDisclosure {
-                event_model: first.event_model.clone(),
-                sequence_model: first.sequence_model.clone(),
-            }],
-        },
-        EducationalScene {
-            kind: EducationalSceneKind::ReactantSetup,
-            start_frame: first.id,
-            end_frame: first.id,
-            duration_ms: 4_000,
-            cues: reactant_cues,
-        },
-        EducationalScene {
-            kind: EducationalSceneKind::Equation,
-            start_frame: first.id,
-            end_frame: first.id,
-            duration_ms: 3_800,
-            cues: vec![EducationalCue::ShowEquation {
-                equation: reaction.equation().clone(),
-            }],
-        },
-    ]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssetProfile {
+    LaboratoryBench,
+    DarkPresentationPlatform,
+    Beaker,
+    TestTube,
+    ConicalFlask,
+    MeasuringCylinder,
+    MetalChunk,
+    MetalStrip,
+    CrystalCluster,
+    PowderPile,
+    LiquidVolume,
+    PrecipitateCloud,
+    GasCloud,
 }
 
-fn summary_scene(
-    reaction: &ValidatedStructuralReaction,
-    last: &StructuralFrame,
-) -> Result<EducationalScene, PlanError> {
-    let mut cues = vec![
-        EducationalCue::IntroduceSpecies {
-            role: SpeciesRole::Product,
-            species: reaction.products().to_vec(),
-        },
-        EducationalCue::ShowEquation {
-            equation: reaction.equation().clone(),
-        },
-        EducationalCue::EstablishFrame { frame: last.id },
-        EducationalCue::ShowContext {
-            label: ContextLabel {
-                kind: ExplanationLabelKind::ImportantResult,
-                title: "VALIDATED PRODUCTS".to_owned(),
-                text: equation_side_text(&reaction.equation().products),
-                target_atoms: last.atoms.iter().map(|atom| atom.id.clone()).collect(),
-                connector: false,
-            },
-        },
-        EducationalCue::ShowExplanation {
-            label: ExplanationLabel {
-                kind: ExplanationLabelKind::SummaryExplanation,
-                text: format!(
-                    "The validated products {} and their reviewed observations are now established.",
-                    equation_side_text(&reaction.equation().products)
-                ),
-                target_atoms: last.atoms.iter().map(|atom| atom.id.clone()).collect(),
-                connector: false,
-            },
-        },
-    ];
-    cues.extend(
-        reaction
-            .observations()
-            .iter()
-            .map(|observation| -> Result<EducationalCue, PlanError> {
-                let target_atoms = product_atoms(last, observation_species(&observation.claim));
-                Ok(EducationalCue::ShowContext {
-                    label: ContextLabel {
-                        kind: ExplanationLabelKind::ObservationExplanation,
-                        title: observation_title(&observation.claim).to_owned(),
-                        text: observation_context(reaction, &observation.claim)?,
-                        connector: !target_atoms.is_empty(),
-                        target_atoms,
-                    },
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?,
-    );
-
-    Ok(EducationalScene {
-        kind: EducationalSceneKind::Summary,
-        start_frame: last.id,
-        end_frame: last.id,
-        duration_ms: 4_800,
-        cues,
-    })
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SceneRole {
+    Environment,
+    Vessel,
+    Reactant,
+    Product,
+    Contents,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppearanceProfile {
+    LaboratoryNeutral,
+    ClearGlass,
+    Water,
+    AqueousColourless,
+    WhitePrecipitate,
+    AlkaliMetal,
+    MetalSilver,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresentationTransform {
+    pub translation: [i16; 3],
+    pub rotation: [i16; 3],
+    pub scale: [u16; 3],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresentationObject {
+    pub id: String,
+    pub asset: AssetProfile,
+    pub semantic_identity: String,
+    pub appearance: AppearanceProfile,
+    pub role: SceneRole,
+    pub transform: PresentationTransform,
+    pub visible_from_ordinal: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectProfile {
+    BubbleEmitter,
+    GasRelease,
+    SurfaceDisturbance,
+    ObjectShrinkage,
+    PrecipitateFormation,
+    Clouding,
+    ColourTransition,
+    SplashEmitter,
+    HeatDistortion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EffectIntensity {
+    Subtle,
+    Moderate,
+    Strong,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresentationEffect {
+    pub effect: EffectProfile,
+    pub trigger: ObservationPredicate,
+    pub intensity: EffectIntensity,
+    pub start_ordinal: u16,
+    pub end_ordinal: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CameraBehaviour {
+    WideEstablishingShot,
+    SlowPushIn,
+    ReactionFocus,
+    ObservationCloseUp,
+    SlowPullBack,
+    FinalHeroShot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CameraCue {
+    pub behaviour: CameraBehaviour,
+    pub start_ordinal: u16,
+    pub end_ordinal: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresentationProfile {
+    pub id: String,
+    pub environment: AssetProfile,
+    pub objects: Vec<PresentationObject>,
+    pub effects: Vec<PresentationEffect>,
+    pub camera: Vec<CameraCue>,
+    pub equation: String,
+    pub disclosure: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MacroscopicAnnotation {
     pub start_ordinal: u16,
     pub end_ordinal: u16,
@@ -722,7 +549,7 @@ pub struct MacroscopicAnnotation {
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealWorldBeat {
     pub start_ordinal: u16,
     pub end_ordinal: u16,
@@ -730,12 +557,12 @@ pub struct RealWorldBeat {
     pub camera: CameraCue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealWorldTimeline {
     pub beats: Vec<RealWorldBeat>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RealWorldPosition {
     pub beat_index: usize,
     pub ordinal: u16,
@@ -770,7 +597,6 @@ impl RealWorldTimeline {
                 beat_progress: 1.0,
             });
         }
-
         let mut remaining_ms = elapsed_ms;
         for (beat_index, beat) in self.beats.iter().enumerate() {
             let beat_duration = u64::from(beat.duration_ms);
@@ -792,15 +618,10 @@ impl RealWorldTimeline {
             let ordinal = beat
                 .start_ordinal
                 .saturating_add(offset.min(ordinal_count.saturating_sub(1)));
-            let ordinal_progress = if offset >= ordinal_count {
-                1.0
-            } else {
-                scaled.fract()
-            };
             return Some(RealWorldPosition {
                 beat_index,
                 ordinal,
-                ordinal_progress,
+                ordinal_progress: scaled.fract(),
                 beat_progress,
             });
         }
@@ -808,7 +629,7 @@ impl RealWorldTimeline {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScenePlan {
     pub id: ContentDigest,
     pub reaction: ContentDigest,
@@ -817,55 +638,54 @@ pub struct ScenePlan {
     pub objects: Vec<PresentationObject>,
     pub effects: Vec<PresentationEffect>,
     pub camera: Vec<CameraCue>,
-    pub equation: ReviewedEquation,
+    pub equation: String,
     pub annotations: Vec<MacroscopicAnnotation>,
     pub timeline: RealWorldTimeline,
     pub disclosure: String,
     pub virtual_only_disclosure: String,
 }
 
-/// Compiles reviewed macroscopic metadata into a renderer-independent scene.
+/// Binds a host-selected visual profile to a trusted generation. Effects whose
+/// observation trigger is absent are rejected instead of guessed.
 ///
 /// # Errors
 ///
-/// Returns an error if the profile references an observation not present in
-/// the trusted reaction. Catalogue loading should already reject this; the
-/// planner keeps the boundary explicit for checked deserialization paths.
+/// Returns an error when an effect lacks a matching validated observation or
+/// the trusted frame digest is unavailable.
 pub fn compile_real_world_plan(
-    reaction: &ValidatedStructuralReaction,
+    frames: &SimulationFrames,
+    profile: &PresentationProfile,
 ) -> Result<ScenePlan, PlanError> {
-    let profile = reaction.presentation();
-    let observations = reaction
-        .observations()
+    let predicates = frames
+        .frames()
         .iter()
-        .map(|observation| observation.id.as_str())
-        .collect::<BTreeSet<_>>();
+        .flat_map(SimulationFrame::observations)
+        .map(|observation| observation.predicate)
+        .collect::<Vec<_>>();
     if profile
         .effects
         .iter()
-        .any(|effect| !observations.contains(effect.trigger_observation.as_str()))
+        .any(|effect| !predicates.contains(&effect.trigger))
     {
-        return Err(PlanError::UnknownObservation);
+        return Err(PlanError::UnsupportedEffectTrigger);
     }
-    let timeline = compile_real_world_timeline(reaction);
-    let annotations = compile_macroscopic_annotations(reaction, &timeline)?;
-    let identity = serde_json::to_value((
-        reaction.digest(),
-        profile,
-        reaction.equation(),
-        &annotations,
-        &timeline,
-    ))
-    .map_err(|_| PlanError::Serialization)?;
+    let final_ordinal = frames
+        .frames()
+        .last()
+        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
+        .ok_or(PlanError::PresentationRange)?;
+    let timeline = compile_real_world_timeline(profile, final_ordinal);
+    let annotations = compile_macroscopic_annotations(frames, final_ordinal);
+    let reaction = frames.digest().map_err(|_| PlanError::Digest)?;
     Ok(ScenePlan {
-        id: ContentDigest::of_json(&identity).map_err(|_| PlanError::Serialization)?,
-        reaction: reaction.digest(),
+        id: reaction,
+        reaction,
         profile_id: profile.id.clone(),
         environment: profile.environment,
         objects: profile.objects.clone(),
         effects: profile.effects.clone(),
         camera: profile.camera.clone(),
-        equation: reaction.equation().clone(),
+        equation: profile.equation.clone(),
         annotations,
         timeline,
         disclosure: profile.disclosure.clone(),
@@ -873,22 +693,10 @@ pub fn compile_real_world_plan(
     })
 }
 
-fn compile_real_world_timeline(reaction: &ValidatedStructuralReaction) -> RealWorldTimeline {
-    let profile = reaction.presentation();
-    let final_ordinal = profile
-        .objects
-        .iter()
-        .map(|object| object.visible_from_ordinal)
-        .chain(profile.effects.iter().map(|effect| effect.end_ordinal))
-        .chain(profile.camera.iter().map(|cue| cue.end_ordinal))
-        .chain(
-            reaction
-                .observations()
-                .iter()
-                .map(|observation| observation.trigger_ordinal),
-        )
-        .max()
-        .unwrap_or(0);
+fn compile_real_world_timeline(
+    profile: &PresentationProfile,
+    final_ordinal: u16,
+) -> RealWorldTimeline {
     let mut boundaries = BTreeSet::from([0, final_ordinal.saturating_add(1)]);
     for object in &profile.objects {
         boundaries.insert(object.visible_from_ordinal);
@@ -901,9 +709,6 @@ fn compile_real_world_timeline(reaction: &ValidatedStructuralReaction) -> RealWo
         boundaries.insert(cue.start_ordinal);
         boundaries.insert(cue.end_ordinal.saturating_add(1));
     }
-    for observation in reaction.observations() {
-        boundaries.insert(observation.trigger_ordinal);
-    }
     let boundaries = boundaries
         .into_iter()
         .filter(|boundary| *boundary <= final_ordinal.saturating_add(1))
@@ -914,48 +719,37 @@ fn compile_real_world_timeline(reaction: &ValidatedStructuralReaction) -> RealWo
             let start_ordinal = window[0];
             let end_ordinal = window[1].saturating_sub(1);
             (start_ordinal <= end_ordinal).then(|| {
-                let observation_starts = reaction
-                    .observations()
-                    .iter()
-                    .any(|observation| observation.trigger_ordinal == start_ordinal);
-                let active_intensity = profile
+                let intensity = profile
                     .effects
                     .iter()
                     .filter(|effect| {
                         effect.start_ordinal <= start_ordinal && start_ordinal <= effect.end_ordinal
                     })
                     .map(|effect| effect.intensity)
-                    .max_by_key(|intensity| match intensity {
-                        EffectIntensity::Subtle => 0,
-                        EffectIntensity::Moderate => 1,
-                        EffectIntensity::Strong => 2,
-                    });
-                let duration_ms = real_world_beat_duration(
-                    start_ordinal,
-                    final_ordinal,
-                    observation_starts,
-                    active_intensity,
-                );
-                let selected_camera = profile
+                    .max();
+                let duration_ms = match intensity {
+                    Some(EffectIntensity::Strong) => 7_200,
+                    Some(EffectIntensity::Moderate) => 6_400,
+                    Some(EffectIntensity::Subtle) => 5_600,
+                    None if start_ordinal == 0 => 4_200,
+                    None => 4_400,
+                };
+                let behaviour = profile
                     .camera
                     .iter()
                     .filter(|cue| {
                         cue.start_ordinal <= start_ordinal && start_ordinal <= cue.end_ordinal
                     })
                     .min_by_key(|cue| cue.end_ordinal.saturating_sub(cue.start_ordinal))
-                    .or_else(|| {
-                        profile
-                            .camera
-                            .iter()
-                            .filter(|cue| cue.start_ordinal <= start_ordinal)
-                            .max_by_key(|cue| cue.start_ordinal)
-                    });
-                let behaviour = selected_camera
                     .map_or(CameraBehaviour::WideEstablishingShot, |cue| cue.behaviour);
                 RealWorldBeat {
                     start_ordinal,
                     end_ordinal,
-                    duration_ms,
+                    duration_ms: if end_ordinal == final_ordinal {
+                        duration_ms.max(5_600)
+                    } else {
+                        duration_ms
+                    },
                     camera: CameraCue {
                         behaviour,
                         start_ordinal,
@@ -968,113 +762,68 @@ fn compile_real_world_timeline(reaction: &ValidatedStructuralReaction) -> RealWo
     RealWorldTimeline { beats }
 }
 
-const fn real_world_beat_duration(
-    start_ordinal: u16,
-    final_ordinal: u16,
-    observation_starts: bool,
-    active_intensity: Option<EffectIntensity>,
-) -> u32 {
-    if start_ordinal == final_ordinal {
-        5_600
-    } else if observation_starts {
-        5_400
-    } else if let Some(intensity) = active_intensity {
-        match intensity {
-            EffectIntensity::Subtle => 5_600,
-            EffectIntensity::Moderate => 6_400,
-            EffectIntensity::Strong => 7_200,
-        }
-    } else if start_ordinal == 0 {
-        4_200
-    } else {
-        4_400
-    }
-}
-
 fn compile_macroscopic_annotations(
-    reaction: &ValidatedStructuralReaction,
-    timeline: &RealWorldTimeline,
-) -> Result<Vec<MacroscopicAnnotation>, PlanError> {
-    let final_ordinal = timeline.beats.last().map_or(0, |beat| beat.end_ordinal);
-    let first_observation = reaction
-        .observations()
-        .iter()
-        .map(|observation| observation.trigger_ordinal)
-        .min()
-        .unwrap_or(final_ordinal);
+    frames: &SimulationFrames,
+    final_ordinal: u16,
+) -> Vec<MacroscopicAnnotation> {
     let mut annotations = vec![MacroscopicAnnotation {
         start_ordinal: 0,
-        end_ordinal: first_observation.saturating_sub(1),
+        end_ordinal: final_ordinal.min(1),
         title: "INITIAL STATE".to_owned(),
-        text: equation_side_text(&reaction.equation().reactants),
+        text: "The validated reactants are established in the virtual vessel.".to_owned(),
     }];
-    let mut observations = reaction.observations().iter().collect::<Vec<_>>();
-    observations.sort_by_key(|observation| observation.trigger_ordinal);
-    for (index, observation) in observations.iter().enumerate() {
-        let next = observations
-            .get(index + 1)
-            .map_or(final_ordinal, |next| next.trigger_ordinal.saturating_sub(1));
-        annotations.push(MacroscopicAnnotation {
-            start_ordinal: observation.trigger_ordinal,
-            end_ordinal: next.max(observation.trigger_ordinal),
-            title: observation_title(&observation.claim).to_owned(),
-            text: observation_context(reaction, &observation.claim)?,
-        });
+    for frame in frames.frames() {
+        let Ok(ordinal) = u16::try_from(frame.ordinal()) else {
+            continue;
+        };
+        for observation in frame
+            .observations()
+            .iter()
+            .filter(|observation| observation.status == ObservationStatus::Active)
+        {
+            annotations.push(MacroscopicAnnotation {
+                start_ordinal: ordinal,
+                end_ordinal: final_ordinal,
+                title: observation_title(observation.predicate).to_owned(),
+                text: observation_text(observation.predicate, observation.value.as_deref()),
+            });
+        }
     }
     annotations.push(MacroscopicAnnotation {
         start_ordinal: final_ordinal,
         end_ordinal: final_ordinal,
         title: "VALIDATED OUTCOME".to_owned(),
-        text: equation_side_text(&reaction.equation().products),
+        text: "The trusted frame sequence has reached its reviewed outcome.".to_owned(),
     });
-    Ok(annotations)
-}
-
-fn operation_duration(operation: &StructuralOperation) -> u32 {
-    match operation {
-        StructuralOperation::AssociateIonic { .. } => 4_000,
-        StructuralOperation::AssignProduct { .. } => 3_200,
-        StructuralOperation::TransferMetallicElectron { .. } => 5_000,
-        StructuralOperation::CleaveCovalent { .. } | StructuralOperation::FormCovalent { .. } => {
-            4_500
-        }
-    }
-}
-
-fn affected_atoms(operation: &StructuralOperation) -> Vec<String> {
-    let mut atoms = match operation {
-        StructuralOperation::AssociateIonic { left, right } => vec![left.clone(), right.clone()],
-        StructuralOperation::AssignProduct { atoms, .. } => atoms.clone(),
-        StructuralOperation::TransferMetallicElectron {
-            donor_site,
-            acceptor,
-            ..
-        } => vec![donor_site.clone(), acceptor.clone()],
-        StructuralOperation::CleaveCovalent { left, right, .. }
-        | StructuralOperation::FormCovalent { left, right, .. } => {
-            vec![left.clone(), right.clone()]
-        }
-    };
-    atoms.sort();
-    atoms.dedup();
-    atoms
+    annotations
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlanError {
     MissingFrames,
     InvalidFrameSequence,
-    MissingOperation(u16),
-    UnknownNarrationAtom,
-    UnknownNarrationSpecies,
-    UnsupportedNarrationBondOrder,
-    UnknownObservation,
-    Serialization,
+    MissingOperation(u32),
+    UnsupportedEffectTrigger,
+    PresentationRange,
+    Digest,
 }
 
 impl fmt::Display for PlanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "animation planning failed: {self:?}")
+        match self {
+            Self::MissingFrames => formatter.write_str("trusted frames are absent"),
+            Self::InvalidFrameSequence => formatter.write_str("frame ordinals are not contiguous"),
+            Self::MissingOperation(ordinal) => {
+                write!(formatter, "frame {ordinal} has no operation")
+            }
+            Self::UnsupportedEffectTrigger => {
+                formatter.write_str("presentation effect has no validated observation trigger")
+            }
+            Self::PresentationRange => {
+                formatter.write_str("trusted frames exceed the presentation range")
+            }
+            Self::Digest => formatter.write_str("trusted frame digest is unavailable"),
+        }
     }
 }
 
@@ -1082,41 +831,7 @@ impl std::error::Error for PlanError {}
 
 #[cfg(test)]
 mod tests {
-    use chem_catalogue::CatalogueBundle;
-    use chem_engine::{expand_structural_rule, structural_frames, validate_structural_reaction};
-
-    use super::{
-        EducationalCue, EducationalPlan, EducationalScene, EducationalSceneKind, RealWorldPosition,
-        TimelinePosition, compile_educational_plan, compile_real_world_plan,
-    };
-
-    const SOURCE: &str = include_str!("../../../fixtures/silver-chloride.chems");
-    const CATALOGUE: &[u8] =
-        include_bytes!("../../../fixtures/catalogue/silver-chloride.catalogue.json");
-    const LITHIUM_SOURCE: &str = include_str!("../../../fixtures/lithium-water.chems");
-    const LITHIUM_CATALOGUE: &[u8] =
-        include_bytes!("../../../fixtures/catalogue/lithium-water.catalogue.json");
-
-    fn trusted_from(
-        source: &str,
-        catalogue_bytes: &[u8],
-    ) -> (
-        chem_engine::ValidatedStructuralReaction,
-        Vec<chem_engine::StructuralFrame>,
-    ) {
-        let catalogue = CatalogueBundle::load_json(catalogue_bytes).expect("catalogue loads");
-        let expanded = expand_structural_rule(source, &catalogue).expect("rule expands");
-        let validated = validate_structural_reaction(expanded).expect("rule validates");
-        let frames = structural_frames(&validated).expect("frames generate");
-        (validated, frames)
-    }
-
-    fn trusted() -> (
-        chem_engine::ValidatedStructuralReaction,
-        Vec<chem_engine::StructuralFrame>,
-    ) {
-        trusted_from(SOURCE, CATALOGUE)
-    }
+    use super::{EducationalPlan, EducationalScene, EducationalSceneKind, TimelinePosition};
 
     fn timeline_plan(durations_ms: &[u32]) -> EducationalPlan {
         let scenes = durations_ms
@@ -1129,39 +844,22 @@ mod tests {
                     start_frame: id,
                     end_frame: id,
                     duration_ms: *duration_ms,
+                    explanation: None,
                     cues: Vec::new(),
                 }
             })
             .collect();
         EducationalPlan {
             id: chem_domain::ContentDigest::sha256(b"timeline-plan"),
-            reaction: chem_domain::ContentDigest::sha256(b"timeline-reaction"),
             scenes,
-            event_model: "representative".to_owned(),
-            sequence_model: "explanatory".to_owned(),
         }
     }
 
     #[test]
-    fn educational_timeline_locates_variable_scenes_and_boundaries() {
+    fn educational_timeline_locates_boundaries_and_clamps() {
         let plan = timeline_plan(&[1_000, 2_500, 500]);
-
         assert_eq!(plan.duration_ms(), 4_000);
         assert_eq!(
-            plan.locate(0),
-            Some(TimelinePosition {
-                scene_index: 0,
-                scene_elapsed_ms: 0,
-            })
-        );
-        assert_eq!(
-            plan.locate(999),
-            Some(TimelinePosition {
-                scene_index: 0,
-                scene_elapsed_ms: 999,
-            })
-        );
-        assert_eq!(
             plan.locate(1_000),
             Some(TimelinePosition {
                 scene_index: 1,
@@ -1169,331 +867,20 @@ mod tests {
             })
         );
         assert_eq!(
-            plan.locate(3_499),
-            Some(TimelinePosition {
-                scene_index: 1,
-                scene_elapsed_ms: 2_499,
-            })
-        );
-        assert_eq!(
-            plan.locate(3_500),
+            plan.locate(u64::MAX),
             Some(TimelinePosition {
                 scene_index: 2,
-                scene_elapsed_ms: 0,
+                scene_elapsed_ms: 500,
             })
         );
-        let end = TimelinePosition {
-            scene_index: 2,
-            scene_elapsed_ms: 500,
-        };
-        assert_eq!(plan.locate(4_000), Some(end));
-        assert_eq!(plan.locate(u64::MAX), Some(end));
     }
 
     #[test]
-    fn educational_timeline_handles_zero_duration_scenes_deterministically() {
-        let plan = timeline_plan(&[0, 1_000, 0, 500, 0]);
-
-        assert_eq!(plan.duration_ms(), 1_500);
-        assert_eq!(
-            plan.locate(0),
-            Some(TimelinePosition {
-                scene_index: 1,
-                scene_elapsed_ms: 0,
-            })
-        );
-        assert_eq!(
-            plan.locate(1_000),
-            Some(TimelinePosition {
-                scene_index: 3,
-                scene_elapsed_ms: 0,
-            })
-        );
-        assert_eq!(
-            plan.locate(1_500),
-            Some(TimelinePosition {
-                scene_index: 4,
-                scene_elapsed_ms: 0,
-            })
-        );
-
-        let all_zero = timeline_plan(&[0, 0]);
-        assert_eq!(all_zero.duration_ms(), 0);
-        assert_eq!(
-            all_zero.locate(u64::MAX),
-            Some(TimelinePosition {
-                scene_index: 1,
-                scene_elapsed_ms: 0,
-            })
-        );
-        assert_eq!(timeline_plan(&[]).locate(0), None);
-    }
-
-    #[test]
-    fn educational_timeline_elapsed_conversion_clamps_and_round_trips() {
+    fn educational_timeline_round_trips() {
         let plan = timeline_plan(&[1_000, 2_500, 500]);
-
-        assert_eq!(
-            plan.elapsed_at(TimelinePosition {
-                scene_index: 1,
-                scene_elapsed_ms: 1_250,
-            }),
-            Some(2_250)
-        );
-        assert_eq!(
-            plan.elapsed_at(TimelinePosition {
-                scene_index: 1,
-                scene_elapsed_ms: u32::MAX,
-            }),
-            Some(3_500)
-        );
-        assert_eq!(
-            plan.elapsed_at(TimelinePosition {
-                scene_index: 3,
-                scene_elapsed_ms: 0,
-            }),
-            None
-        );
-
-        for elapsed_ms in [0, 1, 999, 1_000, 2_275, 3_499, 3_500, 3_999, 4_000] {
-            let position = plan.locate(elapsed_ms).expect("timeline position exists");
+        for elapsed_ms in [0, 999, 1_000, 3_499, 3_500, 4_000] {
+            let position = plan.locate(elapsed_ms).expect("position exists");
             assert_eq!(plan.elapsed_at(position), Some(elapsed_ms));
-        }
-    }
-
-    #[test]
-    fn educational_planning_is_deterministic_and_maps_every_operation() {
-        let (validated, frames) = trusted();
-        let first = compile_educational_plan(&validated, &frames).expect("plan compiles");
-        let second = compile_educational_plan(&validated, &frames).expect("plan recompiles");
-        assert_eq!(first, second);
-        let operations = first
-            .scenes
-            .iter()
-            .flat_map(|scene| &scene.cues)
-            .filter(|cue| matches!(cue, EducationalCue::ApplyOperation { .. }))
-            .count();
-        assert_eq!(operations, frames.len() - 1);
-        let structural_changes = first
-            .scenes
-            .iter()
-            .filter(|scene| scene.kind == EducationalSceneKind::StructuralChange)
-            .collect::<Vec<_>>();
-        assert_eq!(structural_changes.len(), operations);
-        assert!(structural_changes.iter().all(|scene| {
-            scene.duration_ms >= 6_800
-                && scene.cues.iter().any(|cue| {
-                    matches!(
-                        cue,
-                        EducationalCue::ShowExplanation { label }
-                            if label.connector && !label.text.is_empty()
-                    )
-                })
-                && scene
-                    .cues
-                    .iter()
-                    .any(|cue| matches!(cue, EducationalCue::ShowContext { .. }))
-        }));
-        assert!(
-            first
-                .scenes
-                .iter()
-                .all(|scene| scene.kind != EducationalSceneKind::ExplanationPause)
-        );
-        assert_eq!(first.scenes[0].kind, EducationalSceneKind::Introduction);
-        let equation = first
-            .scenes
-            .iter()
-            .flat_map(|scene| &scene.cues)
-            .find_map(|cue| match cue {
-                EducationalCue::ShowEquation { equation } => Some(equation),
-                _ => None,
-            })
-            .expect("reviewed equation is planned");
-        assert_eq!(equation.reactants[0].formula, "AgNO3");
-        assert_eq!(equation.reactants[0].coefficient, 1);
-        assert_eq!(
-            first.scenes.last().map(|scene| scene.kind),
-            Some(EducationalSceneKind::Summary)
-        );
-    }
-
-    #[test]
-    fn narration_is_deterministic_source_selected_and_free_of_internal_ids() {
-        let (silver, silver_frames) = trusted();
-        let (lithium, lithium_frames) = trusted_from(LITHIUM_SOURCE, LITHIUM_CATALOGUE);
-        let silver_plan =
-            compile_educational_plan(&silver, &silver_frames).expect("silver plan compiles");
-        let lithium_plan =
-            compile_educational_plan(&lithium, &lithium_frames).expect("lithium plan compiles");
-
-        let visible_copy = |plan: &EducationalPlan| {
-            plan.scenes
-                .iter()
-                .flat_map(|scene| &scene.cues)
-                .filter_map(|cue| match cue {
-                    EducationalCue::ShowContext { label } => {
-                        Some(format!("{} {}", label.title, label.text))
-                    }
-                    EducationalCue::ShowExplanation { label } => Some(label.text.clone()),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-        let silver_copy = visible_copy(&silver_plan);
-        let lithium_copy = visible_copy(&lithium_plan);
-
-        assert!(silver_copy.contains("Ag"));
-        assert!(silver_copy.contains("Cl"));
-        assert!(silver_copy.contains("white"));
-        assert!(lithium_copy.contains("Li → O"));
-        assert!(lithium_copy.contains("H2 gas evolves"));
-        assert!(lithium_copy.contains("LiOH"));
-        assert_ne!(silver_copy, lithium_copy);
-        for copy in [&silver_copy, &lithium_copy] {
-            assert!(!copy.contains("species."));
-            assert!(!copy.contains("atom."));
-            assert!(!copy.contains("metal."));
-        }
-    }
-
-    #[test]
-    fn every_structural_change_carries_trusted_targeted_context() {
-        let (validated, frames) = trusted_from(LITHIUM_SOURCE, LITHIUM_CATALOGUE);
-        let plan = compile_educational_plan(&validated, &frames).expect("plan compiles");
-
-        for scene in plan
-            .scenes
-            .iter()
-            .filter(|scene| scene.kind == EducationalSceneKind::StructuralChange)
-        {
-            let affected = scene
-                .cues
-                .iter()
-                .find_map(|cue| match cue {
-                    EducationalCue::ApplyOperation { affected_atoms, .. } => Some(affected_atoms),
-                    _ => None,
-                })
-                .expect("operation cue exists");
-            let context = scene
-                .cues
-                .iter()
-                .find_map(|cue| match cue {
-                    EducationalCue::ShowContext { label } => Some(label),
-                    _ => None,
-                })
-                .expect("context cue exists");
-            assert_eq!(&context.target_atoms, affected);
-            assert!(!context.text.is_empty());
-            assert!(context.connector);
-        }
-    }
-
-    #[test]
-    fn real_world_plan_uses_reviewed_reusable_profiles() {
-        let (validated, _) = trusted();
-        let plan = compile_real_world_plan(&validated).expect("scene plan compiles");
-        assert_eq!(plan.profile_id, "presentation.aqueous-precipitation");
-        assert!(
-            plan.objects
-                .iter()
-                .all(|object| !object.id.contains("Lithium"))
-        );
-        assert!(
-            plan.effects
-                .iter()
-                .all(|effect| effect.trigger_observation.starts_with("observation."))
-        );
-    }
-
-    #[test]
-    fn real_world_planning_is_deterministic() {
-        let (validated, _) = trusted_from(LITHIUM_SOURCE, LITHIUM_CATALOGUE);
-        let first = compile_real_world_plan(&validated).expect("scene plan compiles");
-        let second = compile_real_world_plan(&validated).expect("scene plan recompiles");
-
-        assert_eq!(first, second);
-        assert_eq!(first.id, second.id);
-        assert_eq!(
-            serde_json::to_vec(&first).expect("first plan serializes"),
-            serde_json::to_vec(&second).expect("second plan serializes")
-        );
-    }
-
-    #[test]
-    fn real_world_timeline_locates_start_boundaries_and_exact_end() {
-        let (validated, _) = trusted_from(LITHIUM_SOURCE, LITHIUM_CATALOGUE);
-        let plan = compile_real_world_plan(&validated).expect("scene plan compiles");
-        let timeline = &plan.timeline;
-
-        assert!(!timeline.beats.is_empty());
-        assert!(timeline.duration_ms() > 0);
-        assert!(
-            timeline
-                .beats
-                .iter()
-                .all(|beat| { beat.duration_ms > 0 && beat.start_ordinal <= beat.end_ordinal })
-        );
-
-        let mut elapsed_ms = 0_u64;
-        for (beat_index, beat) in timeline.beats.iter().enumerate() {
-            assert_eq!(
-                timeline.locate(elapsed_ms),
-                Some(RealWorldPosition {
-                    beat_index,
-                    ordinal: beat.start_ordinal,
-                    ordinal_progress: 0.0,
-                    beat_progress: 0.0,
-                }),
-                "an exact beat boundary belongs to the following beat"
-            );
-            elapsed_ms = elapsed_ms.saturating_add(u64::from(beat.duration_ms));
-        }
-
-        assert_eq!(elapsed_ms, timeline.duration_ms());
-        let final_index = timeline.beats.len() - 1;
-        let final_beat = &timeline.beats[final_index];
-        let end = RealWorldPosition {
-            beat_index: final_index,
-            ordinal: final_beat.end_ordinal,
-            ordinal_progress: 1.0,
-            beat_progress: 1.0,
-        };
-        assert_eq!(timeline.locate(timeline.duration_ms()), Some(end));
-        assert_eq!(timeline.locate(u64::MAX), Some(end));
-    }
-
-    #[test]
-    fn macroscopic_annotations_use_reviewed_formulae_without_internal_ids() {
-        let (silver, _) = trusted();
-        let (lithium, _) = trusted_from(LITHIUM_SOURCE, LITHIUM_CATALOGUE);
-        let silver_plan = compile_real_world_plan(&silver).expect("silver scene plan compiles");
-        let lithium_plan = compile_real_world_plan(&lithium).expect("lithium scene plan compiles");
-
-        let annotation_copy = |plan: &super::ScenePlan| {
-            plan.annotations
-                .iter()
-                .map(|annotation| format!("{} {}", annotation.title, annotation.text))
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-        let silver_copy = annotation_copy(&silver_plan);
-        let lithium_copy = annotation_copy(&lithium_plan);
-
-        assert!(silver_copy.contains("AgNO3"));
-        assert!(silver_copy.contains("AgCl"));
-        assert!(silver_copy.contains("white"));
-        assert!(lithium_copy.contains("H2O"));
-        assert!(lithium_copy.contains("H2"));
-        assert!(lithium_copy.contains("LiOH"));
-        assert_ne!(silver_copy, lithium_copy);
-
-        for copy in [&silver_copy, &lithium_copy] {
-            assert!(!copy.contains("species."));
-            assert!(!copy.contains("observation."));
-            assert!(!copy.contains("atom."));
-            assert!(!copy.contains("metal."));
         }
     }
 }

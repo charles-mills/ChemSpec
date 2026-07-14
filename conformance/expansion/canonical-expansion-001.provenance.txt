@@ -1,0 +1,3033 @@
+ExpandedStructuralReaction physical provenance
+{
+  "schema_version": 1,
+  "claim": {
+    "source": {
+      "name": "conformance/expansion/canonical-expansion-001.chems",
+      "bytes_digest": "9e9f2e076c36b6bdb53d16c1feaa31db246553da57fd373198f41a01406c2fdb",
+      "semantic_digest": "31e40f4ca592bf7ae878b76bd7bc0a02e16e9c53b432834400fc9fb94644726d"
+    },
+    "catalogue": {
+      "name": "ChemSpec.Theoretical",
+      "version": "1",
+      "digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "trust": "review_candidate"
+    },
+    "reaction": "LithiumAndWater",
+    "reactants": {
+      "lithium": {
+        "side": "reactant",
+        "name": "lithium",
+        "coefficient": 2,
+        "structure": "LithiumMetal",
+        "formula": {
+          "Li": 1
+        },
+        "representation": "metallic",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Reactant binding lithium",
+              "span": {
+                "start": 91,
+                "end": 120
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure LithiumMetal",
+              "premises": [
+                "premise.structure.lithium-metal"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "water": {
+        "side": "reactant",
+        "name": "water",
+        "coefficient": 2,
+        "structure": "Water",
+        "formula": {
+          "H": 2,
+          "O": 1
+        },
+        "representation": "molecular",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Reactant binding water",
+              "span": {
+                "start": 124,
+                "end": 144
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure Water",
+              "premises": [
+                "premise.structure.water"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "products": {
+      "hydrogen": {
+        "side": "product",
+        "name": "hydrogen",
+        "coefficient": 1,
+        "structure": "Hydrogen",
+        "formula": {
+          "H": 2
+        },
+        "representation": "molecular",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Product binding hydrogen",
+              "span": {
+                "start": 206,
+                "end": 232
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure Hydrogen",
+              "premises": [
+                "premise.structure.hydrogen"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "lithiumHydroxide": {
+        "side": "product",
+        "name": "lithiumHydroxide",
+        "coefficient": 2,
+        "structure": "LithiumHydroxide",
+        "formula": {
+          "H": 1,
+          "Li": 1,
+          "O": 1
+        },
+        "representation": "ionic",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Product binding lithiumHydroxide",
+              "span": {
+                "start": 160,
+                "end": 202
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure LithiumHydroxide",
+              "premises": [
+                "premise.structure.lithium-hydroxide"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "equation": [
+      {
+        "side": "reactant",
+        "coefficient": 2,
+        "formula": {
+          "Li": 1
+        },
+        "representation": "metallic",
+        "binding": "lithium",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Reactant binding lithium",
+              "span": {
+                "start": 91,
+                "end": 120
+              }
+            },
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Reactant equation term",
+              "span": {
+                "start": 248,
+                "end": 262
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure LithiumMetal",
+              "premises": [
+                "premise.structure.lithium-metal"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "side": "reactant",
+        "coefficient": 2,
+        "formula": {
+          "H": 2,
+          "O": 1
+        },
+        "representation": "molecular",
+        "binding": "water",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Reactant binding water",
+              "span": {
+                "start": 124,
+                "end": 144
+              }
+            },
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Reactant equation term",
+              "span": {
+                "start": 265,
+                "end": 281
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure Water",
+              "premises": [
+                "premise.structure.water"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "side": "product",
+        "coefficient": 1,
+        "formula": {
+          "H": 2
+        },
+        "representation": "molecular",
+        "binding": "hydrogen",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Product binding hydrogen",
+              "span": {
+                "start": 206,
+                "end": 232
+              }
+            },
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Product equation term",
+              "span": {
+                "start": 305,
+                "end": 318
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure Hydrogen",
+              "premises": [
+                "premise.structure.hydrogen"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "side": "product",
+        "coefficient": 2,
+        "formula": {
+          "H": 1,
+          "Li": 1,
+          "O": 1
+        },
+        "representation": "ionic",
+        "binding": "lithiumHydroxide",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Product binding lithiumHydroxide",
+              "span": {
+                "start": 160,
+                "end": 202
+              }
+            },
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "Product equation term",
+              "span": {
+                "start": 289,
+                "end": 302
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "structure LithiumHydroxide",
+              "premises": [
+                "premise.structure.lithium-hydroxide"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "sequence": "explanatory",
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "model disclosure",
+            "span": {
+              "start": 322,
+              "end": 387
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater model assumptions",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "evidence": {
+      "packet": {
+        "name": "Evidence.LithiumAndWater",
+        "version": "1"
+      },
+      "digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
+      "trust": "external_untrusted",
+      "observations": [
+        {
+          "predicate": "evolves",
+          "subject_binding": "hydrogen",
+          "value": null,
+          "claim": "R1",
+          "evidence_subject": "hydrogen",
+          "provenance": {
+            "source": [
+              {
+                "source": "conformance/expansion/canonical-expansion-001.chems",
+                "construct": "observation hydrogen",
+                "span": {
+                  "start": 431,
+                  "end": 461
+                }
+              }
+            ],
+            "catalogue": [
+              {
+                "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+                "record": "rule Rules.AlkaliMetalWithWater observation compatibility",
+                "premises": [
+                  "premise.observation.hydrogen-evolves"
+                ]
+              }
+            ],
+            "evidence": [
+              {
+                "packet": "Evidence.LithiumAndWater@1",
+                "packet_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
+                "claim": "R1",
+                "sources": [
+                  "S1",
+                  "S2"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "predicate": "disappears",
+          "subject_binding": "lithium",
+          "value": null,
+          "claim": "R2",
+          "evidence_subject": "lithium",
+          "provenance": {
+            "source": [
+              {
+                "source": "conformance/expansion/canonical-expansion-001.chems",
+                "construct": "observation lithium",
+                "span": {
+                  "start": 465,
+                  "end": 502
+                }
+              }
+            ],
+            "catalogue": [
+              {
+                "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+                "record": "rule Rules.AlkaliMetalWithWater observation compatibility",
+                "premises": [
+                  "premise.observation.lithium-disappears"
+                ]
+              }
+            ],
+            "evidence": [
+              {
+                "packet": "Evidence.LithiumAndWater@1",
+                "packet_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
+                "claim": "R2",
+                "sources": [
+                  "S2"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "rule": {
+      "rule": "Rules.AlkaliMetalWithWater",
+      "bindings": {
+        "gasProduct": {
+          "role": "gasProduct",
+          "binding": "hydrogen",
+          "side": "product",
+          "provenance": {
+            "source": [
+              {
+                "source": "conformance/expansion/canonical-expansion-001.chems",
+                "construct": "rule role gasProduct",
+                "span": {
+                  "start": 631,
+                  "end": 654
+                }
+              }
+            ],
+            "catalogue": [
+              {
+                "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+                "record": "rule Rules.AlkaliMetalWithWater role gasProduct",
+                "premises": [
+                  "premise.rule.lithium-water.standard-outcome"
+                ]
+              }
+            ],
+            "evidence": []
+          }
+        },
+        "hydroxide": {
+          "role": "hydroxide",
+          "binding": "lithiumHydroxide",
+          "side": "product",
+          "provenance": {
+            "source": [
+              {
+                "source": "conformance/expansion/canonical-expansion-001.chems",
+                "construct": "rule role hydroxide",
+                "span": {
+                  "start": 595,
+                  "end": 625
+                }
+              }
+            ],
+            "catalogue": [
+              {
+                "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+                "record": "rule Rules.AlkaliMetalWithWater role hydroxide",
+                "premises": [
+                  "premise.rule.lithium-water.standard-outcome"
+                ]
+              }
+            ],
+            "evidence": []
+          }
+        },
+        "metal": {
+          "role": "metal",
+          "binding": "lithium",
+          "side": "reactant",
+          "provenance": {
+            "source": [
+              {
+                "source": "conformance/expansion/canonical-expansion-001.chems",
+                "construct": "rule role metal",
+                "span": {
+                  "start": 551,
+                  "end": 568
+                }
+              }
+            ],
+            "catalogue": [
+              {
+                "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+                "record": "rule Rules.AlkaliMetalWithWater role metal",
+                "premises": [
+                  "premise.rule.lithium-water.standard-outcome"
+                ]
+              }
+            ],
+            "evidence": []
+          }
+        },
+        "water": {
+          "role": "water",
+          "binding": "water",
+          "side": "reactant",
+          "provenance": {
+            "source": [
+              {
+                "source": "conformance/expansion/canonical-expansion-001.chems",
+                "construct": "rule role water",
+                "span": {
+                  "start": 574,
+                  "end": 589
+                }
+              }
+            ],
+            "catalogue": [
+              {
+                "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+                "record": "rule Rules.AlkaliMetalWithWater role water",
+                "premises": [
+                  "premise.rule.lithium-water.standard-outcome"
+                ]
+              }
+            ],
+            "evidence": []
+          }
+        }
+      },
+      "applicability": {
+        "request_relation": "contact",
+        "required_context": "representative educational outcome under the reviewed standard-outcome premise",
+        "reactant_structures": [
+          "LithiumMetal",
+          "Water"
+        ],
+        "premise": "premise.rule.lithium-water.standard-outcome",
+        "provenance": {
+          "source": [
+            {
+              "source": "conformance/expansion/canonical-expansion-001.chems",
+              "construct": "rule applicability request",
+              "span": {
+                "start": 512,
+                "end": 654
+              }
+            }
+          ],
+          "catalogue": [
+            {
+              "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+              "record": "rule Rules.AlkaliMetalWithWater applicability",
+              "premises": [
+                "premise.rule.lithium-water.standard-outcome"
+              ]
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule application",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    }
+  },
+  "reactant_instances": {
+    "lithium[1]": {
+      "binding": "lithium",
+      "ordinal": 1,
+      "instance": {
+        "id": "lithium[1]",
+        "structure": "LithiumMetal",
+        "atom_relabeling": {
+          "li": "lithium[1].li"
+        },
+        "graph": {
+          "atoms": {
+            "lithium[1].li": {
+              "id": "lithium[1].li",
+              "element": "Li",
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "covalent_bonds": {},
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {
+            "lithium[1].metallic": {
+              "id": "lithium[1].metallic",
+              "sites": [
+                "lithium[1].li"
+              ],
+              "delocalized_electrons": 1
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "Reactant binding lithium",
+            "span": {
+              "start": 91,
+              "end": 120
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "coefficient instance lithium[1]",
+            "premises": [
+              "premise.structure.lithium-metal"
+            ]
+          },
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "structure LithiumMetal",
+            "premises": [
+              "premise.structure.lithium-metal"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "lithium[2]": {
+      "binding": "lithium",
+      "ordinal": 2,
+      "instance": {
+        "id": "lithium[2]",
+        "structure": "LithiumMetal",
+        "atom_relabeling": {
+          "li": "lithium[2].li"
+        },
+        "graph": {
+          "atoms": {
+            "lithium[2].li": {
+              "id": "lithium[2].li",
+              "element": "Li",
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "covalent_bonds": {},
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {
+            "lithium[2].metallic": {
+              "id": "lithium[2].metallic",
+              "sites": [
+                "lithium[2].li"
+              ],
+              "delocalized_electrons": 1
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "Reactant binding lithium",
+            "span": {
+              "start": 91,
+              "end": 120
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "coefficient instance lithium[2]",
+            "premises": [
+              "premise.structure.lithium-metal"
+            ]
+          },
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "structure LithiumMetal",
+            "premises": [
+              "premise.structure.lithium-metal"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "water[1]": {
+      "binding": "water",
+      "ordinal": 1,
+      "instance": {
+        "id": "water[1]",
+        "structure": "Water",
+        "atom_relabeling": {
+          "h1": "water[1].h1",
+          "h2": "water[1].h2",
+          "o": "water[1].o"
+        },
+        "graph": {
+          "atoms": {
+            "water[1].h1": {
+              "id": "water[1].h1",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "water[1].h2": {
+              "id": "water[1].h2",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "water[1].o": {
+              "id": "water[1].o",
+              "element": "O",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "covalent_bonds": {
+            "water[1].bond.0": {
+              "id": "water[1].bond.0",
+              "left": "water[1].h1",
+              "right": "water[1].o",
+              "order": "single"
+            },
+            "water[1].bond.1": {
+              "id": "water[1].bond.1",
+              "left": "water[1].h2",
+              "right": "water[1].o",
+              "order": "single"
+            }
+          },
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {}
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "Reactant binding water",
+            "span": {
+              "start": 124,
+              "end": 144
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "coefficient instance water[1]",
+            "premises": [
+              "premise.structure.water"
+            ]
+          },
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "structure Water",
+            "premises": [
+              "premise.structure.water"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "water[2]": {
+      "binding": "water",
+      "ordinal": 2,
+      "instance": {
+        "id": "water[2]",
+        "structure": "Water",
+        "atom_relabeling": {
+          "h1": "water[2].h1",
+          "h2": "water[2].h2",
+          "o": "water[2].o"
+        },
+        "graph": {
+          "atoms": {
+            "water[2].h1": {
+              "id": "water[2].h1",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "water[2].h2": {
+              "id": "water[2].h2",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "water[2].o": {
+              "id": "water[2].o",
+              "element": "O",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "covalent_bonds": {
+            "water[2].bond.0": {
+              "id": "water[2].bond.0",
+              "left": "water[2].h1",
+              "right": "water[2].o",
+              "order": "single"
+            },
+            "water[2].bond.1": {
+              "id": "water[2].bond.1",
+              "left": "water[2].h2",
+              "right": "water[2].o",
+              "order": "single"
+            }
+          },
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {}
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "Reactant binding water",
+            "span": {
+              "start": 124,
+              "end": 144
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "coefficient instance water[2]",
+            "premises": [
+              "premise.structure.water"
+            ]
+          },
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "structure Water",
+            "premises": [
+              "premise.structure.water"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    }
+  },
+  "product_instances": {
+    "hydrogen[1]": {
+      "binding": "hydrogen",
+      "ordinal": 1,
+      "instance": {
+        "id": "hydrogen[1]",
+        "structure": "Hydrogen",
+        "atom_relabeling": {
+          "h1": "hydrogen[1].h1",
+          "h2": "hydrogen[1].h2"
+        },
+        "graph": {
+          "atoms": {
+            "hydrogen[1].h1": {
+              "id": "hydrogen[1].h1",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "hydrogen[1].h2": {
+              "id": "hydrogen[1].h2",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "covalent_bonds": {
+            "hydrogen[1].bond.0": {
+              "id": "hydrogen[1].bond.0",
+              "left": "hydrogen[1].h1",
+              "right": "hydrogen[1].h2",
+              "order": "single"
+            }
+          },
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {}
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "Product binding hydrogen",
+            "span": {
+              "start": 206,
+              "end": 232
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "coefficient instance hydrogen[1]",
+            "premises": [
+              "premise.structure.hydrogen"
+            ]
+          },
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "structure Hydrogen",
+            "premises": [
+              "premise.structure.hydrogen"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "lithiumHydroxide[1]": {
+      "binding": "lithiumHydroxide",
+      "ordinal": 1,
+      "instance": {
+        "id": "lithiumHydroxide[1]",
+        "structure": "LithiumHydroxide",
+        "atom_relabeling": {
+          "hydroxide.h": "lithiumHydroxide[1].hydroxide.h",
+          "hydroxide.o": "lithiumHydroxide[1].hydroxide.o",
+          "lithium.li": "lithiumHydroxide[1].lithium.li"
+        },
+        "graph": {
+          "atoms": {
+            "lithiumHydroxide[1].hydroxide.h": {
+              "id": "lithiumHydroxide[1].hydroxide.h",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "lithiumHydroxide[1].hydroxide.o": {
+              "id": "lithiumHydroxide[1].hydroxide.o",
+              "element": "O",
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            },
+            "lithiumHydroxide[1].lithium.li": {
+              "id": "lithiumHydroxide[1].lithium.li",
+              "element": "Li",
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "covalent_bonds": {
+            "lithiumHydroxide[1].bond.0": {
+              "id": "lithiumHydroxide[1].bond.0",
+              "left": "lithiumHydroxide[1].hydroxide.h",
+              "right": "lithiumHydroxide[1].hydroxide.o",
+              "order": "single"
+            }
+          },
+          "groups": {
+            "lithiumHydroxide[1].hydroxide": {
+              "id": "lithiumHydroxide[1].hydroxide",
+              "atoms": [
+                "lithiumHydroxide[1].hydroxide.h",
+                "lithiumHydroxide[1].hydroxide.o"
+              ]
+            },
+            "lithiumHydroxide[1].lithium": {
+              "id": "lithiumHydroxide[1].lithium",
+              "atoms": [
+                "lithiumHydroxide[1].lithium.li"
+              ]
+            }
+          },
+          "ionic_associations": {
+            "lithiumHydroxide[1].ionic": {
+              "id": "lithiumHydroxide[1].ionic",
+              "components": [
+                "lithiumHydroxide[1].hydroxide",
+                "lithiumHydroxide[1].lithium"
+              ]
+            }
+          },
+          "metallic_domains": {}
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "Product binding lithiumHydroxide",
+            "span": {
+              "start": 160,
+              "end": 202
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "coefficient instance lithiumHydroxide[1]",
+            "premises": [
+              "premise.structure.lithium-hydroxide"
+            ]
+          },
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "structure LithiumHydroxide",
+            "premises": [
+              "premise.structure.lithium-hydroxide"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "lithiumHydroxide[2]": {
+      "binding": "lithiumHydroxide",
+      "ordinal": 2,
+      "instance": {
+        "id": "lithiumHydroxide[2]",
+        "structure": "LithiumHydroxide",
+        "atom_relabeling": {
+          "hydroxide.h": "lithiumHydroxide[2].hydroxide.h",
+          "hydroxide.o": "lithiumHydroxide[2].hydroxide.o",
+          "lithium.li": "lithiumHydroxide[2].lithium.li"
+        },
+        "graph": {
+          "atoms": {
+            "lithiumHydroxide[2].hydroxide.h": {
+              "id": "lithiumHydroxide[2].hydroxide.h",
+              "element": "H",
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "lithiumHydroxide[2].hydroxide.o": {
+              "id": "lithiumHydroxide[2].hydroxide.o",
+              "element": "O",
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            },
+            "lithiumHydroxide[2].lithium.li": {
+              "id": "lithiumHydroxide[2].lithium.li",
+              "element": "Li",
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "covalent_bonds": {
+            "lithiumHydroxide[2].bond.0": {
+              "id": "lithiumHydroxide[2].bond.0",
+              "left": "lithiumHydroxide[2].hydroxide.h",
+              "right": "lithiumHydroxide[2].hydroxide.o",
+              "order": "single"
+            }
+          },
+          "groups": {
+            "lithiumHydroxide[2].hydroxide": {
+              "id": "lithiumHydroxide[2].hydroxide",
+              "atoms": [
+                "lithiumHydroxide[2].hydroxide.h",
+                "lithiumHydroxide[2].hydroxide.o"
+              ]
+            },
+            "lithiumHydroxide[2].lithium": {
+              "id": "lithiumHydroxide[2].lithium",
+              "atoms": [
+                "lithiumHydroxide[2].lithium.li"
+              ]
+            }
+          },
+          "ionic_associations": {
+            "lithiumHydroxide[2].ionic": {
+              "id": "lithiumHydroxide[2].ionic",
+              "components": [
+                "lithiumHydroxide[2].hydroxide",
+                "lithiumHydroxide[2].lithium"
+              ]
+            }
+          },
+          "metallic_domains": {}
+        }
+      },
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "Product binding lithiumHydroxide",
+            "span": {
+              "start": 160,
+              "end": 202
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "coefficient instance lithiumHydroxide[2]",
+            "premises": [
+              "premise.structure.lithium-hydroxide"
+            ]
+          },
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "structure LithiumHydroxide",
+            "premises": [
+              "premise.structure.lithium-hydroxide"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    }
+  },
+  "atom_provenance": {
+    "hydrogen[1].h1": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding hydrogen",
+          "span": {
+            "start": 206,
+            "end": 232
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance hydrogen[1]",
+          "premises": [
+            "premise.structure.hydrogen"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Hydrogen",
+          "premises": [
+            "premise.structure.hydrogen"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Hydrogen expanded atom hydrogen[1].h1",
+          "premises": [
+            "premise.structure.hydrogen"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "hydrogen[1].h2": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding hydrogen",
+          "span": {
+            "start": 206,
+            "end": 232
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance hydrogen[1]",
+          "premises": [
+            "premise.structure.hydrogen"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Hydrogen",
+          "premises": [
+            "premise.structure.hydrogen"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Hydrogen expanded atom hydrogen[1].h2",
+          "premises": [
+            "premise.structure.hydrogen"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithiumHydroxide[1].hydroxide.h": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding lithiumHydroxide",
+          "span": {
+            "start": 160,
+            "end": 202
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithiumHydroxide[1]",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[1].hydroxide.h",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithiumHydroxide[1].hydroxide.o": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding lithiumHydroxide",
+          "span": {
+            "start": 160,
+            "end": 202
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithiumHydroxide[1]",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[1].hydroxide.o",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithiumHydroxide[1].lithium.li": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding lithiumHydroxide",
+          "span": {
+            "start": 160,
+            "end": 202
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithiumHydroxide[1]",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[1].lithium.li",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithiumHydroxide[2].hydroxide.h": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding lithiumHydroxide",
+          "span": {
+            "start": 160,
+            "end": 202
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithiumHydroxide[2]",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[2].hydroxide.h",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithiumHydroxide[2].hydroxide.o": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding lithiumHydroxide",
+          "span": {
+            "start": 160,
+            "end": 202
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithiumHydroxide[2]",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[2].hydroxide.o",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithiumHydroxide[2].lithium.li": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Product binding lithiumHydroxide",
+          "span": {
+            "start": 160,
+            "end": 202
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithiumHydroxide[2]",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[2].lithium.li",
+          "premises": [
+            "premise.structure.lithium-hydroxide"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithium[1].li": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding lithium",
+          "span": {
+            "start": 91,
+            "end": 120
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithium[1]",
+          "premises": [
+            "premise.structure.lithium-metal"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumMetal",
+          "premises": [
+            "premise.structure.lithium-metal"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumMetal expanded atom lithium[1].li",
+          "premises": [
+            "premise.structure.lithium-metal"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "lithium[2].li": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding lithium",
+          "span": {
+            "start": 91,
+            "end": 120
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance lithium[2]",
+          "premises": [
+            "premise.structure.lithium-metal"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumMetal",
+          "premises": [
+            "premise.structure.lithium-metal"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure LithiumMetal expanded atom lithium[2].li",
+          "premises": [
+            "premise.structure.lithium-metal"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "water[1].h1": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding water",
+          "span": {
+            "start": 124,
+            "end": 144
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance water[1]",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water expanded atom water[1].h1",
+          "premises": [
+            "premise.structure.water"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "water[1].h2": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding water",
+          "span": {
+            "start": 124,
+            "end": 144
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance water[1]",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water expanded atom water[1].h2",
+          "premises": [
+            "premise.structure.water"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "water[1].o": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding water",
+          "span": {
+            "start": 124,
+            "end": 144
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance water[1]",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water expanded atom water[1].o",
+          "premises": [
+            "premise.structure.water"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "water[2].h1": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding water",
+          "span": {
+            "start": 124,
+            "end": 144
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance water[2]",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water expanded atom water[2].h1",
+          "premises": [
+            "premise.structure.water"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "water[2].h2": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding water",
+          "span": {
+            "start": 124,
+            "end": 144
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance water[2]",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water expanded atom water[2].h2",
+          "premises": [
+            "premise.structure.water"
+          ]
+        }
+      ],
+      "evidence": []
+    },
+    "water[2].o": {
+      "source": [
+        {
+          "source": "conformance/expansion/canonical-expansion-001.chems",
+          "construct": "Reactant binding water",
+          "span": {
+            "start": 124,
+            "end": 144
+          }
+        }
+      ],
+      "catalogue": [
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "coefficient instance water[2]",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water",
+          "premises": [
+            "premise.structure.water"
+          ]
+        },
+        {
+          "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+          "record": "structure Water expanded atom water[2].o",
+          "premises": [
+            "premise.structure.water"
+          ]
+        }
+      ],
+      "evidence": []
+    }
+  },
+  "mapping": {
+    "id": "mapping.LithiumAndWater",
+    "entries": {
+      "lithium[1].li": "lithiumHydroxide[1].lithium.li",
+      "lithium[2].li": "lithiumHydroxide[2].lithium.li",
+      "water[1].h1": "hydrogen[1].h1",
+      "water[1].h2": "lithiumHydroxide[1].hydroxide.h",
+      "water[1].o": "lithiumHydroxide[1].hydroxide.o",
+      "water[2].h1": "hydrogen[1].h2",
+      "water[2].h2": "lithiumHydroxide[2].hydroxide.h",
+      "water[2].o": "lithiumHydroxide[2].hydroxide.o"
+    }
+  },
+  "mapping_entry_provenance": {
+    "lithium[1].li": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 1",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.lithium-hydroxide",
+        "premise.structure.lithium-metal"
+      ]
+    },
+    "lithium[2].li": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 2",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.lithium-hydroxide",
+        "premise.structure.lithium-metal"
+      ]
+    },
+    "water[1].h1": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 3",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.hydrogen",
+        "premise.structure.water"
+      ]
+    },
+    "water[1].h2": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 4",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.lithium-hydroxide",
+        "premise.structure.water"
+      ]
+    },
+    "water[1].o": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 5",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.lithium-hydroxide",
+        "premise.structure.water"
+      ]
+    },
+    "water[2].h1": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 6",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.hydrogen",
+        "premise.structure.water"
+      ]
+    },
+    "water[2].h2": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 7",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.lithium-hydroxide",
+        "premise.structure.water"
+      ]
+    },
+    "water[2].o": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "rule Rules.AlkaliMetalWithWater mapping pair 8",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.structure.lithium-hydroxide",
+        "premise.structure.water"
+      ]
+    }
+  },
+  "mapping_provenance": {
+    "source": [
+      {
+        "source": "conformance/expansion/canonical-expansion-001.chems",
+        "construct": "rule role gasProduct",
+        "span": {
+          "start": 631,
+          "end": 654
+        }
+      },
+      {
+        "source": "conformance/expansion/canonical-expansion-001.chems",
+        "construct": "rule role hydroxide",
+        "span": {
+          "start": 595,
+          "end": 625
+        }
+      },
+      {
+        "source": "conformance/expansion/canonical-expansion-001.chems",
+        "construct": "rule role metal",
+        "span": {
+          "start": 551,
+          "end": 568
+        }
+      },
+      {
+        "source": "conformance/expansion/canonical-expansion-001.chems",
+        "construct": "rule role water",
+        "span": {
+          "start": 574,
+          "end": 589
+        }
+      }
+    ],
+    "catalogue": [
+      {
+        "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+        "record": "rule Rules.AlkaliMetalWithWater atom mapping template",
+        "premises": [
+          "premise.rule.lithium-water.standard-outcome",
+          "premise.structure.hydrogen",
+          "premise.structure.lithium-hydroxide",
+          "premise.structure.lithium-metal",
+          "premise.structure.water"
+        ]
+      }
+    ],
+    "evidence": []
+  },
+  "operations": [
+    {
+      "ordinal": 1,
+      "operation": {
+        "id": "operation[1]",
+        "kind": "release_metallic",
+        "site": "lithium[1].li",
+        "domain": "lithium[1].metallic",
+        "allocation": "retain_electron",
+        "transition": {
+          "atom": "lithium[1].li",
+          "before": {
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          },
+          "after": {
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1
+          }
+        },
+        "domain_electrons_before": 1,
+        "domain_electrons_after": 0
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 1",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 1",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-metal",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 2,
+      "operation": {
+        "id": "operation[2]",
+        "kind": "release_metallic",
+        "site": "lithium[2].li",
+        "domain": "lithium[2].metallic",
+        "allocation": "retain_electron",
+        "transition": {
+          "atom": "lithium[2].li",
+          "before": {
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          },
+          "after": {
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1
+          }
+        },
+        "domain_electrons_before": 1,
+        "domain_electrons_after": 0
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 2",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 2",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-metal",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 3,
+      "operation": {
+        "id": "operation[3]",
+        "kind": "cleave_covalent",
+        "left": "water[1].o",
+        "right": "water[1].h1",
+        "expected_order": "single",
+        "allocation": {
+          "heterolytic_to": "water[1].o"
+        },
+        "transitions": {
+          "water[1].h1": {
+            "atom": "water[1].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          },
+          "water[1].o": {
+            "atom": "water[1].o",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            }
+          }
+        }
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 3",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 3",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.water",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 4,
+      "operation": {
+        "id": "operation[4]",
+        "kind": "cleave_covalent",
+        "left": "water[2].o",
+        "right": "water[2].h1",
+        "expected_order": "single",
+        "allocation": {
+          "heterolytic_to": "water[2].o"
+        },
+        "transitions": {
+          "water[2].h1": {
+            "atom": "water[2].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          },
+          "water[2].o": {
+            "atom": "water[2].o",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            }
+          }
+        }
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 4",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 4",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.water",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 5,
+      "operation": {
+        "id": "operation[5]",
+        "kind": "transfer_electron",
+        "donor": "lithium[1].li",
+        "acceptor": "water[1].h1",
+        "count": 1,
+        "transitions": {
+          "lithium[1].li": {
+            "atom": "lithium[1].li",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          },
+          "water[1].h1": {
+            "atom": "water[1].h1",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            }
+          }
+        }
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 5",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 5",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-metal",
+              "premise.structure.water",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 6,
+      "operation": {
+        "id": "operation[6]",
+        "kind": "transfer_electron",
+        "donor": "lithium[2].li",
+        "acceptor": "water[2].h1",
+        "count": 1,
+        "transitions": {
+          "lithium[2].li": {
+            "atom": "lithium[2].li",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          },
+          "water[2].h1": {
+            "atom": "water[2].h1",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            }
+          }
+        }
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 6",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 6",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-metal",
+              "premise.structure.water",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 7,
+      "operation": {
+        "id": "operation[7]",
+        "kind": "form_covalent",
+        "left": "water[1].h1",
+        "right": "water[2].h1",
+        "order": "single",
+        "transitions": {
+          "water[1].h1": {
+            "atom": "water[1].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          },
+          "water[2].h1": {
+            "atom": "water[2].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          }
+        }
+      },
+      "electron_contribution": {
+        "left": 1,
+        "right": 1
+      },
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 7",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 7",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.hydrogen",
+              "premise.structure.water",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 8,
+      "operation": {
+        "id": "operation[8]",
+        "kind": "associate_ionic",
+        "association": {
+          "id": "ionic[8].ionic.product1",
+          "components": [
+            "ionic[8].component[1]",
+            "ionic[8].component[2]"
+          ]
+        }
+      },
+      "electron_contribution": null,
+      "ionic_components": [
+        {
+          "group": {
+            "id": "ionic[8].component[1]",
+            "atoms": [
+              "lithium[1].li"
+            ]
+          },
+          "expected_charge": 1
+        },
+        {
+          "group": {
+            "id": "ionic[8].component[2]",
+            "atoms": [
+              "water[1].h2",
+              "water[1].o"
+            ]
+          },
+          "expected_charge": -1
+        }
+      ],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 8",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 8",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-hydroxide",
+              "premise.structure.lithium-metal",
+              "premise.structure.water",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 9,
+      "operation": {
+        "id": "operation[9]",
+        "kind": "associate_ionic",
+        "association": {
+          "id": "ionic[9].ionic.product2",
+          "components": [
+            "ionic[9].component[1]",
+            "ionic[9].component[2]"
+          ]
+        }
+      },
+      "electron_contribution": null,
+      "ionic_components": [
+        {
+          "group": {
+            "id": "ionic[9].component[1]",
+            "atoms": [
+              "lithium[2].li"
+            ]
+          },
+          "expected_charge": 1
+        },
+        {
+          "group": {
+            "id": "ionic[9].component[2]",
+            "atoms": [
+              "water[2].h2",
+              "water[2].o"
+            ]
+          },
+          "expected_charge": -1
+        }
+      ],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 9",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 9",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-hydroxide",
+              "premise.structure.lithium-metal",
+              "premise.structure.water",
+              "premise.valence.li-h-o.initial-domain"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 10,
+      "operation": {
+        "id": "operation[10]",
+        "kind": "assign_product",
+        "atoms": [
+          "lithium[1].li",
+          "water[1].h2",
+          "water[1].o"
+        ],
+        "product": "lithiumHydroxide[1]"
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 10",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 10",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-hydroxide"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 11,
+      "operation": {
+        "id": "operation[11]",
+        "kind": "assign_product",
+        "atoms": [
+          "lithium[2].li",
+          "water[2].h2",
+          "water[2].o"
+        ],
+        "product": "lithiumHydroxide[2]"
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 11",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 11",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.lithium-hydroxide"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "ordinal": 12,
+      "operation": {
+        "id": "operation[12]",
+        "kind": "assign_product",
+        "atoms": [
+          "water[1].h1",
+          "water[2].h1"
+        ],
+        "product": "hydrogen[1]"
+      },
+      "electron_contribution": null,
+      "ionic_components": [],
+      "provenance": {
+        "source": [
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "operation template 12",
+            "span": {
+              "start": 512,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role gasProduct",
+            "span": {
+              "start": 631,
+              "end": 654
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role hydroxide",
+            "span": {
+              "start": 595,
+              "end": 625
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role metal",
+            "span": {
+              "start": 551,
+              "end": 568
+            }
+          },
+          {
+            "source": "conformance/expansion/canonical-expansion-001.chems",
+            "construct": "rule role water",
+            "span": {
+              "start": 574,
+              "end": 589
+            }
+          }
+        ],
+        "catalogue": [
+          {
+            "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+            "record": "rule Rules.AlkaliMetalWithWater operation template 12",
+            "premises": [
+              "premise.rule.lithium-water.standard-outcome",
+              "premise.structure.hydrogen"
+            ]
+          }
+        ],
+        "evidence": []
+      }
+    }
+  ],
+  "premises": [
+    "premise.observation.hydrogen-evolves",
+    "premise.observation.lithium-disappears",
+    "premise.rule.lithium-water.standard-outcome",
+    "premise.structure.hydrogen",
+    "premise.structure.lithium-hydroxide",
+    "premise.structure.lithium-metal",
+    "premise.structure.water",
+    "premise.valence.li-h-o.initial-domain"
+  ],
+  "premise_provenance": {
+    "premise.observation.hydrogen-evolves": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.observation.hydrogen-evolves",
+      "premises": [
+        "premise.observation.hydrogen-evolves"
+      ]
+    },
+    "premise.observation.lithium-disappears": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.observation.lithium-disappears",
+      "premises": [
+        "premise.observation.lithium-disappears"
+      ]
+    },
+    "premise.rule.lithium-water.standard-outcome": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.rule.lithium-water.standard-outcome",
+      "premises": [
+        "premise.rule.lithium-water.standard-outcome"
+      ]
+    },
+    "premise.structure.hydrogen": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.structure.hydrogen",
+      "premises": [
+        "premise.structure.hydrogen"
+      ]
+    },
+    "premise.structure.lithium-hydroxide": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.structure.lithium-hydroxide",
+      "premises": [
+        "premise.structure.lithium-hydroxide"
+      ]
+    },
+    "premise.structure.lithium-metal": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.structure.lithium-metal",
+      "premises": [
+        "premise.structure.lithium-metal"
+      ]
+    },
+    "premise.structure.water": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.structure.water",
+      "premises": [
+        "premise.structure.water"
+      ]
+    },
+    "premise.valence.li-h-o.initial-domain": {
+      "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+      "record": "catalogue premise premise.valence.li-h-o.initial-domain",
+      "premises": [
+        "premise.valence.li-h-o.initial-domain"
+      ]
+    }
+  }
+}

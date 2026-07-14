@@ -3,7 +3,7 @@
 //! Registry entries are reaction-agnostic. Reviewed scene plans select these
 //! typed profiles and the renderer instantiates their shared mesh recipes.
 
-use chem_catalogue::{AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile};
+use chem_presentation::{AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssetGeometry {
@@ -201,7 +201,7 @@ pub const fn camera_pose(behaviour: CameraBehaviour) -> CameraPose {
 
 #[cfg(test)]
 mod tests {
-    use chem_catalogue::{AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile};
+    use chem_presentation::{AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile};
 
     use super::{asset_geometry, camera_pose, effect_dynamics, effect_geometry};
 

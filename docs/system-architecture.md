@@ -4,378 +4,166 @@
 
 ChemSpec has four distinct authorities:
 
-> The agent produces text; the validator produces trust; the chemistry engine
-> produces meaning; the application produces the experience.
+> The catalogue supplies reviewed chemistry; the agent proposes source and
+> observations; the kernel produces trust and structural meaning; the
+> application produces the experience.
 
-No component may bypass the component immediately downstream of it.
+No downstream component may synthesize chemistry omitted by the component
+upstream of its trust boundary.
 
 ## Runtime flow
 
 ```text
-Visual reaction-builder request or natural-language request
-    -> AgentProvider
-    -> research packet + .chems source
-    -> chems-lang parser
-    -> chem-engine validator
-    -> ValidatedExperiment
-    -> simulation model
-    -> SimulationFrame
-    -> Iced/wgpu presentation
+natural-language reaction request
+  -> catalogue identity resolution
+  -> reviewed-rule applicability
+     -> unsupported / no reaction / ambiguous / invalid: stop honestly
+     -> unique supported outcome: continue
+  -> provider researches typed observations
+  -> provider authors concise structural .chems 1
+  -> chems-lang parses source
+  -> chem-kernel resolves and expands reviewed rule
+  -> chem-kernel validates immutable structural derivation
+  -> ValidatedStructuralReaction
+  -> paired structural and observation frames
+  -> chem-presentation guided and macroscopic plans
+  -> Iced Canvas/wgpu presentation
+  -> provider supplies post-playback overview
 ```
 
-The reviewed automatic-animation branch refines the middle of that flow:
+The simulation does not parse `.chems`; the agent does not construct trusted
+domain values; the renderer does not infer bonds; and the application cannot
+mark a reaction valid.
+
+## Workspace boundaries
 
 ```text
-.chems source -> chems-lang -> chem-catalogue rule resolution
-    -> chem-engine expansion and mandatory validation
-    -> ValidatedStructuralReaction
-       -> StructuralFrame sequence -> EducationalScenePlanner -> 2D renderer
-       -> reviewed presentation metadata -> RealWorldScenePlanner
-          -> reusable asset/effect/camera registries -> 3D renderer
-```
-
-Reverse dependencies are prohibited:
-
-- the validator does not depend on the UI;
-- the simulation does not parse `.chems`;
-- the agent does not construct particles or validated domain values;
-- the renderer does not infer chemistry;
-- the application cannot mark an experiment valid.
-
-## Proposed Rust workspace
-
-```text
-                         ┌───────────────┐
-                         │ chemspec-app  │
-                         └───────┬───────┘
-             ┌───────────┬───────┼───────────┐
-             ▼           ▼       ▼           ▼
-        chems-lang  chem-engine  agent   simulation
-             │       │   │                     │
-             │       │   ▼                     │
-             │       │ chem-catalogue          │
-             └───────┴─────────────┬───────────┘
-                                   ▼
-                              chem-domain
+                         chemspec-app
+                    /        |          \
+            chems-lang   chem-presentation  agent
+                              |
+                         chem-kernel
+                           /     \
+                 chem-catalogue  chem-domain
 ```
 
 ### `chem-domain`
 
-Pure, stable domain types:
+Pure stable types for elements, formulae, typed IDs, atom/electron state,
+shared and directed dative covalent graphs, groups, ionic association, metallic
+domains, reaction instances, atom mappings, structural operations, immutable
+graph states, derivations, validated artifacts, and renderer-independent frames.
 
-- elements and formulas;
-- charges and phases;
-- quantities and units;
-- substance identifiers;
-- reactions and observations;
-- assumptions;
-- derivation records;
-- `ValidatedExperiment`.
-
-It has no parsing, networking, Iced, or GPU dependencies.
+It has no parsing, catalogue I/O, UI, networking, provider, or GPU dependency.
 
 ### `chems-lang`
 
-Source-language concerns:
-
-- lexer and parser;
-- source spans;
-- syntax tree;
-- formatter;
-- syntax diagnostics;
-- `.chems` serialization.
-
-It may use domain primitives such as formulas and quantities, but it does not
-decide whether a reaction is chemically supported.
-
-### `chem-engine`
-
-Trusted chemical meaning:
-
-- semantic name and type resolution;
-- deterministic reviewed-rule expansion;
-- structural graph-state and operation validation;
-- equation validation;
-- product inference;
-- stoichiometry;
-- validation derivations;
-- construction of `ValidatedExperiment`.
-
-This is the only crate allowed to construct a validated experiment.
+Owns `chems 1` dispatch, encoding/layout lexing, lossless CST, source AST,
+comments, spans, formatting, and syntax diagnostics. It constructs unresolved
+source only and cannot decide chemical support.
 
 ### `chem-catalogue`
 
-Reviewed immutable chemistry inputs:
+Owns immutable reviewed structure entries, groups, valence/electron premises,
+reaction applicability, product/map/operation templates, observation
+compatibility, provenance, review attestations, schema versions, semantic
+digests, validation, and deterministic indexes.
 
-- versioned catalogue identity and canonical digest;
-- species, phases, elements, evidence, and review status;
-- reviewed structural-rule records;
-- stable atom identities, immutable graph states, operations, and observations.
+The implemented generalized-rules design extends this boundary with an
+element registry, derived reviewed categories, checked structural traits,
+structure templates, graph patterns, and inert family-rule records. G0–G6 are
+complete and compile supported family members into the concrete kernel path.
 
-It validates catalogue integrity but does not confer reaction trust. Only the
-chemistry engine may turn a selected record into `ValidatedStructuralReaction`.
+### `chem-kernel`
+
+Owns catalogue resolution, rule-role checking, deterministic expansion, typed
+HIR, expanded certificates, graph-state execution, structural invariants,
+conservation proofs, derivations, and private construction of
+`ValidatedStructuralReaction`.
+
+Generalized matching and rewrite instantiation remain on the elaboration side
+of this crate: they compile to the existing concrete expanded reaction
+before graph-state validation begins.
 
 ### `agent`
 
-Provider-neutral agent orchestration:
+Owns provider preflight, observation research, evidence packets, concise source
+proposal, bounded repair, post-simulation overview, cancellation, timeouts, and
+normalized workflow events. It returns claims and text, never trusted chemistry.
 
-- `CodexCliProvider`;
-- `ResponsesApiProvider`;
-- preflight and availability checks;
-- workflow events;
-- structured research results;
-- source generation;
-- provenance;
-- bounded repair requests;
-- cancellation and timeouts.
+### `chem-presentation`
 
-It returns `.chems` source and provenance, never trusted chemistry.
-
-### `simulation`
-
-Renderer-independent explanatory model:
-
-- representative particle identities;
-- reaction stages;
-- phase-specific behaviour;
-- precipitation aggregation;
-- gas bubbles;
-- playback and timeline state;
-- conversion from `ValidatedExperiment` to render snapshots.
-
-The chemistry engine determines the maximum reaction extent. Simulation state
-cannot consume more of a species than the validated result permits.
+Compiles trusted kernel frames into deterministic educational scenes and binds
+host-selected macroscopic styling into a scene plan. Effects require matching
+validated observation predicates. It cannot parse source, expand rules, alter
+frames, or construct chemical state.
 
 ### `chemspec-app`
 
-Product composition:
-
-- Iced state, messages, tasks, and subscriptions;
-- visual reaction-builder composition and element catalogue presentation;
-- startup and provider selection;
-- request composer and workflow timeline;
-- `.chems` editor;
-- diagnostics and derivation views;
-- source cards and provenance;
-- simulation controls;
-- Iced/wgpu particle widget;
-- native storage and credential integration.
-
-Only this crate depends on Iced and `iced_wgpu`.
+Composes request states, provider selection, visible workflow, source editing,
+expanded-certificate inspection, diagnostics, derivations, paired playback,
+guided 2D and macroscopic 3D views, and overview. Only the application depends
+on Iced and GPU presentation.
 
 ## Shared contracts
 
-### `ValidatedExperiment`
-
-The exact Rust representation will evolve, but it must preserve:
+### `ResolvedReactionClaim`
 
 ```text
-ValidatedExperiment
-  catalogue version and digest
-  declared conditions
-  normalized input substances and quantities
-  supported reaction class
-  normalized equations
-  limiting reagent
-  consumed and remaining quantities
-  products and phases
-  supported observations
-  explicit assumptions
-  derivation artifact
+source hash and catalogue version/digest
+declared reactants, products, coefficients, and equation
+model disclosures
+evidence packet and typed observation references
+selected rule and complete role binding
+source origins
 ```
 
-It must be impossible to construct this type through ordinary public fields.
-Construction remains inside the chemistry engine.
-
-### `AgentEvent`
-
-Provider-specific events are normalized into product events:
+### `ExpandedStructuralReaction`
 
 ```text
-AgentEvent
-  interpreting
-  substance_identified
-  researching
-  source_found
-  hypothesis_formed
-  drafting
-  source_generated
-  validating
-  repair_started
-  repair_applied
-  completed
-  redirected
-  unsupported
-  failed
+resolved reaction claim
+stable expanded reactant/product instances
+total atom map
+ordered typed operations
+all proof-relevant premise IDs
+canonical expanded certificate and digest
 ```
 
-The UI may preserve raw provider diagnostics for troubleshooting, but it should
-not expose hidden chain-of-thought or depend on provider-specific event shapes.
-
-### Research result
-
-Both providers return the same strict structured result:
+### `ValidatedStructuralReaction`
 
 ```text
-ResearchResult
-  interpreted request
-  identified substances
-  conditions and assumptions
-  evidence claims
-  source metadata
-  reaction hypothesis
-  generated .chems source
-  safety disposition
+expanded reaction
+immutable graph state before and after every operation
+atom/map/charge/electron/final-product derivation
+validated observations and model disclosures
+private construction token
 ```
 
-## Iced application model
-
-Iced's update loop owns product state transitions. Background provider work and
-validation are represented as tasks that return typed messages. Subscriptions
-exist only while a continuing source of events is active, such as a provider
-process or playing simulation.
-
-Suggested feature state boundaries:
+### `SimulationFrame`
 
 ```text
-App
-  reaction_builder
-    element_library
-    workspace
-    sequence
-  startup
-  provider
-  workflow
-  editor
-  experiment
-  simulation
-  sources
+observation stage
+structural state
+  stable atoms and charge/electron presentation
+  shared and directed dative covalent edges
+  ionic associations
+  metallic domains
+  changed relationships
+  product membership
+active operation
+explanatory disclosure
 ```
 
-The reaction builder owns only presentation and user intent. Element metadata
-shown by `element_library` is a complete UI catalogue; selecting or dragging an
-element cannot construct a compound, reaction, or `ValidatedExperiment`.
-`reactant_composer` owns two ordered element drafts, the active input slot, and
-interface history. Its formula strings and composition matches are derived
-presentation. Its active-model canvas reuses deterministic atomic and covalent
-preview drawing. Starting a supported preview copies the exact element
-identities into `workspace` and requests its existing sequence transition; it
-does not bypass parsing or validation.
-`workspace` stores placed element identities and normalized presentation
-positions. Its small closed-world combination catalogue may label a grouping
-as a composition preview and present its members as one compound card, but the
-preview is not a supported-reaction verdict and never constructs a trusted
-domain value. Member atom identities remain the durable state; the compound
-card is derived presentation. The workspace manipulation view is retained as
-internal component capability but is no longer a separate canonical screen.
-The workspace will eventually
-serialize typed user intent for the normal parser/validator path. `sequence`
-and result presentation must consume engine or simulation outputs rather than
-infer chemistry from tile placement.
+## Persistence and staleness
 
-Stage 3 atomic canvases are also derived presentation. They consume curated
-element shell metadata and existing composition-preview membership, and may
-animate only illustrative outer-electron positions. Grouped compositions keep
-their member atomic models visible and may mark curated covalent relationships
-with shared-electron pairs. They cannot create a validated reaction sequence,
-result state, or `SimulationFrame`.
-
-The Stage 4 reaction-candidate catalogue is an input-composition affordance,
-not the chemistry catalogue. A match may enable and queue the trigger, while an
-exact mismatch disables it. Neither branch validates chemistry. The queued
-candidate must still travel through the provider, parser, chemistry engine, and
-validated simulation boundary before any validated reaction animation can
-begin.
-
-The previous Stage 5 formula-driven storyboard is not an allowed animation
-boundary. Until language Slices 3–11 establish catalogue resolution, reviewed
-rule expansion, trusted validation, a privately constructed
-`ValidatedStructuralReaction`, and renderer-independent structural frames, the
-application displays a non-animating validation gate.
-
-After that gate exists, frame generation remains downstream of the trusted
-artifact and upstream of the educational planner. Presentation may interpolate
-positions, easing, labels, and highlights, but it cannot alter atom identities,
-bonding domains, electrons, formal charges, product membership, operations,
-observations, or disclosures. The separate real-world planner consumes the
-validated reaction, typed observations, and reviewed macroscopic presentation
-metadata; it does not turn atom coordinates into a laboratory scene. The 3D
-view must reuse Iced's renderer device and surface; it may add a custom wgpu
-primitive but may not create another adapter, device, event loop, or window
-surface.
-
-Stale asynchronous results carry a request or generation identifier and are
-ignored when they no longer match active state.
-
-## GPU boundary
-
-The first renderer is a clear 2D vessel. It should use Iced's existing native
-`iced_wgpu` renderer rather than creating a second window surface, adapter, or
-device.
-
-The particle widget may begin with Iced canvas or mesh primitives and progress
-to a custom shader with instanced buffers. The boundary remains the same:
-
-- simulation owns meaningful particle state;
-- the widget owns persistent GPU pipelines, buffers, bind groups, and meshes;
-- only changed instance data is uploaded;
-- the GPU renders the explanatory state but does not decide chemistry.
-
-## Simulation fidelity
-
-The simulation must faithfully preserve:
-
-- stoichiometric ratios;
-- limiting-reagent consumption;
-- remaining quantities;
-- phases;
-- spectator ions;
-- the validated reaction sequence;
-- supported observable effects.
-
-It explicitly treats particle count, size, colour, speed, spatial density,
-water representation, and elapsed time as illustrative.
-
-Fidelity can grow in this order:
-
-1. Stoichiometric transformation.
-2. Phase-specific motion and appearance.
-3. Concentration- and quantity-sensitive presentation.
-4. Qualitative, evidence-backed relative timing.
-5. Specialized physical models only for domains that justify them.
-
-## Persistence
-
-The human-authored artifact is the `.chems` file. Generated provenance is stored
-separately and associated through a source hash:
-
-```text
-experiment.chems
-experiment provenance
-  source hash
-  catalogue version and digest
-  provider and model
-  evidence packet
-  source annotations
-  validation report
-  timestamps
-```
-
-The application may bundle these records for export, but the generated metadata
-must not clutter or silently modify the source language.
+The `.chems` file is the human-readable authored artifact. Evidence,
+certificate, derivation, and frames remain separate and bind to source,
+catalogue, and evidence digests. Editing source or changing either trusted
+digest invalidates every downstream value.
 
 ## Platform decision
 
-ChemSpec remains a native Rust application using Iced and `wgpu` on macOS,
-Windows, and Linux. An Electron or browser shell would add a second language
-boundary without improving the validator, process integration, native
-credential storage, or renderer architecture.
-
-Platform-specific code should be limited to binary discovery, credential
-storage, file dialogs, and packaging.
-
-## Framework references
-
-- [Iced 0.14](https://github.com/iced-rs/iced/tree/0.14.0)
-- [`iced_wgpu`](https://github.com/iced-rs/iced/blob/0.14.0/wgpu/README.md)
-- [`wgpu` API documentation](https://docs.rs/wgpu/latest/wgpu/)
+ChemSpec remains a native Rust application using Iced and `wgpu`. Platform code
+is limited to provider discovery, storage, credentials, file dialogs, process
+management, and packaging. Structural meaning remains platform- and
+renderer-independent.

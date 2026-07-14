@@ -2,17 +2,16 @@
 
 ## Decision
 
-ChemSpec provides two separate generated experiences downstream of one current
-`ValidatedStructuralReaction`:
+ChemSpec provides two separate generated experiences downstream of one current,
+trusted `SimulationFrames` generation:
 
 ```text
-.chems -> parse/type-check/validate -> ValidatedStructuralReaction
-  + StructuralFrame[]
+.chems -> parse/expand/validate -> SimulationFrames
   -> EducationalScenePlanner
   -> typed scenes + narration + absolute playhead
   -> reusable 2D renderer
 
-ValidatedStructuralReaction + reviewed PresentationMetadata
+SimulationFrames + host-selected PresentationProfile
   -> RealWorldScenePlanner
   -> ScenePlan + typed annotations + macroscopic beat timeline
   -> asset/effect/camera registries -> 3D renderer
@@ -26,9 +25,11 @@ animation module.
 
 `.chems` selects the reviewed rule and preserves the mandatory representative
 and explanatory disclosures. The immutable catalogue owns stable atoms,
-structural states, typed operations, observations, and separately reviewed
-macroscopic presentation metadata. `chem-engine` is the only layer that can
-construct the trusted reaction consumed by either planner.
+structural states, typed operations, and observation predicates. `chem-kernel`
+is the only layer that can construct the trusted `SimulationFrames` consumed by
+either planner. The application may select visual assets, timing, camera cues,
+and display copy through a `PresentationProfile`, but that profile cannot add or
+alter chemistry.
 
 The educational planner may choose pacing, grouping, focus, annotations, and
 transitions. It may not invent or reorder chemical changes in a way that changes
@@ -40,8 +41,7 @@ Educational wording follows the same boundary. `.chems` selects the experiment,
 reactants, reviewed structural rule, expected products, and observations; it does
 not need to contain a bespoke animation script or unstructured caption prose.
 After validation, `chem-presentation` composes learner-facing wording from the
-current `ValidatedStructuralReaction`, trusted structural frames, typed
-operations, reviewed equation terms, and typed observations. This is a local,
+current trusted frames, typed operations, and typed observations. This is a local,
 deterministic template system. It does not call an AI model, provider, network
 service, or runtime text generator.
 
@@ -54,20 +54,18 @@ formation, and summary. Reusable cues include focus, highlight, electron-state
 display, typed structural-operation animation, observation display, equation
 emphasis, and transition.
 
-Balanced coefficients and display formulae are reviewed catalogue fields bound
-into the validated reaction. The planner passes that typed equation through;
-neither the planner nor the renderer derives stoichiometry from drawn atoms.
+The host-selected profile supplies the display equation for the current pinned
+experience. Neither planner nor renderer derives stoichiometry from drawn atoms,
+and the displayed equation never authorizes structural or observational state.
 
 ### Deterministic educational narration
 
 The educational planner owns a reusable narration vocabulary keyed by typed
-meaning rather than reaction names. For example, a `FormCovalent` operation may
-produce a bond-formation label populated with the affected element symbols and
-reviewed bond order; an electron-transfer operation may name its validated donor,
-acceptor, and electron count; and an observation label may use the reviewed
-product formula and typed observation value. Introductory and summary copy is
-assembled from the validated equation sides rather than handwritten for a
-particular fixture.
+meaning rather than reaction names. For example, a `FormCovalent` operation
+produces a bond-formation explanation targeted at the affected atoms, while an
+observation predicate selects gas-evolution, consumption, product-formation, or
+colour wording. Introductory and summary copy remains generic unless the pinned
+presentation profile supplies learner-facing display text.
 
 The planner emits completed typed labels such as `ContextLabel` and
 `ExplanationLabel`. A label carries its semantic kind, already composed title
@@ -83,9 +81,9 @@ label. It must not:
 
 This separation makes narration modular without moving authority into prose.
 A new supported reaction reuses operation and observation templates, while its
-validated symbols, formulae, charges, bond orders, electron counts, products,
-and observations supply the reaction-specific content. The same validated
-reaction, frame sequence, template version, and playhead always produce the
+validated atom state, bond orders, electron counts, products, and observations
+supply the reaction-specific content. The same trusted frame sequence, profile,
+template version, and playhead always produce the
 same wording, targets, and timing. A change to source or catalogue meaning
 invalidates the plan before any replacement narration can be shown.
 

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "selected_case": "standard",
+  "equivalent_match_count": 4,
+  "mapping_entries": 8,
+  "concrete_operations": 12,
+  "unresolved_generic_values": 0,
+  "member_applications": {
+    "Li": ["LithiumMetal", "LithiumHydroxide"],
+    "Na": ["SodiumMetal", "SodiumHydroxide"],
+    "K": ["PotassiumMetal", "PotassiumHydroxide"]
+  },
+  "certificate_fields": [
+    "parameters",
+    "selected case",
+    "equivalent match count",
+    "instantiated applications",
+    "parameter premises",
+    "role premises",
+    "matched sites"
+  ]
+}

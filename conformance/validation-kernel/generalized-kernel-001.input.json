@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "fixture": "generalized-kernel-001",
+  "expansion_input": "conformance/expansion/alkali-water-members-001.input.json",
+  "frame_oracle": "conformance/frames/alkali-water-frames-001.expected.json"
+}

@@ -1,75 +1,35 @@
 chems 1
-use catalog ChemSpec.Aqueous@1.0
-experiment AllForms where
-  conditions
-    pressure := 1 kg*m/s^2
-    medium := ChemSpec.Water
-    temperature := +25.00 degC
-  assuming
-    ChemSpec.StandardConditions
-    ChemSpec.Pure for water
-    ChemSpec.Equilibrium at initial
-    ChemSpec.StageRule for salt at mixed
-  given
-    water := 10.0 mL of H2O(l)
-    salt := 1 mol of NaCl(s)
-    acid := 1 mol of 1 mol/L HCl(aq)
-    mixture := prepared
-      5 mL of H2O(l)
-      0.5 mol of Ca(OH)2(s)
-  vessels
-    beaker := open vessel 250 mL
-    flask := closed vessel 1 L
-    filtrate := open vessel 100 mL
-    residue := open vessel 100 mL
-  procedure
-    place salt in beaker
-    add water to beaker
-    mixed: combine acid with mixture in flask
-    transfer 5 mL from beaker to flask
-    stir flask for 2 min
-    heat flask to 80 degC
-    cool flask to 20 degC
-    wait 30 s
-    seal flask
-    open flask
-    filter flask into filtrate and residue
-    decant filtrate into beaker
+use catalog ChemSpec.Structural@1.2.0
+
+reaction AllProductions where
+  reactants
+    calciumHydroxide := 2 of CalciumHydroxide
+    copperSulfate := 1 of CopperSulfatePentahydrate
+
+  products
+    calciumIon := 2 of CalciumIon
+    hydroxide := 4 of HydroxideIon
+    copper := 1 of CopperMetal
+    sulfate := 1 of SulfateIon
+
+  equation
+    2 Ca(OH)2[molecular]
+    + CuSO4.5H2O[molecular]
+    -> 2 Ca[ion] + 4 OH[ionic] + Cu[metallic] + SO4[ion]
+
   model
     event := representative
     sequence := explanatory
-    structuralRule := ChemSpec.Structural.Test.AllForms
-  expect at mixed
-    class := precipitation
-    produces Ca^2+(aq)
-    consumes ?
-    remains H2O(l)
-    spectator Cl^-(aq)
-    molecular := 2 H2(g) + O2(g) -> 2 H2O(l)
-    completeIonic :=
-      Na^+(aq) + Cl^-(aq)
-      ->
-      Na^+(aq) + Cl^-(aq)
-    netIonic := ?
-    amount H2O(l) := 1.00 mol
-    limiting := none
-    observe
-      precipitate Ca(OH)2(s)
-      gas ?
-      colour := ChemSpec.Colourless
-      temperatureChange := increase
-  expect at final
-    class := ?
-    limiting := salt
+
+  observe from Evidence.AllProductions@2.1
+    gas hydrogen evolves claim GAS_1
+    reactant copperSulfate disappears claim REACTANT_2
+    product copper forms claim PRODUCT_3
+    product hydroxide has colour Palette.Colourless claim COLOUR_4
+
   by
-    dissociate aqueous
-    infer products using ChemSpec.DoubleDisplacement
-    balance molecular
-    derive completeIonic
-    cancel spectators
-    solve stoichiometry
-    verify atoms
-    verify charge
-    prove observations
-    auto
-    close
+    apply Rules.AllProductions
+      left := calciumHydroxide
+      right := copperSulfate
+      firstProduct := calciumIon
+      secondProduct := hydroxide

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "water-oxygen",
+      "element": "O",
+      "neutral_valence_electrons": 6,
+      "formal_charge": 0,
+      "non_bonding_electrons": 4,
+      "unpaired_electrons": 0,
+      "covalent_bond_order_sum": 2
+    },
+    {
+      "id": "hydroxide-oxygen",
+      "element": "O",
+      "neutral_valence_electrons": 6,
+      "formal_charge": -1,
+      "non_bonding_electrons": 6,
+      "unpaired_electrons": 0,
+      "covalent_bond_order_sum": 1
+    },
+    {
+      "id": "hydrogen-radical",
+      "element": "H",
+      "neutral_valence_electrons": 1,
+      "formal_charge": 0,
+      "non_bonding_electrons": 1,
+      "unpaired_electrons": 1,
+      "covalent_bond_order_sum": 0
+    },
+    {
+      "id": "lithium-metal-site",
+      "element": "Li",
+      "neutral_valence_electrons": 1,
+      "formal_charge": 1,
+      "non_bonding_electrons": 0,
+      "unpaired_electrons": 0,
+      "covalent_bond_order_sum": 0,
+      "delocalized_domain_electrons_per_site": 1
+    }
+  ]
+}

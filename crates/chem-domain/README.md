@@ -1,60 +1,72 @@
 # `chem-domain`
 
-`chem-domain` is the pure, deterministic value layer shared by later `.chems`
-compiler slices. It contains no source parser, empirical catalogue, proof
-search, application, networking, or rendering code.
+`chem-domain` is ChemSpec's pure deterministic value layer. The definitive
+structural API contains no source parser, catalogue loading, rule application,
+graph execution, networking, application state, or rendering.
 
-Its Serde forms are nested domain representations, not independently versioned
-interchange envelopes. The future source-AST, HIR, catalogue, and validated
-artifact envelopes carry their applicable schema versions and govern the
-domain values they contain.
+## Structural core
 
-## Exact numeric contract
+`structural` provides:
 
-- `SourceDecimal` retains the original lexeme, integer coefficient, decimal
-  scale, decimal places, written digits, and optional significant-digit count.
-- `ExactScalar` is a reduced arbitrary-precision rational. JSON encodes it as
-  `{ "numerator": "...", "denominator": "..." }`; both members are decimal
-  strings and the denominator is positive and nonzero.
-- No chemistry value is parsed through or serialized as `f32`/`f64`.
+- separate typed IDs for structures, atoms, groups, covalent bonds, ionic
+  associations, metallic domains, expanded instances, rules, operations,
+  mappings, evidence packets, claims, and premises;
+- atom-local formal charge, non-bonding electrons, and unpaired electrons;
+- the closed `single | double | triple` localized covalent order domain, with
+  shared or directed dative electron origin on single bonds;
+- canonical nonempty atom groups and many-body ionic associations;
+- explicit metallic site and delocalized-electron-domain ownership;
+- privately constructed immutable `StructuralGraph` values;
+- normalized formula inventories checked against complete graphs;
+- catalogue-level structure definitions and definition-derived, totally
+  relabelled reaction-side instances;
+- total bijective element-preserving atom mappings;
+- the closed privately constructed structural-operation value set with exact,
+  canonical endpoint states; and
+- canonical JSON and SHA-256 semantic digests.
 
-## Units and temperatures
+Graphs store identities in ordered maps and relationship memberships in ordered
+sets. Declaration order therefore cannot change equality, canonical bytes, or
+digests. Formula inventories must equal graph element inventories and never
+replace graph identity; formula-equal structural isomers remain unequal.
 
-`UnitSymbol` is the specification's closed 23-symbol registry. Resolving a
-`UnitExpression` produces an exact canonical factor and five-component
-dimension vector. Unit expressions retain the grammar's product/divisor tree
-and authored exponent spelling rather than a second, potentially inconsistent
-free-text copy. Source equality can therefore distinguish equivalent forms such
-as `mol/L`, `mol*L^-1`, and an explicitly written `mol^+1`. Every multiplicative
-quantity records the exact per-unit alias/power expansion used to reach
-canonical units, and target conversions return evidence for both conversion
-legs. `%`, `K`, and `degC` are standalone-only. A
-`TemperaturePoint` stores exact kelvin while retaining its source decimal and
-scale; subtracting points produces the distinct multiplicative
-`TemperatureDifference` type.
+Construction rejects empty or duplicate identities, self/duplicate/unknown
+covalent edges, invalid dative endpoints or bond orders, empty or repeated
+group membership, overlapping/non-neutral
+ionic association components, multiply owned metallic sites, and simultaneous
+site-local/domain-owned electrons. Validated graph fields are private and the
+types intentionally do not deserialize directly; later trusted-boundary crates
+deserialize versioned records and call these constructors.
 
-Quantity and temperature-point equality compare normalized semantic values.
-Their `source_eq` methods additionally compare authored spelling and unit or
-scale metadata.
+## Electron accounting
 
-## Formulae and identities
+Atom-local electron state enforces valid paired/unpaired counts. Given a
+reviewed neutral-valence premise, it evaluates:
 
-`FormulaSyntax` preserves nested groups and adduct segments. Normalization uses
-an injected `ElementRegistry`, resolves symbols to atomic-number identities,
-and accumulates arbitrary-precision positive counts in deterministic element
-order. Charge is an exact arbitrary-precision integer and phase is the closed
-`aqueous | solid | liquid | gas` model.
+```text
+formal_charge = neutral_valence - non_bonding - covalent_bond_order_sum
+```
 
-Content-derived IDs use SHA-256 of canonical JSON. Catalogue-declared fact and
-substance IDs are separate typed values. Canonical JSON sorts object keys,
-emits no insignificant whitespace, and rejects every floating-point JSON
-number.
+Graphs report atom formal-charge sum, covalent and local electron ownership,
+delocalized-domain electron count, explicit valence-electron total, and:
+
+```text
+system_net_charge = atom_formal_charge_sum - domain_electron_count
+```
+
+## Migration boundary
+
+The earlier quantity, material, vessel, and procedure-oriented modules remain
+only for unrelated application work and repository archaeology. The catalogue,
+kernel, CLI, and frame pipeline do not consume them. They are not part of the
+definitive `.chems 1` contract or a compatibility language.
 
 ## Verification
 
-The fixed conformance inputs and canonical expected domain outputs live under
-`conformance/quantities-types`, `conformance/formula-species`, and
-`conformance/artifacts`. Integration tests execute the public API and compare
-canonical result bytes with those checked-in goldens. Deterministic
-generated-case tests cover unit conversion round trips and grouped-formula
-expansion.
+`tests/structural.rs` covers constructor failure classes, all relationship
+kinds, electron and charge accounting, formula-equal structural isomers,
+reaction-side atom identity, mapping totality/bijection, shared and dative
+operation endpoint states, definition-derived instance relabeling, canonical
+serialization, digests, generated `proptest` properties, and the promoted
+structural conformance fixtures under
+`conformance/structural-domain`.

@@ -9,9 +9,5 @@ experiment UnsupportedMajor where
     beaker := open vessel 100 mL
   procedure
     place sample in beaker
-  model
-    event := representative
-    sequence := explanatory
-    structuralRule := ChemSpec.Structural.Test.UnsupportedMajor
   by
     close

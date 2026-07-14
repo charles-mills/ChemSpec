@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "fixture": "alkali-water-members-001",
+  "family_rule": "Rules.AlkaliMetalWithWater",
+  "catalogue": "conformance/catalogue/alkali-metal-water-001.catalogue.json",
+  "members": [
+    {
+      "name": "lithium", "symbol": "Li", "metal": "LithiumMetal", "hydroxide": "LithiumHydroxide",
+      "source": "conformance/end-to-end/alkali-water-li-001.chems",
+      "evidence": "conformance/observations/alkali-water-li-001.evidence.json"
+    },
+    {
+      "name": "sodium", "symbol": "Na", "metal": "SodiumMetal", "hydroxide": "SodiumHydroxide",
+      "source": "conformance/end-to-end/alkali-water-na-001.chems",
+      "evidence": "conformance/observations/alkali-water-na-001.evidence.json"
+    },
+    {
+      "name": "potassium", "symbol": "K", "metal": "PotassiumMetal", "hydroxide": "PotassiumHydroxide",
+      "source": "conformance/end-to-end/alkali-water-k-001.chems",
+      "evidence": "conformance/observations/alkali-water-k-001.evidence.json"
+    }
+  ]
+}
