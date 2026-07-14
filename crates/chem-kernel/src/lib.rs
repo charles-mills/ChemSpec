@@ -1,12 +1,5 @@
-//! Trusted typed elaboration and chemistry derivation boundary.
-
-mod diagnostic;
-mod elaborate;
-mod hir;
-mod procedure;
-mod source;
-
-pub use diagnostic::{ElaborationDiagnostic, ElaborationStatus};
-pub use elaborate::{ElaborationResult, elaborate};
-pub use hir::*;
-pub use procedure::{ProcedureResult, execute_procedure};
+//! Reserved trusted structural expansion and validation boundary.
+//!
+//! Structural Slices 4 and 5 repopulate this crate. The discarded
+//! quantitative experiment kernel is deliberately not compiled as a
+//! compatibility layer after the structural frontend migration.

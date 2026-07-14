@@ -42,11 +42,7 @@ pub fn lex_source(source: &str) -> LexResult {
     let mut raw = Vec::new();
     let mut index = 0;
     if source.as_bytes().starts_with(&[0xef, 0xbb, 0xbf]) {
-        diagnostics.push(Diagnostic::lexical(
-            "CHEMS-L002",
-            "UTF-8 byte-order marks are forbidden",
-            ByteSpan::new(0, 3),
-        ));
+        push_token(&mut raw, TokenKind::Bom, source, 0, 3);
         index = 3;
     }
     diagnostics.extend(
@@ -103,12 +99,15 @@ pub fn lex_source(source: &str) -> LexResult {
     }
 
     let tokens = apply_layout(source, &raw, &mut diagnostics);
+    for (emission_index, diagnostic) in diagnostics.iter_mut().enumerate() {
+        diagnostic.emission_index = emission_index;
+    }
     diagnostics.sort_by_key(|diagnostic| {
         (
             diagnostic.primary_span.start,
             diagnostic.severity,
-            diagnostic.stage,
             diagnostic.code.clone(),
+            diagnostic.emission_index,
         )
     });
     LexResult {
@@ -147,13 +146,6 @@ fn lex_regular_token(
             *index += 1;
         }
         b'\r' => {
-            if source.as_bytes().get(*index + 1) != Some(&b'\n') {
-                diagnostics.push(Diagnostic::lexical(
-                    "CHEMS-L010",
-                    "bare carriage returns are forbidden; use LF or CRLF",
-                    ByteSpan::new(*index, *index + 1),
-                ));
-            }
             lex_newline(source, index, raw);
         }
         b'\n' => lex_newline(source, index, raw),
@@ -179,16 +171,11 @@ fn lex_regular_token(
             let kind = match byte {
                 b'@' => TokenKind::At,
                 b'.' => TokenKind::Dot,
-                b':' => TokenKind::Colon,
-                b'^' => TokenKind::Caret,
                 b'+' => TokenKind::Plus,
-                b'-' => TokenKind::Minus,
-                b'*' => TokenKind::Star,
-                b'/' => TokenKind::Slash,
-                b'%' => TokenKind::Percent,
                 b'(' => TokenKind::LeftParen,
                 b')' => TokenKind::RightParen,
-                b'?' => TokenKind::Hole,
+                b'[' => TokenKind::LeftBracket,
+                b']' => TokenKind::RightBracket,
                 _ => TokenKind::Invalid,
             };
             push_token(raw, kind, source, *index, *index + 1);

@@ -22,7 +22,55 @@
       "component": "parsing",
       "requirements": ["SRC-001", "SRC-003", "SRC-004", "SRC-005", "LEX-006"],
       "source": "conformance/parsing/canonical-source-001.chems",
-      "expected": { "state": "incomplete" }
+      "expected": {
+        "state": "validated",
+        "cst": "conformance/parsing/canonical-source-001.cst.json",
+        "ast": "conformance/parsing/canonical-source-001.ast.json"
+      }
+    },
+    {
+      "id": "all-productions-001",
+      "component": "parsing",
+      "requirements": ["SRC-001", "SRC-003", "SRC-004", "SRC-005", "LEX-006"],
+      "source": "conformance/parsing/all-productions-001.chems",
+      "expected": { "state": "validated" }
+    },
+    {
+      "id": "encoding-matrix-001",
+      "component": "encoding-layout",
+      "requirements": ["LEX-001", "LEX-002", "LEX-003", "LEX-004", "LEX-005", "LEX-007"],
+      "input": "conformance/encoding-layout/encoding-matrix-001.input.json",
+      "expected": { "state": "validated" }
+    },
+    {
+      "id": "canonical-comments-001",
+      "component": "formatting",
+      "requirements": ["FMT-001"],
+      "source": "conformance/formatting/canonical-comments-001.input.chems",
+      "expected": {
+        "state": "validated",
+        "formatted_source": "conformance/formatting/canonical-comments-001.formatted.chems"
+      }
+    },
+    {
+      "id": "stable-diagnostics-001",
+      "component": "diagnostics-tooling",
+      "requirements": ["DIA-001"],
+      "source": "conformance/diagnostics-tooling/stable-diagnostics-001.chems",
+      "expected": {
+        "state": "unsupported",
+        "diagnostics": [
+          {
+            "code": "CHEMS-P002",
+            "severity": "Error",
+            "primary_span": {
+              "fixture": "conformance/diagnostics-tooling/stable-diagnostics-001.chems",
+              "start": 6,
+              "end": 7
+            }
+          }
+        ]
+      }
     },
     {
       "id": "electron-model-001",

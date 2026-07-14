@@ -1,9 +1,9 @@
 use crate::{
-    ByteSpan, ChemicalSyntaxKind, ClaimKind, CommentAttachment, CommentPlacement, Cst,
-    DeclarationKind, Diagnostic, EquationSyntaxKind, HeaderKind, LexResult, NameSyntaxKind,
-    ObservationKind, OperationKind, QuantitySyntaxKind, SectionKind, SourceAst,
-    SourceCatalogueSelection, SourceExpectation, SourceExperiment, SourceLanguageVersion,
-    SourceNode, SourceNodeKind, SyntaxNode, TacticKind, Token, TokenKind, lex_bytes, lex_source,
+    ByteSpan, CommentAttachment, CommentPlacement, Cst, Diagnostic, LexResult, SafeEdit, SourceAst,
+    SourceCatalogueSelection, SourceEquation, SourceEquationTerm, SourceEventModel,
+    SourceLanguageVersion, SourceModel, SourceObservation, SourceObservationBlock, SourceReaction,
+    SourceRepresentationKind, SourceRuleApplication, SourceRuleBinding, SourceSequenceModel,
+    SourceStructureBinding, SyntaxNode, Token, TokenKind, lex_bytes, lex_source,
 };
 
 #[derive(Debug, Clone)]
@@ -31,6 +31,13 @@ pub fn parse_source(source: &str) -> ParseResult {
 }
 
 fn parse_lexed(lexed: LexResult) -> ParseResult {
+    if lexed
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "CHEMS-L001")
+    {
+        return fatal_lex_result(lexed);
+    }
     let semantic = lexed
         .tokens
         .iter()
@@ -47,38 +54,32 @@ fn parse_lexed(lexed: LexResult) -> ParseResult {
         stack: Vec::new(),
         trace: Vec::new(),
         diagnostics: lexed.diagnostics,
-        language_version: None,
+        language: None,
         catalogue: None,
-        experiment: None,
+        reaction: None,
+        halted: false,
     };
     parser.begin("document");
     parser.parse_document();
-    let root = parser.finish(false);
+    let mut root = parser.finish(false);
+    root.span = ByteSpan::new(0, parser.source.len());
     parser.sort_diagnostics();
-    let complete = parser.diagnostics.is_empty() && parser.language_version.as_deref() == Some("1");
+    let complete = parser.diagnostics.is_empty()
+        && parser
+            .language
+            .as_ref()
+            .is_some_and(|value| value.lexeme == "1")
+        && parser.catalogue.is_some()
+        && parser.reaction.is_some();
     let mut production_trace = std::mem::take(&mut parser.trace);
     production_trace.sort();
     production_trace.dedup();
     let comments = attach_comments(parser.source, parser.tokens, &root);
-    let language_version = parser.language_version.clone();
-    let catalogue = parser.catalogue.clone();
-    let experiment = parser.experiment.clone();
-    let document = lower_source_node(parser.source, &root);
-    let language = source_language(language_version, &document);
-    let catalogue = source_catalogue(catalogue, &document);
-    let experiment = source_experiment(experiment, &document);
+    let language = parser.language.take();
+    let catalogue = parser.catalogue.take();
+    let reaction = parser.reaction.take();
     let diagnostics = std::mem::take(&mut parser.diagnostics);
     drop(parser);
-    let ast = SourceAst {
-        schema_version: 1,
-        complete,
-        language,
-        catalogue,
-        experiment,
-        document,
-        production_trace,
-        comments,
-    };
     ParseResult {
         cst: Cst {
             schema_version: 1,
@@ -86,8 +87,51 @@ fn parse_lexed(lexed: LexResult) -> ParseResult {
             tokens: lexed.tokens,
             root,
         },
-        ast,
+        ast: SourceAst {
+            schema_version: 1,
+            complete,
+            language,
+            catalogue,
+            reaction,
+            production_trace,
+            comments,
+        },
         diagnostics,
+    }
+}
+
+fn fatal_lex_result(lexed: LexResult) -> ParseResult {
+    let span = ByteSpan::new(0, lexed.source.len());
+    let recovery = SyntaxNode {
+        kind: "recovery".to_owned(),
+        span,
+        children: Vec::new(),
+        token_indices: Vec::new(),
+        recovery: true,
+    };
+    ParseResult {
+        cst: Cst {
+            schema_version: 1,
+            source: lexed.source,
+            tokens: lexed.tokens,
+            root: SyntaxNode {
+                kind: "document".to_owned(),
+                span,
+                children: vec![recovery],
+                token_indices: Vec::new(),
+                recovery: true,
+            },
+        },
+        ast: SourceAst {
+            schema_version: 1,
+            complete: false,
+            language: None,
+            catalogue: None,
+            reaction: None,
+            production_trace: vec!["document".to_owned(), "recovery".to_owned()],
+            comments: Vec::new(),
+        },
+        diagnostics: lexed.diagnostics,
     }
 }
 
@@ -107,1062 +151,427 @@ struct Parser<'a> {
     stack: Vec<NodeBuilder>,
     trace: Vec<String>,
     diagnostics: Vec<Diagnostic>,
-    language_version: Option<String>,
-    catalogue: Option<String>,
-    experiment: Option<String>,
+    language: Option<SourceLanguageVersion>,
+    catalogue: Option<SourceCatalogueSelection>,
+    reaction: Option<SourceReaction>,
+    halted: bool,
 }
 
 impl Parser<'_> {
     fn parse_document(&mut self) {
         self.consume_newlines();
+        if self.at_kind(TokenKind::Eof) {
+            self.error_here(
+                "CHEMS-P001",
+                "source must contain a complete `chems 1` document",
+            );
+            return;
+        }
         self.parse_language_header();
+        if self.halted {
+            return;
+        }
         self.consume_newlines();
         self.parse_catalog_use();
+        if self.halted {
+            return;
+        }
         self.consume_newlines();
-        self.parse_experiment();
+        self.parse_reaction_declaration();
+        if self.halted {
+            return;
+        }
         self.consume_newlines();
+        if !self.at_kind(TokenKind::Eof) {
+            self.error_here(
+                "CHEMS-P007",
+                "discarded quantitative or extra source syntax is not part of chems 1",
+            );
+            while !self.at_kind(TokenKind::Eof) {
+                self.bump();
+            }
+        }
         self.expect_kind(TokenKind::Eof, "end of file");
     }
 
     fn parse_language_header(&mut self) {
         self.begin("language-header");
+        let start = self.current_span().start;
         if !self.eat_literal("chems") {
+            let insertion = self.current_span().start;
             self.error(
                 "CHEMS-P001",
                 "source must begin with `chems 1`",
                 self.current_span(),
             );
-        }
-        self.begin("language-version");
-        let version_span = self.current_span();
-        let version = self.parse_positive_integer();
-        let missing = version.is_none();
-        self.finish(missing);
-        if let Some(version) = &version {
-            self.language_version = Some(version.clone());
-            if !version.starts_with('0') && version != "1" {
-                self.error(
-                    "CHEMS-P002",
-                    format!("unsupported .chems language major {version}"),
-                    version_span,
-                );
+            if self.at_literal("use")
+                && let Some(diagnostic) = self.diagnostics.last_mut()
+            {
+                "Every source unit requires an explicit chems 1 authority header; the parser never guesses it."
+                    .clone_into(&mut diagnostic.explanation);
+                diagnostic.help = Some("insert `chems 1` as the first logical line".to_owned());
+                diagnostic.safe_edits.push(SafeEdit {
+                    span: ByteSpan::empty(insertion),
+                    replacement: "chems 1\n".to_owned(),
+                });
             }
         }
+        self.begin("language-version");
+        let span = self.current_span();
+        let version = self.parse_positive_integer();
+        self.finish(version.is_none());
+        if let Some(lexeme) = version {
+            if lexeme != "1" {
+                self.error(
+                    "CHEMS-P002",
+                    format!("unsupported .chems language major {lexeme}"),
+                    span,
+                );
+            }
+            self.language = Some(SourceLanguageVersion { lexeme, span });
+        }
         self.expect_newline();
-        self.finish(missing);
+        self.finish(self.last_end <= start);
     }
 
     fn parse_catalog_use(&mut self) {
         self.begin("catalog-use");
+        let start = self.current_span().start;
         self.expect_literal("use");
         self.expect_literal("catalog");
         let name = self.parse_qualified_name();
-        self.expect_literal("@");
+        self.expect_kind(TokenKind::At, "`@`");
         self.begin("catalog-version");
-        self.parse_integer();
-        while self.eat_literal(".") {
-            self.parse_integer();
+        let mut version = self.parse_integer().unwrap_or_default();
+        while self.eat_kind(TokenKind::Dot) {
+            version.push('.');
+            if let Some(component) = self.parse_integer() {
+                version.push_str(&component);
+            }
         }
-        self.finish(false);
+        self.finish(version.is_empty());
         self.expect_newline();
-        self.catalogue = name;
+        let span = ByteSpan::new(start, self.last_end);
+        if let Some(name) = name
+            && !version.is_empty()
+        {
+            self.catalogue = Some(SourceCatalogueSelection {
+                name,
+                version,
+                span,
+            });
+        }
         self.finish(false);
     }
 
-    fn parse_experiment(&mut self) {
-        self.begin("experiment");
-        self.expect_literal("experiment");
-        self.experiment = self.parse_type_identifier();
+    #[allow(clippy::too_many_lines)]
+    fn parse_reaction_declaration(&mut self) {
+        self.begin("reaction-declaration");
+        let start = self.current_span().start;
+        self.expect_literal("reaction");
+        let name = self.parse_type_identifier();
         self.expect_literal("where");
         self.expect_newline();
-        self.expect_indent("an indented experiment body");
-        self.parse_conditions_section();
-        if self.at_literal("assuming") {
-            self.parse_assumptions_section();
+        self.expect_indent("an indented reaction body");
+        if self.halted {
+            self.finish(true);
+            return;
         }
-        self.parse_given_section();
-        self.parse_vessels_section();
-        self.parse_procedure_section();
-        while self.at_literal("expect") {
-            self.parse_expectation_section();
+        let reactants = self.parse_structure_section(true);
+        if self.halted {
+            self.finish(true);
+            return;
         }
-        self.parse_proof_section();
-        self.expect_kind(TokenKind::Dedent, "the end of the experiment body");
-        self.finish(false);
-    }
-
-    fn parse_conditions_section(&mut self) {
-        self.begin("conditions-section");
-        self.expect_literal("conditions");
-        self.expect_newline();
-        self.expect_indent("an indented conditions block");
-        let mut entries = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.parse_condition_entry();
-            entries += 1;
+        let products = self.parse_structure_section(false);
+        if self.halted {
+            self.finish(true);
+            return;
         }
-        if entries == 0 {
-            self.error_here("CHEMS-P003", "conditions requires at least one entry");
+        let equation = self.parse_equation_section();
+        if self.halted {
+            self.finish(true);
+            return;
         }
-        self.expect_kind(TokenKind::Dedent, "the end of conditions");
-        self.consume_newlines();
-        self.finish(entries == 0);
-    }
-
-    fn parse_condition_entry(&mut self) {
-        self.begin("condition-entry");
-        match self.peek_text() {
-            Some("temperature") => {
-                self.begin("temperature-entry");
-                self.bump();
-                self.expect_literal(":=");
-                self.parse_quantity();
-                self.expect_newline();
-                self.finish(false);
-            }
-            Some("pressure") => {
-                self.begin("pressure-entry");
-                self.bump();
-                self.expect_literal(":=");
-                self.parse_quantity();
-                self.expect_newline();
-                self.finish(false);
-            }
-            Some("medium") => {
-                self.begin("medium-entry");
-                self.bump();
-                self.expect_literal(":=");
-                if !self.eat_literal("aqueous") {
-                    self.parse_qualified_name();
-                }
-                self.expect_newline();
-                self.finish(false);
-            }
-            _ => self.recover_line("expected temperature, pressure, or medium"),
+        let model = self.parse_model_section();
+        if self.halted {
+            self.finish(true);
+            return;
+        }
+        let observations = self.parse_observation_section();
+        if self.halted {
+            self.finish(true);
+            return;
+        }
+        let rule_application = self.parse_proof_section();
+        self.expect_kind(TokenKind::Dedent, "the end of the reaction body");
+        let span = ByteSpan::new(start, self.last_end);
+        if let Some(name) = name {
+            self.reaction = Some(SourceReaction {
+                name,
+                span,
+                reactants,
+                products,
+                equation,
+                model,
+                observations,
+                rule_application,
+            });
         }
         self.finish(false);
     }
 
-    fn parse_assumptions_section(&mut self) {
-        self.begin("assumptions-section");
-        self.expect_literal("assuming");
-        self.expect_newline();
-        self.expect_indent("an indented assumptions block");
-        let mut count = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.begin("assumption-entry");
-            self.parse_qualified_name();
-            if self.eat_literal("for") {
-                self.parse_value_identifier();
-            }
-            if self.eat_literal("at") {
-                self.parse_stage_reference();
-            }
-            self.expect_newline();
-            self.finish(false);
-            count += 1;
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "assuming requires at least one entry");
-        }
-        self.expect_kind(TokenKind::Dedent, "the end of assumptions");
-        self.consume_newlines();
-        self.finish(count == 0);
-    }
-
-    fn parse_given_section(&mut self) {
-        self.begin("given-section");
-        self.expect_literal("given");
-        self.expect_newline();
-        self.expect_indent("an indented given block");
-        let mut count = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.parse_material_declaration();
-            count += 1;
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "given requires at least one material");
-        }
-        self.expect_kind(TokenKind::Dedent, "the end of given");
-        self.consume_newlines();
-        self.finish(count == 0);
-    }
-
-    fn parse_material_declaration(&mut self) {
-        self.begin("material-declaration");
-        self.parse_value_identifier();
-        self.expect_literal(":=");
-        self.begin("material-expression");
-        if self.at_literal("prepared") {
-            self.begin("prepared-material");
-            self.bump();
-            self.expect_newline();
-            self.expect_indent("prepared components");
-            let mut count = 0;
-            while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-                if self.at_kind(TokenKind::Newline) {
-                    self.bump();
-                    continue;
-                }
-                self.begin("component-entry");
-                self.parse_quantity();
-                self.expect_literal("of");
-                self.parse_species();
-                self.expect_newline();
-                self.finish(false);
-                count += 1;
-            }
-            if count == 0 {
-                self.error_here("CHEMS-P003", "prepared material requires components");
-            }
-            self.expect_kind(TokenKind::Dedent, "the end of prepared components");
-            self.finish(count == 0);
+    fn parse_structure_section(&mut self, reactants: bool) -> Vec<SourceStructureBinding> {
+        let production = if reactants {
+            "reactants-section"
         } else {
-            self.begin("simple-material");
-            self.parse_quantity();
-            self.expect_literal("of");
-            if self.starts_quantity() {
-                self.parse_quantity();
-            }
-            self.parse_species();
-            self.expect_newline();
-            self.finish(false);
-        }
-        self.finish(false);
-        self.finish(false);
-    }
-
-    fn parse_vessels_section(&mut self) {
-        self.begin("vessels-section");
-        self.expect_literal("vessels");
-        self.expect_newline();
-        self.expect_indent("an indented vessels block");
-        let mut count = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.begin("vessel-declaration");
-            self.parse_value_identifier();
-            self.expect_literal(":=");
-            self.begin("openness");
-            if !(self.eat_literal("open") || self.eat_literal("closed")) {
-                self.expected("`open` or `closed`");
-            }
-            self.finish(false);
-            self.expect_literal("vessel");
-            self.parse_quantity();
-            self.expect_newline();
-            self.finish(false);
-            count += 1;
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "vessels requires at least one declaration");
-        }
-        self.expect_kind(TokenKind::Dedent, "the end of vessels");
-        self.consume_newlines();
-        self.finish(count == 0);
-    }
-
-    fn parse_procedure_section(&mut self) {
-        self.begin("procedure-section");
-        self.expect_literal("procedure");
-        self.expect_newline();
-        self.expect_indent("an indented procedure block");
-        let mut count = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.begin("procedure-entry");
-            if self.peek_kind_n(1) == Some(&TokenKind::Colon) {
-                self.begin("stage-label");
-                self.parse_value_identifier();
-                self.finish(false);
-                self.expect_literal(":");
-            }
-            self.parse_operation();
-            self.expect_newline();
-            self.finish(false);
-            count += 1;
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "procedure requires at least one operation");
-        }
-        self.expect_kind(TokenKind::Dedent, "the end of procedure");
-        self.consume_newlines();
-        self.finish(count == 0);
-    }
-
-    fn parse_operation(&mut self) {
-        self.begin("operation");
-        match self.peek_text() {
-            Some("place") => self.parse_binary_operation("place-operation", &["place", "in"]),
-            Some("add") => self.parse_binary_operation("add-operation", &["add", "to"]),
-            Some("combine") => {
-                self.begin("combine-operation");
-                self.bump();
-                self.parse_value_identifier();
-                self.expect_literal("with");
-                self.parse_value_identifier();
-                self.expect_literal("in");
-                self.parse_value_identifier();
-                self.finish(false);
-            }
-            Some("transfer") => {
-                self.begin("transfer-operation");
-                self.bump();
-                if self.starts_quantity() {
-                    self.parse_quantity();
-                }
-                self.expect_literal("from");
-                self.parse_value_identifier();
-                self.expect_literal("to");
-                self.parse_value_identifier();
-                self.finish(false);
-            }
-            Some("stir") => {
-                self.begin("stir-operation");
-                self.bump();
-                self.parse_value_identifier();
-                if self.eat_literal("for") {
-                    self.parse_quantity();
-                }
-                self.finish(false);
-            }
-            Some("heat") => self.parse_temperature_operation("heat-operation", "heat"),
-            Some("cool") => self.parse_temperature_operation("cool-operation", "cool"),
-            Some("wait") => {
-                self.begin("wait-operation");
-                self.bump();
-                self.parse_quantity();
-                self.finish(false);
-            }
-            Some("seal") => self.parse_unary_operation("seal-operation", "seal"),
-            Some("open") => self.parse_unary_operation("open-operation", "open"),
-            Some("filter") => {
-                self.begin("filter-operation");
-                self.bump();
-                self.parse_value_identifier();
-                self.expect_literal("into");
-                self.parse_value_identifier();
-                self.expect_literal("and");
-                self.parse_value_identifier();
-                self.finish(false);
-            }
-            Some("decant") => self.parse_binary_operation("decant-operation", &["decant", "into"]),
-            _ => self.recover_to_newline("expected a procedure operation"),
-        }
-        self.finish(false);
-    }
-
-    fn parse_binary_operation(&mut self, kind: &str, keywords: &[&str]) {
-        self.begin(kind);
-        self.expect_literal(keywords[0]);
-        self.parse_value_identifier();
-        self.expect_literal(keywords[1]);
-        self.parse_value_identifier();
-        self.finish(false);
-    }
-
-    fn parse_unary_operation(&mut self, kind: &str, keyword: &str) {
-        self.begin(kind);
-        self.expect_literal(keyword);
-        self.parse_value_identifier();
-        self.finish(false);
-    }
-
-    fn parse_temperature_operation(&mut self, kind: &str, keyword: &str) {
-        self.begin(kind);
-        self.expect_literal(keyword);
-        self.parse_value_identifier();
-        self.expect_literal("to");
-        self.parse_quantity();
-        self.finish(false);
-    }
-
-    fn parse_expectation_section(&mut self) {
-        self.begin("expectation-section");
-        self.expect_literal("expect");
-        if self.eat_literal("at") {
-            self.parse_stage_reference();
-        }
-        self.expect_newline();
-        self.expect_indent("an indented expectation block");
-        let mut count = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.parse_claim_entry();
-            count += 1;
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "expect requires at least one claim");
-        }
-        self.expect_kind(TokenKind::Dedent, "the end of expectation");
-        self.consume_newlines();
-        self.finish(count == 0);
-    }
-
-    fn parse_claim_entry(&mut self) {
-        self.begin("claim-entry");
-        match self.peek_text() {
-            Some("class") => {
-                self.begin("class-claim");
-                self.bump();
-                self.expect_literal(":=");
-                if !self.parse_hole() {
-                    self.begin("reaction-class");
-                    if matches!(
-                        self.peek_text(),
-                        Some("precipitation" | "neutralization" | "gasFormation" | "noReaction")
-                    ) {
-                        self.bump();
-                    } else {
-                        self.expected("a reaction class or `?`");
-                    }
-                    self.finish(false);
-                }
-                self.expect_newline();
-                self.finish(false);
-            }
-            Some("produces" | "consumes" | "remains" | "spectator") => {
-                self.begin("identity-claim");
-                self.begin("identity-predicate");
-                self.bump();
-                self.finish(false);
-                if !self.parse_hole() {
-                    self.parse_species();
-                }
-                self.expect_newline();
-                self.finish(false);
-            }
-            Some("molecular" | "completeIonic" | "netIonic") => {
-                self.parse_equation_claim();
-            }
-            Some("amount") => {
-                self.begin("amount-claim");
-                self.bump();
-                self.parse_species();
-                self.expect_literal(":=");
-                if !self.parse_hole() {
-                    self.parse_quantity();
-                }
-                self.expect_newline();
-                self.finish(false);
-            }
-            Some("limiting") => {
-                self.begin("limiting-claim");
-                self.bump();
-                self.expect_literal(":=");
-                if !self.parse_hole() && !self.eat_literal("none") {
-                    self.parse_value_identifier();
-                }
-                self.expect_newline();
-                self.finish(false);
-            }
-            Some("observe") => self.parse_observation_section(),
-            _ => self.recover_line("expected an expectation claim"),
-        }
-        self.finish(false);
-    }
-
-    fn parse_equation_claim(&mut self) {
-        self.begin("equation-claim");
-        self.begin("equation-kind");
-        self.bump();
-        self.finish(false);
-        self.expect_literal(":=");
-        self.begin("equation-claim-value");
-        if self.parse_hole() {
-            self.expect_newline();
-        } else if self.at_kind(TokenKind::Newline) {
-            self.bump();
-            self.expect_indent("an indented equation");
-            self.parse_equation();
-            self.expect_newline();
-            self.expect_kind(TokenKind::Dedent, "the end of the equation");
-        } else {
-            self.parse_equation();
-            self.expect_newline();
-        }
-        self.finish(false);
-        self.finish(false);
-    }
-
-    fn parse_observation_section(&mut self) {
-        self.begin("observation-section");
-        self.expect_literal("observe");
-        self.expect_newline();
-        self.expect_indent("an indented observation block");
-        let mut count = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.begin("observation-entry");
-            match self.peek_text() {
-                Some("precipitate") => {
-                    self.begin("precipitate-observation");
-                    self.bump();
-                    if !self.parse_hole() {
-                        self.parse_species();
-                    }
-                    self.expect_newline();
-                    self.finish(false);
-                }
-                Some("gas") => {
-                    self.begin("gas-observation");
-                    self.bump();
-                    if !self.parse_hole() {
-                        self.parse_species();
-                    }
-                    self.expect_newline();
-                    self.finish(false);
-                }
-                Some("colour") => {
-                    self.begin("colour-observation");
-                    self.bump();
-                    self.expect_literal(":=");
-                    if !self.parse_hole() {
-                        self.parse_qualified_name();
-                    }
-                    self.expect_newline();
-                    self.finish(false);
-                }
-                Some("temperatureChange") => {
-                    self.begin("temperature-observation");
-                    self.bump();
-                    self.expect_literal(":=");
-                    if !self.parse_hole() {
-                        self.begin("temperature-direction");
-                        if matches!(self.peek_text(), Some("increase" | "decrease" | "none")) {
-                            self.bump();
-                        } else {
-                            self.expected("increase, decrease, none, or `?`");
-                        }
-                        self.finish(false);
-                    }
-                    self.expect_newline();
-                    self.finish(false);
-                }
-                _ => self.recover_line("expected an observation"),
-            }
-            self.finish(false);
-            count += 1;
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "observe requires at least one entry");
-        }
-        self.expect_kind(TokenKind::Dedent, "the end of observations");
-        self.finish(count == 0);
-    }
-
-    fn parse_proof_section(&mut self) {
-        self.begin("proof-section");
-        self.expect_literal("by");
-        self.expect_newline();
-        self.expect_indent("an indented proof block");
-        let mut count = 0;
-        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
-            if self.at_kind(TokenKind::Newline) {
-                self.bump();
-                continue;
-            }
-            self.parse_tactic();
-            count += 1;
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "by requires at least one tactic");
-        }
-        self.expect_kind(TokenKind::Dedent, "the end of proof");
-        self.finish(count == 0);
-    }
-
-    fn parse_tactic(&mut self) {
-        self.begin("tactic");
-        let kind = match self.peek_text() {
-            Some("dissociate") => "dissociate-tactic",
-            Some("infer") => "infer-products-tactic",
-            Some("balance") => "balance-tactic",
-            Some("derive") => "derive-tactic",
-            Some("cancel") => "cancel-spectators-tactic",
-            Some("solve") => "solve-stoichiometry-tactic",
-            Some("verify") if self.peek_text_n(1) == Some("atoms") => "verify-atoms-tactic",
-            Some("verify") => "verify-charge-tactic",
-            Some("prove") => "prove-observations-tactic",
-            Some("close") => "close-tactic",
-            Some("auto") => "auto-tactic",
-            _ => {
-                self.recover_line("expected a proof tactic");
-                self.finish(true);
-                return;
-            }
+            "products-section"
         };
-        self.begin(kind);
-        match kind {
-            "dissociate-tactic" => {
-                self.expect_literal("dissociate");
-                self.expect_literal("aqueous");
-            }
-            "infer-products-tactic" => {
-                self.expect_literal("infer");
-                self.expect_literal("products");
-                self.expect_literal("using");
-                self.parse_qualified_name();
-            }
-            "balance-tactic" => {
-                self.expect_literal("balance");
-                self.parse_equation_kind();
-            }
-            "derive-tactic" => {
-                self.expect_literal("derive");
-                self.parse_equation_kind();
-            }
-            "cancel-spectators-tactic" => {
-                self.expect_literal("cancel");
-                self.expect_literal("spectators");
-            }
-            "solve-stoichiometry-tactic" => {
-                self.expect_literal("solve");
-                self.expect_literal("stoichiometry");
-            }
-            "verify-atoms-tactic" => {
-                self.expect_literal("verify");
-                self.expect_literal("atoms");
-            }
-            "verify-charge-tactic" => {
-                self.expect_literal("verify");
-                self.expect_literal("charge");
-            }
-            "prove-observations-tactic" => {
-                self.expect_literal("prove");
-                self.expect_literal("observations");
-            }
-            "close-tactic" => {
-                self.expect_literal("close");
-            }
-            "auto-tactic" => {
-                self.expect_literal("auto");
-            }
-            _ => unreachable!(),
-        }
+        let keyword = if reactants { "reactants" } else { "products" };
+        self.begin(production);
+        self.expect_literal(keyword);
         self.expect_newline();
-        self.finish(false);
-        self.finish(false);
-    }
-
-    fn parse_equation_kind(&mut self) {
-        self.begin("equation-kind");
-        if matches!(
-            self.peek_text(),
-            Some("molecular" | "completeIonic" | "netIonic")
-        ) {
-            self.bump();
-        } else {
-            self.expected("an equation kind");
-        }
-        self.finish(false);
-    }
-
-    fn parse_equation(&mut self) {
-        self.begin("equation");
-        self.parse_equation_side();
-        if self.at_kind(TokenKind::Newline) && self.peek_text_n(1) == Some("->") {
-            self.bump();
-        }
-        self.expect_literal("->");
-        if self.at_kind(TokenKind::Newline) {
-            self.bump();
-        }
-        self.parse_equation_side();
-        self.finish(false);
-    }
-
-    fn parse_equation_side(&mut self) {
-        self.begin("equation-side");
-        self.parse_equation_term();
-        loop {
-            if self.eat_literal("+") {
-                if self.at_kind(TokenKind::Newline) {
-                    self.bump();
-                }
-                self.parse_equation_term();
-            } else if self.at_kind(TokenKind::Newline) && self.peek_text_n(1) == Some("+") {
-                self.bump();
-                self.bump();
-                if self.at_kind(TokenKind::Newline) {
-                    self.bump();
-                }
-                self.parse_equation_term();
-            } else {
+        self.expect_indent(&format!("an indented {keyword} block"));
+        let mut bindings = Vec::new();
+        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
+            if self.at_kind(TokenKind::Newline) {
+                self.consume_block_newlines(keyword);
+                continue;
+            }
+            if self.at_literal(if reactants { "products" } else { "equation" }) {
                 break;
             }
+            if let Some(binding) = self.parse_structure_declaration(reactants) {
+                bindings.push(binding);
+            }
         }
-        self.finish(false);
+        if bindings.is_empty() {
+            self.error_here(
+                "CHEMS-P003",
+                &format!("{keyword} requires at least one declaration"),
+            );
+        }
+        self.expect_kind(TokenKind::Dedent, &format!("the end of {keyword}"));
+        self.consume_newlines();
+        self.finish(bindings.is_empty());
+        bindings
     }
 
-    fn parse_equation_term(&mut self) {
-        self.begin("equation-term");
-        if self.at_kind(TokenKind::Number) {
-            self.parse_positive_integer();
-            self.require_separator_after(self.last_end, "an equation coefficient");
-        }
-        self.parse_species();
-        self.finish(false);
-    }
-
-    fn parse_species(&mut self) {
-        self.begin("species");
-        self.parse_formula();
-        let formula_end = self.last_end;
-        if self.at_literal("^") {
-            self.require_compact_after(formula_end, "a formula and its charge");
-            self.begin("charge");
-            self.bump();
-            let caret_end = self.last_end;
-            if self.at_kind(TokenKind::Number) {
-                self.require_compact_after(caret_end, "a charge marker and magnitude");
-                self.parse_positive_integer();
-            }
-            let magnitude_end = self.last_end;
-            self.require_compact_after(magnitude_end, "a charge and its sign");
-            if !(self.eat_literal("+") || self.eat_literal("-")) {
-                self.expected("a charge sign");
-            }
-            self.finish(false);
-        }
-        let charge_end = self.last_end;
-        self.require_compact_after(charge_end, "a formula or charge and its phase");
-        self.begin("phase");
-        self.expect_literal("(");
-        let opener_end = self.last_end;
-        self.require_compact_after(opener_end, "a phase opener and phase symbol");
-        if matches!(self.peek_text(), Some("aq" | "s" | "l" | "g")) {
-            self.bump();
+    fn parse_structure_declaration(&mut self, reactant: bool) -> Option<SourceStructureBinding> {
+        self.begin(if reactant {
+            "reactant-declaration"
         } else {
-            self.expected("aq, s, l, or g");
-        }
-        let phase_end = self.last_end;
-        self.require_compact_after(phase_end, "a phase symbol and closer");
-        self.expect_literal(")");
-        self.finish(false);
-        self.finish(false);
-    }
-
-    fn parse_formula(&mut self) {
-        self.begin("formula");
-        self.parse_formula_segment();
-        while self.at_literal(".") {
-            self.require_compact_after(self.last_end, "formula adduct punctuation");
-            self.bump();
-            let dot_end = self.last_end;
-            if self.at_kind(TokenKind::Number) {
-                self.require_compact_after(dot_end, "an adduct dot and coefficient");
-                self.parse_positive_integer();
-            }
-            self.require_compact_after(self.last_end, "an adduct coefficient and formula");
-            self.parse_formula_segment();
-        }
-        self.finish(false);
-    }
-
-    fn parse_formula_segment(&mut self) {
-        self.begin("formula-segment");
-        let mut count = 0;
-        let mut previous_end = None;
-        while !self.at_phase()
-            && !matches!(
-                self.peek_kind(),
-                Some(
-                    TokenKind::Caret
-                        | TokenKind::Dot
-                        | TokenKind::RightParen
-                        | TokenKind::Newline
-                        | TokenKind::Eof
-                )
-            )
-            && !matches!(self.peek_text(), Some("+" | "->"))
-        {
-            if let Some(previous_end) = previous_end {
-                self.require_compact_after(previous_end, "adjacent formula parts");
-            }
-            if self.at_kind(TokenKind::Word) {
-                let token = self.current_token().cloned();
-                if let Some(token) = token {
-                    let mut parts = formula_word_parts(&token);
-                    if parts.is_empty() {
-                        self.begin("formula-part");
-                        self.error(
-                            "CHEMS-P003",
-                            format!("invalid formula token `{}`", token.text),
-                            token.span,
-                        );
-                        self.bump();
-                        self.finish(true);
-                        count += 1;
-                        previous_end = Some(self.last_end);
-                    } else {
-                        self.bump();
-                        if parts.last().is_some_and(|part| part.count.is_none())
-                            && self.at_kind(TokenKind::Number)
-                            && self.gap_is_compact(token.span.end, self.current_span().start)
-                        {
-                            let count_token = self
-                                .current_token()
-                                .cloned()
-                                .expect("number token is present");
-                            if count_token.text.starts_with('0') {
-                                self.error(
-                                    "CHEMS-P003",
-                                    "positive integers must begin with 1 through 9",
-                                    count_token.span,
-                                );
-                            }
-                            self.bump();
-                            if let Some(part) = parts.last_mut() {
-                                part.count = Some(count_token.span);
-                            }
-                        }
-                        count += parts.len();
-                        self.record_formula_word_parts(parts);
-                        previous_end = Some(self.last_end);
-                    }
-                }
-            } else if self.at_literal("(") {
-                self.begin("formula-part");
-                self.bump();
-                self.require_compact_after(self.last_end, "a formula group opener and contents");
-                self.parse_formula_segment();
-                self.require_compact_after(self.last_end, "formula group contents and closer");
-                self.expect_literal(")");
-                if self.at_kind(TokenKind::Number) {
-                    self.require_compact_after(self.last_end, "a formula group and its count");
-                    self.parse_positive_integer();
-                }
-                self.finish(false);
-                count += 1;
-                previous_end = Some(self.last_end);
-            } else {
-                self.begin("formula-part");
-                self.expected("a formula element or group");
-                self.bump_unexpected();
-                self.finish(true);
-                count += 1;
-                previous_end = Some(self.last_end);
-            }
-        }
-        if count == 0 {
-            self.error_here("CHEMS-P003", "formula segment cannot be empty");
-        }
-        self.finish(count == 0);
-    }
-
-    fn at_phase(&self) -> bool {
-        self.peek_text() == Some("(")
-            && matches!(self.peek_text_n(1), Some("aq" | "s" | "l" | "g"))
-            && self.peek_text_n(2) == Some(")")
-    }
-
-    fn parse_quantity(&mut self) {
-        self.begin("quantity");
-        self.parse_decimal();
-        self.require_separator_after(self.last_end, "a decimal and its unit expression");
-        self.parse_unit_expression();
-        self.finish(false);
-    }
-
-    fn parse_decimal(&mut self) {
-        self.begin("decimal");
-        if self.at_literal("+") || self.at_literal("-") {
-            self.bump();
-            self.require_compact_after(self.last_end, "a decimal sign and integer");
-        }
-        self.parse_integer();
-        if self.at_literal(".") {
-            self.require_compact_after(self.last_end, "an integer and decimal point");
-            self.bump();
-            self.require_compact_after(self.last_end, "a decimal point and fractional digits");
-            self.parse_integer();
-        }
-        self.finish(false);
-    }
-
-    fn parse_unit_expression(&mut self) {
-        self.begin("unit-expression");
-        self.parse_unit_product();
-        while self.at_literal("/") {
-            self.require_compact_after(self.last_end, "unit division");
-            self.bump();
-            self.require_compact_after(self.last_end, "unit division");
-            self.parse_unit_product();
-        }
-        self.finish(false);
-    }
-
-    fn parse_unit_product(&mut self) {
-        self.begin("unit-product");
-        self.parse_unit_factor();
-        while self.at_literal("*") {
-            self.require_compact_after(self.last_end, "unit multiplication");
-            self.bump();
-            self.require_compact_after(self.last_end, "unit multiplication");
-            self.parse_unit_factor();
-        }
-        self.finish(false);
-    }
-
-    fn parse_unit_factor(&mut self) {
-        self.begin("unit-factor");
-        self.begin("unit-symbol");
-        if self.at_kind(TokenKind::Word) {
-            self.begin("unit-name");
-            let token = self.current_token().cloned();
-            if let Some(token) = token {
-                if !token
-                    .text
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-                    || !token
-                        .text
-                        .as_bytes()
-                        .first()
-                        .is_some_and(u8::is_ascii_alphabetic)
-                {
-                    self.error("CHEMS-P003", "invalid unit name", token.span);
-                }
-                self.bump();
-            }
-            self.finish(false);
-        } else if self.eat_literal("%") {
-            // Percent is a complete unit symbol.
-        } else {
-            self.expected("a unit name or `%`");
-        }
-        self.finish(false);
-        if self.at_literal("^") {
-            self.require_compact_after(self.last_end, "a unit symbol and exponent");
-            self.bump();
-            self.require_compact_after(self.last_end, "a unit exponent marker and integer");
-            self.parse_signed_integer();
-        }
-        self.finish(false);
-    }
-
-    fn parse_signed_integer(&mut self) {
-        self.begin("signed-integer");
-        if self.at_literal("+") || self.at_literal("-") {
-            self.bump();
-            self.require_compact_after(self.last_end, "an exponent sign and integer");
-        }
-        self.parse_integer();
-        self.finish(false);
-    }
-
-    fn starts_quantity(&self) -> bool {
-        self.at_kind(TokenKind::Number)
-            || ((self.at_literal("+") || self.at_literal("-"))
-                && self.peek_kind_n(1) == Some(&TokenKind::Number))
-    }
-
-    fn gap_is_compact(&self, start: usize, end: usize) -> bool {
-        !self.tokens.iter().any(|token| {
-            token.span.start >= start
-                && token.span.end <= end
-                && matches!(token.kind, TokenKind::Space | TokenKind::Newline)
+            "product-declaration"
+        });
+        let start = self.current_span().start;
+        let name = self.parse_value_identifier();
+        self.expect_kind(TokenKind::Assignment, "`:=`");
+        let coefficient = self.parse_positive_integer();
+        self.expect_literal("of");
+        let structure = self.parse_qualified_name();
+        self.expect_newline();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(name.is_none() || coefficient.is_none() || structure.is_none());
+        Some(SourceStructureBinding {
+            name: name?,
+            coefficient: coefficient?,
+            structure: structure?,
+            span,
         })
     }
 
-    fn require_compact_after(&mut self, start: usize, description: &str) {
-        let end = self.current_span().start;
-        if let Some(span) = self
-            .tokens
-            .iter()
-            .find(|token| {
-                token.span.start >= start && token.span.end <= end && token.kind == TokenKind::Space
-            })
-            .map(|token| token.span)
-        {
-            self.error(
-                "CHEMS-P005",
-                format!("spaces are forbidden within {description}"),
-                span,
-            );
-            self.record_virtual("recovery", ByteSpan::empty(span.start));
-        }
+    fn parse_equation_section(&mut self) -> Option<SourceEquation> {
+        self.begin("equation-section");
+        self.expect_literal("equation");
+        self.expect_newline();
+        self.expect_indent("an indented equation block");
+        let equation = self.parse_equation();
+        self.expect_newline();
+        self.consume_newlines();
+        self.expect_kind(TokenKind::Dedent, "the end of equation");
+        self.consume_newlines();
+        self.finish(equation.is_none());
+        equation
     }
 
-    fn require_separator_after(&mut self, start: usize, description: &str) {
-        let end = self.current_span().start;
-        let separated = self.tokens.iter().any(|token| {
-            token.span.start >= start
-                && token.span.end <= end
-                && matches!(
-                    token.kind,
-                    TokenKind::Space | TokenKind::LineComment | TokenKind::BlockComment
-                )
-        });
-        if !separated {
-            let span = ByteSpan::empty(end);
-            self.error(
-                "CHEMS-P006",
-                format!("a space or comment must separate {description}"),
-                span,
-            );
-            self.record_virtual("recovery", span);
+    fn parse_equation(&mut self) -> Option<SourceEquation> {
+        self.begin("equation");
+        let start = self.current_span().start;
+        let reactants = self.parse_equation_side();
+        if self.at_kind(TokenKind::Newline) && self.peek_kind_n(1) == Some(&TokenKind::Arrow) {
+            self.bump();
         }
+        self.expect_kind(TokenKind::Arrow, "`->`");
+        if self.at_kind(TokenKind::Newline) {
+            self.bump();
+        }
+        let products = self.parse_equation_side();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(reactants.is_empty() || products.is_empty());
+        (!reactants.is_empty() && !products.is_empty()).then_some(SourceEquation {
+            reactants,
+            products,
+            span,
+        })
     }
 
-    fn parse_hole(&mut self) -> bool {
-        if !self.at_literal("?") {
-            return false;
+    fn parse_equation_side(&mut self) -> Vec<SourceEquationTerm> {
+        self.begin("equation-side");
+        let mut terms = Vec::new();
+        if let Some(term) = self.parse_equation_term() {
+            terms.push(term);
         }
-        self.begin("hole");
-        self.bump();
-        self.finish(false);
-        true
-    }
-
-    fn parse_qualified_name(&mut self) -> Option<String> {
-        self.begin("qualified-name");
-        let mut name = self.parse_name_segment();
-        while self.eat_literal(".") {
-            let segment = self.parse_name_segment();
-            if let (Some(name), Some(segment)) = (&mut name, segment) {
-                name.push('.');
-                name.push_str(&segment);
+        loop {
+            if self.at_kind(TokenKind::Plus) {
+                self.bump();
+                if self.at_kind(TokenKind::Newline) {
+                    self.bump();
+                }
+            } else if self.at_kind(TokenKind::Newline)
+                && self.peek_kind_n(1) == Some(&TokenKind::Plus)
+            {
+                self.bump();
+                self.bump();
+                if self.at_kind(TokenKind::Newline) {
+                    self.bump();
+                }
             } else {
-                name = None;
+                break;
+            }
+            if let Some(term) = self.parse_equation_term() {
+                terms.push(term);
             }
         }
-        self.finish(name.is_none());
-        name
+        self.finish(terms.is_empty());
+        terms
     }
 
-    fn parse_name_segment(&mut self) -> Option<String> {
-        self.begin("name-segment");
-        let result = match self.peek_text().and_then(|text| text.as_bytes().first()) {
-            Some(first) if first.is_ascii_lowercase() => self.parse_value_identifier(),
-            Some(first) if first.is_ascii_uppercase() => self.parse_type_identifier(),
+    fn parse_equation_term(&mut self) -> Option<SourceEquationTerm> {
+        self.begin("equation-term");
+        let start = self.current_span().start;
+        let coefficient = self
+            .at_kind(TokenKind::Number)
+            .then(|| self.parse_positive_integer())
+            .flatten();
+        let formula = self.parse_formula();
+        self.expect_kind(TokenKind::LeftBracket, "`[`");
+        let representation = self.parse_representation_kind();
+        self.expect_kind(TokenKind::RightBracket, "`]`");
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(formula.is_none() || representation.is_none());
+        Some(SourceEquationTerm {
+            coefficient,
+            formula: formula?,
+            representation: representation?,
+            span,
+        })
+    }
+
+    fn parse_representation_kind(&mut self) -> Option<SourceRepresentationKind> {
+        self.begin("representation-kind");
+        let value = match self.peek_text() {
+            Some("molecular") => Some(SourceRepresentationKind::Molecular),
+            Some("ion") => Some(SourceRepresentationKind::Ion),
+            Some("ionic") => Some(SourceRepresentationKind::Ionic),
+            Some("metallic") => Some(SourceRepresentationKind::Metallic),
+            _ => None,
+        };
+        if value.is_some() {
+            self.bump();
+        } else {
+            self.expected("a representation kind");
+        }
+        self.finish(value.is_none());
+        value
+    }
+
+    fn parse_model_section(&mut self) -> Option<SourceModel> {
+        self.begin("model-section");
+        let start = self.current_span().start;
+        self.expect_literal("model");
+        self.expect_newline();
+        self.expect_indent("an indented model block");
+        self.begin("event-model-entry");
+        self.expect_literal("event");
+        self.expect_kind(TokenKind::Assignment, "`:=`");
+        let event = self.eat_literal("representative");
+        if !event {
+            self.expected("`representative`");
+        }
+        self.expect_newline();
+        self.finish(!event);
+        self.begin("sequence-model-entry");
+        self.expect_literal("sequence");
+        self.expect_kind(TokenKind::Assignment, "`:=`");
+        let sequence = self.eat_literal("explanatory");
+        if !sequence {
+            self.expected("`explanatory`");
+        }
+        self.expect_newline();
+        self.finish(!sequence);
+        self.consume_newlines();
+        self.expect_kind(TokenKind::Dedent, "the end of model");
+        self.consume_newlines();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(!event || !sequence);
+        (event && sequence).then_some(SourceModel {
+            event: SourceEventModel::Representative,
+            sequence: SourceSequenceModel::Explanatory,
+            span,
+        })
+    }
+
+    fn parse_observation_section(&mut self) -> Option<SourceObservationBlock> {
+        self.begin("observation-section");
+        let start = self.current_span().start;
+        self.expect_literal("observe");
+        self.expect_literal("from");
+        self.begin("evidence-reference");
+        let evidence = self.parse_qualified_name();
+        self.expect_kind(TokenKind::At, "`@`");
+        let version = self.parse_catalog_version();
+        self.finish(evidence.is_none() || version.is_none());
+        self.expect_newline();
+        self.expect_indent("an indented observation block");
+        let mut entries = Vec::new();
+        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
+            if self.at_kind(TokenKind::Newline) {
+                self.consume_block_newlines("observe");
+                continue;
+            }
+            if let Some(entry) = self.parse_observation_entry() {
+                entries.push(entry);
+            }
+        }
+        if entries.is_empty() {
+            self.error_here(
+                "CHEMS-P003",
+                "observe requires at least one typed observation",
+            );
+        }
+        self.expect_kind(TokenKind::Dedent, "the end of observe");
+        self.consume_newlines();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(evidence.is_none() || version.is_none() || entries.is_empty());
+        Some(SourceObservationBlock {
+            evidence: evidence?,
+            version: version?,
+            entries,
+            span,
+        })
+    }
+
+    fn parse_observation_entry(&mut self) -> Option<SourceObservation> {
+        self.begin("observation-entry");
+        let start = self.current_span().start;
+        let result = match self.peek_text() {
+            Some("gas") => self.parse_gas_observation(start),
+            Some("reactant") => self.parse_disappearance_observation(start),
+            Some("product") if self.peek_text_n(2) == Some("forms") => {
+                self.parse_formation_observation(start)
+            }
+            Some("product") => self.parse_colour_observation(start),
             _ => {
-                self.expected("an identifier");
+                self.recover_line("a typed observation");
                 None
             }
         };
@@ -1170,101 +579,388 @@ impl Parser<'_> {
         result
     }
 
-    fn parse_value_identifier(&mut self) -> Option<String> {
-        self.parse_identifier("value-identifier", u8::is_ascii_lowercase)
+    fn parse_gas_observation(&mut self, start: usize) -> Option<SourceObservation> {
+        self.begin("gas-observation");
+        self.expect_literal("gas");
+        let gas = self.parse_value_identifier();
+        self.expect_literal("evolves");
+        let claim = self.parse_claim_reference();
+        self.expect_newline();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(gas.is_none() || claim.is_none());
+        Some(SourceObservation::GasEvolves {
+            gas: gas?,
+            claim: claim?,
+            span,
+        })
     }
 
-    fn parse_type_identifier(&mut self) -> Option<String> {
-        self.parse_identifier("type-identifier", u8::is_ascii_uppercase)
+    fn parse_disappearance_observation(&mut self, start: usize) -> Option<SourceObservation> {
+        self.begin("disappearance-observation");
+        self.expect_literal("reactant");
+        let reactant = self.parse_value_identifier();
+        self.expect_literal("disappears");
+        let claim = self.parse_claim_reference();
+        self.expect_newline();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(reactant.is_none() || claim.is_none());
+        Some(SourceObservation::ReactantDisappears {
+            reactant: reactant?,
+            claim: claim?,
+            span,
+        })
     }
 
-    fn parse_identifier(
-        &mut self,
-        kind: &str,
-        valid_first: impl FnOnce(&u8) -> bool,
-    ) -> Option<String> {
-        self.begin(kind);
-        let Some(token) = self.current_token().cloned() else {
-            self.expected("an identifier");
+    fn parse_formation_observation(&mut self, start: usize) -> Option<SourceObservation> {
+        self.begin("formation-observation");
+        self.expect_literal("product");
+        let product = self.parse_value_identifier();
+        self.expect_literal("forms");
+        let claim = self.parse_claim_reference();
+        self.expect_newline();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(product.is_none() || claim.is_none());
+        Some(SourceObservation::ProductForms {
+            product: product?,
+            claim: claim?,
+            span,
+        })
+    }
+
+    fn parse_colour_observation(&mut self, start: usize) -> Option<SourceObservation> {
+        self.begin("colour-observation");
+        self.expect_literal("product");
+        let product = self.parse_value_identifier();
+        self.expect_literal("has");
+        self.expect_literal("colour");
+        let colour = self.parse_qualified_name();
+        let claim = self.parse_claim_reference();
+        self.expect_newline();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(product.is_none() || colour.is_none() || claim.is_none());
+        Some(SourceObservation::ProductColour {
+            product: product?,
+            colour: colour?,
+            claim: claim?,
+            span,
+        })
+    }
+
+    fn parse_claim_reference(&mut self) -> Option<String> {
+        self.begin("claim-reference");
+        self.expect_literal("claim");
+        let claim = self.parse_claim_identifier();
+        self.finish(claim.is_none());
+        claim
+    }
+
+    fn parse_proof_section(&mut self) -> Option<SourceRuleApplication> {
+        self.begin("proof-section");
+        self.expect_literal("by");
+        self.expect_newline();
+        self.expect_indent("an indented proof block");
+        let application = self.parse_rule_application();
+        self.expect_kind(TokenKind::Dedent, "the end of by");
+        self.finish(application.is_none());
+        application
+    }
+
+    fn parse_rule_application(&mut self) -> Option<SourceRuleApplication> {
+        self.begin("rule-application");
+        let start = self.current_span().start;
+        self.expect_literal("apply");
+        let rule = self.parse_qualified_name();
+        self.expect_newline();
+        self.expect_indent("indented rule bindings");
+        let mut bindings = Vec::new();
+        while !self.at_kind(TokenKind::Dedent) && !self.at_kind(TokenKind::Eof) {
+            if self.at_kind(TokenKind::Newline) {
+                self.consume_block_newlines("apply");
+                continue;
+            }
+            if let Some(binding) = self.parse_rule_binding() {
+                bindings.push(binding);
+            }
+        }
+        if bindings.is_empty() {
+            self.error_here("CHEMS-P003", "apply requires at least one role binding");
+        }
+        self.expect_kind(TokenKind::Dedent, "the end of rule bindings");
+        self.consume_newlines();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(rule.is_none() || bindings.is_empty());
+        Some(SourceRuleApplication {
+            rule: rule?,
+            bindings,
+            span,
+        })
+    }
+
+    fn parse_rule_binding(&mut self) -> Option<SourceRuleBinding> {
+        self.begin("rule-binding");
+        let start = self.current_span().start;
+        let role = self.parse_value_identifier();
+        self.expect_kind(TokenKind::Assignment, "`:=`");
+        let value = self.parse_value_identifier();
+        self.expect_newline();
+        let span = ByteSpan::new(start, self.last_end);
+        self.finish(role.is_none() || value.is_none());
+        Some(SourceRuleBinding {
+            role: role?,
+            value: value?,
+            span,
+        })
+    }
+
+    fn parse_catalog_version(&mut self) -> Option<String> {
+        self.begin("catalog-version");
+        let Some(mut version) = self.parse_integer() else {
             self.finish(true);
             return None;
         };
-        let valid = token.kind == TokenKind::Word
-            && token.text.as_bytes().first().is_some_and(valid_first)
-            && token
-                .text
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
-        let result = if valid {
-            if is_reserved(&token.text) {
+        while self.eat_kind(TokenKind::Dot) {
+            version.push('.');
+            let Some(component) = self.parse_integer() else {
+                self.finish(true);
+                return None;
+            };
+            version.push_str(&component);
+        }
+        self.finish(false);
+        Some(version)
+    }
+
+    fn parse_formula(&mut self) -> Option<String> {
+        self.begin("formula");
+        let position = self.position;
+        let mut valid = self.parse_formula_segment();
+        while self.at_kind(TokenKind::Dot) {
+            self.bump();
+            if self.at_kind(TokenKind::Number) {
+                valid &= self.parse_positive_integer().is_some();
+            }
+            valid &= self.parse_formula_segment();
+        }
+        let formula = self.semantic[position..self.position]
+            .iter()
+            .filter_map(|index| self.tokens.get(*index))
+            .map(|token| token.text.as_str())
+            .collect::<String>();
+        self.finish(!valid);
+        valid.then_some(formula)
+    }
+
+    fn parse_formula_segment(&mut self) -> bool {
+        self.begin("formula-segment");
+        let mut count = 0;
+        while self.at_kind(TokenKind::Word) || self.at_kind(TokenKind::LeftParen) {
+            if self.at_kind(TokenKind::Word) {
+                let parsed = self.parse_formula_word_parts();
+                if parsed == 0 {
+                    break;
+                }
+                count += parsed;
+            } else if self.parse_parenthesized_formula_part() {
+                count += 1;
+            } else {
+                break;
+            }
+        }
+        if count == 0 {
+            self.expected("a formula segment");
+        }
+        self.finish(count == 0);
+        count > 0
+    }
+
+    fn parse_formula_word_parts(&mut self) -> usize {
+        let Some(token) = self.current_token().cloned() else {
+            return 0;
+        };
+        let mut parts = formula_word_parts(&token);
+        if parts.is_empty() {
+            self.error(
+                "CHEMS-P003",
+                "formula words must be element symbols with positive counts",
+                token.span,
+            );
+            self.bump();
+            return 0;
+        }
+        let accepts_external_count = parts.last().is_some_and(|part| part.count.is_none());
+        self.bump();
+        if accepts_external_count && self.at_kind(TokenKind::Number) {
+            let count = self
+                .current_token()
+                .expect("number token is present")
+                .clone();
+            if count.text.starts_with('0') {
                 self.error(
-                    "CHEMS-P004",
-                    format!(
-                        "reserved word `{}` cannot be used as an identifier",
-                        token.text
-                    ),
-                    token.span,
+                    "CHEMS-P003",
+                    "expected a positive integer without a leading zero",
+                    count.span,
                 );
+            } else if let Some(part) = parts.last_mut() {
+                part.count = Some(count.span);
             }
             self.bump();
-            Some(token.text)
+        }
+        let count = parts.len();
+        self.record_formula_word_parts(parts);
+        count
+    }
+
+    fn parse_parenthesized_formula_part(&mut self) -> bool {
+        self.begin("formula-part");
+        let valid = if self.eat_kind(TokenKind::LeftParen) {
+            let nested = self.parse_formula_segment();
+            self.expect_kind(TokenKind::RightParen, "`)`");
+            if self.at_kind(TokenKind::Number) {
+                let _ = self.parse_positive_integer();
+            }
+            nested
         } else {
-            self.expected(if kind == "value-identifier" {
-                "a lower-case identifier"
-            } else {
-                "an upper-case identifier"
-            });
-            None
+            false
         };
-        self.finish(result.is_none());
-        result
+        self.finish(!valid);
+        valid
+    }
+
+    fn parse_qualified_name(&mut self) -> Option<String> {
+        self.begin("qualified-name");
+        let Some(mut value) = self.parse_name_segment() else {
+            self.finish(true);
+            return None;
+        };
+        while self.eat_kind(TokenKind::Dot) {
+            value.push('.');
+            let Some(segment) = self.parse_name_segment() else {
+                self.finish(true);
+                return None;
+            };
+            value.push_str(&segment);
+        }
+        self.finish(false);
+        Some(value)
+    }
+
+    fn parse_name_segment(&mut self) -> Option<String> {
+        self.begin("name-segment");
+        let value = self.parse_identifier(IdentifierClass::General);
+        self.finish(value.is_none());
+        value
+    }
+
+    fn parse_type_identifier(&mut self) -> Option<String> {
+        self.begin("type-identifier");
+        let value = self.parse_identifier(IdentifierClass::Type);
+        self.finish(value.is_none());
+        value
+    }
+
+    fn parse_value_identifier(&mut self) -> Option<String> {
+        self.begin("value-identifier");
+        let value = self.parse_identifier(IdentifierClass::Value);
+        self.finish(value.is_none());
+        value
+    }
+
+    fn parse_claim_identifier(&mut self) -> Option<String> {
+        self.begin("claim-identifier");
+        let value = self.parse_identifier(IdentifierClass::Claim);
+        self.finish(value.is_none());
+        value
+    }
+
+    fn parse_identifier(&mut self, class: IdentifierClass) -> Option<String> {
+        self.begin("identifier");
+        let Some(token) = self.current_token().cloned() else {
+            self.expected(&format!("a {class} identifier"));
+            self.finish(true);
+            return None;
+        };
+        let bytes = token.text.as_bytes();
+        let valid = match class {
+            IdentifierClass::General => bytes.first().is_some_and(u8::is_ascii_alphabetic),
+            IdentifierClass::Type => bytes.first().is_some_and(u8::is_ascii_uppercase),
+            IdentifierClass::Value => bytes.first().is_some_and(u8::is_ascii_lowercase),
+            IdentifierClass::Claim => {
+                bytes.first().is_some_and(u8::is_ascii_uppercase)
+                    && bytes.iter().all(|byte| {
+                        byte.is_ascii_uppercase() || byte.is_ascii_digit() || *byte == b'_'
+                    })
+            }
+        } && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_');
+        if !valid || token.kind != TokenKind::Word {
+            self.error(
+                "CHEMS-P003",
+                format!("`{}` is not a valid {class} identifier", token.text),
+                token.span,
+            );
+            self.bump_unexpected();
+            self.finish(true);
+            return None;
+        }
+        if is_reserved(&token.text) {
+            self.error(
+                "CHEMS-P004",
+                format!(
+                    "reserved word `{}` cannot be used as an identifier",
+                    token.text
+                ),
+                token.span,
+            );
+        }
+        if token.text.len() > 1 {
+            self.record_virtual(
+                "identifier-continue",
+                ByteSpan::new(token.span.start + 1, token.span.end),
+            );
+        }
+        self.bump();
+        self.finish(false);
+        Some(token.text)
     }
 
     fn parse_integer(&mut self) -> Option<String> {
         self.begin("integer");
-        let result = if self.at_kind(TokenKind::Number) {
-            let text = self.peek_text().map(str::to_owned);
-            self.bump();
-            text
-        } else {
+        let Some(token) = self.current_token().cloned() else {
             self.expected("an integer");
-            None
+            self.finish(true);
+            return None;
         };
-        self.finish(result.is_none());
-        result
+        if token.kind != TokenKind::Number {
+            self.expected("an integer");
+            self.finish(true);
+            return None;
+        }
+        self.bump();
+        self.finish(false);
+        Some(token.text)
     }
 
     fn parse_positive_integer(&mut self) -> Option<String> {
         self.begin("positive-integer");
-        let result = if self.at_kind(TokenKind::Number) {
-            let token = self.current_token().cloned().expect("number token exists");
-            if token.text.starts_with('0') {
-                self.error(
-                    "CHEMS-P003",
-                    "positive integers must begin with 1 through 9",
-                    token.span,
-                );
-            }
-            self.bump();
-            Some(token.text)
-        } else {
+        let Some(token) = self.current_token().cloned() else {
             self.expected("a positive integer");
-            None
+            self.finish(true);
+            return None;
         };
-        self.finish(result.is_none());
-        result
-    }
-
-    fn parse_stage_reference(&mut self) {
-        self.begin("stage-reference");
-        if self.at_literal("initial") || self.at_literal("final") {
-            self.bump();
-        } else {
-            self.begin("stage-label");
-            self.parse_value_identifier();
-            self.finish(false);
+        if token.kind != TokenKind::Number || token.text.starts_with('0') {
+            self.error(
+                "CHEMS-P003",
+                "expected a positive integer without a leading zero",
+                token.span,
+            );
+            self.bump_unexpected();
+            self.finish(true);
+            return None;
         }
+        self.bump();
         self.finish(false);
+        Some(token.text)
     }
 
     fn begin(&mut self, kind: &str) {
@@ -1356,16 +1052,25 @@ impl Parser<'_> {
     }
 
     fn bump_unexpected(&mut self) {
-        if !self.at_kind(TokenKind::Newline)
-            && !self.at_kind(TokenKind::Dedent)
-            && !self.at_kind(TokenKind::Eof)
-        {
+        if !matches!(
+            self.peek_kind(),
+            Some(TokenKind::Newline | TokenKind::Dedent | TokenKind::Eof) | None
+        ) {
             self.bump();
         }
     }
 
     fn eat_literal(&mut self, literal: &str) -> bool {
         if self.at_literal(literal) {
+            self.bump();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn eat_kind(&mut self, kind: TokenKind) -> bool {
+        if self.at_kind(kind) {
             self.bump();
             true
         } else {
@@ -1392,8 +1097,54 @@ impl Parser<'_> {
     }
 
     fn expect_indent(&mut self, description: &str) {
-        self.consume_newlines();
+        while self.at_kind(TokenKind::Newline) {
+            if !self.current_newline_has_comment() {
+                self.error_here(
+                    "CHEMS-P003",
+                    "blank lines are not permitted before the first block entry",
+                );
+            }
+            self.bump();
+        }
         self.expect_kind(TokenKind::Indent, description);
+    }
+
+    fn consume_block_newlines(&mut self, block: &str) {
+        while self.at_kind(TokenKind::Newline) {
+            let comment_line = self.current_newline_has_comment();
+            self.bump();
+            if !comment_line && self.next_non_newline_kind() != Some(TokenKind::Dedent) {
+                self.error_here(
+                    "CHEMS-P003",
+                    &format!("blank lines may appear only at the end of `{block}`"),
+                );
+            }
+        }
+    }
+
+    fn current_newline_has_comment(&self) -> bool {
+        if !self.at_kind(TokenKind::Newline) {
+            return false;
+        }
+        let Some(current) = self.semantic.get(self.position).copied() else {
+            return false;
+        };
+        let previous = self
+            .position
+            .checked_sub(1)
+            .and_then(|position| self.semantic.get(position).copied())
+            .map_or(0, |index| index + 1);
+        self.tokens[previous..current]
+            .iter()
+            .any(|token| token.kind.is_comment())
+    }
+
+    fn next_non_newline_kind(&self) -> Option<TokenKind> {
+        self.semantic[self.position..]
+            .iter()
+            .filter_map(|index| self.tokens.get(*index))
+            .find(|token| token.kind != TokenKind::Newline)
+            .map(|token| token.kind)
     }
 
     fn consume_newlines(&mut self) {
@@ -1404,23 +1155,21 @@ impl Parser<'_> {
 
     fn recover_line(&mut self, expected: &str) {
         self.expected(expected);
-        self.recover_to_newline(expected);
-        self.expect_newline();
-    }
-
-    fn recover_to_newline(&mut self, expected: &str) {
-        if !self.at_kind(TokenKind::Newline) {
-            self.error_here("CHEMS-P003", expected);
-        }
         while !matches!(
             self.peek_kind(),
             Some(TokenKind::Newline | TokenKind::Dedent | TokenKind::Eof) | None
         ) {
             self.bump();
         }
+        if self.at_kind(TokenKind::Newline) {
+            self.bump();
+        }
     }
 
     fn expected(&mut self, expected: &str) {
+        if self.halted {
+            return;
+        }
         let span = self.current_span();
         self.error(
             "CHEMS-P003",
@@ -1428,6 +1177,10 @@ impl Parser<'_> {
             span,
         );
         self.record_virtual("recovery", ByteSpan::empty(span.start));
+        if self.at_kind(TokenKind::Eof) {
+            self.halted = true;
+            return;
+        }
         self.bump_unexpected();
     }
 
@@ -1436,8 +1189,9 @@ impl Parser<'_> {
     }
 
     fn error(&mut self, code: &str, summary: impl Into<String>, span: ByteSpan) {
-        self.diagnostics
-            .push(Diagnostic::parse(code, summary, span));
+        let mut diagnostic = Diagnostic::parse(code, summary, span);
+        diagnostic.emission_index = self.diagnostics.len();
+        self.diagnostics.push(diagnostic);
     }
 
     fn sort_diagnostics(&mut self) {
@@ -1445,9 +1199,8 @@ impl Parser<'_> {
             (
                 diagnostic.primary_span.start,
                 diagnostic.severity,
-                diagnostic.stage,
                 diagnostic.code.clone(),
-                diagnostic.summary.clone(),
+                diagnostic.emission_index,
             )
         });
         self.diagnostics.dedup();
@@ -1505,6 +1258,25 @@ impl Parser<'_> {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum IdentifierClass {
+    General,
+    Type,
+    Value,
+    Claim,
+}
+
+impl std::fmt::Display for IdentifierClass {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::General => "general",
+            Self::Type => "type",
+            Self::Value => "value",
+            Self::Claim => "claim",
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 struct FormulaWordPart {
     element: ByteSpan,
     count: Option<ByteSpan>,
@@ -1558,27 +1330,18 @@ fn attach_comments(source: &str, tokens: &[Token], root: &SyntaxNode) -> Vec<Com
         .filter(|(_, token)| token.kind.is_comment())
         .map(|(token_index, token)| {
             let line_start = source[..token.span.start]
-                .rfind('\n')
+                .rfind(['\n', '\r'])
                 .map_or(0, |index| index + 1);
             let full_line = source[line_start..token.span.start]
                 .chars()
                 .all(char::is_whitespace);
             let (placement, node) = if full_line {
-                let comment_line = source[..token.span.end]
-                    .bytes()
-                    .filter(|b| *b == b'\n')
-                    .count();
+                let comment_line = logical_line(source, token.span.end);
                 nodes
                     .iter()
                     .filter(|node| node.span.start >= token.span.end)
                     .min_by_key(|node| node.span.start)
-                    .filter(|node| {
-                        let node_line = source[..node.span.start]
-                            .bytes()
-                            .filter(|b| *b == b'\n')
-                            .count();
-                        node_line <= comment_line + 1
-                    })
+                    .filter(|node| logical_line(source, node.span.start) <= comment_line + 1)
                     .map_or((CommentPlacement::Enclosing, root), |node| {
                         (CommentPlacement::Leading, *node)
                     })
@@ -1613,434 +1376,34 @@ fn attach_comments(source: &str, tokens: &[Token], root: &SyntaxNode) -> Vec<Com
         .collect()
 }
 
+fn logical_line(source: &str, end: usize) -> usize {
+    let bytes = &source.as_bytes()[..end.min(source.len())];
+    let mut lines = 0;
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'\r' {
+            lines += 1;
+            index += usize::from(bytes.get(index + 1) == Some(&b'\n')) + 1;
+        } else {
+            lines += usize::from(bytes[index] == b'\n');
+            index += 1;
+        }
+    }
+    lines
+}
+
 fn collect_attachable_nodes<'a>(node: &'a SyntaxNode, output: &mut Vec<&'a SyntaxNode>) {
     if node.kind == "document"
-        || node.kind == "experiment"
+        || node.kind == "reaction-declaration"
         || node.kind.ends_with("-section")
-        || node.kind.ends_with("-entry")
         || node.kind.ends_with("-declaration")
-        || node.kind.ends_with("-operation")
-        || node.kind.ends_with("-claim")
-        || node.kind.ends_with("-tactic")
+        || node.kind.ends_with("-entry")
+        || node.kind.ends_with("-application")
+        || node.kind.ends_with("-binding")
     {
         output.push(node);
     }
     for child in &node.children {
         collect_attachable_nodes(child, output);
     }
-}
-
-fn lower_source_node(source: &str, node: &SyntaxNode) -> SourceNode {
-    let kind = source_node_kind(&node.kind);
-    let lexeme = source_node_has_lexeme(&kind).then(|| {
-        source[node.span.start.min(source.len())..node.span.end.min(source.len())]
-            .trim()
-            .to_owned()
-    });
-    SourceNode {
-        kind,
-        span: node.span,
-        lexeme,
-        children: node
-            .children
-            .iter()
-            .map(|child| lower_source_node(source, child))
-            .collect(),
-        recovery: node.recovery,
-    }
-}
-
-fn source_node_has_lexeme(kind: &SourceNodeKind) -> bool {
-    matches!(
-        kind,
-        SourceNodeKind::Header {
-            form: HeaderKind::LanguageVersion | HeaderKind::CatalogVersion
-        } | SourceNodeKind::Declaration {
-            form: DeclarationKind::Openness
-        } | SourceNodeKind::Claim {
-            claim: ClaimKind::ReactionClass | ClaimKind::IdentityPredicate
-        } | SourceNodeKind::Observation {
-            observation: ObservationKind::TemperatureDirection
-        } | SourceNodeKind::Equation {
-            form: EquationSyntaxKind::Kind
-        } | SourceNodeKind::Chemical { .. }
-            | SourceNodeKind::Quantity { .. }
-            | SourceNodeKind::Name { .. }
-            | SourceNodeKind::Hole
-            | SourceNodeKind::Recovery
-    )
-}
-
-fn source_language(lexeme: Option<String>, document: &SourceNode) -> Option<SourceLanguageVersion> {
-    let lexeme = lexeme?;
-    let node = find_source_node(document, |kind| {
-        matches!(
-            kind,
-            SourceNodeKind::Header {
-                form: HeaderKind::LanguageVersion
-            }
-        )
-    })?;
-    Some(SourceLanguageVersion {
-        lexeme,
-        span: node.span,
-    })
-}
-
-fn source_catalogue(
-    name: Option<String>,
-    document: &SourceNode,
-) -> Option<SourceCatalogueSelection> {
-    let name = name?;
-    let selection = find_source_node(document, |kind| {
-        matches!(
-            kind,
-            SourceNodeKind::Header {
-                form: HeaderKind::CatalogUse
-            }
-        )
-    })?;
-    let version = find_source_node(selection, |kind| {
-        matches!(
-            kind,
-            SourceNodeKind::Header {
-                form: HeaderKind::CatalogVersion
-            }
-        )
-    })
-    .and_then(|node| node.lexeme.clone());
-    Some(SourceCatalogueSelection {
-        name,
-        version,
-        span: selection.span,
-    })
-}
-
-fn source_experiment(name: Option<String>, document: &SourceNode) -> Option<SourceExperiment> {
-    let name = name?;
-    let experiment = find_source_node(document, |kind| matches!(kind, SourceNodeKind::Experiment))?;
-    let section = |wanted| {
-        experiment.children.iter().find(|node| {
-            matches!(
-                node.kind,
-                SourceNodeKind::Section { section } if section == wanted
-            )
-        })
-    };
-    let entries = |wanted, predicate: fn(&SourceNodeKind) -> bool| {
-        section(wanted)
-            .map(|section| {
-                section
-                    .children
-                    .iter()
-                    .filter(|node| predicate(&node.kind))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    let expectations = experiment
-        .children
-        .iter()
-        .filter(|node| {
-            matches!(
-                node.kind,
-                SourceNodeKind::Section {
-                    section: SectionKind::Expectation
-                }
-            )
-        })
-        .map(|node| SourceExpectation {
-            span: node.span,
-            stage: find_source_node(node, |kind| {
-                matches!(
-                    kind,
-                    SourceNodeKind::Name {
-                        form: NameSyntaxKind::StageReference
-                    }
-                )
-            })
-            .and_then(|stage| stage.lexeme.clone()),
-            claims: node
-                .children
-                .iter()
-                .filter(|child| {
-                    matches!(
-                        child.kind,
-                        SourceNodeKind::Claim {
-                            claim: ClaimKind::Entry
-                        }
-                    )
-                })
-                .cloned()
-                .collect(),
-        })
-        .collect();
-    Some(SourceExperiment {
-        name,
-        span: experiment.span,
-        conditions: entries(SectionKind::Conditions, is_condition_entry),
-        assumptions: entries(SectionKind::Assumptions, is_assumption_entry),
-        materials: entries(SectionKind::Given, is_material_entry),
-        vessels: entries(SectionKind::Vessels, is_vessel_entry),
-        procedure: entries(SectionKind::Procedure, is_procedure_entry),
-        expectations,
-        tactics: entries(SectionKind::Proof, is_tactic_entry),
-    })
-}
-
-fn find_source_node(
-    node: &SourceNode,
-    predicate: impl Copy + Fn(&SourceNodeKind) -> bool,
-) -> Option<&SourceNode> {
-    if predicate(&node.kind) {
-        return Some(node);
-    }
-    node.children
-        .iter()
-        .find_map(|child| find_source_node(child, predicate))
-}
-
-fn is_condition_entry(kind: &SourceNodeKind) -> bool {
-    matches!(
-        kind,
-        SourceNodeKind::Declaration {
-            form: DeclarationKind::ConditionEntry
-        }
-    )
-}
-
-fn is_assumption_entry(kind: &SourceNodeKind) -> bool {
-    matches!(
-        kind,
-        SourceNodeKind::Declaration {
-            form: DeclarationKind::Assumption
-        }
-    )
-}
-
-fn is_material_entry(kind: &SourceNodeKind) -> bool {
-    matches!(
-        kind,
-        SourceNodeKind::Declaration {
-            form: DeclarationKind::Material
-        }
-    )
-}
-
-fn is_vessel_entry(kind: &SourceNodeKind) -> bool {
-    matches!(
-        kind,
-        SourceNodeKind::Declaration {
-            form: DeclarationKind::Vessel
-        }
-    )
-}
-
-fn is_procedure_entry(kind: &SourceNodeKind) -> bool {
-    matches!(
-        kind,
-        SourceNodeKind::Declaration {
-            form: DeclarationKind::ProcedureEntry
-        }
-    )
-}
-
-fn is_tactic_entry(kind: &SourceNodeKind) -> bool {
-    matches!(
-        kind,
-        SourceNodeKind::Tactic {
-            tactic: TacticKind::Tactic
-        }
-    )
-}
-
-#[expect(
-    clippy::too_many_lines,
-    reason = "the exhaustive normative-production mapping is clearest as one auditable match"
-)]
-fn source_node_kind(production: &str) -> SourceNodeKind {
-    match production {
-        "document" => SourceNodeKind::Document,
-        "language-header" => SourceNodeKind::Header {
-            form: HeaderKind::LanguageHeader,
-        },
-        "language-version" => SourceNodeKind::Header {
-            form: HeaderKind::LanguageVersion,
-        },
-        "catalog-use" => SourceNodeKind::Header {
-            form: HeaderKind::CatalogUse,
-        },
-        "catalog-version" => SourceNodeKind::Header {
-            form: HeaderKind::CatalogVersion,
-        },
-        "experiment" => SourceNodeKind::Experiment,
-        "conditions-section" => SourceNodeKind::Section {
-            section: SectionKind::Conditions,
-        },
-        "assumptions-section" => SourceNodeKind::Section {
-            section: SectionKind::Assumptions,
-        },
-        "given-section" => SourceNodeKind::Section {
-            section: SectionKind::Given,
-        },
-        "vessels-section" => SourceNodeKind::Section {
-            section: SectionKind::Vessels,
-        },
-        "procedure-section" => SourceNodeKind::Section {
-            section: SectionKind::Procedure,
-        },
-        "expectation-section" => SourceNodeKind::Section {
-            section: SectionKind::Expectation,
-        },
-        "observation-section" => SourceNodeKind::Section {
-            section: SectionKind::Observation,
-        },
-        "proof-section" => SourceNodeKind::Section {
-            section: SectionKind::Proof,
-        },
-        "condition-entry" => SourceNodeKind::Declaration {
-            form: DeclarationKind::ConditionEntry,
-        },
-        "temperature-entry" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Temperature,
-        },
-        "pressure-entry" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Pressure,
-        },
-        "medium-entry" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Medium,
-        },
-        "assumption-entry" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Assumption,
-        },
-        "material-declaration" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Material,
-        },
-        "material-expression" => SourceNodeKind::Declaration {
-            form: DeclarationKind::MaterialExpression,
-        },
-        "simple-material" => SourceNodeKind::Declaration {
-            form: DeclarationKind::SimpleMaterial,
-        },
-        "prepared-material" => SourceNodeKind::Declaration {
-            form: DeclarationKind::PreparedMaterial,
-        },
-        "component-entry" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Component,
-        },
-        "vessel-declaration" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Vessel,
-        },
-        "openness" => SourceNodeKind::Declaration {
-            form: DeclarationKind::Openness,
-        },
-        "procedure-entry" => SourceNodeKind::Declaration {
-            form: DeclarationKind::ProcedureEntry,
-        },
-        "stage-label" => SourceNodeKind::Declaration {
-            form: DeclarationKind::StageLabel,
-        },
-        "operation" => operation_node(OperationKind::Operation),
-        "place-operation" => operation_node(OperationKind::Place),
-        "add-operation" => operation_node(OperationKind::Add),
-        "combine-operation" => operation_node(OperationKind::Combine),
-        "transfer-operation" => operation_node(OperationKind::Transfer),
-        "stir-operation" => operation_node(OperationKind::Stir),
-        "heat-operation" => operation_node(OperationKind::Heat),
-        "cool-operation" => operation_node(OperationKind::Cool),
-        "wait-operation" => operation_node(OperationKind::Wait),
-        "seal-operation" => operation_node(OperationKind::Seal),
-        "open-operation" => operation_node(OperationKind::Open),
-        "filter-operation" => operation_node(OperationKind::Filter),
-        "decant-operation" => operation_node(OperationKind::Decant),
-        "claim-entry" => claim_node(ClaimKind::Entry),
-        "class-claim" => claim_node(ClaimKind::Class),
-        "reaction-class" => claim_node(ClaimKind::ReactionClass),
-        "identity-claim" => claim_node(ClaimKind::Identity),
-        "identity-predicate" => claim_node(ClaimKind::IdentityPredicate),
-        "equation-claim" => claim_node(ClaimKind::Equation),
-        "equation-claim-value" => claim_node(ClaimKind::EquationValue),
-        "amount-claim" => claim_node(ClaimKind::Amount),
-        "limiting-claim" => claim_node(ClaimKind::Limiting),
-        "observation-entry" => observation_node(ObservationKind::Entry),
-        "precipitate-observation" => observation_node(ObservationKind::Precipitate),
-        "gas-observation" => observation_node(ObservationKind::Gas),
-        "colour-observation" => observation_node(ObservationKind::Colour),
-        "temperature-observation" => observation_node(ObservationKind::Temperature),
-        "temperature-direction" => observation_node(ObservationKind::TemperatureDirection),
-        "tactic" => tactic_node(TacticKind::Tactic),
-        "dissociate-tactic" => tactic_node(TacticKind::Dissociate),
-        "infer-products-tactic" => tactic_node(TacticKind::InferProducts),
-        "balance-tactic" => tactic_node(TacticKind::Balance),
-        "derive-tactic" => tactic_node(TacticKind::Derive),
-        "cancel-spectators-tactic" => tactic_node(TacticKind::CancelSpectators),
-        "solve-stoichiometry-tactic" => tactic_node(TacticKind::SolveStoichiometry),
-        "verify-atoms-tactic" => tactic_node(TacticKind::VerifyAtoms),
-        "verify-charge-tactic" => tactic_node(TacticKind::VerifyCharge),
-        "prove-observations-tactic" => tactic_node(TacticKind::ProveObservations),
-        "close-tactic" => tactic_node(TacticKind::Close),
-        "auto-tactic" => tactic_node(TacticKind::Auto),
-        "equation" => equation_node(EquationSyntaxKind::Equation),
-        "equation-kind" => equation_node(EquationSyntaxKind::Kind),
-        "equation-side" => equation_node(EquationSyntaxKind::Side),
-        "equation-term" => equation_node(EquationSyntaxKind::Term),
-        "species" => chemical_node(ChemicalSyntaxKind::Species),
-        "formula" => chemical_node(ChemicalSyntaxKind::Formula),
-        "formula-segment" => chemical_node(ChemicalSyntaxKind::FormulaSegment),
-        "formula-part" => chemical_node(ChemicalSyntaxKind::FormulaPart),
-        "element" => chemical_node(ChemicalSyntaxKind::Element),
-        "charge" => chemical_node(ChemicalSyntaxKind::Charge),
-        "phase" => chemical_node(ChemicalSyntaxKind::Phase),
-        "quantity" => quantity_node(QuantitySyntaxKind::Quantity),
-        "decimal" => quantity_node(QuantitySyntaxKind::Decimal),
-        "unit-expression" => quantity_node(QuantitySyntaxKind::UnitExpression),
-        "unit-product" => quantity_node(QuantitySyntaxKind::UnitProduct),
-        "unit-factor" => quantity_node(QuantitySyntaxKind::UnitFactor),
-        "unit-symbol" => quantity_node(QuantitySyntaxKind::UnitSymbol),
-        "unit-name" => quantity_node(QuantitySyntaxKind::UnitName),
-        "signed-integer" => quantity_node(QuantitySyntaxKind::SignedInteger),
-        "integer" => quantity_node(QuantitySyntaxKind::Integer),
-        "positive-integer" => quantity_node(QuantitySyntaxKind::PositiveInteger),
-        "qualified-name" => name_node(NameSyntaxKind::QualifiedName),
-        "name-segment" => name_node(NameSyntaxKind::NameSegment),
-        "value-identifier" => name_node(NameSyntaxKind::ValueIdentifier),
-        "type-identifier" => name_node(NameSyntaxKind::TypeIdentifier),
-        "stage-reference" => name_node(NameSyntaxKind::StageReference),
-        "hole" => SourceNodeKind::Hole,
-        "recovery" => SourceNodeKind::Recovery,
-        unknown => panic!("parser emitted unmapped source production `{unknown}`"),
-    }
-}
-
-const fn operation_node(operation: OperationKind) -> SourceNodeKind {
-    SourceNodeKind::Operation { operation }
-}
-
-const fn claim_node(claim: ClaimKind) -> SourceNodeKind {
-    SourceNodeKind::Claim { claim }
-}
-
-const fn observation_node(observation: ObservationKind) -> SourceNodeKind {
-    SourceNodeKind::Observation { observation }
-}
-
-const fn tactic_node(tactic: TacticKind) -> SourceNodeKind {
-    SourceNodeKind::Tactic { tactic }
-}
-
-const fn equation_node(form: EquationSyntaxKind) -> SourceNodeKind {
-    SourceNodeKind::Equation { form }
-}
-
-const fn chemical_node(form: ChemicalSyntaxKind) -> SourceNodeKind {
-    SourceNodeKind::Chemical { form }
-}
-
-const fn quantity_node(form: QuantitySyntaxKind) -> SourceNodeKind {
-    SourceNodeKind::Quantity { form }
-}
-
-const fn name_node(form: NameSyntaxKind) -> SourceNodeKind {
-    SourceNodeKind::Name { form }
 }

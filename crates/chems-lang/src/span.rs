@@ -19,6 +19,11 @@ impl ByteSpan {
     }
 
     #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.start == self.end
+    }
+
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.start <= other.start && other.end <= self.end
     }
@@ -38,9 +43,23 @@ impl SourcePosition {
         while !source.is_char_boundary(offset) {
             offset -= 1;
         }
-        let prefix = &source[..offset];
-        let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
-        let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
+        let bytes = source.as_bytes();
+        let mut line = 0;
+        let mut line_start = 0;
+        let mut index = 0;
+        while index < offset {
+            if bytes[index] == b'\r' {
+                line += 1;
+                index += usize::from(index + 1 < offset && bytes[index + 1] == b'\n') + 1;
+                line_start = index;
+            } else if bytes[index] == b'\n' {
+                line += 1;
+                index += 1;
+                line_start = index;
+            } else {
+                index += 1;
+            }
+        }
         let scalar_column = source[line_start..offset].chars().count();
         Self {
             line,

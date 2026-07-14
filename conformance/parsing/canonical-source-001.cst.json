@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "source_length": 654,
+  "token_count": 218,
+  "root_span": { "start": 0, "end": 654 },
+  "top_level": [
+    { "kind": "language-header", "span": { "start": 0, "end": 8 } },
+    { "kind": "catalog-use", "span": { "start": 8, "end": 43 } },
+    { "kind": "reaction-declaration", "span": { "start": 44, "end": 654 } }
+  ],
+  "layout": { "indent": 8, "dedent": 8, "newline": 30 },
+  "reaction_children": [
+    { "kind": "type-identifier", "span": { "start": 53, "end": 68 } },
+    { "kind": "reactants-section", "span": { "start": 77, "end": 147 } },
+    { "kind": "products-section", "span": { "start": 147, "end": 235 } },
+    { "kind": "equation-section", "span": { "start": 235, "end": 322 } },
+    { "kind": "model-section", "span": { "start": 322, "end": 387 } },
+    { "kind": "observation-section", "span": { "start": 387, "end": 505 } },
+    { "kind": "proof-section", "span": { "start": 505, "end": 654 } }
+  ],
+  "formula_shapes": [
+    {
+      "kind": "formula", "span": { "start": 250, "end": 252 },
+      "children": [{
+        "kind": "formula-segment", "span": { "start": 250, "end": 252 },
+        "children": [{
+          "kind": "formula-part", "span": { "start": 250, "end": 252 },
+          "children": [{ "kind": "element", "span": { "start": 250, "end": 252 }, "children": [] }]
+        }]
+      }]
+    },
+    {
+      "kind": "formula", "span": { "start": 267, "end": 270 },
+      "children": [{
+        "kind": "formula-segment", "span": { "start": 267, "end": 270 },
+        "children": [
+          {
+            "kind": "formula-part", "span": { "start": 267, "end": 269 },
+            "children": [
+              { "kind": "element", "span": { "start": 267, "end": 268 }, "children": [] },
+              { "kind": "positive-integer", "span": { "start": 268, "end": 269 }, "children": [] }
+            ]
+          },
+          {
+            "kind": "formula-part", "span": { "start": 269, "end": 270 },
+            "children": [{ "kind": "element", "span": { "start": 269, "end": 270 }, "children": [] }]
+          }
+        ]
+      }]
+    },
+    {
+      "kind": "formula", "span": { "start": 291, "end": 295 },
+      "children": [{
+        "kind": "formula-segment", "span": { "start": 291, "end": 295 },
+        "children": [
+          { "kind": "formula-part", "span": { "start": 291, "end": 293 }, "children": [{ "kind": "element", "span": { "start": 291, "end": 293 }, "children": [] }] },
+          { "kind": "formula-part", "span": { "start": 293, "end": 294 }, "children": [{ "kind": "element", "span": { "start": 293, "end": 294 }, "children": [] }] },
+          { "kind": "formula-part", "span": { "start": 294, "end": 295 }, "children": [{ "kind": "element", "span": { "start": 294, "end": 295 }, "children": [] }] }
+        ]
+      }]
+    },
+    {
+      "kind": "formula", "span": { "start": 305, "end": 307 },
+      "children": [{
+        "kind": "formula-segment", "span": { "start": 305, "end": 307 },
+        "children": [{
+          "kind": "formula-part", "span": { "start": 305, "end": 307 },
+          "children": [
+            { "kind": "element", "span": { "start": 305, "end": 306 }, "children": [] },
+            { "kind": "positive-integer", "span": { "start": 306, "end": 307 }, "children": [] }
+          ]
+        }]
+      }]
+    }
+  ]
+}

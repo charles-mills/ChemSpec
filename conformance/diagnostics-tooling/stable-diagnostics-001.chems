@@ -1,0 +1,30 @@
+chems 2
+use catalog ChemSpec.Theoretical@1
+
+reaction LithiumAndWater where
+  reactants
+    lithium := 2 of LithiumMetal
+    water := 2 of Water
+
+  products
+    lithiumHydroxide := 2 of LithiumHydroxide
+    hydrogen := 1 of Hydrogen
+
+  equation
+    2 Li[metallic] + 2 H2O[molecular]
+    -> 2 LiOH[ionic] + H2[molecular]
+
+  model
+    event := representative
+    sequence := explanatory
+
+  observe from Evidence.LithiumAndWater@1
+    gas hydrogen evolves claim R1
+    reactant lithium disappears claim R2
+
+  by
+    apply Rules.AlkaliMetalWithWater
+      metal := lithium
+      water := water
+      hydroxide := lithiumHydroxide
+      gasProduct := hydrogen
