@@ -1,8 +1,9 @@
 # Generalized rules implementation plan
 
 > **Status:** fixed implementation queue for the locked
-> [generalized chemistry design](generalized-chemistry-rules.md). G0 through G2
-> are implemented and reviewed. G3 through G6 remain queued in the order below.
+> [generalized chemistry design](generalized-chemistry-rules.md). G0 through G3
+> are implemented and independently reviewed; G4 through G6 remain queued in
+> the order below.
 
 ## Purpose
 
@@ -216,6 +217,8 @@ G2 reviewed clean.
 - Statically enumerate finite element-parameter domains.
 - Treat element-category members, checked-trait structure indexes, and closed
   enum values as the only finite parameter-domain sources.
+- Admit at most 64 parameters and reject Cartesian domains above 4,096 bindings
+  before enumeration.
 - Reject overlapping and unreachable cases; allow uncovered parameter bindings
   to remain Unsupported.
 - Validate that every rewrite can instantiate only existing closed structural

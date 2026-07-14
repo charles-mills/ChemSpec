@@ -41,7 +41,7 @@ or explicit cleavage allocation before they can enter the bundle.
 The catalogue digest is insensitive to record ordering where order has no
 meaning. The ordered operation template remains digest-significant.
 
-## Generalized-rules G2 boundary
+## Generalized-rules G3 boundary
 
 Catalogue schema 1 may optionally carry a reviewed element registry and
 element-category definitions. `ValidatedCatalogueBundle` derives deterministic
@@ -65,6 +65,14 @@ an expanded reaction or cross the kernel boundary. Reactant-graph
 automorphism comparison is exposed separately so later elaboration can
 identify symmetric raw matches without selecting the first atom ID.
 
-Generalized reaction families, case selection, rewrite instantiation, product
-certificate equivalence, and source elaboration remain unimplemented after
-G2.
+Schema 1 now also carries inert generalized reaction families. Their parameter
+domains come only from reviewed element categories, checked structural traits,
+or closed enums. Validation proves role/selector compatibility, disjoint and
+reachable unordered cases, exact supported/unsupported payload shape, total
+atom correspondence and product assignment, closed rewrite references, and
+complete premise binding. Uncovered finite bindings remain unsupported, and a
+selected unsupported case exposes its reviewed feature gap without a rewrite.
+
+Source parameter inference, graph matching during elaboration, concrete
+rewrite instantiation, product-certificate equivalence, and kernel execution
+remain unimplemented after G3.

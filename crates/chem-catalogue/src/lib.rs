@@ -5,6 +5,7 @@
 //! runtime trust boundary, and it requires both the host-pinned canonical
 //! digest and an exact external review attestation.
 
+mod generalized;
 mod model;
 mod pattern;
 
@@ -21,6 +22,7 @@ use chem_domain::{
     IonicAssociation, MetallicDomain, PremiseId, ReactionRuleId, RepresentationKind,
     StaticElementRegistry, StructuralGraph, StructureDefinition, StructureId, canonical_json,
 };
+pub use generalized::*;
 pub use model::*;
 pub use pattern::*;
 
@@ -61,6 +63,8 @@ pub enum CatalogueErrorCode {
     InvalidStructureTemplate,
     InvalidStructureApplication,
     InvalidGraphPattern,
+    InvalidGeneralizedRule,
+    InvalidGeneralizedCase,
 }
 
 impl CatalogueErrorCode {
@@ -88,6 +92,8 @@ impl CatalogueErrorCode {
             Self::InvalidStructureTemplate => "CHEMS-C019",
             Self::InvalidStructureApplication => "CHEMS-C020",
             Self::InvalidGraphPattern => "CHEMS-C021",
+            Self::InvalidGeneralizedRule => "CHEMS-C022",
+            Self::InvalidGeneralizedCase => "CHEMS-C023",
         }
     }
 }
@@ -205,6 +211,7 @@ pub struct ValidatedCatalogueBundle {
         BTreeMap<StructureId, BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>>,
     structure_application_provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
     graph_patterns: BTreeMap<GraphPatternId, usize>,
+    generalized_rules: BTreeMap<ReactionRuleId, ValidatedGeneralizedRule>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -269,6 +276,16 @@ impl CatalogueReviewAttestation {
     }
 }
 
+fn ensure_rule_namespaces_disjoint(
+    rules: &BTreeMap<ReactionRuleId, ValidatedReactionRule>,
+    generalized_rules: &BTreeMap<ReactionRuleId, ValidatedGeneralizedRule>,
+) -> Result<(), CatalogueError> {
+    if let Some(id) = generalized_rules.keys().find(|id| rules.contains_key(*id)) {
+        return duplicate_id(id);
+    }
+    Ok(())
+}
+
 impl ValidatedCatalogueBundle {
     /// Parses and validates an untrusted catalogue envelope.
     ///
@@ -289,6 +306,7 @@ impl ValidatedCatalogueBundle {
     ///
     /// Returns a typed system error for invalid metadata, digest, structure,
     /// premise, evidence, review, mapping, applicability, or rule templates.
+    #[allow(clippy::too_many_lines)]
     pub fn validate(envelope: CatalogueEnvelope) -> Result<Self, CatalogueError> {
         validate_metadata(&envelope.bundle)?;
         let computed = envelope.computed_digest()?;
@@ -345,6 +363,22 @@ impl ValidatedCatalogueBundle {
             &structural_traits,
             &premises,
         )?;
+        let generalized_rules = generalized::validate_generalized_rules(
+            &document.generalized_rules,
+            &element_category_members,
+            &element_membership_provenance,
+            &structures,
+            &structure_premises,
+            &structure_traits,
+            &document.structural_traits,
+            &structural_traits,
+            &document.structure_templates,
+            &g1.templates,
+            &document.structure_applications,
+            &document.graph_patterns,
+            &graph_patterns,
+            &premises,
+        )?;
         let rules = validate_rules(
             &document.rules,
             &structures,
@@ -353,6 +387,7 @@ impl ValidatedCatalogueBundle {
             &document.valence_premises,
             &premises,
         )?;
+        ensure_rule_namespaces_disjoint(&rules, &generalized_rules)?;
 
         Ok(Self {
             digest: envelope.digest,
@@ -374,6 +409,7 @@ impl ValidatedCatalogueBundle {
             structure_traits,
             structure_application_provenance: g1.provenance,
             graph_patterns,
+            generalized_rules,
         })
     }
 
@@ -3927,6 +3963,65 @@ fn normalize_document(document: &mut CatalogueDocument) {
     document
         .graph_patterns
         .sort_by(|left, right| left.id.cmp(&right.id));
+    normalize_generalized_rules(&mut document.generalized_rules);
+}
+
+fn normalize_generalized_rules(rules: &mut [GeneralizedReactionRuleRecord]) {
+    for rule in rules.iter_mut() {
+        for case in &mut rule.cases {
+            normalize_generalized_predicate(case.when_mut());
+            if let GeneralizedReactionCaseRecord::Supported {
+                correspondence,
+                rewrite,
+                observation_compatibility,
+                ..
+            } = case
+            {
+                correspondence.sort_by(|left, right| {
+                    (&left.reactant, &left.product).cmp(&(&right.reactant, &right.product))
+                });
+                for operation in rewrite {
+                    normalize_operation(operation);
+                }
+                observation_compatibility.sort_by(|left, right| {
+                    (
+                        &left.subject_role,
+                        left.predicate,
+                        &left.evidence_subject,
+                        &left.value,
+                    )
+                        .cmp(&(
+                            &right.subject_role,
+                            right.predicate,
+                            &right.evidence_subject,
+                            &right.value,
+                        ))
+                });
+            }
+        }
+        rule.cases.sort_by(|left, right| left.id().cmp(right.id()));
+    }
+    rules.sort_by(|left, right| left.id.cmp(&right.id));
+}
+
+fn normalize_generalized_predicate(predicate: &mut GeneralizedCasePredicateRecord) {
+    match predicate {
+        GeneralizedCasePredicateRecord::All { predicates }
+        | GeneralizedCasePredicateRecord::Any { predicates } => {
+            for child in predicates.iter_mut() {
+                normalize_generalized_predicate(child);
+            }
+            predicates.sort_by_key(|child| {
+                serde_json::to_string(child).expect("generalized predicate serializes")
+            });
+        }
+        GeneralizedCasePredicateRecord::Not { predicate } => {
+            normalize_generalized_predicate(predicate);
+        }
+        GeneralizedCasePredicateRecord::Always
+        | GeneralizedCasePredicateRecord::ParameterEquals { .. }
+        | GeneralizedCasePredicateRecord::ParameterInSet { .. } => {}
+    }
 }
 
 fn normalize_predicate(predicate: &mut ElementPredicateRecord) {

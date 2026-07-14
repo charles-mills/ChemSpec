@@ -35,7 +35,8 @@
         "structural_traits": {"type": "array", "items": {"$ref": "#/$defs/structuralTrait"}},
         "structure_templates": {"type": "array", "items": {"$ref": "#/$defs/structureTemplate"}},
         "structure_applications": {"type": "array", "items": {"$ref": "#/$defs/structureApplication"}},
-        "graph_patterns": {"type": "array", "items": {"$ref": "#/$defs/graphPattern"}}
+        "graph_patterns": {"type": "array", "items": {"$ref": "#/$defs/graphPattern"}},
+        "generalized_rules": {"type": "array", "items": {"$ref": "#/$defs/generalizedRule"}}
       }
     },
     "created": {
@@ -211,6 +212,78 @@
         "variables": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["atom"], "properties": {"atom": {"$ref": "#/$defs/patternAtomConstraint"}}}},
         "relationships": {"type": "array", "items": {"$ref": "#/$defs/graphPatternRelationship"}},
         "traits": {"type": "array", "items": {"$ref": "#/$defs/graphPatternTrait"}},
+        "premise_ids": {"$ref": "#/$defs/premiseIds"}
+      }
+    },
+    "generalizedParameter": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "category"], "properties": {"kind": {"const": "element"}, "category": {"$ref": "#/$defs/id"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "trait"], "properties": {"kind": {"const": "structure"}, "trait": {"$ref": "#/$defs/id"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "values"], "properties": {"kind": {"const": "enum"}, "values": {"type": "array", "minItems": 1, "maxItems": 4096, "uniqueItems": true, "items": {"$ref": "#/$defs/nonempty"}}}}
+      ]
+    },
+    "generalizedArgument": {
+      "oneOf": [
+        {"type": "string"},
+        {"type": "object", "additionalProperties": false, "required": ["parameter"], "properties": {"parameter": {"$ref": "#/$defs/id"}}}
+      ]
+    },
+    "generalizedSelector": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "structure"], "properties": {"kind": {"const": "exact"}, "structure": {"$ref": "#/$defs/id"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "template", "arguments"], "properties": {"kind": {"const": "template"}, "template": {"$ref": "#/$defs/id"}, "arguments": {"type": "object", "additionalProperties": {"$ref": "#/$defs/generalizedArgument"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "trait"], "properties": {"kind": {"const": "trait"}, "trait": {"$ref": "#/$defs/id"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "parameter"], "properties": {"kind": {"const": "structure_parameter"}, "parameter": {"$ref": "#/$defs/id"}}}
+      ]
+    },
+    "generalizedCasePredicate": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "always"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "predicates"], "properties": {"kind": {"const": "all"}, "predicates": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/generalizedCasePredicate"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "predicates"], "properties": {"kind": {"const": "any"}, "predicates": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/generalizedCasePredicate"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "predicate"], "properties": {"kind": {"const": "not"}, "predicate": {"$ref": "#/$defs/generalizedCasePredicate"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "parameter", "value"], "properties": {"kind": {"const": "parameter_equals"}, "parameter": {"$ref": "#/$defs/id"}, "value": {"$ref": "#/$defs/nonempty"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "parameter", "values"], "properties": {"kind": {"const": "parameter_in_set"}, "parameter": {"$ref": "#/$defs/id"}, "values": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonempty"}}}}
+      ]
+    },
+    "mappingPair": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reactant", "product", "premise_ids"],
+      "properties": {"reactant": {"$ref": "#/$defs/nonempty"}, "product": {"$ref": "#/$defs/nonempty"}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}
+    },
+    "generalizedCase": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "id", "when", "products", "patterns", "correspondence", "rewrite", "premise_ids"],
+          "properties": {
+            "status": {"const": "supported"}, "id": {"$ref": "#/$defs/id"}, "when": {"$ref": "#/$defs/generalizedCasePredicate"},
+            "products": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/generalizedSelector"}},
+            "patterns": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/id"}},
+            "correspondence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/mappingPair"}},
+            "rewrite": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/operation"}},
+            "observation_compatibility": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["subject_role", "predicate", "evidence_subject", "premise_id"], "properties": {"subject_role": {"$ref": "#/$defs/id"}, "predicate": {"enum": ["evolves", "disappears", "forms", "colour"]}, "evidence_subject": {"$ref": "#/$defs/nonempty"}, "value": {"$ref": "#/$defs/nonempty"}, "premise_id": {"$ref": "#/$defs/id"}}}},
+            "premise_ids": {"$ref": "#/$defs/premiseIds"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "id", "when", "required_feature", "explanation", "premise_ids"],
+          "properties": {"status": {"const": "unsupported"}, "id": {"$ref": "#/$defs/id"}, "when": {"$ref": "#/$defs/generalizedCasePredicate"}, "required_feature": {"$ref": "#/$defs/id"}, "explanation": {"$ref": "#/$defs/nonempty"}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}
+        }
+      ]
+    },
+    "generalizedRule": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "parameters", "roles", "reactants", "cases", "applicability", "model_assumptions", "premise_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "parameters": {"type": "object", "minProperties": 1, "maxProperties": 64, "additionalProperties": {"$ref": "#/$defs/generalizedParameter"}},
+        "roles": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["side", "representation", "coefficient"], "properties": {"side": {"enum": ["reactant", "product"]}, "representation": {"enum": ["molecular", "ion", "ionic", "metallic"]}, "coefficient": {"type": "integer", "minimum": 1, "maximum": 4294967295}}}},
+        "reactants": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/generalizedSelector"}},
+        "cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/generalizedCase"}},
+        "applicability": {"type": "object", "additionalProperties": false, "required": ["premise_id", "request_relation", "required_context"], "properties": {"premise_id": {"$ref": "#/$defs/id"}, "request_relation": {"const": "contact"}, "required_context": {"$ref": "#/$defs/nonempty"}}},
+        "model_assumptions": {"type": "object", "additionalProperties": false, "required": ["event", "sequence", "premise_ids"], "properties": {"event": {"const": "representative"}, "sequence": {"const": "explanatory"}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}},
         "premise_ids": {"$ref": "#/$defs/premiseIds"}
       }
     },

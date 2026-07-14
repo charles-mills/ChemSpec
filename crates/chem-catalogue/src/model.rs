@@ -41,6 +41,8 @@ pub struct CatalogueDocument {
     pub structure_applications: Vec<StructureTemplateApplicationRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub graph_patterns: Vec<GraphPatternRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub generalized_rules: Vec<GeneralizedReactionRuleRecord>,
 }
 
 #[derive(Debug)]
@@ -280,6 +282,159 @@ pub struct GraphPatternTraitRecord {
     #[serde(rename = "trait")]
     pub trait_id: StructuralTraitId,
     pub sites: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GeneralizedReactionRuleRecord {
+    pub id: ReactionRuleId,
+    pub parameters: BTreeMap<String, GeneralizedParameterRecord>,
+    pub roles: BTreeMap<String, GeneralizedRoleSchemaRecord>,
+    pub reactants: BTreeMap<String, GeneralizedStructureSelectorRecord>,
+    pub cases: Vec<GeneralizedReactionCaseRecord>,
+    pub applicability: GeneralizedApplicabilityRecord,
+    pub model_assumptions: ModelAssumptionsRecord,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GeneralizedParameterRecord {
+    Element {
+        category: ElementCategoryId,
+    },
+    Structure {
+        #[serde(rename = "trait")]
+        trait_id: StructuralTraitId,
+    },
+    Enum {
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        values: BTreeSet<String>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GeneralizedRoleSchemaRecord {
+    pub side: RuleSideRecord,
+    pub representation: RepresentationRecord,
+    pub coefficient: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GeneralizedArgumentRecord {
+    Literal(String),
+    Parameter(TemplateParameterReferenceRecord),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GeneralizedStructureSelectorRecord {
+    Exact {
+        structure: StructureId,
+    },
+    Template {
+        template: StructureTemplateId,
+        arguments: BTreeMap<String, GeneralizedArgumentRecord>,
+    },
+    Trait {
+        #[serde(rename = "trait")]
+        trait_id: StructuralTraitId,
+    },
+    StructureParameter {
+        parameter: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GeneralizedReactionCaseRecord {
+    Supported {
+        id: String,
+        when: GeneralizedCasePredicateRecord,
+        products: BTreeMap<String, GeneralizedStructureSelectorRecord>,
+        patterns: BTreeMap<String, GraphPatternId>,
+        correspondence: Vec<MappingPairRecord>,
+        rewrite: Vec<OperationTemplateRecord>,
+        #[serde(default)]
+        observation_compatibility: Vec<ObservationCompatibilityRecord>,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        premise_ids: BTreeSet<PremiseId>,
+    },
+    Unsupported {
+        id: String,
+        when: GeneralizedCasePredicateRecord,
+        required_feature: String,
+        explanation: String,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        premise_ids: BTreeSet<PremiseId>,
+    },
+}
+
+impl GeneralizedReactionCaseRecord {
+    #[must_use]
+    pub const fn id(&self) -> &String {
+        match self {
+            Self::Supported { id, .. } | Self::Unsupported { id, .. } => id,
+        }
+    }
+
+    #[must_use]
+    pub const fn when(&self) -> &GeneralizedCasePredicateRecord {
+        match self {
+            Self::Supported { when, .. } | Self::Unsupported { when, .. } => when,
+        }
+    }
+
+    #[must_use]
+    pub const fn premise_ids(&self) -> &BTreeSet<PremiseId> {
+        match self {
+            Self::Supported { premise_ids, .. } | Self::Unsupported { premise_ids, .. } => {
+                premise_ids
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn when_mut(&mut self) -> &mut GeneralizedCasePredicateRecord {
+        match self {
+            Self::Supported { when, .. } | Self::Unsupported { when, .. } => when,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GeneralizedCasePredicateRecord {
+    Always,
+    All {
+        predicates: Vec<GeneralizedCasePredicateRecord>,
+    },
+    Any {
+        predicates: Vec<GeneralizedCasePredicateRecord>,
+    },
+    Not {
+        predicate: Box<GeneralizedCasePredicateRecord>,
+    },
+    ParameterEquals {
+        parameter: String,
+        value: String,
+    },
+    ParameterInSet {
+        parameter: String,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        values: BTreeSet<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GeneralizedApplicabilityRecord {
+    pub premise_id: PremiseId,
+    pub request_relation: RequestRelation,
+    pub required_context: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

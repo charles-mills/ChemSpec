@@ -1,8 +1,9 @@
 # Generalized chemistry rules and structural templates
 
-> **Status:** locked design, implemented through typed graph patterns and
-> reactant automorphism support (G2). Generalized families, elaboration,
-> migration, and authoring support remain queued as G3 through G6.
+> **Status:** locked design, implemented through inert generalized families,
+> finite parameter domains, and statically checked cases/rewrites (G3).
+> Elaboration, migration, and authoring support remain queued as G4 through
+> G6.
 >
 > This document defines the intended catalogue and elaboration architecture for
 > generalized chemistry. The implemented `.chems 1` source grammar and concrete
@@ -423,6 +424,11 @@ Cases express genuine family variation. They are unordered and must be disjoint
 over the finite reviewed parameter domain.
 Element categories, checked-trait structure indexes, and closed enum parameters
 all produce finite domains from the validated catalogue.
+
+Catalogue validation admits at most 64 parameters and rejects a rule whose
+Cartesian parameter domain exceeds 4,096 bindings. These are deterministic
+validation-work bounds: catalogue JSON is untrusted input, so finite must also
+mean safely enumerable.
 
 Every generalized rule has at least one case. There is no implicit default. A
 case predicate uses a separate closed typed AST over parameter identities:
