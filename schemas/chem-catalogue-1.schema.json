@@ -31,7 +31,10 @@
         "structures": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/structure"}},
         "rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}},
         "elements": {"type": "array", "items": {"$ref": "#/$defs/element"}},
-        "element_categories": {"type": "array", "items": {"$ref": "#/$defs/elementCategory"}}
+        "element_categories": {"type": "array", "items": {"$ref": "#/$defs/elementCategory"}},
+        "structural_traits": {"type": "array", "items": {"$ref": "#/$defs/structuralTrait"}},
+        "structure_templates": {"type": "array", "items": {"$ref": "#/$defs/structureTemplate"}},
+        "structure_applications": {"type": "array", "items": {"$ref": "#/$defs/structureApplication"}}
       }
     },
     "created": {
@@ -128,6 +131,83 @@
       }
     },
     "elementSymbol": {"type": "string", "pattern": "^[A-Z][a-z]?$"},
+    "traitSiteKind": {"enum": ["atom", "covalent_bond", "group", "ionic_association", "metallic_domain"]},
+    "traitScalar": {"oneOf": [{"type": "string"}, {"type": "integer"}]},
+    "traitProjection": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "site"], "properties": {"kind": {"enum": ["atom_element", "atom_formal_charge", "atom_non_bonding_electrons", "atom_unpaired_electrons", "atom_bond_order_sum", "group_atom_count", "ionic_component_count", "metallic_site_count", "metallic_delocalized_electrons"]}, "site": {"$ref": "#/$defs/id"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "left_site", "right_site"], "properties": {"kind": {"enum": ["covalent_bond_order", "covalent_electron_origin"]}, "left_site": {"$ref": "#/$defs/id"}, "right_site": {"$ref": "#/$defs/id"}}}
+      ]
+    },
+    "structuralTrait": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "sites", "premise_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "sites": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/traitSiteKind"}},
+        "values": {"type": "object", "additionalProperties": {"$ref": "#/$defs/traitProjection"}},
+        "premise_ids": {"$ref": "#/$defs/premiseIds"}
+      }
+    },
+    "traitAssertion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["trait", "sites", "premise_ids"],
+      "properties": {
+        "trait": {"$ref": "#/$defs/id"},
+        "sites": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/id"}},
+        "values": {"type": "object", "additionalProperties": {"$ref": "#/$defs/traitScalar"}},
+        "premise_ids": {"$ref": "#/$defs/premiseIds"}
+      }
+    },
+    "templateParameter": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "category"], "properties": {"kind": {"const": "element"}, "category": {"$ref": "#/$defs/id"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "traits"], "properties": {"kind": {"const": "structure"}, "traits": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "values"], "properties": {"kind": {"const": "enum"}, "values": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}}
+      ]
+    },
+    "parameterReference": {"type": "object", "additionalProperties": false, "required": ["parameter"], "properties": {"parameter": {"$ref": "#/$defs/id"}}},
+    "templateElement": {"oneOf": [{"$ref": "#/$defs/elementSymbol"}, {"$ref": "#/$defs/parameterReference"}]},
+    "templateBondOrder": {"oneOf": [{"enum": ["single", "double", "triple"]}, {"$ref": "#/$defs/parameterReference"}]},
+    "templateAtom": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "element", "formal_charge", "non_bonding_electrons", "unpaired_electrons"],
+      "properties": {
+        "label": {"$ref": "#/$defs/id"}, "element": {"$ref": "#/$defs/templateElement"},
+        "formal_charge": {"type": "integer", "minimum": -32768, "maximum": 32767},
+        "non_bonding_electrons": {"type": "integer", "minimum": 0, "maximum": 255},
+        "unpaired_electrons": {"type": "integer", "minimum": 0, "maximum": 255}
+      }
+    },
+    "templateBond": {
+      "type": "object", "additionalProperties": false, "required": ["left", "right", "order"],
+      "properties": {
+        "left": {"$ref": "#/$defs/id"}, "right": {"$ref": "#/$defs/id"}, "order": {"$ref": "#/$defs/templateBondOrder"},
+        "electron_origin": {
+          "oneOf": [
+            {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "shared"}}},
+            {"type": "object", "additionalProperties": false, "required": ["kind", "donor", "acceptor"], "properties": {"kind": {"const": "dative"}, "donor": {"$ref": "#/$defs/id"}, "acceptor": {"$ref": "#/$defs/id"}}}
+          ]
+        }
+      }
+    },
+    "templateComponent": {
+      "type": "object", "additionalProperties": false, "required": ["label", "atoms"],
+      "properties": {"label": {"$ref": "#/$defs/id"}, "atoms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/templateAtom"}}, "bonds": {"type": "array", "items": {"$ref": "#/$defs/templateBond"}}, "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}}}
+    },
+    "structureTemplate": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["id", "parameters", "representation", "atoms", "premise_ids"], "properties": {"id": {"$ref": "#/$defs/id"}, "parameters": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/templateParameter"}}, "representation": {"const": "molecular"}, "atoms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/templateAtom"}}, "bonds": {"type": "array", "items": {"$ref": "#/$defs/templateBond"}}, "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}}, "traits": {"type": "array", "items": {"$ref": "#/$defs/traitAssertion"}}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}},
+        {"type": "object", "additionalProperties": false, "required": ["id", "parameters", "representation", "atoms", "premise_ids"], "properties": {"id": {"$ref": "#/$defs/id"}, "parameters": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/templateParameter"}}, "representation": {"const": "ion"}, "atoms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/templateAtom"}}, "bonds": {"type": "array", "items": {"$ref": "#/$defs/templateBond"}}, "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}}, "traits": {"type": "array", "items": {"$ref": "#/$defs/traitAssertion"}}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}},
+        {"type": "object", "additionalProperties": false, "required": ["id", "parameters", "representation", "components", "associations", "premise_ids"], "properties": {"id": {"$ref": "#/$defs/id"}, "parameters": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/templateParameter"}}, "representation": {"const": "ionic"}, "components": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/templateComponent"}}, "associations": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["label", "components"], "properties": {"label": {"$ref": "#/$defs/id"}, "components": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}}}, "traits": {"type": "array", "items": {"$ref": "#/$defs/traitAssertion"}}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}},
+        {"type": "object", "additionalProperties": false, "required": ["id", "parameters", "representation", "sites", "domains", "premise_ids"], "properties": {"id": {"$ref": "#/$defs/id"}, "parameters": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/templateParameter"}}, "representation": {"const": "metallic"}, "sites": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/templateAtom"}}, "domains": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["label", "sites", "delocalized_electrons"], "properties": {"label": {"$ref": "#/$defs/id"}, "sites": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "delocalized_electrons": {"type": "integer", "minimum": 1, "maximum": 4294967295}}}}, "traits": {"type": "array", "items": {"$ref": "#/$defs/traitAssertion"}}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}}
+      ]
+    },
+    "structureApplication": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "template", "arguments", "formula", "premise_ids"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "template": {"$ref": "#/$defs/id"}, "arguments": {"type": "object", "additionalProperties": {"type": "string"}}, "formula": {"$ref": "#/$defs/nonempty"}, "aliases": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "premise_ids": {"$ref": "#/$defs/premiseIds"}}
+    },
     "valencePremise": {
       "type": "object",
       "additionalProperties": false,
@@ -224,7 +304,8 @@
         "representation": {"enum": ["molecular", "ion"]},
         "atoms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/atom"}},
         "bonds": {"type": "array", "items": {"$ref": "#/$defs/bond"}},
-        "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}}
+        "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}},
+        "traits": {"type": "array", "items": {"$ref": "#/$defs/traitAssertion"}}
       }
     },
     "component": {
@@ -240,7 +321,8 @@
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "premise_id": {"$ref": "#/$defs/id"}, "formula": {"$ref": "#/$defs/nonempty"}, "representation": {"const": "ionic"},
         "components": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/component"}},
-        "associations": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["label", "components"], "properties": {"label": {"$ref": "#/$defs/id"}, "components": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}}}
+        "associations": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["label", "components"], "properties": {"label": {"$ref": "#/$defs/id"}, "components": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}}},
+        "traits": {"type": "array", "items": {"$ref": "#/$defs/traitAssertion"}}
       }
     },
     "metallicStructure": {
@@ -249,7 +331,8 @@
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "premise_id": {"$ref": "#/$defs/id"}, "formula": {"$ref": "#/$defs/nonempty"}, "representation": {"const": "metallic"},
         "sites": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/atom"}},
-        "domains": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["label", "sites", "delocalized_electrons"], "properties": {"label": {"$ref": "#/$defs/id"}, "sites": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "delocalized_electrons": {"type": "integer", "minimum": 1, "maximum": 4294967295}}}}
+        "domains": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["label", "sites", "delocalized_electrons"], "properties": {"label": {"$ref": "#/$defs/id"}, "sites": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "delocalized_electrons": {"type": "integer", "minimum": 1, "maximum": 4294967295}}}},
+        "traits": {"type": "array", "items": {"$ref": "#/$defs/traitAssertion"}}
       }
     },
     "pattern": {

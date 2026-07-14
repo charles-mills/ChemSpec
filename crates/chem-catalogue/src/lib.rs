@@ -55,6 +55,9 @@ pub enum CatalogueErrorCode {
     IneligibleProductionRecord,
     InvalidElement,
     InvalidElementCategory,
+    InvalidStructuralTrait,
+    InvalidStructureTemplate,
+    InvalidStructureApplication,
 }
 
 impl CatalogueErrorCode {
@@ -78,6 +81,9 @@ impl CatalogueErrorCode {
             Self::IneligibleProductionRecord => "CHEMS-C015",
             Self::InvalidElement => "CHEMS-C016",
             Self::InvalidElementCategory => "CHEMS-C017",
+            Self::InvalidStructuralTrait => "CHEMS-C018",
+            Self::InvalidStructureTemplate => "CHEMS-C019",
+            Self::InvalidStructureApplication => "CHEMS-C020",
         }
     }
 }
@@ -177,7 +183,7 @@ pub struct ValidatedCatalogueBundle {
     digest: ContentDigest,
     document: CatalogueDocument,
     structures: BTreeMap<StructureId, StructureDefinition>,
-    structure_premises: BTreeMap<StructureId, PremiseId>,
+    structure_premises: BTreeMap<StructureId, BTreeSet<PremiseId>>,
     premises: BTreeMap<PremiseId, usize>,
     evidence: BTreeMap<EvidenceSourceId, usize>,
     valence_premises: BTreeMap<PremiseId, usize>,
@@ -187,12 +193,30 @@ pub struct ValidatedCatalogueBundle {
     element_category_members: BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
     element_membership_provenance:
         BTreeMap<(ElementSymbol, ElementCategoryId), ElementMembershipProvenance>,
+    structural_traits: BTreeMap<StructuralTraitId, usize>,
+    structure_templates: BTreeMap<StructureTemplateId, usize>,
+    structure_applications: BTreeMap<StructureId, usize>,
+    structure_aliases: BTreeMap<String, StructureId>,
+    structure_traits:
+        BTreeMap<StructureId, BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>>,
+    structure_application_provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElementMembershipProvenance {
     pub element_premise_ids: BTreeSet<PremiseId>,
     pub category_premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureTemplateApplicationProvenance {
+    pub template_premise_ids: BTreeSet<PremiseId>,
+    pub argument_element_premise_ids: BTreeSet<PremiseId>,
+    pub argument_category_premise_ids: BTreeSet<PremiseId>,
+    pub argument_structure_premise_ids: BTreeSet<PremiseId>,
+    pub application_premise_ids: BTreeSet<PremiseId>,
+    pub trait_definition_premise_ids: BTreeSet<PremiseId>,
+    pub trait_assertion_premise_ids: BTreeSet<PremiseId>,
 }
 
 impl CatalogueEnvelope {
@@ -283,9 +307,32 @@ impl ValidatedCatalogueBundle {
                 &document.element_categories,
                 &premises,
             )?;
+        let structural_traits = index_structural_traits(&document.structural_traits, &premises)?;
         let valence_premises = validate_valence_premises(&document.valence_premises, &premises)?;
-        let (structures, structure_premises) =
+        let (mut structures, mut structure_premises) =
             validate_structures(&document.structures, &premises, &document.valence_premises)?;
+        let mut structure_traits = validate_concrete_structure_traits(
+            &document.structures,
+            &structures,
+            &document.structural_traits,
+            &structural_traits,
+            &premises,
+        )?;
+        let g1 = validate_structure_templates_and_applications(
+            &document.structure_templates,
+            &document.structure_applications,
+            &document.elements,
+            &elements,
+            &element_category_members,
+            &element_membership_provenance,
+            &document.structural_traits,
+            &structural_traits,
+            &premises,
+            &document.valence_premises,
+            &mut structures,
+            &mut structure_premises,
+            &mut structure_traits,
+        )?;
         let rules = validate_rules(
             &document.rules,
             &structures,
@@ -308,6 +355,12 @@ impl ValidatedCatalogueBundle {
             element_categories,
             element_category_members,
             element_membership_provenance,
+            structural_traits,
+            structure_templates: g1.templates,
+            structure_applications: g1.applications,
+            structure_aliases: g1.aliases,
+            structure_traits,
+            structure_application_provenance: g1.provenance,
         })
     }
 
@@ -384,9 +437,74 @@ impl ValidatedCatalogueBundle {
 
     #[must_use]
     pub fn structure_premise(&self, id: &StructureId) -> Option<&PremiseRecord> {
-        self.structure_premises
-            .get(id)
+        if let Some(record) = self
+            .document
+            .structures
+            .iter()
+            .find(|record| record.id() == id)
+        {
+            return self.premise(record.premise_id());
+        }
+        self.structure_application(id)
+            .filter(|application| application.premise_ids.len() == 1)
+            .and_then(|application| application.premise_ids.first())
             .and_then(|premise| self.premise(premise))
+    }
+
+    #[must_use]
+    pub fn structure_premises(&self, id: &StructureId) -> Option<&BTreeSet<PremiseId>> {
+        self.structure_premises.get(id)
+    }
+
+    #[must_use]
+    pub fn structure_by_alias(&self, alias: &str) -> Option<&StructureDefinition> {
+        self.structure_aliases
+            .get(alias)
+            .and_then(|id| self.structure(id))
+    }
+
+    #[must_use]
+    pub fn structural_trait(
+        &self,
+        id: &StructuralTraitId,
+    ) -> Option<&StructuralTraitDefinitionRecord> {
+        self.structural_traits
+            .get(id)
+            .map(|index| &self.document.structural_traits[*index])
+    }
+
+    #[must_use]
+    pub fn structure_template(&self, id: &StructureTemplateId) -> Option<&StructureTemplateRecord> {
+        self.structure_templates
+            .get(id)
+            .map(|index| &self.document.structure_templates[*index])
+    }
+
+    #[must_use]
+    pub fn structure_application(
+        &self,
+        id: &StructureId,
+    ) -> Option<&StructureTemplateApplicationRecord> {
+        self.structure_applications
+            .get(id)
+            .map(|index| &self.document.structure_applications[*index])
+    }
+
+    #[must_use]
+    pub fn structure_trait_assertion(
+        &self,
+        structure: &StructureId,
+        trait_id: &StructuralTraitId,
+    ) -> Option<&StructuralTraitAssertionRecord> {
+        self.structure_traits.get(structure)?.get(trait_id)
+    }
+
+    #[must_use]
+    pub fn structure_application_provenance(
+        &self,
+        id: &StructureId,
+    ) -> Option<&StructureTemplateApplicationProvenance> {
+        self.structure_application_provenance.get(id)
     }
 
     #[must_use]
@@ -768,7 +886,7 @@ fn validate_valence_premises(
 
 type StructureIndexes = (
     BTreeMap<StructureId, StructureDefinition>,
-    BTreeMap<StructureId, PremiseId>,
+    BTreeMap<StructureId, BTreeSet<PremiseId>>,
 );
 
 type ElementIndexes = (
@@ -1045,6 +1163,1223 @@ fn scalar_for(field: ElementFieldRecord, element: &ElementRecord) -> Option<Elem
     }
 }
 
+fn index_structural_traits(
+    records: &[StructuralTraitDefinitionRecord],
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<BTreeMap<StructuralTraitId, usize>, CatalogueError> {
+    let mut index = BTreeMap::new();
+    for (position, record) in records.iter().enumerate() {
+        if index.insert(record.id.clone(), position).is_some() {
+            return duplicate_id(&record.id);
+        }
+        if record.sites.is_empty() || record.premise_ids.is_empty() {
+            return invalid_trait(&record.id, "site or premise set is empty");
+        }
+        for premise in &record.premise_ids {
+            require_premise(premise, premises)?;
+        }
+        for site in record.sites.keys() {
+            validate_label(site, CatalogueErrorCode::InvalidStructuralTrait)?;
+        }
+        for (value, projection) in &record.values {
+            validate_label(value, CatalogueErrorCode::InvalidStructuralTrait)?;
+            validate_trait_projection(record, projection)?;
+        }
+    }
+    Ok(index)
+}
+
+fn validate_trait_projection(
+    definition: &StructuralTraitDefinitionRecord,
+    projection: &StructuralTraitValueProjectionRecord,
+) -> Result<(), CatalogueError> {
+    let require_site = |site: &str, expected: StructuralTraitSiteKindRecord| {
+        if definition.sites.get(site) == Some(&expected) {
+            Ok(())
+        } else {
+            invalid_trait(
+                &definition.id,
+                format!("projection references missing or wrongly typed site `{site}`"),
+            )
+        }
+    };
+    match projection {
+        StructuralTraitValueProjectionRecord::AtomElement { site }
+        | StructuralTraitValueProjectionRecord::AtomFormalCharge { site }
+        | StructuralTraitValueProjectionRecord::AtomNonBondingElectrons { site }
+        | StructuralTraitValueProjectionRecord::AtomUnpairedElectrons { site }
+        | StructuralTraitValueProjectionRecord::AtomBondOrderSum { site } => {
+            require_site(site, StructuralTraitSiteKindRecord::Atom)
+        }
+        StructuralTraitValueProjectionRecord::CovalentBondOrder {
+            left_site,
+            right_site,
+        }
+        | StructuralTraitValueProjectionRecord::CovalentElectronOrigin {
+            left_site,
+            right_site,
+        } => {
+            require_site(left_site, StructuralTraitSiteKindRecord::Atom)?;
+            require_site(right_site, StructuralTraitSiteKindRecord::Atom)
+        }
+        StructuralTraitValueProjectionRecord::GroupAtomCount { site } => {
+            require_site(site, StructuralTraitSiteKindRecord::Group)
+        }
+        StructuralTraitValueProjectionRecord::IonicComponentCount { site } => {
+            require_site(site, StructuralTraitSiteKindRecord::IonicAssociation)
+        }
+        StructuralTraitValueProjectionRecord::MetallicSiteCount { site }
+        | StructuralTraitValueProjectionRecord::MetallicDelocalizedElectrons { site } => {
+            require_site(site, StructuralTraitSiteKindRecord::MetallicDomain)
+        }
+    }
+}
+
+fn validate_concrete_structure_traits(
+    records: &[StructureRecord],
+    structures: &BTreeMap<StructureId, StructureDefinition>,
+    definitions: &[StructuralTraitDefinitionRecord],
+    definition_index: &BTreeMap<StructuralTraitId, usize>,
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<
+    BTreeMap<StructureId, BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>>,
+    CatalogueError,
+> {
+    let mut result = BTreeMap::new();
+    for record in records {
+        let assertions = validate_trait_assertions(
+            record.traits(),
+            &structures[record.id()],
+            definitions,
+            definition_index,
+            premises,
+        )?;
+        if !assertions.is_empty() {
+            result.insert(record.id().clone(), assertions);
+        }
+    }
+    Ok(result)
+}
+
+fn validate_trait_assertion_shape(
+    assertion: &StructuralTraitAssertionRecord,
+    definition: &StructuralTraitDefinitionRecord,
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<(), CatalogueError> {
+    if assertion.premise_ids.is_empty()
+        || assertion.sites.keys().collect::<BTreeSet<_>>()
+            != definition.sites.keys().collect::<BTreeSet<_>>()
+        || assertion.values.keys().collect::<BTreeSet<_>>()
+            != definition.values.keys().collect::<BTreeSet<_>>()
+    {
+        return invalid_trait(
+            &assertion.trait_id,
+            "assertion sites, values, or premises do not match its definition",
+        );
+    }
+    for premise in &assertion.premise_ids {
+        require_premise(premise, premises)?;
+    }
+    Ok(())
+}
+
+fn validate_trait_assertions(
+    assertions: &[StructuralTraitAssertionRecord],
+    structure: &StructureDefinition,
+    definitions: &[StructuralTraitDefinitionRecord],
+    definition_index: &BTreeMap<StructuralTraitId, usize>,
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>, CatalogueError> {
+    let mut result = BTreeMap::new();
+    for assertion in assertions {
+        let Some(position) = definition_index.get(&assertion.trait_id) else {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::UnknownReference,
+                format!("trait `{}` does not resolve", assertion.trait_id),
+            ));
+        };
+        let definition = &definitions[*position];
+        validate_trait_assertion_shape(assertion, definition, premises)?;
+        if result
+            .insert(assertion.trait_id.clone(), assertion.clone())
+            .is_some()
+        {
+            return duplicate_id(&assertion.trait_id);
+        }
+        for (name, kind) in &definition.sites {
+            let site = &assertion.sites[name];
+            if !trait_site_exists(*kind, site, structure.graph()) {
+                return invalid_trait(
+                    &assertion.trait_id,
+                    format!("site `{name}` resolves to absent or wrongly typed `{site}`"),
+                );
+            }
+        }
+        for (name, projection) in &definition.values {
+            let actual = project_trait_value(projection, assertion, structure.graph())?;
+            if actual != assertion.values[name] {
+                return invalid_trait(
+                    &assertion.trait_id,
+                    format!("asserted value `{name}` does not equal the graph projection"),
+                );
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn trait_site_exists(
+    kind: StructuralTraitSiteKindRecord,
+    value: &str,
+    graph: &StructuralGraph,
+) -> bool {
+    match kind {
+        StructuralTraitSiteKindRecord::Atom => {
+            chem_domain::AtomId::from_str(value).is_ok_and(|id| graph.atoms().contains_key(&id))
+        }
+        StructuralTraitSiteKindRecord::CovalentBond => chem_domain::CovalentBondId::from_str(value)
+            .is_ok_and(|id| graph.covalent_bonds().contains_key(&id)),
+        StructuralTraitSiteKindRecord::Group => chem_domain::AtomGroupId::from_str(value)
+            .is_ok_and(|id| graph.groups().contains_key(&id)),
+        StructuralTraitSiteKindRecord::IonicAssociation => {
+            chem_domain::IonicAssociationId::from_str(value)
+                .is_ok_and(|id| graph.ionic_associations().contains_key(&id))
+        }
+        StructuralTraitSiteKindRecord::MetallicDomain => {
+            chem_domain::MetallicDomainId::from_str(value)
+                .is_ok_and(|id| graph.metallic_domains().contains_key(&id))
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn project_trait_value(
+    projection: &StructuralTraitValueProjectionRecord,
+    assertion: &StructuralTraitAssertionRecord,
+    graph: &StructuralGraph,
+) -> Result<StructuralTraitScalarRecord, CatalogueError> {
+    let atom = |site: &str| {
+        let id = chem_domain::AtomId::from_str(&assertion.sites[site]).map_err(|error| {
+            CatalogueError::new(
+                CatalogueErrorCode::InvalidStructuralTrait,
+                error.to_string(),
+            )
+        })?;
+        Ok::<_, CatalogueError>(&graph.atoms()[&id])
+    };
+    let integer = |value: u64| {
+        i64::try_from(value)
+            .map(StructuralTraitScalarRecord::Integer)
+            .map_err(|_| {
+                CatalogueError::new(
+                    CatalogueErrorCode::InvalidStructuralTrait,
+                    "trait projection exceeds the scalar range",
+                )
+            })
+    };
+    match projection {
+        StructuralTraitValueProjectionRecord::AtomElement { site } => Ok(
+            StructuralTraitScalarRecord::String(atom(site)?.element().as_str().to_owned()),
+        ),
+        StructuralTraitValueProjectionRecord::AtomFormalCharge { site } => {
+            Ok(StructuralTraitScalarRecord::Integer(i64::from(
+                atom(site)?.electrons().formal_charge(),
+            )))
+        }
+        StructuralTraitValueProjectionRecord::AtomNonBondingElectrons { site } => {
+            Ok(StructuralTraitScalarRecord::Integer(i64::from(
+                atom(site)?.electrons().non_bonding_electrons(),
+            )))
+        }
+        StructuralTraitValueProjectionRecord::AtomUnpairedElectrons { site } => {
+            Ok(StructuralTraitScalarRecord::Integer(i64::from(
+                atom(site)?.electrons().unpaired_electrons(),
+            )))
+        }
+        StructuralTraitValueProjectionRecord::AtomBondOrderSum { site } => {
+            let atom = atom(site)?;
+            integer(
+                graph
+                    .covalent_bond_order_sum(atom.id())
+                    .expect("validated trait atom belongs to graph"),
+            )
+        }
+        StructuralTraitValueProjectionRecord::CovalentBondOrder {
+            left_site,
+            right_site,
+        } => {
+            let bond = trait_bond(left_site, right_site, assertion, graph)?;
+            Ok(StructuralTraitScalarRecord::String(
+                match bond.order() {
+                    BondOrder::Single => "single",
+                    BondOrder::Double => "double",
+                    BondOrder::Triple => "triple",
+                }
+                .to_owned(),
+            ))
+        }
+        StructuralTraitValueProjectionRecord::CovalentElectronOrigin {
+            left_site,
+            right_site,
+        } => {
+            let left = chem_domain::AtomId::from_str(&assertion.sites[left_site]).unwrap();
+            let right = chem_domain::AtomId::from_str(&assertion.sites[right_site]).unwrap();
+            let bond = trait_bond(left_site, right_site, assertion, graph)?;
+            let value = match bond.electron_origin() {
+                CovalentElectronOrigin::Shared => "shared",
+                CovalentElectronOrigin::Dative { donor, acceptor }
+                    if donor == &left && acceptor == &right =>
+                {
+                    "dative_left_to_right"
+                }
+                CovalentElectronOrigin::Dative { donor, acceptor }
+                    if donor == &right && acceptor == &left =>
+                {
+                    "dative_right_to_left"
+                }
+                CovalentElectronOrigin::Dative { .. } => {
+                    return Err(CatalogueError::new(
+                        CatalogueErrorCode::InvalidStructuralTrait,
+                        "dative trait edge direction is inconsistent",
+                    ));
+                }
+            };
+            Ok(StructuralTraitScalarRecord::String(value.to_owned()))
+        }
+        StructuralTraitValueProjectionRecord::GroupAtomCount { site } => {
+            let id = chem_domain::AtomGroupId::from_str(&assertion.sites[site]).unwrap();
+            integer(graph.groups()[&id].atoms().len() as u64)
+        }
+        StructuralTraitValueProjectionRecord::IonicComponentCount { site } => {
+            let id = chem_domain::IonicAssociationId::from_str(&assertion.sites[site]).unwrap();
+            integer(graph.ionic_associations()[&id].components().len() as u64)
+        }
+        StructuralTraitValueProjectionRecord::MetallicSiteCount { site } => {
+            let id = chem_domain::MetallicDomainId::from_str(&assertion.sites[site]).unwrap();
+            integer(graph.metallic_domains()[&id].sites().len() as u64)
+        }
+        StructuralTraitValueProjectionRecord::MetallicDelocalizedElectrons { site } => {
+            let id = chem_domain::MetallicDomainId::from_str(&assertion.sites[site]).unwrap();
+            integer(u64::from(
+                graph.metallic_domains()[&id].delocalized_electrons(),
+            ))
+        }
+    }
+}
+
+fn trait_bond<'a>(
+    left_site: &str,
+    right_site: &str,
+    assertion: &StructuralTraitAssertionRecord,
+    graph: &'a StructuralGraph,
+) -> Result<&'a CovalentBond, CatalogueError> {
+    let left = chem_domain::AtomId::from_str(&assertion.sites[left_site]).unwrap();
+    let right = chem_domain::AtomId::from_str(&assertion.sites[right_site]).unwrap();
+    graph
+        .covalent_bonds()
+        .values()
+        .find(|bond| {
+            (bond.left() == &left && bond.right() == &right)
+                || (bond.left() == &right && bond.right() == &left)
+        })
+        .ok_or_else(|| {
+            CatalogueError::new(
+                CatalogueErrorCode::InvalidStructuralTrait,
+                format!(
+                    "trait `{}` references an absent covalent edge",
+                    assertion.trait_id
+                ),
+            )
+        })
+}
+
+fn invalid_trait<T>(
+    id: &StructuralTraitId,
+    message: impl Into<String>,
+) -> Result<T, CatalogueError> {
+    Err(CatalogueError::new(
+        CatalogueErrorCode::InvalidStructuralTrait,
+        format!("trait `{id}`: {}", message.into()),
+    ))
+}
+
+struct G1Indexes {
+    templates: BTreeMap<StructureTemplateId, usize>,
+    applications: BTreeMap<StructureId, usize>,
+    aliases: BTreeMap<String, StructureId>,
+    provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn validate_structure_templates_and_applications(
+    templates: &[StructureTemplateRecord],
+    applications: &[StructureTemplateApplicationRecord],
+    elements: &[ElementRecord],
+    element_index: &BTreeMap<ElementSymbol, usize>,
+    category_members: &BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
+    membership_provenance: &BTreeMap<
+        (ElementSymbol, ElementCategoryId),
+        ElementMembershipProvenance,
+    >,
+    trait_definitions: &[StructuralTraitDefinitionRecord],
+    trait_index: &BTreeMap<StructuralTraitId, usize>,
+    premises: &BTreeMap<PremiseId, usize>,
+    valence: &[ValencePremiseRecord],
+    structures: &mut BTreeMap<StructureId, StructureDefinition>,
+    structure_premises: &mut BTreeMap<StructureId, BTreeSet<PremiseId>>,
+    structure_traits: &mut BTreeMap<
+        StructureId,
+        BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>,
+    >,
+) -> Result<G1Indexes, CatalogueError> {
+    let template_index = index_structure_templates(
+        templates,
+        element_index,
+        category_members,
+        trait_definitions,
+        trait_index,
+        premises,
+    )?;
+    let concrete_structure_ids = structures.keys().cloned().collect::<BTreeSet<_>>();
+    let mut application_index = BTreeMap::new();
+    let mut provenance = BTreeMap::new();
+
+    for (position, application) in applications.iter().enumerate() {
+        if application_index
+            .insert(application.id.clone(), position)
+            .is_some()
+            || structures.contains_key(&application.id)
+        {
+            return duplicate_id(&application.id);
+        }
+        let Some(template_position) = template_index.get(&application.template) else {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::UnknownReference,
+                format!(
+                    "application `{}` references template `{}`",
+                    application.id, application.template
+                ),
+            ));
+        };
+        let template = &templates[*template_position];
+        validate_application_arguments(
+            application,
+            template,
+            elements,
+            element_index,
+            category_members,
+            membership_provenance,
+        )?;
+        if application.premise_ids.is_empty() || application.formula.trim().is_empty() {
+            return invalid_application(&application.id, "formula or premise set is empty");
+        }
+        for premise in &application.premise_ids {
+            require_premise(premise, premises)?;
+        }
+        for alias in &application.aliases {
+            validate_label(alias, CatalogueErrorCode::InvalidStructureApplication)?;
+            if alias != alias.trim() {
+                return invalid_application(&application.id, "alias is not trimmed");
+            }
+        }
+
+        let record = instantiate_template_record(template, application)?;
+        let definition = build_structure(&record).map_err(|error| {
+            CatalogueError::new(
+                CatalogueErrorCode::InvalidStructureApplication,
+                format!("application `{}`: {error}", application.id),
+            )
+        })?;
+        validate_graph_valence(&definition, valence).map_err(|error| {
+            CatalogueError::new(
+                CatalogueErrorCode::InvalidStructureApplication,
+                format!("application `{}`: {error}", application.id),
+            )
+        })?;
+        let assertions = validate_trait_assertions(
+            template.traits(),
+            &definition,
+            trait_definitions,
+            trait_index,
+            premises,
+        )?;
+
+        let mut application_provenance = StructureTemplateApplicationProvenance {
+            template_premise_ids: template.premise_ids().clone(),
+            argument_element_premise_ids: BTreeSet::new(),
+            argument_category_premise_ids: BTreeSet::new(),
+            argument_structure_premise_ids: BTreeSet::new(),
+            application_premise_ids: application.premise_ids.clone(),
+            trait_definition_premise_ids: BTreeSet::new(),
+            trait_assertion_premise_ids: BTreeSet::new(),
+        };
+        for (parameter_name, parameter) in template.parameters() {
+            if let StructureTemplateParameterRecord::Element { category } = parameter {
+                let symbol = ElementSymbol::new(&application.arguments[parameter_name]).unwrap();
+                application_provenance
+                    .argument_element_premise_ids
+                    .extend(elements[element_index[&symbol]].premise_ids.iter().cloned());
+                let member_provenance = &membership_provenance[&(symbol, category.clone())];
+                application_provenance
+                    .argument_category_premise_ids
+                    .extend(member_provenance.category_premise_ids.iter().cloned());
+            }
+        }
+        for assertion in template.traits() {
+            application_provenance
+                .trait_assertion_premise_ids
+                .extend(assertion.premise_ids.iter().cloned());
+            application_provenance.trait_definition_premise_ids.extend(
+                trait_definitions[trait_index[&assertion.trait_id]]
+                    .premise_ids
+                    .iter()
+                    .cloned(),
+            );
+        }
+        let effective = effective_application_premises(&application_provenance);
+        structure_premises.insert(application.id.clone(), effective);
+        if !assertions.is_empty() {
+            structure_traits.insert(application.id.clone(), assertions);
+        }
+        structures.insert(application.id.clone(), definition);
+        provenance.insert(application.id.clone(), application_provenance);
+    }
+
+    let mut structure_arguments = BTreeMap::<StructureId, Vec<StructureId>>::new();
+    let mut structure_argument_trait_premises = BTreeMap::<StructureId, BTreeSet<PremiseId>>::new();
+    for application in applications {
+        let template = &templates[template_index[&application.template]];
+        for (parameter_name, parameter) in template.parameters() {
+            let StructureTemplateParameterRecord::Structure { traits } = parameter else {
+                continue;
+            };
+            let structure_id = StructureId::from_str(&application.arguments[parameter_name])
+                .map_err(|error| {
+                    CatalogueError::new(
+                        CatalogueErrorCode::InvalidStructureApplication,
+                        error.to_string(),
+                    )
+                })?;
+            if !structures.contains_key(&structure_id) {
+                return Err(CatalogueError::new(
+                    CatalogueErrorCode::UnknownReference,
+                    format!(
+                        "application `{}` references structure `{structure_id}`",
+                        application.id
+                    ),
+                ));
+            }
+            if traits.iter().any(|required| {
+                !structure_traits
+                    .get(&structure_id)
+                    .is_some_and(|actual| actual.contains_key(required))
+            }) {
+                return invalid_application(
+                    &application.id,
+                    format!("structure argument `{parameter_name}` lacks a required trait"),
+                );
+            }
+            for required in traits {
+                let assertion = &structure_traits[&structure_id][required];
+                structure_argument_trait_premises
+                    .entry(application.id.clone())
+                    .or_default()
+                    .extend(assertion.premise_ids.iter().cloned());
+                structure_argument_trait_premises
+                    .entry(application.id.clone())
+                    .or_default()
+                    .extend(
+                        trait_definitions[trait_index[required]]
+                            .premise_ids
+                            .iter()
+                            .cloned(),
+                    );
+            }
+            structure_arguments
+                .entry(application.id.clone())
+                .or_default()
+                .push(structure_id);
+        }
+    }
+    let mut base_premises = structure_premises.clone();
+    for (application_id, trait_premises) in &structure_argument_trait_premises {
+        base_premises
+            .get_mut(application_id)
+            .expect("validated application has structure premises")
+            .extend(trait_premises.iter().cloned());
+    }
+    let application_ids = applications
+        .iter()
+        .map(|application| application.id.clone())
+        .collect::<BTreeSet<_>>();
+    let mut resolved_premises = BTreeMap::new();
+    for application in applications {
+        resolve_application_premises(
+            &application.id,
+            &application_ids,
+            &structure_arguments,
+            &base_premises,
+            &mut BTreeSet::new(),
+            &mut resolved_premises,
+        )?;
+    }
+    for application in applications {
+        let mut argument_premises = structure_argument_trait_premises
+            .get(&application.id)
+            .cloned()
+            .unwrap_or_default();
+        for argument in structure_arguments
+            .get(&application.id)
+            .into_iter()
+            .flatten()
+        {
+            let contributing = resolved_premises
+                .get(argument)
+                .unwrap_or(&base_premises[argument]);
+            argument_premises.extend(contributing.iter().cloned());
+        }
+        provenance
+            .get_mut(&application.id)
+            .unwrap()
+            .argument_structure_premise_ids = argument_premises;
+        structure_premises.insert(
+            application.id.clone(),
+            resolved_premises[&application.id].clone(),
+        );
+    }
+
+    let mut aliases = BTreeMap::new();
+    let all_ids = structures
+        .keys()
+        .map(ToString::to_string)
+        .collect::<BTreeSet<_>>();
+    for application in applications {
+        for alias in &application.aliases {
+            if all_ids.contains(alias)
+                || aliases
+                    .insert(alias.clone(), application.id.clone())
+                    .is_some()
+            {
+                return invalid_application(&application.id, format!("alias `{alias}` collides"));
+            }
+        }
+    }
+
+    debug_assert!(concrete_structure_ids.is_subset(&structures.keys().cloned().collect()));
+    Ok(G1Indexes {
+        templates: template_index,
+        applications: application_index,
+        aliases,
+        provenance,
+    })
+}
+
+fn resolve_application_premises(
+    id: &StructureId,
+    application_ids: &BTreeSet<StructureId>,
+    structure_arguments: &BTreeMap<StructureId, Vec<StructureId>>,
+    base_premises: &BTreeMap<StructureId, BTreeSet<PremiseId>>,
+    visiting: &mut BTreeSet<StructureId>,
+    resolved: &mut BTreeMap<StructureId, BTreeSet<PremiseId>>,
+) -> Result<BTreeSet<PremiseId>, CatalogueError> {
+    if let Some(premises) = resolved.get(id) {
+        return Ok(premises.clone());
+    }
+    if !application_ids.contains(id) {
+        return Ok(base_premises[id].clone());
+    }
+    if !visiting.insert(id.clone()) {
+        return invalid_application(id, "structure-parameter dependency cycle");
+    }
+    let mut premises = base_premises[id].clone();
+    for argument in structure_arguments.get(id).into_iter().flatten() {
+        premises.extend(resolve_application_premises(
+            argument,
+            application_ids,
+            structure_arguments,
+            base_premises,
+            visiting,
+            resolved,
+        )?);
+    }
+    visiting.remove(id);
+    resolved.insert(id.clone(), premises.clone());
+    Ok(premises)
+}
+
+fn effective_application_premises(
+    provenance: &StructureTemplateApplicationProvenance,
+) -> BTreeSet<PremiseId> {
+    provenance
+        .template_premise_ids
+        .iter()
+        .chain(&provenance.argument_element_premise_ids)
+        .chain(&provenance.argument_category_premise_ids)
+        .chain(&provenance.argument_structure_premise_ids)
+        .chain(&provenance.application_premise_ids)
+        .chain(&provenance.trait_definition_premise_ids)
+        .chain(&provenance.trait_assertion_premise_ids)
+        .cloned()
+        .collect()
+}
+
+fn index_structure_templates(
+    records: &[StructureTemplateRecord],
+    elements: &BTreeMap<ElementSymbol, usize>,
+    categories: &BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
+    trait_definitions: &[StructuralTraitDefinitionRecord],
+    trait_index: &BTreeMap<StructuralTraitId, usize>,
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<BTreeMap<StructureTemplateId, usize>, CatalogueError> {
+    let mut index = BTreeMap::new();
+    for (position, record) in records.iter().enumerate() {
+        if index.insert(record.id().clone(), position).is_some() {
+            return duplicate_id(record.id());
+        }
+        if record.parameters().is_empty() || record.premise_ids().is_empty() {
+            return invalid_template(record.id(), "parameter or premise set is empty");
+        }
+        for premise in record.premise_ids() {
+            require_premise(premise, premises)?;
+        }
+        for (name, parameter) in record.parameters() {
+            validate_label(name, CatalogueErrorCode::InvalidStructureTemplate)?;
+            match parameter {
+                StructureTemplateParameterRecord::Element { category } => {
+                    if !categories.contains_key(category) {
+                        return Err(CatalogueError::new(
+                            CatalogueErrorCode::UnknownReference,
+                            format!(
+                                "template `{}` category `{category}` does not resolve",
+                                record.id()
+                            ),
+                        ));
+                    }
+                }
+                StructureTemplateParameterRecord::Structure { traits } => {
+                    if traits.is_empty() {
+                        return invalid_template(record.id(), "structure parameter has no traits");
+                    }
+                    if let Some(missing) = traits.iter().find(|id| !trait_index.contains_key(*id)) {
+                        return Err(CatalogueError::new(
+                            CatalogueErrorCode::UnknownReference,
+                            format!(
+                                "template `{}` trait `{missing}` does not resolve",
+                                record.id()
+                            ),
+                        ));
+                    }
+                }
+                StructureTemplateParameterRecord::Enum { values } => {
+                    if values.is_empty()
+                        || values
+                            .iter()
+                            .any(|value| value != value.trim() || !valid_declared_text_id(value))
+                    {
+                        return invalid_template(record.id(), "enum parameter values are invalid");
+                    }
+                }
+            }
+        }
+        validate_template_shape(record, elements)?;
+        let mut asserted_traits = BTreeSet::new();
+        for assertion in record.traits() {
+            if !asserted_traits.insert(assertion.trait_id.clone()) {
+                return duplicate_id(&assertion.trait_id);
+            }
+            let Some(position) = trait_index.get(&assertion.trait_id) else {
+                return Err(CatalogueError::new(
+                    CatalogueErrorCode::UnknownReference,
+                    format!(
+                        "template `{}` trait `{}` does not resolve",
+                        record.id(),
+                        assertion.trait_id
+                    ),
+                ));
+            };
+            validate_trait_assertion_shape(assertion, &trait_definitions[*position], premises)?;
+        }
+    }
+    Ok(index)
+}
+
+fn validate_application_arguments(
+    application: &StructureTemplateApplicationRecord,
+    template: &StructureTemplateRecord,
+    elements: &[ElementRecord],
+    element_index: &BTreeMap<ElementSymbol, usize>,
+    category_members: &BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
+    membership_provenance: &BTreeMap<
+        (ElementSymbol, ElementCategoryId),
+        ElementMembershipProvenance,
+    >,
+) -> Result<(), CatalogueError> {
+    if application.arguments.keys().collect::<BTreeSet<_>>()
+        != template.parameters().keys().collect::<BTreeSet<_>>()
+    {
+        return invalid_application(&application.id, "arguments do not exactly match parameters");
+    }
+    for (name, parameter) in template.parameters() {
+        let argument = &application.arguments[name];
+        match parameter {
+            StructureTemplateParameterRecord::Element { category } => {
+                let symbol = ElementSymbol::new(argument).map_err(|error| {
+                    CatalogueError::new(
+                        CatalogueErrorCode::InvalidStructureApplication,
+                        error.to_string(),
+                    )
+                })?;
+                if !element_index.contains_key(&symbol) {
+                    return Err(CatalogueError::new(
+                        CatalogueErrorCode::UnknownReference,
+                        format!(
+                            "application `{}` element `{symbol}` does not resolve",
+                            application.id
+                        ),
+                    ));
+                }
+                if !category_members[category].contains(&symbol)
+                    || !membership_provenance.contains_key(&(symbol.clone(), category.clone()))
+                {
+                    return invalid_application(
+                        &application.id,
+                        format!("element argument `{name}` does not satisfy `{category}`"),
+                    );
+                }
+                let _ = &elements[element_index[&symbol]];
+            }
+            StructureTemplateParameterRecord::Structure { .. } => {
+                StructureId::from_str(argument).map_err(|error| {
+                    CatalogueError::new(
+                        CatalogueErrorCode::InvalidStructureApplication,
+                        error.to_string(),
+                    )
+                })?;
+            }
+            StructureTemplateParameterRecord::Enum { values } => {
+                if !values.contains(argument) {
+                    return invalid_application(
+                        &application.id,
+                        format!("enum argument `{name}` is outside its closed values"),
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_lines)]
+fn validate_template_shape(
+    template: &StructureTemplateRecord,
+    elements: &BTreeMap<ElementSymbol, usize>,
+) -> Result<(), CatalogueError> {
+    let mut used_parameters = BTreeSet::new();
+    match template {
+        StructureTemplateRecord::Molecular {
+            atoms,
+            bonds,
+            groups,
+            ..
+        }
+        | StructureTemplateRecord::Ion {
+            atoms,
+            bonds,
+            groups,
+            ..
+        } => validate_template_graph_records(
+            template,
+            atoms,
+            bonds,
+            groups,
+            elements,
+            &mut used_parameters,
+        )?,
+        StructureTemplateRecord::Ionic {
+            components,
+            associations,
+            ..
+        } => {
+            if components.len() < 2 || associations.is_empty() {
+                return invalid_template(template.id(), "ionic graph is incomplete");
+            }
+            let mut component_labels = BTreeSet::new();
+            for component in components {
+                validate_label(
+                    &component.label,
+                    CatalogueErrorCode::InvalidStructureTemplate,
+                )?;
+                if !component_labels.insert(component.label.clone()) {
+                    return duplicate_id(&component.label);
+                }
+                validate_template_graph_records(
+                    template,
+                    &component.atoms,
+                    &component.bonds,
+                    &component.groups,
+                    elements,
+                    &mut used_parameters,
+                )?;
+            }
+            let mut association_labels = BTreeSet::new();
+            for association in associations {
+                validate_label(
+                    &association.label,
+                    CatalogueErrorCode::InvalidStructureTemplate,
+                )?;
+                if !association_labels.insert(association.label.clone())
+                    || association.components.len() < 2
+                    || association.components.iter().collect::<BTreeSet<_>>().len()
+                        != association.components.len()
+                    || association
+                        .components
+                        .iter()
+                        .any(|component| !component_labels.contains(component))
+                {
+                    return invalid_template(
+                        template.id(),
+                        "ionic association references invalid components",
+                    );
+                }
+            }
+        }
+        StructureTemplateRecord::Metallic { sites, domains, .. } => {
+            if domains.is_empty() {
+                return invalid_template(template.id(), "metallic graph has no domain");
+            }
+            validate_template_graph_records(
+                template,
+                sites,
+                &[],
+                &[],
+                elements,
+                &mut used_parameters,
+            )?;
+            let site_labels = sites
+                .iter()
+                .map(|site| site.label.as_str())
+                .collect::<BTreeSet<_>>();
+            let mut domain_labels = BTreeSet::new();
+            for domain in domains {
+                validate_label(&domain.label, CatalogueErrorCode::InvalidStructureTemplate)?;
+                if !domain_labels.insert(domain.label.clone())
+                    || domain.sites.is_empty()
+                    || domain.sites.iter().collect::<BTreeSet<_>>().len() != domain.sites.len()
+                    || domain.delocalized_electrons == 0
+                    || domain
+                        .sites
+                        .iter()
+                        .any(|site| !site_labels.contains(site.as_str()))
+                {
+                    return invalid_template(
+                        template.id(),
+                        "metallic domain references invalid sites",
+                    );
+                }
+            }
+        }
+    }
+    for (name, parameter) in template.parameters() {
+        if matches!(
+            parameter,
+            StructureTemplateParameterRecord::Element { .. }
+                | StructureTemplateParameterRecord::Enum { .. }
+        ) && !used_parameters.contains(name)
+        {
+            return invalid_template(
+                template.id(),
+                format!("parameter `{name}` is never substituted"),
+            );
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_lines)]
+fn validate_template_graph_records(
+    template: &StructureTemplateRecord,
+    atoms: &[TemplateAtomRecord],
+    bonds: &[TemplateBondRecord],
+    groups: &[GroupRecord],
+    elements: &BTreeMap<ElementSymbol, usize>,
+    used_parameters: &mut BTreeSet<String>,
+) -> Result<(), CatalogueError> {
+    if atoms.is_empty() {
+        return invalid_template(template.id(), "graph has no atoms");
+    }
+    let mut atom_labels = BTreeSet::new();
+    for atom in atoms {
+        validate_label(&atom.label, CatalogueErrorCode::InvalidStructureTemplate)?;
+        if !atom_labels.insert(atom.label.clone()) {
+            return duplicate_id(&atom.label);
+        }
+        ElectronState::new(
+            atom.formal_charge,
+            atom.non_bonding_electrons,
+            atom.unpaired_electrons,
+        )
+        .map_err(|error| {
+            CatalogueError::new(
+                CatalogueErrorCode::InvalidStructureTemplate,
+                format!(
+                    "template `{}` atom `{}`: {error}",
+                    template.id(),
+                    atom.label
+                ),
+            )
+        })?;
+        match &atom.element {
+            TemplateElementRecord::Literal(element) => {
+                if !elements.contains_key(element) {
+                    return Err(CatalogueError::new(
+                        CatalogueErrorCode::UnknownReference,
+                        format!(
+                            "template `{}` literal element `{element}` does not resolve",
+                            template.id()
+                        ),
+                    ));
+                }
+            }
+            TemplateElementRecord::Parameter(reference) => {
+                let Some(parameter) = template.parameters().get(&reference.parameter) else {
+                    return invalid_template(
+                        template.id(),
+                        format!("unknown element parameter `{}`", reference.parameter),
+                    );
+                };
+                if !matches!(parameter, StructureTemplateParameterRecord::Element { .. }) {
+                    return invalid_template(
+                        template.id(),
+                        format!("parameter `{}` is not an element", reference.parameter),
+                    );
+                }
+                used_parameters.insert(reference.parameter.clone());
+            }
+        }
+    }
+    let mut edges = BTreeSet::new();
+    for bond in bonds {
+        if bond.left == bond.right
+            || !atom_labels.contains(&bond.left)
+            || !atom_labels.contains(&bond.right)
+        {
+            return invalid_template(template.id(), "bond has invalid endpoints");
+        }
+        let edge = if bond.left < bond.right {
+            (&bond.left, &bond.right)
+        } else {
+            (&bond.right, &bond.left)
+        };
+        if !edges.insert(edge) {
+            return invalid_template(template.id(), "duplicate covalent edge");
+        }
+        let order_values = match &bond.order {
+            TemplateBondOrderRecord::Literal(order) => vec![*order],
+            TemplateBondOrderRecord::Parameter(reference) => {
+                let Some(StructureTemplateParameterRecord::Enum { values }) =
+                    template.parameters().get(&reference.parameter)
+                else {
+                    return invalid_template(
+                        template.id(),
+                        format!(
+                            "bond order parameter `{}` is not an enum",
+                            reference.parameter
+                        ),
+                    );
+                };
+                used_parameters.insert(reference.parameter.clone());
+                values
+                    .iter()
+                    .map(|value| parse_bond_order(value, template.id()))
+                    .collect::<Result<Vec<_>, _>>()?
+            }
+        };
+        if let BondElectronOriginRecord::Dative { donor, acceptor } = &bond.electron_origin
+            && (!((donor == &bond.left && acceptor == &bond.right)
+                || (donor == &bond.right && acceptor == &bond.left))
+                || order_values
+                    .iter()
+                    .any(|order| *order != BondOrderRecord::Single))
+        {
+            return invalid_template(
+                template.id(),
+                "dative bond must be single and name its endpoints",
+            );
+        }
+    }
+    let mut group_labels = BTreeSet::new();
+    for group in groups {
+        validate_label(&group.label, CatalogueErrorCode::InvalidStructureTemplate)?;
+        if !group_labels.insert(group.label.clone())
+            || group.atoms.is_empty()
+            || group.atoms.iter().collect::<BTreeSet<_>>().len() != group.atoms.len()
+            || group.atoms.iter().any(|atom| !atom_labels.contains(atom))
+        {
+            return invalid_template(template.id(), "group references invalid atoms");
+        }
+    }
+    Ok(())
+}
+
+fn instantiate_template_record(
+    template: &StructureTemplateRecord,
+    application: &StructureTemplateApplicationRecord,
+) -> Result<StructureRecord, CatalogueError> {
+    let premise_id = application
+        .premise_ids
+        .first()
+        .expect("application premise set validated")
+        .clone();
+    match template {
+        StructureTemplateRecord::Molecular {
+            atoms,
+            bonds,
+            groups,
+            traits,
+            ..
+        } => Ok(StructureRecord::Molecular {
+            id: application.id.clone(),
+            premise_id,
+            formula: application.formula.clone(),
+            atoms: instantiate_template_atoms(atoms, application),
+            bonds: instantiate_template_bonds(bonds, application, template)?,
+            groups: groups.clone(),
+            traits: traits.clone(),
+        }),
+        StructureTemplateRecord::Ion {
+            atoms,
+            bonds,
+            groups,
+            traits,
+            ..
+        } => Ok(StructureRecord::Ion {
+            id: application.id.clone(),
+            premise_id,
+            formula: application.formula.clone(),
+            atoms: instantiate_template_atoms(atoms, application),
+            bonds: instantiate_template_bonds(bonds, application, template)?,
+            groups: groups.clone(),
+            traits: traits.clone(),
+        }),
+        StructureTemplateRecord::Ionic {
+            components,
+            associations,
+            traits,
+            ..
+        } => Ok(StructureRecord::Ionic {
+            id: application.id.clone(),
+            premise_id,
+            formula: application.formula.clone(),
+            components: components
+                .iter()
+                .map(|component| {
+                    Ok(ComponentRecord {
+                        label: component.label.clone(),
+                        atoms: instantiate_template_atoms(&component.atoms, application),
+                        bonds: instantiate_template_bonds(&component.bonds, application, template)?,
+                        groups: component.groups.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, CatalogueError>>()?,
+            associations: associations.clone(),
+            traits: traits.clone(),
+        }),
+        StructureTemplateRecord::Metallic {
+            sites,
+            domains,
+            traits,
+            ..
+        } => Ok(StructureRecord::Metallic {
+            id: application.id.clone(),
+            premise_id,
+            formula: application.formula.clone(),
+            sites: instantiate_template_atoms(sites, application),
+            domains: domains.clone(),
+            traits: traits.clone(),
+        }),
+    }
+}
+
+fn instantiate_template_atoms(
+    atoms: &[TemplateAtomRecord],
+    application: &StructureTemplateApplicationRecord,
+) -> Vec<AtomRecord> {
+    atoms
+        .iter()
+        .map(|atom| AtomRecord {
+            label: atom.label.clone(),
+            element: match &atom.element {
+                TemplateElementRecord::Literal(element) => element.to_string(),
+                TemplateElementRecord::Parameter(reference) => {
+                    application.arguments[&reference.parameter].clone()
+                }
+            },
+            formal_charge: atom.formal_charge,
+            non_bonding_electrons: atom.non_bonding_electrons,
+            unpaired_electrons: atom.unpaired_electrons,
+        })
+        .collect()
+}
+
+fn instantiate_template_bonds(
+    bonds: &[TemplateBondRecord],
+    application: &StructureTemplateApplicationRecord,
+    template: &StructureTemplateRecord,
+) -> Result<Vec<BondRecord>, CatalogueError> {
+    bonds
+        .iter()
+        .map(|bond| {
+            let order = match &bond.order {
+                TemplateBondOrderRecord::Literal(order) => *order,
+                TemplateBondOrderRecord::Parameter(reference) => {
+                    parse_bond_order(&application.arguments[&reference.parameter], template.id())?
+                }
+            };
+            Ok(BondRecord {
+                left: bond.left.clone(),
+                right: bond.right.clone(),
+                order,
+                electron_origin: bond.electron_origin.clone(),
+            })
+        })
+        .collect()
+}
+
+fn parse_bond_order(
+    value: &str,
+    template: &StructureTemplateId,
+) -> Result<BondOrderRecord, CatalogueError> {
+    match value {
+        "single" => Ok(BondOrderRecord::Single),
+        "double" => Ok(BondOrderRecord::Double),
+        "triple" => Ok(BondOrderRecord::Triple),
+        _ => invalid_template(
+            template,
+            format!("`{value}` is not a bond-order enum value"),
+        ),
+    }
+}
+
+fn invalid_template<T>(
+    id: &StructureTemplateId,
+    message: impl Into<String>,
+) -> Result<T, CatalogueError> {
+    Err(CatalogueError::new(
+        CatalogueErrorCode::InvalidStructureTemplate,
+        format!("template `{id}`: {}", message.into()),
+    ))
+}
+
+fn invalid_application<T>(
+    id: &StructureId,
+    message: impl Into<String>,
+) -> Result<T, CatalogueError> {
+    Err(CatalogueError::new(
+        CatalogueErrorCode::InvalidStructureApplication,
+        format!("application `{id}`: {}", message.into()),
+    ))
+}
+
 fn validate_structures(
     records: &[StructureRecord],
     premises: &BTreeMap<PremiseId, usize>,
@@ -1059,7 +2394,10 @@ fn validate_structures(
         if structures.insert(record.id().clone(), definition).is_some() {
             return duplicate_id(record.id());
         }
-        structure_premises.insert(record.id().clone(), record.premise_id().clone());
+        structure_premises.insert(
+            record.id().clone(),
+            [record.premise_id().clone()].into_iter().collect(),
+        );
     }
     Ok((structures, structure_premises))
 }
@@ -1353,7 +2691,7 @@ fn validate_graph_valence(
 fn validate_rules(
     records: &[ReactionRuleRecord],
     structures: &BTreeMap<StructureId, StructureDefinition>,
-    structure_premises: &BTreeMap<StructureId, PremiseId>,
+    structure_premises: &BTreeMap<StructureId, BTreeSet<PremiseId>>,
     valence_premises: &BTreeMap<PremiseId, usize>,
     valence_records: &[ValencePremiseRecord],
     premises: &BTreeMap<PremiseId, usize>,
@@ -1396,13 +2734,15 @@ fn validate_rules(
                     ),
                 ));
             }
-            let structure_premise = &structure_premises[&term.structure_id];
-            if !record.premise_ids.contains(structure_premise) {
+            let missing_structure_premises = structure_premises[&term.structure_id]
+                .difference(&record.premise_ids)
+                .collect::<Vec<_>>();
+            if !missing_structure_premises.is_empty() {
                 return rule_error(
                     &record.id,
                     format!(
-                        "structure `{}` premise `{structure_premise}` is not proof-bound",
-                        term.structure_id
+                        "structure `{}` premises {missing_structure_premises:?} are not proof-bound",
+                        term.structure_id,
                     ),
                 );
             }
@@ -2553,6 +3893,18 @@ fn normalize_document(document: &mut CatalogueDocument) {
     document
         .element_categories
         .sort_by(|left, right| left.id.cmp(&right.id));
+    document
+        .structural_traits
+        .sort_by(|left, right| left.id.cmp(&right.id));
+    for template in &mut document.structure_templates {
+        normalize_structure_template(template);
+    }
+    document
+        .structure_templates
+        .sort_by(|left, right| left.id().cmp(right.id()));
+    document
+        .structure_applications
+        .sort_by(|left, right| left.id.cmp(&right.id));
 }
 
 fn normalize_predicate(predicate: &mut ElementPredicateRecord) {
@@ -2634,6 +3986,84 @@ fn normalize_structure(record: &mut StructureRecord) {
             domains.sort_by(|left, right| left.label.cmp(&right.label));
         }
     }
+    normalize_trait_assertions(record.traits_mut());
+}
+
+fn normalize_trait_assertions(assertions: &mut [StructuralTraitAssertionRecord]) {
+    assertions.sort_by(|left, right| left.trait_id.cmp(&right.trait_id));
+}
+
+fn normalize_structure_template(template: &mut StructureTemplateRecord) {
+    match template {
+        StructureTemplateRecord::Molecular {
+            atoms,
+            bonds,
+            groups,
+            traits,
+            ..
+        }
+        | StructureTemplateRecord::Ion {
+            atoms,
+            bonds,
+            groups,
+            traits,
+            ..
+        } => {
+            normalize_template_graph_records(atoms, bonds, groups);
+            normalize_trait_assertions(traits);
+        }
+        StructureTemplateRecord::Ionic {
+            components,
+            associations,
+            traits,
+            ..
+        } => {
+            for component in components.iter_mut() {
+                normalize_template_graph_records(
+                    &mut component.atoms,
+                    &mut component.bonds,
+                    &mut component.groups,
+                );
+            }
+            components.sort_by(|left, right| left.label.cmp(&right.label));
+            for association in associations.iter_mut() {
+                association.components.sort();
+            }
+            associations.sort_by(|left, right| left.label.cmp(&right.label));
+            normalize_trait_assertions(traits);
+        }
+        StructureTemplateRecord::Metallic {
+            sites,
+            domains,
+            traits,
+            ..
+        } => {
+            sites.sort_by(|left, right| left.label.cmp(&right.label));
+            for domain in domains.iter_mut() {
+                domain.sites.sort();
+            }
+            domains.sort_by(|left, right| left.label.cmp(&right.label));
+            normalize_trait_assertions(traits);
+        }
+    }
+}
+
+fn normalize_template_graph_records(
+    atoms: &mut [TemplateAtomRecord],
+    bonds: &mut [TemplateBondRecord],
+    groups: &mut [GroupRecord],
+) {
+    atoms.sort_by(|left, right| left.label.cmp(&right.label));
+    for bond in bonds.iter_mut() {
+        if bond.right < bond.left {
+            std::mem::swap(&mut bond.left, &mut bond.right);
+        }
+    }
+    bonds.sort_by_key(|bond| serde_json::to_string(bond).expect("template bond serializes"));
+    for group in groups.iter_mut() {
+        group.atoms.sort();
+    }
+    groups.sort_by(|left, right| left.label.cmp(&right.label));
 }
 
 fn normalize_graph_records(

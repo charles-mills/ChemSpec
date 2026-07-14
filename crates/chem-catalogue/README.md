@@ -14,7 +14,7 @@ are the Slice 4 and Slice 5 boundaries respectively.
 ```mermaid
 flowchart LR
     json["Untrusted catalogue JSON"] --> decode["Strict wire records"]
-    decode --> checks["Structures, valence, rules,<br/>mapping, templates, evidence, review"]
+    decode --> checks["Elements, traits, templates,<br/>structures, valence, rules, evidence, review"]
     checks --> digest["Order-normalized canonical digest"]
     checks --> indexes["Read-only deterministic indexes"]
     digest --> validated["ValidatedCatalogueBundle<br/>(untrusted)"]
@@ -41,7 +41,7 @@ or explicit cleavage allocation before they can enter the bundle.
 The catalogue digest is insensitive to record ordering where order has no
 meaning. The ordered operation template remains digest-significant.
 
-## Generalized-rules G0 boundary
+## Generalized-rules G1 boundary
 
 Catalogue schema 1 may optionally carry a reviewed element registry and
 element-category definitions. `ValidatedCatalogueBundle` derives deterministic
@@ -49,5 +49,13 @@ category membership and premise-backed lookup indexes while preserving the
 existing concrete catalogue records and digest compatibility. The migration
 registry is not used to resolve existing structures yet.
 
-Structure templates, structural traits, graph patterns, and generalized rule
-application remain unimplemented after G0; they belong to later slices.
+Schema 1 may also carry reviewed structural-trait definitions, exact checked
+trait assertions, parameterized structure templates, and stable template
+applications. Element, closed-enum, and trait-constrained structure arguments
+are resolved deterministically. Applications are constructed through the same
+structural graph and valence checks as concrete records, enter ordinary
+structure lookup under their stable IDs and aliases, and retain separate
+template, argument, trait, application, and premise provenance.
+
+Graph-pattern matching, generalized reaction families, case selection,
+rewrite instantiation, and source elaboration remain unimplemented after G1.

@@ -33,6 +33,12 @@ pub struct CatalogueDocument {
     pub elements: Vec<ElementRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub element_categories: Vec<ElementCategoryRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub structural_traits: Vec<StructuralTraitDefinitionRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub structure_templates: Vec<StructureTemplateRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub structure_applications: Vec<StructureTemplateApplicationRecord>,
 }
 
 #[derive(Debug)]
@@ -153,6 +159,287 @@ pub enum ElementScalarRecord {
     Integer(i64),
 }
 
+#[derive(Debug)]
+pub enum StructuralTraitIdKind {}
+impl IdKind for StructuralTraitIdKind {
+    const NAME: &'static str = "StructuralTraitId";
+}
+pub type StructuralTraitId = DeclaredId<StructuralTraitIdKind>;
+
+#[derive(Debug)]
+pub enum StructureTemplateIdKind {}
+impl IdKind for StructureTemplateIdKind {
+    const NAME: &'static str = "StructureTemplateId";
+}
+pub type StructureTemplateId = DeclaredId<StructureTemplateIdKind>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StructuralTraitDefinitionRecord {
+    pub id: StructuralTraitId,
+    pub sites: BTreeMap<String, StructuralTraitSiteKindRecord>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub values: BTreeMap<String, StructuralTraitValueProjectionRecord>,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StructuralTraitSiteKindRecord {
+    Atom,
+    CovalentBond,
+    Group,
+    IonicAssociation,
+    MetallicDomain,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum StructuralTraitValueProjectionRecord {
+    AtomElement {
+        site: String,
+    },
+    AtomFormalCharge {
+        site: String,
+    },
+    AtomNonBondingElectrons {
+        site: String,
+    },
+    AtomUnpairedElectrons {
+        site: String,
+    },
+    AtomBondOrderSum {
+        site: String,
+    },
+    CovalentBondOrder {
+        left_site: String,
+        right_site: String,
+    },
+    CovalentElectronOrigin {
+        left_site: String,
+        right_site: String,
+    },
+    GroupAtomCount {
+        site: String,
+    },
+    IonicComponentCount {
+        site: String,
+    },
+    MetallicSiteCount {
+        site: String,
+    },
+    MetallicDelocalizedElectrons {
+        site: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum StructuralTraitScalarRecord {
+    String(String),
+    Integer(i64),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StructuralTraitAssertionRecord {
+    #[serde(rename = "trait")]
+    pub trait_id: StructuralTraitId,
+    pub sites: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub values: BTreeMap<String, StructuralTraitScalarRecord>,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum StructureTemplateParameterRecord {
+    Element {
+        category: ElementCategoryId,
+    },
+    Structure {
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        traits: BTreeSet<StructuralTraitId>,
+    },
+    Enum {
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        values: BTreeSet<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TemplateElementRecord {
+    Literal(ElementSymbol),
+    Parameter(TemplateParameterReferenceRecord),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TemplateParameterReferenceRecord {
+    pub parameter: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TemplateBondOrderRecord {
+    Literal(BondOrderRecord),
+    Parameter(TemplateParameterReferenceRecord),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TemplateAtomRecord {
+    pub label: String,
+    pub element: TemplateElementRecord,
+    pub formal_charge: i16,
+    pub non_bonding_electrons: u8,
+    pub unpaired_electrons: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TemplateBondRecord {
+    pub left: String,
+    pub right: String,
+    pub order: TemplateBondOrderRecord,
+    #[serde(default, skip_serializing_if = "BondElectronOriginRecord::is_shared")]
+    pub electron_origin: BondElectronOriginRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TemplateComponentRecord {
+    pub label: String,
+    pub atoms: Vec<TemplateAtomRecord>,
+    #[serde(default)]
+    pub bonds: Vec<TemplateBondRecord>,
+    #[serde(default)]
+    pub groups: Vec<GroupRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "representation", rename_all = "snake_case", deny_unknown_fields)]
+pub enum StructureTemplateRecord {
+    Molecular {
+        id: StructureTemplateId,
+        parameters: BTreeMap<String, StructureTemplateParameterRecord>,
+        atoms: Vec<TemplateAtomRecord>,
+        #[serde(default)]
+        bonds: Vec<TemplateBondRecord>,
+        #[serde(default)]
+        groups: Vec<GroupRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        premise_ids: BTreeSet<PremiseId>,
+    },
+    Ion {
+        id: StructureTemplateId,
+        parameters: BTreeMap<String, StructureTemplateParameterRecord>,
+        atoms: Vec<TemplateAtomRecord>,
+        #[serde(default)]
+        bonds: Vec<TemplateBondRecord>,
+        #[serde(default)]
+        groups: Vec<GroupRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        premise_ids: BTreeSet<PremiseId>,
+    },
+    Ionic {
+        id: StructureTemplateId,
+        parameters: BTreeMap<String, StructureTemplateParameterRecord>,
+        components: Vec<TemplateComponentRecord>,
+        associations: Vec<IonicAssociationRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        premise_ids: BTreeSet<PremiseId>,
+    },
+    Metallic {
+        id: StructureTemplateId,
+        parameters: BTreeMap<String, StructureTemplateParameterRecord>,
+        sites: Vec<TemplateAtomRecord>,
+        domains: Vec<MetallicDomainRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        premise_ids: BTreeSet<PremiseId>,
+    },
+}
+
+impl StructureTemplateRecord {
+    #[must_use]
+    pub const fn id(&self) -> &StructureTemplateId {
+        match self {
+            Self::Molecular { id, .. }
+            | Self::Ion { id, .. }
+            | Self::Ionic { id, .. }
+            | Self::Metallic { id, .. } => id,
+        }
+    }
+
+    #[must_use]
+    pub const fn parameters(&self) -> &BTreeMap<String, StructureTemplateParameterRecord> {
+        match self {
+            Self::Molecular { parameters, .. }
+            | Self::Ion { parameters, .. }
+            | Self::Ionic { parameters, .. }
+            | Self::Metallic { parameters, .. } => parameters,
+        }
+    }
+
+    #[must_use]
+    pub const fn traits(&self) -> &Vec<StructuralTraitAssertionRecord> {
+        match self {
+            Self::Molecular { traits, .. }
+            | Self::Ion { traits, .. }
+            | Self::Ionic { traits, .. }
+            | Self::Metallic { traits, .. } => traits,
+        }
+    }
+
+    #[must_use]
+    pub const fn premise_ids(&self) -> &BTreeSet<PremiseId> {
+        match self {
+            Self::Molecular { premise_ids, .. }
+            | Self::Ion { premise_ids, .. }
+            | Self::Ionic { premise_ids, .. }
+            | Self::Metallic { premise_ids, .. } => premise_ids,
+        }
+    }
+
+    #[must_use]
+    pub const fn traits_mut(&mut self) -> &mut Vec<StructuralTraitAssertionRecord> {
+        match self {
+            Self::Molecular { traits, .. }
+            | Self::Ion { traits, .. }
+            | Self::Ionic { traits, .. }
+            | Self::Metallic { traits, .. } => traits,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StructureTemplateApplicationRecord {
+    pub id: StructureId,
+    pub template: StructureTemplateId,
+    pub arguments: BTreeMap<String, String>,
+    pub formula: String,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeSet::is_empty",
+        deserialize_with = "deserialize_unique_set"
+    )]
+    pub aliases: BTreeSet<String>,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PublicationKind {
@@ -267,6 +554,8 @@ pub enum StructureRecord {
         bonds: Vec<BondRecord>,
         #[serde(default)]
         groups: Vec<GroupRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
     },
     Ion {
         id: StructureId,
@@ -277,6 +566,8 @@ pub enum StructureRecord {
         bonds: Vec<BondRecord>,
         #[serde(default)]
         groups: Vec<GroupRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
     },
     Ionic {
         id: StructureId,
@@ -284,6 +575,8 @@ pub enum StructureRecord {
         formula: String,
         components: Vec<ComponentRecord>,
         associations: Vec<IonicAssociationRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
     },
     Metallic {
         id: StructureId,
@@ -291,6 +584,8 @@ pub enum StructureRecord {
         formula: String,
         sites: Vec<AtomRecord>,
         domains: Vec<MetallicDomainRecord>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        traits: Vec<StructuralTraitAssertionRecord>,
     },
 }
 
@@ -312,6 +607,26 @@ impl StructureRecord {
             | Self::Ion { premise_id, .. }
             | Self::Ionic { premise_id, .. }
             | Self::Metallic { premise_id, .. } => premise_id,
+        }
+    }
+
+    #[must_use]
+    pub const fn traits(&self) -> &Vec<StructuralTraitAssertionRecord> {
+        match self {
+            Self::Molecular { traits, .. }
+            | Self::Ion { traits, .. }
+            | Self::Ionic { traits, .. }
+            | Self::Metallic { traits, .. } => traits,
+        }
+    }
+
+    #[must_use]
+    pub const fn traits_mut(&mut self) -> &mut Vec<StructuralTraitAssertionRecord> {
+        match self {
+            Self::Molecular { traits, .. }
+            | Self::Ion { traits, .. }
+            | Self::Ionic { traits, .. }
+            | Self::Metallic { traits, .. } => traits,
         }
     }
 }

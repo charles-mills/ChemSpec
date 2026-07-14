@@ -1,8 +1,9 @@
 # Generalized rules implementation plan
 
 > **Status:** fixed implementation queue for the locked
-> [generalized chemistry design](generalized-chemistry-rules.md). No slice in
-> this plan has been implemented yet.
+> [generalized chemistry design](generalized-chemistry-rules.md). G0 is
+> implemented and reviewed; G1 is implemented pending final review. G2 through
+> G6 remain queued in the order below.
 
 ## Purpose
 
@@ -14,28 +15,28 @@ It is separate from the completed `.chems 1` Slices 0–6. The authored grammar
 does not change, the language major remains `chems 1`, and the existing concrete
 kernel remains the validation authority.
 
-There are exactly seven generalized-rules slices, numbered G0 through G6. Luna
-implements them in order from a slice-specific handoff written from this plan.
-No implementation agent may split, merge, reorder, or invent slices.
+There are exactly seven generalized-rules slices, numbered G0 through G6. They
+are implemented in order from this fixed plan. No implementation agent may
+split, merge, reorder, or invent slices.
 
 ## Mandatory implementation loop
 
 For every slice:
 
-1. Codex writes the exact Luna handoff from the locked design and slice scope.
-2. Luna implements only that slice and its prescribed fixtures/tests.
-3. Luna runs the focused and repository-wide gates required by the slice.
+1. Codex takes the next exact slice from the locked design and slice scope.
+2. Codex implements only that slice and its prescribed fixtures/tests.
+3. Codex runs the focused and repository-wide gates required by the slice.
 4. Codex reviews the complete diff against the design.
 5. An independent reviewer reports findings against semantics, trust, and
    regression boundaries.
 6. All findings are fixed and re-reviewed until clean.
-7. The slice is committed before the next handoff is issued.
+7. The slice is committed before the next slice begins.
 
 If implementation exposes a design contradiction, work stops. Codex amends the
 design and this fixed plan explicitly before Luna resumes. Luna must not resolve
 the contradiction by inventing semantics.
 
-The prepared first handoff is
+The original G0 handoff remains as implementation history at
 [`handoffs/generalized-rules-g0-luna.md`](handoffs/generalized-rules-g0-luna.md).
 
 ## Global constraints

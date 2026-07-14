@@ -1,6 +1,8 @@
 # Generalized chemistry rules and structural templates
 
-> **Status:** locked forward design; not yet implemented.
+> **Status:** locked design, implemented through structural templates and
+> traits (G1). Typed matching, generalized families, elaboration, migration,
+> and authoring support remain queued as G2 through G6.
 >
 > This document defines the intended catalogue and elaboration architecture for
 > generalized chemistry. The implemented `.chems 1` source grammar and concrete
@@ -170,6 +172,20 @@ An explicitly reviewed category remains possible:
 A structural trait is a reviewed capability of a concrete structure or a
 structure-template application. It is not an element category.
 
+Each trait definition declares a nonempty map of named sites to the closed site
+kinds `atom`, `covalent_bond`, `group`, `ionic_association`, and
+`metallic_domain`. It may also declare named, typed graph projections. The
+initial projection set is closed over atom element, formal charge, local and
+unpaired electrons, covalent bond-order sum, exact covalent order and electron
+origin between two atom sites, group size, ionic component count, metallic
+site count, and metallic-domain electron count. Definitions and assertions
+both carry premise IDs.
+
+Projection scalars are closed by the projection kind: elements and bond orders
+use their existing string spellings; covalent electron origin is `shared`,
+`dative_left_to_right`, or `dative_right_to_left` relative to the definition's
+two named atom sites; all counts and charges are integers.
+
 Examples include:
 
 - `Traits.ElementalMonovalentMetalDomain`;
@@ -194,6 +210,10 @@ checks the asserted value against its exact atom, bond, group, association, or
 metallic-domain state. A free-form tag that is not structurally checked cannot
 participate in rule applicability.
 
+An assertion must provide exactly the sites and projected values declared by
+its definition. Two assertions of the same trait on one structure are invalid.
+The assertion values are exposed facts, not executable expressions.
+
 ### Contextual reaction facts
 
 Facts such as “forms a peroxide in excess oxygen” are not element categories or
@@ -213,6 +233,16 @@ parameters. Initial parameter kinds are closed:
 
 No unbounded integer, float, text, formula, or arbitrary JSON parameter is
 admitted.
+
+The initial substitution forms are deliberately narrower than the parameter
+kinds. An `element` parameter may replace an atom's element. A closed `enum`
+parameter may replace a covalent bond order, and every declared enum value must
+be a valid closed bond-order value at that site. A `structure` parameter names
+an already validated concrete structure and checks its required trait set; it
+is retained as argument provenance but is never graph-spliced into the
+template. Labels, charges, electron counts, group membership, association
+membership, domain membership, and domain electron counts remain literal.
+Conditional template fields are not supported.
 
 ```jsonc
 {
