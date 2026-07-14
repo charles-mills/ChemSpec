@@ -40,3 +40,14 @@ or explicit cleavage allocation before they can enter the bundle.
 
 The catalogue digest is insensitive to record ordering where order has no
 meaning. The ordered operation template remains digest-significant.
+
+## Generalized-rules G0 boundary
+
+Catalogue schema 1 may optionally carry a reviewed element registry and
+element-category definitions. `ValidatedCatalogueBundle` derives deterministic
+category membership and premise-backed lookup indexes while preserving the
+existing concrete catalogue records and digest compatibility. The migration
+registry is not used to resolve existing structures yet.
+
+Structure templates, structural traits, graph patterns, and generalized rule
+application remain unimplemented after G0; they belong to later slices.

@@ -16,9 +16,9 @@ use std::{
 
 use chem_domain::{
     Atom, AtomGroup, AtomId, BondOrder, ContentDigest, CovalentBond, CovalentElectronOrigin,
-    ElectronState, ElementInventory, ElementSymbol, EvidenceSourceId, IonicAssociation,
-    MetallicDomain, PremiseId, ReactionRuleId, RepresentationKind, StructuralGraph,
-    StructureDefinition, StructureId, canonical_json,
+    ElectronState, Element, ElementId, ElementInventory, ElementSymbol, EvidenceSourceId,
+    IonicAssociation, MetallicDomain, PremiseId, ReactionRuleId, RepresentationKind,
+    StaticElementRegistry, StructuralGraph, StructureDefinition, StructureId, canonical_json,
 };
 pub use model::*;
 
@@ -53,6 +53,8 @@ pub enum CatalogueErrorCode {
     MissingEvidence,
     InvalidReview,
     IneligibleProductionRecord,
+    InvalidElement,
+    InvalidElementCategory,
 }
 
 impl CatalogueErrorCode {
@@ -74,6 +76,8 @@ impl CatalogueErrorCode {
             Self::MissingEvidence => "CHEMS-C013",
             Self::InvalidReview => "CHEMS-C014",
             Self::IneligibleProductionRecord => "CHEMS-C015",
+            Self::InvalidElement => "CHEMS-C016",
+            Self::InvalidElementCategory => "CHEMS-C017",
         }
     }
 }
@@ -178,6 +182,17 @@ pub struct ValidatedCatalogueBundle {
     evidence: BTreeMap<EvidenceSourceId, usize>,
     valence_premises: BTreeMap<PremiseId, usize>,
     rules: BTreeMap<ReactionRuleId, ValidatedReactionRule>,
+    elements: BTreeMap<ElementSymbol, usize>,
+    element_categories: BTreeMap<ElementCategoryId, usize>,
+    element_category_members: BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
+    element_membership_provenance:
+        BTreeMap<(ElementSymbol, ElementCategoryId), ElementMembershipProvenance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElementMembershipProvenance {
+    pub element_premise_ids: BTreeSet<PremiseId>,
+    pub category_premise_ids: BTreeSet<PremiseId>,
 }
 
 impl CatalogueEnvelope {
@@ -262,6 +277,12 @@ impl ValidatedCatalogueBundle {
         if matches!(document.publication, PublicationKind::Production) {
             validate_production_reviews(&document.premises)?;
         }
+        let (elements, element_categories, element_category_members, element_membership_provenance) =
+            validate_elements_and_categories(
+                &document.elements,
+                &document.element_categories,
+                &premises,
+            )?;
         let valence_premises = validate_valence_premises(&document.valence_premises, &premises)?;
         let (structures, structure_premises) =
             validate_structures(&document.structures, &premises, &document.valence_premises)?;
@@ -283,6 +304,10 @@ impl ValidatedCatalogueBundle {
             evidence,
             valence_premises,
             rules,
+            elements,
+            element_categories,
+            element_category_members,
+            element_membership_provenance,
         })
     }
 
@@ -299,6 +324,48 @@ impl ValidatedCatalogueBundle {
     #[must_use]
     pub fn structure(&self, id: &StructureId) -> Option<&StructureDefinition> {
         self.structures.get(id)
+    }
+
+    #[must_use]
+    pub fn element(&self, symbol: &ElementSymbol) -> Option<&ElementRecord> {
+        self.elements
+            .get(symbol)
+            .map(|index| &self.document.elements[*index])
+    }
+
+    #[must_use]
+    pub fn element_category(&self, id: &ElementCategoryId) -> Option<&ElementCategoryRecord> {
+        self.element_categories
+            .get(id)
+            .map(|index| &self.document.element_categories[*index])
+    }
+
+    #[must_use]
+    pub fn element_category_members(
+        &self,
+        id: &ElementCategoryId,
+    ) -> Option<&BTreeSet<ElementSymbol>> {
+        self.element_category_members.get(id)
+    }
+
+    #[must_use]
+    pub fn element_is_member(
+        &self,
+        symbol: &ElementSymbol,
+        category_id: &ElementCategoryId,
+    ) -> Option<bool> {
+        self.element(symbol)?;
+        Some(self.element_category_members(category_id)?.contains(symbol))
+    }
+
+    #[must_use]
+    pub fn element_membership_provenance(
+        &self,
+        symbol: &ElementSymbol,
+        category_id: &ElementCategoryId,
+    ) -> Option<&ElementMembershipProvenance> {
+        self.element_membership_provenance
+            .get(&(symbol.clone(), category_id.clone()))
     }
 
     /// Requires a supported structure identity.
@@ -703,6 +770,280 @@ type StructureIndexes = (
     BTreeMap<StructureId, StructureDefinition>,
     BTreeMap<StructureId, PremiseId>,
 );
+
+type ElementIndexes = (
+    BTreeMap<ElementSymbol, usize>,
+    BTreeMap<ElementCategoryId, usize>,
+    BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
+    BTreeMap<(ElementSymbol, ElementCategoryId), ElementMembershipProvenance>,
+);
+
+#[allow(clippy::too_many_lines)]
+fn validate_elements_and_categories(
+    elements: &[ElementRecord],
+    categories: &[ElementCategoryRecord],
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<ElementIndexes, CatalogueError> {
+    let mut element_index = BTreeMap::new();
+    let mut atomic_numbers = BTreeSet::new();
+    let mut names = BTreeSet::new();
+    let mut domain_elements = Vec::with_capacity(elements.len());
+    for (position, record) in elements.iter().enumerate() {
+        if element_index
+            .insert(record.symbol.clone(), position)
+            .is_some()
+            || !atomic_numbers.insert(record.atomic_number)
+            || !names.insert(record.name.clone())
+        {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::DuplicateId,
+                format!("duplicate element identity `{}`", record.symbol),
+            ));
+        }
+        if !(1..=118).contains(&record.atomic_number)
+            || !(1..=7).contains(&record.period)
+            || record.group.is_some_and(|group| !(1..=18).contains(&group))
+            || record.name.trim().is_empty()
+            || record.name != record.name.trim()
+            || record.premise_ids.is_empty()
+        {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidElement,
+                format!("invalid element `{}`", record.symbol),
+            ));
+        }
+        for premise in &record.premise_ids {
+            require_premise(premise, premises)?;
+        }
+        let id = ElementId::new(record.atomic_number).map_err(|error| {
+            CatalogueError::new(CatalogueErrorCode::InvalidElement, error.to_string())
+        })?;
+        domain_elements.push(Element {
+            id,
+            symbol: record.symbol.clone(),
+        });
+    }
+    StaticElementRegistry::new(domain_elements).map_err(|error| {
+        CatalogueError::new(CatalogueErrorCode::InvalidElement, error.to_string())
+    })?;
+
+    let mut category_index = BTreeMap::new();
+    let mut members_index = BTreeMap::new();
+    let mut provenance_index = BTreeMap::new();
+    for (position, category) in categories.iter().enumerate() {
+        if category_index
+            .insert(category.id.clone(), position)
+            .is_some()
+        {
+            return duplicate_id(&category.id);
+        }
+        if category.premise_ids.is_empty() {
+            return invalid_category("category premise set is empty");
+        }
+        for premise in &category.premise_ids {
+            require_premise(premise, premises)?;
+        }
+        if category.subject != ElementCategorySubjectRecord::Element {
+            return invalid_category("unsupported category subject");
+        }
+        let (mut members, include, exclude) = match &category.membership {
+            ElementCategoryMembershipRecord::Explicit { members } => {
+                if members.is_empty() {
+                    return invalid_category("explicit category is empty");
+                }
+                (members.clone(), BTreeSet::new(), BTreeSet::new())
+            }
+            ElementCategoryMembershipRecord::Predicate {
+                predicate,
+                include,
+                exclude,
+            } => {
+                validate_predicate(predicate)?;
+                if !include.is_disjoint(exclude) {
+                    return invalid_category("category include and exclude overlap");
+                }
+                let mut derived = BTreeSet::new();
+                for element in elements {
+                    if evaluate_predicate(predicate, element) {
+                        derived.insert(element.symbol.clone());
+                    }
+                }
+                (derived, include.clone(), exclude.clone())
+            }
+        };
+        for symbol in include.iter().chain(exclude.iter()).chain(members.iter()) {
+            if !element_index.contains_key(symbol) {
+                return Err(CatalogueError::new(
+                    CatalogueErrorCode::UnknownReference,
+                    format!(
+                        "category `{}` references unknown element `{symbol}`",
+                        category.id
+                    ),
+                ));
+            }
+        }
+        members.extend(include);
+        for symbol in exclude {
+            members.remove(&symbol);
+        }
+        if members.is_empty() {
+            return invalid_category("category derives no members");
+        }
+        for symbol in &members {
+            let element = &elements[*element_index.get(symbol).expect("validated element")];
+            provenance_index.insert(
+                (symbol.clone(), category.id.clone()),
+                ElementMembershipProvenance {
+                    element_premise_ids: element.premise_ids.clone(),
+                    category_premise_ids: category.premise_ids.clone(),
+                },
+            );
+        }
+        members_index.insert(category.id.clone(), members);
+    }
+    Ok((
+        element_index,
+        category_index,
+        members_index,
+        provenance_index,
+    ))
+}
+
+fn invalid_category<T>(message: impl Into<String>) -> Result<T, CatalogueError> {
+    Err(CatalogueError::new(
+        CatalogueErrorCode::InvalidElementCategory,
+        message,
+    ))
+}
+
+fn validate_predicate(predicate: &ElementPredicateRecord) -> Result<(), CatalogueError> {
+    match predicate {
+        ElementPredicateRecord::All { predicates } | ElementPredicateRecord::Any { predicates } => {
+            if predicates.is_empty() {
+                return invalid_category("logical predicate is empty");
+            }
+            for child in predicates {
+                validate_predicate(child)?;
+            }
+            let mut keys = predicates.iter().map(predicate_key).collect::<Vec<_>>();
+            keys.sort();
+            if keys.windows(2).any(|pair| pair[0] == pair[1]) {
+                return invalid_category("duplicate logical predicate");
+            }
+        }
+        ElementPredicateRecord::Not { predicate } => validate_predicate(predicate)?,
+        ElementPredicateRecord::Equals { field, value } => validate_scalar(*field, value)?,
+        ElementPredicateRecord::Range { field, min, max } => {
+            if !matches!(
+                field,
+                ElementFieldRecord::AtomicNumber
+                    | ElementFieldRecord::Period
+                    | ElementFieldRecord::Group
+            ) || min > max
+            {
+                return invalid_category("invalid predicate range");
+            }
+        }
+        ElementPredicateRecord::InSet { field, values } => {
+            if values.is_empty() {
+                return invalid_category("in_set predicate is empty");
+            }
+            for value in values {
+                validate_scalar(*field, value)?;
+            }
+            let mut keys = values.iter().map(scalar_key).collect::<Vec<_>>();
+            keys.sort();
+            if keys.windows(2).any(|pair| pair[0] == pair[1]) {
+                return invalid_category("duplicate in_set value");
+            }
+        }
+        ElementPredicateRecord::Present { .. } => {}
+    }
+    Ok(())
+}
+
+fn predicate_key(predicate: &ElementPredicateRecord) -> String {
+    serde_json::to_string(predicate).expect("predicate is serializable")
+}
+
+fn scalar_key(scalar: &ElementScalarRecord) -> String {
+    serde_json::to_string(scalar).expect("scalar is serializable")
+}
+
+fn validate_scalar(
+    field: ElementFieldRecord,
+    scalar: &ElementScalarRecord,
+) -> Result<(), CatalogueError> {
+    let valid = match field {
+        ElementFieldRecord::Symbol => {
+            matches!(scalar, ElementScalarRecord::String(value) if ElementSymbol::new(value.clone()).is_ok())
+        }
+        ElementFieldRecord::Name => matches!(scalar, ElementScalarRecord::String(_)),
+        ElementFieldRecord::Block => {
+            matches!(scalar, ElementScalarRecord::String(value) if matches!(value.as_str(), "s" | "p" | "d" | "f"))
+        }
+        ElementFieldRecord::AtomicNumber
+        | ElementFieldRecord::Period
+        | ElementFieldRecord::Group => matches!(scalar, ElementScalarRecord::Integer(_)),
+    };
+    if valid {
+        Ok(())
+    } else {
+        invalid_category("predicate scalar type mismatch")
+    }
+}
+
+fn evaluate_predicate(predicate: &ElementPredicateRecord, element: &ElementRecord) -> bool {
+    match predicate {
+        ElementPredicateRecord::All { predicates } => {
+            predicates.iter().all(|p| evaluate_predicate(p, element))
+        }
+        ElementPredicateRecord::Any { predicates } => {
+            predicates.iter().any(|p| evaluate_predicate(p, element))
+        }
+        ElementPredicateRecord::Not { predicate } => !evaluate_predicate(predicate, element),
+        ElementPredicateRecord::Equals { field, value } => {
+            scalar_for(*field, element).is_some_and(|actual| actual == *value)
+        }
+        ElementPredicateRecord::Range { field, min, max } => scalar_for(*field, element)
+            .and_then(|value| match value {
+                ElementScalarRecord::Integer(value) => Some(value >= *min && value <= *max),
+                ElementScalarRecord::String(_) => None,
+            })
+            .unwrap_or(false),
+        ElementPredicateRecord::InSet { field, values } => {
+            scalar_for(*field, element).is_some_and(|actual| values.contains(&actual))
+        }
+        ElementPredicateRecord::Present { field } => {
+            *field != ElementFieldRecord::Group || element.group.is_some()
+        }
+    }
+}
+
+fn scalar_for(field: ElementFieldRecord, element: &ElementRecord) -> Option<ElementScalarRecord> {
+    match field {
+        ElementFieldRecord::Symbol => Some(ElementScalarRecord::String(
+            element.symbol.as_str().to_owned(),
+        )),
+        ElementFieldRecord::Name => Some(ElementScalarRecord::String(element.name.clone())),
+        ElementFieldRecord::AtomicNumber => Some(ElementScalarRecord::Integer(i64::from(
+            element.atomic_number,
+        ))),
+        ElementFieldRecord::Period => Some(ElementScalarRecord::Integer(i64::from(element.period))),
+        ElementFieldRecord::Group => element
+            .group
+            .map(|value| ElementScalarRecord::Integer(i64::from(value))),
+        ElementFieldRecord::Block => Some(ElementScalarRecord::String(
+            match element.block {
+                ElementBlockRecord::S => "s",
+                ElementBlockRecord::P => "p",
+                ElementBlockRecord::D => "d",
+                ElementBlockRecord::F => "f",
+            }
+            .to_owned(),
+        )),
+    }
+}
 
 fn validate_structures(
     records: &[StructureRecord],
@@ -2199,6 +2540,33 @@ fn normalize_document(document: &mut CatalogueDocument) {
         });
     }
     document.rules.sort_by(|left, right| left.id.cmp(&right.id));
+    document
+        .elements
+        .sort_by(|left, right| left.symbol.cmp(&right.symbol));
+    for category in &mut document.element_categories {
+        if let ElementCategoryMembershipRecord::Predicate { predicate, .. } =
+            &mut category.membership
+        {
+            normalize_predicate(predicate);
+        }
+    }
+    document
+        .element_categories
+        .sort_by(|left, right| left.id.cmp(&right.id));
+}
+
+fn normalize_predicate(predicate: &mut ElementPredicateRecord) {
+    match predicate {
+        ElementPredicateRecord::All { predicates } | ElementPredicateRecord::Any { predicates } => {
+            for child in predicates.iter_mut() {
+                normalize_predicate(child);
+            }
+            predicates.sort_by_key(predicate_key);
+        }
+        ElementPredicateRecord::Not { predicate } => normalize_predicate(predicate),
+        ElementPredicateRecord::InSet { values, .. } => values.sort_by_key(scalar_key),
+        _ => {}
+    }
 }
 
 fn normalize_operation(operation: &mut OperationTemplateRecord) {

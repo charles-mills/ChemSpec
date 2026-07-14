@@ -29,7 +29,9 @@
         "premises": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/premise"}},
         "valence_premises": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/valencePremise"}},
         "structures": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/structure"}},
-        "rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}}
+        "rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}},
+        "elements": {"type": "array", "items": {"$ref": "#/$defs/element"}},
+        "element_categories": {"type": "array", "items": {"$ref": "#/$defs/elementCategory"}}
       }
     },
     "created": {
@@ -89,6 +91,43 @@
         "rule_version": {"$ref": "#/$defs/nonempty"}
       }
     },
+    "element": {
+      "type": "object", "additionalProperties": false,
+      "required": ["symbol", "name", "atomic_number", "period", "block", "premise_ids"],
+      "properties": {
+        "symbol": {"type": "string", "pattern": "^[A-Z][a-z]?$"},
+        "name": {"$ref": "#/$defs/nonempty"},
+        "atomic_number": {"type": "integer", "minimum": 1, "maximum": 118},
+        "period": {"type": "integer", "minimum": 1, "maximum": 7},
+        "group": {"type": "integer", "minimum": 1, "maximum": 18},
+        "block": {"enum": ["s", "p", "d", "f"]},
+        "premise_ids": {"$ref": "#/$defs/premiseIds"}
+      }
+    },
+    "elementScalar": {"oneOf": [{"type": "string"}, {"type": "integer"}]},
+    "elementPredicate": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "predicates"], "properties": {"kind": {"const": "all"}, "predicates": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/elementPredicate"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "predicates"], "properties": {"kind": {"const": "any"}, "predicates": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/elementPredicate"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "predicate"], "properties": {"kind": {"const": "not"}, "predicate": {"$ref": "#/$defs/elementPredicate"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "field", "value"], "properties": {"kind": {"const": "equals"}, "field": {"enum": ["symbol", "name", "atomic_number", "period", "group", "block"]}, "value": {"$ref": "#/$defs/elementScalar"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "field", "min", "max"], "properties": {"kind": {"const": "range"}, "field": {"enum": ["symbol", "name", "atomic_number", "period", "group", "block"]}, "min": {"type": "integer"}, "max": {"type": "integer"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "field", "values"], "properties": {"kind": {"const": "in_set"}, "field": {"enum": ["symbol", "name", "atomic_number", "period", "group", "block"]}, "values": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/elementScalar"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "field"], "properties": {"kind": {"const": "present"}, "field": {"enum": ["symbol", "name", "atomic_number", "period", "group", "block"]}}}
+      ]
+    },
+    "elementCategory": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "subject", "membership", "premise_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "subject": {"const": "element"}, "premise_ids": {"$ref": "#/$defs/premiseIds"},
+        "membership": {"oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["kind", "predicate"], "properties": {"kind": {"const": "predicate"}, "predicate": {"$ref": "#/$defs/elementPredicate"}, "include": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/elementSymbol"}}, "exclude": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/elementSymbol"}}}},
+          {"type": "object", "additionalProperties": false, "required": ["kind", "members"], "properties": {"kind": {"const": "explicit"}, "members": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/elementSymbol"}}}}
+        ]}
+      }
+    },
+    "elementSymbol": {"type": "string", "pattern": "^[A-Z][a-z]?$"},
     "valencePremise": {
       "type": "object",
       "additionalProperties": false,

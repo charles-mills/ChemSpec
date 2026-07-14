@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use chem_domain::{ContentDigest, EvidenceSourceId, PremiseId, ReactionRuleId, StructureId};
+use chem_domain::{
+    ContentDigest, DeclaredId, ElementSymbol, EvidenceSourceId, IdKind, PremiseId, ReactionRuleId,
+    StructureId,
+};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 
 /// Supported on-disk schema version for structural catalogue envelopes.
@@ -26,6 +29,128 @@ pub struct CatalogueDocument {
     pub valence_premises: Vec<ValencePremiseRecord>,
     pub structures: Vec<StructureRecord>,
     pub rules: Vec<ReactionRuleRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub elements: Vec<ElementRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub element_categories: Vec<ElementCategoryRecord>,
+}
+
+#[derive(Debug)]
+pub enum ElementCategoryIdKind {}
+impl IdKind for ElementCategoryIdKind {
+    const NAME: &'static str = "ElementCategoryId";
+}
+pub type ElementCategoryId = DeclaredId<ElementCategoryIdKind>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ElementRecord {
+    pub symbol: ElementSymbol,
+    pub name: String,
+    pub atomic_number: u16,
+    pub period: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<u8>,
+    pub block: ElementBlockRecord,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ElementBlockRecord {
+    S,
+    P,
+    D,
+    F,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ElementCategoryRecord {
+    pub id: ElementCategoryId,
+    pub subject: ElementCategorySubjectRecord,
+    pub membership: ElementCategoryMembershipRecord,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ElementCategorySubjectRecord {
+    Element,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ElementCategoryMembershipRecord {
+    Predicate {
+        predicate: ElementPredicateRecord,
+        #[serde(
+            default,
+            skip_serializing_if = "BTreeSet::is_empty",
+            deserialize_with = "deserialize_unique_set"
+        )]
+        include: BTreeSet<ElementSymbol>,
+        #[serde(
+            default,
+            skip_serializing_if = "BTreeSet::is_empty",
+            deserialize_with = "deserialize_unique_set"
+        )]
+        exclude: BTreeSet<ElementSymbol>,
+    },
+    Explicit {
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        members: BTreeSet<ElementSymbol>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ElementPredicateRecord {
+    All {
+        predicates: Vec<ElementPredicateRecord>,
+    },
+    Any {
+        predicates: Vec<ElementPredicateRecord>,
+    },
+    Not {
+        predicate: Box<ElementPredicateRecord>,
+    },
+    Equals {
+        field: ElementFieldRecord,
+        value: ElementScalarRecord,
+    },
+    Range {
+        field: ElementFieldRecord,
+        min: i64,
+        max: i64,
+    },
+    InSet {
+        field: ElementFieldRecord,
+        values: Vec<ElementScalarRecord>,
+    },
+    Present {
+        field: ElementFieldRecord,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ElementFieldRecord {
+    Symbol,
+    Name,
+    AtomicNumber,
+    Period,
+    Group,
+    Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ElementScalarRecord {
+    String(String),
+    Integer(i64),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
