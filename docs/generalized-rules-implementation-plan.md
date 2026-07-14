@@ -1,9 +1,8 @@
 # Generalized rules implementation plan
 
 > **Status:** fixed implementation queue for the locked
-> [generalized chemistry design](generalized-chemistry-rules.md). G0 through G5
-> are implemented and independently reviewed. G6 remains queued in the order
-> below.
+> [generalized chemistry design](generalized-chemistry-rules.md). G0 through G6
+> are implemented, independently reviewed, and complete.
 
 ## Purpose
 

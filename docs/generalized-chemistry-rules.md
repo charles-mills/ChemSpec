@@ -1,8 +1,8 @@
 # Generalized chemistry rules and structural templates
 
-> **Status:** locked design, implemented and independently reviewed through
-> concrete-kernel execution and conformance promotion (G5). Catalogue authoring
-> support and the Luna content handoff remain queued as G6.
+> **Status:** locked design, implemented and independently reviewed through G6,
+> including concrete-kernel execution, conformance promotion, catalogue
+> authoring support, and the closed Luna content handoff.
 >
 > This document defines the intended catalogue and elaboration architecture for
 > generalized chemistry. The implemented `.chems 1` source grammar and concrete

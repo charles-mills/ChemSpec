@@ -84,3 +84,11 @@ unchanged concrete kernel, compares exact member-specific final graphs, and
 registers the Li/Na/K family plus its mutation boundaries in conformance. The
 migrated family contains no concrete lithium fallback; concrete-only catalogues
 remain supported as the compatibility exception.
+
+G6 keeps candidate authoring outside this trust-bearing crate. The `chems
+catalogue check` compiler accepts closed three-file content packages, generates
+and validates a working `CatalogueEnvelope`, and emits a pending review request.
+Neither that request nor the generated candidate inspection artifacts can call
+or configure `TrustedCatalogue::from_canonical_json`; production promotion still
+requires the exact host-pinned digest and a separately supplied exact human
+attestation.

@@ -410,6 +410,54 @@ pub fn generate_frames(
     project_frames(validated)
 }
 
+/// Projects an explicitly untrusted review-candidate derivation for catalogue
+/// authoring inspection. The serialized result retains
+/// `trust: review_candidate` and cannot be passed to the trusted rendering
+/// boundary.
+///
+/// # Errors
+///
+/// Returns `CHEMS-F090` when the already validated candidate derivation is
+/// internally inconsistent.
+pub fn inspect_review_candidate_frames(
+    candidate: &crate::ReviewCandidateStructuralDerivation,
+) -> Result<ReviewCandidateFrameInspection, FrameError> {
+    Ok(ReviewCandidateFrameInspection {
+        frames: project_frames(candidate)?,
+    })
+}
+
+/// Serialized-only frame inspection for untrusted catalogue candidates.
+///
+/// This deliberately does not dereference or convert into [`SimulationFrames`],
+/// which remains the renderer input produced only from a trusted validation
+/// capability by [`generate_frames`].
+#[derive(Debug, Clone)]
+pub struct ReviewCandidateFrameInspection {
+    frames: SimulationFrames,
+}
+
+impl ReviewCandidateFrameInspection {
+    /// Serializes the candidate-only frame inspection. The contained artifact
+    /// retains `trust: review_candidate`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CHEMS-F090` when canonical serialization fails.
+    pub fn canonical_json(&self) -> Result<Vec<u8>, FrameError> {
+        self.frames.canonical_json()
+    }
+
+    /// Computes the digest of the candidate-only serialized inspection.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CHEMS-F090` when canonical serialization fails.
+    pub fn digest(&self) -> Result<ContentDigest, FrameError> {
+        self.frames.digest()
+    }
+}
+
 fn ensure_current(
     derivation: &StructuralDerivation,
     current: CurrentArtifactIdentity,

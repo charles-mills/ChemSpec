@@ -6,6 +6,8 @@ use chem_kernel::expand_review_candidate;
 use chems_lang::{format_source, parse_bytes};
 use serde_json::json;
 
+mod authoring;
+
 fn main() -> ExitCode {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     match run(&arguments) {
@@ -25,6 +27,7 @@ fn run(arguments: &[String]) -> Result<(), String> {
         "parse" => parse_command(&arguments[1..]),
         "format" | "fmt" => format_command(&arguments[1..]),
         "inspect" => inspect_command(&arguments[1..]),
+        "catalogue" => authoring::catalogue_command(&arguments[1..]),
         "--help" | "-h" | "help" => {
             println!("{}", usage());
             Ok(())
@@ -206,6 +209,6 @@ fn io_error(path: &Path, error: &io::Error) -> String {
 }
 
 fn usage() -> String {
-    "usage:\n  chems parse <file.chems>\n  chems format [--check | --write] <file.chems>...\n  chems inspect source <file.chems>\n  chems inspect expanded <file.chems> --catalogue <catalogue.json> --evidence <evidence.json> [--json | --provenance]"
+    "usage:\n  chems parse <file.chems>\n  chems format [--check | --write] <file.chems>...\n  chems inspect source <file.chems>\n  chems inspect expanded <file.chems> --catalogue <catalogue.json> --evidence <evidence.json> [--json | --provenance]\n  chems catalogue check --out <directory> <candidate-package>..."
         .to_owned()
 }

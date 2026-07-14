@@ -136,6 +136,7 @@ dependencies = [
  "chem-domain",
  "chem-kernel",
  "chems-lang",
+ "serde",
  "serde_json",
 ]
 

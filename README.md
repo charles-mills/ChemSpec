@@ -85,6 +85,7 @@ full; `by apply` cannot select or omit checks.
 - [`.chems` implementation plan](docs/chems-implementation-plan.md)
 - [Generalized chemistry rules (locked forward design)](docs/generalized-chemistry-rules.md)
 - [Generalized rules implementation plan](docs/generalized-rules-implementation-plan.md)
+- [Catalogue candidate and Luna handoff](docs/luna-catalogue-handoff.md)
 - [Chemistry engine](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
@@ -99,8 +100,10 @@ catalogue data, and validation:
 - `chem-domain` — exact identities and structural domain values;
 - `chems-lang` — lossless `.chems 1` frontend and formatter;
 - `chem-catalogue` — immutable reviewed structures and rules;
-- `chem-kernel` — resolution, expansion, graph validation, and artifacts; and
-- `chems-cli` — parsing, formatting, authored-source inspection, and expanded-certificate inspection;
+- `chem-kernel` — resolution, expansion, graph validation, and artifacts;
+- `chems-cli` — parsing, formatting, source/certificate inspection, and the
+  closed candidate-package authoring compiler, whose generated chemistry
+  remains explicitly untrusted; and
 - `chems-conformance` — specification, grammar, fixture, and coverage gates.
 
 The desktop application is native Rust using Iced and `wgpu`. Provider support
@@ -115,15 +118,18 @@ explicitly pending the external chemist attestation; review-candidate
 derivations and frames cannot cross the production capability boundary.
 
 Generalized element categories, structure templates, graph patterns, and
-reaction families are a locked forward design and are not yet implemented.
-Their implementation is a separate seven-slice catalogue/elaboration
-workstream; it does not change the authored `.chems 1` grammar.
+reaction families are implemented without changing the authored `.chems 1`
+grammar. The candidate-authoring path can merge and exercise catalogue content,
+but it cannot promote its own output; chemistry review and host trust-root
+updates remain external human actions.
 
 ## Development commands
 
 ```sh
 cargo run -p chems-conformance -- validate
 cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansion-001.chems
+cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
+  catalogue/candidates/periodic-table-and-alkali-water
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
