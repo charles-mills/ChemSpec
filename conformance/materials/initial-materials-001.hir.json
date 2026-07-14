@@ -1,0 +1,2251 @@
+{
+  "schema_version": 1,
+  "language_version": 1,
+  "source_digest": "246085926ef160985ff8c378080fe7cd8c54c25b7a6a52d90eef6576898734a4",
+  "catalogue": {
+    "name": "ChemSpec.Aqueous",
+    "version": "1.0.0",
+    "digest": "eb3a482dc98bb68653dd7748675da6e5adca7264ed0165a05cc930b9c1c6d595"
+  },
+  "id": "cf659439df4cb1c2a6a4f1236fff9a601ce3910c50c62f38b3c9be36082fdd5c",
+  "name": "SilverChloridePrecipitation",
+  "environment": {
+    "temperature": {
+      "kelvin": {
+        "numerator": "5963",
+        "denominator": "20"
+      },
+      "source_decimal": {
+        "lexeme": "25",
+        "coefficient": "25",
+        "scale": 0,
+        "precision": {
+          "decimal_places": 0,
+          "written_digits": 2,
+          "significant_digits": 2
+        }
+      },
+      "scale": {
+        "kind": "degreesCelsius"
+      }
+    },
+    "pressure": {
+      "canonical_value": {
+        "numerator": "101325",
+        "denominator": "1"
+      },
+      "dimension": {
+        "mass": 1,
+        "length": -1,
+        "time": -2,
+        "amount": 0,
+        "temperature": 0
+      },
+      "source_decimal": {
+        "lexeme": "1",
+        "coefficient": "1",
+        "scale": 0,
+        "precision": {
+          "decimal_places": 0,
+          "written_digits": 1,
+          "significant_digits": 1
+        }
+      },
+      "source_unit": {
+        "dividend": {
+          "factors": [
+            {
+              "symbol": "atm",
+              "exponent": 1
+            }
+          ]
+        },
+        "divisors": []
+      },
+      "conversion_derivation": {
+        "steps": [
+          {
+            "symbol": "atm",
+            "exponent": 1,
+            "unit_dimension": {
+              "mass": 1,
+              "length": -1,
+              "time": -2,
+              "amount": 0,
+              "temperature": 0
+            },
+            "unit_factor": {
+              "numerator": "101325",
+              "denominator": "1"
+            },
+            "expanded_dimension": {
+              "mass": 1,
+              "length": -1,
+              "time": -2,
+              "amount": 0,
+              "temperature": 0
+            },
+            "expanded_factor": {
+              "numerator": "101325",
+              "denominator": "1"
+            }
+          }
+        ],
+        "result_dimension": {
+          "mass": 1,
+          "length": -1,
+          "time": -2,
+          "amount": 0,
+          "temperature": 0
+        },
+        "result_factor": {
+          "numerator": "101325",
+          "denominator": "1"
+        }
+      }
+    },
+    "medium": "water",
+    "solvent": "water",
+    "medium_identity_premise": "identity.medium.water"
+  },
+  "assumptions": [],
+  "materials": [
+    {
+      "id": "4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac",
+      "name": "silverNitrate",
+      "form": {
+        "kind": "solution",
+        "analytical_species": {
+          "id": "silver-nitrate.aq",
+          "substance": "silver-nitrate",
+          "formula": {
+            "composition": [
+              {
+                "element": 7,
+                "count": "1"
+              },
+              {
+                "element": 8,
+                "count": "3"
+              },
+              {
+                "element": 47,
+                "count": "1"
+              }
+            ],
+            "syntax": {
+              "segments": [
+                {
+                  "coefficient": "1",
+                  "parts": [
+                    {
+                      "kind": "element",
+                      "symbol": "Ag",
+                      "count": "1"
+                    },
+                    {
+                      "kind": "element",
+                      "symbol": "N",
+                      "count": "1"
+                    },
+                    {
+                      "kind": "element",
+                      "symbol": "O",
+                      "count": "3"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "charge": "0",
+          "phase": {
+            "kind": "aqueous"
+          },
+          "identity_premise": "identity.species.silver-nitrate-aqueous"
+        },
+        "total_volume": {
+          "canonical_value": {
+            "numerator": "1",
+            "denominator": "20000"
+          },
+          "dimension": {
+            "mass": 0,
+            "length": 3,
+            "time": 0,
+            "amount": 0,
+            "temperature": 0
+          },
+          "source_decimal": {
+            "lexeme": "50",
+            "coefficient": "50",
+            "scale": 0,
+            "precision": {
+              "decimal_places": 0,
+              "written_digits": 2,
+              "significant_digits": 2
+            }
+          },
+          "source_unit": {
+            "dividend": {
+              "factors": [
+                {
+                  "symbol": "mL",
+                  "exponent": 1
+                }
+              ]
+            },
+            "divisors": []
+          },
+          "conversion_derivation": {
+            "steps": [
+              {
+                "symbol": "mL",
+                "exponent": 1,
+                "unit_dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "unit_factor": {
+                  "numerator": "1",
+                  "denominator": "1000000"
+                },
+                "expanded_dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "expanded_factor": {
+                  "numerator": "1",
+                  "denominator": "1000000"
+                }
+              }
+            ],
+            "result_dimension": {
+              "mass": 0,
+              "length": 3,
+              "time": 0,
+              "amount": 0,
+              "temperature": 0
+            },
+            "result_factor": {
+              "numerator": "1",
+              "denominator": "1000000"
+            }
+          }
+        },
+        "analytical_concentration": {
+          "canonical_value": {
+            "numerator": "100",
+            "denominator": "1"
+          },
+          "dimension": {
+            "mass": 0,
+            "length": -3,
+            "time": 0,
+            "amount": 1,
+            "temperature": 0
+          },
+          "source_decimal": {
+            "lexeme": "0.100",
+            "coefficient": "100",
+            "scale": 3,
+            "precision": {
+              "decimal_places": 3,
+              "written_digits": 4,
+              "significant_digits": 3
+            }
+          },
+          "source_unit": {
+            "dividend": {
+              "factors": [
+                {
+                  "symbol": "mol",
+                  "exponent": 1
+                }
+              ]
+            },
+            "divisors": [
+              {
+                "factors": [
+                  {
+                    "symbol": "L",
+                    "exponent": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "conversion_derivation": {
+            "steps": [
+              {
+                "symbol": "mol",
+                "exponent": 1,
+                "unit_dimension": {
+                  "mass": 0,
+                  "length": 0,
+                  "time": 0,
+                  "amount": 1,
+                  "temperature": 0
+                },
+                "unit_factor": {
+                  "numerator": "1",
+                  "denominator": "1"
+                },
+                "expanded_dimension": {
+                  "mass": 0,
+                  "length": 0,
+                  "time": 0,
+                  "amount": 1,
+                  "temperature": 0
+                },
+                "expanded_factor": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "symbol": "L",
+                "exponent": -1,
+                "unit_dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "unit_factor": {
+                  "numerator": "1",
+                  "denominator": "1000"
+                },
+                "expanded_dimension": {
+                  "mass": 0,
+                  "length": -3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "expanded_factor": {
+                  "numerator": "1000",
+                  "denominator": "1"
+                }
+              }
+            ],
+            "result_dimension": {
+              "mass": 0,
+              "length": -3,
+              "time": 0,
+              "amount": 1,
+              "temperature": 0
+            },
+            "result_factor": {
+              "numerator": "1000",
+              "denominator": "1"
+            }
+          }
+        },
+        "analytical_amount": {
+          "canonical_value": {
+            "numerator": "1",
+            "denominator": "200"
+          },
+          "dimension": {
+            "mass": 0,
+            "length": 0,
+            "time": 0,
+            "amount": 1,
+            "temperature": 0
+          },
+          "derivation": {
+            "rule": "analyticalAmount",
+            "inputs": [
+              {
+                "role": "volume",
+                "canonical_value": {
+                  "numerator": "1",
+                  "denominator": "20000"
+                },
+                "dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                }
+              },
+              {
+                "role": "concentration",
+                "canonical_value": {
+                  "numerator": "100",
+                  "denominator": "1"
+                },
+                "dimension": {
+                  "mass": 0,
+                  "length": -3,
+                  "time": 0,
+                  "amount": 1,
+                  "temperature": 0
+                }
+              }
+            ],
+            "premises": [
+              "identity.medium.water"
+            ],
+            "assumptions": []
+          }
+        },
+        "medium": "water",
+        "solvent": "water"
+      },
+      "analytical_inventory": [
+        {
+          "species": {
+            "id": "silver-nitrate.aq",
+            "substance": "silver-nitrate",
+            "formula": {
+              "composition": [
+                {
+                  "element": 7,
+                  "count": "1"
+                },
+                {
+                  "element": 8,
+                  "count": "3"
+                },
+                {
+                  "element": 47,
+                  "count": "1"
+                }
+              ],
+              "syntax": {
+                "segments": [
+                  {
+                    "coefficient": "1",
+                    "parts": [
+                      {
+                        "kind": "element",
+                        "symbol": "Ag",
+                        "count": "1"
+                      },
+                      {
+                        "kind": "element",
+                        "symbol": "N",
+                        "count": "1"
+                      },
+                      {
+                        "kind": "element",
+                        "symbol": "O",
+                        "count": "3"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "charge": "0",
+            "phase": {
+              "kind": "aqueous"
+            },
+            "identity_premise": "identity.species.silver-nitrate-aqueous"
+          },
+          "amount": {
+            "canonical_value": {
+              "numerator": "1",
+              "denominator": "200"
+            },
+            "dimension": {
+              "mass": 0,
+              "length": 0,
+              "time": 0,
+              "amount": 1,
+              "temperature": 0
+            },
+            "derivation": {
+              "rule": "analyticalAmount",
+              "inputs": [
+                {
+                  "role": "volume",
+                  "canonical_value": {
+                    "numerator": "1",
+                    "denominator": "20000"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": 3,
+                    "time": 0,
+                    "amount": 0,
+                    "temperature": 0
+                  }
+                },
+                {
+                  "role": "concentration",
+                  "canonical_value": {
+                    "numerator": "100",
+                    "denominator": "1"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": -3,
+                    "time": 0,
+                    "amount": 1,
+                    "temperature": 0
+                  }
+                }
+              ],
+              "premises": [
+                "identity.medium.water"
+              ],
+              "assumptions": []
+            }
+          },
+          "volume": {
+            "canonical_value": {
+              "numerator": "1",
+              "denominator": "20000"
+            },
+            "dimension": {
+              "mass": 0,
+              "length": 3,
+              "time": 0,
+              "amount": 0,
+              "temperature": 0
+            },
+            "derivation": {
+              "rule": "authoredQuantity",
+              "inputs": [
+                {
+                  "role": "authored",
+                  "canonical_value": {
+                    "numerator": "1",
+                    "denominator": "20000"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": 3,
+                    "time": 0,
+                    "amount": 0,
+                    "temperature": 0
+                  }
+                }
+              ],
+              "premises": [],
+              "assumptions": []
+            }
+          },
+          "concentration": {
+            "canonical_value": {
+              "numerator": "100",
+              "denominator": "1"
+            },
+            "dimension": {
+              "mass": 0,
+              "length": -3,
+              "time": 0,
+              "amount": 1,
+              "temperature": 0
+            },
+            "derivation": {
+              "rule": "authoredQuantity",
+              "inputs": [
+                {
+                  "role": "authored",
+                  "canonical_value": {
+                    "numerator": "100",
+                    "denominator": "1"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": -3,
+                    "time": 0,
+                    "amount": 1,
+                    "temperature": 0
+                  }
+                }
+              ],
+              "premises": [],
+              "assumptions": []
+            }
+          }
+        }
+      ],
+      "required_premises": [
+        "identity.medium.water",
+        "identity.species.silver-nitrate-aqueous"
+      ],
+      "required_assumptions": []
+    },
+    {
+      "id": "d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca",
+      "name": "sodiumChloride",
+      "form": {
+        "kind": "solution",
+        "analytical_species": {
+          "id": "sodium-chloride.aq",
+          "substance": "sodium-chloride",
+          "formula": {
+            "composition": [
+              {
+                "element": 11,
+                "count": "1"
+              },
+              {
+                "element": 17,
+                "count": "1"
+              }
+            ],
+            "syntax": {
+              "segments": [
+                {
+                  "coefficient": "1",
+                  "parts": [
+                    {
+                      "kind": "element",
+                      "symbol": "Na",
+                      "count": "1"
+                    },
+                    {
+                      "kind": "element",
+                      "symbol": "Cl",
+                      "count": "1"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "charge": "0",
+          "phase": {
+            "kind": "aqueous"
+          },
+          "identity_premise": "identity.species.sodium-chloride-aqueous"
+        },
+        "total_volume": {
+          "canonical_value": {
+            "numerator": "1",
+            "denominator": "20000"
+          },
+          "dimension": {
+            "mass": 0,
+            "length": 3,
+            "time": 0,
+            "amount": 0,
+            "temperature": 0
+          },
+          "source_decimal": {
+            "lexeme": "50",
+            "coefficient": "50",
+            "scale": 0,
+            "precision": {
+              "decimal_places": 0,
+              "written_digits": 2,
+              "significant_digits": 2
+            }
+          },
+          "source_unit": {
+            "dividend": {
+              "factors": [
+                {
+                  "symbol": "mL",
+                  "exponent": 1
+                }
+              ]
+            },
+            "divisors": []
+          },
+          "conversion_derivation": {
+            "steps": [
+              {
+                "symbol": "mL",
+                "exponent": 1,
+                "unit_dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "unit_factor": {
+                  "numerator": "1",
+                  "denominator": "1000000"
+                },
+                "expanded_dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "expanded_factor": {
+                  "numerator": "1",
+                  "denominator": "1000000"
+                }
+              }
+            ],
+            "result_dimension": {
+              "mass": 0,
+              "length": 3,
+              "time": 0,
+              "amount": 0,
+              "temperature": 0
+            },
+            "result_factor": {
+              "numerator": "1",
+              "denominator": "1000000"
+            }
+          }
+        },
+        "analytical_concentration": {
+          "canonical_value": {
+            "numerator": "100",
+            "denominator": "1"
+          },
+          "dimension": {
+            "mass": 0,
+            "length": -3,
+            "time": 0,
+            "amount": 1,
+            "temperature": 0
+          },
+          "source_decimal": {
+            "lexeme": "0.100",
+            "coefficient": "100",
+            "scale": 3,
+            "precision": {
+              "decimal_places": 3,
+              "written_digits": 4,
+              "significant_digits": 3
+            }
+          },
+          "source_unit": {
+            "dividend": {
+              "factors": [
+                {
+                  "symbol": "mol",
+                  "exponent": 1
+                }
+              ]
+            },
+            "divisors": [
+              {
+                "factors": [
+                  {
+                    "symbol": "L",
+                    "exponent": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "conversion_derivation": {
+            "steps": [
+              {
+                "symbol": "mol",
+                "exponent": 1,
+                "unit_dimension": {
+                  "mass": 0,
+                  "length": 0,
+                  "time": 0,
+                  "amount": 1,
+                  "temperature": 0
+                },
+                "unit_factor": {
+                  "numerator": "1",
+                  "denominator": "1"
+                },
+                "expanded_dimension": {
+                  "mass": 0,
+                  "length": 0,
+                  "time": 0,
+                  "amount": 1,
+                  "temperature": 0
+                },
+                "expanded_factor": {
+                  "numerator": "1",
+                  "denominator": "1"
+                }
+              },
+              {
+                "symbol": "L",
+                "exponent": -1,
+                "unit_dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "unit_factor": {
+                  "numerator": "1",
+                  "denominator": "1000"
+                },
+                "expanded_dimension": {
+                  "mass": 0,
+                  "length": -3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                },
+                "expanded_factor": {
+                  "numerator": "1000",
+                  "denominator": "1"
+                }
+              }
+            ],
+            "result_dimension": {
+              "mass": 0,
+              "length": -3,
+              "time": 0,
+              "amount": 1,
+              "temperature": 0
+            },
+            "result_factor": {
+              "numerator": "1000",
+              "denominator": "1"
+            }
+          }
+        },
+        "analytical_amount": {
+          "canonical_value": {
+            "numerator": "1",
+            "denominator": "200"
+          },
+          "dimension": {
+            "mass": 0,
+            "length": 0,
+            "time": 0,
+            "amount": 1,
+            "temperature": 0
+          },
+          "derivation": {
+            "rule": "analyticalAmount",
+            "inputs": [
+              {
+                "role": "volume",
+                "canonical_value": {
+                  "numerator": "1",
+                  "denominator": "20000"
+                },
+                "dimension": {
+                  "mass": 0,
+                  "length": 3,
+                  "time": 0,
+                  "amount": 0,
+                  "temperature": 0
+                }
+              },
+              {
+                "role": "concentration",
+                "canonical_value": {
+                  "numerator": "100",
+                  "denominator": "1"
+                },
+                "dimension": {
+                  "mass": 0,
+                  "length": -3,
+                  "time": 0,
+                  "amount": 1,
+                  "temperature": 0
+                }
+              }
+            ],
+            "premises": [
+              "identity.medium.water"
+            ],
+            "assumptions": []
+          }
+        },
+        "medium": "water",
+        "solvent": "water"
+      },
+      "analytical_inventory": [
+        {
+          "species": {
+            "id": "sodium-chloride.aq",
+            "substance": "sodium-chloride",
+            "formula": {
+              "composition": [
+                {
+                  "element": 11,
+                  "count": "1"
+                },
+                {
+                  "element": 17,
+                  "count": "1"
+                }
+              ],
+              "syntax": {
+                "segments": [
+                  {
+                    "coefficient": "1",
+                    "parts": [
+                      {
+                        "kind": "element",
+                        "symbol": "Na",
+                        "count": "1"
+                      },
+                      {
+                        "kind": "element",
+                        "symbol": "Cl",
+                        "count": "1"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "charge": "0",
+            "phase": {
+              "kind": "aqueous"
+            },
+            "identity_premise": "identity.species.sodium-chloride-aqueous"
+          },
+          "amount": {
+            "canonical_value": {
+              "numerator": "1",
+              "denominator": "200"
+            },
+            "dimension": {
+              "mass": 0,
+              "length": 0,
+              "time": 0,
+              "amount": 1,
+              "temperature": 0
+            },
+            "derivation": {
+              "rule": "analyticalAmount",
+              "inputs": [
+                {
+                  "role": "volume",
+                  "canonical_value": {
+                    "numerator": "1",
+                    "denominator": "20000"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": 3,
+                    "time": 0,
+                    "amount": 0,
+                    "temperature": 0
+                  }
+                },
+                {
+                  "role": "concentration",
+                  "canonical_value": {
+                    "numerator": "100",
+                    "denominator": "1"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": -3,
+                    "time": 0,
+                    "amount": 1,
+                    "temperature": 0
+                  }
+                }
+              ],
+              "premises": [
+                "identity.medium.water"
+              ],
+              "assumptions": []
+            }
+          },
+          "volume": {
+            "canonical_value": {
+              "numerator": "1",
+              "denominator": "20000"
+            },
+            "dimension": {
+              "mass": 0,
+              "length": 3,
+              "time": 0,
+              "amount": 0,
+              "temperature": 0
+            },
+            "derivation": {
+              "rule": "authoredQuantity",
+              "inputs": [
+                {
+                  "role": "authored",
+                  "canonical_value": {
+                    "numerator": "1",
+                    "denominator": "20000"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": 3,
+                    "time": 0,
+                    "amount": 0,
+                    "temperature": 0
+                  }
+                }
+              ],
+              "premises": [],
+              "assumptions": []
+            }
+          },
+          "concentration": {
+            "canonical_value": {
+              "numerator": "100",
+              "denominator": "1"
+            },
+            "dimension": {
+              "mass": 0,
+              "length": -3,
+              "time": 0,
+              "amount": 1,
+              "temperature": 0
+            },
+            "derivation": {
+              "rule": "authoredQuantity",
+              "inputs": [
+                {
+                  "role": "authored",
+                  "canonical_value": {
+                    "numerator": "100",
+                    "denominator": "1"
+                  },
+                  "dimension": {
+                    "mass": 0,
+                    "length": -3,
+                    "time": 0,
+                    "amount": 1,
+                    "temperature": 0
+                  }
+                }
+              ],
+              "premises": [],
+              "assumptions": []
+            }
+          }
+        }
+      ],
+      "required_premises": [
+        "identity.medium.water",
+        "identity.species.sodium-chloride-aqueous"
+      ],
+      "required_assumptions": []
+    }
+  ],
+  "vessels": [
+    {
+      "id": "233a720ae9b42a5907e49dada3c6f4358b1eee509098370bc4f31fa99cd5d6a8",
+      "name": "reaction",
+      "closure": "open",
+      "capacity": {
+        "canonical_value": {
+          "numerator": "1",
+          "denominator": "4000"
+        },
+        "dimension": {
+          "mass": 0,
+          "length": 3,
+          "time": 0,
+          "amount": 0,
+          "temperature": 0
+        },
+        "source_decimal": {
+          "lexeme": "250",
+          "coefficient": "250",
+          "scale": 0,
+          "precision": {
+            "decimal_places": 0,
+            "written_digits": 3,
+            "significant_digits": 3
+          }
+        },
+        "source_unit": {
+          "dividend": {
+            "factors": [
+              {
+                "symbol": "mL",
+                "exponent": 1
+              }
+            ]
+          },
+          "divisors": []
+        },
+        "conversion_derivation": {
+          "steps": [
+            {
+              "symbol": "mL",
+              "exponent": 1,
+              "unit_dimension": {
+                "mass": 0,
+                "length": 3,
+                "time": 0,
+                "amount": 0,
+                "temperature": 0
+              },
+              "unit_factor": {
+                "numerator": "1",
+                "denominator": "1000000"
+              },
+              "expanded_dimension": {
+                "mass": 0,
+                "length": 3,
+                "time": 0,
+                "amount": 0,
+                "temperature": 0
+              },
+              "expanded_factor": {
+                "numerator": "1",
+                "denominator": "1000000"
+              }
+            }
+          ],
+          "result_dimension": {
+            "mass": 0,
+            "length": 3,
+            "time": 0,
+            "amount": 0,
+            "temperature": 0
+          },
+          "result_factor": {
+            "numerator": "1",
+            "denominator": "1000000"
+          }
+        }
+      }
+    }
+  ],
+  "procedure": [
+    {
+      "resulting_stage": "3a8e0508904f12536c48ecd2da909c91c961c812b5c7d2f33ede745920b82e27",
+      "operation": {
+        "kind": "place",
+        "id": "ebf461ebd3bc9dba7f96b549cbf7d97098d952ff8dc8e109d876b421f392b39b",
+        "material": "4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac",
+        "vessel": "233a720ae9b42a5907e49dada3c6f4358b1eee509098370bc4f31fa99cd5d6a8"
+      }
+    },
+    {
+      "resulting_stage": "f54c117bba5ad9f01b7b5830dd3484c632037765773f42bc9f50db4f92832cd6",
+      "source_label": "mixed",
+      "operation": {
+        "kind": "add",
+        "id": "39580e3a1539117276d0a91581504a8c78101638726a2b7830ca16492da16a78",
+        "material": "d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca",
+        "vessel": "233a720ae9b42a5907e49dada3c6f4358b1eee509098370bc4f31fa99cd5d6a8"
+      }
+    },
+    {
+      "resulting_stage": "8a035a3d860ce6d140e49d3ccbd24f090101700ca390ef8974c0a9affdf6f303",
+      "operation": {
+        "kind": "stir",
+        "id": "205c7aa3cd1548e38163f0c14a06e158c26c3ca1e49ea9947a5b8d1bfec5c71c",
+        "vessel": "233a720ae9b42a5907e49dada3c6f4358b1eee509098370bc4f31fa99cd5d6a8"
+      }
+    }
+  ],
+  "deferred": {
+    "expectations": [
+      {
+        "source": {
+          "span": {
+            "start": 440,
+            "end": 631
+          },
+          "stage": "final",
+          "claims": [
+            {
+              "kind": {
+                "kind": "claim",
+                "claim": "entry"
+              },
+              "span": {
+                "start": 460,
+                "end": 483
+              },
+              "children": [
+                {
+                  "kind": {
+                    "kind": "claim",
+                    "claim": "class"
+                  },
+                  "span": {
+                    "start": 460,
+                    "end": 483
+                  },
+                  "children": [
+                    {
+                      "kind": {
+                        "kind": "claim",
+                        "claim": "reactionClass"
+                      },
+                      "span": {
+                        "start": 469,
+                        "end": 482
+                      },
+                      "lexeme": "precipitation"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": {
+                "kind": "claim",
+                "claim": "entry"
+              },
+              "span": {
+                "start": 487,
+                "end": 502
+              },
+              "children": [
+                {
+                  "kind": {
+                    "kind": "claim",
+                    "claim": "equation"
+                  },
+                  "span": {
+                    "start": 487,
+                    "end": 502
+                  },
+                  "children": [
+                    {
+                      "kind": {
+                        "kind": "equation",
+                        "form": "kind"
+                      },
+                      "span": {
+                        "start": 487,
+                        "end": 496
+                      },
+                      "lexeme": "molecular"
+                    },
+                    {
+                      "kind": {
+                        "kind": "claim",
+                        "claim": "equationValue"
+                      },
+                      "span": {
+                        "start": 500,
+                        "end": 502
+                      },
+                      "children": [
+                        {
+                          "kind": {
+                            "kind": "hole"
+                          },
+                          "span": {
+                            "start": 500,
+                            "end": 501
+                          },
+                          "lexeme": "?"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": {
+                "kind": "claim",
+                "claim": "entry"
+              },
+              "span": {
+                "start": 506,
+                "end": 525
+              },
+              "children": [
+                {
+                  "kind": {
+                    "kind": "claim",
+                    "claim": "equation"
+                  },
+                  "span": {
+                    "start": 506,
+                    "end": 525
+                  },
+                  "children": [
+                    {
+                      "kind": {
+                        "kind": "equation",
+                        "form": "kind"
+                      },
+                      "span": {
+                        "start": 506,
+                        "end": 519
+                      },
+                      "lexeme": "completeIonic"
+                    },
+                    {
+                      "kind": {
+                        "kind": "claim",
+                        "claim": "equationValue"
+                      },
+                      "span": {
+                        "start": 523,
+                        "end": 525
+                      },
+                      "children": [
+                        {
+                          "kind": {
+                            "kind": "hole"
+                          },
+                          "span": {
+                            "start": 523,
+                            "end": 524
+                          },
+                          "lexeme": "?"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": {
+                "kind": "claim",
+                "claim": "entry"
+              },
+              "span": {
+                "start": 529,
+                "end": 543
+              },
+              "children": [
+                {
+                  "kind": {
+                    "kind": "claim",
+                    "claim": "equation"
+                  },
+                  "span": {
+                    "start": 529,
+                    "end": 543
+                  },
+                  "children": [
+                    {
+                      "kind": {
+                        "kind": "equation",
+                        "form": "kind"
+                      },
+                      "span": {
+                        "start": 529,
+                        "end": 537
+                      },
+                      "lexeme": "netIonic"
+                    },
+                    {
+                      "kind": {
+                        "kind": "claim",
+                        "claim": "equationValue"
+                      },
+                      "span": {
+                        "start": 541,
+                        "end": 543
+                      },
+                      "children": [
+                        {
+                          "kind": {
+                            "kind": "hole"
+                          },
+                          "span": {
+                            "start": 541,
+                            "end": 542
+                          },
+                          "lexeme": "?"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": {
+                "kind": "claim",
+                "claim": "entry"
+              },
+              "span": {
+                "start": 547,
+                "end": 567
+              },
+              "children": [
+                {
+                  "kind": {
+                    "kind": "claim",
+                    "claim": "amount"
+                  },
+                  "span": {
+                    "start": 547,
+                    "end": 567
+                  },
+                  "children": [
+                    {
+                      "kind": {
+                        "kind": "chemical",
+                        "form": "species"
+                      },
+                      "span": {
+                        "start": 554,
+                        "end": 561
+                      },
+                      "lexeme": "AgCl(s)",
+                      "children": [
+                        {
+                          "kind": {
+                            "kind": "chemical",
+                            "form": "formula"
+                          },
+                          "span": {
+                            "start": 554,
+                            "end": 558
+                          },
+                          "lexeme": "AgCl",
+                          "children": [
+                            {
+                              "kind": {
+                                "kind": "chemical",
+                                "form": "formulaSegment"
+                              },
+                              "span": {
+                                "start": 554,
+                                "end": 558
+                              },
+                              "lexeme": "AgCl",
+                              "children": [
+                                {
+                                  "kind": {
+                                    "kind": "chemical",
+                                    "form": "formulaPart"
+                                  },
+                                  "span": {
+                                    "start": 554,
+                                    "end": 556
+                                  },
+                                  "lexeme": "Ag",
+                                  "children": [
+                                    {
+                                      "kind": {
+                                        "kind": "chemical",
+                                        "form": "element"
+                                      },
+                                      "span": {
+                                        "start": 554,
+                                        "end": 556
+                                      },
+                                      "lexeme": "Ag"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": {
+                                    "kind": "chemical",
+                                    "form": "formulaPart"
+                                  },
+                                  "span": {
+                                    "start": 556,
+                                    "end": 558
+                                  },
+                                  "lexeme": "Cl",
+                                  "children": [
+                                    {
+                                      "kind": {
+                                        "kind": "chemical",
+                                        "form": "element"
+                                      },
+                                      "span": {
+                                        "start": 556,
+                                        "end": 558
+                                      },
+                                      "lexeme": "Cl"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": {
+                            "kind": "chemical",
+                            "form": "phase"
+                          },
+                          "span": {
+                            "start": 558,
+                            "end": 561
+                          },
+                          "lexeme": "(s)"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": {
+                        "kind": "hole"
+                      },
+                      "span": {
+                        "start": 565,
+                        "end": 566
+                      },
+                      "lexeme": "?"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": {
+                "kind": "claim",
+                "claim": "entry"
+              },
+              "span": {
+                "start": 572,
+                "end": 631
+              },
+              "children": [
+                {
+                  "kind": {
+                    "kind": "section",
+                    "section": "observation"
+                  },
+                  "span": {
+                    "start": 572,
+                    "end": 631
+                  },
+                  "children": [
+                    {
+                      "kind": {
+                        "kind": "observation",
+                        "observation": "entry"
+                      },
+                      "span": {
+                        "start": 586,
+                        "end": 606
+                      },
+                      "children": [
+                        {
+                          "kind": {
+                            "kind": "observation",
+                            "observation": "precipitate"
+                          },
+                          "span": {
+                            "start": 586,
+                            "end": 606
+                          },
+                          "children": [
+                            {
+                              "kind": {
+                                "kind": "chemical",
+                                "form": "species"
+                              },
+                              "span": {
+                                "start": 598,
+                                "end": 605
+                              },
+                              "lexeme": "AgCl(s)",
+                              "children": [
+                                {
+                                  "kind": {
+                                    "kind": "chemical",
+                                    "form": "formula"
+                                  },
+                                  "span": {
+                                    "start": 598,
+                                    "end": 602
+                                  },
+                                  "lexeme": "AgCl",
+                                  "children": [
+                                    {
+                                      "kind": {
+                                        "kind": "chemical",
+                                        "form": "formulaSegment"
+                                      },
+                                      "span": {
+                                        "start": 598,
+                                        "end": 602
+                                      },
+                                      "lexeme": "AgCl",
+                                      "children": [
+                                        {
+                                          "kind": {
+                                            "kind": "chemical",
+                                            "form": "formulaPart"
+                                          },
+                                          "span": {
+                                            "start": 598,
+                                            "end": 600
+                                          },
+                                          "lexeme": "Ag",
+                                          "children": [
+                                            {
+                                              "kind": {
+                                                "kind": "chemical",
+                                                "form": "element"
+                                              },
+                                              "span": {
+                                                "start": 598,
+                                                "end": 600
+                                              },
+                                              "lexeme": "Ag"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": {
+                                            "kind": "chemical",
+                                            "form": "formulaPart"
+                                          },
+                                          "span": {
+                                            "start": 600,
+                                            "end": 602
+                                          },
+                                          "lexeme": "Cl",
+                                          "children": [
+                                            {
+                                              "kind": {
+                                                "kind": "chemical",
+                                                "form": "element"
+                                              },
+                                              "span": {
+                                                "start": 600,
+                                                "end": 602
+                                              },
+                                              "lexeme": "Cl"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": {
+                                    "kind": "chemical",
+                                    "form": "phase"
+                                  },
+                                  "span": {
+                                    "start": 602,
+                                    "end": 605
+                                  },
+                                  "lexeme": "(s)"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": {
+                        "kind": "observation",
+                        "observation": "entry"
+                      },
+                      "span": {
+                        "start": 612,
+                        "end": 628
+                      },
+                      "children": [
+                        {
+                          "kind": {
+                            "kind": "observation",
+                            "observation": "colour"
+                          },
+                          "span": {
+                            "start": 612,
+                            "end": 628
+                          },
+                          "children": [
+                            {
+                              "kind": {
+                                "kind": "name",
+                                "form": "qualifiedName"
+                              },
+                              "span": {
+                                "start": 622,
+                                "end": 627
+                              },
+                              "lexeme": "white",
+                              "children": [
+                                {
+                                  "kind": {
+                                    "kind": "name",
+                                    "form": "nameSegment"
+                                  },
+                                  "span": {
+                                    "start": 622,
+                                    "end": 627
+                                  },
+                                  "lexeme": "white",
+                                  "children": [
+                                    {
+                                      "kind": {
+                                        "kind": "name",
+                                        "form": "valueIdentifier"
+                                      },
+                                      "span": {
+                                        "start": 622,
+                                        "end": 627
+                                      },
+                                      "lexeme": "white"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "stage": {
+          "kind": "final"
+        }
+      }
+    ],
+    "tactics": [
+      {
+        "kind": {
+          "kind": "tactic",
+          "tactic": "tactic"
+        },
+        "span": {
+          "start": 638,
+          "end": 657
+        },
+        "children": [
+          {
+            "kind": {
+              "kind": "tactic",
+              "tactic": "dissociate"
+            },
+            "span": {
+              "start": 638,
+              "end": 657
+            }
+          }
+        ]
+      },
+      {
+        "kind": {
+          "kind": "tactic",
+          "tactic": "tactic"
+        },
+        "span": {
+          "start": 661,
+          "end": 698
+        },
+        "children": [
+          {
+            "kind": {
+              "kind": "tactic",
+              "tactic": "inferProducts"
+            },
+            "span": {
+              "start": 661,
+              "end": 698
+            },
+            "children": [
+              {
+                "kind": {
+                  "kind": "name",
+                  "form": "qualifiedName"
+                },
+                "span": {
+                  "start": 682,
+                  "end": 697
+                },
+                "lexeme": "solubilityRules",
+                "children": [
+                  {
+                    "kind": {
+                      "kind": "name",
+                      "form": "nameSegment"
+                    },
+                    "span": {
+                      "start": 682,
+                      "end": 697
+                    },
+                    "lexeme": "solubilityRules",
+                    "children": [
+                      {
+                        "kind": {
+                          "kind": "name",
+                          "form": "valueIdentifier"
+                        },
+                        "span": {
+                          "start": 682,
+                          "end": 697
+                        },
+                        "lexeme": "solubilityRules"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": {
+          "kind": "tactic",
+          "tactic": "tactic"
+        },
+        "span": {
+          "start": 702,
+          "end": 720
+        },
+        "children": [
+          {
+            "kind": {
+              "kind": "tactic",
+              "tactic": "balance"
+            },
+            "span": {
+              "start": 702,
+              "end": 720
+            },
+            "children": [
+              {
+                "kind": {
+                  "kind": "equation",
+                  "form": "kind"
+                },
+                "span": {
+                  "start": 710,
+                  "end": 719
+                },
+                "lexeme": "molecular"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": {
+          "kind": "tactic",
+          "tactic": "tactic"
+        },
+        "span": {
+          "start": 724,
+          "end": 745
+        },
+        "children": [
+          {
+            "kind": {
+              "kind": "tactic",
+              "tactic": "derive"
+            },
+            "span": {
+              "start": 724,
+              "end": 745
+            },
+            "children": [
+              {
+                "kind": {
+                  "kind": "equation",
+                  "form": "kind"
+                },
+                "span": {
+                  "start": 731,
+                  "end": 744
+                },
+                "lexeme": "completeIonic"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": {
+          "kind": "tactic",
+          "tactic": "tactic"
+        },
+        "span": {
+          "start": 749,
+          "end": 767
+        },
+        "children": [
+          {
+            "kind": {
+              "kind": "tactic",
+              "tactic": "cancelSpectators"
+            },
+            "span": {
+              "start": 749,
+              "end": 767
+            }
+          }
+        ]
+      },
+      {
+        "kind": {
+          "kind": "tactic",
+          "tactic": "tactic"
+        },
+        "span": {
+          "start": 771,
+          "end": 791
+        },
+        "children": [
+          {
+            "kind": {
+              "kind": "tactic",
+              "tactic": "solveStoichiometry"
+            },
+            "span": {
+              "start": 771,
+              "end": 791
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "source_origins": {
+    "condition:medium": [
+      {
+        "start": 151,
+        "end": 169
+      }
+    ],
+    "condition:pressure": [
+      {
+        "start": 141,
+        "end": 146
+      }
+    ],
+    "condition:temperature": [
+      {
+        "start": 117,
+        "end": 124
+      }
+    ],
+    "experiment:cf659439df4cb1c2a6a4f1236fff9a601ce3910c50c62f38b3c9be36082fdd5c": [
+      {
+        "start": 40,
+        "end": 791
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac": [
+      {
+        "start": 182,
+        "end": 230
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:0": [
+      {
+        "start": 220,
+        "end": 225
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:1": [
+      {
+        "start": 220,
+        "end": 225
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:2": [
+      {
+        "start": 220,
+        "end": 222
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:3": [
+      {
+        "start": 220,
+        "end": 222
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:4": [
+      {
+        "start": 222,
+        "end": 223
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:5": [
+      {
+        "start": 222,
+        "end": 223
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:6": [
+      {
+        "start": 223,
+        "end": 225
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:7": [
+      {
+        "start": 223,
+        "end": 224
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:chemical:8": [
+      {
+        "start": 225,
+        "end": 229
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:component:0:derived:amount": [
+      {
+        "start": 199,
+        "end": 204
+      },
+      {
+        "start": 208,
+        "end": 219
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:component:0:derived:concentration": [
+      {
+        "start": 199,
+        "end": 204
+      },
+      {
+        "start": 208,
+        "end": 219
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:component:0:derived:volume": [
+      {
+        "start": 199,
+        "end": 204
+      },
+      {
+        "start": 208,
+        "end": 219
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:constructor": [
+      {
+        "start": 182,
+        "end": 230
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:premise:identity.medium.water": [
+      {
+        "start": 182,
+        "end": 230
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:premise:identity.species.silver-nitrate-aqueous": [
+      {
+        "start": 182,
+        "end": 230
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:quantity:0": [
+      {
+        "start": 199,
+        "end": 204
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:quantity:1": [
+      {
+        "start": 208,
+        "end": 219
+      }
+    ],
+    "material:4180b78c8827e505bc27d827427fe5f4f8d2a18040368491854fabf85c69a5ac:species:0": [
+      {
+        "start": 220,
+        "end": 229
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca": [
+      {
+        "start": 234,
+        "end": 282
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:chemical:0": [
+      {
+        "start": 273,
+        "end": 277
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:chemical:1": [
+      {
+        "start": 273,
+        "end": 277
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:chemical:2": [
+      {
+        "start": 273,
+        "end": 275
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:chemical:3": [
+      {
+        "start": 273,
+        "end": 275
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:chemical:4": [
+      {
+        "start": 275,
+        "end": 277
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:chemical:5": [
+      {
+        "start": 275,
+        "end": 277
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:chemical:6": [
+      {
+        "start": 277,
+        "end": 281
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:component:0:derived:amount": [
+      {
+        "start": 252,
+        "end": 257
+      },
+      {
+        "start": 261,
+        "end": 272
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:component:0:derived:concentration": [
+      {
+        "start": 252,
+        "end": 257
+      },
+      {
+        "start": 261,
+        "end": 272
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:component:0:derived:volume": [
+      {
+        "start": 252,
+        "end": 257
+      },
+      {
+        "start": 261,
+        "end": 272
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:constructor": [
+      {
+        "start": 234,
+        "end": 282
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:premise:identity.medium.water": [
+      {
+        "start": 234,
+        "end": 282
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:premise:identity.species.sodium-chloride-aqueous": [
+      {
+        "start": 234,
+        "end": 282
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:quantity:0": [
+      {
+        "start": 252,
+        "end": 257
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:quantity:1": [
+      {
+        "start": 261,
+        "end": 272
+      }
+    ],
+    "material:d94e0f38ddc6bebf3b1be659f2fd2215fd3268445235d1576cdc86ce32ed73ca:species:0": [
+      {
+        "start": 273,
+        "end": 281
+      }
+    ],
+    "operation:205c7aa3cd1548e38163f0c14a06e158c26c3ca1e49ea9947a5b8d1bfec5c71c": [
+      {
+        "start": 423,
+        "end": 437
+      }
+    ],
+    "operation:205c7aa3cd1548e38163f0c14a06e158c26c3ca1e49ea9947a5b8d1bfec5c71c:operand:0": [
+      {
+        "start": 428,
+        "end": 436
+      }
+    ],
+    "operation:205c7aa3cd1548e38163f0c14a06e158c26c3ca1e49ea9947a5b8d1bfec5c71c:resultingStage": [
+      {
+        "start": 423,
+        "end": 437
+      }
+    ],
+    "operation:39580e3a1539117276d0a91581504a8c78101638726a2b7830ca16492da16a78": [
+      {
+        "start": 381,
+        "end": 419
+      }
+    ],
+    "operation:39580e3a1539117276d0a91581504a8c78101638726a2b7830ca16492da16a78:operand:0": [
+      {
+        "start": 392,
+        "end": 406
+      }
+    ],
+    "operation:39580e3a1539117276d0a91581504a8c78101638726a2b7830ca16492da16a78:operand:1": [
+      {
+        "start": 410,
+        "end": 418
+      }
+    ],
+    "operation:39580e3a1539117276d0a91581504a8c78101638726a2b7830ca16492da16a78:resultingStage": [
+      {
+        "start": 381,
+        "end": 419
+      }
+    ],
+    "operation:ebf461ebd3bc9dba7f96b549cbf7d97098d952ff8dc8e109d876b421f392b39b": [
+      {
+        "start": 345,
+        "end": 377
+      }
+    ],
+    "operation:ebf461ebd3bc9dba7f96b549cbf7d97098d952ff8dc8e109d876b421f392b39b:operand:0": [
+      {
+        "start": 351,
+        "end": 364
+      }
+    ],
+    "operation:ebf461ebd3bc9dba7f96b549cbf7d97098d952ff8dc8e109d876b421f392b39b:operand:1": [
+      {
+        "start": 368,
+        "end": 376
+      }
+    ],
+    "operation:ebf461ebd3bc9dba7f96b549cbf7d97098d952ff8dc8e109d876b421f392b39b:resultingStage": [
+      {
+        "start": 345,
+        "end": 377
+      }
+    ],
+    "stage:f54c117bba5ad9f01b7b5830dd3484c632037765773f42bc9f50db4f92832cd6": [
+      {
+        "start": 381,
+        "end": 386
+      }
+    ],
+    "vessel:233a720ae9b42a5907e49dada3c6f4358b1eee509098370bc4f31fa99cd5d6a8": [
+      {
+        "start": 297,
+        "end": 328
+      }
+    ]
+  }
+}

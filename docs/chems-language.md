@@ -134,9 +134,11 @@ non-zero until all normative requirements are covered by conformance cases.
 `chems-lang` owns lossless source syntax, `CHEMS-L`/`CHEMS-P` diagnostics,
 comment attachment, and formatting. `chem-catalogue` now owns immutable
 digest-bearing empirical bundles, evidence, reviewed facts, condition domains,
-coverage declarations, and deterministic indexes. Source-to-catalogue
-resolution remains Slice 4 work, and the kernel remains a separate trusted
-boundary as fixed by the specification.
+coverage declarations, and deterministic indexes. `chem-kernel` now owns
+source-to-catalogue resolution and complete typed experiment HIR, including
+stable local identities, exact material construction, explicit premises and
+assumptions, typed procedure operands, and source origins. Procedure execution
+and proof remain later trusted-kernel work.
 
 ## Derived values
 

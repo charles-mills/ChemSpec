@@ -111,8 +111,9 @@ experiment SilverChloridePrecipitation where
 
 ## Language toolchain
 
-Slices 0–3 provide the executable specification boundary, exact domain
-foundation, lossless source frontend, and immutable catalogue trust store.
+Slices 0–4 provide the executable specification boundary, exact domain
+foundation, lossless source frontend, immutable catalogue trust store, and
+catalogue-backed typed elaboration.
 `chems-lang` implements `chems 1` dispatch, encoding/layout validation, nested
 comments, the complete normative grammar, lossless CST and source AST output,
 recovery diagnostics, comment attachment, and canonical formatting.
@@ -123,6 +124,13 @@ rejects conflicting or ineligible production facts, and builds deterministic
 lookup indexes. The initial reviewed fixture is the exact room-condition
 silver-chloride teaching domain in
 [`conformance/catalogue`](conformance/catalogue).
+
+`chem-kernel` resolves a complete source AST into typed experiment HIR with
+stable experiment/material/vessel/stage/operation IDs, exact conditions and
+quantities, catalogue-resolved species and media, dimension-directed initial
+materials, explicit premise and assumption dependencies, typed procedure
+operands, and source origins. It deliberately does not execute the procedure or
+validate reaction claims yet.
 
 ```sh
 cargo run -p chems-conformance -- validate
@@ -138,10 +146,10 @@ plain `chems format <path>` writes canonical source to standard output.
 
 ## Current status
 
-ChemSpec is in active implementation. The language design and Slices 0–3 are
-complete. Slice 4 is typed elaboration: resolving parsed source into a complete
-typed experiment against the bound catalogue without yet executing procedures
-or proving reaction claims.
+ChemSpec is in active implementation. The language design and Slices 0–4 are
+complete. Slice 5 is the procedure and stage engine: immutable inventories,
+vessel state, exact operation semantics, and reaction-opportunity creation
+without yet inferring reactions.
 
 ## License
 

@@ -1,0 +1,22 @@
+[package]
+name = "chem-kernel"
+description = "Trusted typed elaboration and derivation kernel for ChemSpec"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+chem-catalogue = { path = "../chem-catalogue" }
+chem-domain = { path = "../chem-domain" }
+chems-lang = { path = "../chems-lang" }
+num-bigint.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+chems-conformance = { path = "../chems-conformance" }
+
+[lints]
+workspace = true

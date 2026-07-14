@@ -1,0 +1,14 @@
+{
+  "cases": [
+    {
+      "declaration": "    silverNitrate := 1 g of NaCl(aq)",
+      "expected_species": "sodium-chloride.aq",
+      "requires_molar_mass": true
+    },
+    {
+      "declaration": "    silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)",
+      "expected_species": "silver-nitrate.aq",
+      "requires_molar_mass": false
+    }
+  ]
+}

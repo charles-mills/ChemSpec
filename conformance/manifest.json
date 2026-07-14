@@ -191,6 +191,36 @@
       "expected": {
         "state": "system-error"
       }
+    },
+    {
+      "id": "typed-conditions-001",
+      "component": "quantities-types",
+      "requirements": ["SRC-006", "TYP-001", "TYP-007", "TYP-018", "TYP-019"],
+      "source": "conformance/quantities-types/typed-conditions-001.chems",
+      "expected": {
+        "state": "validated"
+      }
+    },
+    {
+      "id": "species-resolution-001",
+      "component": "formula-species",
+      "requirements": ["SRC-014", "TYP-010", "TYP-012", "TYP-013"],
+      "input": "conformance/formula-species/species-resolution-001.input.json",
+      "source": "conformance/formula-species/species-resolution-001.chems",
+      "expected": {
+        "state": "validated"
+      }
+    },
+    {
+      "id": "initial-materials-001",
+      "component": "materials",
+      "requirements": ["SRC-008", "TYP-014", "TYP-015", "TYP-016", "TYP-017"],
+      "input": "conformance/materials/initial-materials-001.input.json",
+      "source": "conformance/materials/initial-materials-001.chems",
+      "expected": {
+        "state": "validated",
+        "hir": "conformance/materials/initial-materials-001.hir.json"
+      }
     }
   ]
 }

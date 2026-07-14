@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+
+experiment SpeciesResolution where
+  conditions
+    temperature := 25 degC
+    pressure := 1 atm
+    medium := aqueous
+
+  given
+    silverNitrate := 50 mL of 0.100 mol/L AgNO3(aq)
+
+  vessels
+    beaker := open vessel 100 mL
+
+  procedure
+    place silverNitrate in beaker
+
+  expect at final
+    amount AgNO3(aq) := ?
+
+  by
+    dissociate aqueous

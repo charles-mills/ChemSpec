@@ -119,6 +119,7 @@ struct CatalogueIndexes {
     coverage_by_id: BTreeMap<CoverageId, usize>,
     provenance_by_id: BTreeMap<FactId, ProvenanceLocation>,
     facts_by_species: BTreeMap<SpeciesId, Vec<usize>>,
+    normalized_species_formulas: Vec<NormalizedFormula>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -299,6 +300,65 @@ impl ValidatedCatalogue {
             .species_by_id
             .get(id)
             .map(|index| &self.document.species[*index])
+    }
+
+    /// Resolves the unique catalogue species matching normalized chemistry and
+    /// the complete experiment condition point.
+    #[must_use]
+    pub fn resolve_species(
+        &self,
+        formula: &NormalizedFormula,
+        charge: &chem_domain::Charge,
+        phase: Phase,
+        condition: &ConditionPoint,
+    ) -> Option<&SpeciesRecord> {
+        self.document
+            .species
+            .iter()
+            .enumerate()
+            .find(|(index, species)| {
+                self.indexes.normalized_species_formulas[*index] == *formula
+                    && species.charge == *charge
+                    && species.phase == phase
+                    && species.condition.contains(condition)
+            })
+            .map(|(_, species)| species)
+    }
+
+    /// Finds an applicable reviewed phase fact that directly contradicts an
+    /// explicitly authored species phase for the same formula and charge.
+    #[must_use]
+    pub fn contradicting_phase_fact(
+        &self,
+        formula: &NormalizedFormula,
+        charge: &chem_domain::Charge,
+        requested_phase: Phase,
+        condition: &ConditionPoint,
+    ) -> Option<&FactRecord> {
+        let substances = self
+            .document
+            .species
+            .iter()
+            .enumerate()
+            .filter(|(index, species)| {
+                self.indexes.normalized_species_formulas[*index] == *formula
+                    && species.charge == *charge
+            })
+            .map(|(_, species)| &species.substance)
+            .collect::<BTreeSet<_>>();
+        if substances.len() != 1 {
+            return None;
+        }
+        self.document.facts.iter().find(|fact| {
+            let FactProposition::HasPhase { substance, phase } = &fact.proposition else {
+                return false;
+            };
+            let mut point = condition.clone();
+            point.phase = Some(*phase);
+            substances.contains(substance)
+                && *phase != requested_phase
+                && fact.condition.contains(&point)
+        })
     }
 
     #[must_use]
@@ -664,6 +724,7 @@ fn validate_envelope(envelope: CatalogueEnvelope) -> Result<ValidatedCatalogue, 
     validate_metadata(&envelope.bundle)?;
     let mut indexes = build_and_validate_indexes(&envelope.bundle)?;
     validate_records(&envelope.bundle, &indexes)?;
+    indexes.normalized_species_formulas = normalized_species_formulas(&envelope.bundle)?;
     validate_conflicts(&envelope.bundle, &indexes)?;
     for (index, fact) in envelope.bundle.facts.iter().enumerate() {
         for species in fact_species(&fact.proposition) {
@@ -772,7 +833,25 @@ fn build_and_validate_indexes(
         coverage_by_id,
         provenance_by_id,
         facts_by_species: BTreeMap::new(),
+        normalized_species_formulas: Vec::new(),
     })
+}
+
+fn normalized_species_formulas(
+    document: &CatalogueDocument,
+) -> Result<Vec<NormalizedFormula>, CatalogueError> {
+    let registry = StaticElementRegistry::new(
+        document
+            .elements
+            .iter()
+            .map(|record| record.element.clone()),
+    )
+    .map_err(|error| CatalogueError::new(CatalogueErrorCode::InvalidFormula, error.to_string()))?;
+    document
+        .species
+        .iter()
+        .map(|record| normalize_formula(&record.formula, &registry, &record.id.to_string()))
+        .collect()
 }
 
 fn build_provenance_index(

@@ -2,6 +2,7 @@
 members = [
     "crates/chem-catalogue",
     "crates/chem-domain",
+    "crates/chem-kernel",
     "crates/chems-conformance",
     "crates/chems-lang",
 ]

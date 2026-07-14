@@ -86,3 +86,13 @@ explicit condition and proposition-phase boundaries, evidence/review
 eligibility, formula/species consistency, conflicting facts, coverage validity,
 and all 17 catalogue-system-error codes. The catalogue component covers all
 eleven of its normative requirement IDs.
+
+Slice 4 adds catalogue-backed typed-elaboration sources, fixture-driven
+constructor and species/premise cases, and the complete checked-in
+`initial-materials-001.hir.json` oracle. The `chem-kernel` integration suite
+checks exact condition and quantity typing, shared namespaces and stable IDs,
+unknown-versus-unsupported chemistry, every initial material constructor,
+prepared-component normalization, fact and explicit-assumption premise
+boundaries, typed operation operands, non-blocking warnings, and exact HIR
+serialization. The quantities/types, formula/species, and materials components
+are fully covered through this slice.

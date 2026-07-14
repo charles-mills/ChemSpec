@@ -147,6 +147,18 @@ impl<K: IdKind> PartialEq for DigestId<K> {
 
 impl<K: IdKind> Eq for DigestId<K> {}
 
+impl<K: IdKind> PartialOrd for DigestId<K> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<K: IdKind> Ord for DigestId<K> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.digest.cmp(&other.digest)
+    }
+}
+
 impl<K: IdKind> std::hash::Hash for DigestId<K> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.digest.hash(state);
@@ -342,6 +354,21 @@ digest_id_kind!(MaterialKind, MaterialId, "MaterialId");
 digest_id_kind!(VesselKind, VesselId, "VesselId");
 digest_id_kind!(OperationKind, OperationId, "OperationId");
 digest_id_kind!(StageKind, StageId, "StageId");
+digest_id_kind!(
+    AssumptionPremiseKind,
+    AssumptionPremiseId,
+    "AssumptionPremiseId"
+);
+digest_id_kind!(
+    InventoryPortionKind,
+    InventoryPortionId,
+    "InventoryPortionId"
+);
+digest_id_kind!(
+    ReactionOpportunityKind,
+    ReactionOpportunityId,
+    "ReactionOpportunityId"
+);
 digest_id_kind!(HoleKind, HoleId, "HoleId");
 digest_id_kind!(GoalKind, GoalId, "GoalId");
 digest_id_kind!(ReactionEventKind, ReactionEventId, "ReactionEventId");

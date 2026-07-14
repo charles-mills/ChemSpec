@@ -14,14 +14,18 @@ requirement coverage, and affected conformance cases.
 ## Current state
 
 The language specification and normative grammar are the only source contract.
-Slices 0–3 are complete. The executable conformance scaffold has stable
+Slices 0–4 are complete. The executable conformance scaffold has stable
 requirement IDs, schemas, fixture validation, grammar and reserved-word checks,
 and coverage reporting. `chem-domain` implements exact values and stable
 chemistry identities; `chems-lang` implements the complete lossless source
 frontend and formatter; `chem-catalogue` implements versioned digest-bearing
 bundles, canonical record ordering, validation, deterministic indexes, and the
 reviewed silver-chloride fixture. No legacy grammar or compatibility parser is
-retained.
+retained. `chem-kernel` now resolves complete source into catalogue-backed
+`TypedExperiment` HIR with stable IDs, exact typed conditions and quantities,
+resolved species/materials/operands, explicit premise and assumption tracing,
+and source origins. Procedure execution and claim validation remain outside the
+completed boundary.
 
 ## Target crate boundaries
 
@@ -278,6 +282,10 @@ Slices 0 and 1.
 No source elaboration or reaction inference.
 
 ## Slice 4 — typed elaboration and initial materials
+
+**Status: complete.** The canonical silver-chloride source byte-compares with
+its checked-in typed-HIR oracle. The quantity/type, formula/species, and
+materials conformance components are fully covered through this slice.
 
 ### Depends on
 
@@ -601,10 +609,8 @@ Do not make the code's current behavior normative after the fact.
 
 ## Immediate next action
 
-Begin Slice 4 against the completed source frontend, exact-domain boundary, and
-validated catalogue. Implement namespaces and stable typed IDs, environment and
-catalogue-selection elaboration, exact quantity/unit typing, formula/species/
-substance/medium resolution, all material constructors, explicit assumption
-resolution, complete `TypedExperiment` HIR, source origins, and
-`CHEMS-T`/`CHEMS-C` diagnostics without beginning procedure execution, claims,
-goals, reactions, or artifact construction.
+Begin Slice 5 against the completed typed HIR. Add immutable initial stages and
+inventory ledgers, validate prepared-material initial state, execute the closed
+procedure operation set exactly, enforce vessel/location/capacity/closure and
+condition invariants, and create reaction opportunities without beginning
+reaction inference, claims, goals, tactics, or artifact construction.
