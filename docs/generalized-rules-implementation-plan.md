@@ -372,15 +372,15 @@ G5 reviewed clean.
   - expanded certificate;
   - derivation;
   - frames; and
-  - pending human review request.
+  - pending host-selected AI review request.
 - Label generated certificates, derivations, and frames as candidate inspection
   outputs. They are not independent conformance oracles and cannot promote
   their own producing implementation.
 - Document the exact Luna content prompt, prohibited edits, expected outputs,
-  validation commands, and human chemist promotion boundary.
+  validation commands, and host-controlled promotion boundary.
 - Populate all 118 element identity records with only the fields required by
   the locked schema, using reviewed source provenance.
-- Add the initial chemist-selected family queue without promoting unreviewed
+- Add the initial chemistry family queue without promoting unreviewed
   content.
 
 ### Acceptance
@@ -393,14 +393,14 @@ G5 reviewed clean.
   or generated artifacts through the candidate package.
 - Candidate checking reports Unsupported honestly for absent domain features.
 - Generated review requests bind the exact digest and remain
-  `pending-host-review`.
-- Only an externally supplied exact human attestation can promote the generated
+  `pending-ai-review`.
+- Only a separate exact host-selected AI attestation can promote the generated
   catalogue through the existing trust API.
 
 ### Explicitly excluded
 
-No automatic chemical review, LLM attestation, arbitrary web-derived runtime
-catalogue mutation, or “best effort” generation of unsupported chemistry.
+No candidate self-attestation, arbitrary web-derived runtime catalogue mutation,
+or “best effort” generation of unsupported chemistry.
 
 ## Slice-specific Luna handoff format
 

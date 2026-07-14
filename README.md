@@ -103,9 +103,8 @@ catalogue data, and validation:
 - `chem-kernel` — resolution, expansion, graph validation, and artifacts;
 - `chem-presentation` — deterministic guided-scene and macroscopic-scene plans
   compiled only from trusted kernel frames;
-- `chems-cli` — parsing, formatting, source/certificate inspection, and the
-  closed candidate-package authoring compiler, whose generated chemistry
-  remains explicitly untrusted; and
+- `chems-cli` — parsing, formatting, source/certificate inspection, deterministic
+  candidate checking, and attestation-bound catalogue promotion;
 - `chems-conformance` — specification, grammar, fixture, and coverage gates.
 - `chemspec-app` — native Iced composition UI plus Canvas 2D and wgpu 3D
   renderers.
@@ -117,10 +116,12 @@ Responses API access with an API key.
 ## Language status
 
 The structural `.chems 1` implementation is complete through the fixed seven
-slices. The bundled lithium-and-water catalogue is promoted through an exact
-host-pinned AI review attestation. The attestation names its AI reviewer and
-limitations; it is an explicit product trust decision, not human expert
-certification.
+slices. The bundled 118-element identity catalogue and generalized
+alkali-metal-with-water family are promoted through an exact host-pinned AI
+review attestation. Runnable family members are Li, Na, and K; the other 115
+element records do not imply reaction support. The attestation names its AI
+reviewer and limitations; it is an explicit product trust decision, not human
+expert certification.
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
@@ -129,8 +130,9 @@ but it cannot promote its own output; chemistry review and host trust-root
 updates remain deliberate source-controlled host actions. Runtime agents and
 candidate packages still cannot promote themselves.
 
-The Iced application now consumes the canonical `.chems 1` source through the
-real catalogue, expansion, kernel-validation, and `SimulationFrames` APIs. Its
+The Iced application now selects Li, Na, or K with water and consumes the
+corresponding `.chems 1` source through the real catalogue, generalized
+expansion, kernel-validation, and `SimulationFrames` APIs. Its
 local periodic-table and composition models are draft presentation only; they
 do not choose products or construct bonds for simulation.
 
@@ -140,6 +142,9 @@ do not choose products or construct bonds for simulation.
 cargo run -p chems-conformance -- validate
 cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansion-001.chems
 cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
+  catalogue/candidates/periodic-table-and-alkali-water
+cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
+  --attestation catalogue/reviews/periodic-table-and-alkali-water.review.json \
   catalogue/candidates/periodic-table-and-alkali-water
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings

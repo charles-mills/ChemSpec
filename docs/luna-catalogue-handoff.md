@@ -49,9 +49,10 @@ real unsupported boundary, CHEMS-Kxxx as kernel rejection, and CHEMS-Fxxx as
 frame rejection. Never work around one by weakening or deleting validation.
 
 Explicit exclusions
-No invented reaction family, runtime inference, best-effort structure, web-derived
-unreviewed mutation, concrete rule duplication, automatic chemical review,
-LLM attestation, production publication, trust-root edit, or generated artifact edit.
+No invented reaction family, runtime inference, best-effort structure,
+web-derived unreviewed mutation, concrete rule duplication, candidate
+self-review, self-attestation, production publication, trust-root edit, or
+generated artifact edit.
 
 Focused verification commands
 cargo run -p chems-cli -- catalogue check --out <new-empty-output-directory> \
@@ -69,7 +70,7 @@ git diff --check
 
 Stop condition
 Stop when the candidate command succeeds and emits one exact catalogue digest
-with review-request status pending-host-review. Report the digest and every
+with review-request status pending-ai-review. Report the digest and every
 unsupported or unresolved item. Do not claim approval or promotion.
 ```
 
@@ -104,20 +105,21 @@ One `chems catalogue check` invocation:
    than guessing;
 6. runs the existing concrete kernel and candidate-only frame projection; and
 7. emits the merged envelope, digest, candidate inspection artifacts, and a
-   digest-bound pending human review request.
+   digest-bound pending host-selected AI review request.
 
 Generated certificates, derivations, and frames are implementation-produced
 inspection views, not independent conformance oracles.
 
-## Human promotion boundary
+## Host-controlled AI promotion boundary
 
 The generated request lists every exact catalogue premise and evidence source,
 the catalogue digest, and the digests of every inspection artifact. It is not a
 `chem-catalogue-review-1` attestation and has no reviewer identity.
 
 The project owner assigns AI review of the exact generated digest and, if
-accepted, supplies a complete attestation bound to every premise. A maintainer
-then deliberately updates the compiled catalogue and review trust roots. Only
-the existing `TrustedCatalogue::from_canonical_json` API can accept those exact
-host-pinned values. Luna, the candidate package, the authoring command, and its
-generated outputs cannot perform that step.
+accepted, supplies a complete attestation bound to every premise. `catalogue
+promote` validates and packages those exact artifacts; a maintainer then
+deliberately updates the compiled catalogue and review trust roots. Only the
+existing `TrustedCatalogue::from_canonical_json` API can accept those exact
+host-pinned values. Luna, the candidate package, and runtime agents cannot
+perform that final step.

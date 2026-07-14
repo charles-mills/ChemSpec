@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "id": "Evidence.AlkaliWaterLithium@1",
+  "id": "Evidence.AlkaliWater@1",
   "claims": [
     {"id": "R1", "subject_role": "gas", "subject": "hydrogen", "predicate": "evolves", "sources": ["S1"]},
     {"id": "R2", "subject_role": "reactant", "subject": "alkali metal", "predicate": "disappears", "sources": ["S1"]}

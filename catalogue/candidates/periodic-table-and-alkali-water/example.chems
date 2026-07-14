@@ -13,7 +13,7 @@ reaction LithiumAndWater where
   model
     event := representative
     sequence := explanatory
-  observe from Evidence.AlkaliWaterLithium@1
+  observe from Evidence.AlkaliWater@1
     gas hydrogen evolves claim R1
     reactant lithium disappears claim R2
   by

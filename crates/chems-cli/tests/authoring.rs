@@ -118,7 +118,7 @@ fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
 
     let request: Value =
         serde_json::from_slice(&fs::read(output.join("review-request.json")).unwrap()).unwrap();
-    assert_eq!(request["status"], "pending-chemist-review");
+    assert_eq!(request["status"], "pending-ai-review");
     assert_eq!(request["promotable"], false);
     assert_eq!(request["catalogue_digest"], catalogue["digest"]);
     assert!(request.get("reviewer").is_none());
@@ -151,6 +151,68 @@ fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
             ContentDigest::sha256(&bytes).to_string()
         );
     }
+    fs::remove_dir_all(temporary).unwrap();
+}
+
+#[test]
+fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
+    let temporary = temp_root("promotion");
+    fs::create_dir(&temporary).unwrap();
+    let output = temporary.join("trusted");
+    let package = root().join("catalogue/candidates/periodic-table-and-alkali-water");
+    let attestation = root().join("catalogue/reviews/periodic-table-and-alkali-water.review.json");
+    let result = run(&[
+        "catalogue",
+        "promote",
+        "--out",
+        output.to_str().unwrap(),
+        "--attestation",
+        attestation.to_str().unwrap(),
+        package.to_str().unwrap(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(output.join("promotion.json")).unwrap()).unwrap();
+    assert_eq!(manifest["status"], "host-selected-ai-reviewed");
+    assert_eq!(
+        manifest["catalogue_digest"],
+        fs::read_to_string(output.join("catalogue.digest"))
+            .unwrap()
+            .trim()
+    );
+    TrustedCatalogue::from_canonical_json(
+        &fs::read(output.join("catalogue.json")).unwrap(),
+        &fs::read(output.join("review.json")).unwrap(),
+    )
+    .expect("the promoted files must match the compiled host trust root");
+
+    let mut wrong_review: Value = serde_json::from_slice(&fs::read(&attestation).unwrap()).unwrap();
+    wrong_review["catalogue_digest"] =
+        json!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    let wrong_review_path = temporary.join("wrong-review.json");
+    fs::write(
+        &wrong_review_path,
+        serde_json::to_vec_pretty(&wrong_review).unwrap(),
+    )
+    .unwrap();
+    let rejected_output = temporary.join("rejected");
+    let result = run(&[
+        "catalogue",
+        "promote",
+        "--out",
+        rejected_output.to_str().unwrap(),
+        "--attestation",
+        wrong_review_path.to_str().unwrap(),
+        package.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A041"));
+    assert!(!rejected_output.exists());
     fs::remove_dir_all(temporary).unwrap();
 }
 

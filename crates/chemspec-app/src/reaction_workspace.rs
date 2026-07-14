@@ -14,7 +14,7 @@ use iced::{
     Vector, border,
 };
 
-use crate::chemistry::{self, DraftParticipant};
+use crate::chemistry::{self, DraftParticipant, Experience};
 use crate::composition_catalogue::{self, CompositionPreview};
 use crate::elements::{self, ElementSpec};
 use crate::particle_visualization::{AtomDiagram, CompoundAtomicDiagram};
@@ -89,6 +89,7 @@ pub struct State {
     reduced_motion: bool,
     orbital_phase: f32,
     trigger: TriggerState,
+    experience: Option<Experience>,
     trigger_reveal: f32,
     sequence: Option<SequenceState>,
 }
@@ -106,6 +107,7 @@ impl Default for State {
             reduced_motion: false,
             orbital_phase: 0.0,
             trigger: TriggerState::Idle,
+            experience: None,
             trigger_reveal: 0.0,
             sequence: None,
         }
@@ -249,10 +251,14 @@ fn start_sequence(state: &mut State) {
     if state.sequence.is_some() {
         return;
     }
-    if !reaction_supported(&state.atoms) || chemistry::canonical_run().is_err() {
+    let Some(experience) = reaction_experience(&state.atoms) else {
+        return;
+    };
+    if chemistry::run(experience).is_err() {
         return;
     }
-    state.trigger = TriggerState::Queued("canonical-lithium-water");
+    state.experience = Some(experience);
+    state.trigger = TriggerState::Queued(experience.id());
     state.sequence = Some(SequenceState {
         progress: if state.reduced_motion { 1.0 } else { 0.0 },
         playback: if state.reduced_motion {
@@ -413,7 +419,11 @@ pub fn placed_atom_count(state: &State) -> usize {
 
 pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'_, Message> {
     if let Some(sequence) = state.sequence {
-        return sequence_view(sequence, compact);
+        return sequence_view(
+            sequence,
+            state.experience.unwrap_or(Experience::DEFAULT),
+            compact,
+        );
     }
 
     let atom_count = state.atoms.len();
@@ -483,8 +493,12 @@ pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
     .into()
 }
 
-fn sequence_view(sequence: SequenceState, compact: bool) -> Element<'static, Message> {
-    let run = chemistry::canonical_run().expect("a sequence exists only for a trusted run");
+fn sequence_view(
+    sequence: SequenceState,
+    experience: Experience,
+    compact: bool,
+) -> Element<'static, Message> {
+    let run = chemistry::run(experience).expect("a sequence exists only for a trusted run");
     let frames = run.frames().frames();
     let frame_index = reaction_sequence::frame_index(sequence.progress, frames.len());
     let frame = &frames[frame_index];
@@ -521,7 +535,7 @@ fn sequence_view(sequence: SequenceState, compact: bool) -> Element<'static, Mes
     .style(theme::panel)
     .padding([spacing::XS, spacing::SM])
     .width(Fill);
-    let heading = sequence_heading(compact, run.frame_digest());
+    let heading = sequence_heading(compact, experience, run.frame_digest());
 
     container(
         column![heading, controls, stages, diagram, explanation]
@@ -604,6 +618,7 @@ fn sequence_stages(active_index: usize) -> Element<'static, Message> {
 
 fn sequence_heading(
     compact: bool,
+    experience: Experience,
     frame_digest: chem_domain::ContentDigest,
 ) -> Element<'static, Message> {
     let frame_digest = frame_digest.to_string();
@@ -612,14 +627,14 @@ fn sequence_heading(
             text("STAGE 5  /  2D REACTION SEQUENCE")
                 .size(type_scale::MICRO)
                 .color(color::ACCENT),
-            text(chemistry::NAME)
+            text(experience.name())
                 .size(if compact {
                     type_scale::TITLE
                 } else {
                     type_scale::DISPLAY
                 })
                 .color(color::TEXT),
-            text(chemistry::EQUATION)
+            text(experience.equation())
                 .size(type_scale::BODY)
                 .color(color::TEXT_SOFT),
         ]
@@ -896,12 +911,13 @@ fn composition_summary(
     atom_count: usize,
 ) -> Element<'static, Message> {
     let object_count = reactant_object_count(&state.atoms);
-    let supported = reaction_supported(&state.atoms);
+    let experience = reaction_experience(&state.atoms);
+    let supported = experience.is_some();
     let queued_id = match state.trigger {
         TriggerState::Idle => None,
         TriggerState::Queued(id) => Some(id),
     };
-    let queued = supported && queued_id == Some("canonical-lithium-water");
+    let queued = experience.is_some_and(|experience| queued_id == Some(experience.id()));
     let trigger_reveal = state.trigger_reveal;
     let (title, detail) = if supported {
         if queued {
@@ -912,7 +928,10 @@ fn composition_summary(
         } else {
             (
                 "Ready to start",
-                format!("{}  ·  {}", chemistry::NAME, chemistry::EQUATION),
+                experience.map_or_else(
+                    || "Supported reaction".to_owned(),
+                    |experience| format!("{}  ·  {}", experience.name(), experience.equation()),
+                ),
             )
         }
     } else if object_count >= 2 {
@@ -1052,8 +1071,13 @@ fn reaction_participants(atoms: &[PlacedAtom]) -> Vec<DraftParticipant> {
     compositions.chain(loose_atoms).collect()
 }
 
+#[cfg(test)]
 fn reaction_supported(atoms: &[PlacedAtom]) -> bool {
-    chemistry::supports_participants(reaction_participants(atoms))
+    reaction_experience(atoms).is_some()
+}
+
+fn reaction_experience(atoms: &[PlacedAtom]) -> Option<Experience> {
+    chemistry::experience_for_participants(reaction_participants(atoms))
 }
 
 fn reactant_object_count(atoms: &[PlacedAtom]) -> usize {
@@ -1453,21 +1477,30 @@ mod tests {
 
         assert!(reaction_supported(&state.atoms));
         update(&mut state, Message::StartReaction);
-        assert_eq!(
-            state.trigger,
-            TriggerState::Queued("canonical-lithium-water")
-        );
+        assert_eq!(state.trigger, TriggerState::Queued("alkali-water-lithium"));
         assert!(sequence_active(&state));
 
         update(&mut state, Message::StartReaction);
-        assert_eq!(
-            state.trigger,
-            TriggerState::Queued("canonical-lithium-water")
-        );
+        assert_eq!(state.trigger, TriggerState::Queued("alkali-water-lithium"));
 
         update(&mut state, Message::LibraryElementDropped(1));
         assert_eq!(state.trigger, TriggerState::Idle);
         assert!(!sequence_active(&state));
+    }
+
+    #[test]
+    fn each_registered_alkali_member_selects_its_own_trusted_sequence() {
+        for (atomic_number, experience) in [
+            (3, Experience::Lithium),
+            (11, Experience::Sodium),
+            (19, Experience::Potassium),
+        ] {
+            let mut state = alkali_water_state(atomic_number);
+            update(&mut state, Message::StartReaction);
+            assert_eq!(state.experience, Some(experience));
+            assert_eq!(state.trigger, TriggerState::Queued(experience.id()));
+            assert!(sequence_active(&state));
+        }
     }
 
     #[test]
@@ -1520,9 +1553,13 @@ mod tests {
     }
 
     fn lithium_water_state() -> State {
+        alkali_water_state(3)
+    }
+
+    fn alkali_water_state(atomic_number: u8) -> State {
         State {
             atoms: vec![
-                placed_atom(1, 3, 0.20, 0.30),
+                placed_atom(1, atomic_number, 0.20, 0.30),
                 placed_atom(2, 1, 0.78, 0.70),
                 placed_atom(3, 1, 0.78, 0.70),
                 placed_atom(4, 8, 0.78, 0.70),

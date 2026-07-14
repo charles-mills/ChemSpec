@@ -329,7 +329,11 @@ mod tests {
 
     #[test]
     fn progress_selects_only_existing_trusted_frames() {
-        let frame_count = chemistry::canonical_run().unwrap().frames().frames().len();
+        let frame_count = chemistry::run(chemistry::Experience::DEFAULT)
+            .unwrap()
+            .frames()
+            .frames()
+            .len();
         assert_eq!(frame_index(0.0, frame_count), 0);
         assert_eq!(frame_index(1.0, frame_count), frame_count - 1);
         assert!(frame_index(0.5, frame_count) < frame_count);

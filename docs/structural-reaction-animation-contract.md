@@ -56,8 +56,10 @@ animated.
 
 ## Current vertical slice
 
-The integrated slice uses the AI-attested canonical lithium/water catalogue and
-evidence packet under `conformance/`. It renders:
+The integrated slice uses the AI-attested generalized alkali-water catalogue
+under `catalogue/trusted/` and member-specific evidence packets under
+`conformance/`. The application selects exact Li, Na, or K experiences from the
+same family and renders:
 
 - a continuous guided 2D structural explanation from exact kernel frames;
 - operation-specific labels with stable atom identity;

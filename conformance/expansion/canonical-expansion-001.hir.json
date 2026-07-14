@@ -202,7 +202,7 @@
     { "id": "operation[12]", "kind": "assign_product", "before_state": "state[11]", "after_state": "state[12]", "atoms": ["water[1].h1", "water[2].h1"], "product": "hydrogen[1]" }
   ],
   "review": {
-    "status": "pending-chemist-review",
-    "must_not_be_used_as_implemented_oracle_before_acceptance": true
+    "status": "host-selected-ai-reviewed",
+    "must_not_be_used_as_implemented_oracle_before_acceptance": false
   }
 }

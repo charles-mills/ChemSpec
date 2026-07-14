@@ -29,7 +29,7 @@
       "reference": "https://iupac.org/what-we-do/periodic-table-of-elements/",
       "publication_date": "2022-05-04",
       "retrieved_on": "2026-07-14",
-      "usage": "Element symbols, names, atomic numbers, and conventional table placement; candidate group and block fields remain pending exact human review"
+      "usage": "Element symbols, names, atomic numbers, and conventional table placement; candidate group and block fields are covered by the host-selected AI review"
     }
   ],
   "premises": [
@@ -134,7 +134,7 @@
     },
     {
       "id": "premise.elements.iupac-periodic-table",
-      "statement": "The 118 candidate records use IUPAC element symbols, names, atomic numbers, and periods; optional group values and conventional block assignments are candidate interpretations subject to exact human review.",
+      "statement": "The 118 candidate records use IUPAC element symbols, names, atomic numbers, and periods; optional group values and conventional block assignments are candidate interpretations covered by the host-selected AI review.",
       "evidence": [
         "evidence.iupac.periodic-table"
       ],

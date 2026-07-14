@@ -151,16 +151,17 @@ Catalogue breadth uses the implemented
 facts derive classifications, parameterized structure applications construct
 exact graphs, and typed family rewrites compile into the existing concrete
 kernel operations. Its fixed [G0–G6 implementation queue](generalized-rules-implementation-plan.md)
-is complete. Generated candidates remain untrusted until a host-selected AI
-review attestation and digest pin are committed.
+is complete. The first generated catalogue now has a host-selected AI review
+attestation and both exact digests committed to the trust root.
 
 ## Current integration status
 
 - The complete language, catalogue, generalized-rule, kernel, and frame crates
   are integrated with the Iced workspace.
-- The canonical lithium-water source crosses the pinned AI trust attestation,
-  trusted expansion, kernel validation, and frame-generation boundaries in the
-  desktop application.
+- The 118-element identity catalogue and generalized alkali-water family cross
+  the pinned AI trust attestation. Li, Na, and K each cross trusted expansion,
+  kernel validation, and frame generation in the desktop application; the
+  other 115 element identities have no implied reaction coverage.
 - `chem-presentation` compiles deterministic guided scenes and a macroscopic
   scene plan from the same trusted `SimulationFrames` generation.
 - The guided Canvas renderer consumes exact atoms, covalent/dative edges, ionic
@@ -174,6 +175,22 @@ review attestation and digest pin are committed.
 - Editable source invalidates downstream frames and can be revalidated through
   the trusted boundary. Provider-neutral events, live Codex/API invocation, and
   richer certificate/derivation inspectors remain the next product work.
+
+## Next catalogue breadth
+
+The next chemistry queue is four generalized reaction families, not one file or
+rule per reactant pair:
+
+1. precipitation from supported aqueous ionic combinations;
+2. acid-base neutralization;
+3. acid-carbonate gas evolution; and
+4. single displacement for an explicitly bounded activity-series domain.
+
+Combustion is an optional fifth family after those four. Each family still needs
+finite supported cases, exact structure applications, observations, evidence,
+negative fixtures, and its own digest-bound trust update. Element identity in
+the 118-record registry never implies that an element participates in one of
+these families.
 
 ## Integration gates
 

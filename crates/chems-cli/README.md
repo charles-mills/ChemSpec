@@ -11,6 +11,9 @@ cargo run -p chems-cli -- inspect expanded reaction.chems \
   --catalogue catalogue.json --evidence evidence.json
 cargo run -p chems-cli -- catalogue check --out review-output \
   catalogue/candidates/periodic-table-and-alkali-water
+cargo run -p chems-cli -- catalogue promote --out trusted-output \
+  --attestation catalogue/reviews/periodic-table-and-alkali-water.review.json \
+  catalogue/candidates/periodic-table-and-alkali-water
 ```
 
 Expanded inspection defaults to the human-readable unexecuted certificate.
@@ -27,7 +30,7 @@ validates the resulting catalogue and every example through expansion, kernel
 execution, and frame projection, then writes:
 
 - `catalogue.json` and `catalogue.digest`;
-- `review-request.json` with status `pending-chemist-review`; and
+- `review-request.json` with status `pending-ai-review`; and
 - one candidate-only expanded certificate, derivation, and frame sequence per
   shard under `inspections/`.
 
@@ -35,5 +38,12 @@ The output directory must not already exist or be inside a candidate package.
 Candidate JSON has no fields for publication metadata, trust roots, validation
 options, output paths, review attestations, or generated artifacts. Generated
 inspection artifacts are labelled `candidate-inspection-only` and
-`promotable: false`; they cannot satisfy the external human-review boundary.
+`promotable: false`; they cannot satisfy the host-selected AI-review boundary.
 Premises in candidate shards must be provisional and carry no reviewers.
+
+`catalogue promote` rebuilds the same candidate digest, validates a separate AI
+attestation against every exact premise and evidence source, and writes the
+catalogue, review, their semantic digests, and a promotion manifest. Runtime
+trust still begins only when both reported digests are deliberately compiled
+into `TrustedCatalogue`; neither a candidate package nor a runtime agent can
+change that trust root.

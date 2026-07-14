@@ -34,7 +34,7 @@ pub use pattern::*;
 /// can validate newly generated JSON, but cannot promote its digest into the
 /// trusted catalogue type.
 pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
-    "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f";
+    "7b1a8eaa7a917e165c889483378a5d8c58336acd12ac5ffb5b41986278cbfc72";
 
 /// Host-controlled digest of the exact AI review attestation selected for the
 /// canonical educational catalogue.
@@ -42,7 +42,7 @@ pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
 /// The attestation is explicit about AI authorship and limitations. Runtime
 /// data cannot populate or override this compiled trust decision.
 pub const PINNED_CANONICAL_REVIEW_DIGEST: &str =
-    "acf340f6019f6ca54aa53b12615ed4ca8b4575a6f6295d7ce490aaf0b2444dc7";
+    "f3830a53946832177c7dcf34f75f8fb536f8a9274e8c5ea7f913c3ed8f4f727b";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogueErrorCode {

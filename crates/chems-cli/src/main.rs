@@ -209,6 +209,6 @@ fn io_error(path: &Path, error: &io::Error) -> String {
 }
 
 fn usage() -> String {
-    "usage:\n  chems parse <file.chems>\n  chems format [--check | --write] <file.chems>...\n  chems inspect source <file.chems>\n  chems inspect expanded <file.chems> --catalogue <catalogue.json> --evidence <evidence.json> [--json | --provenance]\n  chems catalogue check --out <directory> <candidate-package>..."
+    "usage:\n  chems parse <file.chems>\n  chems format [--check | --write] <file.chems>...\n  chems inspect source <file.chems>\n  chems inspect expanded <file.chems> --catalogue <catalogue.json> --evidence <evidence.json> [--json | --provenance]\n  chems catalogue check --out <directory> <candidate-package>...\n  chems catalogue promote --out <directory> --attestation <review.json> <candidate-package>..."
         .to_owned()
 }

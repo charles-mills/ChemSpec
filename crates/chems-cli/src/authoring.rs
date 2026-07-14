@@ -5,11 +5,11 @@ use std::{
 };
 
 use chem_catalogue::{
-    CatalogueDocument, CatalogueEnvelope, CreationMetadata, ElementCategoryRecord, ElementRecord,
-    EvidenceSource, GeneralizedReactionRuleRecord, GraphPatternRecord, PremiseRecord,
-    PublicationKind, ReactionRuleRecord, ReviewStatus, StructuralTraitDefinitionRecord,
-    StructureRecord, StructureTemplateApplicationRecord, StructureTemplateRecord,
-    ValencePremiseRecord, ValidatedCatalogueBundle,
+    CatalogueDocument, CatalogueEnvelope, CatalogueReviewAttestation, CreationMetadata,
+    ElementCategoryRecord, ElementRecord, EvidenceSource, GeneralizedReactionRuleRecord,
+    GraphPatternRecord, PremiseRecord, PublicationKind, ReactionRuleRecord, ReviewStatus,
+    StructuralTraitDefinitionRecord, StructureRecord, StructureTemplateApplicationRecord,
+    StructureTemplateRecord, ValencePremiseRecord, ValidatedCatalogueBundle,
 };
 use chem_domain::ContentDigest;
 use chem_kernel::{
@@ -71,6 +71,14 @@ struct InspectionOutput {
     frames_digest: ContentDigest,
 }
 
+#[derive(Debug)]
+struct CandidateAssessment {
+    packages: Vec<LoadedPackage>,
+    catalogue_bytes: Vec<u8>,
+    catalogue: ValidatedCatalogueBundle,
+    inspections: Vec<InspectionOutput>,
+}
+
 #[derive(Debug, Serialize)]
 struct ReviewRequest<'a> {
     schema_version: u32,
@@ -91,10 +99,21 @@ struct InspectionDigests {
     frames: ContentDigest,
 }
 
+#[derive(Debug, Serialize)]
+struct PromotionManifest {
+    schema_version: u32,
+    status: &'static str,
+    catalogue_digest: ContentDigest,
+    review_digest: ContentDigest,
+    packages: Vec<String>,
+    trust_boundary: &'static str,
+}
+
 pub(crate) fn catalogue_command(arguments: &[String]) -> Result<(), String> {
     match arguments.first().map(String::as_str) {
         Some("check") => check_command(&arguments[1..]),
-        _ => Err("catalogue requires `check`".to_owned()),
+        Some("promote") => promote_command(&arguments[1..]),
+        _ => Err("catalogue requires `check` or `promote`".to_owned()),
     }
 }
 
@@ -107,6 +126,30 @@ fn check_command(arguments: &[String]) -> Result<(), String> {
         ));
     }
     reject_output_inside_package(&output, &package_paths)?;
+    let assessment = assess_packages(&package_paths)?;
+    let review = review_request(&assessment.catalogue, &assessment.inspections);
+    write_outputs(
+        &output,
+        &assessment.catalogue_bytes,
+        assessment.catalogue.digest(),
+        &assessment.inspections,
+        &review,
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "status": "candidate-inspection-only",
+            "promotable": false,
+            "packages": assessment.packages.iter().map(|package| &package.shard.id).collect::<Vec<_>>(),
+            "catalogue_digest": assessment.catalogue.digest(),
+            "output": output,
+        }))
+        .map_err(|error| error.to_string())?
+    );
+    Ok(())
+}
+
+fn assess_packages(package_paths: &[PathBuf]) -> Result<CandidateAssessment, String> {
     let mut packages = package_paths
         .iter()
         .map(|path| load_package(path))
@@ -118,21 +161,61 @@ fn check_command(arguments: &[String]) -> Result<(), String> {
     let catalogue = ValidatedCatalogueBundle::from_json(&catalogue_bytes)
         .map_err(|error| format!("CHEMS-A020 candidate catalogue is invalid: {error}"))?;
     let inspections = inspect_examples(&packages, &catalogue)?;
-    let review = review_request(&catalogue, &inspections);
-    write_outputs(
-        &output,
-        &catalogue_bytes,
-        catalogue.digest(),
-        &inspections,
-        &review,
+    Ok(CandidateAssessment {
+        packages,
+        catalogue_bytes,
+        catalogue,
+        inspections,
+    })
+}
+
+fn promote_command(arguments: &[String]) -> Result<(), String> {
+    let (output, attestation_path, package_paths) = promote_arguments(arguments)?;
+    if output.exists() {
+        return Err(format!(
+            "CHEMS-A003 output directory `{}` must not already exist",
+            output.display()
+        ));
+    }
+    reject_output_inside_package(&output, &package_paths)?;
+    let assessment = assess_packages(&package_paths)?;
+    let attestation_bytes =
+        fs::read(&attestation_path).map_err(|error| io_error(&attestation_path, &error))?;
+    let attestation: CatalogueReviewAttestation = serde_json::from_slice(&attestation_bytes)
+        .map_err(|error| format!("CHEMS-A040 invalid AI attestation: {error}"))?;
+    assessment
+        .catalogue
+        .validate_attestation(&attestation)
+        .map_err(|error| format!("CHEMS-A041 AI attestation rejected: {error}"))?;
+    let review_digest = attestation
+        .canonical_digest()
+        .map_err(|error| format!("CHEMS-A042 cannot digest AI attestation: {error}"))?;
+    let manifest = PromotionManifest {
+        schema_version: 1,
+        status: "host-selected-ai-reviewed",
+        catalogue_digest: assessment.catalogue.digest(),
+        review_digest,
+        packages: assessment
+            .packages
+            .iter()
+            .map(|package| package.shard.id.clone())
+            .collect(),
+        trust_boundary: "Runtime trust begins only when both digests are compiled into TrustedCatalogue.",
+    };
+    fs::create_dir(&output).map_err(|error| io_error(&output, &error))?;
+    write_file(&output.join("catalogue.json"), &assessment.catalogue_bytes)?;
+    write_file(
+        &output.join("catalogue.digest"),
+        format!("{}\n", assessment.catalogue.digest()).as_bytes(),
     )?;
+    write_file(&output.join("review.json"), &pretty_json(&attestation)?)?;
+    write_file(&output.join("promotion.json"), &pretty_json(&manifest)?)?;
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "status": "candidate-inspection-only",
-            "promotable": false,
-            "packages": packages.iter().map(|package| &package.shard.id).collect::<Vec<_>>(),
-            "catalogue_digest": catalogue.digest(),
+            "status": manifest.status,
+            "catalogue_digest": manifest.catalogue_digest,
+            "review_digest": manifest.review_digest,
             "output": output,
         }))
         .map_err(|error| error.to_string())?
@@ -185,6 +268,44 @@ fn check_arguments(arguments: &[String]) -> Result<(PathBuf, Vec<PathBuf>), Stri
         return Err("CHEMS-A001 catalogue check requires a candidate package".to_owned());
     }
     Ok((output, packages))
+}
+
+fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, PathBuf, Vec<PathBuf>), String> {
+    let mut output = None;
+    let mut attestation = None;
+    let mut packages = Vec::new();
+    let mut index = 0;
+    while index < arguments.len() {
+        match arguments[index].as_str() {
+            "--out" | "--attestation" => {
+                let option = arguments[index].as_str();
+                index += 1;
+                let path = arguments
+                    .get(index)
+                    .ok_or_else(|| format!("CHEMS-A001 `{option}` requires a path"))?;
+                let slot = if option == "--out" {
+                    &mut output
+                } else {
+                    &mut attestation
+                };
+                if slot.replace(PathBuf::from(path)).is_some() {
+                    return Err(format!("CHEMS-A001 `{option}` may be specified only once"));
+                }
+            }
+            option if option.starts_with('-') => {
+                return Err(format!("CHEMS-A001 unknown option `{option}`"));
+            }
+            path => packages.push(PathBuf::from(path)),
+        }
+        index += 1;
+    }
+    let output = output.ok_or("CHEMS-A001 catalogue promote requires `--out <directory>`")?;
+    let attestation =
+        attestation.ok_or("CHEMS-A001 catalogue promote requires `--attestation <review.json>`")?;
+    if packages.is_empty() {
+        return Err("CHEMS-A001 catalogue promote requires a candidate package".to_owned());
+    }
+    Ok((output, attestation, packages))
 }
 
 fn load_package(root: &Path) -> Result<LoadedPackage, String> {
@@ -290,9 +411,7 @@ fn merge_packages(packages: &[LoadedPackage]) -> Result<CatalogueEnvelope, Strin
         created: CreationMetadata {
             created_on: "2026-07-14".to_owned(),
             created_by: "ChemSpec catalogue authoring compiler".to_owned(),
-            notes: Some(
-                "Untrusted generated candidate pending external chemistry review".to_owned(),
-            ),
+            notes: Some("Untrusted generated candidate pending host-selected AI review".to_owned()),
         },
         evidence: Vec::new(),
         premises: Vec::new(),
@@ -614,7 +733,7 @@ fn review_request<'a>(
 ) -> ReviewRequest<'a> {
     ReviewRequest {
         schema_version: 1,
-        status: "pending-chemist-review",
+        status: "pending-ai-review",
         promotable: false,
         catalogue_digest: catalogue.digest(),
         evidence_sources: catalogue
@@ -643,7 +762,7 @@ fn review_request<'a>(
             })
             .collect(),
         required_external_artifact: "chem-catalogue-review-1 attestation",
-        promotion_boundary: "Only an exact externally supplied human attestation accepted by the host-pinned TrustedCatalogue API can promote this digest.",
+        promotion_boundary: "Only an exact host-selected AI attestation accepted by the host-pinned TrustedCatalogue API can promote this digest.",
     }
 }
 

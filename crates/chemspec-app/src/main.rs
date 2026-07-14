@@ -29,11 +29,6 @@ use iced::{Center, Element, Fill, FillPortion, Font, Length, Size, Subscription,
 
 use theme::{breakpoint, color, space as spacing, type_scale};
 
-const CANONICAL_SOURCE: &str = chemistry::SOURCE;
-const CANONICAL_REQUEST: &str = chemistry::REQUEST;
-const CANONICAL_EQUATION: &str = chemistry::EQUATION;
-const SIMULATION_DISCLOSURE: &str = chemistry::DISCLOSURE;
-
 fn main() -> iced::Result {
     iced::application(App::default, App::update, App::view)
         .title("ChemSpec — reaction builder")
@@ -142,6 +137,7 @@ struct App {
     periodic_table: periodic_table::State,
     reactant_composer: reactant_composer::State,
     reaction_workspace: reaction_workspace::State,
+    active_experience: chemistry::Experience,
     request: String,
     source: text_editor::Content,
     validated_frames: Option<chem_kernel::SimulationFrames>,
@@ -154,7 +150,8 @@ struct App {
 
 impl Default for App {
     fn default() -> Self {
-        let (validated_frames, validation_error) = match chemistry::canonical_run() {
+        let active_experience = chemistry::Experience::DEFAULT;
+        let (validated_frames, validation_error) = match chemistry::run(active_experience) {
             Ok(run) => (Some(run.frames().clone()), None),
             Err(error) => (None, Some(error.to_owned())),
         };
@@ -166,8 +163,9 @@ impl Default for App {
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
             reaction_workspace: reaction_workspace::State::default(),
-            request: CANONICAL_REQUEST.to_owned(),
-            source: text_editor::Content::with_text(CANONICAL_SOURCE),
+            active_experience,
+            request: active_experience.request().to_owned(),
+            source: text_editor::Content::with_text(active_experience.source()),
             validated_frames,
             validation_error,
             source_stale: false,
@@ -206,18 +204,7 @@ impl App {
                 }
             }
             Message::ReactantComposer(message) => {
-                if matches!(message, reactant_composer::Message::StartReactionRequested)
-                    && reactant_composer::can_start_reaction(&self.reactant_composer)
-                {
-                    let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-                    reaction_workspace::load_reactants(&mut self.reaction_workspace, first, second);
-                    reaction_workspace::update(
-                        &mut self.reaction_workspace,
-                        reaction_workspace::Message::StartReaction,
-                    );
-                } else {
-                    reactant_composer::update(&mut self.reactant_composer, message);
-                }
+                self.update_reactant_composer(message);
             }
             Message::ReactionWorkspace(message) => {
                 reaction_workspace::update(&mut self.reaction_workspace, message);
@@ -278,8 +265,29 @@ impl App {
         }
     }
 
+    fn update_reactant_composer(&mut self, message: reactant_composer::Message) {
+        if !matches!(message, reactant_composer::Message::StartReactionRequested)
+            || !reactant_composer::can_start_reaction(&self.reactant_composer)
+        {
+            reactant_composer::update(&mut self.reactant_composer, message);
+            return;
+        }
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        let first = first.to_vec();
+        let second = second.to_vec();
+        let Some(experience) = chemistry::experience_for_drafts(&first, &second) else {
+            return;
+        };
+        self.select_experience(experience);
+        reaction_workspace::load_reactants(&mut self.reaction_workspace, &first, &second);
+        reaction_workspace::update(
+            &mut self.reaction_workspace,
+            reaction_workspace::Message::StartReaction,
+        );
+    }
+
     fn revalidate_source(&mut self) {
-        match chemistry::validate_source(&self.source.text()) {
+        match chemistry::validate_experience_source(self.active_experience, &self.source.text()) {
             Ok(frames) => {
                 self.validated_frames = Some(frames);
                 self.validation_error = None;
@@ -295,6 +303,25 @@ impl App {
                 self.structural_error = None;
             }
         }
+    }
+
+    fn select_experience(&mut self, experience: chemistry::Experience) {
+        self.active_experience = experience;
+        experience.request().clone_into(&mut self.request);
+        self.source = text_editor::Content::with_text(experience.source());
+        match chemistry::run(experience) {
+            Ok(run) => {
+                self.validated_frames = Some(run.frames().clone());
+                self.validation_error = None;
+            }
+            Err(error) => {
+                self.validated_frames = None;
+                self.validation_error = Some(error.to_owned());
+            }
+        }
+        self.source_stale = false;
+        self.structural_animation = None;
+        self.structural_error = None;
     }
 
     fn theme(_: &Self) -> Theme {
@@ -458,7 +485,7 @@ impl App {
                 .last()
                 .and_then(|frame| u16::try_from(frame.ordinal()).ok())
                 .ok_or_else(|| "trusted frames exceed the presentation range".to_owned())?;
-            let profile = chemistry::presentation_profile(last_ordinal);
+            let profile = chemistry::presentation_profile(self.active_experience, last_ordinal);
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
             Ok::<_, String>(StructuralAnimation {
@@ -587,7 +614,7 @@ impl App {
                         text("TRUSTED 2D EXPLANATION")
                             .size(type_scale::MICRO)
                             .color(color::ACCENT),
-                        text(CANONICAL_EQUATION)
+                        text(self.active_experience.equation())
                             .size(if compact {
                                 type_scale::BODY_LARGE
                             } else {
@@ -795,7 +822,7 @@ impl App {
         .height(Fill);
 
         let content = column![
-            Self::context_bar(false),
+            self.context_bar(false),
             self.request_panel(false),
             workspace,
             Self::status_bar(false),
@@ -808,7 +835,7 @@ impl App {
 
     fn tablet_view(&self) -> Element<'_, Message> {
         let content = column![
-            Self::context_bar(false),
+            self.context_bar(false),
             self.request_panel(false),
             self.simulation_panel(Length::Fixed(480.0)),
             self.inspector(false, Length::Fixed(590.0)),
@@ -821,7 +848,7 @@ impl App {
 
     fn mobile_view(&self) -> Element<'_, Message> {
         let content = column![
-            Self::context_bar(true),
+            self.context_bar(true),
             self.request_panel(true),
             self.simulation_panel(Length::Fixed(420.0)),
             self.inspector(true, Length::Fixed(650.0)),
@@ -864,7 +891,7 @@ impl App {
             .into()
     }
 
-    fn context_bar(compact: bool) -> Element<'static, Message> {
+    fn context_bar(&self, compact: bool) -> Element<'static, Message> {
         let brand = row![
             container(text("CS").size(type_scale::CAPTION).color(color::ACCENT))
                 .style(theme::accent_tint)
@@ -892,7 +919,7 @@ impl App {
                 .size(type_scale::MICRO)
                 .color(color::MUTED)
         } else {
-            text(CANONICAL_EQUATION)
+            text(self.active_experience.equation())
                 .size(type_scale::BODY)
                 .color(color::TEXT_SOFT)
         };
@@ -1066,7 +1093,7 @@ impl App {
             text("REACTION STAGE")
                 .size(type_scale::MICRO)
                 .color(color::ACCENT),
-            text(chemistry::NAME)
+            text(self.active_experience.name())
                 .size(type_scale::TITLE)
                 .color(color::TEXT),
             text("Final validated state · products assigned")
@@ -1144,7 +1171,7 @@ impl App {
                         .style(theme::primary_button),
                 ]
                 .spacing(spacing::MD),
-                text(SIMULATION_DISCLOSURE)
+                text(chemistry::DISCLOSURE)
                     .size(type_scale::CAPTION)
                     .color(color::MUTED),
             ]
@@ -1172,7 +1199,7 @@ impl App {
                 });
 
         let content = match self.section {
-            Section::Overview => Self::overview_panel(),
+            Section::Overview => self.overview_panel(),
             Section::Source => self.source_panel(),
             Section::Validation => self.validation_panel(),
             Section::Evidence => Self::sources_panel(),
@@ -1186,7 +1213,7 @@ impl App {
             .into()
     }
 
-    fn overview_panel() -> Element<'static, Message> {
+    fn overview_panel(&self) -> Element<'static, Message> {
         let workflow = Self::workflow_panel();
 
         let validation_summary = Self::summary_card(
@@ -1198,14 +1225,14 @@ impl App {
 
         let source_summary = Self::summary_card(
             "EXPERIMENT SOURCE",
-            "lithium-water.chems",
+            self.active_experience.source_name(),
             "Human-readable source · chems 1",
             Section::Source,
         );
 
         let evidence_summary = Self::summary_card(
             "EVIDENCE",
-            "2 linked sources",
+            "3 linked catalogue sources",
             "Claims remain separate from trusted catalogue facts.",
             Section::Evidence,
         );
@@ -1342,7 +1369,7 @@ impl App {
             column![
                 Self::panel_heading(
                     "EXPERIMENT SOURCE",
-                    chemistry::SOURCE_NAME,
+                    self.active_experience.source_name(),
                     "Parsed source · trusted only after expansion and kernel validation",
                 ),
                 source,
@@ -1492,13 +1519,19 @@ impl App {
                         "01",
                         "OpenStax Chemistry 2e",
                         "REFERENCE",
-                        "Supports the structural and representative lithium-water premises.",
+                        "Supports the structural and representative alkali-metal-with-water premises.",
                     ),
                     source_card(
                         "02",
                         "IUPAC Gold Book",
                         "REFERENCE",
                         "Supports ionic, metallic, and bonding terminology used by the model.",
+                    ),
+                    source_card(
+                        "03",
+                        "IUPAC Periodic Table of the Elements",
+                        "REFERENCE",
+                        "Supports the 118 element symbols, names, atomic numbers, and table identities.",
                     ),
                     container(
                         text(
@@ -1616,6 +1649,22 @@ mod tests {
         for section in Section::ALL {
             app.update(Message::SectionSelected(section));
             assert_eq!(app.section, section);
+        }
+    }
+
+    #[test]
+    fn selecting_an_experience_updates_source_request_and_trusted_frames_together() {
+        let mut app = App::default();
+        for experience in [
+            chemistry::Experience::Sodium,
+            chemistry::Experience::Potassium,
+        ] {
+            app.select_experience(experience);
+            assert_eq!(app.active_experience, experience);
+            assert_eq!(app.request, experience.request());
+            assert_eq!(app.source.text(), experience.source());
+            assert!(app.validated_frames.is_some());
+            assert!(app.validation_error.is_none());
         }
     }
 
