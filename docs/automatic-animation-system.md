@@ -79,6 +79,13 @@ label. It must not:
 - contain reaction-specific caption branches; or
 - substitute stale or unvalidated source text for the planner output.
 
+Within one learning beat, context and explanation have deliberately different
+jobs. Context is a concise description of the concrete trusted operation or
+observation (for example, the participating element symbols and bond order),
+while the explanation states its chemical meaning. Their normalized copy must
+not be identical; if the planner cannot produce distinct useful context, it
+omits that cue instead of repeating the explanation.
+
 This separation makes narration modular without moving authority into prose.
 A new supported reaction reuses operation and observation templates, while its
 validated atom state, bond orders, electron counts, products, and observations

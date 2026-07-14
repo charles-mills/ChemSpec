@@ -168,6 +168,8 @@ Educational narration tests cover the complete trust path. They prove that:
 - every structural operation receives one merged learning beat containing its
   typed operation, context, and explanation, with stable targets, sufficient
   adaptive reading time, and no decorative arrowheads; and
+- context concisely identifies the trusted operation or observation and never
+  repeats the normalized explanation copy shown under `WHAT CHANGED`; and
 - the Canvas receives completed typed labels and never derives terminology,
   humanizes `species.*` or atom IDs, or selects reaction-specific copy.
 

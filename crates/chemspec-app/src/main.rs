@@ -2165,6 +2165,54 @@ mod tests {
     }
 
     #[test]
+    fn educational_context_does_not_repeat_what_changed_copy() {
+        for experience in chemistry::Experience::ALL {
+            let frames = chemistry::run(experience)
+                .expect("pinned experience validates")
+                .frames();
+            let plan = compile_educational_plan(frames).expect("educational plan compiles");
+            let mut compared = 0;
+
+            for scene in &plan.scenes {
+                let context = scene.cues.iter().find_map(|cue| match cue {
+                    chem_presentation::EducationalCue::ShowContext { label } => {
+                        Some(label.text.as_str())
+                    }
+                    _ => None,
+                });
+                let explanation = scene.cues.iter().find_map(|cue| match cue {
+                    chem_presentation::EducationalCue::ShowExplanation { label } => {
+                        Some(label.text.as_str())
+                    }
+                    _ => None,
+                });
+
+                if let (Some(context), Some(explanation)) = (context, explanation) {
+                    compared += 1;
+                    assert_ne!(
+                        normalize_copy(context),
+                        normalize_copy(explanation),
+                        "{} emitted duplicate context and explanation copy",
+                        experience.name()
+                    );
+                }
+            }
+            assert!(
+                compared > 0,
+                "{} emitted no narrated scenes",
+                experience.name()
+            );
+        }
+    }
+
+    fn normalize_copy(copy: &str) -> String {
+        copy.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    }
+
+    #[test]
     fn educational_scrubbing_pauses_and_synchronizes_the_trusted_frame() {
         let mut app = App::default();
         app.update(Message::OpenStructural2d);
