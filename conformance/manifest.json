@@ -130,7 +130,10 @@
       "source": "conformance/expansion/canonical-expansion-001.chems",
       "expected": {
         "state": "incomplete",
-        "hir": "conformance/expansion/canonical-expansion-001.hir.json"
+        "hir": "conformance/expansion/canonical-expansion-001.hir.json",
+        "expanded": "conformance/expansion/canonical-expansion-001.expanded.json",
+        "provenance": "conformance/expansion/canonical-expansion-001.provenance.txt",
+        "certificate": "conformance/expansion/canonical-expansion-001.certificate.txt"
       }
     },
     {

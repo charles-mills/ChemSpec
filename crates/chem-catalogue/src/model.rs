@@ -316,6 +316,7 @@ pub enum RequestRelation {
 pub struct MappingPairRecord {
     pub reactant: String,
     pub product: String,
+    pub premise_ids: BTreeSet<PremiseId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -323,6 +324,7 @@ pub struct MappingPairRecord {
 pub struct ModelAssumptionsRecord {
     pub event: EventModel,
     pub sequence: SequenceModel,
+    pub premise_ids: BTreeSet<PremiseId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -385,18 +387,21 @@ pub struct MetallicElectronStateRecord {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperationTemplateRecord {
     CleaveCovalent {
+        premise_ids: BTreeSet<PremiseId>,
         edge: (String, String, BondOrderRecord),
         allocation: CleavageAllocationRecord,
         before: BinaryElectronStateRecord,
         after: BinaryElectronStateRecord,
     },
     FormCovalent {
+        premise_ids: BTreeSet<PremiseId>,
         edge: (String, String, BondOrderRecord),
         electron_contribution: ElectronContributionRecord,
         before: BinaryElectronStateRecord,
         after: BinaryElectronStateRecord,
     },
     ChangeCovalent {
+        premise_ids: BTreeSet<PremiseId>,
         edge: (String, String),
         old_order: BondOrderRecord,
         new_order: BondOrderRecord,
@@ -405,14 +410,17 @@ pub enum OperationTemplateRecord {
         after: BinaryElectronStateRecord,
     },
     AssociateIonic {
+        premise_ids: BTreeSet<PremiseId>,
         label: String,
         components: Vec<Vec<String>>,
         component_charges: Vec<i16>,
     },
     DissociateIonic {
+        premise_ids: BTreeSet<PremiseId>,
         association: String,
     },
     ReleaseMetallic {
+        premise_ids: BTreeSet<PremiseId>,
         site: String,
         domain: String,
         allocation: MetallicReleaseAllocationRecord,
@@ -420,6 +428,7 @@ pub enum OperationTemplateRecord {
         after: MetallicElectronStateRecord,
     },
     JoinMetallic {
+        premise_ids: BTreeSet<PremiseId>,
         site: String,
         domain: String,
         allocation: MetallicJoinAllocationRecord,
@@ -427,6 +436,7 @@ pub enum OperationTemplateRecord {
         after: MetallicElectronStateRecord,
     },
     TransferElectron {
+        premise_ids: BTreeSet<PremiseId>,
         count: u8,
         donor: String,
         acceptor: String,
@@ -434,9 +444,27 @@ pub enum OperationTemplateRecord {
         after: TransferElectronStateRecord,
     },
     AssignProduct {
+        premise_ids: BTreeSet<PremiseId>,
         atoms: Vec<String>,
         product: String,
     },
+}
+
+impl OperationTemplateRecord {
+    #[must_use]
+    pub const fn premise_ids(&self) -> &BTreeSet<PremiseId> {
+        match self {
+            Self::CleaveCovalent { premise_ids, .. }
+            | Self::FormCovalent { premise_ids, .. }
+            | Self::ChangeCovalent { premise_ids, .. }
+            | Self::AssociateIonic { premise_ids, .. }
+            | Self::DissociateIonic { premise_ids, .. }
+            | Self::ReleaseMetallic { premise_ids, .. }
+            | Self::JoinMetallic { premise_ids, .. }
+            | Self::TransferElectron { premise_ids, .. }
+            | Self::AssignProduct { premise_ids, .. } => premise_ids,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -122,6 +122,7 @@ dependencies = [
  "chem-domain",
  "chems-conformance",
  "chems-lang",
+ "jsonschema",
  "num-bigint",
  "serde",
  "serde_json",

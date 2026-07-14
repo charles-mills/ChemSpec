@@ -59,16 +59,18 @@ Slice 0 establishes:
 - `structural-domain/electron-model-001.*` — formal-charge and electron ledger;
 - `catalogue/lithium-rule-001.*` — digest-bound provisional structural
   catalogue, closed reaction rule, and exact chemist-review request;
-- `expansion/canonical-expansion-001.*` — complete atom map and operation
-  certificate prepared for chemistry review;
+- `expansion/canonical-expansion-001.*` — executable review-candidate source,
+  complete independent HIR oracle, and exact unexecuted text certificate;
 - `observations/lithium-observations-001.input.json` — typed evidence packet;
   and
 - `end-to-end/lithium-outcome-001.*` — honest incomplete vertical artifact.
 
-The catalogue, evidence packet, and expanded certificate explicitly remain
-`pending-chemist-review`. The trusted runtime catalogue type additionally
-requires a host-pinned digest and exact external attestation; implementation
-must not manufacture or infer that human sign-off.
+The catalogue explicitly remains `pending-chemist-review`; the external
+evidence packet is always labelled untrusted runtime research and cannot claim
+host review. Expansion is executable only through the visibly untrusted
+review-candidate path until catalogue review lands. The trusted runtime
+catalogue type additionally requires a host-pinned digest and exact external
+attestation; implementation must not manufacture or infer that human sign-off.
 
 ## Slice progression
 

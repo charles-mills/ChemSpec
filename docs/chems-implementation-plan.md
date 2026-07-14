@@ -267,8 +267,9 @@ Slice 3 reviewed clean.
 - Validate rule applicability against resolved reaction identities.
 - Deterministically expand coefficients to stable labelled instances.
 - Instantiate the reviewed atom-map and structural-operation templates.
-- Produce typed structural HIR and a human-readable expanded certificate with
-  exact source origins and premise dependencies.
+- Produce typed structural HIR, a declaration-order-invariant semantic
+  certificate with exact premise dependencies, and a separate physical
+  provenance report with filenames and byte spans.
 - Distinguish invalid source, unsupported chemistry, and corrupt trusted data.
 
 ### Acceptance
@@ -278,7 +279,8 @@ Slice 3 reviewed clean.
   products agree exactly.
 - Every expanded atom, operation, model assumption, observation, and premise is
   traceable to source or catalogue provenance.
-- The canonical source expands to an independently authored certificate oracle.
+- The canonical source expands to exact independently checked semantic JSON,
+  certificate, and physical-provenance oracles.
 
 ### Explicitly excluded
 

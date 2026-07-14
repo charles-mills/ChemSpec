@@ -7,7 +7,7 @@ changes to the catalogue and does not expand the closed chemistry domain.
 
 - Catalogue: `conformance/catalogue/lithium-rule-001.catalogue.json`
 - Canonical catalogue digest:
-  `9f3493e5377c9559e5fc31ef46ad2fe3b3bf49e9520eee707f4e21a084f05dad`
+  `cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f`
 - Review request: `conformance/catalogue/lithium-rule-001.review.json`
 - Attestation schema: `schemas/chem-catalogue-review-1.schema.json`
 
@@ -42,7 +42,7 @@ attestation matching the schema and this shape:
 {
   "schema_version": 1,
   "id": "review.lithium-rule-001",
-  "catalogue_digest": "9f3493e5377c9559e5fc31ef46ad2fe3b3bf49e9520eee707f4e21a084f05dad",
+  "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
   "reviewer": "REVIEWER NAME",
   "reviewed_on": "YYYY-MM-DD",
   "scope": "Exact closed lithium-water structural catalogue and rule",
@@ -69,5 +69,6 @@ attestation matching the schema and this shape:
 The application pins the canonical semantic digest of this attestation, so
 whitespace and ordering of `sources` or `premises` do not affect review
 identity. Until the completed attestation is independently supplied and its
-digest is pinned in code, `TrustedCatalogue` construction remains impossible
-and Slice 4 must not begin.
+digest is pinned in code, `TrustedCatalogue` construction remains impossible.
+Later slices may be implemented and tested through the explicitly untrusted
+review-candidate path, but no result may be represented as production-trusted.

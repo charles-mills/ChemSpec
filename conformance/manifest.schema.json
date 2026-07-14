@@ -80,7 +80,10 @@
               "catalogue_review": { "type": "string" },
               "ast": { "type": "string" },
               "hir": { "type": "string" },
+              "expanded": { "type": "string" },
               "derivation": { "type": "string" },
+              "provenance": { "type": "string" },
+              "certificate": { "type": "string" },
               "artifact": { "type": "string" }
             }
           }

@@ -64,6 +64,21 @@ fn canonical_fixture_matches_schema_digest_and_closed_domain() {
     assert!(!validator.is_valid(&oversized_charge));
     assert!(serde_json::from_value::<CatalogueEnvelope>(oversized_charge).is_err());
 
+    let mut indexed_static_label = fixture.clone();
+    indexed_static_label["bundle"]["structures"][0]["sites"][0]["label"] = Value::from("li[1]");
+    indexed_static_label["bundle"]["structures"][0]["domains"][0]["sites"][0] =
+        Value::from("li[1]");
+    assert!(!validator.is_valid(&indexed_static_label));
+    let mut indexed_envelope: CatalogueEnvelope =
+        serde_json::from_value(indexed_static_label).unwrap();
+    indexed_envelope.digest = indexed_envelope.computed_digest().unwrap();
+    assert_eq!(
+        ValidatedCatalogueBundle::validate(indexed_envelope)
+            .unwrap_err()
+            .code(),
+        CatalogueErrorCode::InvalidStructure
+    );
+
     let envelope = envelope();
     assert_eq!(
         envelope.computed_digest().unwrap(),
@@ -209,6 +224,32 @@ fn every_rule_premise_and_observation_premise_resolves() {
         catalogue
             .valence_premise(&PremiseId::from_str("premise.valence.li-h-o.initial-domain").unwrap())
             .is_some()
+    );
+}
+
+#[test]
+fn derived_template_dependencies_must_be_nonempty_resolved_and_rule_bound() {
+    let base: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    for mutation in [
+        serde_json::json!([]),
+        serde_json::json!(["premise.unknown"]),
+        serde_json::json!(["premise.observation.hydrogen-evolves"]),
+    ] {
+        let mut value = base.clone();
+        value["bundle"]["rules"][0]["mapping_template"][0]["premise_ids"] = mutation;
+        assert!(ValidatedCatalogueBundle::from_json(&serde_json::to_vec(&value).unwrap()).is_err());
+    }
+
+    let document = ValidatedCatalogueBundle::from_json(&fixture_bytes()).unwrap();
+    let rule_id = "Rules.AlkaliMetalWithWater".parse().unwrap();
+    let rule = document.require_rule(&rule_id).unwrap().record();
+    assert_eq!(
+        rule.model_assumptions.premise_ids,
+        ["premise.rule.lithium-water.standard-outcome"
+            .parse()
+            .unwrap()]
+        .into_iter()
+        .collect()
     );
 }
 
@@ -413,6 +454,7 @@ fn every_closed_operation_variant_has_a_negative_validation_case() {
             7,
             serde_json::json!({
                 "kind": "change_covalent",
+                "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
                 "edge": ["water[1].o", "water[1].h1"],
                 "old_order": "single",
                 "new_order": "single",
@@ -436,6 +478,7 @@ fn every_closed_operation_variant_has_a_negative_validation_case() {
             7,
             serde_json::json!({
                 "kind": "dissociate_ionic",
+                "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide"],
                 "association": "water[1].missing"
             }),
         );
@@ -449,6 +492,7 @@ fn every_closed_operation_variant_has_a_negative_validation_case() {
             7,
             serde_json::json!({
                 "kind": "join_metallic",
+                "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-metal", "premise.valence.li-h-o.initial-domain"],
                 "site": "metal[1].li",
                 "domain": "metal[1].missing",
                 "allocation": "donate_electron",
@@ -480,6 +524,7 @@ fn dative_style_formation_and_inexact_metallic_radicals_are_rejected() {
     let mut dative: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
     dative["bundle"]["rules"][0]["operation_template"][6] = serde_json::json!({
         "kind": "form_covalent",
+        "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.hydrogen", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
         "edge": ["water[1].o", "water[1].h1", "single"],
         "electron_contribution": {"left": 2, "right": 0},
         "before": {"left": [-1,6,0], "right": [1,0,0]},
@@ -526,6 +571,7 @@ fn dative_style_formation_and_inexact_metallic_radicals_are_rejected() {
             7,
             serde_json::json!({
                 "kind": "join_metallic",
+                "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-metal", "premise.valence.li-h-o.initial-domain"],
                 "site": "metal[1].li",
                 "domain": "metal[1].metallic",
                 "allocation": "donate_electron",

@@ -28,7 +28,7 @@ pub use model::*;
 /// can validate newly generated JSON, but cannot promote its digest into the
 /// trusted catalogue type.
 pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
-    "9f3493e5377c9559e5fc31ef46ad2fe3b3bf49e9520eee707f4e21a084f05dad";
+    "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f";
 
 /// Host-controlled digest of the exact external review attestation.
 ///
@@ -1009,6 +1009,7 @@ fn validate_rules(
         for premise in &record.premise_ids {
             require_premise(premise, premises)?;
         }
+        validate_rule_dependency_sets(record, premises)?;
         if !record
             .premise_ids
             .iter()
@@ -1083,6 +1084,52 @@ fn validate_rules(
         );
     }
     Ok(rules)
+}
+
+fn validate_rule_dependency_sets(
+    rule: &ReactionRuleRecord,
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<(), CatalogueError> {
+    for (label, dependencies) in rule
+        .mapping_template
+        .iter()
+        .enumerate()
+        .map(|(index, mapping)| {
+            (
+                format!("mapping template {}", index + 1),
+                &mapping.premise_ids,
+            )
+        })
+        .chain(
+            rule.operation_template
+                .iter()
+                .enumerate()
+                .map(|(index, operation)| {
+                    (
+                        format!("operation template {}", index + 1),
+                        operation.premise_ids(),
+                    )
+                }),
+        )
+        .chain([(
+            "model assumptions".to_owned(),
+            &rule.model_assumptions.premise_ids,
+        )])
+    {
+        if dependencies.is_empty() {
+            return rule_error(&rule.id, format!("{label} has no exact premise dependency"));
+        }
+        for premise in dependencies {
+            require_premise(premise, premises)?;
+            if !rule.premise_ids.contains(premise) {
+                return rule_error(
+                    &rule.id,
+                    format!("{label} dependency `{premise}` is not rule-bound"),
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn expand_pattern(
@@ -1228,6 +1275,7 @@ fn validate_operations(
                 allocation,
                 before,
                 after,
+                ..
             } => {
                 require_distinct_atoms(rule, reactants, &edge.0, &edge.1)?;
                 validate_binary_states(before, after)?;
@@ -1258,6 +1306,7 @@ fn validate_operations(
                 electron_contribution,
                 before,
                 after,
+                ..
             } => {
                 require_distinct_atoms(rule, reactants, &edge.0, &edge.1)?;
                 validate_binary_states(before, after)?;
@@ -1298,6 +1347,7 @@ fn validate_operations(
                 allocation,
                 before,
                 after,
+                ..
             } => {
                 require_distinct_atoms(rule, reactants, &edge.0, &edge.1)?;
                 validate_binary_states(before, after)?;
@@ -1331,6 +1381,7 @@ fn validate_operations(
                 label,
                 components,
                 component_charges,
+                ..
             } => {
                 validate_label(label, CatalogueErrorCode::InvalidOperationTemplate)?;
                 if components.len() < 2
@@ -1418,7 +1469,7 @@ fn validate_operations(
                     }
                 }
             }
-            OperationTemplateRecord::DissociateIonic { association } => {
+            OperationTemplateRecord::DissociateIonic { association, .. } => {
                 require_relationship_ref(rule, association, "association", structures)?;
             }
             OperationTemplateRecord::ReleaseMetallic {
@@ -1482,6 +1533,7 @@ fn validate_operations(
                 acceptor,
                 before,
                 after,
+                ..
             } => {
                 require_distinct_atoms(rule, reactants, donor, acceptor)?;
                 if *count == 0 {
@@ -1504,7 +1556,7 @@ fn validate_operations(
                     return operation_error(&rule.id, "electron transfer ledger is inconsistent");
                 }
             }
-            OperationTemplateRecord::AssignProduct { atoms, product } => {
+            OperationTemplateRecord::AssignProduct { atoms, product, .. } => {
                 if atoms.is_empty()
                     || !product_instances.contains(product)
                     || !assigned_products.insert(product.as_str())
@@ -2160,6 +2212,7 @@ fn validate_label(value: &str, code: CatalogueErrorCode) -> Result<(), Catalogue
 fn parse_id<K: chem_domain::IdKind>(
     value: &str,
 ) -> Result<chem_domain::DeclaredId<K>, CatalogueError> {
+    validate_label(value, CatalogueErrorCode::InvalidStructure)?;
     chem_domain::DeclaredId::<K>::from_str(value).map_err(|error| {
         CatalogueError::new(CatalogueErrorCode::InvalidStructure, error.to_string())
     })

@@ -95,7 +95,13 @@ pub struct ExpectedResult {
     #[serde(default)]
     pub hir: Option<String>,
     #[serde(default)]
+    pub expanded: Option<String>,
+    #[serde(default)]
     pub derivation: Option<String>,
+    #[serde(default)]
+    pub provenance: Option<String>,
+    #[serde(default)]
+    pub certificate: Option<String>,
     #[serde(default)]
     pub artifact: Option<String>,
 }
@@ -652,7 +658,10 @@ fn case_fixture_paths(case: &Case) -> Vec<&str> {
         .chain(case.expected.catalogue_review.iter())
         .chain(case.expected.ast.iter())
         .chain(case.expected.hir.iter())
+        .chain(case.expected.expanded.iter())
         .chain(case.expected.derivation.iter())
+        .chain(case.expected.provenance.iter())
+        .chain(case.expected.certificate.iter())
         .chain(case.expected.artifact.iter())
         .map(String::as_str)
         .collect::<Vec<_>>();
@@ -1073,7 +1082,10 @@ mod tests {
                 catalogue_review: None,
                 ast: None,
                 hir: None,
+                expanded: None,
                 derivation: None,
+                provenance: None,
+                certificate: None,
                 artifact: None,
             },
         };

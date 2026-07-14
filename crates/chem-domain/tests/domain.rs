@@ -1,11 +1,11 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_domain::{
-    CanonicalJsonError, Charge, ChargeSign, ContentDigest, Count, Dimension, Element, ElementId,
-    ElementSymbol, ExperimentId, FactId, FormulaError, FormulaPart, FormulaSegment, FormulaSyntax,
-    Phase, Quantity, ResolvedUnit, SourceDecimal, StaticElementRegistry, SubstanceId,
-    TemperaturePoint, TemperaturePointError, TemperatureScale, UnitError, UnitExpression,
-    UnitPower, UnitProduct, UnitSymbol, canonical_json, resolve_unit_expression,
+    AtomId, CanonicalJsonError, Charge, ChargeSign, ContentDigest, Count, Dimension, Element,
+    ElementId, ElementSymbol, ExperimentId, FactId, FormulaError, FormulaPart, FormulaSegment,
+    FormulaSyntax, Phase, Quantity, ResolvedUnit, SourceDecimal, StaticElementRegistry,
+    SubstanceId, TemperaturePoint, TemperaturePointError, TemperatureScale, UnitError,
+    UnitExpression, UnitPower, UnitProduct, UnitSymbol, canonical_json, resolve_unit_expression,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::Deserialize;
@@ -415,6 +415,19 @@ fn canonical_serialization_and_typed_ids_are_stable() {
     assert_eq!(experiment.to_string(), digest.to_string());
     assert_eq!(experiment.digest(), digest);
     assert!(FactId::new("nist.water-density").is_ok());
+    assert!(AtomId::new("water[1].o").is_ok());
+    assert!(FactId::new("water[1].o").is_err());
+    for invalid in [
+        "water[]",
+        "water[0]",
+        "water[01]",
+        "water[1",
+        "water[1]o",
+        "[1]",
+        "water.[1]",
+    ] {
+        assert!(AtomId::new(invalid).is_err(), "accepted `{invalid}`");
+    }
     assert!(SubstanceId::new("pubchem:962").is_ok());
     assert!(FactId::new("contains spaces").is_err());
 }

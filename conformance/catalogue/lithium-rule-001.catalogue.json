@@ -1,8 +1,8 @@
 {
-  "digest": "9f3493e5377c9559e5fc31ef46ad2fe3b3bf49e9520eee707f4e21a084f05dad",
+  "digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
   "bundle": {
     "schema_version": 1,
-    "name": "ChemSpec.Structural",
+    "name": "ChemSpec.Theoretical",
     "version": "1",
     "publication": "working",
     "created": {
@@ -210,18 +210,19 @@
           "required_context": "representative educational outcome under the reviewed standard-outcome premise"
         },
         "mapping_template": [
-          {"reactant": "metal[1].li", "product": "hydroxide[1].lithium.li"},
-          {"reactant": "metal[2].li", "product": "hydroxide[2].lithium.li"},
-          {"reactant": "water[1].o", "product": "hydroxide[1].hydroxide.o"},
-          {"reactant": "water[1].h2", "product": "hydroxide[1].hydroxide.h"},
-          {"reactant": "water[2].o", "product": "hydroxide[2].hydroxide.o"},
-          {"reactant": "water[2].h2", "product": "hydroxide[2].hydroxide.h"},
-          {"reactant": "water[1].h1", "product": "gasProduct[1].h1"},
-          {"reactant": "water[2].h1", "product": "gasProduct[1].h2"}
+          {"reactant": "metal[1].li", "product": "hydroxide[1].lithium.li", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.lithium-metal"]},
+          {"reactant": "metal[2].li", "product": "hydroxide[2].lithium.li", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.lithium-metal"]},
+          {"reactant": "water[1].o", "product": "hydroxide[1].hydroxide.o", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.water"]},
+          {"reactant": "water[1].h2", "product": "hydroxide[1].hydroxide.h", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.water"]},
+          {"reactant": "water[2].o", "product": "hydroxide[2].hydroxide.o", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.water"]},
+          {"reactant": "water[2].h2", "product": "hydroxide[2].hydroxide.h", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.water"]},
+          {"reactant": "water[1].h1", "product": "gasProduct[1].h1", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.hydrogen", "premise.structure.water"]},
+          {"reactant": "water[2].h1", "product": "gasProduct[1].h2", "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.hydrogen", "premise.structure.water"]}
         ],
         "operation_template": [
           {
             "kind": "release_metallic",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-metal", "premise.valence.li-h-o.initial-domain"],
             "site": "metal[1].li",
             "domain": "metal[1].metallic",
             "allocation": "retain_electron",
@@ -230,6 +231,7 @@
           },
           {
             "kind": "release_metallic",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-metal", "premise.valence.li-h-o.initial-domain"],
             "site": "metal[2].li",
             "domain": "metal[2].metallic",
             "allocation": "retain_electron",
@@ -238,6 +240,7 @@
           },
           {
             "kind": "cleave_covalent",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
             "edge": ["water[1].o", "water[1].h1", "single"],
             "allocation": {"heterolytic_to": "water[1].o"},
             "before": {"left": [0, 4, 0], "right": [0, 0, 0]},
@@ -245,6 +248,7 @@
           },
           {
             "kind": "cleave_covalent",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
             "edge": ["water[2].o", "water[2].h1", "single"],
             "allocation": {"heterolytic_to": "water[2].o"},
             "before": {"left": [0, 4, 0], "right": [0, 0, 0]},
@@ -252,6 +256,7 @@
           },
           {
             "kind": "transfer_electron",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-metal", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
             "count": 1,
             "donor": "metal[1].li",
             "acceptor": "water[1].h1",
@@ -260,6 +265,7 @@
           },
           {
             "kind": "transfer_electron",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-metal", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
             "count": 1,
             "donor": "metal[2].li",
             "acceptor": "water[2].h1",
@@ -268,6 +274,7 @@
           },
           {
             "kind": "form_covalent",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.hydrogen", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
             "edge": ["water[1].h1", "water[2].h1", "single"],
             "electron_contribution": {"left": 1, "right": 1},
             "before": {"left": [0, 1, 1], "right": [0, 1, 1]},
@@ -275,33 +282,38 @@
           },
           {
             "kind": "associate_ionic",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.lithium-metal", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
             "label": "ionic.product1",
             "components": [["metal[1].li"], ["water[1].o", "water[1].h2"]],
             "component_charges": [1, -1]
           },
           {
             "kind": "associate_ionic",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide", "premise.structure.lithium-metal", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
             "label": "ionic.product2",
             "components": [["metal[2].li"], ["water[2].o", "water[2].h2"]],
             "component_charges": [1, -1]
           },
           {
             "kind": "assign_product",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide"],
             "atoms": ["metal[1].li", "water[1].o", "water[1].h2"],
             "product": "hydroxide[1]"
           },
           {
             "kind": "assign_product",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.lithium-hydroxide"],
             "atoms": ["metal[2].li", "water[2].o", "water[2].h2"],
             "product": "hydroxide[2]"
           },
           {
             "kind": "assign_product",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.hydrogen"],
             "atoms": ["water[1].h1", "water[2].h1"],
             "product": "gasProduct[1]"
           }
         ],
-        "model_assumptions": {"event": "representative", "sequence": "explanatory"},
+        "model_assumptions": {"event": "representative", "sequence": "explanatory", "premise_ids": ["premise.rule.lithium-water.standard-outcome"]},
         "observation_compatibility": [
           {
             "subject_role": "gasProduct",
