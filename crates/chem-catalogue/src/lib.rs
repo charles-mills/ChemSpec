@@ -741,7 +741,7 @@ fn validate_metadata(document: &CatalogueDocument) -> Result<(), CatalogueError>
         || document.premises.is_empty()
         || document.valence_premises.is_empty()
         || document.structures.is_empty()
-        || document.rules.is_empty()
+        || (document.rules.is_empty() && document.generalized_rules.is_empty())
     {
         return Err(CatalogueError::new(
             CatalogueErrorCode::InvalidMetadata,

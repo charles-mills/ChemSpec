@@ -1,0 +1,1224 @@
+{
+  "digest": "6ee7c7339ab52a002e1073694860c53a9d819ed65cbf28bc2a25f630c9b0ad06",
+  "bundle": {
+    "schema_version": 1,
+    "name": "ChemSpec.Theoretical",
+    "version": "1",
+    "publication": "working",
+    "created": {
+      "created_on": "2026-07-13",
+      "created_by": "ChemSpec team and resident chemist",
+      "notes": "Closed alkali-metal-water educational outcome catalogue"
+    },
+    "evidence": [
+      {
+        "id": "evidence.openstax.chemistry-2e",
+        "title": "Chemistry 2e",
+        "publisher": "OpenStax",
+        "locator": "Periodic Variations in Element Properties; Writing and Balancing Chemical Equations",
+        "reference": "https://openstax.org/details/books/chemistry-2e",
+        "publication_date": "2019-02-14",
+        "retrieved_on": "2026-07-13",
+        "usage": "Lithium valence, water and hydrogen bonding, balancing, and alkali-metal reaction outcome"
+      },
+      {
+        "id": "evidence.iupac.goldbook",
+        "title": "Compendium of Chemical Terminology (the Gold Book)",
+        "publisher": "International Union of Pure and Applied Chemistry",
+        "locator": "ionic bond, metallic bond, formal charge, radical",
+        "reference": "https://goldbook.iupac.org/",
+        "retrieved_on": "2026-07-13",
+        "usage": "Structural terminology and electron-accounting review"
+      }
+    ],
+    "premises": [
+      {
+        "id": "premise.structure.alkali-metal",
+        "statement": "The representative alkali-metal fragment is an M+ site core with one domain-owned delocalized valence electron.",
+        "evidence": [
+          "evidence.iupac.goldbook",
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.structure.water",
+        "statement": "Water is represented as neutral molecular H2O with two localized O-H single bonds.",
+        "evidence": [
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.structure.alkali-metal-hydroxide",
+        "statement": "Each supported alkali-metal hydroxide is an ionic association of M+ and covalently bonded OH- components.",
+        "evidence": [
+          "evidence.iupac.goldbook",
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.structure.hydrogen",
+        "statement": "Hydrogen gas is represented as neutral molecular H2 with one localized H-H single bond.",
+        "evidence": [
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.rule.alkali-metal-water.standard-outcome",
+        "statement": "Contact between Li, Na, or K metal and water has the reviewed representative outcome 2 M + 2 H2O -> 2 MOH + H2.",
+        "evidence": [
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.valence.alkali-h-o.initial-domain",
+        "statement": "The listed Li, Na, K, Ca, H, and O tuples are the closed migration and unsupported-probe valence domain.",
+        "evidence": [
+          "evidence.iupac.goldbook",
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.observation.hydrogen-evolves",
+        "statement": "Hydrogen is compatible with the authored observation predicate evolves for this rule outcome.",
+        "evidence": [
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.observation.alkali-metal-disappears",
+        "statement": "The selected alkali metal is compatible with the authored observation predicate disappears for this family outcome.",
+        "evidence": [
+          "evidence.openstax.chemistry-2e"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      }
+    ],
+    "valence_premises": [
+      {
+        "premise_id": "premise.valence.alkali-h-o.initial-domain",
+        "neutral_valence": [
+          {
+            "element": "Li",
+            "neutral_valence_electrons": 1
+          },
+          {
+            "element": "H",
+            "neutral_valence_electrons": 1
+          },
+          {
+            "element": "O",
+            "neutral_valence_electrons": 6
+          },
+          {
+            "element": "Na",
+            "neutral_valence_electrons": 1
+          },
+          {
+            "element": "K",
+            "neutral_valence_electrons": 1
+          },
+          {
+            "element": "Ca",
+            "neutral_valence_electrons": 2
+          }
+        ],
+        "supported_states": [
+          {
+            "element": "Li",
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Li",
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "O",
+            "formal_charge": 0,
+            "non_bonding_electrons": 4,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 2
+          },
+          {
+            "element": "O",
+            "formal_charge": -1,
+            "non_bonding_electrons": 6,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 1
+          },
+          {
+            "element": "H",
+            "formal_charge": 0,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 1
+          },
+          {
+            "element": "H",
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "H",
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Na",
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Na",
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "K",
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "K",
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Ca",
+            "formal_charge": 2,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          }
+        ],
+        "metallic_domain_states": [
+          {
+            "element": "Li",
+            "site_formal_charge": 1,
+            "site_local_electrons": 0,
+            "delocalized_electrons_per_site": 1
+          },
+          {
+            "element": "Na",
+            "site_formal_charge": 1,
+            "site_local_electrons": 0,
+            "delocalized_electrons_per_site": 1
+          },
+          {
+            "element": "K",
+            "site_formal_charge": 1,
+            "site_local_electrons": 0,
+            "delocalized_electrons_per_site": 1
+          },
+          {
+            "element": "Ca",
+            "site_formal_charge": 2,
+            "site_local_electrons": 0,
+            "delocalized_electrons_per_site": 2
+          }
+        ]
+      }
+    ],
+    "structures": [
+      {
+        "representation": "molecular",
+        "id": "Water",
+        "premise_id": "premise.structure.water",
+        "formula": "H2O",
+        "atoms": [
+          {
+            "label": "o",
+            "element": "O",
+            "formal_charge": 0,
+            "non_bonding_electrons": 4,
+            "unpaired_electrons": 0
+          },
+          {
+            "label": "h1",
+            "element": "H",
+            "formal_charge": 0,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          },
+          {
+            "label": "h2",
+            "element": "H",
+            "formal_charge": 0,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          }
+        ],
+        "bonds": [
+          {
+            "left": "o",
+            "right": "h1",
+            "order": "single"
+          },
+          {
+            "left": "o",
+            "right": "h2",
+            "order": "single"
+          }
+        ],
+        "groups": []
+      },
+      {
+        "representation": "molecular",
+        "id": "Hydrogen",
+        "premise_id": "premise.structure.hydrogen",
+        "formula": "H2",
+        "atoms": [
+          {
+            "label": "h1",
+            "element": "H",
+            "formal_charge": 0,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          },
+          {
+            "label": "h2",
+            "element": "H",
+            "formal_charge": 0,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          }
+        ],
+        "bonds": [
+          {
+            "left": "h1",
+            "right": "h2",
+            "order": "single"
+          }
+        ],
+        "groups": []
+      },
+      {
+        "representation": "metallic",
+        "id": "CalciumMetal",
+        "premise_id": "premise.rule.alkali-metal-water.standard-outcome",
+        "formula": "Ca",
+        "sites": [
+          {
+            "label": "ca",
+            "element": "Ca",
+            "formal_charge": 2,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          }
+        ],
+        "domains": [
+          {
+            "label": "metallic",
+            "sites": [
+              "ca"
+            ],
+            "delocalized_electrons": 2
+          }
+        ]
+      }
+    ],
+    "rules": [],
+    "elements": [
+      {
+        "symbol": "H",
+        "name": "Hydrogen",
+        "atomic_number": 1,
+        "period": 1,
+        "group": 1,
+        "block": "s",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "symbol": "Li",
+        "name": "Lithium",
+        "atomic_number": 3,
+        "period": 2,
+        "group": 1,
+        "block": "s",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "symbol": "O",
+        "name": "Oxygen",
+        "atomic_number": 8,
+        "period": 2,
+        "group": 16,
+        "block": "p",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "symbol": "Na",
+        "name": "Sodium",
+        "atomic_number": 11,
+        "period": 3,
+        "group": 1,
+        "block": "s",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "symbol": "K",
+        "name": "Potassium",
+        "atomic_number": 19,
+        "period": 4,
+        "group": 1,
+        "block": "s",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "symbol": "Ca",
+        "name": "Calcium",
+        "atomic_number": 20,
+        "period": 4,
+        "group": 2,
+        "block": "s",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      }
+    ],
+    "element_categories": [
+      {
+        "id": "Categories.AlkaliMetal",
+        "subject": "element",
+        "membership": {
+          "kind": "explicit",
+          "members": [
+            "K",
+            "Li",
+            "Na"
+          ]
+        },
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      }
+    ],
+    "structure_templates": [
+      {
+        "representation": "metallic",
+        "id": "Templates.AlkaliMetal",
+        "parameters": {
+          "member": {
+            "kind": "element",
+            "category": "Categories.AlkaliMetal"
+          }
+        },
+        "sites": [
+          {
+            "label": "metal",
+            "element": {
+              "parameter": "member"
+            },
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0
+          }
+        ],
+        "domains": [
+          {
+            "label": "metallic",
+            "sites": [
+              "metal"
+            ],
+            "delocalized_electrons": 1
+          }
+        ],
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "representation": "ionic",
+        "id": "Templates.AlkaliMetalHydroxide",
+        "parameters": {
+          "member": {
+            "kind": "element",
+            "category": "Categories.AlkaliMetal"
+          }
+        },
+        "components": [
+          {
+            "label": "metal",
+            "atoms": [
+              {
+                "label": "metal",
+                "element": {
+                  "parameter": "member"
+                },
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            ],
+            "bonds": [],
+            "groups": []
+          },
+          {
+            "label": "hydroxide",
+            "atoms": [
+              {
+                "label": "o",
+                "element": "O",
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              {
+                "label": "h",
+                "element": "H",
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            ],
+            "bonds": [
+              {
+                "left": "o",
+                "right": "h",
+                "order": "single"
+              }
+            ],
+            "groups": []
+          }
+        ],
+        "associations": [
+          {
+            "label": "ionic",
+            "components": [
+              "metal",
+              "hydroxide"
+            ]
+          }
+        ],
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      }
+    ],
+    "structure_applications": [
+      {
+        "id": "LithiumMetal",
+        "template": "Templates.AlkaliMetal",
+        "arguments": {
+          "member": "Li"
+        },
+        "formula": "Li",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "SodiumMetal",
+        "template": "Templates.AlkaliMetal",
+        "arguments": {
+          "member": "Na"
+        },
+        "formula": "Na",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "PotassiumMetal",
+        "template": "Templates.AlkaliMetal",
+        "arguments": {
+          "member": "K"
+        },
+        "formula": "K",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "LithiumHydroxide",
+        "template": "Templates.AlkaliMetalHydroxide",
+        "arguments": {
+          "member": "Li"
+        },
+        "formula": "LiOH",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "SodiumHydroxide",
+        "template": "Templates.AlkaliMetalHydroxide",
+        "arguments": {
+          "member": "Na"
+        },
+        "formula": "NaOH",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "PotassiumHydroxide",
+        "template": "Templates.AlkaliMetalHydroxide",
+        "arguments": {
+          "member": "K"
+        },
+        "formula": "KOH",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      }
+    ],
+    "graph_patterns": [
+      {
+        "id": "Patterns.AlkaliMetal",
+        "variables": {
+          "metal": {
+            "atom": {
+              "element": {
+                "parameter": "member"
+              }
+            }
+          }
+        },
+        "relationships": [
+          {
+            "kind": "metallic_domain",
+            "domain": "metallic",
+            "sites": [
+              "metal"
+            ],
+            "delocalized_electrons": 1
+          }
+        ],
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "Patterns.Water",
+        "variables": {
+          "h1": {
+            "atom": {
+              "element": "H"
+            }
+          },
+          "h2": {
+            "atom": {
+              "element": "H"
+            }
+          },
+          "o": {
+            "atom": {
+              "element": "O"
+            }
+          }
+        },
+        "relationships": [
+          {
+            "kind": "covalent",
+            "bond": "oh1",
+            "left": "o",
+            "right": "h1",
+            "order": "single"
+          },
+          {
+            "kind": "covalent",
+            "bond": "oh2",
+            "left": "o",
+            "right": "h2",
+            "order": "single"
+          }
+        ],
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      }
+    ],
+    "generalized_rules": [
+      {
+        "id": "Rules.AlkaliMetalWithWater",
+        "parameters": {
+          "member": {
+            "kind": "element",
+            "category": "Categories.AlkaliMetal"
+          }
+        },
+        "roles": {
+          "gasProduct": {
+            "side": "product",
+            "representation": "molecular",
+            "coefficient": 1
+          },
+          "hydroxide": {
+            "side": "product",
+            "representation": "ionic",
+            "coefficient": 2
+          },
+          "metal": {
+            "side": "reactant",
+            "representation": "metallic",
+            "coefficient": 2
+          },
+          "water": {
+            "side": "reactant",
+            "representation": "molecular",
+            "coefficient": 2
+          }
+        },
+        "reactants": {
+          "metal": {
+            "kind": "template",
+            "template": "Templates.AlkaliMetal",
+            "arguments": {
+              "member": {
+                "parameter": "member"
+              }
+            }
+          },
+          "water": {
+            "kind": "exact",
+            "structure": "Water"
+          }
+        },
+        "cases": [
+          {
+            "status": "supported",
+            "id": "standard",
+            "when": {
+              "kind": "always"
+            },
+            "products": {
+              "gasProduct": {
+                "kind": "exact",
+                "structure": "Hydrogen"
+              },
+              "hydroxide": {
+                "kind": "template",
+                "template": "Templates.AlkaliMetalHydroxide",
+                "arguments": {
+                  "member": {
+                    "parameter": "member"
+                  }
+                }
+              }
+            },
+            "patterns": {
+              "metal": "Patterns.AlkaliMetal",
+              "water": "Patterns.Water"
+            },
+            "correspondence": [
+              {
+                "reactant": "metal[1].metal",
+                "product": "hydroxide[1].metal.metal",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.alkali-metal-hydroxide"
+                ]
+              },
+              {
+                "reactant": "metal[2].metal",
+                "product": "hydroxide[2].metal.metal",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.alkali-metal-hydroxide"
+                ]
+              },
+              {
+                "reactant": "water[1].o",
+                "product": "hydroxide[1].hydroxide.o",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.water"
+                ]
+              },
+              {
+                "reactant": "water[1].h2",
+                "product": "hydroxide[1].hydroxide.h",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.water"
+                ]
+              },
+              {
+                "reactant": "water[2].o",
+                "product": "hydroxide[2].hydroxide.o",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.water"
+                ]
+              },
+              {
+                "reactant": "water[2].h2",
+                "product": "hydroxide[2].hydroxide.h",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.water"
+                ]
+              },
+              {
+                "reactant": "water[1].h1",
+                "product": "gasProduct[1].h1",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.hydrogen",
+                  "premise.structure.water"
+                ]
+              },
+              {
+                "reactant": "water[2].h1",
+                "product": "gasProduct[1].h2",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.hydrogen",
+                  "premise.structure.water"
+                ]
+              }
+            ],
+            "rewrite": [
+              {
+                "kind": "release_metallic",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "site": "metal[1].metal",
+                "domain": "metal[1].metallic",
+                "allocation": "retain_electron",
+                "before": {
+                  "site": [
+                    1,
+                    0,
+                    0
+                  ],
+                  "domain_electrons": 1
+                },
+                "after": {
+                  "site": [
+                    0,
+                    1,
+                    1
+                  ],
+                  "domain_electrons": 0
+                }
+              },
+              {
+                "kind": "release_metallic",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "site": "metal[2].metal",
+                "domain": "metal[2].metallic",
+                "allocation": "retain_electron",
+                "before": {
+                  "site": [
+                    1,
+                    0,
+                    0
+                  ],
+                  "domain_electrons": 1
+                },
+                "after": {
+                  "site": [
+                    0,
+                    1,
+                    1
+                  ],
+                  "domain_electrons": 0
+                }
+              },
+              {
+                "kind": "cleave_covalent",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.water",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "edge": [
+                  "water[1].o",
+                  "water[1].h1",
+                  "single"
+                ],
+                "allocation": {
+                  "heterolytic_to": "water[1].o"
+                },
+                "before": {
+                  "left": [
+                    0,
+                    4,
+                    0
+                  ],
+                  "right": [
+                    0,
+                    0,
+                    0
+                  ]
+                },
+                "after": {
+                  "left": [
+                    -1,
+                    6,
+                    0
+                  ],
+                  "right": [
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "kind": "cleave_covalent",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.water",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "edge": [
+                  "water[2].o",
+                  "water[2].h1",
+                  "single"
+                ],
+                "allocation": {
+                  "heterolytic_to": "water[2].o"
+                },
+                "before": {
+                  "left": [
+                    0,
+                    4,
+                    0
+                  ],
+                  "right": [
+                    0,
+                    0,
+                    0
+                  ]
+                },
+                "after": {
+                  "left": [
+                    -1,
+                    6,
+                    0
+                  ],
+                  "right": [
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "kind": "transfer_electron",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.water",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "count": 1,
+                "donor": "metal[1].metal",
+                "acceptor": "water[1].h1",
+                "before": {
+                  "donor": [
+                    0,
+                    1,
+                    1
+                  ],
+                  "acceptor": [
+                    1,
+                    0,
+                    0
+                  ]
+                },
+                "after": {
+                  "donor": [
+                    1,
+                    0,
+                    0
+                  ],
+                  "acceptor": [
+                    0,
+                    1,
+                    1
+                  ]
+                }
+              },
+              {
+                "kind": "transfer_electron",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.water",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "count": 1,
+                "donor": "metal[2].metal",
+                "acceptor": "water[2].h1",
+                "before": {
+                  "donor": [
+                    0,
+                    1,
+                    1
+                  ],
+                  "acceptor": [
+                    1,
+                    0,
+                    0
+                  ]
+                },
+                "after": {
+                  "donor": [
+                    1,
+                    0,
+                    0
+                  ],
+                  "acceptor": [
+                    0,
+                    1,
+                    1
+                  ]
+                }
+              },
+              {
+                "kind": "form_covalent",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.hydrogen",
+                  "premise.structure.water",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "edge": [
+                  "water[1].h1",
+                  "water[2].h1",
+                  "single"
+                ],
+                "electron_contribution": {
+                  "left": 1,
+                  "right": 1
+                },
+                "before": {
+                  "left": [
+                    0,
+                    1,
+                    1
+                  ],
+                  "right": [
+                    0,
+                    1,
+                    1
+                  ]
+                },
+                "after": {
+                  "left": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "right": [
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "kind": "associate_ionic",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.water",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "label": "ionic.product1",
+                "components": [
+                  [
+                    "metal[1].metal"
+                  ],
+                  [
+                    "water[1].o",
+                    "water[1].h2"
+                  ]
+                ],
+                "component_charges": [
+                  1,
+                  -1
+                ]
+              },
+              {
+                "kind": "associate_ionic",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.water",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "label": "ionic.product2",
+                "components": [
+                  [
+                    "metal[2].metal"
+                  ],
+                  [
+                    "water[2].o",
+                    "water[2].h2"
+                  ]
+                ],
+                "component_charges": [
+                  1,
+                  -1
+                ]
+              },
+              {
+                "kind": "assign_product",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-hydroxide"
+                ],
+                "atoms": [
+                  "metal[1].metal",
+                  "water[1].o",
+                  "water[1].h2"
+                ],
+                "product": "hydroxide[1]"
+              },
+              {
+                "kind": "assign_product",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-hydroxide"
+                ],
+                "atoms": [
+                  "metal[2].metal",
+                  "water[2].o",
+                  "water[2].h2"
+                ],
+                "product": "hydroxide[2]"
+              },
+              {
+                "kind": "assign_product",
+                "premise_ids": [
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.hydrogen"
+                ],
+                "atoms": [
+                  "water[1].h1",
+                  "water[2].h1"
+                ],
+                "product": "gasProduct[1]"
+              }
+            ],
+            "observation_compatibility": [
+              {
+                "subject_role": "gasProduct",
+                "predicate": "evolves",
+                "evidence_subject": "hydrogen",
+                "premise_id": "premise.observation.hydrogen-evolves"
+              },
+              {
+                "subject_role": "metal",
+                "predicate": "disappears",
+                "evidence_subject": "alkali metal",
+                "premise_id": "premise.observation.alkali-metal-disappears"
+              }
+            ],
+            "premise_ids": [
+              "premise.rule.alkali-metal-water.standard-outcome"
+            ]
+          }
+        ],
+        "applicability": {
+          "premise_id": "premise.rule.alkali-metal-water.standard-outcome",
+          "request_relation": "contact",
+          "required_context": "representative educational outcome under the reviewed standard-outcome premise"
+        },
+        "model_assumptions": {
+          "event": "representative",
+          "sequence": "explanatory",
+          "premise_ids": [
+            "premise.rule.alkali-metal-water.standard-outcome"
+          ]
+        },
+        "premise_ids": [
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.valence.alkali-h-o.initial-domain"
+        ]
+      }
+    ]
+  }
+}

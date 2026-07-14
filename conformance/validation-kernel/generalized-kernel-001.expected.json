@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "concrete_operations": 12,
+  "derivation_states": 13,
+  "final_atoms": 8,
+  "final_covalent_bonds": 3,
+  "final_ionic_associations": 2,
+  "final_metallic_domains": 0,
+  "final_product_assignments": 3,
+  "system_net_charge": 0,
+  "negative_boundaries": {
+    "membership": "CHEMS-C020",
+    "unsupported_case": "CHEMS-X015",
+    "no_graph_match": "CHEMS-X015",
+    "invalid_rewrite": "CHEMS-X097",
+    "right_formula_wrong_graph": "CHEMS-K053"
+  }
+}

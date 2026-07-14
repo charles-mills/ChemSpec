@@ -31,6 +31,12 @@
     { "id": "ART-002", "section": "Result-state model", "component": "artifacts" },
     { "id": "EXP-002", "section": "Expanded structural certificate", "component": "expansion" },
     { "id": "FRM-001", "section": "Validated artifact and frames", "component": "frames" },
+    { "id": "CAT-002", "section": "Generalized element and category domains", "component": "catalogue" },
+    { "id": "CAT-003", "section": "Structure templates, graph patterns, and family rules", "component": "catalogue" },
+    { "id": "EXP-003", "section": "Deterministic generalized-rule elaboration", "component": "expansion" },
+    { "id": "KER-003", "section": "Generalized rules lower to concrete kernel operations", "component": "validation-kernel" },
+    { "id": "END-002", "section": "Family-rule concrete outcomes", "component": "end-to-end" },
+    { "id": "FRM-002", "section": "Generalized member frame projection", "component": "frames" },
 
     { "id": "LEX-001", "section": "Lexical structure and normative grammar", "component": "encoding-layout" },
     { "id": "LEX-002", "section": "File representation", "component": "encoding-layout" },

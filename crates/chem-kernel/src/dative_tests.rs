@@ -199,6 +199,118 @@ fn dative_catalogue_value(reverse_product_origin: bool) -> Value {
             "premise_id": "premise.observation.ammonium-forms"
         }]
     }));
+    bundle["structural_traits"] = json!([
+        {
+            "id":"Traits.DativeDonor","sites":{"donor":"atom"},
+            "values":{"paired_electrons":{"kind":"atom_non_bonding_electrons","site":"donor"}},
+            "premise_ids":["premise.structure.ammonia"]
+        },
+        {
+            "id":"Traits.DativeAcceptor","sites":{"acceptor":"atom"},
+            "values":{"formal_charge":{"kind":"atom_formal_charge","site":"acceptor"}},
+            "premise_ids":["premise.structure.proton"]
+        }
+    ]);
+    let structures = bundle["structures"].as_array_mut().unwrap();
+    structures
+        .iter_mut()
+        .find(|structure| structure["id"] == "Ammonia")
+        .unwrap()["traits"] = json!([{
+        "trait":"Traits.DativeDonor","sites":{"donor":"n"},
+        "values":{"paired_electrons":2},"premise_ids":["premise.structure.ammonia"]
+    }]);
+    structures
+        .iter_mut()
+        .find(|structure| structure["id"] == "Proton")
+        .unwrap()["traits"] = json!([{
+        "trait":"Traits.DativeAcceptor","sites":{"acceptor":"h"},
+        "values":{"formal_charge":1},"premise_ids":["premise.structure.proton"]
+    }]);
+    bundle["graph_patterns"] = json!([
+        {
+            "id":"Patterns.AmmoniaDativeDonor",
+            "variables":{
+                "n":{"atom":{"element":"N","formal_charge":0,"non_bonding_electrons":2}},
+                "h1":{"atom":{"element":"H"}},"h2":{"atom":{"element":"H"}},
+                "h3":{"atom":{"element":"H"}}
+            },
+            "relationships":[
+                {"kind":"covalent","bond":"nh1","left":"n","right":"h1","order":"single"},
+                {"kind":"covalent","bond":"nh2","left":"n","right":"h2","order":"single"},
+                {"kind":"covalent","bond":"nh3","left":"n","right":"h3","order":"single"}
+            ],
+            "traits":[{"trait":"Traits.DativeDonor","sites":{"donor":"n"}}],
+            "premise_ids":["premise.structure.ammonia"]
+        },
+        {
+            "id":"Patterns.ProtonDativeAcceptor",
+            "variables":{"h":{"atom":{"element":"H","formal_charge":1}}},
+            "traits":[{"trait":"Traits.DativeAcceptor","sites":{"acceptor":"h"}}],
+            "premise_ids":["premise.structure.proton"]
+        }
+    ]);
+    bundle["generalized_rules"] = json!([{
+        "id":"Rules.GeneralizedAmmoniaWithProton",
+        "parameters":{
+            "D":{"kind":"structure","trait":"Traits.DativeDonor"},
+            "A":{"kind":"structure","trait":"Traits.DativeAcceptor"}
+        },
+        "roles":{
+            "ammonia":{"side":"reactant","representation":"molecular","coefficient":1},
+            "proton":{"side":"reactant","representation":"ion","coefficient":1},
+            "ammonium":{"side":"product","representation":"ion","coefficient":1}
+        },
+        "reactants":{
+            "ammonia":{"kind":"structure_parameter","parameter":"D"},
+            "proton":{"kind":"structure_parameter","parameter":"A"}
+        },
+        "cases":[{
+            "id":"directed","status":"supported","when":{"kind":"always"},
+            "products":{"ammonium":{"kind":"exact","structure":"Ammonium"}},
+            "patterns":{
+                "ammonia":"Patterns.AmmoniaDativeDonor",
+                "proton":"Patterns.ProtonDativeAcceptor"
+            },
+            "correspondence":[
+                {"reactant":"ammonia[1].n","product":"ammonium[1].n","premise_ids":["premise.rule.ammonia-proton.ammonium"]},
+                {"reactant":"ammonia[1].h1","product":"ammonium[1].h1","premise_ids":["premise.rule.ammonia-proton.ammonium"]},
+                {"reactant":"ammonia[1].h2","product":"ammonium[1].h2","premise_ids":["premise.rule.ammonia-proton.ammonium"]},
+                {"reactant":"ammonia[1].h3","product":"ammonium[1].h3","premise_ids":["premise.rule.ammonia-proton.ammonium"]},
+                {"reactant":"proton[1].h","product":"ammonium[1].h4","premise_ids":["premise.rule.ammonia-proton.ammonium"]}
+            ],
+            "rewrite":[
+                {
+                    "kind":"form_dative","donor":"ammonia[1].n","acceptor":"proton[1].h",
+                    "before":{"left":[0,2,0],"right":[1,0,0]},
+                    "after":{"left":[1,0,0],"right":[0,0,0]},
+                    "premise_ids":["premise.rule.ammonia-proton.ammonium","premise.valence.n-h.dative-domain"]
+                },
+                {
+                    "kind":"assign_product",
+                    "atoms":["ammonia[1].n","ammonia[1].h1","ammonia[1].h2","ammonia[1].h3","proton[1].h"],
+                    "product":"ammonium[1]","premise_ids":["premise.rule.ammonia-proton.ammonium"]
+                }
+            ],
+            "observation_compatibility":[{
+                "subject_role":"ammonium","predicate":"forms","evidence_subject":"ammonium",
+                "premise_id":"premise.observation.ammonium-forms"
+            }],
+            "premise_ids":["premise.rule.ammonia-proton.ammonium"]
+        }],
+        "applicability":{
+            "premise_id":"premise.rule.ammonia-proton.ammonium","request_relation":"contact",
+            "required_context":"representative educational ammonium formation"
+        },
+        "model_assumptions":{
+            "event":"representative","sequence":"explanatory",
+            "premise_ids":["premise.rule.ammonia-proton.ammonium"]
+        },
+        "premise_ids":[
+            "premise.structure.ammonia","premise.structure.proton","premise.structure.ammonium",
+            "premise.rule.ammonia-proton.ammonium","premise.valence.n-h.dative-domain",
+            "premise.observation.ammonium-forms"
+        ]
+    }]);
 
     value
 }
@@ -448,6 +560,56 @@ fn dative_journey_expands_validates_and_projects_exact_direction() {
         frames.frames()[2].observations()[0].status,
         ObservationStatus::Active
     );
+}
+
+#[test]
+fn generalized_dative_elaboration_preserves_direction_through_frames() {
+    let catalogue = dative_catalogue(false);
+    let source = SOURCE.replace(
+        "Rules.AmmoniaWithProton",
+        "Rules.GeneralizedAmmoniaWithProton",
+    );
+    let expanded = expand_review_candidate(
+        "conformance/dative/generalized-ammonium-formation.chems",
+        &source,
+        &catalogue,
+        &evidence(),
+    )
+    .unwrap();
+    let generalized = expanded.claim.rule.generalized.as_ref().unwrap();
+    assert_eq!(generalized.case_id, "directed");
+    assert_eq!(generalized.parameters["D"], "Ammonia");
+    assert_eq!(generalized.parameters["A"], "Proton");
+    let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+    let frames = project_frames(&derivation).unwrap();
+    let dative_edge = frames.frames()[1]
+        .covalent_edges()
+        .values()
+        .find(|edge| !edge.electron_origin.is_shared())
+        .unwrap();
+    assert_eq!(
+        dative_edge.electron_origin,
+        CovalentElectronOrigin::Dative {
+            donor: "ammonia[1].n".parse().unwrap(),
+            acceptor: "proton[1].h".parse().unwrap(),
+        }
+    );
+    let changes = serde_json::to_value(frames.frames()[1].changes()).unwrap();
+    assert!(changes.as_array().unwrap().iter().any(|change| {
+        change["kind"] == "covalent"
+            && change["after_electron_origin"]["electron_origin"] == "dative"
+            && change["after_electron_origin"]["donor"] == "ammonia[1].n"
+            && change["after_electron_origin"]["acceptor"] == "proton[1].h"
+    }));
+    let serialized = serde_json::to_string(&frames).unwrap();
+    for generic in [
+        "parameter_premises",
+        "role_premises",
+        "matched_sites",
+        "equivalent_match_count",
+    ] {
+        assert!(!serialized.contains(generic));
+    }
 }
 
 #[test]

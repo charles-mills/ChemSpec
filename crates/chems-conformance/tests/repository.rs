@@ -13,7 +13,7 @@ fn repository_contract_is_internally_valid() {
         validate_repository(&workspace_root()).expect("repository contract should validate");
     assert_eq!(summary.grammar_productions, 42);
     assert_eq!(summary.components, 13);
-    assert_eq!(summary.cases, 19);
+    assert_eq!(summary.cases, 24);
     assert_eq!(summary.incomplete_cases, 6);
     assert!(!summary.is_complete());
 }
@@ -263,7 +263,7 @@ fn partial_suite_reports_incomplete_coverage() {
     assert!(!String::from_utf8_lossy(&output.stdout).contains("cases   0"));
     assert!(
         String::from_utf8_lossy(&output.stdout)
-            .contains("frames               cases   1; requirements   1/1")
+            .contains("frames               cases   2; requirements   2/2")
     );
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("conformance is incomplete"),

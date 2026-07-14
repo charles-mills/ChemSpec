@@ -13,5 +13,7 @@ cargo run -p chems-cli -- inspect expanded reaction.chems \
 
 Expanded inspection defaults to the human-readable unexecuted certificate.
 `--json` prints canonical semantic HIR and `--provenance` prints exact source
-origins. Inspection never promotes a review-candidate catalogue or constructs
-trusted chemistry.
+origins. For a generalized rule these views include inferred parameters, the
+selected case, equivalent-match count, instantiated concrete applications,
+matched sites, and parameter/role premise provenance. Inspection never
+promotes a review-candidate catalogue or constructs trusted chemistry.

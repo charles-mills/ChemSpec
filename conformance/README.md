@@ -47,6 +47,10 @@ reactions because their required model assumptions produce
 - Expected chemistry is independently authored and must be reviewed before
   promotion.
 
+`catalogue/alkali-metal-water-001.catalogue.json` is the canonical generalized
+family catalogue. `catalogue/lithium-rule-001.catalogue.json` is retained only
+as the non-generalized concrete compatibility fixture.
+
 Quantitative, vessel, material, and physical-procedure fixtures remaining in
 the repository are unreferenced implementation archaeology until their code is
 replaced. They do not define compatibility or conformance.

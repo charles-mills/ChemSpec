@@ -1,8 +1,8 @@
 # Generalized chemistry rules and structural templates
 
-> **Status:** locked design, implemented through deterministic generalized
-> elaboration into the existing concrete certificate boundary (G4). Migration,
-> conformance promotion, and authoring support remain queued as G5 and G6.
+> **Status:** locked design, implemented and independently reviewed through
+> concrete-kernel execution and conformance promotion (G5). Catalogue authoring
+> support and the Luna content handoff remain queued as G6.
 >
 > This document defines the intended catalogue and elaboration architecture for
 > generalized chemistry. The implemented `.chems 1` source grammar and concrete
@@ -85,10 +85,11 @@ additional reviewed name, period, group, block, category, and premise data; it
 does not introduce a second element identity system into `chem-domain`.
 
 During G0–G4 the generalized element registry is optional so the existing
-concrete catalogue remains executable. G5 migration makes registry resolution
-mandatory for every element referenced by a promoted structure, formula,
-template, pattern, or rule. G6 expands the registry from the reviewed migration
-subset to all 118 named elements.
+concrete catalogue remains executable. G5 makes registry resolution mandatory
+for every element referenced by a migrated generalized structure application,
+template, pattern, or family rule while retaining concrete-only catalogues as a
+compatibility path. G6 expands the registry from the reviewed migration subset
+to all 118 named elements.
 
 The initial registry contains all 118 named elements. It does not become a
 general-purpose periodic-table database. Atomic mass, density, melting point,

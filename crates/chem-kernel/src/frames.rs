@@ -1618,6 +1618,127 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
+    fn generalized_members_project_to_independent_exact_frame_oracle() {
+        let expected: serde_json::Value = serde_json::from_slice(
+            &fs::read(root().join("conformance/frames/alkali-water-frames-001.expected.json"))
+                .unwrap(),
+        )
+        .unwrap();
+        let catalogue = ValidatedCatalogueBundle::from_json(
+            &fs::read(root().join(expected["catalogue"].as_str().unwrap())).unwrap(),
+        )
+        .unwrap();
+
+        for member in expected["members"].as_array().unwrap() {
+            let source_path = member["source"].as_str().unwrap();
+            let source = fs::read_to_string(root().join(source_path)).unwrap();
+            let evidence = fs::read(root().join(member["evidence"].as_str().unwrap())).unwrap();
+            let expanded =
+                expand_review_candidate(source_path, &source, &catalogue, &evidence).unwrap();
+            let selected = expanded.claim.rule.generalized.as_ref().unwrap();
+            assert_eq!(selected.parameters["member"], member["symbol"]);
+            assert_eq!(selected.case_id, "standard");
+            let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+            let frames = project_frames(&derivation).unwrap();
+            assert_eq!(frames.trust(), DerivationTrust::ReviewCandidate);
+            assert_eq!(serde_json::json!(frames.result()), expected["result"]);
+            assert_eq!(frames.frames().len(), expected["frame_count"]);
+
+            let operations = frames
+                .frames()
+                .iter()
+                .map(|frame| {
+                    frame
+                        .active_operation()
+                        .map_or(serde_json::Value::Null, |operation| {
+                            serde_json::json!(operation.operation.id())
+                        })
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(serde_json::json!(operations), expected["active_operations"]);
+            let change_kinds = frames
+                .frames()
+                .iter()
+                .map(|frame| {
+                    serde_json::to_value(frame.changes())
+                        .unwrap()
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|change| change["kind"].clone())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(serde_json::json!(change_kinds), expected["change_kinds"]);
+
+            let metal = member["metal_binding"].as_str().unwrap();
+            let hydroxide = member["hydroxide_binding"].as_str().unwrap();
+            let symbol = member["symbol"].as_str().unwrap();
+            let final_frame = frames.frames().last().unwrap();
+            let mut atoms = serde_json::Map::new();
+            for index in 1..=2 {
+                let id = format!("{metal}[{index}].metal");
+                let atom = &final_frame.atoms()[&id.parse().unwrap()];
+                assert_eq!(atom.element.as_str(), symbol);
+                atoms.insert(id, expected["final_electron_states"]["metal"].clone());
+            }
+            for index in 1..=2 {
+                atoms.insert(
+                    format!("water[{index}].o"),
+                    expected["final_electron_states"]["oxygen"].clone(),
+                );
+                for hydrogen in ["h1", "h2"] {
+                    atoms.insert(
+                        format!("water[{index}].{hydrogen}"),
+                        expected["final_electron_states"]["hydrogen"].clone(),
+                    );
+                }
+            }
+            let mut covalent_edges = vec![
+                serde_json::json!(["water[1].h1", "water[2].h1", "single"]),
+                serde_json::json!(["water[1].h2", "water[1].o", "single"]),
+                serde_json::json!(["water[2].h2", "water[2].o", "single"]),
+            ];
+            covalent_edges.sort_by_key(serde_json::Value::to_string);
+            let mut ionic_associations = vec![
+                serde_json::json!([
+                    [format!("{metal}[1].metal")],
+                    ["water[1].h2", "water[1].o"],
+                    "ionic"
+                ]),
+                serde_json::json!([
+                    [format!("{metal}[2].metal")],
+                    ["water[2].h2", "water[2].o"],
+                    "ionic"
+                ]),
+            ];
+            ionic_associations.sort_by_key(serde_json::Value::to_string);
+            let expected_final = serde_json::json!({
+                "atoms": atoms,
+                "covalent_edges": covalent_edges,
+                "metallic_domains": [],
+                "ionic_associations": ionic_associations,
+                "product_assignments": [
+                    ["hydrogen[1]", ["water[1].h1", "water[2].h1"]],
+                    [format!("{hydroxide}[1]"), [format!("{metal}[1].metal"), "water[1].h2", "water[1].o"]],
+                    [format!("{hydroxide}[2]"), [format!("{metal}[2].metal"), "water[2].h2", "water[2].o"]]
+                ]
+            });
+            assert_eq!(compact_frame_state(final_frame), expected_final);
+            let serialized = serde_json::to_string(&frames).unwrap();
+            for generic in [
+                "parameter_premises",
+                "role_premises",
+                "matched_sites",
+                "equivalent_match_count",
+            ] {
+                assert!(!serialized.contains(generic));
+            }
+        }
+    }
+
+    #[test]
     fn every_stale_identity_is_rejected_before_projection() {
         let root = root();
         let catalogue = ValidatedCatalogueBundle::from_json(

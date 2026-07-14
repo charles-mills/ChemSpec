@@ -19,6 +19,10 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["schema_version", "name", "version", "publication", "created", "evidence", "premises", "valence_premises", "structures", "rules"],
+      "anyOf": [
+        {"properties": {"rules": {"minItems": 1}}},
+        {"required": ["generalized_rules"], "properties": {"generalized_rules": {"minItems": 1}}}
+      ],
       "properties": {
         "schema_version": {"const": 1},
         "name": {"$ref": "#/$defs/nonempty"},
@@ -29,7 +33,7 @@
         "premises": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/premise"}},
         "valence_premises": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/valencePremise"}},
         "structures": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/structure"}},
-        "rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}},
+        "rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}},
         "elements": {"type": "array", "items": {"$ref": "#/$defs/element"}},
         "element_categories": {"type": "array", "items": {"$ref": "#/$defs/elementCategory"}},
         "structural_traits": {"type": "array", "items": {"$ref": "#/$defs/structuralTrait"}},

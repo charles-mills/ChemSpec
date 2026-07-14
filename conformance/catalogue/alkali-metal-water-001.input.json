@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "fixture": "alkali-metal-water-001",
+  "family_rule": "Rules.AlkaliMetalWithWater",
+  "element_category": {
+    "members": ["Li", "Na", "K"],
+    "excluded_probe": "Ca"
+  },
+  "required_records": [
+    "element identities",
+    "element category membership",
+    "parameterized metallic and ionic structure templates",
+    "member-specific structure applications",
+    "reactant graph patterns",
+    "one generalized family rule"
+  ],
+  "legacy_concrete_rule_allowed": false,
+  "catalogue": "conformance/catalogue/alkali-metal-water-001.catalogue.json"
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.AlkaliWaterLithium@1",
+  "claims": [
+    {"id": "R1", "subject_role": "gas", "subject": "hydrogen", "predicate": "evolves", "sources": ["S1"]},
+    {"id": "R2", "subject_role": "reactant", "subject": "alkali metal", "predicate": "disappears", "sources": ["S1"]}
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Reactions of Group 1 Elements with Water",
+      "publisher": "Chemistry LibreTexts",
+      "url": "https://chem.libretexts.org/Bookshelves/Inorganic_Chemistry/Supplemental_Modules_and_Websites_%28Inorganic_Chemistry%29/Descriptive_Chemistry/Elements_Organized_by_Block/1-s_Block_Elements/Group__1%3A_The_Alkali_Metals/2Reactions_of_the_Group_1_Elements/Reactions_of_Group_1_Elements_with_Water",
+      "supports": ["R1", "R2"]
+    }
+  ]
+}

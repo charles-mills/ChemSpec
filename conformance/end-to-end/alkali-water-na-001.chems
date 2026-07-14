@@ -1,0 +1,30 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+
+reaction SodiumAndWater where
+  reactants
+    sodium := 2 of SodiumMetal
+    water := 2 of Water
+
+  products
+    sodiumHydroxide := 2 of SodiumHydroxide
+    hydrogen := 1 of Hydrogen
+
+  equation
+    2 Na[metallic] + 2 H2O[molecular]
+    -> 2 NaOH[ionic] + H2[molecular]
+
+  model
+    event := representative
+    sequence := explanatory
+
+  observe from Evidence.AlkaliWaterSodium@1
+    gas hydrogen evolves claim R1
+    reactant sodium disappears claim R2
+
+  by
+    apply Rules.AlkaliMetalWithWater
+      metal := sodium
+      water := water
+      hydroxide := sodiumHydroxide
+      gasProduct := hydrogen

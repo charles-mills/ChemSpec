@@ -79,5 +79,8 @@ matches typed graphs independently for every coefficient instance, and
 canonicalizes complete instantiated certificates under reactant and product
 automorphisms plus repeated-instance permutations. The unique certificate is
 instantiated through the existing concrete mapping and operation boundary with
-matched-site and premise-local provenance. Concrete execution, canonical
-catalogue migration, and frame conformance remain G5 work.
+matched-site and premise-local provenance. G5 executes that output through the
+unchanged concrete kernel, compares exact member-specific final graphs, and
+registers the Li/Na/K family plus its mutation boundaries in conformance. The
+migrated family contains no concrete lithium fallback; concrete-only catalogues
+remain supported as the compatibility exception.

@@ -9,7 +9,7 @@ fn root() -> PathBuf {
 }
 
 #[allow(clippy::too_many_lines)]
-fn generalized_catalogue_value() -> Value {
+pub(crate) fn generalized_catalogue_value() -> Value {
     let mut value: Value = serde_json::from_slice(
         &fs::read(root().join("conformance/catalogue/lithium-rule-001.catalogue.json")).unwrap(),
     )
@@ -154,19 +154,20 @@ fn generalized_catalogue_value() -> Value {
     value
 }
 
-fn validate_catalogue_value(value: Value) -> ValidatedCatalogueBundle {
+pub(crate) fn validate_catalogue_value(value: Value) -> ValidatedCatalogueBundle {
     let mut envelope: CatalogueEnvelope = serde_json::from_value(value).unwrap();
     envelope.digest = envelope.computed_digest().unwrap();
     ValidatedCatalogueBundle::validate(envelope).unwrap()
 }
 
-fn generalized_lithium_catalogue() -> ValidatedCatalogueBundle {
+pub(crate) fn generalized_lithium_catalogue() -> ValidatedCatalogueBundle {
     validate_catalogue_value(generalized_catalogue_value())
 }
 
-fn generalized_dative_catalogue() -> ValidatedCatalogueBundle {
+pub(crate) fn generalized_dative_catalogue() -> ValidatedCatalogueBundle {
     let mut value = generalized_catalogue_value();
     let premise = value["bundle"]["rules"][0]["applicability"]["premise_id"].clone();
+    let valence_premise = value["bundle"]["valence_premises"][0]["premise_id"].clone();
     value["bundle"]["valence_premises"][0]["supported_states"]
         .as_array_mut()
         .unwrap()
@@ -249,7 +250,7 @@ fn generalized_dative_catalogue() -> ValidatedCatalogueBundle {
                     {"reactant":"acceptor[1].acceptor","product":"adduct[1].acceptor","premise_ids":[premise.clone()]}
                 ],
                 "rewrite":[
-                    {"kind":"form_dative","donor":"donor[1].donor","acceptor":"acceptor[1].acceptor","before":{"left":[-2,8,0],"right":[1,0,0]},"after":{"left":[-1,6,0],"right":[0,0,0]},"premise_ids":[premise.clone()]},
+                    {"kind":"form_dative","donor":"donor[1].donor","acceptor":"acceptor[1].acceptor","before":{"left":[-2,8,0],"right":[1,0,0]},"after":{"left":[-1,6,0],"right":[0,0,0]},"premise_ids":[premise.clone(),valence_premise]},
                     {"kind":"assign_product","atoms":["donor[1].donor","acceptor[1].acceptor"],"product":"adduct[1]","premise_ids":[premise.clone()]}
                 ],
                 "observation_compatibility":[{"subject_role":"adduct","predicate":"forms","evidence_subject":"dative adduct","premise_id":premise.clone()}],
@@ -257,7 +258,7 @@ fn generalized_dative_catalogue() -> ValidatedCatalogueBundle {
             }],
             "applicability":{"premise_id":premise.clone(),"request_relation":"contact","required_context":"directed dative fixture"},
             "model_assumptions":{"event":"representative","sequence":"explanatory","premise_ids":[premise.clone()]},
-            "premise_ids":[premise]
+            "premise_ids":[premise,valence_premise]
         }));
     validate_catalogue_value(value)
 }
@@ -348,7 +349,7 @@ fn generalized_ambiguous_catalogue() -> ValidatedCatalogueBundle {
     validate_catalogue_value(value)
 }
 
-fn generalized_evidence() -> Vec<u8> {
+pub(crate) fn generalized_evidence() -> Vec<u8> {
     let mut value: Value = serde_json::from_slice(
         &fs::read(root().join("conformance/observations/lithium-observations-001.input.json"))
             .unwrap(),
@@ -358,7 +359,7 @@ fn generalized_evidence() -> Vec<u8> {
     serde_json::to_vec(&value).unwrap()
 }
 
-fn member_source(name: &str, symbol: &str, metal: &str, hydroxide: &str) -> String {
+pub(crate) fn member_source(name: &str, symbol: &str, metal: &str, hydroxide: &str) -> String {
     fs::read_to_string(root().join("conformance/end-to-end/lithium-outcome-001.chems"))
         .unwrap()
         .replace("LithiumMetal", metal)

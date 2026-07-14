@@ -141,6 +141,17 @@
       }
     },
     {
+      "id": "alkali-metal-water-001",
+      "component": "catalogue",
+      "requirements": ["CAT-002", "CAT-003"],
+      "input": "conformance/catalogue/alkali-metal-water-001.input.json",
+      "catalogue": "conformance/catalogue/alkali-metal-water-001.catalogue.json",
+      "expected": {
+        "state": "validated",
+        "catalogue_sha256": "conformance/catalogue/alkali-metal-water-001.catalogue.digest"
+      }
+    },
+    {
       "id": "canonical-expansion-001",
       "component": "expansion",
       "requirements": ["EXP-001", "EXP-002"],
@@ -151,6 +162,16 @@
         "expanded": "conformance/expansion/canonical-expansion-001.expanded.json",
         "provenance": "conformance/expansion/canonical-expansion-001.provenance.txt",
         "certificate": "conformance/expansion/canonical-expansion-001.certificate.txt"
+      }
+    },
+    {
+      "id": "alkali-water-members-001",
+      "component": "expansion",
+      "requirements": ["EXP-003"],
+      "input": "conformance/expansion/alkali-water-members-001.input.json",
+      "expected": {
+        "state": "validated",
+        "expanded": "conformance/expansion/alkali-water-members-001.expected.json"
       }
     },
     {
@@ -177,6 +198,16 @@
       "expected": { "state": "validated" }
     },
     {
+      "id": "generalized-kernel-001",
+      "component": "validation-kernel",
+      "requirements": ["KER-003"],
+      "input": "conformance/validation-kernel/generalized-kernel-001.input.json",
+      "expected": {
+        "state": "validated",
+        "derivation": "conformance/validation-kernel/generalized-kernel-001.expected.json"
+      }
+    },
+    {
       "id": "artifact-boundary-001",
       "component": "artifacts",
       "requirements": ["CHR-004", "ART-001", "ART-002", "ART-003"],
@@ -193,6 +224,15 @@
       }
     },
     {
+      "id": "alkali-water-frames-001",
+      "component": "frames",
+      "requirements": ["FRM-002"],
+      "expected": {
+        "state": "validated",
+        "frames": "conformance/frames/alkali-water-frames-001.expected.json"
+      }
+    },
+    {
       "id": "lithium-outcome-001",
       "component": "end-to-end",
       "requirements": ["END-001"],
@@ -201,6 +241,13 @@
         "state": "incomplete",
         "artifact": "conformance/end-to-end/lithium-outcome-001.artifact.json"
       }
+    },
+    {
+      "id": "alkali-water-family-001",
+      "component": "end-to-end",
+      "requirements": ["END-002"],
+      "input": "conformance/end-to-end/alkali-water-family-001.input.json",
+      "expected": { "state": "validated" }
     }
   ]
 }
