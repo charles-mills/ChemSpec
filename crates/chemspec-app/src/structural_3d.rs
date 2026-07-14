@@ -6,10 +6,10 @@
 use bytemuck::{Pod, Zeroable};
 use chem_catalogue::{
     AppearanceProfile, AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile,
-    PresentationTransform,
+    PresentationObject, PresentationTransform, SceneRole,
 };
-use chem_presentation::ScenePlan;
-use glam::{Mat4, Quat, Vec3};
+use chem_presentation::{RealWorldPosition, ScenePlan};
+use glam::{EulerRot, Mat4, Quat, Vec3};
 use iced::mouse;
 use iced::widget::shader::{self, Action, Program};
 use iced::{Rectangle, wgpu};
@@ -22,16 +22,14 @@ const MAX_INDICES: u64 = 98_304;
 #[derive(Debug, Clone)]
 pub struct Scene {
     plan: ScenePlan,
-    ordinal: u16,
-    progress: f32,
+    moment: RealWorldPosition,
 }
 
 impl Scene {
-    pub fn new(plan: &ScenePlan, ordinal: u16, progress: f32) -> Self {
+    pub fn new(plan: &ScenePlan, moment: RealWorldPosition) -> Self {
         Self {
             plan: plan.clone(),
-            ordinal,
-            progress: progress.clamp(0.0, 1.0),
+            moment,
         }
     }
 }
@@ -110,14 +108,21 @@ impl<Message> Program<Message> for Scene {
         _cursor: mouse::Cursor,
         _bounds: Rectangle,
     ) -> Self::Primitive {
-        let (vertices, indices) = build_scene(&self.plan, self.ordinal, self.progress);
-        let (yaw, pitch, zoom) = camera_pose(&self.plan, self.ordinal, self.progress);
+        let (vertices, indices, opaque_index_count) = build_scene(
+            &self.plan,
+            self.moment.ordinal,
+            self.moment.ordinal_progress,
+        );
+        let (yaw, pitch, zoom) = camera_pose(&self.plan, self.moment);
+        let focus_target = SceneLayout::resolve(&self.plan).camera_target;
         ScenePrimitive {
             vertices,
             indices,
+            opaque_index_count,
             yaw: yaw + state.yaw_offset,
             pitch: pitch + state.pitch_offset,
             zoom: zoom + state.zoom_offset,
+            focus_target,
         }
     }
 
@@ -158,19 +163,23 @@ struct CameraUniform {
 pub struct ScenePrimitive {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
+    opaque_index_count: u32,
     yaw: f32,
     pitch: f32,
     zoom: f32,
+    focus_target: Vec3,
 }
 
 #[derive(Debug)]
 pub struct ScenePipeline {
-    render_pipeline: wgpu::RenderPipeline,
+    opaque_pipeline: wgpu::RenderPipeline,
+    transparent_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     depth: Option<DepthTarget>,
+    opaque_index_count: u32,
     index_count: u32,
     physical_bounds: [u32; 4],
 }
@@ -183,6 +192,7 @@ struct DepthTarget {
 }
 
 impl shader::Pipeline for ScenePipeline {
+    #[allow(clippy::too_many_lines)]
     fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("chemspec structural 3d shader"),
@@ -220,47 +230,65 @@ impl shader::Pipeline for ScenePipeline {
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("chemspec structural 3d pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vertex"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<Vertex>() as u64,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4],
-                }],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: Some(wgpu::Face::Back),
-                ..wgpu::PrimitiveState::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
+        let create_pipeline = |label: &'static str,
+                               blend: Option<wgpu::BlendState>,
+                               depth_write_enabled: bool,
+                               cull_mode: Option<wgpu::Face>| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vertex"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<Vertex>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4],
+                    }],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fragment"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    cull_mode,
+                    ..wgpu::PrimitiveState::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
+        let opaque_pipeline = create_pipeline(
+            "chemspec structural 3d opaque pipeline",
+            None,
+            true,
+            Some(wgpu::Face::Back),
+        );
+        let transparent_pipeline = create_pipeline(
+            "chemspec structural 3d transparent pipeline",
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+            false,
+            None,
+        );
         Self {
-            render_pipeline,
+            opaque_pipeline,
+            transparent_pipeline,
             vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("chemspec structural 3d vertices"),
                 size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
@@ -276,6 +304,7 @@ impl shader::Pipeline for ScenePipeline {
             uniform_buffer,
             bind_group,
             depth: None,
+            opaque_index_count: 0,
             index_count: 0,
             physical_bounds: [0; 4],
         }
@@ -336,6 +365,7 @@ impl shader::Primitive for ScenePrimitive {
             });
         }
         if self.vertices.len() as u64 > MAX_VERTICES || self.indices.len() as u64 > MAX_INDICES {
+            pipeline.opaque_index_count = 0;
             pipeline.index_count = 0;
             return;
         }
@@ -350,9 +380,10 @@ impl shader::Primitive for ScenePrimitive {
             bytemuck::cast_slice(&self.indices),
         );
         pipeline.index_count = u32::try_from(self.indices.len()).unwrap_or(u32::MAX);
+        pipeline.opaque_index_count = self.opaque_index_count.min(pipeline.index_count);
 
         let aspect = width as f32 / height.max(1) as f32;
-        let reaction_target = Vec3::new(0.0, 0.56, 0.0);
+        let reaction_target = self.focus_target;
         let pitch = self.pitch.clamp(-1.18, -0.22);
         let eye = reaction_target
             + Quat::from_rotation_y(self.yaw)
@@ -418,18 +449,120 @@ impl shader::Primitive for ScenePrimitive {
         });
         pass.set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
         pass.set_scissor_rect(scissor_x, scissor_y, scissor_width, scissor_height);
-        pass.set_pipeline(&pipeline.render_pipeline);
+        pass.set_pipeline(&pipeline.opaque_pipeline);
         pass.set_bind_group(0, &pipeline.bind_group, &[]);
         pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
         pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..pipeline.index_count, 0, 0..1);
+        pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
+        if pipeline.opaque_index_count < pipeline.index_count {
+            pass.set_pipeline(&pipeline.transparent_pipeline);
+            pass.draw_indexed(pipeline.opaque_index_count..pipeline.index_count, 0, 0..1);
+        }
     }
 }
 
-fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, Vec<u32>) {
-    let mut mesh = Mesh::default();
+#[derive(Debug, Clone, Copy)]
+struct SceneLayout {
+    bench_top: f32,
+    vessel_center: Vec3,
+    liquid_center: Vec3,
+    liquid_surface: f32,
+    reaction_point: Vec3,
+    camera_target: Vec3,
+}
+
+impl SceneLayout {
+    fn resolve(plan: &ScenePlan) -> Self {
+        let bench_top = -0.76;
+        let vessel = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Vessel);
+        let vessel_scale = vessel.map_or(Vec3::ONE, |object| transform_scale(&object.transform));
+        let vessel_source = vessel.map_or(Vec3::ZERO, |object| {
+            transform_translation(&object.transform)
+        });
+        let vessel_center = Vec3::new(
+            vessel_source.x,
+            bench_top + 0.55 * vessel_scale.y,
+            vessel_source.z,
+        );
+        let contents = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Contents);
+        let liquid_scale = contents.map_or(Vec3::new(0.86, 0.62, 0.86), |object| {
+            transform_scale(&object.transform)
+        });
+        let liquid_bottom = bench_top + 0.06;
+        let liquid_center = Vec3::new(
+            vessel_center.x,
+            liquid_bottom + 0.52 * liquid_scale.y,
+            vessel_center.z,
+        );
+        let liquid_surface = liquid_center.y + 0.54 * liquid_scale.y;
+        let reaction_point = Vec3::new(vessel_center.x, liquid_surface + 0.065, vessel_center.z);
+        let precipitation = plan.effects.iter().any(|effect| {
+            matches!(
+                effect.effect,
+                EffectProfile::PrecipitateFormation | EffectProfile::Clouding
+            )
+        });
+        let camera_target = Vec3::new(
+            vessel_center.x,
+            if precipitation {
+                liquid_center.y
+            } else {
+                liquid_surface
+            },
+            vessel_center.z,
+        );
+        Self {
+            bench_top,
+            vessel_center,
+            liquid_center,
+            liquid_surface,
+            reaction_point,
+            camera_target,
+        }
+    }
+
+    fn object_offset(self, object: &PresentationObject) -> Vec3 {
+        let source = transform_translation(&object.transform);
+        let target = match object.role {
+            SceneRole::Vessel => self.vessel_center,
+            SceneRole::Contents => self.liquid_center,
+            SceneRole::Reactant => Vec3::new(
+                self.reaction_point.x + source.x,
+                self.reaction_point.y,
+                self.reaction_point.z + source.z,
+            ),
+            SceneRole::Product => match object.asset {
+                AssetProfile::PrecipitateCloud
+                | AssetProfile::CrystalCluster
+                | AssetProfile::PowderPile => Vec3::new(
+                    self.vessel_center.x + source.x,
+                    self.bench_top + 0.12,
+                    self.vessel_center.z + source.z,
+                ),
+                AssetProfile::GasCloud => Vec3::new(
+                    self.vessel_center.x + source.x,
+                    self.liquid_surface + 0.42,
+                    self.vessel_center.z + source.z,
+                ),
+                _ => source,
+            },
+            SceneRole::Environment => source,
+        };
+        target - source
+    }
+}
+
+fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, Vec<u32>, u32) {
+    let mut meshes = SceneMeshes::default();
+    let layout = SceneLayout::resolve(plan);
     instantiate_asset(
-        &mut mesh,
+        &mut meshes,
         plan.environment,
         AppearanceProfile::LaboratoryNeutral,
         &PresentationTransform {
@@ -437,52 +570,56 @@ fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, V
             rotation: [0, 0, 0],
             scale: [1000, 1000, 1000],
         },
-        ordinal,
         1.0,
         Vec3::ZERO,
+        0,
     );
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
             let shrink = object_scale_from_effects(plan, object.role, ordinal, progress);
             let motion = object_motion(plan, object.role, ordinal, progress);
             instantiate_asset(
-                &mut mesh,
+                &mut meshes,
                 object.asset,
                 object.appearance,
                 &object.transform,
-                ordinal,
                 shrink,
-                motion,
+                layout.object_offset(object) + motion,
+                stable_seed(&object.id),
             );
         }
     }
     for effect in &plan.effects {
         if effect.start_ordinal <= ordinal && ordinal <= effect.end_ordinal {
             instantiate_effect(
-                &mut mesh,
+                &mut meshes,
                 effect.effect,
                 effect.intensity,
                 ordinal,
                 progress,
+                layout,
             );
         }
     }
-    (mesh.vertices, mesh.indices)
+    meshes.finish()
 }
 
-fn camera_pose(plan: &ScenePlan, ordinal: u16, progress: f32) -> (f32, f32, f32) {
+fn camera_pose(plan: &ScenePlan, moment: RealWorldPosition) -> (f32, f32, f32) {
     let behaviour = plan
-        .camera
-        .iter()
-        .find(|cue| cue.start_ordinal <= ordinal && ordinal <= cue.end_ordinal)
-        .map_or(CameraBehaviour::WideEstablishingShot, |cue| cue.behaviour);
+        .timeline
+        .beats
+        .get(moment.beat_index)
+        .map_or(CameraBehaviour::WideEstablishingShot, |beat| {
+            beat.camera.behaviour
+        });
     let pose = scene_registry::camera_pose(behaviour);
     let next_behaviour = plan
-        .camera
-        .iter()
-        .find(|cue| cue.start_ordinal > ordinal)
-        .map_or(behaviour, |cue| cue.behaviour);
+        .timeline
+        .beats
+        .get(moment.beat_index + 1)
+        .map_or(behaviour, |beat| beat.camera.behaviour);
     let next = scene_registry::camera_pose(next_behaviour);
+    let progress = moment.beat_progress.clamp(0.0, 1.0);
     let eased = progress * progress * (3.0 - 2.0 * progress);
     (
         pose.yaw + (next.yaw - pose.yaw) * eased,
@@ -493,43 +630,52 @@ fn camera_pose(plan: &ScenePlan, ordinal: u16, progress: f32) -> (f32, f32, f32)
 
 fn object_scale_from_effects(
     plan: &ScenePlan,
-    role: chem_catalogue::SceneRole,
+    role: SceneRole,
     ordinal: u16,
     progress: f32,
 ) -> f32 {
-    if role != chem_catalogue::SceneRole::Reactant {
+    let profile = match role {
+        SceneRole::Reactant => Some((EffectProfile::ObjectShrinkage, false)),
+        SceneRole::Product => Some((EffectProfile::PrecipitateFormation, true)),
+        _ => None,
+    };
+    let Some((profile, grows)) = profile else {
         return 1.0;
-    }
+    };
     plan.effects
         .iter()
-        .find(|effect| {
-            effect.effect == EffectProfile::ObjectShrinkage
-                && effect.start_ordinal <= ordinal
-                && ordinal <= effect.end_ordinal
-        })
+        .find(|effect| effect.effect == profile && effect.start_ordinal <= ordinal)
         .map_or(1.0, |effect| {
             let span = f32::from(
                 effect
                     .end_ordinal
                     .saturating_sub(effect.start_ordinal)
-                    .max(1),
+                    .saturating_add(1),
             );
-            let elapsed = f32::from(ordinal.saturating_sub(effect.start_ordinal)) + progress;
-            (1.0 - 0.72 * (elapsed / span).clamp(0.0, 1.0)).max(0.24)
+            let elapsed = if ordinal > effect.end_ordinal {
+                span
+            } else {
+                f32::from(ordinal.saturating_sub(effect.start_ordinal)) + progress
+            };
+            let extent = (elapsed / span).clamp(0.0, 1.0);
+            if grows {
+                0.12 + extent * 0.88
+            } else {
+                (1.0 - 0.76 * extent).max(0.20)
+            }
         })
 }
 
-fn object_motion(
-    plan: &ScenePlan,
-    role: chem_catalogue::SceneRole,
-    ordinal: u16,
-    progress: f32,
-) -> Vec3 {
-    if role != chem_catalogue::SceneRole::Reactant {
+fn object_motion(plan: &ScenePlan, role: SceneRole, ordinal: u16, progress: f32) -> Vec3 {
+    if role != SceneRole::Reactant {
         return Vec3::ZERO;
     }
     let introduction = if ordinal == 0 {
-        Vec3::new(-0.42 * (1.0 - progress), 0.72 * (1.0 - progress), 0.18)
+        Vec3::new(
+            -0.42 * (1.0 - progress),
+            0.72 * (1.0 - progress),
+            0.18 * (1.0 - progress),
+        )
     } else {
         Vec3::ZERO
     };
@@ -550,69 +696,177 @@ fn object_motion(
         )
 }
 
-fn instantiate_asset(
-    mesh: &mut Mesh,
-    asset: AssetProfile,
-    appearance: AppearanceProfile,
-    transform: &PresentationTransform,
-    ordinal: u16,
-    scale_multiplier: f32,
-    position_offset: Vec3,
-) {
-    let position = Vec3::new(
+fn transform_translation(transform: &PresentationTransform) -> Vec3 {
+    Vec3::new(
         f32::from(transform.translation[0]) / 1_000.0,
         f32::from(transform.translation[1]) / 1_000.0,
         f32::from(transform.translation[2]) / 1_000.0,
-    ) + position_offset;
-    let scale = Vec3::new(
+    )
+}
+
+fn transform_scale(transform: &PresentationTransform) -> Vec3 {
+    Vec3::new(
         f32::from(transform.scale[0]) / 1_000.0,
         f32::from(transform.scale[1]) / 1_000.0,
         f32::from(transform.scale[2]) / 1_000.0,
-    ) * scale_multiplier;
+    )
+}
+
+fn transform_rotation(transform: &PresentationTransform) -> Quat {
+    let turns_to_radians = std::f32::consts::TAU / 1_000.0;
+    Quat::from_euler(
+        EulerRot::XYZ,
+        f32::from(transform.rotation[0]) * turns_to_radians,
+        f32::from(transform.rotation[1]) * turns_to_radians,
+        f32::from(transform.rotation[2]) * turns_to_radians,
+    )
+}
+
+fn stable_seed(value: &str) -> u64 {
+    value
+        .as_bytes()
+        .iter()
+        .fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3)
+        })
+}
+
+fn rotate_mesh_vertices(mesh: &mut Mesh, start: usize, pivot: Vec3, rotation: Quat) {
+    for vertex in &mut mesh.vertices[start..] {
+        let position = Vec3::from_array(vertex.position);
+        vertex.position = (pivot + rotation * (position - pivot)).to_array();
+        vertex.normal = (rotation * Vec3::from_array(vertex.normal))
+            .normalize_or_zero()
+            .to_array();
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn instantiate_asset(
+    meshes: &mut SceneMeshes,
+    asset: AssetProfile,
+    appearance: AppearanceProfile,
+    transform: &PresentationTransform,
+    scale_multiplier: f32,
+    position_offset: Vec3,
+    variation_seed: u64,
+) {
+    let position = transform_translation(transform) + position_offset;
+    let scale = transform_scale(transform) * scale_multiplier;
+    let rotation = transform_rotation(transform);
     let color = appearance_color(appearance);
+    let opaque_start = meshes.opaque.vertices.len();
+    let translucent_start = meshes.translucent.vertices.len();
+    let glass_start = meshes.glass.vertices.len();
     match scene_registry::asset_geometry(asset) {
         AssetGeometry::Bench => {
-            add_box(mesh, position, Vec3::new(7.2, 0.28, 5.4) * scale, color);
+            add_box(
+                &mut meshes.opaque,
+                position,
+                Vec3::new(20.0, 0.28, 10.0) * scale,
+                color,
+            );
+            add_box(
+                &mut meshes.opaque,
+                position + Vec3::new(0.0, 2.40, -3.68),
+                Vec3::new(20.0, 5.0, 0.18) * scale,
+                [0.075, 0.10, 0.13, 1.0],
+            );
+            add_disc(
+                &mut meshes.translucent,
+                position + Vec3::new(0.0, 0.148, 0.0),
+                1.30,
+                [0.01, 0.02, 0.025, 0.22],
+            );
         }
         AssetGeometry::CylindricalVessel => {
             let bottom = position + Vec3::new(0.0, -0.55 * scale.y, 0.0);
             let top = position + Vec3::new(0.0, 0.95 * scale.y, 0.0);
             let radius = 0.92 * scale.x;
-            add_ring(mesh, top, radius, 0.028, [0.78, 0.94, 1.0, 0.78]);
-            add_ring(mesh, bottom, radius * 0.96, 0.018, [0.68, 0.88, 1.0, 0.45]);
-            for segment in 0_u8..12 {
-                let angle = std::f32::consts::TAU * f32::from(segment) / 12.0;
-                let edge = Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
-                add_cylinder(mesh, bottom + edge * 0.96, top + edge, 0.010, color);
-            }
+            add_ring(
+                &mut meshes.glass,
+                top,
+                radius,
+                0.028,
+                [0.62, 0.84, 0.94, 0.28],
+            );
+            add_ring(
+                &mut meshes.glass,
+                bottom,
+                radius * 0.96,
+                0.018,
+                [0.52, 0.76, 0.88, 0.16],
+            );
+            add_cylinder_wall(&mut meshes.glass, bottom, top, radius, color);
+            add_disc(
+                &mut meshes.glass,
+                bottom + Vec3::new(0.0, 0.018, 0.0),
+                radius * 0.95,
+                [0.48, 0.72, 0.84, 0.10],
+            );
+            let spout = top + Vec3::new(radius * 0.93, 0.025, 0.0);
+            add_sphere(
+                &mut meshes.glass,
+                spout,
+                0.075 * scale.x,
+                [0.62, 0.84, 0.94, 0.22],
+                4,
+                6,
+            );
         }
         AssetGeometry::LiquidCylinder => {
             let bottom = position + Vec3::new(0.0, -0.52 * scale.y, 0.0);
             let top = position + Vec3::new(0.0, 0.54 * scale.y, 0.0);
-            add_cylinder(mesh, bottom, top, 0.82 * scale.x, color);
-            add_disc(mesh, top, 0.82 * scale.x, [0.34, 0.76, 0.96, 0.76]);
-            add_disc(mesh, bottom, 0.82 * scale.x, color);
+            add_cylinder(&mut meshes.translucent, bottom, top, 0.82 * scale.x, color);
+            add_disc(
+                &mut meshes.translucent,
+                top,
+                0.82 * scale.x,
+                [0.32, 0.62, 0.76, 0.48],
+            );
+            add_ring(
+                &mut meshes.translucent,
+                top + Vec3::new(0.0, 0.008, 0.0),
+                0.79 * scale.x,
+                0.014,
+                [0.58, 0.82, 0.92, 0.46],
+            );
+            add_disc(&mut meshes.translucent, bottom, 0.82 * scale.x, color);
         }
         AssetGeometry::LowPolyChunk => {
-            let variation = 1.0 + f32::from(ordinal % 3) * 0.035;
-            add_box(
-                mesh,
+            let variation = 0.96 + f32::from((variation_seed % 9) as u8) * 0.01;
+            add_irregular_chunk(
+                &mut meshes.opaque,
                 position,
-                Vec3::new(0.7, 0.18, 0.42) * scale * variation,
+                Vec3::new(0.52, 0.18, 0.36) * scale * variation,
                 color,
+                variation_seed,
             );
         }
-        AssetGeometry::ParticleCluster => add_particle_cluster(mesh, position, scale, color, 18),
-        AssetGeometry::GasCluster => add_particle_cluster(mesh, position, scale, color, 12),
+        AssetGeometry::ParticleCluster => {
+            add_particle_cluster(&mut meshes.opaque, position, scale, color, 18);
+        }
+        AssetGeometry::GasCluster => {
+            add_particle_cluster(&mut meshes.translucent, position, scale, color, 12);
+        }
     }
+    rotate_mesh_vertices(&mut meshes.opaque, opaque_start, position, rotation);
+    rotate_mesh_vertices(
+        &mut meshes.translucent,
+        translucent_start,
+        position,
+        rotation,
+    );
+    rotate_mesh_vertices(&mut meshes.glass, glass_start, position, rotation);
 }
 
 fn instantiate_effect(
-    mesh: &mut Mesh,
+    meshes: &mut SceneMeshes,
     effect: EffectProfile,
     intensity: EffectIntensity,
     ordinal: u16,
     progress: f32,
+    layout: SceneLayout,
 ) {
     let count = match intensity {
         EffectIntensity::Subtle => 6,
@@ -620,15 +874,13 @@ fn instantiate_effect(
         EffectIntensity::Strong => 20,
     };
     let phase = f32::from(ordinal) + progress;
-    let reaction_point = Vec3::new(
-        (phase * 2.2).sin() * 0.34,
-        0.66,
-        (phase * 1.61).cos() * 0.24,
-    );
+    let reaction_point = layout.reaction_point
+        + Vec3::new((phase * 2.2).sin() * 0.34, 0.0, (phase * 1.61).cos() * 0.24);
+    let surface_point = Vec3::new(reaction_point.x, layout.liquid_surface, reaction_point.z);
     match scene_registry::effect_geometry(effect) {
         EffectGeometry::ParticleCloud => add_particle_cluster(
-            mesh,
-            Vec3::new(0.0, -0.45, 0.0),
+            &mut meshes.translucent,
+            layout.liquid_center + Vec3::new(0.0, -0.12, 0.0),
             Vec3::new(0.85, 0.32, 0.85),
             [0.94, 0.96, 1.0, 0.82],
             count,
@@ -638,19 +890,39 @@ fn instantiate_effect(
                 let lane = index % 4;
                 let layer = index / 4;
                 let cycle = (f32::from(layer) * 0.23 + progress * 0.9).fract();
-                let point = reaction_point
+                let point = surface_point
                     + Vec3::new(
                         f32::from(lane) * 0.12 - 0.18,
-                        -0.38 + cycle * 1.18,
+                        -0.14 + cycle * 0.24,
                         f32::from((index * 7) % 5) * 0.09 - 0.18,
                     );
                 add_sphere(
-                    mesh,
+                    &mut meshes.translucent,
                     point,
                     0.055 + f32::from(index % 3) * 0.018,
-                    [0.72, 0.91, 1.0, 0.62],
+                    [0.58, 0.80, 0.90, 0.24],
                     5,
                     7,
+                );
+            }
+        }
+        EffectGeometry::EscapingGas => {
+            for index in 0..count.min(8) {
+                let cycle = (progress * 0.45 + f32::from(index) * 0.137).fract();
+                let angle = f32::from(index) * 2.399_963_1;
+                let point = surface_point
+                    + Vec3::new(
+                        angle.cos() * (0.08 + cycle * 0.16),
+                        0.08 + cycle * 0.42,
+                        angle.sin() * (0.08 + cycle * 0.16),
+                    );
+                add_sphere(
+                    &mut meshes.translucent,
+                    point,
+                    0.025 + f32::from(index % 3) * 0.008,
+                    [0.72, 0.86, 0.92, (1.0 - cycle) * 0.12],
+                    4,
+                    6,
                 );
             }
         }
@@ -658,11 +930,11 @@ fn instantiate_effect(
             for ring in 0_u8..3 {
                 let cycle = (progress + f32::from(ring) * 0.31).fract();
                 add_ring(
-                    mesh,
-                    reaction_point + Vec3::new(0.0, 0.012, 0.0),
+                    &mut meshes.translucent,
+                    surface_point + Vec3::new(0.0, 0.012, 0.0),
                     0.14 + cycle * 0.58,
                     0.012,
-                    [0.68, 0.91, 1.0, (1.0 - cycle) * 0.62],
+                    [0.50, 0.77, 0.90, (1.0 - cycle) * 0.38],
                 );
             }
         }
@@ -671,13 +943,20 @@ fn instantiate_effect(
                 let angle = f32::from(index) * 2.399_963_1;
                 let cycle = (progress * 1.45 + f32::from(index) * 0.083).fract();
                 let spread = 0.12 + cycle * 0.34;
-                let point = reaction_point
+                let point = surface_point
                     + Vec3::new(
                         angle.cos() * spread,
                         cycle * (1.0 - cycle) * 1.15,
                         angle.sin() * spread,
                     );
-                add_sphere(mesh, point, 0.025, [0.52, 0.84, 1.0, 0.82], 4, 6);
+                add_sphere(
+                    &mut meshes.translucent,
+                    point,
+                    0.025,
+                    [0.42, 0.72, 0.88, 0.58],
+                    4,
+                    6,
+                );
             }
         }
         EffectGeometry::PresentationOnly => {}
@@ -686,9 +965,9 @@ fn instantiate_effect(
 
 fn appearance_color(profile: AppearanceProfile) -> [f32; 4] {
     match profile {
-        AppearanceProfile::LaboratoryNeutral => [0.30, 0.38, 0.44, 1.0],
-        AppearanceProfile::ClearGlass => [0.68, 0.88, 1.0, 0.32],
-        AppearanceProfile::Water | AppearanceProfile::AqueousColourless => [0.28, 0.68, 0.94, 0.62],
+        AppearanceProfile::LaboratoryNeutral => [0.16, 0.20, 0.23, 1.0],
+        AppearanceProfile::ClearGlass => [0.46, 0.70, 0.82, 0.09],
+        AppearanceProfile::Water | AppearanceProfile::AqueousColourless => [0.36, 0.62, 0.74, 0.28],
         AppearanceProfile::WhitePrecipitate => [0.94, 0.96, 1.0, 0.92],
         AppearanceProfile::AlkaliMetal => [0.72, 0.76, 0.78, 1.0],
         AppearanceProfile::MetalSilver => [0.72, 0.80, 0.88, 1.0],
@@ -725,6 +1004,41 @@ fn add_disc(mesh: &mut Mesh, center: Vec3, radius: f32, color: [f32; 4]) {
 struct Mesh {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
+}
+
+#[derive(Default)]
+struct SceneMeshes {
+    opaque: Mesh,
+    translucent: Mesh,
+    glass: Mesh,
+}
+
+impl SceneMeshes {
+    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32) {
+        let mut vertices = Vec::with_capacity(
+            self.opaque.vertices.len()
+                + self.translucent.vertices.len()
+                + self.glass.vertices.len(),
+        );
+        let mut indices = Vec::with_capacity(
+            self.opaque.indices.len() + self.translucent.indices.len() + self.glass.indices.len(),
+        );
+        append_mesh(&mut vertices, &mut indices, self.opaque);
+        let opaque_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
+        append_mesh(&mut vertices, &mut indices, self.translucent);
+        append_mesh(&mut vertices, &mut indices, self.glass);
+        (vertices, indices, opaque_index_count)
+    }
+}
+
+fn append_mesh(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, mesh: Mesh) {
+    let vertex_offset = u32::try_from(vertices.len()).unwrap_or(u32::MAX);
+    vertices.extend(mesh.vertices);
+    indices.extend(
+        mesh.indices
+            .into_iter()
+            .map(|index| index.saturating_add(vertex_offset)),
+    );
 }
 
 fn add_sphere(
@@ -800,6 +1114,77 @@ fn add_cylinder(mesh: &mut Mesh, start: Vec3, end: Vec3, radius: f32, color: [f3
         mesh.indices
             .extend_from_slice(&[bottom, top, bottom + 1, bottom + 1, top, top + 1]);
     }
+}
+
+fn add_cylinder_wall(mesh: &mut Mesh, bottom: Vec3, top: Vec3, radius: f32, color: [f32; 4]) {
+    const SIDES: u16 = 32;
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    for level in [bottom, top] {
+        for side in 0..=SIDES {
+            let angle = std::f32::consts::TAU * f32::from(side) / f32::from(SIDES);
+            let normal = Vec3::new(angle.cos(), 0.0, angle.sin());
+            mesh.vertices.push(Vertex {
+                position: (level + normal * radius).to_array(),
+                normal: normal.to_array(),
+                color,
+            });
+        }
+    }
+    for side in 0..SIDES {
+        let lower = base + u32::from(side);
+        let upper = base + u32::from(SIDES) + 1 + u32::from(side);
+        mesh.indices
+            .extend_from_slice(&[lower, upper, lower + 1, lower + 1, upper, upper + 1]);
+    }
+}
+
+fn add_irregular_chunk(mesh: &mut Mesh, center: Vec3, size: Vec3, color: [f32; 4], seed: u64) {
+    let half = size * 0.5;
+    let mut corners = [Vec3::ZERO; 8];
+    for (index, corner) in corners.iter_mut().enumerate() {
+        let sign = Vec3::new(
+            if index & 1 == 0 { -1.0 } else { 1.0 },
+            if index & 2 == 0 { -1.0 } else { 1.0 },
+            if index & 4 == 0 { -1.0 } else { 1.0 },
+        );
+        let jitter = Vec3::new(
+            seeded_variation(seed, index * 3),
+            seeded_variation(seed, index * 3 + 1) * 0.45,
+            seeded_variation(seed, index * 3 + 2),
+        );
+        *corner = center + sign * half * (Vec3::ONE + jitter);
+    }
+    let faces = [
+        [0, 1, 3, 2],
+        [5, 4, 6, 7],
+        [4, 0, 2, 6],
+        [1, 5, 7, 3],
+        [2, 3, 7, 6],
+        [4, 5, 1, 0],
+    ];
+    for indices in faces {
+        let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+        let normal = (corners[indices[1]] - corners[indices[0]])
+            .cross(corners[indices[2]] - corners[indices[0]])
+            .normalize_or_zero();
+        for index in indices {
+            mesh.vertices.push(Vertex {
+                position: corners[index].to_array(),
+                normal: normal.to_array(),
+                color,
+            });
+        }
+        mesh.indices
+            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+}
+
+fn seeded_variation(seed: u64, component: usize) -> f32 {
+    let mixed = seed
+        .wrapping_add(u64::try_from(component).unwrap_or(u64::MAX))
+        .wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    let unit = f32::from((mixed >> 56) as u8) / 255.0;
+    (unit - 0.5) * 0.24
 }
 
 fn add_box(mesh: &mut Mesh, center: Vec3, size: Vec3, color: [f32; 4]) {
@@ -890,6 +1275,11 @@ mod tests {
             bytemuck::cast_slice::<Vertex, u8>(&second.0)
         );
         assert_eq!(first.1, second.1);
+        assert!(first.2 > 0, "the scene must contain opaque depth geometry");
+        assert!(
+            usize::try_from(first.2).is_ok_and(|count| count < first.1.len()),
+            "glass, liquid, and effects must remain in the transparent pass"
+        );
         assert!(first.0.iter().any(|vertex| vertex.position[2].abs() > 0.1));
         assert!(
             first.0.len() > 100,
@@ -913,7 +1303,76 @@ mod tests {
             effect.effect == EffectProfile::SurfaceDisturbance
                 || effect.effect == EffectProfile::SplashEmitter
         }));
-        let (_, pitch, _) = camera_pose(&plan, 0, 0.0);
+        let moment = plan.timeline.locate(0).expect("timeline begins");
+        let (_, pitch, _) = camera_pose(&plan, moment);
         assert!(pitch < -0.5);
+    }
+
+    #[test]
+    fn resolved_layout_grounds_the_vessel_and_keeps_liquid_inside_it() {
+        const SOURCE: &str = include_str!("../../../fixtures/lithium-water.chems");
+        const CATALOGUE: &[u8] =
+            include_bytes!("../../../fixtures/catalogue/lithium-water.catalogue.json");
+        let catalogue = CatalogueBundle::load_json(CATALOGUE).expect("catalogue loads");
+        let expanded = expand_structural_rule(SOURCE, &catalogue).expect("rule expands");
+        let validated = validate_structural_reaction(expanded).expect("rule validates");
+        let plan = compile_real_world_plan(&validated).expect("plan compiles");
+        let layout = SceneLayout::resolve(&plan);
+        let vessel = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Vessel)
+            .expect("vessel exists");
+        let vessel_scale = transform_scale(&vessel.transform);
+        let vessel_base = layout.vessel_center.y - 0.55 * vessel_scale.y;
+        let vessel_rim = layout.vessel_center.y + 0.95 * vessel_scale.y;
+
+        assert!((vessel_base - layout.bench_top).abs() < 0.001);
+        assert!(layout.liquid_center.y > layout.bench_top);
+        assert!(layout.liquid_surface > layout.liquid_center.y);
+        assert!(layout.liquid_surface < vessel_rim);
+        assert!(layout.reaction_point.y >= layout.liquid_surface);
+    }
+
+    #[test]
+    fn complete_transform_rotation_changes_reusable_asset_geometry() {
+        let base = PresentationTransform {
+            translation: [0, 0, 0],
+            rotation: [0, 0, 0],
+            scale: [900, 500, 400],
+        };
+        let rotated = PresentationTransform {
+            rotation: [0, 250, 0],
+            ..base.clone()
+        };
+        let mut unrotated_meshes = SceneMeshes::default();
+        instantiate_asset(
+            &mut unrotated_meshes,
+            AssetProfile::MetalChunk,
+            AppearanceProfile::AlkaliMetal,
+            &base,
+            1.0,
+            Vec3::ZERO,
+            42,
+        );
+        let mut rotated_meshes = SceneMeshes::default();
+        instantiate_asset(
+            &mut rotated_meshes,
+            AssetProfile::MetalChunk,
+            AppearanceProfile::AlkaliMetal,
+            &rotated,
+            1.0,
+            Vec3::ZERO,
+            42,
+        );
+        let (unrotated, _, _) = unrotated_meshes.finish();
+        let (rotated, _, _) = rotated_meshes.finish();
+
+        assert_eq!(unrotated.len(), rotated.len());
+        assert_ne!(
+            bytemuck::cast_slice::<Vertex, u8>(&unrotated),
+            bytemuck::cast_slice::<Vertex, u8>(&rotated),
+            "catalogue-authored rotation must reach positions and normals"
+        );
     }
 }

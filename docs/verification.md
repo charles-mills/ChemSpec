@@ -153,18 +153,70 @@ operation-specific changes, electron and charge presentation, metallic and
 covalent/ionic distinctions, product assignment, observation synchronization,
 and explanatory disclosure. The planned balanced equation must exactly
 preserve reviewed catalogue coefficients and formulae; renderer-side inference
-is forbidden. Tests also require one generated contextual explanation pause per
-structural operation, adaptive nonzero reading time, stable targets, and
-connector semantics without decorative arrowheads. The 3D suite requires reviewed scene-plan metadata,
-reaction-independent asset/effect/camera registry resolution, actual XYZ
-geometry, scene transforms, camera projection, depth, and use of the existing
-Iced/wgpu device. A Canvas perspective drawing or atom-sphere scene cannot
-satisfy this gate.
+is forbidden.
+
+Educational narration tests cover the complete trust path. They prove that:
+
+- `.chems` selects the source meaning and reviewed structural rule, while only
+  the current `ValidatedStructuralReaction` and trusted frames reach the
+  narration compiler;
+- operation, reactant, product, summary, and observation wording is assembled
+  locally from typed operations, element and charge state, electron counts,
+  reviewed equation terms, and typed observations;
+- the same validated inputs produce identical labels, atom targets, connector
+  policy, and adaptive reading duration without AI, provider, or network use;
+- at least two chemically distinct fixtures exercise the same reusable template
+  families and receive their own validated symbols, formulae, and values;
+- source, catalogue, or validated-generation changes invalidate the narration
+  together with the rest of the educational plan;
+- every structural operation receives one merged learning beat containing its
+  typed operation, context, and explanation, with stable targets, sufficient
+  adaptive reading time, and no decorative arrowheads; and
+- the Canvas receives completed typed labels and never derives terminology,
+  humanizes `species.*` or atom IDs, or selects reaction-specific copy.
+
+The 3D suite requires a deterministic `ScenePlan` compiled only from the current
+validated reaction and reviewed presentation metadata. It covers reviewed
+equation and typed-observation annotations, variable-duration macroscopic beat
+generation, reaction-independent asset/effect/camera registry resolution,
+distinct effect profiles, actual XYZ geometry, and use of the existing
+Iced/wgpu device. A Canvas perspective drawing, atom-sphere scene, bespoke
+reaction renderer, or runtime-generated animation code cannot satisfy this
+gate.
+
+Renderer-side 3D tests cover role-based scene anchors, vessels grounded on the
+bench, liquid and reaction-interface bounds, full translation/rotation/scale
+application, stable object-ID variation seeds, and camera interpolation by beat
+progress. Mesh tests require separate non-overlapping opaque and transparent
+index ranges. Live GPU smoke tests verify the opaque depth-writing pass is drawn
+before the alpha-blended liquid/effect/glass pass, both use the same depth-tested
+Iced target, and clear glass does not incorrectly hide opaque scene geometry.
+
+Educational timeline tests additionally cover variable-duration totals, exact
+scene boundaries, zero-duration scenes, end clamping, and position-to-elapsed
+round trips. Application tests prove that scrubbing synchronizes the active
+scene and trusted end frame and pauses playback, ticking keeps
+overshoot across boundaries, playback stops exactly at the end, and restart
+resets both playhead and frame. Renderer helper tests cover bounded monotonic
+animation phases and preservation of the before/after atom union. Focused
+electron tests prove that metallic transfer, covalent formation, and covalent
+cleavage partition persistent and moving electrons without duplicate shell or
+bond dots at the start, midpoint, or end; shell-domain tests cover lone pairs and
+unpaired electrons. Live checks still verify the styled slider, chapter markers,
+label placement, and Canvas motion because those properties require the real
+Iced renderer.
+
+Macroscopic timeline tests similarly cover exact beat boundaries, duration
+totals, end clamping, playhead-to-ordinal synchronization, stable camera motion,
+and pause-on-scrub. Annotation tests prove initial/final text comes from reviewed
+equation terms and event text comes from typed observations, never internal IDs
+or renderer-authored chemistry wording.
 
 Live vessel checks additionally require an initial camera pitch above the rim,
-a visible liquid top surface, readable key/fill lighting, automatic progression
-without stage-button input, and macroscopic effects whose presence is authorized
-by the reviewed scene plan.
+a grounded vessel, liquid contained below its rim, a visible liquid top
+surface, readable key/fill lighting, automatic progression without stage-button
+input, stable geometry while seeking, and macroscopic effects whose presence is
+authorized by the reviewed scene plan.
 
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised

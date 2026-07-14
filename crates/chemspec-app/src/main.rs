@@ -19,18 +19,18 @@ mod structural_3d;
 mod theme;
 mod vessel;
 
-use chem_catalogue::CatalogueBundle;
+use chem_catalogue::{CatalogueBundle, EffectProfile, StructuralOperation};
 use chem_engine::{
     ExpansionError, StructuralFrame, StructuralValidationError, ValidationDisposition,
     expand_structural_rule, structural_frames, validate_structural_reaction,
 };
 use chem_presentation::{
-    EducationalPlan, EducationalSceneKind, ScenePlan, compile_educational_plan,
-    compile_real_world_plan,
+    EducationalCue, EducationalPlan, EducationalSceneKind, ScenePlan, TimelinePosition,
+    compile_educational_plan, compile_real_world_plan,
 };
 use iced::widget::{
-    button, canvas, column, container, progress_bar, responsive, row, rule, scrollable, space,
-    stack, text, text_editor, text_input,
+    button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
+    text, text_editor, text_input,
 };
 use iced::{Center, Element, Fill, FillPortion, Font, Length, Size, Subscription, Theme};
 
@@ -99,36 +99,46 @@ fn plan_equation(animation: &StructuralAnimation) -> Option<&chem_catalogue::Rev
 
 #[allow(clippy::cast_precision_loss)]
 fn educational_timeline_progress(animation: &StructuralAnimation) -> f32 {
-    let total = animation
-        .educational_plan
-        .scenes
-        .iter()
-        .map(|scene| u64::from(scene.duration_ms))
-        .sum::<u64>()
-        .max(1);
-    let elapsed = animation
-        .educational_plan
-        .scenes
-        .iter()
-        .take(animation.scene_index)
-        .map(|scene| u64::from(scene.duration_ms))
-        .sum::<u64>()
-        .saturating_add(u64::from(animation.scene_elapsed_ms));
-    (elapsed.min(total) as f32 / total as f32).clamp(0.0, 1.0)
+    let total = animation.educational_plan.duration_ms().max(1);
+    (animation.educational_playhead_ms.min(total) as f32 / total as f32).clamp(0.0, 1.0)
 }
 
-#[allow(clippy::cast_precision_loss)]
-fn real_world_timeline_progress(animation: &StructuralAnimation) -> f32 {
-    const STAGE_DURATION_MS: u64 = 2_400;
-    let stages = u64::try_from(animation.frames.len())
-        .unwrap_or(u64::MAX)
-        .max(1);
-    let total = stages.saturating_mul(STAGE_DURATION_MS);
-    let completed = u64::try_from(animation.frame_index)
-        .unwrap_or(u64::MAX)
-        .saturating_mul(STAGE_DURATION_MS)
-        .saturating_add(u64::from(animation.real_world_elapsed_ms));
-    (completed.min(total) as f32 / total as f32).clamp(0.0, 1.0)
+fn format_media_time(milliseconds: u64) -> String {
+    let seconds = milliseconds / 1_000;
+    format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+fn sync_educational_frame(animation: &mut StructuralAnimation) {
+    let Some(position) = animation
+        .educational_plan
+        .locate(animation.educational_playhead_ms)
+    else {
+        return;
+    };
+    let Some(scene) = animation.educational_plan.scenes.get(position.scene_index) else {
+        return;
+    };
+    if let Some(frame_index) = animation
+        .frames
+        .iter()
+        .position(|frame| frame.id == scene.end_frame)
+    {
+        animation.frame_index = frame_index;
+    }
+}
+
+const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
+    match effect {
+        EffectProfile::BubbleEmitter => "Interface bubbles",
+        EffectProfile::GasRelease => "Gas release",
+        EffectProfile::SurfaceDisturbance => "Surface motion",
+        EffectProfile::ObjectShrinkage => "Reactant consumption",
+        EffectProfile::PrecipitateFormation => "Precipitate formation",
+        EffectProfile::Clouding => "Solution clouding",
+        EffectProfile::ColourTransition => "Colour transition",
+        EffectProfile::SplashEmitter => "Fine droplets",
+        EffectProfile::HeatDistortion => "Heat distortion",
+    }
 }
 
 const fn educational_scene_title(kind: EducationalSceneKind) -> &'static str {
@@ -177,25 +187,58 @@ fn launch_state() -> App {
         app.prepare_structural_animation();
         if let Some(animation) = &mut app.structural_animation {
             let three_dimensional = smoke.ends_with("3d-smoke");
-            animation.frame_index = if three_dimensional {
-                animation.frames.len().saturating_sub(1)
+            animation.frame_index = 1.min(animation.frames.len().saturating_sub(1));
+            if three_dimensional {
+                animation.real_world_playhead_ms = animation
+                    .real_world_plan
+                    .timeline
+                    .duration_ms()
+                    .saturating_mul(2)
+                    / 3;
+                if let Some(position) = animation
+                    .real_world_plan
+                    .timeline
+                    .locate(animation.real_world_playhead_ms)
+                    && let Some(frame_index) = animation
+                        .frames
+                        .iter()
+                        .position(|frame| frame.ordinal == position.ordinal)
+                {
+                    animation.frame_index = frame_index;
+                }
             } else {
-                1.min(animation.frames.len().saturating_sub(1))
-            };
-            animation.scene_index = if three_dimensional {
-                0
-            } else {
-                animation
-                    .educational_plan
-                    .scenes
-                    .iter()
-                    .position(|scene| scene.kind == EducationalSceneKind::ExplanationPause)
-                    .unwrap_or(0)
-            };
-            if !three_dimensional
-                && let Some(scene) = animation.educational_plan.scenes.get(animation.scene_index)
-            {
-                animation.scene_elapsed_ms = scene.duration_ms / 2;
+                let scene_index =
+                    animation
+                        .educational_plan
+                        .scenes
+                        .iter()
+                        .position(|scene| {
+                            smoke.starts_with("--lithium-")
+                                && scene.cues.iter().any(|cue| {
+                                    matches!(
+                                        cue,
+                                        EducationalCue::ApplyOperation {
+                                            operation: StructuralOperation::FormCovalent { .. },
+                                            ..
+                                        }
+                                    )
+                                })
+                        })
+                        .or_else(|| {
+                            animation.educational_plan.scenes.iter().position(|scene| {
+                                scene.kind == EducationalSceneKind::StructuralChange
+                            })
+                        })
+                        .unwrap_or(0);
+                if let Some(scene) = animation.educational_plan.scenes.get(scene_index) {
+                    animation.educational_playhead_ms = animation
+                        .educational_plan
+                        .elapsed_at(TimelinePosition {
+                            scene_index,
+                            scene_elapsed_ms: scene.duration_ms / 2,
+                        })
+                        .unwrap_or(0);
+                }
             }
             animation.playing = false;
             app.screen = if three_dimensional {
@@ -240,10 +283,9 @@ struct StructuralAnimation {
     frames: Vec<StructuralFrame>,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
-    scene_index: usize,
-    scene_elapsed_ms: u32,
+    educational_playhead_ms: u64,
     frame_index: usize,
-    real_world_elapsed_ms: u32,
+    real_world_playhead_ms: u64,
     playing: bool,
     playback_speed: PlaybackSpeed,
     disposition: ValidationDisposition,
@@ -349,6 +391,9 @@ enum Message {
     SectionSelected(Section),
     StructuralPlaybackToggled,
     StructuralSpeedChanged,
+    StructuralTimelineScrubbed(u32),
+    StructuralRealWorldTimelineScrubbed(u32),
+    StructuralChapterChanged(i8),
     StructuralRestarted,
     StructuralTick,
     ContinueTo3d,
@@ -434,6 +479,19 @@ impl App {
                     animation.playback_speed = animation.playback_speed.next();
                 }
             }
+            Message::StructuralTimelineScrubbed(progress) => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.playing = false;
+                }
+                self.seek_educational_timeline(u64::from(progress));
+            }
+            Message::StructuralRealWorldTimelineScrubbed(progress) => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.playing = false;
+                }
+                self.seek_real_world_timeline(u64::from(progress));
+            }
+            Message::StructuralChapterChanged(delta) => self.change_structural_frame(delta),
             Message::StructuralTick => {
                 let elapsed = self
                     .structural_animation
@@ -447,20 +505,24 @@ impl App {
             }
             Message::StructuralRestarted => {
                 if let Some(animation) = &mut self.structural_animation {
-                    animation.scene_index = 0;
-                    animation.scene_elapsed_ms = 0;
+                    animation.educational_playhead_ms = 0;
                     animation.frame_index = 0;
-                    animation.real_world_elapsed_ms = 0;
+                    animation.real_world_playhead_ms = 0;
                     animation.playing = true;
                 }
             }
             Message::ContinueTo3d => {
                 if self.structural_animation.as_ref().is_some_and(|animation| {
-                    animation.scene_index + 1 == animation.educational_plan.scenes.len()
+                    animation
+                        .educational_plan
+                        .locate(animation.educational_playhead_ms)
+                        .is_some_and(|position| {
+                            position.scene_index + 1 == animation.educational_plan.scenes.len()
+                        })
                 }) {
                     if let Some(animation) = &mut self.structural_animation {
                         animation.frame_index = 0;
-                        animation.real_world_elapsed_ms = 0;
+                        animation.real_world_playhead_ms = 0;
                         animation.playing = true;
                     }
                     self.screen = Screen::Structural3d;
@@ -576,10 +638,9 @@ impl App {
                     frames,
                     educational_plan,
                     real_world_plan,
-                    scene_index: 0,
-                    scene_elapsed_ms: 0,
+                    educational_playhead_ms: 0,
                     frame_index: 0,
-                    real_world_elapsed_ms: 0,
+                    real_world_playhead_ms: 0,
                     playing: true,
                     playback_speed: PlaybackSpeed::Normal,
                     disposition,
@@ -600,23 +661,34 @@ impl App {
             return;
         };
         if self.screen == Screen::Structural2d {
-            if delta < 0 {
-                animation.scene_index = animation.scene_index.saturating_sub(1);
+            let Some(position) = animation
+                .educational_plan
+                .locate(animation.educational_playhead_ms)
+            else {
                 animation.playing = false;
-            } else if animation.scene_index + 1 < animation.educational_plan.scenes.len() {
-                animation.scene_index += 1;
+                return;
+            };
+            let target_scene = if delta < 0 {
+                if position.scene_elapsed_ms > 650 {
+                    position.scene_index
+                } else {
+                    position.scene_index.saturating_sub(1)
+                }
+            } else if position.scene_index + 1 < animation.educational_plan.scenes.len() {
+                position.scene_index + 1
             } else {
                 animation.playing = false;
-            }
-            animation.scene_elapsed_ms = 0;
-            if let Some(scene) = animation.educational_plan.scenes.get(animation.scene_index)
-                && let Some(index) = animation
-                    .frames
-                    .iter()
-                    .position(|frame| frame.id == scene.end_frame)
-            {
-                animation.frame_index = index;
-            }
+                animation.educational_plan.scenes.len().saturating_sub(1)
+            };
+            animation.educational_playhead_ms = animation
+                .educational_plan
+                .elapsed_at(TimelinePosition {
+                    scene_index: target_scene,
+                    scene_elapsed_ms: 0,
+                })
+                .unwrap_or(0);
+            animation.playing = false;
+            sync_educational_frame(animation);
             return;
         }
         if delta < 0 {
@@ -627,39 +699,78 @@ impl App {
         } else {
             animation.playing = false;
         }
-        animation.real_world_elapsed_ms = 0;
+        animation.real_world_playhead_ms = 0;
     }
 
     fn advance_educational_playback(&mut self, elapsed_ms: u32) {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
-        let Some(scene) = animation.educational_plan.scenes.get(animation.scene_index) else {
+        let duration = animation.educational_plan.duration_ms();
+        if duration == 0 {
             animation.playing = false;
             return;
-        };
-        animation.scene_elapsed_ms = animation.scene_elapsed_ms.saturating_add(elapsed_ms);
-        if animation.scene_elapsed_ms < scene.duration_ms {
-            return;
         }
-        animation.scene_elapsed_ms = 0;
-        self.change_structural_frame(1);
+        animation.educational_playhead_ms = animation
+            .educational_playhead_ms
+            .saturating_add(u64::from(elapsed_ms))
+            .min(duration);
+        if animation.educational_playhead_ms == duration {
+            animation.playing = false;
+        }
+        sync_educational_frame(animation);
+    }
+
+    fn seek_educational_timeline(&mut self, elapsed_ms: u64) {
+        let Some(animation) = &mut self.structural_animation else {
+            return;
+        };
+        animation.educational_playhead_ms =
+            elapsed_ms.min(animation.educational_plan.duration_ms());
+        sync_educational_frame(animation);
     }
 
     fn advance_real_world_playback(&mut self, elapsed_ms: u32) {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
-        animation.real_world_elapsed_ms =
-            animation.real_world_elapsed_ms.saturating_add(elapsed_ms);
-        if animation.real_world_elapsed_ms < 2_400 {
-            return;
+        let duration = animation.real_world_plan.timeline.duration_ms();
+        animation.real_world_playhead_ms = animation
+            .real_world_playhead_ms
+            .saturating_add(u64::from(elapsed_ms))
+            .min(duration);
+        if let Some(position) = animation
+            .real_world_plan
+            .timeline
+            .locate(animation.real_world_playhead_ms)
+            && let Some(frame_index) = animation
+                .frames
+                .iter()
+                .position(|frame| frame.ordinal == position.ordinal)
+        {
+            animation.frame_index = frame_index;
         }
-        animation.real_world_elapsed_ms = 0;
-        if animation.frame_index + 1 < animation.frames.len() {
-            animation.frame_index += 1;
-        } else {
+        if animation.real_world_playhead_ms == duration {
             animation.playing = false;
+        }
+    }
+
+    fn seek_real_world_timeline(&mut self, elapsed_ms: u64) {
+        let Some(animation) = &mut self.structural_animation else {
+            return;
+        };
+        animation.real_world_playhead_ms =
+            elapsed_ms.min(animation.real_world_plan.timeline.duration_ms());
+        if let Some(position) = animation
+            .real_world_plan
+            .timeline
+            .locate(animation.real_world_playhead_ms)
+            && let Some(frame_index) = animation
+                .frames
+                .iter()
+                .position(|frame| frame.ordinal == position.ordinal)
+        {
+            animation.frame_index = frame_index;
         }
     }
 
@@ -708,14 +819,27 @@ impl App {
         let Some(animation) = &self.structural_animation else {
             return Self::structural_unavailable_view("Validated frames are unavailable");
         };
-        let Some(frame) = animation.frames.get(animation.frame_index) else {
-            return Self::structural_unavailable_view("The current frame is unavailable");
+        let Some(timeline_position) = animation
+            .educational_plan
+            .locate(animation.educational_playhead_ms)
+        else {
+            return Self::structural_unavailable_view("The educational timeline is unavailable");
         };
-        let Some(educational_scene) = animation.educational_plan.scenes.get(animation.scene_index)
+        let Some(educational_scene) = animation
+            .educational_plan
+            .scenes
+            .get(timeline_position.scene_index)
         else {
             return Self::structural_unavailable_view(
                 "The current educational scene is unavailable",
             );
+        };
+        let Some(frame) = animation
+            .frames
+            .iter()
+            .find(|candidate| candidate.id == educational_scene.end_frame)
+        else {
+            return Self::structural_unavailable_view("The current frame is unavailable");
         };
         let before_frame = animation
             .frames
@@ -725,17 +849,43 @@ impl App {
         let scene_progress = if educational_scene.duration_ms == 0 {
             1.0
         } else {
-            (animation.scene_elapsed_ms as f32 / educational_scene.duration_ms as f32)
+            (timeline_position.scene_elapsed_ms as f32 / educational_scene.duration_ms as f32)
                 .clamp(0.0, 1.0)
         };
         let explanation = educational_scene.cues.iter().find_map(|cue| match cue {
             chem_presentation::EducationalCue::ShowExplanation { label } => Some(label),
             _ => None,
         });
-        let playback = button(text(if animation.playing { "Pause" } else { "Play" }))
-            .on_press(Message::StructuralPlaybackToggled)
+        let context_labels = educational_scene
+            .cues
+            .iter()
+            .filter_map(|cue| match cue {
+                chem_presentation::EducationalCue::ShowContext { label } => Some(label.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let playback = button(text(if animation.playing {
+            "Ⅱ  Pause"
+        } else {
+            "▶  Play"
+        }))
+        .on_press(Message::StructuralPlaybackToggled)
+        .padding([spacing::XS, spacing::SM])
+        .style(theme::primary_button);
+        let previous = button(text("‹"))
+            .on_press_maybe(
+                (timeline_position.scene_index > 0 || timeline_position.scene_elapsed_ms > 0)
+                    .then_some(Message::StructuralChapterChanged(-1)),
+            )
             .padding([spacing::XS, spacing::SM])
-            .style(theme::primary_button);
+            .style(theme::secondary_button);
+        let next = button(text("›"))
+            .on_press_maybe(
+                (timeline_position.scene_index + 1 < animation.educational_plan.scenes.len())
+                    .then_some(Message::StructuralChapterChanged(1)),
+            )
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
         let restart = button(text("Restart"))
             .on_press(Message::StructuralRestarted)
             .padding([spacing::XS, spacing::SM])
@@ -748,24 +898,38 @@ impl App {
             .on_press(Message::ReturnToBuilder)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let continue_3d = button(text("View in real life  →"))
-            .on_press_maybe(
-                (animation.scene_index + 1 == animation.educational_plan.scenes.len())
-                    .then_some(Message::ContinueTo3d),
-            )
-            .padding([spacing::XS, spacing::MD])
-            .style(theme::primary_button);
+        let continue_3d: Element<'_, Message> =
+            if timeline_position.scene_index + 1 == animation.educational_plan.scenes.len() {
+                button(text("View in real life  →"))
+                    .on_press(Message::ContinueTo3d)
+                    .padding([spacing::XS, spacing::MD])
+                    .style(theme::primary_button)
+                    .into()
+            } else {
+                space().width(Length::Shrink).into()
+            };
 
+        let equation = plan_equation(animation).map(reviewed_equation_text);
+        let scene_context = structural_2d::SceneContext::new(
+            educational_scene.kind,
+            timeline_position.scene_index,
+            animation.educational_plan.scenes.len(),
+        )
+        .with_equation(equation.clone());
         let diagram = container(
             canvas(structural_2d::Diagram::new(
                 before_frame,
                 frame,
                 scene_progress,
                 explanation,
-                scene_progress,
+                &context_labels,
+                scene_context,
+                educational_timeline_progress(animation),
                 matches!(
                     educational_scene.kind,
-                    EducationalSceneKind::ReactantSetup | EducationalSceneKind::StructuralChange
+                    EducationalSceneKind::ReactantSetup
+                        | EducationalSceneKind::StructuralChange
+                        | EducationalSceneKind::ExplanationPause
                 ),
             ))
             .width(Fill)
@@ -775,22 +939,94 @@ impl App {
         .width(Fill)
         .height(Fill);
 
-        let controls = row![
-            playback,
-            restart,
-            speed,
-            text(educational_scene_title(educational_scene.kind))
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT),
-            container(progress_bar(
-                0.0..=1.0,
-                educational_timeline_progress(animation)
+        let duration_ms = animation.educational_plan.duration_ms();
+        let slider_duration = u32::try_from(duration_ms).unwrap_or(u32::MAX).max(1);
+        let slider_playhead = u32::try_from(animation.educational_playhead_ms)
+            .unwrap_or(u32::MAX)
+            .min(slider_duration);
+        let scrubber = slider(
+            0_u32..=slider_duration,
+            slider_playhead,
+            Message::StructuralTimelineScrubbed,
+        )
+        .step(50_u32)
+        .shift_step(1_000_u32)
+        .height(28.0)
+        .width(Fill)
+        .style(theme::timeline_slider);
+        let timeline = stack![
+            canvas(structural_2d::TimelineGuide::new(
+                &animation.educational_plan,
+                timeline_position.scene_index,
             ))
-            .width(Fill),
-            continue_3d,
+            .width(Fill)
+            .height(Length::Fixed(28.0)),
+            scrubber,
         ]
-        .spacing(spacing::XS)
-        .align_y(Center);
+        .width(Fill)
+        .height(Length::Fixed(28.0));
+        let transport: Element<'_, Message> = if compact {
+            column![
+                row![playback, previous, next, speed]
+                    .spacing(spacing::XS)
+                    .align_y(Center),
+                row![restart, space().width(Fill), continue_3d]
+                    .spacing(spacing::XS)
+                    .align_y(Center),
+            ]
+            .spacing(spacing::XXS)
+            .into()
+        } else {
+            row![
+                playback,
+                previous,
+                next,
+                restart,
+                speed,
+                space().width(Fill),
+                continue_3d,
+            ]
+            .spacing(spacing::XS)
+            .align_y(Center)
+            .into()
+        };
+        let controls = container(
+            column![
+                transport,
+                row![
+                    column![
+                        text(format!(
+                            "CHAPTER {:02}  ·  {}",
+                            timeline_position.scene_index + 1,
+                            educational_scene_title(educational_scene.kind)
+                        ))
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
+                        text(if compact {
+                            "Drag to inspect"
+                        } else {
+                            "Drag the timeline to inspect any moment · arrows move between chapters"
+                        })
+                        .size(type_scale::MICRO)
+                        .color(color::MUTED),
+                    ]
+                    .spacing(spacing::XXS),
+                    space().width(Fill),
+                    text(format!(
+                        "{}  /  {}",
+                        format_media_time(animation.educational_playhead_ms),
+                        format_media_time(duration_ms)
+                    ))
+                    .size(type_scale::CAPTION)
+                    .color(color::TEXT_SOFT),
+                ]
+                .align_y(Center),
+                timeline,
+            ]
+            .spacing(spacing::XXS),
+        )
+        .style(theme::media_bar)
+        .padding([spacing::XS, spacing::SM]);
 
         container(
             column![
@@ -800,10 +1036,11 @@ impl App {
                         text("VALIDATED 2D EXPLANATION")
                             .size(type_scale::MICRO)
                             .color(color::ACCENT),
-                        text(plan_equation(animation).map_or_else(
-                            || "Reviewed equation unavailable".to_owned(),
-                            reviewed_equation_text,
-                        ))
+                        text(
+                            equation
+                                .clone()
+                                .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
+                        )
                         .size(if compact {
                             type_scale::BODY_LARGE
                         } else {
@@ -872,8 +1109,12 @@ impl App {
         let Some(animation) = &self.structural_animation else {
             return Self::structural_unavailable_view("Validated frames are unavailable");
         };
-        let Some(frame) = animation.frames.get(animation.frame_index) else {
-            return Self::structural_unavailable_view("The current frame is unavailable");
+        let Some(moment) = animation
+            .real_world_plan
+            .timeline
+            .locate(animation.real_world_playhead_ms)
+        else {
+            return Self::structural_unavailable_view("The macroscopic timeline is unavailable");
         };
         let back = button(text("← 2D explanation"))
             .on_press(Message::ReturnTo2d)
@@ -891,33 +1132,138 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let scene = container(
-            iced::widget::Shader::new(structural_3d::Scene::new(
-                &animation.real_world_plan,
-                frame.ordinal,
-                (animation.real_world_elapsed_ms as f32 / 2_400.0).clamp(0.0, 1.0),
-            ))
-            .width(Fill)
+        let active_annotation = animation
+            .real_world_plan
+            .annotations
+            .iter()
+            .rfind(|annotation| {
+                annotation.start_ordinal <= moment.ordinal
+                    && moment.ordinal <= annotation.end_ordinal
+            });
+        let active_effects = animation
+            .real_world_plan
+            .effects
+            .iter()
+            .filter(|effect| {
+                effect.start_ordinal <= moment.ordinal && moment.ordinal <= effect.end_ordinal
+            })
+            .map(|effect| macroscopic_effect_label(effect.effect))
+            .collect::<Vec<_>>()
+            .join("  ·  ");
+        let annotation = active_annotation.map_or_else(
+            || {
+                column![
+                    text("REVIEWED SCENE")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
+                    text(reviewed_equation_text(&animation.real_world_plan.equation))
+                        .size(type_scale::BODY_LARGE)
+                        .color(color::TEXT),
+                ]
+            },
+            |annotation| {
+                let mut content = column![
+                    text(annotation.title.as_str())
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
+                    text(annotation.text.as_str())
+                        .size(type_scale::BODY_LARGE)
+                        .color(color::TEXT),
+                ]
+                .spacing(spacing::XXS);
+                if !active_effects.is_empty() {
+                    content = content.push(
+                        text(active_effects.clone())
+                            .size(type_scale::MICRO)
+                            .color(color::TEXT_SOFT),
+                    );
+                }
+                content
+            },
+        );
+        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
+            &animation.real_world_plan,
+            moment,
+        ))
+        .width(Fill)
+        .height(Fill);
+        let annotation_layer = container(
+            column![
+                space().height(Fill),
+                container(annotation)
+                    .style(theme::media_bar)
+                    .padding([spacing::SM, spacing::MD])
+                    .width(if compact { Fill } else { Length::Fixed(440.0) }),
+            ]
             .height(Fill),
+        )
+        .padding(spacing::SM)
+        .width(Fill)
+        .height(Fill);
+        let scene = container(
+            stack![scene_view, annotation_layer]
+                .width(Fill)
+                .height(Fill),
         )
         .style(theme::inset)
         .width(Fill)
         .height(Fill);
-        let controls = row![
-            playback,
-            restart,
-            speed,
-            text("Continuous cinematic playback")
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT),
-            container(progress_bar(
-                0.0..=1.0,
-                real_world_timeline_progress(animation)
-            ))
-            .width(Fill),
-        ]
-        .spacing(spacing::XS)
-        .align_y(Center);
+        let duration_ms = animation.real_world_plan.timeline.duration_ms();
+        let slider_duration = u32::try_from(duration_ms).unwrap_or(u32::MAX).max(1);
+        let slider_playhead = u32::try_from(animation.real_world_playhead_ms)
+            .unwrap_or(u32::MAX)
+            .min(slider_duration);
+        let scrubber = slider(
+            0_u32..=slider_duration,
+            slider_playhead,
+            Message::StructuralRealWorldTimelineScrubbed,
+        )
+        .step(50_u32)
+        .shift_step(1_000_u32)
+        .height(28.0)
+        .width(Fill)
+        .style(theme::timeline_slider);
+        let transport: Element<'_, Message> = if compact {
+            column![
+                row![playback, restart, speed]
+                    .spacing(spacing::XS)
+                    .align_y(Center),
+                scrubber,
+            ]
+            .spacing(spacing::XXS)
+            .into()
+        } else {
+            row![playback, restart, speed, scrubber]
+                .spacing(spacing::XS)
+                .align_y(Center)
+                .into()
+        };
+        let controls = container(
+            column![
+                transport,
+                row![
+                    text(format!(
+                        "SCENE {:02} / {:02}  ·  CINEMATIC TIMELINE",
+                        moment.beat_index + 1,
+                        animation.real_world_plan.timeline.beats.len()
+                    ))
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT),
+                    space().width(Fill),
+                    text(format!(
+                        "{}  /  {}",
+                        format_media_time(animation.real_world_playhead_ms),
+                        format_media_time(duration_ms)
+                    ))
+                    .size(type_scale::CAPTION)
+                    .color(color::TEXT_SOFT),
+                ]
+                .align_y(Center),
+            ]
+            .spacing(spacing::XXS),
+        )
+        .style(theme::media_bar)
+        .padding([spacing::XS, spacing::SM]);
         container(
             column![
                 row![
@@ -936,14 +1282,21 @@ impl App {
                     ]
                     .spacing(spacing::XXS),
                     space().width(Fill),
-                    text("DRAG TO ORBIT · SCROLL TO ZOOM")
-                    .size(type_scale::MICRO)
-                    .color(color::MUTED),
+                    if compact {
+                        text("").size(type_scale::MICRO)
+                    } else {
+                        text("DRAG TO ORBIT · SCROLL TO ZOOM")
+                            .size(type_scale::MICRO)
+                            .color(color::MUTED)
+                    },
                 ]
                 .align_y(Center),
                 scene,
                 controls,
-                text("Stylised virtual model · timing, scale, fluid motion, and camera movement are illustrative")
+                text(animation.real_world_plan.disclosure.as_str())
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+                text(animation.real_world_plan.virtual_only_disclosure.as_str())
                     .size(type_scale::MICRO)
                     .color(color::WARNING),
             ]
@@ -1990,5 +2343,165 @@ mod tests {
                 .map(|animation| animation.playback_speed),
             Some(PlaybackSpeed::OneAndHalf)
         );
+    }
+
+    #[test]
+    fn real_world_scrubbing_pauses_and_synchronizes_the_structural_reference() {
+        let mut app = App::default();
+        LITHIUM_WATER_SOURCE.clone_into(&mut app.source);
+        app.source_content = text_editor::Content::with_text(LITHIUM_WATER_SOURCE);
+        app.active_catalogue = BundledCatalogue::ReactiveMetals;
+        app.prepare_structural_animation();
+        app.screen = Screen::Structural3d;
+        let target = app
+            .structural_animation
+            .as_ref()
+            .map(|animation| animation.real_world_plan.timeline.duration_ms() / 2)
+            .expect("animation exists");
+
+        app.update(Message::StructuralRealWorldTimelineScrubbed(
+            u32::try_from(target).expect("fixture timeline fits u32"),
+        ));
+
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        let position = animation
+            .real_world_plan
+            .timeline
+            .locate(target)
+            .expect("timeline position exists");
+        assert_eq!(animation.real_world_playhead_ms, target);
+        assert!(!animation.playing, "scrubbing pauses for close inspection");
+        assert_eq!(
+            animation.frames[animation.frame_index].ordinal,
+            position.ordinal
+        );
+    }
+
+    #[test]
+    fn real_world_playback_preserves_elapsed_time_and_reaches_the_exact_end() {
+        let mut app = App::default();
+        LITHIUM_WATER_SOURCE.clone_into(&mut app.source);
+        app.source_content = text_editor::Content::with_text(LITHIUM_WATER_SOURCE);
+        app.active_catalogue = BundledCatalogue::ReactiveMetals;
+        app.prepare_structural_animation();
+        app.screen = Screen::Structural3d;
+        let (first_boundary, duration) = app
+            .structural_animation
+            .as_ref()
+            .map(|animation| {
+                (
+                    u64::from(animation.real_world_plan.timeline.beats[0].duration_ms),
+                    animation.real_world_plan.timeline.duration_ms(),
+                )
+            })
+            .expect("animation exists");
+        app.seek_real_world_timeline(first_boundary.saturating_sub(10));
+
+        app.advance_real_world_playback(50);
+        assert_eq!(
+            app.structural_animation
+                .as_ref()
+                .map(|animation| animation.real_world_playhead_ms),
+            Some(first_boundary + 40),
+            "no elapsed time is discarded at a macroscopic beat boundary"
+        );
+
+        app.seek_real_world_timeline(duration.saturating_sub(5));
+        app.advance_real_world_playback(100);
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(animation.real_world_playhead_ms, duration);
+        assert!(!animation.playing);
+        let end = animation
+            .real_world_plan
+            .timeline
+            .locate(duration)
+            .expect("timeline end exists");
+        assert_eq!(
+            end.beat_index + 1,
+            animation.real_world_plan.timeline.beats.len()
+        );
+        assert!((end.beat_progress - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn educational_scrubbing_seeks_the_typed_timeline_and_synchronizes_the_frame() {
+        let mut app = App::default();
+        app.prepare_structural_animation();
+        let target = app
+            .structural_animation
+            .as_ref()
+            .map(|animation| animation.educational_plan.duration_ms() / 2)
+            .expect("animation exists");
+
+        app.update(Message::StructuralTimelineScrubbed(
+            u32::try_from(target).expect("fixture timeline fits u32"),
+        ));
+
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        let position = animation
+            .educational_plan
+            .locate(target)
+            .expect("timeline position exists");
+        let scene = &animation.educational_plan.scenes[position.scene_index];
+        assert_eq!(animation.educational_playhead_ms, target);
+        assert!(
+            !animation.playing,
+            "scrubbing pauses for precise inspection"
+        );
+        assert_eq!(animation.frames[animation.frame_index].id, scene.end_frame);
+    }
+
+    #[test]
+    fn educational_tick_preserves_overshoot_across_scene_boundaries() {
+        let mut app = App::default();
+        app.prepare_structural_animation();
+        let first_duration = app
+            .structural_animation
+            .as_ref()
+            .and_then(|animation| animation.educational_plan.scenes.first())
+            .map(|scene| u64::from(scene.duration_ms))
+            .expect("first scene exists");
+        app.seek_educational_timeline(first_duration.saturating_sub(10));
+
+        app.advance_educational_playback(50);
+
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(
+            animation.educational_playhead_ms,
+            first_duration + 40,
+            "no elapsed time is discarded at a scene boundary"
+        );
+        assert_eq!(
+            animation
+                .educational_plan
+                .locate(animation.educational_playhead_ms),
+            Some(TimelinePosition {
+                scene_index: 1,
+                scene_elapsed_ms: 40,
+            })
+        );
+    }
+
+    #[test]
+    fn educational_playback_clamps_at_the_end_and_restart_resets_it() {
+        let mut app = App::default();
+        app.prepare_structural_animation();
+        let duration = app
+            .structural_animation
+            .as_ref()
+            .map(|animation| animation.educational_plan.duration_ms())
+            .expect("animation exists");
+        app.seek_educational_timeline(duration.saturating_sub(5));
+
+        app.advance_educational_playback(100);
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(animation.educational_playhead_ms, duration);
+        assert!(!animation.playing);
+
+        app.update(Message::StructuralRestarted);
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(animation.educational_playhead_ms, 0);
+        assert_eq!(animation.frame_index, 0);
+        assert!(animation.playing);
     }
 }

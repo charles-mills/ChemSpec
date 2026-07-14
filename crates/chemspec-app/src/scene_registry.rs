@@ -19,6 +19,7 @@ pub enum AssetGeometry {
 pub enum EffectGeometry {
     ParticleCloud,
     RisingBubbles,
+    EscapingGas,
     SurfaceRipples,
     SplashDroplets,
     PresentationOnly,
@@ -54,7 +55,8 @@ pub const fn effect_geometry(profile: EffectProfile) -> EffectGeometry {
         EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
             EffectGeometry::ParticleCloud
         }
-        EffectProfile::BubbleEmitter | EffectProfile::GasRelease => EffectGeometry::RisingBubbles,
+        EffectProfile::BubbleEmitter => EffectGeometry::RisingBubbles,
+        EffectProfile::GasRelease => EffectGeometry::EscapingGas,
         EffectProfile::SurfaceDisturbance => EffectGeometry::SurfaceRipples,
         EffectProfile::SplashEmitter => EffectGeometry::SplashDroplets,
         EffectProfile::ObjectShrinkage
@@ -78,12 +80,12 @@ pub const fn camera_pose(behaviour: CameraBehaviour) -> CameraPose {
         CameraBehaviour::ReactionFocus => CameraPose {
             yaw: -0.60,
             pitch: -0.74,
-            zoom: 5.5,
+            zoom: 5.8,
         },
         CameraBehaviour::ObservationCloseUp => CameraPose {
             yaw: -0.50,
             pitch: -0.78,
-            zoom: 4.9,
+            zoom: 5.4,
         },
         CameraBehaviour::SlowPullBack => CameraPose {
             yaw: -0.64,
@@ -109,7 +111,7 @@ mod tests {
         let beaker = asset_geometry(AssetProfile::Beaker);
         assert_eq!(beaker, asset_geometry(AssetProfile::TestTube));
         let bubbles = effect_geometry(EffectProfile::BubbleEmitter);
-        assert_eq!(bubbles, effect_geometry(EffectProfile::GasRelease));
+        assert_ne!(bubbles, effect_geometry(EffectProfile::GasRelease));
         assert!(camera_pose(CameraBehaviour::WideEstablishingShot).zoom > 0.0);
         assert!(
             camera_pose(CameraBehaviour::WideEstablishingShot).pitch < -0.5,

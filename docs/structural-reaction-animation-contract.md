@@ -73,14 +73,15 @@ or changing an upstream digest immediately makes both animation pages stale.
 
 The 2D page teaches operation-specific changes, stable atom identity, electrons,
 charges, bonding domains, products, and synchronized observations through a
-deterministic multi-scene educational plan. Every operation is followed by a
-generated explanation pause whose contextual in-canvas label uses a traced
-outline, adaptive reading hold, fade transitions, and a no-arrow connector to
-the affected structure. It then navigates to a separate
-macroscopic 3D page using reusable low-poly XYZ geometry, scene transforms,
-depth, continuous media playback, bright multi-source lighting, and an elevated
-near-isometric camera targeted at the reaction surface on the existing
-Iced/wgpu device and surface.
+deterministic multi-scene educational plan. Each operation and its generated
+explanation share one learning beat with an adaptive reading hold, contextual
+in-canvas label, and no-arrow connector to the affected structure. Its absolute
+timeline is scrubbable and preserves elapsed-time overshoot across scene
+boundaries. It then navigates to a separate macroscopic 3D page using reusable
+low-poly XYZ geometry, complete scene transforms, distinct reviewed effects,
+opaque and transparent depth passes, an absolute scrubbable macroscopic
+timeline, and elevated near-isometric camera direction on the existing Iced/wgpu
+device and surface.
 
 Only `Validated` and `ValidatedWithAssumptions` may produce frames. Malformed,
 ill-typed, incomplete, invalid, unsupported, system-error, and stale states are
@@ -129,8 +130,8 @@ Future operation or presentation variants must be added vertically: catalogue
 schema, trusted transition validation, shared frames, planner primitives,
 renderers, fixtures, conformance, and disclosures must land together.
 
-For direct live smokes of the trusted canonical 2D operation and final 3D
-frame, use:
+For direct live smokes of the trusted canonical 2D operation and macroscopic 3D
+scene, use:
 
 ```sh
 cargo run -p chemspec-app -- --structural-2d-smoke
