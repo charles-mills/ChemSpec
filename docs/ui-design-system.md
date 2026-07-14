@@ -90,13 +90,18 @@ the exact draft identities into the internal request state and opens the 2D
 frame sequence only after the canonical language, catalogue, expansion, and
 kernel boundaries succeed.
 
-Stage 5 replaces the builder/table surface with a full-height renderer of the
-trusted `SimulationFrames` sequence. Four presentation chapters group the exact
-validated states without inventing chemistry. Stable atom IDs persist across
-frames; covalent edges, dative provenance, ionic associations, metallic
-domains, product membership, changes, and observations come directly from the
-kernel artifact. Controls expose pause, restart, skip, and return. The surface
-shows the frame digest and the persistent representative/non-mechanism model
+Stage 5 replaces the builder/table surface with a full-height guided renderer
+of the trusted `SimulationFrames` sequence. Deterministic educational scenes
+group the exact validated states without inventing chemistry. Stable atom IDs
+persist across frames; covalent edges, dative provenance, ionic associations,
+metallic domains, product membership, changes, and observations come directly
+from the kernel artifact. Controls expose pause, restart, return, and a gated
+transition into the macroscopic view.
+
+The subsequent 3D page is a separate illustrative scale. It consumes a scene
+plan containing reusable visual assets and observation-gated effects, not the
+structural atom graph. Orbit, zoom, camera motion, timing, and fluid/effect
+motion are presentation controls and carry a persistent virtual-model
 disclosure.
 
 ## Tokens

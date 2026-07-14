@@ -5,10 +5,15 @@
 
 use std::sync::LazyLock;
 
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::{ObservationPredicate, TrustedCatalogue};
 use chem_domain::ContentDigest;
 use chem_kernel::{
     CurrentArtifactIdentity, SimulationFrames, expand_trusted, generate_frames, validate_trusted,
+};
+use chem_presentation::{
+    AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, EffectIntensity, EffectProfile,
+    PresentationEffect, PresentationObject, PresentationProfile, PresentationTransform, SceneRole,
+    VIRTUAL_ONLY_DISCLOSURE,
 };
 
 pub const SOURCE_NAME: &str = "fixtures/lithium-water.chems";
@@ -112,6 +117,107 @@ pub fn supports_drafts(first: &[u8], second: &[u8]) -> bool {
             .flatten(),
     ) && participant(first).is_some()
         && participant(second).is_some()
+}
+
+/// Host-selected macroscopic styling for the exact trusted lithium/water run.
+/// This profile can select meshes and effects, but cannot alter chemistry.
+#[must_use]
+pub fn presentation_profile(last_ordinal: u16) -> PresentationProfile {
+    let transform = |translation, scale| PresentationTransform {
+        translation,
+        rotation: [0, 0, 0],
+        scale,
+    };
+    PresentationProfile {
+        id: "presentation.ai.lithium-water".to_owned(),
+        environment: AssetProfile::LaboratoryBench,
+        objects: vec![
+            PresentationObject {
+                id: "vessel".to_owned(),
+                asset: AssetProfile::Beaker,
+                semantic_identity: "open reaction vessel".to_owned(),
+                appearance: AppearanceProfile::ClearGlass,
+                role: SceneRole::Vessel,
+                transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
+                visible_from_ordinal: 0,
+            },
+            PresentationObject {
+                id: "water".to_owned(),
+                asset: AssetProfile::LiquidVolume,
+                semantic_identity: "water".to_owned(),
+                appearance: AppearanceProfile::Water,
+                role: SceneRole::Contents,
+                transform: transform([0, -150, 0], [1_000, 850, 1_000]),
+                visible_from_ordinal: 0,
+            },
+            PresentationObject {
+                id: "lithium".to_owned(),
+                asset: AssetProfile::MetalChunk,
+                semantic_identity: "lithium metal".to_owned(),
+                appearance: AppearanceProfile::AlkaliMetal,
+                role: SceneRole::Reactant,
+                transform: transform([0, 610, 0], [650, 650, 650]),
+                visible_from_ordinal: 0,
+            },
+            PresentationObject {
+                id: "hydrogen".to_owned(),
+                asset: AssetProfile::GasCloud,
+                semantic_identity: "hydrogen gas".to_owned(),
+                appearance: AppearanceProfile::AqueousColourless,
+                role: SceneRole::Product,
+                transform: transform([180, 930, 0], [600, 600, 600]),
+                visible_from_ordinal: last_ordinal.saturating_sub(2),
+            },
+        ],
+        effects: vec![
+            PresentationEffect {
+                effect: EffectProfile::BubbleEmitter,
+                trigger: ObservationPredicate::Evolves,
+                intensity: EffectIntensity::Moderate,
+                start_ordinal: 1,
+                end_ordinal: last_ordinal,
+            },
+            PresentationEffect {
+                effect: EffectProfile::GasRelease,
+                trigger: ObservationPredicate::Evolves,
+                intensity: EffectIntensity::Moderate,
+                start_ordinal: 1,
+                end_ordinal: last_ordinal,
+            },
+            PresentationEffect {
+                effect: EffectProfile::SurfaceDisturbance,
+                trigger: ObservationPredicate::Disappears,
+                intensity: EffectIntensity::Subtle,
+                start_ordinal: 1,
+                end_ordinal: last_ordinal,
+            },
+            PresentationEffect {
+                effect: EffectProfile::ObjectShrinkage,
+                trigger: ObservationPredicate::Disappears,
+                intensity: EffectIntensity::Moderate,
+                start_ordinal: 1,
+                end_ordinal: last_ordinal,
+            },
+        ],
+        camera: vec![
+            CameraCue {
+                behaviour: CameraBehaviour::WideEstablishingShot,
+                start_ordinal: 0,
+                end_ordinal: 1,
+            },
+            CameraCue {
+                behaviour: CameraBehaviour::ReactionFocus,
+                start_ordinal: 2,
+                end_ordinal: last_ordinal.saturating_sub(1),
+            },
+            CameraCue {
+                behaviour: CameraBehaviour::FinalHeroShot,
+                start_ordinal: last_ordinal,
+                end_ordinal: last_ordinal,
+            },
+        ],
+        disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+    }
 }
 
 #[cfg(test)]

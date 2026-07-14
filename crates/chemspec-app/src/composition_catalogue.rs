@@ -59,6 +59,11 @@ pub const SUPPORTED: &[CompositionPreview] = &[
         atoms: &[(11, 1), (17, 1)],
     },
     CompositionPreview {
+        formula: "AgNO₃",
+        name: "Silver nitrate",
+        atoms: &[(7, 1), (8, 3), (47, 1)],
+    },
+    CompositionPreview {
         formula: "CO₂",
         name: "Carbon dioxide",
         atoms: &[(6, 1), (8, 2)],
@@ -82,6 +87,10 @@ mod tests {
     fn recognition_is_order_independent_and_closed_world() {
         assert_eq!(recognize([8, 1, 1]).map(|item| item.formula), Some("H₂O"));
         assert_eq!(recognize([17, 11]).map(|item| item.formula), Some("NaCl"));
+        assert_eq!(
+            recognize([47, 7, 8, 8, 8]).map(|item| item.formula),
+            Some("AgNO₃")
+        );
         assert!(recognize([6, 6]).is_none());
         assert!(recognize([1, 8]).is_none());
     }

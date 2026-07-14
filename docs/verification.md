@@ -112,7 +112,9 @@ visible event.
 Renderer-independent tests assert stable atom identity, exact graph snapshots,
 distinct covalent/ionic/metallic frame values, correct electron and charge
 labels, changed-relationship highlighting, product membership, observation
-synchronization, deterministic restart, and presentation-only speed changes.
+synchronization, deterministic restart, educational-plan ordering,
+observation-gated macroscopic effects, and deterministic depth geometry. These
+are covered independently of native-window smoke testing.
 
 Visual tests check distinct bonding conventions and persistent explanatory
 disclosure. GPU output never determines chemistry.

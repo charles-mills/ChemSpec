@@ -26,7 +26,8 @@ natural-language reaction request
   -> chem-kernel validates immutable structural derivation
   -> ValidatedStructuralReaction
   -> paired structural and observation frames
-  -> Iced/wgpu presentation
+  -> chem-presentation guided and macroscopic plans
+  -> Iced Canvas/wgpu presentation
   -> provider supplies post-playback overview
 ```
 
@@ -38,12 +39,12 @@ mark a reaction valid.
 
 ```text
                          chemspec-app
-                    /        |        \
-            chems-lang   chem-kernel   agent
-                           /     \       \
+                    /        |          \
+            chems-lang   chem-presentation  agent
+                              |
+                         chem-kernel
+                           /     \
                  chem-catalogue  chem-domain
-                           \     /
-                         simulation
 ```
 
 ### `chem-domain`
@@ -90,17 +91,19 @@ Owns provider preflight, observation research, evidence packets, concise source
 proposal, bounded repair, post-simulation overview, cancellation, timeouts, and
 normalized workflow events. It returns claims and text, never trusted chemistry.
 
-### `simulation`
+### `chem-presentation`
 
-Projects validated immutable graph states and typed observation claims into
-synchronized renderer-independent frames. Layout seeds may be deterministic,
-but layout and interpolation never determine chemistry.
+Compiles trusted kernel frames into deterministic educational scenes and binds
+host-selected macroscopic styling into a scene plan. Effects require matching
+validated observation predicates. It cannot parse source, expand rules, alter
+frames, or construct chemical state.
 
 ### `chemspec-app`
 
 Composes request states, provider selection, visible workflow, source editing,
 expanded-certificate inspection, diagnostics, derivations, paired playback,
-and overview. Only the application depends on Iced and GPU presentation.
+guided 2D and macroscopic 3D views, and overview. Only the application depends
+on Iced and GPU presentation.
 
 ## Shared contracts
 

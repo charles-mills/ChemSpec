@@ -12,11 +12,18 @@ mod periodic_table;
 mod reactant_composer;
 mod reaction_sequence;
 mod reaction_workspace;
+mod scene_registry;
+mod structural_2d;
+mod structural_3d;
 mod theme;
 
+use chem_presentation::{
+    EducationalPlan, EducationalSceneKind, ScenePlan, compile_educational_plan,
+    compile_real_world_plan,
+};
 use iced::widget::{
-    button, canvas, column, container, responsive, row, rule, scrollable, space, stack, text,
-    text_editor, text_input,
+    button, canvas, column, container, progress_bar, responsive, row, rule, scrollable, space,
+    stack, text, text_editor, text_input,
 };
 use iced::{Center, Element, Fill, FillPortion, Font, Length, Size, Subscription, Theme};
 
@@ -53,6 +60,8 @@ enum Screen {
     ProviderSetup,
     Builder,
     ValidatedRecord,
+    Structural2d,
+    Structural3d,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +114,24 @@ enum Message {
     SourceEdited(text_editor::Action),
     SourceRevalidate,
     SectionSelected(Section),
+    OpenStructural2d,
+    StructuralPlaybackToggled,
+    StructuralRestarted,
+    StructuralTick,
+    ContinueTo3d,
+    ReturnTo2d,
+}
+
+#[derive(Debug)]
+struct StructuralAnimation {
+    frames: chem_kernel::SimulationFrames,
+    educational_plan: EducationalPlan,
+    real_world_plan: ScenePlan,
+    scene_index: usize,
+    scene_elapsed_ms: u32,
+    frame_index: usize,
+    real_world_elapsed_ms: u32,
+    playing: bool,
 }
 
 struct App {
@@ -121,6 +148,8 @@ struct App {
     validation_error: Option<String>,
     source_stale: bool,
     section: Section,
+    structural_animation: Option<StructuralAnimation>,
+    structural_error: Option<String>,
 }
 
 impl Default for App {
@@ -143,6 +172,8 @@ impl Default for App {
             validation_error,
             source_stale: false,
             section: Section::Overview,
+            structural_animation: None,
+            structural_error: None,
         }
     }
 }
@@ -207,10 +238,43 @@ impl App {
                     self.source_stale = true;
                     self.validated_frames = None;
                     self.validation_error = None;
+                    self.structural_animation = None;
+                    self.structural_error = None;
                 }
             }
             Message::SourceRevalidate => self.revalidate_source(),
             Message::SectionSelected(section) => self.section = section,
+            Message::OpenStructural2d => self.open_structural_animation(),
+            Message::StructuralPlaybackToggled => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.playing = !animation.playing;
+                }
+            }
+            Message::StructuralRestarted => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.scene_index = 0;
+                    animation.scene_elapsed_ms = 0;
+                    animation.frame_index = 0;
+                    animation.real_world_elapsed_ms = 0;
+                    animation.playing = true;
+                }
+            }
+            Message::StructuralTick => {
+                if self.screen == Screen::Structural3d {
+                    self.advance_real_world_playback(33);
+                } else {
+                    self.advance_educational_playback(33);
+                }
+            }
+            Message::ContinueTo3d => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.frame_index = 0;
+                    animation.real_world_elapsed_ms = 0;
+                    animation.playing = true;
+                    self.screen = Screen::Structural3d;
+                }
+            }
+            Message::ReturnTo2d => self.screen = Screen::Structural2d,
         }
     }
 
@@ -220,11 +284,15 @@ impl App {
                 self.validated_frames = Some(frames);
                 self.validation_error = None;
                 self.source_stale = false;
+                self.structural_animation = None;
+                self.structural_error = None;
             }
             Err(error) => {
                 self.validated_frames = None;
                 self.validation_error = Some(error);
                 self.source_stale = false;
+                self.structural_animation = None;
+                self.structural_error = None;
             }
         }
     }
@@ -234,7 +302,14 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if self.screen == Screen::Builder {
+        if matches!(self.screen, Screen::Structural2d | Screen::Structural3d)
+            && self
+                .structural_animation
+                .as_ref()
+                .is_some_and(|animation| animation.playing)
+        {
+            iced::time::every(std::time::Duration::from_millis(33)).map(|_| Message::StructuralTick)
+        } else if self.screen == Screen::Builder {
             let composer = if reaction_workspace::sequence_active(&self.reaction_workspace) {
                 Subscription::none()
             } else {
@@ -257,6 +332,8 @@ impl App {
             Screen::ProviderSetup => responsive(|size| self.provider_setup_view(size)).into(),
             Screen::Builder => responsive(|size| self.builder_view(size)).into(),
             Screen::ValidatedRecord => responsive(|size| self.responsive_view(size)).into(),
+            Screen::Structural2d => responsive(|size| self.structural_2d_view(size)).into(),
+            Screen::Structural3d => responsive(|size| self.structural_3d_view(size)).into(),
         }
     }
 
@@ -365,6 +442,284 @@ impl App {
             .style(theme::app_background)
             .center(Fill)
             .into()
+    }
+
+    fn open_structural_animation(&mut self) {
+        let result = (|| {
+            let frames = self
+                .validated_frames
+                .as_ref()
+                .ok_or_else(|| "trusted frames are unavailable".to_owned())?
+                .clone();
+            let educational_plan =
+                compile_educational_plan(&frames).map_err(|error| error.to_string())?;
+            let last_ordinal = frames
+                .frames()
+                .last()
+                .and_then(|frame| u16::try_from(frame.ordinal()).ok())
+                .ok_or_else(|| "trusted frames exceed the presentation range".to_owned())?;
+            let profile = chemistry::presentation_profile(last_ordinal);
+            let real_world_plan =
+                compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
+            Ok::<_, String>(StructuralAnimation {
+                frames,
+                educational_plan,
+                real_world_plan,
+                scene_index: 0,
+                scene_elapsed_ms: 0,
+                frame_index: 0,
+                real_world_elapsed_ms: 0,
+                playing: true,
+            })
+        })();
+        match result {
+            Ok(animation) => {
+                self.structural_animation = Some(animation);
+                self.structural_error = None;
+                self.screen = Screen::Structural2d;
+            }
+            Err(error) => {
+                self.structural_animation = None;
+                self.structural_error = Some(error);
+            }
+        }
+    }
+
+    fn advance_educational_playback(&mut self, elapsed_ms: u32) {
+        let Some(animation) = &mut self.structural_animation else {
+            return;
+        };
+        let Some(scene) = animation.educational_plan.scenes.get(animation.scene_index) else {
+            animation.playing = false;
+            return;
+        };
+        animation.scene_elapsed_ms = animation.scene_elapsed_ms.saturating_add(elapsed_ms);
+        if animation.scene_elapsed_ms < scene.duration_ms {
+            return;
+        }
+        animation.scene_elapsed_ms = 0;
+        if animation.scene_index + 1 < animation.educational_plan.scenes.len() {
+            animation.scene_index += 1;
+            let end = animation.educational_plan.scenes[animation.scene_index].end_frame;
+            animation.frame_index = animation
+                .frames
+                .frames()
+                .iter()
+                .position(|frame| frame.trace().state_digest == end)
+                .unwrap_or(animation.frame_index);
+        } else {
+            animation.playing = false;
+        }
+    }
+
+    fn advance_real_world_playback(&mut self, elapsed_ms: u32) {
+        const FRAME_DURATION_MS: u32 = 2_400;
+        let Some(animation) = &mut self.structural_animation else {
+            return;
+        };
+        animation.real_world_elapsed_ms =
+            animation.real_world_elapsed_ms.saturating_add(elapsed_ms);
+        if animation.real_world_elapsed_ms < FRAME_DURATION_MS {
+            return;
+        }
+        animation.real_world_elapsed_ms = 0;
+        if animation.frame_index + 1 < animation.frames.frames().len() {
+            animation.frame_index += 1;
+        } else {
+            animation.playing = false;
+        }
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn structural_2d_view(&self, size: Size) -> Element<'_, Message> {
+        let Some(animation) = &self.structural_animation else {
+            return self.structural_unavailable_view();
+        };
+        let Some(scene) = animation.educational_plan.scenes.get(animation.scene_index) else {
+            return self.structural_unavailable_view();
+        };
+        let frames = animation.frames.frames();
+        let after = frames
+            .iter()
+            .find(|frame| frame.trace().state_digest == scene.end_frame)
+            .or_else(|| frames.get(animation.frame_index));
+        let before = frames
+            .iter()
+            .find(|frame| frame.trace().state_digest == scene.start_frame)
+            .or(after);
+        let (Some(before), Some(after)) = (before, after) else {
+            return self.structural_unavailable_view();
+        };
+        let progress = if scene.duration_ms == 0 {
+            1.0
+        } else {
+            (animation.scene_elapsed_ms as f32 / scene.duration_ms as f32).clamp(0.0, 1.0)
+        };
+        let compact = size.width < breakpoint::MOBILE;
+        let finished = animation.scene_index + 1 == animation.educational_plan.scenes.len();
+        let diagram = canvas(structural_2d::Diagram::new(
+            before,
+            after,
+            progress,
+            scene.explanation.as_ref(),
+            progress,
+            matches!(
+                scene.kind,
+                EducationalSceneKind::ReactantSetup | EducationalSceneKind::StructuralChange
+            ),
+        ))
+        .width(Fill)
+        .height(Fill);
+        let timeline = animation.scene_index as f32
+            / animation
+                .educational_plan
+                .scenes
+                .len()
+                .saturating_sub(1)
+                .max(1) as f32;
+        container(
+            column![
+                row![
+                    button(text("← Validated record"))
+                        .on_press(Message::ScreenSelected(Screen::ValidatedRecord))
+                        .style(theme::secondary_button),
+                    column![
+                        text("TRUSTED 2D EXPLANATION")
+                            .size(type_scale::MICRO)
+                            .color(color::ACCENT),
+                        text(CANONICAL_EQUATION)
+                            .size(if compact {
+                                type_scale::BODY_LARGE
+                            } else {
+                                type_scale::TITLE
+                            })
+                            .color(color::TEXT),
+                    ],
+                    space().width(Fill),
+                    text("REPRESENTATIVE · EXPLANATORY")
+                        .size(type_scale::MICRO)
+                        .color(color::SUCCESS),
+                ]
+                .spacing(spacing::SM)
+                .align_y(Center),
+                container(diagram)
+                    .style(theme::inset)
+                    .width(Fill)
+                    .height(Fill),
+                row![
+                    button(text(if animation.playing { "Pause" } else { "Play" }))
+                        .on_press(Message::StructuralPlaybackToggled)
+                        .style(theme::primary_button),
+                    button(text("Restart"))
+                        .on_press(Message::StructuralRestarted)
+                        .style(theme::secondary_button),
+                    progress_bar(0.0..=1.0, timeline),
+                    button(text("Macroscopic 3D  →"))
+                        .on_press_maybe(finished.then_some(Message::ContinueTo3d))
+                        .style(theme::primary_button),
+                ]
+                .spacing(spacing::SM)
+                .align_y(Center),
+            ]
+            .spacing(spacing::SM),
+        )
+        .style(theme::frame)
+        .padding(spacing::SM)
+        .width(Fill)
+        .height(Fill)
+        .into()
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn structural_3d_view(&self, _size: Size) -> Element<'_, Message> {
+        let Some(animation) = &self.structural_animation else {
+            return self.structural_unavailable_view();
+        };
+        let Some(frame) = animation.frames.frames().get(animation.frame_index) else {
+            return self.structural_unavailable_view();
+        };
+        let progress = (animation.real_world_elapsed_ms as f32 / 2_400.0).clamp(0.0, 1.0);
+        let ordinal = u16::try_from(frame.ordinal()).unwrap_or(u16::MAX);
+        let timeline = (animation.frame_index as f32 + progress)
+            / animation.frames.frames().len().max(1) as f32;
+        let scene = iced::widget::Shader::new(structural_3d::Scene::new(
+            &animation.real_world_plan,
+            ordinal,
+            progress,
+        ))
+        .width(Fill)
+        .height(Fill);
+        container(
+            column![
+                row![
+                    button(text("← 2D explanation"))
+                        .on_press(Message::ReturnTo2d)
+                        .style(theme::secondary_button),
+                    column![
+                        text("TRUSTED MACROSCOPIC VIEW")
+                            .size(type_scale::MICRO)
+                            .color(color::ACCENT),
+                        text("Cinematic real-world approximation")
+                            .size(type_scale::TITLE)
+                            .color(color::TEXT),
+                    ],
+                    space().width(Fill),
+                    text("DRAG TO ORBIT · SCROLL TO ZOOM")
+                        .size(type_scale::MICRO)
+                        .color(color::MUTED),
+                ]
+                .spacing(spacing::SM)
+                .align_y(Center),
+                container(scene)
+                    .style(theme::inset)
+                    .width(Fill)
+                    .height(Fill),
+                row![
+                    button(text(if animation.playing { "Pause" } else { "Play" }))
+                        .on_press(Message::StructuralPlaybackToggled)
+                        .style(theme::primary_button),
+                    button(text("Restart"))
+                        .on_press(Message::StructuralRestarted)
+                        .style(theme::secondary_button),
+                    progress_bar(0.0..=1.0, timeline),
+                ]
+                .spacing(spacing::SM)
+                .align_y(Center),
+                text(&animation.real_world_plan.disclosure)
+                    .size(type_scale::MICRO)
+                    .color(color::WARNING),
+            ]
+            .spacing(spacing::SM),
+        )
+        .style(theme::frame)
+        .padding(spacing::SM)
+        .width(Fill)
+        .height(Fill)
+        .into()
+    }
+
+    fn structural_unavailable_view(&self) -> Element<'_, Message> {
+        container(
+            column![
+                text("ANIMATION UNAVAILABLE")
+                    .size(type_scale::MICRO)
+                    .color(color::WARNING),
+                text(
+                    self.structural_error
+                        .as_deref()
+                        .unwrap_or("Trusted frames are unavailable")
+                )
+                .size(type_scale::BODY)
+                .color(color::TEXT),
+                button(text("Return to validated record"))
+                    .on_press(Message::ScreenSelected(Screen::ValidatedRecord))
+                    .style(theme::secondary_button),
+            ]
+            .spacing(spacing::SM),
+        )
+        .style(theme::frame)
+        .center(Fill)
+        .into()
     }
 
     fn builder_view(&self, size: Size) -> Element<'_, Message> {
@@ -783,6 +1138,10 @@ impl App {
                     text("━ covalent").color(color::ACCENT),
                     text("◯ ionic association").color(color::SUCCESS),
                     text("◉ metallic domain").color(color::WARNING),
+                    space().width(Fill),
+                    button(text("Open guided animation  →"))
+                        .on_press_maybe(valid.then_some(Message::OpenStructural2d))
+                        .style(theme::primary_button),
                 ]
                 .spacing(spacing::MD),
                 text(SIMULATION_DISCLOSURE)
@@ -1227,6 +1586,27 @@ mod tests {
 
         assert_eq!(app.request, "A different question");
         assert_eq!(app.source.text(), source);
+    }
+
+    #[test]
+    fn guided_animation_is_compiled_from_the_current_trusted_generation() {
+        let mut app = App::default();
+        let expected = app
+            .validated_frames
+            .as_ref()
+            .expect("canonical frames validate")
+            .digest()
+            .expect("frame digest is available");
+
+        app.update(Message::OpenStructural2d);
+
+        assert_eq!(app.screen, Screen::Structural2d);
+        let animation = app
+            .structural_animation
+            .as_ref()
+            .expect("animation planning succeeds");
+        assert_eq!(animation.educational_plan.id, expected);
+        assert_eq!(animation.real_world_plan.reaction, expected);
     }
 
     #[test]

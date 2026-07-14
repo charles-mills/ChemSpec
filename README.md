@@ -101,11 +101,14 @@ catalogue data, and validation:
 - `chems-lang` — lossless `.chems 1` frontend and formatter;
 - `chem-catalogue` — immutable reviewed structures and rules;
 - `chem-kernel` — resolution, expansion, graph validation, and artifacts;
+- `chem-presentation` — deterministic guided-scene and macroscopic-scene plans
+  compiled only from trusted kernel frames;
 - `chems-cli` — parsing, formatting, source/certificate inspection, and the
   closed candidate-package authoring compiler, whose generated chemistry
   remains explicitly untrusted; and
 - `chems-conformance` — specification, grammar, fixture, and coverage gates.
-- `chemspec-app` — native Iced composition UI and trusted frame renderer.
+- `chemspec-app` — native Iced composition UI plus Canvas 2D and wgpu 3D
+  renderers.
 
 The desktop application is native Rust using Iced and `wgpu`. Provider support
 offers either a Codex subscription through the local `codex` binary or direct

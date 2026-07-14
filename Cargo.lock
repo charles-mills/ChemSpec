@@ -490,6 +490,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chem-presentation"
+version = "0.1.0"
+dependencies = [
+ "chem-catalogue",
+ "chem-domain",
+ "chem-kernel",
+]
+
+[[package]]
 name = "chems-cli"
 version = "0.1.0"
 dependencies = [
@@ -524,10 +533,13 @@ dependencies = [
 name = "chemspec-app"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "chem-catalogue",
  "chem-domain",
  "chem-kernel",
+ "chem-presentation",
  "chems-lang",
+ "glam",
  "iced",
 ]
 

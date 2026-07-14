@@ -161,8 +161,12 @@ review attestation and digest pin are committed.
 - The canonical lithium-water source crosses the pinned AI trust attestation,
   trusted expansion, kernel validation, and frame-generation boundaries in the
   desktop application.
-- The Stage 5 renderer consumes `SimulationFrame` atoms, covalent edges, ionic
-  associations, metallic domains, changes, observations, and product membership.
+- `chem-presentation` compiles deterministic guided scenes and a macroscopic
+  scene plan from the same trusted `SimulationFrames` generation.
+- The guided Canvas renderer consumes exact atoms, covalent/dative edges, ionic
+  associations, metallic domains, operations, observations, and product
+  membership. The depth-tested wgpu renderer consumes only reusable visual
+  profiles and observation-gated effects, never an atom graph.
 - Startup probes `codex --version` and offers Codex subscription or an in-memory
   API-key mode before entering the builder.
 - UI-local hydrogen/oxygen, carbon/oxygen, and silver-chloride outcomes have
