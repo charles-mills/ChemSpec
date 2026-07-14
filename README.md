@@ -97,6 +97,7 @@ catalogue data, and validation:
 - `chems-lang` — lossless `.chems 1` frontend and formatter;
 - `chem-catalogue` — immutable reviewed structures and rules;
 - `chem-kernel` — resolution, expansion, graph validation, and artifacts; and
+- `chems-cli` — parsing, formatting, authored-source inspection, and expanded-certificate inspection;
 - `chems-conformance` — specification, grammar, fixture, and coverage gates.
 
 The desktop application is native Rust using Iced and `wgpu`. Provider support
@@ -105,16 +106,16 @@ Responses API access with an API key.
 
 ## Language status
 
-The structural language is being delivered through exactly seven slices,
-numbered 0 through 6. The fixed queue and acceptance gates are in
-[the implementation plan](docs/chems-implementation-plan.md). Existing
-quantitative implementation is internal unfinished work being replaced, not a
-released compatibility surface.
+The structural `.chems 1` implementation is complete through the fixed seven
+slices. Trusted promotion of the bundled lithium-and-water chemistry remains
+explicitly pending the external chemist attestation; review-candidate
+derivations and frames cannot cross the production capability boundary.
 
 ## Development commands
 
 ```sh
 cargo run -p chems-conformance -- validate
+cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansion-001.chems
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check

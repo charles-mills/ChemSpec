@@ -54,11 +54,10 @@ system_net_charge = atom_formal_charge_sum - domain_electron_count
 
 ## Migration boundary
 
-The earlier quantity, formula, material, vessel, and procedure-oriented modules
-remain exported temporarily so the not-yet-migrated catalogue and kernel crates
-continue to build. They are internal migration dependencies, not part of the
-definitive `.chems 1` structural contract, and their consumers are replaced by
-Slices 3–5.
+The earlier quantity, material, vessel, and procedure-oriented modules remain
+only for unrelated application work and repository archaeology. The catalogue,
+kernel, CLI, and frame pipeline do not consume them. They are not part of the
+definitive `.chems 1` contract or a compatibility language.
 
 ## Verification
 

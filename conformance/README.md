@@ -64,6 +64,8 @@ Slice 0 establishes:
 - `observations/lithium-observations-001.input.json` — typed evidence packet;
   and
 - `end-to-end/lithium-outcome-001.*` — honest incomplete vertical artifact.
+- `frames/canonical-frames-001.expected.json` — independently authored frame,
+  change, and observation-synchronization review candidate.
 
 The catalogue explicitly remains `pending-chemist-review`; the external
 evidence packet is always labelled untrusted runtime research and cannot claim
@@ -81,7 +83,9 @@ attestation; implementation must not manufacture or infer that human sign-off.
 - Slice 4 validates expansion and certificate oracles.
 - Slice 5 executes the complete independent state-chain oracle and adds exact
   operation-precondition, conservation, mapping, product, and staleness cases.
-- Slice 6 adds frames, staleness, artifact, and complete end-to-end evidence.
+- Slice 6 implements frames, staleness, artifact, CLI inspection, and complete
+  requirement coverage. Chemistry-dependent cases remain incomplete until the
+  external chemist attestation is pinned.
 
 Each case is promoted from `incomplete` only when its producing implementation
 and independent review are complete.

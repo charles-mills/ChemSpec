@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "result_state": "validated_with_assumptions",
+  "mandatory_model_disclosure": {
+    "event": "representative",
+    "sequence": "explanatory",
+    "explanatory_sequence_is_not_a_mechanism_claim": true
+  },
+  "identity": [
+    "source_bytes_digest",
+    "source_semantic_digest",
+    "expansion_semantic_digest",
+    "evidence_digest",
+    "catalogue_digest",
+    "derivation_digest"
+  ],
+  "stale_when_any_identity_changes": true,
+  "renderer_input_capability": "ValidatedStructuralReaction",
+  "runtime_agents_cannot_construct_trusted_output": true
+}

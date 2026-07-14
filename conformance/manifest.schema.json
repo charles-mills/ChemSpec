@@ -84,7 +84,8 @@
               "derivation": { "type": "string" },
               "provenance": { "type": "string" },
               "certificate": { "type": "string" },
-              "artifact": { "type": "string" }
+              "artifact": { "type": "string" },
+              "frames": { "type": "string" }
             }
           }
         }

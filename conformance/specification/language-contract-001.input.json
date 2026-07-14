@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "language": "chems 1",
+  "authority": "authored source plus host-trusted catalogue and mandatory kernel",
+  "supported_output": "representative structural outcome with explanatory sequence",
+  "non_goals": [
+    "laboratory procedure",
+    "bulk material model",
+    "molecular dynamics",
+    "universal reaction prediction",
+    "mechanism proof"
+  ],
+  "conformance_authority": [
+    "docs/chems-specification.md",
+    "grammar/chems.ebnf",
+    "conformance/requirements.json",
+    "conformance/manifest.json"
+  ]
+}

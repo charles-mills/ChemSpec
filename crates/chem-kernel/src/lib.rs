@@ -8,6 +8,7 @@
 mod elaborate;
 mod error;
 mod evidence;
+mod frames;
 mod hir;
 mod validate;
 
@@ -16,6 +17,12 @@ pub use error::{ExpansionError, ExpansionFailureClass};
 pub use evidence::{
     EvidenceClaimRecord, EvidenceError, EvidencePacket, EvidencePacketReference,
     EvidencePacketSourceRecord, EvidencePredicate, ValidatedEvidencePacket,
+};
+pub use frames::{
+    CurrentArtifactIdentity, FrameAtom, FrameAtomGroup, FrameChange, FrameCovalentEdge, FrameError,
+    FrameFailureClass, FrameIonicAssociation, FrameMetallicDomain, FrameModelDisclosure,
+    FrameObservation, FrameOperation, FrameTrace, ObservationStatus, SimulationFrame,
+    SimulationFrames, generate_frames,
 };
 pub use hir::{
     CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidenceTrust,

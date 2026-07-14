@@ -35,8 +35,13 @@ perform structural validation; those belong to later slices.
 
 ## CLI
 
+The `chems` binary lives in the outer `chems-cli` crate so inspection can
+compose the frontend with catalogue-backed expansion without introducing a
+dependency cycle.
+
 ```sh
-cargo run -p chems-lang -- parse experiment.chems
-cargo run -p chems-lang -- format --check experiment.chems
-cargo run -p chems-lang -- format --write experiment.chems
+cargo run -p chems-cli -- parse experiment.chems
+cargo run -p chems-cli -- format --check experiment.chems
+cargo run -p chems-cli -- format --write experiment.chems
+cargo run -p chems-cli -- inspect source experiment.chems
 ```

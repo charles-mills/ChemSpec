@@ -104,6 +104,8 @@ pub struct ExpectedResult {
     pub certificate: Option<String>,
     #[serde(default)]
     pub artifact: Option<String>,
+    #[serde(default)]
+    pub frames: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -663,6 +665,7 @@ fn case_fixture_paths(case: &Case) -> Vec<&str> {
         .chain(case.expected.provenance.iter())
         .chain(case.expected.certificate.iter())
         .chain(case.expected.artifact.iter())
+        .chain(case.expected.frames.iter())
         .map(String::as_str)
         .collect::<Vec<_>>();
     for diagnostic in &case.expected.diagnostics {
@@ -1087,6 +1090,7 @@ mod tests {
                 provenance: None,
                 certificate: None,
                 artifact: None,
+                frames: None,
             },
         };
         let component_ids = ["parsing".to_owned(), "quantities-types".to_owned()]

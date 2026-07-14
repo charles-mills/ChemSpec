@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "trust": "review_candidate",
+  "result": "validated_with_assumptions",
+  "trusted_output": false,
+  "external_chemist_review": "pending",
+  "frame_count": 13,
+  "trace": {
+    "source_bytes_digest": "9e9f2e076c36b6bdb53d16c1feaa31db246553da57fd373198f41a01406c2fdb",
+    "source_semantic_digest": "31e40f4ca592bf7ae878b76bd7bc0a02e16e9c53b432834400fc9fb94644726d",
+    "expansion_semantic_digest": "083d0a8e3ae9d1653fed1e8592d297664eb3f835b409dd472aa33842841be76f",
+    "evidence_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
+    "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
+    "derivation_digest": "75ed2b5553e9924652e075ff1ddcd2d40d866b631a9d2e7ddc251c165379fa40",
+    "state_digest": "3ef279ae62430160eb99a576846b58ac015f8df81c09446d8e8c72441c6a76a7"
+  },
+  "state_digests": [
+    "105d355ed1c7f901eef9accd3544834d242c685a358da426a100c8ea917332ed",
+    "d6053564dfe8d27b55bc4ac4ee5121f2c1536f9dfe2b1ab1fdb1b3d5eea13599",
+    "20205d7e6afad5be418bdba918256e78847b47434d5f1b62fd5981cf33256176",
+    "bdc6008c5587a1162eea0a15dd9058f2f0f389661ccb0f0d660ab39fd8e64a10",
+    "d6ea1c1d66950ff5b84aadfa2bfbc9df6814e12f16d8683f5dadafe66731a061",
+    "774e3127d5d5691e4e079f25406a01aa1cdf70ef11e0ed321f011786c6174a0b",
+    "9f637e046b185105f58fcd948314e8f30b2b548a9ba44bf509305508b9e53223",
+    "6db7fea4241911f47cc38089dcad8e7f0c63c109beda86a9ca33e1287d636ad6",
+    "73a032a790d6a3dffd457e3c29065c9f0c2911888ea4556691d1bb4627bcd638",
+    "d86b185c1fde365c5b7c272c979c4505d9aff369a9b3010fae126448c5f4526e",
+    "156bc4d4a22bace4dbaee6c90cb91e7a1b5ed9fbf1ae090f44a86c14d2b23df6",
+    "cbabcb7911b31e689c68799e6fbf6af35ca8b8849d11eaad6ef71a007d14c4a5",
+    "3ef279ae62430160eb99a576846b58ac015f8df81c09446d8e8c72441c6a76a7"
+  ],
+  "active_operations": [
+    null,
+    "operation[1]", "operation[2]", "operation[3]", "operation[4]",
+    "operation[5]", "operation[6]", "operation[7]", "operation[8]",
+    "operation[9]", "operation[10]", "operation[11]", "operation[12]"
+  ],
+  "change_kinds": [
+    [],
+    ["electron_state", "metallic"],
+    ["electron_state", "metallic"],
+    ["electron_state", "electron_state", "covalent"],
+    ["electron_state", "electron_state", "covalent"],
+    ["electron_state", "electron_state"],
+    ["electron_state", "electron_state"],
+    ["electron_state", "electron_state", "covalent"],
+    ["group", "group", "ionic"],
+    ["group", "group", "ionic"],
+    ["product_assignment"],
+    ["product_assignment"],
+    ["product_assignment"]
+  ],
+  "ionic_disclosures": {
+    "ionic[8].ionic.product1": {
+      "id": "ionic[8].ionic.product1",
+      "components": {
+        "ionic[8].component[1]": ["lithium[1].li"],
+        "ionic[8].component[2]": ["water[1].h2", "water[1].o"]
+      },
+      "component_charges": {
+        "ionic[8].component[1]": 1,
+        "ionic[8].component[2]": -1
+      }
+    },
+    "ionic[9].ionic.product2": {
+      "id": "ionic[9].ionic.product2",
+      "components": {
+        "ionic[9].component[1]": ["lithium[2].li"],
+        "ionic[9].component[2]": ["water[2].h2", "water[2].o"]
+      },
+      "component_charges": {
+        "ionic[9].component[1]": 1,
+        "ionic[9].component[2]": -1
+      }
+    }
+  },
+  "observations": {
+    "R1": {
+      "claim": "R1",
+      "predicate": "evolves",
+      "subject_binding": "hydrogen",
+      "value": null,
+      "evidence_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
+      "evidence_trust": "external_untrusted",
+      "trigger_operation": 12,
+      "provenance": {
+        "source": [{"source": "conformance/expansion/canonical-expansion-001.chems", "construct": "observation hydrogen", "span": {"start": 431, "end": 461}}],
+        "catalogue": [{"catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f", "record": "rule Rules.AlkaliMetalWithWater observation compatibility", "premises": ["premise.observation.hydrogen-evolves"]}],
+        "evidence": [{"packet": "Evidence.LithiumAndWater@1", "packet_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506", "claim": "R1", "sources": ["S1", "S2"]}]
+      },
+      "statuses": [
+        "pending", "pending", "pending", "pending", "pending", "pending", "pending",
+        "pending", "pending", "pending", "pending", "pending", "active"
+      ]
+    },
+    "R2": {
+      "claim": "R2",
+      "predicate": "disappears",
+      "subject_binding": "lithium",
+      "value": null,
+      "evidence_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
+      "evidence_trust": "external_untrusted",
+      "trigger_operation": 11,
+      "provenance": {
+        "source": [{"source": "conformance/expansion/canonical-expansion-001.chems", "construct": "observation lithium", "span": {"start": 465, "end": 502}}],
+        "catalogue": [{"catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f", "record": "rule Rules.AlkaliMetalWithWater observation compatibility", "premises": ["premise.observation.lithium-disappears"]}],
+        "evidence": [{"packet": "Evidence.LithiumAndWater@1", "packet_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506", "claim": "R2", "sources": ["S2"]}]
+      },
+      "statuses": [
+        "pending", "pending", "pending", "pending", "pending", "pending", "pending",
+        "pending", "pending", "pending", "pending", "active", "established"
+      ]
+    }
+  },
+  "model": {
+    "event": "representative",
+    "sequence": "explanatory",
+    "representative_outcome": true,
+    "explanatory_sequence_is_not_a_mechanism_claim": true,
+    "provenance": {
+      "source": [{"source": "conformance/expansion/canonical-expansion-001.chems", "construct": "model disclosure", "span": {"start": 322, "end": 387}}],
+      "catalogue": [{"catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f", "record": "rule Rules.AlkaliMetalWithWater model assumptions", "premises": ["premise.rule.lithium-water.standard-outcome"]}],
+      "evidence": []
+    }
+  }
+}

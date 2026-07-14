@@ -23,6 +23,7 @@ flowchart LR
     hir --> kernel["graph-state validation (Slice 5)"]
     catalogue --> kernel
     kernel --> derivation["Immutable structural derivation"]
+    derivation --> frames["Renderer-independent paired frames (Slice 6)"]
     kernel --> diagnostics["Classified diagnostics"]
 ```
 
@@ -54,6 +55,23 @@ explicitly `review_candidate`; it cannot construct trusted chemistry.
 host-reviewed `TrustedCatalogue`, and is the sole constructor of
 `ValidatedStructuralReaction`. The derivation records source, expansion, and
 catalogue identities and rejects stale reuse.
+
+## Structural frames
+
+Slice 6 projects only a current `ValidatedStructuralReaction` into immutable
+`SimulationFrame` values. Every frame retains exact atoms and electron labels,
+distinct covalent/ionic/metallic relationships, product membership, typed
+active-operation data, model disclosure, observation status, and source,
+expansion, catalogue, derivation, and state digests. Presentation timing and
+layout are absent from the chemistry artifact.
+
+Frame generation rechecks byte-level source identity, semantic source and
+expansion identity, external-evidence identity, and catalogue identity.
+Observation records separately retain `external_untrusted` evidence trust even
+inside a structurally trusted frame artifact. Review-candidate projection
+exists only inside kernel tests for independent chemistry review and remains
+visibly `review_candidate`; the public frame API requires the unforgeable
+trusted validation capability.
 
 Failures retain a stable class and `CHEMS-X...` code:
 

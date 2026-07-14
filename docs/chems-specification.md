@@ -420,6 +420,23 @@ membership, changed relationships, product membership, active operation, and
 model disclosure. Layout and time interpolation are presentation data and must
 not affect chemistry.
 
+Each typed observation has exactly one deterministic trigger operation and a
+stage at every immutable state: `pending` when the state ordinal is less than
+the trigger ordinal, `active` when they are equal, and `established` when it is
+greater. A product observation (`evolves`, `forms`, or `colour`) triggers on
+the final validated `AssignProduct` operation needed to assign every product
+instance of its subject binding. A reactant `disappears` observation triggers
+on the final validated `AssignProduct` operation needed to cover every atom in
+every reactant instance of its subject binding. Incomplete or ambiguous trigger
+coverage is a corrupt validated artifact and cannot produce frames.
+
+Observation stages are explanatory synchronization markers. They do not
+encode duration, kinetics, mechanism timing, concentration, perceptual delay,
+or a claim that the corresponding physical observation is instantaneous.
+Runtime evidence keeps its distinct `external_untrusted` trust label even when
+the structural frame artifact was produced through the trusted catalogue and
+kernel boundary.
+
 ## Lexical structure and normative grammar
 
 The normative EBNF owns accepted token order. The lexer owns encoding,
