@@ -59,6 +59,10 @@ service, generates runtime code, or lets the renderer infer chemistry.
 ## Authoring impact
 
 Reaction authors do not add bespoke animation instructions to `.chems` files.
+Natural 3D easing, particle variation, emission envelopes, shared reaction
+motion, and camera drift are likewise reusable renderer behaviours selected by
+typed reviewed effect and intensity metadata; they do not extend the language
+or introduce reaction-specific animation fields.
 Supporting a new animated reaction still requires a reviewed catalogue rule and,
 for the macroscopic view, a reviewed reusable presentation profile. If that
 trusted metadata is unavailable or incompatible, animation remains unavailable

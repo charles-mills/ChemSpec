@@ -192,6 +192,13 @@ index ranges. Live GPU smoke tests verify the opaque depth-writing pass is drawn
 before the alpha-blended liquid/effect/glass pass, both use the same depth-tested
 Iced target, and clear glass does not incorrectly hide opaque scene geometry.
 
+Reusable motion tests additionally require continuous absolute effect phase
+across ordinal boundaries, deterministic seeded particle variation, smooth
+attack and release for transient effects, persistence for accumulated effects,
+and a shared reaction-surface anchor. Seeking the same position must reconstruct
+the same geometry and camera pose without reaction-name branches or hidden
+mutable particle state.
+
 Educational timeline tests additionally cover variable-duration totals, exact
 scene boundaries, zero-duration scenes, end clamping, and position-to-elapsed
 round trips. Application tests prove that scrubbing synchronizes the active

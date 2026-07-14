@@ -178,6 +178,30 @@ by alpha-blended liquid, effects, and glass with depth writes disabled. Both
 passes share Iced's existing GPU target and depth buffer; the app does not open
 or own a second renderer or event loop.
 
+### Reusable natural motion
+
+Natural motion is a renderer concern downstream of the typed scene plan. Each
+reviewed effect profile and intensity resolves to reusable dynamics such as
+particle count, emission rate, spread, lift, turbulence, attack, release, and
+camera energy. Those dynamics never select chemistry and contain no reaction
+identity checks.
+
+Particles use a stable seed derived from the plan and typed effect. Their birth
+times, speeds, sizes, directions, arcs, curls, and settling positions therefore
+vary organically while remaining exactly reproducible when paused or scrubbed.
+Motion uses the absolute ordinal plus progress as one continuous phase, so an
+emitter does not visibly restart at a beat boundary. Smooth attack and release
+envelopes prevent effects from popping into existence; persistent phenomena,
+such as an accumulated precipitate, keep their final state instead of fading
+away.
+
+The reacting object, splash, ripples, bubbles, and gas share a gently moving
+reaction-surface anchor. Reusable camera poses use eased interpolation with a
+small, seeded focus drift whose strength comes from active typed effect
+intensity. This creates coordinated cinematic movement without changing the
+reviewed outcome, inventing an effect, or adding animation instructions to a
+particular `.chems` file.
+
 ## Blocking and invalidation
 
 Malformed, ill-typed, incomplete, invalid, unsupported, stale, and system-error
@@ -214,6 +238,8 @@ Tests must prove:
   playhead position, including scrubbing backwards;
 - macroscopic seeking, beat interpolation, exact-end clamping, and ordinal
   synchronization are deterministic, and scrubbing pauses playback;
+- effect phase remains continuous across ordinal boundaries, seeded particle
+  geometry reproduces exactly, and transient envelopes begin and end at rest;
 - opaque and transparent draw ranges are non-overlapping, depth-tested, and
   rendered in the required order;
 - live smoke tests show continuous 2D playback and a depth-tested macroscopic

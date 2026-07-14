@@ -10,8 +10,9 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use chem_catalogue::{
-    AssetProfile, AtomState, CameraBehaviour, CameraCue, ObservationClaim, PresentationEffect,
-    PresentationObject, ReviewedEquation, StoichiometricTerm, StructuralOperation,
+    AssetProfile, AtomState, CameraBehaviour, CameraCue, EffectIntensity, ObservationClaim,
+    PresentationEffect, PresentationObject, ReviewedEquation, StoichiometricTerm,
+    StructuralOperation,
 };
 use chem_domain::ContentDigest;
 use chem_engine::{ObservationStage, StructuralFrame, ValidatedStructuralReaction};
@@ -917,20 +918,24 @@ fn compile_real_world_timeline(reaction: &ValidatedStructuralReaction) -> RealWo
                     .observations()
                     .iter()
                     .any(|observation| observation.trigger_ordinal == start_ordinal);
-                let effects_active = profile.effects.iter().any(|effect| {
-                    effect.start_ordinal <= start_ordinal && start_ordinal <= effect.end_ordinal
-                });
-                let duration_ms = if start_ordinal == final_ordinal {
-                    4_600
-                } else if observation_starts {
-                    4_800
-                } else if effects_active {
-                    5_200
-                } else if start_ordinal == 0 {
-                    3_600
-                } else {
-                    4_000
-                };
+                let active_intensity = profile
+                    .effects
+                    .iter()
+                    .filter(|effect| {
+                        effect.start_ordinal <= start_ordinal && start_ordinal <= effect.end_ordinal
+                    })
+                    .map(|effect| effect.intensity)
+                    .max_by_key(|intensity| match intensity {
+                        EffectIntensity::Subtle => 0,
+                        EffectIntensity::Moderate => 1,
+                        EffectIntensity::Strong => 2,
+                    });
+                let duration_ms = real_world_beat_duration(
+                    start_ordinal,
+                    final_ordinal,
+                    observation_starts,
+                    active_intensity,
+                );
                 let selected_camera = profile
                     .camera
                     .iter()
@@ -961,6 +966,29 @@ fn compile_real_world_timeline(reaction: &ValidatedStructuralReaction) -> RealWo
         })
         .collect();
     RealWorldTimeline { beats }
+}
+
+const fn real_world_beat_duration(
+    start_ordinal: u16,
+    final_ordinal: u16,
+    observation_starts: bool,
+    active_intensity: Option<EffectIntensity>,
+) -> u32 {
+    if start_ordinal == final_ordinal {
+        5_600
+    } else if observation_starts {
+        5_400
+    } else if let Some(intensity) = active_intensity {
+        match intensity {
+            EffectIntensity::Subtle => 5_600,
+            EffectIntensity::Moderate => 6_400,
+            EffectIntensity::Strong => 7_200,
+        }
+    } else if start_ordinal == 0 {
+        4_200
+    } else {
+        4_400
+    }
 }
 
 fn compile_macroscopic_annotations(
