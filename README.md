@@ -83,6 +83,8 @@ full; `by apply` cannot select or omit checks.
 - [Normative `.chems` specification](docs/chems-specification.md)
 - [Structural architecture](docs/structural-chems-architecture.md)
 - [`.chems` implementation plan](docs/chems-implementation-plan.md)
+- [Generalized chemistry rules (locked forward design)](docs/generalized-chemistry-rules.md)
+- [Generalized rules implementation plan](docs/generalized-rules-implementation-plan.md)
 - [Chemistry engine](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
@@ -111,6 +113,11 @@ The structural `.chems 1` implementation is complete through the fixed seven
 slices. Trusted promotion of the bundled lithium-and-water chemistry remains
 explicitly pending the external chemist attestation; review-candidate
 derivations and frames cannot cross the production capability boundary.
+
+Generalized element categories, structure templates, graph patterns, and
+reaction families are a locked forward design and are not yet implemented.
+Their implementation is a separate seven-slice catalogue/elaboration
+workstream; it does not change the authored `.chems 1` grammar.
 
 ## Development commands
 

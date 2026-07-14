@@ -366,3 +366,9 @@ The structural `.chems 1` language is complete when Slice 6 is reviewed clean
 and all final gates pass. Broader chemistry, application rendering, provider
 integration, and additional catalogue content are separate product work, not
 additional language slices.
+
+Reusable element categories, parameterized structure templates, typed graph
+patterns, and generalized reaction-family rewrites are governed by the
+separate [generalized rules implementation plan](generalized-rules-implementation-plan.md).
+That forward work compiles to this plan's concrete expansion and kernel values
+and does not reopen the authored `.chems 1` grammar.
