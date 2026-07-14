@@ -1,0 +1,2 @@
+# ChemSpec source fixtures are byte-sensitive and canonically use LF newlines.
+*.chems text eol=lf
