@@ -122,6 +122,7 @@ pub enum Message {
     AtomDragEnded,
     RemoveSelected,
     ClearAll,
+    EditReactants,
     MotionToggled,
     StartReaction,
     PlaybackToggled,
@@ -187,6 +188,7 @@ pub fn update(state: &mut State, message: Message) {
             state.feedback = Feedback::Cleared;
             composition_changed(state);
         }
+        Message::EditReactants => {}
         Message::MotionToggled => {
             state.reduced_motion = !state.reduced_motion;
             if state.reduced_motion {
@@ -374,6 +376,38 @@ pub fn sequence_active(state: &State) -> bool {
     state.sequence.is_some()
 }
 
+/// Replaces the manipulation surface with the two Stage 1 reactant drafts.
+/// The values remain untrusted element identities; normal preview recognition
+/// and every downstream validation boundary still apply.
+pub fn load_reactants(state: &mut State, first: &[u8], second: &[u8]) {
+    *state = State::default();
+    for (reactant_index, atoms) in [first, second].into_iter().enumerate() {
+        for (atom_index, atomic_number) in atoms.iter().copied().enumerate() {
+            if elements::by_atomic_number(atomic_number).is_none() || state.atoms.len() >= MAX_ATOMS
+            {
+                continue;
+            }
+            let column = u8::try_from(atom_index % 4).unwrap_or(0);
+            let row = u8::try_from(atom_index / 4).unwrap_or(0);
+            let center_x = if reactant_index == 0 { 0.28 } else { 0.72 };
+            let position = Point::new(
+                center_x + (f32::from(column) - 1.5) * 0.035,
+                0.42 + f32::from(row) * 0.075,
+            );
+            state.atoms.push(PlacedAtom {
+                id: state.next_id,
+                atomic_number,
+                position,
+                target: position,
+            });
+            state.next_id = state.next_id.saturating_add(1);
+        }
+    }
+    state.feedback = Feedback::Added;
+    prepare_group_snap(state);
+    composition_changed(state);
+}
+
 #[cfg(test)]
 pub fn placed_atom_count(state: &State) -> usize {
     state.atoms.len()
@@ -424,8 +458,12 @@ pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
     .on_press(Message::MotionToggled)
     .padding([spacing::XS, spacing::SM])
     .style(theme::secondary_button);
+    let edit_reactants = button(text("Edit reactants"))
+        .on_press(Message::EditReactants)
+        .padding([spacing::XS, spacing::SM])
+        .style(theme::secondary_button);
 
-    let toolbar = column![row![remove, clear, motion].spacing(spacing::XS)];
+    let toolbar = column![row![edit_reactants, remove, clear, motion].spacing(spacing::XS)];
 
     // The periodic library shrinks to its measured grid height. This
     // responsive surface receives every remaining pixel, keeping the table at
@@ -518,7 +556,7 @@ fn sequence_controls(playback: PlaybackState) -> Element<'static, Message> {
         .on_press_maybe((playback != PlaybackState::Complete).then_some(Message::SequenceSkipped))
         .padding([spacing::XS, spacing::SM])
         .style(theme::secondary_button);
-    let back = button(text("Return to workspace"))
+    let back = button(text("Edit reactants"))
         .on_press(Message::WorkspaceReturned)
         .padding([spacing::XS, spacing::SM])
         .style(theme::secondary_button);

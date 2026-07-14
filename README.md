@@ -152,19 +152,18 @@ plain `chems format <path>` writes canonical source to standard output.
 
 ## Application shell
 
-The Iced application opens in a vertically composed reaction builder: a
-dedicated Stage 2 reaction workspace sits above a full-width periodic table
-that fits without horizontal scrolling. Elements can be dragged directly
-between them, repositioned, duplicated, and removed. Curated composition
-matches collapse into single draggable compound cards that remain clearly
-labelled as untrusted previews pending future chemistry validation. Loose atoms
-and recognised groups both remain electron-shell atomic models; grouping adds a
-shared composition surface without replacing atoms with a ball-and-bond model.
-Shared electron pairs appear between covalently bonded atomic shells. Periodic
-tiles retain each element's name and atomic mass after the redundant table
-instruction strip and bottom padding were removed.
-The fixed builder composition fits the reaction box, controls, and complete
-periodic table on one page without builder scrolling. The existing
+The Iced application opens in a structured Stage 1 reaction composer above a
+complete square-tile periodic table that fits without horizontal scrolling.
+Learners progressively build two independent reactant drafts, switch the active
+slot, inspect atomic previews and input history, then launch a supported
+illustrative reaction sequence directly. The active model uses the same slowly
+orbiting electron-shell diagrams and curated shared-electron pairs as the
+internal grouping engine; no intermediate manipulation screen interrupts the
+flow. Every preview remains clearly labelled as untrusted pending future
+chemistry validation. Periodic tiles retain each element's name and atomic mass,
+stay close within the s, d, and p blocks, and use larger gaps between those
+blocks. The fixed builder composition fits the controls and complete periodic
+table on one page without builder scrolling. The existing
 validated-record screen remains available for the canonical silver-chloride
 fixture.
 
@@ -175,7 +174,7 @@ cargo run -p chemspec-app
 ## Current status
 
 ChemSpec is in active implementation. The language design and Slices 0–2 are
-complete, and reaction-builder Stages 1–5 (`U-106`–`U-111`) are available for
+complete, and the consolidated reaction-builder flow (`U-106`–`U-113`) is available for
 review. Stage 5 provides a deterministic 2D reaction storyboard with balanced
 representative counts, pause/restart/skip/return controls, and complete
 multi-product presentation. It is explicitly an illustrative preview;

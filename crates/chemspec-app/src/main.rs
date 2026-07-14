@@ -1,4 +1,4 @@
-//! `ChemSpec` application shell and reaction-builder entry (`U-101`, `U-106`–`U-111`).
+//! `ChemSpec` application shell and reaction-builder entry (`U-101`, `U-106`–`U-112`).
 //!
 //! Opens on the Stage 1 element library and preserves the six validated-record
 //! regions—request, workflow, source, validation, sources, and simulation—using
@@ -9,6 +9,7 @@ mod composition_catalogue;
 mod elements;
 mod particle_visualization;
 mod periodic_table;
+mod reactant_composer;
 mod reaction_candidate_catalogue;
 mod reaction_sequence;
 mod reaction_workspace;
@@ -85,6 +86,7 @@ impl Section {
 enum Message {
     ScreenSelected(Screen),
     PeriodicTable(periodic_table::Message),
+    ReactantComposer(reactant_composer::Message),
     ReactionWorkspace(reaction_workspace::Message),
     RequestChanged(String),
     RequestSubmitted,
@@ -94,6 +96,7 @@ enum Message {
 struct App {
     screen: Screen,
     periodic_table: periodic_table::State,
+    reactant_composer: reactant_composer::State,
     reaction_workspace: reaction_workspace::State,
     request: String,
     source: String,
@@ -106,6 +109,7 @@ impl Default for App {
         Self {
             screen: Screen::Builder,
             periodic_table: periodic_table::State::default(),
+            reactant_composer: reactant_composer::State::default(),
             reaction_workspace: reaction_workspace::State::default(),
             request: CANONICAL_REQUEST.to_owned(),
             source: CANONICAL_SOURCE.to_owned(),
@@ -121,6 +125,28 @@ impl App {
             Message::ScreenSelected(screen) => self.screen = screen,
             Message::PeriodicTable(message) => {
                 periodic_table::update(&mut self.periodic_table, message);
+                if !reaction_workspace::sequence_active(&self.reaction_workspace)
+                    && let periodic_table::Message::Activated(atomic_number) = message
+                {
+                    reactant_composer::update(
+                        &mut self.reactant_composer,
+                        reactant_composer::Message::AddElement(atomic_number),
+                    );
+                }
+            }
+            Message::ReactantComposer(message) => {
+                if matches!(message, reactant_composer::Message::StartReactionRequested)
+                    && reactant_composer::can_start_reaction(&self.reactant_composer)
+                {
+                    let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+                    reaction_workspace::load_reactants(&mut self.reaction_workspace, first, second);
+                    reaction_workspace::update(
+                        &mut self.reaction_workspace,
+                        reaction_workspace::Message::StartReaction,
+                    );
+                } else {
+                    reactant_composer::update(&mut self.reactant_composer, message);
+                }
             }
             Message::ReactionWorkspace(message) => {
                 reaction_workspace::update(&mut self.reaction_workspace, message);
@@ -139,8 +165,15 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         if self.screen == Screen::Builder {
+            let composer = if reaction_workspace::sequence_active(&self.reaction_workspace) {
+                Subscription::none()
+            } else {
+                reactant_composer::subscription(&self.reactant_composer)
+                    .map(Message::ReactantComposer)
+            };
             Subscription::batch([
                 periodic_table::subscription(&self.periodic_table).map(Message::PeriodicTable),
+                composer,
                 reaction_workspace::subscription(&self.reaction_workspace)
                     .map(Message::ReactionWorkspace),
             ])
@@ -163,17 +196,20 @@ impl App {
 
         let library =
             periodic_table::view(&self.periodic_table, compact).map(Message::PeriodicTable);
-        let workspace = reaction_workspace::view(
-            &self.reaction_workspace,
+        let composer = reactant_composer::view(
+            &self.reactant_composer,
             periodic_table::dragging_atomic_number(&self.periodic_table),
             compact,
         )
-        .map(Message::ReactionWorkspace);
+        .map(Message::ReactantComposer);
+        let sequence: Element<'_, Message> =
+            reaction_workspace::view(&self.reaction_workspace, None, compact)
+                .map(Message::ReactionWorkspace);
 
         let stages: Element<'_, Message> = if sequence_active {
-            container(workspace).width(Fill).height(Fill).into()
+            container(sequence).width(Fill).height(Fill).into()
         } else {
-            column![workspace, library]
+            column![composer, library]
                 .spacing(spacing::XS)
                 .width(Fill)
                 .height(Fill)
@@ -362,10 +398,10 @@ impl App {
                     if sequence_active {
                         "Stage 5 · Animate"
                     } else {
-                        "Stage 4 · Start"
+                        "Stage 1 · Build"
                     }
                 } else {
-                    "Elements  →  Workspace  →  Visualise  →  Start  •  Animate  →  Result"
+                    "Elements  →  Build reactants  →  Animate  →  Result"
                 })
                 .size(type_scale::CAPTION)
                 .color(color::MUTED),
@@ -397,12 +433,18 @@ impl App {
                 text(if sequence_active {
                     "STAGE 5 · 2D PREVIEW"
                 } else {
-                    "STAGE 5 READY FOR REVIEW"
+                    "STAGE 1 · REACTANT COMPOSER"
                 })
                 .size(type_scale::MICRO)
                 .color(color::SUCCESS),
                 space().width(Fill),
-                text(if compact {
+                text(if !sequence_active {
+                    if compact {
+                        "NEXT · REACTION PREVIEW"
+                    } else {
+                        "NEXT · 2D REACTION PREVIEW · LOCKED UNTIL A SUPPORTED PAIR IS SET"
+                    }
+                } else if compact {
                     "NEXT · 3D VIEW"
                 } else {
                     "NEXT · 3D LAB VISUALISATION · LOCKED UNTIL APPROVAL"
@@ -964,5 +1006,46 @@ mod tests {
             reaction_workspace::placed_atom_count(&app.reaction_workspace),
             1
         );
+    }
+
+    #[test]
+    fn stage_one_supported_drafts_launch_the_sequence_without_a_workspace_screen() {
+        let mut app = App::default();
+
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(
+            6,
+        )));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::Activate(reactant_composer::ActiveReactant::Second),
+        ));
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(
+            8,
+        )));
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(
+            8,
+        )));
+
+        assert_eq!(reactant_composer::reactants(&app.reactant_composer).0, &[6]);
+        assert_eq!(
+            reactant_composer::reactants(&app.reactant_composer).1,
+            &[8, 8]
+        );
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+
+        assert!(reaction_workspace::sequence_active(&app.reaction_workspace));
+        assert_eq!(
+            reaction_workspace::placed_atom_count(&app.reaction_workspace),
+            3
+        );
+
+        app.update(Message::ReactionWorkspace(
+            reaction_workspace::Message::WorkspaceReturned,
+        ));
+        assert!(!reaction_workspace::sequence_active(
+            &app.reaction_workspace
+        ));
     }
 }

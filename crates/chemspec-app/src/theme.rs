@@ -214,6 +214,23 @@ pub fn navigation_button(selected: bool, status: button::Status) -> button::Styl
     style
 }
 
+pub fn bare_button(_: &Theme, status: button::Status) -> button::Style {
+    button::Style {
+        background: Some(Background::Color(Color::TRANSPARENT)),
+        text_color: color::TEXT,
+        border: border_style(
+            if matches!(status, button::Status::Hovered | button::Status::Pressed) {
+                color::ACCENT
+            } else {
+                Color::TRANSPARENT
+            },
+            1.0,
+            3.0,
+        ),
+        ..button::Style::default()
+    }
+}
+
 pub fn request_input(_: &Theme, status: text_input::Status) -> text_input::Style {
     let (border_color, background) = match status {
         text_input::Status::Active => (color::LINE_STRONG, color::CANVAS),

@@ -31,11 +31,20 @@ and presentation never changes validation meaning.
 
 The builder uses a persistent five-step route—Elements, Workspace, Explain,
 Observe, Result—to communicate progression without implying that later stages
-are already available. Stages 1–2 combine three levels of hierarchy:
+are already available. Stage 1 combines three levels of hierarchy:
 
 - a compact product context bar and route;
 - a concise task header without redundant filter or selection panels;
-- the periodic table and reaction box as a connected working surface.
+- the two-reactant equation composer and periodic table as a connected working surface.
+
+The composer mirrors a conventional reaction equation: an atomic preview,
+Reactant 1, `+`, Reactant 2, and `→`, with a compact input history at the edge.
+One slot always has an explicit active-input treatment. Recognised composition
+previews use a named status; unknown or intermediate drafts preserve their
+formula and atoms with an unrecognised label. The active atomic preview uses the
+same deterministic shell canvas as the former workspace: electrons orbit
+slowly, curated covalent compositions show their shared pairs, and an explicit
+control pauses continuous motion.
 
 Element tiles preserve their group and period positions. The reaction box sits
 above the full-width periodic table, matching the direction in which elements
@@ -43,11 +52,18 @@ are carried into the workspace. Dragging adds a window-level floating preview
 that remains visible over either panel and the reaction box provides the
 explicit drop target.
 
-The periodic grid measures its available width. Cells expand until a
-readability cap and switch to a symbol-first dense presentation at compact
-sizes. Populated desktop cells show atomic number, symbol, name, and atomic
-mass. The redundant table instruction strip is removed and bottom padding is
-zero, leaving maximum height for the grid. All 18 groups remain visible without horizontal scrolling. The
+The periodic grid contains all 118 elements in the standard seven-period
+arrangement with separate lanthanide and actinide rows. It measures its
+available width. Square cells expand until a readability cap, then the column
+rhythm distributes the remaining width across the s, d, and p blocks. Elements
+within a block stay close together; larger gaps after groups 2 and 12 preserve
+the periodic families as distinct visual clusters. Horizontal and vertical
+gaps are independent, allowing the table to fill its panel without making the
+nine-row arrangement too tall for the one-page composition. Cells
+switch to a symbol-first dense presentation at compact sizes. Populated desktop
+cells show atomic number, symbol, name, and atomic mass. The redundant table
+instruction strip is removed and bottom padding is zero, leaving maximum height
+for the grid. All 18 groups remain visible without horizontal scrolling. The
 workspace stores normalized atom positions, so its layout scales without
 changing the learner's composition.
 
@@ -67,11 +83,11 @@ are present and motion is enabled; reduced motion freezes the orbit without
 hiding chemical labels. Covalent groupings add one or two explicit shared
 electron pairs between shell models; ionic associations do not reuse that cue.
 
-Stage 4 compresses the workspace and full periodic table into one fixed page.
-The builder itself has no scroll container. Reaction readiness shares the
-composition-status row: a supported candidate receives the primary action,
-unsupported combinations keep the same action disabled, and a queued request
-cannot be triggered twice.
+The consolidated composer and full periodic table occupy one fixed page. The
+builder itself has no scroll container. A supported pair receives the primary
+reaction action; unsupported combinations keep it disabled. Starting copies
+the exact draft identities into the internal preview state and opens the 2D
+storyboard directly, without an intermediate workspace screen.
 
 Stage 5 replaces the builder/table surface with a full-height 2D storyboard
 while active. Four visible stages communicate reactants, approach,
@@ -118,15 +134,16 @@ Motion must describe a state change, not run decoratively. Continuous ticks are
 allowed only while playback or a real loading state is active. Reduced-motion
 mode removes spatial movement while preserving opacity and status feedback.
 
-The workspace subscribes to animation ticks only while a recognised group is
-settling. Native hover, press, focus, selected, and disabled feedback requires
-no unconditional subscription. `U-104` should apply these motion tokens when
-playback becomes real.
+The composer subscribes to slow orbital ticks only while its model is visible
+and motion is enabled. The internal workspace subscribes only while a recognised
+group is settling or the storyboard is playing. Native hover, press, focus,
+selected, and disabled feedback requires no unconditional subscription. `U-104`
+should apply these motion tokens when playback becomes real.
 
 ## Responsive composition
 
-- Desktop, 1120 pixels and wider: the reaction box and periodic table form one
-  vertical working surface, with the complete table below the box. Validated
+- Desktop, 1120 pixels and wider: the reactant composer and periodic table form
+  one vertical working surface, with the complete table below the composer. Validated
   views place simulation and inspector side by side, with simulation receiving
   the larger share.
 - Tablet, 720–1119 pixels: builder controls and validated-view regions stack

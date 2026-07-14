@@ -5,6 +5,8 @@
 
 use std::collections::BTreeMap;
 
+use crate::composition_catalogue;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Participant {
     Atom(u8),
@@ -142,6 +144,19 @@ pub fn recognize(participants: impl IntoIterator<Item = Participant>) -> Option<
         .find(|candidate| counts(candidate.participants.iter().copied()) == actual)
 }
 
+/// Matches the two Stage 1 drafts without promoting them beyond user intent.
+/// A recognised composition contributes its preview formula; a single loose
+/// atom remains an atom. Every other draft shape is unsupported.
+pub fn recognize_drafts(first: &[u8], second: &[u8]) -> Option<ReactionCandidate> {
+    let participant = |atoms: &[u8]| {
+        composition_catalogue::recognize(atoms.iter().copied())
+            .map(|preview| Participant::Composition(preview.formula))
+            .or_else(|| (atoms.len() == 1).then(|| Participant::Atom(atoms[0])))
+    };
+
+    recognize([participant(first)?, participant(second)?])
+}
+
 fn counts(participants: impl IntoIterator<Item = Participant>) -> BTreeMap<Participant, usize> {
     participants
         .into_iter()
@@ -180,5 +195,15 @@ mod tests {
             .expect("supported candidate");
         assert_eq!(lithium_water.id, "lithium-water");
         assert!(lithium_water.equation_preview.contains("LiOH + H₂"));
+    }
+
+    #[test]
+    fn stage_one_drafts_match_only_supported_reaction_candidates() {
+        assert_eq!(
+            recognize_drafts(&[6], &[8, 8]).map(|candidate| candidate.id),
+            Some("carbon-oxygen")
+        );
+        assert!(recognize_drafts(&[6], &[8]).is_none());
+        assert!(recognize_drafts(&[6, 6], &[8, 8]).is_none());
     }
 }

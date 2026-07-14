@@ -228,14 +228,22 @@ App
 ```
 
 The reaction builder owns only presentation and user intent. Element metadata
-shown by `element_library` is a curated UI catalogue; selecting or dragging an
+shown by `element_library` is a complete UI catalogue; selecting or dragging an
 element cannot construct a compound, reaction, or `ValidatedExperiment`.
+`reactant_composer` owns two ordered element drafts, the active input slot, and
+interface history. Its formula strings and composition matches are derived
+presentation. Its active-model canvas reuses deterministic atomic and covalent
+preview drawing. Starting a supported preview copies the exact element
+identities into `workspace` and requests its existing sequence transition; it
+does not bypass parsing or validation.
 `workspace` stores placed element identities and normalized presentation
 positions. Its small closed-world combination catalogue may label a grouping
 as a composition preview and present its members as one compound card, but the
 preview is not a supported-reaction verdict and never constructs a trusted
 domain value. Member atom identities remain the durable state; the compound
-card is derived presentation. The workspace will eventually
+card is derived presentation. The workspace manipulation view is retained as
+internal component capability but is no longer a separate canonical screen.
+The workspace will eventually
 serialize typed user intent for the normal parser/validator path. `sequence`
 and result presentation must consume engine or simulation outputs rather than
 infer chemistry from tile placement.

@@ -145,10 +145,19 @@ playback.
 
 Stage 5 tests additionally verify deterministic progress-to-stage mapping,
 pause without progress, restart, skip-to-products, reduced-motion fallback,
-return-to-workspace, balanced representative visual counts, and preservation of
+return-to-reactants, balanced representative visual counts, and preservation of
 every listed product in multi-product previews. Live smoke checks confirm the
 periodic table still shows names and atomic masses without reintroducing
 scrolling.
+
+Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
+`CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
+drafts, slow orbit progression, and direct launch only for a supported pair.
+The handoff test proves the sequence becomes active without exposing the
+manipulation workspace. Periodic-table tests require all 118 atomic numbers and
+long-form display positions to be unique, every tile to remain square, the
+18-column grid to fit without horizontal scrolling, and the s/d and d/p block
+gaps to remain larger than within-block spacing.
 
 ## Cross-platform verification
 
