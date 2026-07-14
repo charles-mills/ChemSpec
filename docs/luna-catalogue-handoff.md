@@ -69,7 +69,7 @@ git diff --check
 
 Stop condition
 Stop when the candidate command succeeds and emits one exact catalogue digest
-with review-request status pending-chemist-review. Report the digest and every
+with review-request status pending-host-review. Report the digest and every
 unsupported or unresolved item. Do not claim approval or promotion.
 ```
 
@@ -115,7 +115,7 @@ The generated request lists every exact catalogue premise and evidence source,
 the catalogue digest, and the digests of every inspection artifact. It is not a
 `chem-catalogue-review-1` attestation and has no reviewer identity.
 
-The resident chemist reviews the exact generated digest externally and, if
+The project owner assigns AI review of the exact generated digest and, if
 accepted, supplies a complete attestation bound to every premise. A maintainer
 then deliberately updates the compiled catalogue and review trust roots. Only
 the existing `TrustedCatalogue::from_canonical_json` API can accept those exact

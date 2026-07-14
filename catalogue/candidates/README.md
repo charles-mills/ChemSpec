@@ -11,7 +11,7 @@ The initial chemist-selected queue contains one package:
 
 | Package | Content | Review state |
 |---|---|---|
-| `periodic-table-and-alkali-water` | 118 element identity records and `Rules.AlkaliMetalWithWater` for Li, Na, and K | `pending-chemist-review` |
+| `periodic-table-and-alkali-water` | 118 element identity records and `Rules.AlkaliMetalWithWater` for Li, Na, and K | `pending-host-review` |
 
 No queue entry is production chemistry. The identity records cite the IUPAC
 periodic table and deliberately remain provisional. Conventional block choices
@@ -28,5 +28,5 @@ cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
 
 The compiler rejects extra package files and unknown candidate fields. It does
 not read generated artifacts back as input. Candidate premises must be
-`provisional` with no reviewers; only the external chemist may supply review
+`provisional` with no reviewers; only a separate host-selected AI review may supply review
 metadata through the separate attestation boundary.

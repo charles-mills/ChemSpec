@@ -114,20 +114,18 @@ fn canonical_fixture_matches_schema_digest_and_closed_domain() {
 }
 
 #[test]
-fn pending_review_request_cannot_promote_a_trusted_catalogue() {
+fn canonical_ai_attestation_is_digest_bound() {
     let root = workspace_root();
-    let review_json: Value = serde_json::from_slice(
-        &fs::read(root.join("conformance/catalogue/lithium-rule-001.review.json")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(review_json["status"], "pending-chemist-review");
-    let review_bytes = serde_json::to_vec(&review_json).unwrap();
+    let review_bytes =
+        fs::read(root.join("conformance/catalogue/lithium-rule-001.review.json")).unwrap();
+    let attestation: CatalogueReviewAttestation = serde_json::from_slice(&review_bytes).unwrap();
+    assert_eq!(attestation.reviewer, "OpenAI Codex (AI)");
     assert_eq!(
-        TrustedCatalogue::from_canonical_json(&fixture_bytes(), &review_bytes)
-            .unwrap_err()
-            .code(),
-        CatalogueErrorCode::InvalidReview
+        attestation.canonical_digest().unwrap().to_string(),
+        chem_catalogue::PINNED_CANONICAL_REVIEW_DIGEST
     );
+    TrustedCatalogue::from_canonical_json(&fixture_bytes(), &review_bytes)
+        .expect("the exact host-selected AI attestation should promote the canonical catalogue");
 }
 
 #[test]

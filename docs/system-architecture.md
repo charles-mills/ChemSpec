@@ -68,10 +68,10 @@ reaction applicability, product/map/operation templates, observation
 compatibility, provenance, review attestations, schema versions, semantic
 digests, validation, and deterministic indexes.
 
-The locked forward generalized-rules design extends this boundary with an
+The implemented generalized-rules design extends this boundary with an
 element registry, derived reviewed categories, checked structural traits,
-structure templates, and inert family-rule records. These values remain
-unimplemented until the separate generalized-rules plan completes.
+structure templates, graph patterns, and inert family-rule records. G0–G6 are
+complete and compile supported family members into the concrete kernel path.
 
 ### `chem-kernel`
 
@@ -80,8 +80,8 @@ HIR, expanded certificates, graph-state execution, structural invariants,
 conservation proofs, derivations, and private construction of
 `ValidatedStructuralReaction`.
 
-Generalized matching and rewrite instantiation will remain on the elaboration
-side of this crate: it must compile to the existing concrete expanded reaction
+Generalized matching and rewrite instantiation remain on the elaboration side
+of this crate: they compile to the existing concrete expanded reaction
 before graph-state validation begins.
 
 ### `agent`

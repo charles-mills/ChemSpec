@@ -393,7 +393,7 @@ G5 reviewed clean.
   or generated artifacts through the candidate package.
 - Candidate checking reports Unsupported honestly for absent domain features.
 - Generated review requests bind the exact digest and remain
-  `pending-chemist-review`.
+  `pending-host-review`.
 - Only an externally supplied exact human attestation can promote the generated
   catalogue through the existing trust API.
 
@@ -454,5 +454,5 @@ The generalized-rules workstream is complete only when:
 6. candidate packages can be generated and checked without editing code;
 7. catalogue content cannot promote itself;
 8. all repository-wide gates pass; and
-9. the external chemist can review one exact generated digest rather than a
+9. a host-selected AI reviewer can review one exact generated digest rather than a
    collection of unbound drafts.

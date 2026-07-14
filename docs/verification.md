@@ -91,8 +91,10 @@ covering:
 - complete atom mapping and product assignment; and
 - gas evolution and reactant disappearance claims.
 
-The chemist reviews the initial structures, every intermediate electron state,
-the final structures, and the non-mechanism disclosure.
+The host-selected AI review covers the initial structures, every intermediate
+electron state, the final structures, and the non-mechanism disclosure. Its
+exact attestation digest is compiled into the catalogue trust boundary. The UI
+discloses that this is AI review rather than human expert certification.
 
 ## Agent evaluation
 

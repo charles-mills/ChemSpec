@@ -105,6 +105,7 @@ catalogue data, and validation:
   closed candidate-package authoring compiler, whose generated chemistry
   remains explicitly untrusted; and
 - `chems-conformance` — specification, grammar, fixture, and coverage gates.
+- `chemspec-app` — native Iced composition UI and trusted frame renderer.
 
 The desktop application is native Rust using Iced and `wgpu`. Provider support
 offers either a Codex subscription through the local `codex` binary or direct
@@ -113,15 +114,22 @@ Responses API access with an API key.
 ## Language status
 
 The structural `.chems 1` implementation is complete through the fixed seven
-slices. Trusted promotion of the bundled lithium-and-water chemistry remains
-explicitly pending the external chemist attestation; review-candidate
-derivations and frames cannot cross the production capability boundary.
+slices. The bundled lithium-and-water catalogue is promoted through an exact
+host-pinned AI review attestation. The attestation names its AI reviewer and
+limitations; it is an explicit product trust decision, not human expert
+certification.
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
 grammar. The candidate-authoring path can merge and exercise catalogue content,
 but it cannot promote its own output; chemistry review and host trust-root
-updates remain external human actions.
+updates remain deliberate source-controlled host actions. Runtime agents and
+candidate packages still cannot promote themselves.
+
+The Iced application now consumes the canonical `.chems 1` source through the
+real catalogue, expansion, kernel-validation, and `SimulationFrames` APIs. Its
+local periodic-table and composition models are draft presentation only; they
+do not choose products or construct bonds for simulation.
 
 ## Development commands
 
@@ -133,7 +141,14 @@ cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
+cargo run -p chemspec-app
 ```
+
+## Releases
+
+Pushing a tag in the exact form `vMAJOR.MINOR.PATCH` builds a Windows MSI, a
+Linux AppImage and standalone binary, and a universal macOS DMG. The tag must
+match `[workspace.package].version`. Packages are currently unsigned.
 
 ## License
 

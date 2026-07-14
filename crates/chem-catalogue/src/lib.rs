@@ -3,7 +3,7 @@
 //! A [`ValidatedCatalogueBundle`] has passed structural validation but remains
 //! untrusted. Only [`TrustedCatalogue::from_canonical_json`] can cross the
 //! runtime trust boundary, and it requires both the host-pinned canonical
-//! digest and an exact external review attestation.
+//! digest and an exact host-selected trust attestation.
 
 mod generalized;
 mod generalized_elaboration;
@@ -36,11 +36,13 @@ pub use pattern::*;
 pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
     "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f";
 
-/// Host-controlled digest of the exact external review attestation.
+/// Host-controlled digest of the exact AI review attestation selected for the
+/// canonical educational catalogue.
 ///
-/// This remains `None` until the resident chemist supplies the signed-off
-/// artifact. Runtime data cannot populate or override it.
-pub const PINNED_CANONICAL_REVIEW_DIGEST: Option<&str> = None;
+/// The attestation is explicit about AI authorship and limitations. Runtime
+/// data cannot populate or override this compiled trust decision.
+pub const PINNED_CANONICAL_REVIEW_DIGEST: &str =
+    "acf340f6019f6ca54aa53b12615ed4ca8b4575a6f6295d7ce490aaf0b2444dc7";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogueErrorCode {
@@ -607,7 +609,7 @@ impl ValidatedCatalogueBundle {
         &self.rules
     }
 
-    /// Validates a digest-bound external chemistry review attestation.
+    /// Validates a digest-bound host-selected chemistry review attestation.
     ///
     /// # Errors
     ///
@@ -664,14 +666,14 @@ impl ValidatedCatalogueBundle {
 }
 
 /// Host-trusted immutable catalogue. Construction is possible only for the
-/// compiled canonical digest with an exact, independently supplied review.
+/// compiled canonical digest with an exact host-selected review attestation.
 #[derive(Debug, Clone)]
 pub struct TrustedCatalogue {
     validated: ValidatedCatalogueBundle,
 }
 
 impl TrustedCatalogue {
-    /// Loads the one host-pinned production catalogue and its external review.
+    /// Loads the one host-pinned production catalogue and trust attestation.
     ///
     /// # Errors
     ///
@@ -697,20 +699,15 @@ impl TrustedCatalogue {
             .map_err(|error| {
                 CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
             })?;
-        let Some(review_digest) = PINNED_CANONICAL_REVIEW_DIGEST else {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "no external review attestation is pinned by the host",
-            ));
-        };
         let actual_review_digest = attestation.canonical_digest()?;
-        let expected_review_digest = ContentDigest::from_str(review_digest).map_err(|error| {
-            CatalogueError::new(CatalogueErrorCode::InvalidMetadata, error.to_string())
-        })?;
+        let expected_review_digest = ContentDigest::from_str(PINNED_CANONICAL_REVIEW_DIGEST)
+            .map_err(|error| {
+                CatalogueError::new(CatalogueErrorCode::InvalidMetadata, error.to_string())
+            })?;
         if actual_review_digest != expected_review_digest {
             return Err(CatalogueError::new(
                 CatalogueErrorCode::InvalidReview,
-                "external review does not match the host-controlled review digest",
+                "review attestation does not match the host-controlled trust digest",
             ));
         }
         validated.validate_attestation(&attestation)?;

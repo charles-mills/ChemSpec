@@ -60,7 +60,8 @@ atom-mapped transformations. Aromatic bonding remains outside the closed
 domain.
 
 Initial shipped chemistry is closed-world and fixture-led. Broader inorganic or
-A-Level organic coverage is added only through independently reviewed
+A-Level organic coverage is added only through explicitly AI-reviewed,
+digest-pinned
 structures and rules. Missing coverage is Unsupported; the agent does not fill
 trusted-model gaps.
 
@@ -71,7 +72,7 @@ boundaries in one educational example.
 ## Canonical journey
 
 1. **Ask.** The learner asks what happens when lithium reacts with water.
-2. **Resolve.** The engine resolves identities and uniquely selects the reviewed
+2. **Resolve.** The engine resolves identities and uniquely selects the AI-reviewed
    `AlkaliMetalWithWater` rule.
 3. **Research.** The agent obtains typed qualitative observation claims and
    claim-level evidence.
@@ -114,7 +115,7 @@ Persistent disclosure:
 The product succeeds when a learner can:
 
 1. ask about a supported reaction outcome;
-2. distinguish reviewed applicability from AI-supplied observations;
+2. distinguish pinned catalogue applicability from runtime AI-supplied observations;
 3. inspect concise authored source and exact expanded structure;
 4. follow stable atoms from reactants to products;
 5. distinguish covalent, ionic, and metallic representations;

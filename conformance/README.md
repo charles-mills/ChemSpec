@@ -44,8 +44,8 @@ reactions because their required model assumptions produce
 - `grammar/chems.ebnf` is the only normative grammar.
 - `reserved-words.txt` must exactly equal the specification's reserved-word
   block and contain every grammar keyword.
-- Expected chemistry is independently authored and must be reviewed before
-  promotion.
+- Expected chemistry is independently authored and must receive an explicit,
+  digest-pinned host trust decision before production promotion.
 
 `catalogue/alkali-metal-water-001.catalogue.json` is the canonical generalized
 family catalogue. `catalogue/lithium-rule-001.catalogue.json` is retained only
@@ -61,22 +61,22 @@ Slice 0 establishes:
 
 - `parsing/canonical-source-001.chems` — definitive authored source;
 - `structural-domain/electron-model-001.*` — formal-charge and electron ledger;
-- `catalogue/lithium-rule-001.*` — digest-bound provisional structural
-  catalogue, closed reaction rule, and exact chemist-review request;
+- `catalogue/lithium-rule-001.*` — digest-bound structural catalogue, closed
+  reaction rule, and exact AI review attestation;
 - `expansion/canonical-expansion-001.*` — executable review-candidate source,
   complete independent HIR oracle, and exact unexecuted text certificate;
 - `observations/lithium-observations-001.input.json` — typed evidence packet;
   and
-- `end-to-end/lithium-outcome-001.*` — honest incomplete vertical artifact.
+- `end-to-end/lithium-outcome-001.*` — trusted vertical artifact with explicit
+  model assumptions;
 - `frames/canonical-frames-001.expected.json` — independently authored frame,
   change, and observation-synchronization review candidate.
 
-The catalogue explicitly remains `pending-chemist-review`; the external
-evidence packet is always labelled untrusted runtime research and cannot claim
-host review. Expansion is executable only through the visibly untrusted
-review-candidate path until catalogue review lands. The trusted runtime
-catalogue type additionally requires a host-pinned digest and exact external
-attestation; implementation must not manufacture or infer that human sign-off.
+The external evidence packet remains labelled untrusted runtime research and
+cannot claim host review. Candidate expansion remains visibly untrusted. The
+trusted runtime catalogue requires both the host-pinned catalogue digest and
+the exact host-selected AI review-attestation digest; runtime agents and
+candidate packages cannot manufacture or update either trust root.
 
 ## Slice progression
 
@@ -88,8 +88,8 @@ attestation; implementation must not manufacture or infer that human sign-off.
 - Slice 5 executes the complete independent state-chain oracle and adds exact
   operation-precondition, conservation, mapping, product, and staleness cases.
 - Slice 6 implements frames, staleness, artifact, CLI inspection, and complete
-  requirement coverage. Chemistry-dependent cases remain incomplete until the
-  external chemist attestation is pinned.
+  requirement coverage. The canonical trusted path is promoted through the
+  pinned AI attestation; unrelated archaeology cases remain honestly incomplete.
 
 Each case is promoted from `incomplete` only when its producing implementation
 and independent review are complete.

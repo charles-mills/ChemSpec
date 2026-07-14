@@ -1,0 +1,30 @@
+[package]
+name = "chemspec-app"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "ChemSpec desktop application"
+
+[package.metadata.packager]
+product-name = "ChemSpec"
+identifier = "dev.charlesmills.chemspec"
+publisher = "Charles Mills"
+homepage = "https://charlesmills.dev"
+category = "Education"
+license-file = "../../LICENSE"
+icons = ["../../target/packaging/*.png"]
+binaries = [{ path = "chemspec-app", main = true }]
+
+[dependencies]
+chem-catalogue = { path = "../chem-catalogue" }
+chem-domain = { path = "../chem-domain" }
+chem-kernel = { path = "../chem-kernel" }
+chems-lang = { path = "../chems-lang" }
+iced.workspace = true
+
+[lints]
+workspace = true

@@ -135,7 +135,7 @@
       "requirements": ["SRC-002", "CAT-001"],
       "catalogue": "conformance/catalogue/lithium-rule-001.catalogue.json",
       "expected": {
-        "state": "incomplete",
+        "state": "validated-with-assumptions",
         "catalogue_sha256": "conformance/catalogue/lithium-rule-001.catalogue.digest",
         "catalogue_review": "conformance/catalogue/lithium-rule-001.review.json"
       }
@@ -238,7 +238,7 @@
       "requirements": ["END-001"],
       "source": "conformance/end-to-end/lithium-outcome-001.chems",
       "expected": {
-        "state": "incomplete",
+        "state": "validated-with-assumptions",
         "artifact": "conformance/end-to-end/lithium-outcome-001.artifact.json"
       }
     },
