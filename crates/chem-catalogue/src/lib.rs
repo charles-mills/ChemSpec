@@ -200,6 +200,31 @@ impl CatalogueEnvelope {
     }
 }
 
+impl CatalogueReviewAttestation {
+    /// Returns canonical JSON bytes for the external review semantics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when conversion to canonical JSON fails.
+    pub fn canonical_json(&self) -> Result<Vec<u8>, CatalogueError> {
+        let value = serde_json::to_value(self).map_err(|error| {
+            CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
+        })?;
+        canonical_json(&value).map_err(|error| {
+            CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
+        })
+    }
+
+    /// Returns the canonical semantic digest of this review attestation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when canonical serialization fails.
+    pub fn canonical_digest(&self) -> Result<ContentDigest, CatalogueError> {
+        Ok(ContentDigest::sha256(&self.canonical_json()?))
+    }
+}
+
 impl ValidatedCatalogueBundle {
     /// Parses and validates an untrusted catalogue envelope.
     ///
@@ -415,8 +440,8 @@ impl TrustedCatalogue {
     /// # Errors
     ///
     /// Rejects invalid catalogue data, a digest other than the compiled trust
-    /// root, or an attestation whose own bytes are not host-pinned and bound to
-    /// every premise in the exact bundle.
+    /// root, or an attestation whose canonical semantic digest is not
+    /// host-pinned and bound to every premise in the exact bundle.
     pub fn from_canonical_json(
         catalogue_json: &[u8],
         attestation_json: &[u8],
@@ -432,13 +457,17 @@ impl TrustedCatalogue {
                 "catalogue digest is not in the host-controlled trust root",
             ));
         }
+        let attestation: CatalogueReviewAttestation = serde_json::from_slice(attestation_json)
+            .map_err(|error| {
+                CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
+            })?;
         let Some(review_digest) = PINNED_CANONICAL_REVIEW_DIGEST else {
             return Err(CatalogueError::new(
                 CatalogueErrorCode::InvalidReview,
                 "no external review attestation is pinned by the host",
             ));
         };
-        let actual_review_digest = ContentDigest::sha256(attestation_json);
+        let actual_review_digest = attestation.canonical_digest()?;
         let expected_review_digest = ContentDigest::from_str(review_digest).map_err(|error| {
             CatalogueError::new(CatalogueErrorCode::InvalidMetadata, error.to_string())
         })?;
@@ -448,10 +477,6 @@ impl TrustedCatalogue {
                 "external review does not match the host-controlled review digest",
             ));
         }
-        let attestation: CatalogueReviewAttestation = serde_json::from_slice(attestation_json)
-            .map_err(|error| {
-                CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
-            })?;
         validated.validate_attestation(&attestation)?;
         Ok(Self { validated })
     }

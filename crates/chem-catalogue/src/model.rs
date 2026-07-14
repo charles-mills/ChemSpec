@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chem_domain::{ContentDigest, EvidenceSourceId, PremiseId, ReactionRuleId, StructureId};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 
 /// Supported on-disk schema version for structural catalogue envelopes.
 pub const CATALOGUE_SCHEMA_VERSION: u32 = 1;
@@ -476,8 +476,24 @@ pub struct CatalogueReviewAttestation {
     pub reviewed_on: String,
     pub scope: String,
     pub method: String,
+    #[serde(deserialize_with = "deserialize_unique_set")]
     pub sources: BTreeSet<EvidenceSourceId>,
+    #[serde(deserialize_with = "deserialize_unique_set")]
     pub premises: BTreeSet<PremiseId>,
     pub coverage_conclusion: String,
     pub limitation: String,
+}
+
+fn deserialize_unique_set<'de, D, T>(deserializer: D) -> Result<BTreeSet<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Ord,
+{
+    let values = Vec::<T>::deserialize(deserializer)?;
+    let value_count = values.len();
+    let values = values.into_iter().collect::<BTreeSet<_>>();
+    if values.len() != value_count {
+        return Err(D::Error::custom("array entries must be unique"));
+    }
+    Ok(values)
 }

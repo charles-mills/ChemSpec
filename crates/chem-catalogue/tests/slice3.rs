@@ -137,9 +137,12 @@ fn self_asserted_reviews_cannot_extend_the_host_trust_root() {
         reviewed_on: "2026-07-14".to_owned(),
         scope: "invented".to_owned(),
         method: "invented".to_owned(),
-        sources: [EvidenceSourceId::from_str("evidence.openstax.chemistry-2e").unwrap()]
-            .into_iter()
-            .collect(),
+        sources: [
+            EvidenceSourceId::from_str("evidence.iupac.goldbook").unwrap(),
+            EvidenceSourceId::from_str("evidence.openstax.chemistry-2e").unwrap(),
+        ]
+        .into_iter()
+        .collect(),
         premises: invented
             .bundle
             .premises
@@ -149,6 +152,39 @@ fn self_asserted_reviews_cannot_extend_the_host_trust_root() {
         coverage_conclusion: "invented".to_owned(),
         limitation: "invented".to_owned(),
     };
+    let mut reordered_review = serde_json::to_value(&attestation).unwrap();
+    reordered_review["sources"]
+        .as_array_mut()
+        .unwrap()
+        .reverse();
+    reordered_review["premises"]
+        .as_array_mut()
+        .unwrap()
+        .reverse();
+    let reordered_review: CatalogueReviewAttestation =
+        serde_json::from_value(reordered_review).unwrap();
+    assert_eq!(
+        attestation.canonical_digest().unwrap(),
+        reordered_review.canonical_digest().unwrap()
+    );
+    let mut changed_review = attestation.clone();
+    changed_review.coverage_conclusion = "materially changed conclusion".to_owned();
+    assert_ne!(
+        attestation.canonical_digest().unwrap(),
+        changed_review.canonical_digest().unwrap()
+    );
+    for field in ["sources", "premises"] {
+        let mut duplicate_review = serde_json::to_value(&attestation).unwrap();
+        let duplicate = duplicate_review[field][0].clone();
+        duplicate_review[field]
+            .as_array_mut()
+            .unwrap()
+            .push(duplicate);
+        assert!(
+            serde_json::from_value::<CatalogueReviewAttestation>(duplicate_review).is_err(),
+            "duplicate `{field}` entry must be rejected before hashing"
+        );
+    }
     let error = TrustedCatalogue::from_canonical_json(
         &serde_json::to_vec(&invented).unwrap(),
         &serde_json::to_vec(&attestation).unwrap(),
