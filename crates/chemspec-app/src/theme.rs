@@ -4,7 +4,7 @@
 //! character of the `ChemistrySim` reference into reusable Iced styles. Layout
 //! code should use these tokens instead of introducing one-off values.
 
-use iced::widget::{button, container, text_input};
+use iced::widget::{button, container, slider, text_input};
 use iced::{Background, Border, Color, Shadow, Theme, Vector, border};
 
 pub mod color {
@@ -127,6 +127,42 @@ pub fn raised(_: &Theme) -> container::Style {
     container::Style::default()
         .background(color::SURFACE)
         .border(border_style(color::LINE, 1.0, radius::CONTROL))
+}
+
+pub fn media_bar(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(Color::from_rgba(0.035, 0.048, 0.064, 0.98))
+        .border(border_style(color::LINE_STRONG, 1.0, radius::PANEL))
+        .shadow(Shadow {
+            color: Color::from_rgba(0.0, 0.0, 0.0, 0.22),
+            offset: Vector::new(0.0, 5.0),
+            blur_radius: 18.0,
+        })
+}
+
+pub fn timeline_slider(_: &Theme, status: slider::Status) -> slider::Style {
+    let (radius, handle, border_color, rail) = match status {
+        slider::Status::Active => (7.0, color::TEXT, color::CANVAS, color::ACCENT),
+        slider::Status::Hovered => (8.5, color::ACCENT_HOVER, color::TEXT, color::ACCENT_HOVER),
+        slider::Status::Dragged => (9.0, color::TEXT, color::ACCENT, color::ACCENT_HOVER),
+    };
+
+    slider::Style {
+        rail: slider::Rail {
+            backgrounds: (
+                Background::Color(rail),
+                Background::Color(color::SURFACE_ACTIVE),
+            ),
+            width: 4.0,
+            border: border_style(color::LINE_STRONG, 1.0, radius::PILL),
+        },
+        handle: slider::Handle {
+            shape: slider::HandleShape::Circle { radius },
+            background: Background::Color(handle),
+            border_width: 2.5,
+            border_color,
+        },
+    }
 }
 
 pub fn accent_tint(_: &Theme) -> container::Style {

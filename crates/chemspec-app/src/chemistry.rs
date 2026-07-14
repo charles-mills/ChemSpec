@@ -342,6 +342,7 @@ pub fn presentation_profile(experience: Experience, last_ordinal: u16) -> Presen
                 end_ordinal: last_ordinal,
             },
         ],
+        equation: experience.equation().to_owned(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     }
 }
