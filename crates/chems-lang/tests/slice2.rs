@@ -71,8 +71,28 @@ fn every_normative_production_is_reached() {
     assert_eq!(experiment.name, "AllForms");
     assert_eq!(experiment.materials.len(), 4);
     assert_eq!(experiment.procedure.len(), 12);
+    let model = experiment.model.as_ref().expect("model is present");
+    assert_eq!(model.event, "representative");
+    assert_eq!(model.sequence, "explanatory");
+    assert_eq!(model.structural_rule, "ChemSpec.Structural.Test.AllForms");
     assert_eq!(experiment.expectations.len(), 2);
     assert_eq!(experiment.tactics.len(), 11);
+}
+
+#[test]
+fn model_disclosure_and_structural_rule_binding_are_mandatory() {
+    let without_model = ALL_PRODUCTIONS.replace(
+        "  model\n    event := representative\n    sequence := explanatory\n    structuralRule := ChemSpec.Structural.Test.AllForms\n",
+        "",
+    );
+    let parsed = parse_source(&without_model);
+    assert!(!parsed.is_complete());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "CHEMS-P007")
+    );
 }
 
 #[test]

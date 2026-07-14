@@ -92,10 +92,11 @@ UTF-8 source
     -> name and catalogue resolution
     -> dimensionally typed HIR
     -> experiment state-transition IR
+    -> reviewed structural-rule expansion
     -> claims and proof goals
     -> closed tactic evaluation
-    -> kernel-checked derivation
-    -> ValidatedExperiment
+    -> kernel-checked chemical and structural derivation
+    -> ValidatedExperiment and ValidatedStructuralReaction
 ```
 
 Each arrow is an explicit fallible boundary with stable diagnostics. Later
@@ -119,8 +120,9 @@ Every file contains, in semantic order:
 6. its initial materials;
 7. its virtual vessels;
 8. an ordered procedure;
-9. zero or more outcome claims or requested derivations;
-10. a proof script.
+9. one representative/explanatory model disclosure and reviewed structural-rule binding;
+10. zero or more outcome claims or requested derivations;
+11. a proof script.
 
 The exact surface grammar and concise forms are specified by the lexical and
 grammar chapter below. This section fixes the entities and their relationships.
@@ -150,6 +152,10 @@ Document
     ├── VesselDeclaration[]
     ├── Procedure
     │   └── Operation[]
+    ├── Model
+    │   ├── Event = representative
+    │   ├── Sequence = explanatory
+    │   └── StructuralRuleRef
     ├── Expectation
     │   └── Claim[]
     └── Proof
@@ -530,6 +536,11 @@ experiment SilverChloridePrecipitation where
     add sodiumChloride to reaction
     stir reaction
 
+  model
+    event := representative
+    sequence := explanatory
+    structuralRule := ChemSpec.Structural.Precipitation.SilverChloride
+
   expect at final
     class := precipitation
     molecular := ?
@@ -562,6 +573,8 @@ This chapter fixes the following design decisions:
   immutable stages, claims, holes, goals, tactics, and derivations.
 - Procedures contain bounded state transitions, not authored reaction results
   or simulation instructions.
+- Source selects one reviewed structural rule and mandatory representative and
+  explanatory disclosures; the catalogue supplies its structural certificate.
 - Explicit claim, typed hole, and omitted claim have distinct meanings.
 - Assumptions are typed, explicit, catalogue-defined, traced, and result in
   `ValidatedWithAssumptions` when used.
@@ -770,12 +783,37 @@ assuming       optional
 given
 vessels
 procedure
+model
 expect         zero or more stage-targeted blocks
 by
 ```
 
 The order expresses the dependency direction from context and inputs to
-operations, claims, and proof. Reordering outer sections is a syntax error.
+operations, model disclosure, claims, and proof. Reordering outer sections is a
+syntax error.
+
+### Model disclosure and structural rule binding
+
+Every experiment contains exactly one `model` section:
+
+```chems
+model
+  event := representative
+  sequence := explanatory
+  structuralRule := ChemSpec.Structural.Precipitation.SilverChloride
+```
+
+Language major 1 accepts only `representative` and `explanatory`. These are
+mandatory disclosures, not user-extensible animation modes. The qualified
+`structuralRule` name resolves in the selected immutable catalogue bundle.
+
+The binding selects reviewed structural knowledge; it does not make source an
+animation script. Source cannot author atom mappings, structural operations,
+electron allocations, intermediate graph states, coordinates, timing, or
+camera behavior. Catalogue resolution and the trusted kernel reject a missing,
+unknown, unreviewed, incompatible, or invalid rule before frames exist. The
+downstream contract is recorded in
+[`structural-reaction-animation-contract.md`](structural-reaction-animation-contract.md).
 
 Entries inside `conditions` may appear in any order. Static checking requires
 exactly one `temperature`, `pressure`, and `medium`; the formatter emits that
@@ -1054,11 +1092,12 @@ be used as value or type identifiers:
 ```text
 add amount and aq aqueous assuming at atoms auto balance by cancel catalog
 charge chems class close closed colour combine completeIonic conditions consumes
-cool decant decrease derive dissociate expect experiment filter final for from g
-gas gasFormation given heat in increase infer initial into l limiting medium
+cool decant decrease derive dissociate event expect experiment explanatory filter final for from g
+gas gasFormation given heat in increase infer initial into l limiting medium model
 molecular netIonic neutralization noReaction none observations observe of open
 place precipitate precipitation prepared pressure procedure produces products
-prove remains s seal solve spectator spectators stir stoichiometry temperature
+prove representative remains s seal sequence solve spectator spectators stir
+stoichiometry structuralRule temperature
 temperatureChange to transfer use using verify vessel vessels wait where with
 ```
 
@@ -3107,6 +3146,10 @@ The language reserves:
 Codes are never reused for a different condition within one language major.
 Wording may improve without changing a code when machine meaning remains the
 same.
+
+`CHEMS-P007` identifies a missing mandatory `.chems 1` model section. Unknown,
+unreviewed, or incompatible `structuralRule` references are reported later by
+catalogue-resolution diagnostics because their syntax is valid.
 
 ### Diagnostic ordering and recovery
 

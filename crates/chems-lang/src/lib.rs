@@ -14,6 +14,6 @@ pub use syntax::{
     ChemicalSyntaxKind, ClaimKind, CommentAttachment, CommentPlacement, Cst, DeclarationKind,
     EquationSyntaxKind, HeaderKind, NameSyntaxKind, ObservationKind, OperationKind,
     QuantitySyntaxKind, SectionKind, SourceAst, SourceCatalogueSelection, SourceExpectation,
-    SourceExperiment, SourceLanguageVersion, SourceNode, SourceNodeKind, SyntaxNode, TacticKind,
-    Token, TokenKind,
+    SourceExperiment, SourceLanguageVersion, SourceModel, SourceNode, SourceNodeKind, SyntaxNode,
+    TacticKind, Token, TokenKind,
 };

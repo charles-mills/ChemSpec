@@ -23,6 +23,17 @@ Visual reaction-builder request or natural-language request
     -> Iced/wgpu presentation
 ```
 
+The reviewed automatic-animation branch refines the middle of that flow:
+
+```text
+.chems source -> chems-lang -> chem-catalogue rule resolution
+    -> chem-engine expansion and mandatory validation
+    -> ValidatedStructuralReaction
+       -> StructuralFrame sequence -> EducationalScenePlanner -> 2D renderer
+       -> reviewed presentation metadata -> RealWorldScenePlanner
+          -> reusable asset/effect/camera registries -> 3D renderer
+```
+
 Reverse dependencies are prohibited:
 
 - the validator does not depend on the UI;
@@ -40,8 +51,10 @@ Reverse dependencies are prohibited:
              ┌───────────┬───────┼───────────┐
              ▼           ▼       ▼           ▼
         chems-lang  chem-engine  agent   simulation
-             │           │                   │
-             └───────────┴─────────┬─────────┘
+             │       │   │                     │
+             │       │   ▼                     │
+             │       │ chem-catalogue          │
+             └───────┴─────────────┬───────────┘
                                    ▼
                               chem-domain
 ```
@@ -79,9 +92,9 @@ decide whether a reaction is chemically supported.
 
 Trusted chemical meaning:
 
-- versioned catalogue;
 - semantic name and type resolution;
-- reaction rules;
+- deterministic reviewed-rule expansion;
+- structural graph-state and operation validation;
 - equation validation;
 - product inference;
 - stoichiometry;
@@ -89,6 +102,18 @@ Trusted chemical meaning:
 - construction of `ValidatedExperiment`.
 
 This is the only crate allowed to construct a validated experiment.
+
+### `chem-catalogue`
+
+Reviewed immutable chemistry inputs:
+
+- versioned catalogue identity and canonical digest;
+- species, phases, elements, evidence, and review status;
+- reviewed structural-rule records;
+- stable atom identities, immutable graph states, operations, and observations.
+
+It validates catalogue integrity but does not confer reaction trust. Only the
+chemistry engine may turn a selected record into `ValidatedStructuralReaction`.
 
 ### `agent`
 
@@ -262,12 +287,22 @@ candidate must still travel through the provider, parser, chemistry engine, and
 validated simulation boundary before any validated reaction animation can
 begin.
 
-The Stage 5 `reaction_sequence` module is an untrusted storyboard preview, not
-the architecture's validated `sequence` or `simulation` feature. It consumes
-only the Stage 4 candidate's reviewed presentation data, preserves every listed
-visual product, and owns playback presentation state. It cannot produce domain
-products, validation dispositions, `ValidatedExperiment`, or `SimulationFrame`.
-Validated playback remains blocked until the normal downstream pipeline exists.
+The previous Stage 5 formula-driven storyboard is not an allowed animation
+boundary. Until language Slices 3–11 establish catalogue resolution, reviewed
+rule expansion, trusted validation, a privately constructed
+`ValidatedStructuralReaction`, and renderer-independent structural frames, the
+application displays a non-animating validation gate.
+
+After that gate exists, frame generation remains downstream of the trusted
+artifact and upstream of the educational planner. Presentation may interpolate
+positions, easing, labels, and highlights, but it cannot alter atom identities,
+bonding domains, electrons, formal charges, product membership, operations,
+observations, or disclosures. The separate real-world planner consumes the
+validated reaction, typed observations, and reviewed macroscopic presentation
+metadata; it does not turn atom coordinates into a laboratory scene. The 3D
+view must reuse Iced's renderer device and surface; it may add a custom wgpu
+primitive but may not create another adapter, device, event loop, or window
+surface.
 
 Stale asynchronous results carry a request or generation identifier and are
 ignored when they no longer match active state.

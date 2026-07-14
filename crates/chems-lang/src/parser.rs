@@ -3,7 +3,8 @@ use crate::{
     DeclarationKind, Diagnostic, EquationSyntaxKind, HeaderKind, LexResult, NameSyntaxKind,
     ObservationKind, OperationKind, QuantitySyntaxKind, SectionKind, SourceAst,
     SourceCatalogueSelection, SourceExpectation, SourceExperiment, SourceLanguageVersion,
-    SourceNode, SourceNodeKind, SyntaxNode, TacticKind, Token, TokenKind, lex_bytes, lex_source,
+    SourceModel, SourceNode, SourceNodeKind, SyntaxNode, TacticKind, Token, TokenKind, lex_bytes,
+    lex_source,
 };
 
 #[derive(Debug, Clone)]
@@ -183,6 +184,7 @@ impl Parser<'_> {
         self.parse_given_section();
         self.parse_vessels_section();
         self.parse_procedure_section();
+        self.parse_model_section();
         while self.at_literal("expect") {
             self.parse_expectation_section();
         }
@@ -406,6 +408,45 @@ impl Parser<'_> {
         self.expect_kind(TokenKind::Dedent, "the end of procedure");
         self.consume_newlines();
         self.finish(count == 0);
+    }
+
+    fn parse_model_section(&mut self) {
+        self.begin("model-section");
+        if !self.eat_literal("model") {
+            self.error(
+                "CHEMS-P007",
+                "every .chems 1 experiment requires a `model` section",
+                self.current_span(),
+            );
+        }
+        self.expect_newline();
+        self.expect_indent("an indented model block");
+
+        self.begin("event-model-entry");
+        self.expect_literal("event");
+        self.expect_literal(":=");
+        self.expect_literal("representative");
+        self.expect_newline();
+        self.finish(false);
+
+        self.begin("sequence-model-entry");
+        self.expect_literal("sequence");
+        self.expect_literal(":=");
+        self.expect_literal("explanatory");
+        self.expect_newline();
+        self.finish(false);
+
+        self.begin("structural-rule-entry");
+        self.expect_literal("structuralRule");
+        self.expect_literal(":=");
+        self.parse_qualified_name();
+        self.expect_newline();
+        self.finish(false);
+
+        self.consume_newlines();
+        self.expect_kind(TokenKind::Dedent, "the end of model");
+        self.consume_newlines();
+        self.finish(false);
     }
 
     fn parse_operation(&mut self) {
@@ -1784,8 +1825,38 @@ fn source_experiment(name: Option<String>, document: &SourceNode) -> Option<Sour
         materials: entries(SectionKind::Given, is_material_entry),
         vessels: entries(SectionKind::Vessels, is_vessel_entry),
         procedure: entries(SectionKind::Procedure, is_procedure_entry),
+        model: source_model(section(SectionKind::Model)),
         expectations,
         tactics: entries(SectionKind::Proof, is_tactic_entry),
+    })
+}
+
+fn source_model(section: Option<&SourceNode>) -> Option<SourceModel> {
+    let section = section?;
+    let structural_rule = find_source_node(section, |kind| {
+        matches!(
+            kind,
+            SourceNodeKind::Declaration {
+                form: DeclarationKind::StructuralRule
+            }
+        )
+    })
+    .and_then(|entry| {
+        find_source_node(entry, |kind| {
+            matches!(
+                kind,
+                SourceNodeKind::Name {
+                    form: NameSyntaxKind::QualifiedName
+                }
+            )
+        })
+    })
+    .and_then(|node| node.lexeme.clone())?;
+    Some(SourceModel {
+        span: section.span,
+        event: "representative".to_owned(),
+        sequence: "explanatory".to_owned(),
+        structural_rule,
     })
 }
 
@@ -1890,6 +1961,9 @@ fn source_node_kind(production: &str) -> SourceNodeKind {
         "procedure-section" => SourceNodeKind::Section {
             section: SectionKind::Procedure,
         },
+        "model-section" => SourceNodeKind::Section {
+            section: SectionKind::Model,
+        },
         "expectation-section" => SourceNodeKind::Section {
             section: SectionKind::Expectation,
         },
@@ -1940,6 +2014,15 @@ fn source_node_kind(production: &str) -> SourceNodeKind {
         },
         "stage-label" => SourceNodeKind::Declaration {
             form: DeclarationKind::StageLabel,
+        },
+        "event-model-entry" => SourceNodeKind::Declaration {
+            form: DeclarationKind::ModelEvent,
+        },
+        "sequence-model-entry" => SourceNodeKind::Declaration {
+            form: DeclarationKind::ModelSequence,
+        },
+        "structural-rule-entry" => SourceNodeKind::Declaration {
+            form: DeclarationKind::StructuralRule,
         },
         "operation" => operation_node(OperationKind::Operation),
         "place-operation" => operation_node(OperationKind::Place),

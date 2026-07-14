@@ -19,6 +19,11 @@ experiment SilverChloridePrecipitation where
     mixed: add sodiumChloride to reaction
     stir reaction
 
+  model
+    event := representative
+    sequence := explanatory
+    structuralRule := ChemSpec.Structural.Precipitation.SilverChloride
+
   expect at final
     class := precipitation
     produces AgCl(s)

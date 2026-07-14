@@ -26,6 +26,7 @@
     { "id": "SRC-017", "section": "Elaboration products", "component": "end-to-end" },
     { "id": "SRC-018", "section": "Validated artifact requirements", "component": "artifacts" },
     { "id": "SRC-019", "section": "Result-state model", "component": "end-to-end" },
+    { "id": "SRC-020", "section": "Model disclosure and structural rule binding", "component": "parsing" },
 
     { "id": "LEX-001", "section": "Lexical structure and normative grammar", "component": "encoding-layout" },
     { "id": "LEX-002", "section": "File representation", "component": "encoding-layout" },

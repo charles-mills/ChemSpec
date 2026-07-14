@@ -35,6 +35,10 @@ experiment AllForms where
     open flask
     filter flask into filtrate and residue
     decant filtrate into beaker
+  model
+    event := representative
+    sequence := explanatory
+    structuralRule := ChemSpec.Structural.Test.AllForms
   expect at mixed
     class := precipitation
     produces Ca^2+(aq)

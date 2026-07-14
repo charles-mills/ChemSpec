@@ -143,12 +143,28 @@ extra reactants remain disabled; and repeated triggering cannot create a second
 queue event. These checks do not confer validation or authorize simulation
 playback.
 
-Stage 5 tests additionally verify deterministic progress-to-stage mapping,
-pause without progress, restart, skip-to-products, reduced-motion fallback,
-return-to-reactants, balanced representative visual counts, and preservation of
-every listed product in multi-product previews. Live smoke checks confirm the
-periodic table still shows names and atomic masses without reintroducing
-scrolling.
+Until the trusted structural pipeline is implemented, Stage 5 tests require a
+recognised candidate to stop at the validation gate without constructing
+playback state. Later Stage 5 tests must prove that both plans derive from the
+same current validated reaction generation; source edits stale both pages
+immediately; and every non-success result remains non-animatable. The 2D suite
+covers generated scene roles, operation-to-frame mapping, fluid interpolation,
+operation-specific changes, electron and charge presentation, metallic and
+covalent/ionic distinctions, product assignment, observation synchronization,
+and explanatory disclosure. The planned balanced equation must exactly
+preserve reviewed catalogue coefficients and formulae; renderer-side inference
+is forbidden. Tests also require one generated contextual explanation pause per
+structural operation, adaptive nonzero reading time, stable targets, and
+connector semantics without decorative arrowheads. The 3D suite requires reviewed scene-plan metadata,
+reaction-independent asset/effect/camera registry resolution, actual XYZ
+geometry, scene transforms, camera projection, depth, and use of the existing
+Iced/wgpu device. A Canvas perspective drawing or atom-sphere scene cannot
+satisfy this gate.
+
+Live vessel checks additionally require an initial camera pitch above the rim,
+a visible liquid top surface, readable key/fill lighting, automatic progression
+without stage-button input, and macroscopic effects whose presence is authorized
+by the reviewed scene plan.
 
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised

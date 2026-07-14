@@ -247,22 +247,13 @@ fn update_sequence_control(state: &mut State, message: Message) {
 }
 
 fn start_sequence(state: &mut State) {
-    if state.sequence.is_some() {
+    if matches!(state.trigger, TriggerState::Queued(_)) {
         return;
     }
     let Some(candidate) = reaction_candidate(&state.atoms) else {
         return;
     };
     state.trigger = TriggerState::Queued(candidate.id);
-    state.sequence = Some(SequenceState {
-        candidate,
-        progress: if state.reduced_motion { 1.0 } else { 0.0 },
-        playback: if state.reduced_motion {
-            PlaybackState::Complete
-        } else {
-            PlaybackState::Playing
-        },
-    });
 }
 
 fn restart_sequence(state: &mut State) {
@@ -373,7 +364,7 @@ fn sequence_is_playing(state: &State) -> bool {
 }
 
 pub fn sequence_active(state: &State) -> bool {
-    state.sequence.is_some()
+    state.sequence.is_some() || matches!(state.trigger, TriggerState::Queued(_))
 }
 
 /// Replaces the manipulation surface with the two Stage 1 reactant drafts.
@@ -416,6 +407,9 @@ pub fn placed_atom_count(state: &State) -> usize {
 pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'_, Message> {
     if let Some(sequence) = state.sequence {
         return sequence_view(sequence, compact);
+    }
+    if let TriggerState::Queued(candidate_id) = state.trigger {
+        return validation_gate_view(candidate_id, compact);
     }
 
     let atom_count = state.atoms.len();
@@ -485,6 +479,110 @@ pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
     .into()
 }
 
+fn validation_gate_view(candidate_id: &'static str, compact: bool) -> Element<'static, Message> {
+    let candidate = reaction_candidate_catalogue::SUPPORTED
+        .iter()
+        .find(|candidate| candidate.id == candidate_id);
+    let title = candidate.map_or("Reaction candidate", |candidate| candidate.name);
+    let equation = candidate.map_or("Candidate preview unavailable", |candidate| {
+        candidate.equation_preview
+    });
+    let back = button(text("Edit reactants"))
+        .on_press(Message::WorkspaceReturned)
+        .padding([spacing::XS, spacing::MD])
+        .style(theme::secondary_button);
+
+    let requirements = column![
+        gate_requirement(
+            "01",
+            "Resolve catalogue identities and reviewed structural rule"
+        ),
+        gate_requirement(
+            "02",
+            "Expand stable atoms, graph states, and structural operations"
+        ),
+        gate_requirement(
+            "03",
+            "Validate conservation, charge, electrons, and final products"
+        ),
+        gate_requirement(
+            "04",
+            "Generate one shared frame sequence for 2D and genuine 3D"
+        ),
+    ]
+    .spacing(spacing::XS);
+
+    container(
+        column![
+            row![
+                column![
+                    text("ANIMATION GATE  /  TRUSTED PIPELINE REQUIRED")
+                        .size(type_scale::MICRO)
+                        .color(color::WARNING),
+                    text(title)
+                        .size(if compact {
+                            type_scale::TITLE
+                        } else {
+                            type_scale::DISPLAY
+                        })
+                        .color(color::TEXT),
+                    text(equation)
+                        .size(type_scale::BODY)
+                        .color(color::TEXT_SOFT),
+                ]
+                .spacing(spacing::XXS),
+                space().width(Fill),
+                back,
+            ]
+            .align_y(iced::Center),
+            container(
+                column![
+                    text("Animation is blocked")
+                        .size(type_scale::TITLE)
+                        .color(color::TEXT),
+                    text("This is an untrusted composition preview. Parsing or recognising a formula is not enough to animate chemistry. No 2D or 3D frames will be shown until the full .chems pipeline returns a current ValidatedStructuralReaction.")
+                        .size(type_scale::BODY)
+                        .color(color::TEXT_SOFT),
+                ]
+                .spacing(spacing::XS),
+            )
+            .style(theme::accent_tint)
+            .padding(spacing::MD)
+            .width(Fill),
+            text("REQUIRED DOWNSTREAM EVIDENCE")
+                .size(type_scale::MICRO)
+                .color(color::ACCENT),
+            requirements,
+            space().height(Fill),
+            text("Unsupported, Invalid, Incomplete, SystemError, and stale results remain non-animatable. A successful .chems 1 result is disclosed as a representative explanatory sequence, not a proven elementary mechanism.")
+                .size(type_scale::CAPTION)
+                .color(color::MUTED),
+        ]
+        .spacing(spacing::MD)
+        .height(Fill),
+    )
+    .style(theme::frame)
+    .padding(spacing::MD)
+    .width(Fill)
+    .height(Fill)
+    .into()
+}
+
+fn gate_requirement(number: &'static str, label: &'static str) -> Element<'static, Message> {
+    container(
+        row![
+            text(number).size(type_scale::MICRO).color(color::ACCENT),
+            text(label).size(type_scale::BODY).color(color::TEXT_SOFT),
+        ]
+        .spacing(spacing::SM)
+        .align_y(iced::Center),
+    )
+    .style(theme::panel)
+    .padding([spacing::XS, spacing::SM])
+    .width(Fill)
+    .into()
+}
+
 fn sequence_view(sequence: SequenceState, compact: bool) -> Element<'static, Message> {
     let candidate = sequence.candidate;
     let stage_index = reaction_sequence::stage_index(sequence.progress, candidate.stages.len());
@@ -495,7 +593,6 @@ fn sequence_view(sequence: SequenceState, compact: bool) -> Element<'static, Mes
         .unwrap_or(candidate.stages[0]);
     let controls = sequence_controls(sequence.playback);
     let stages = sequence_stages(candidate, stage_index);
-
     let diagram = container(
         canvas(ReactionSequenceDiagram::new(candidate, sequence.progress))
             .width(Fill)
@@ -560,7 +657,6 @@ fn sequence_controls(playback: PlaybackState) -> Element<'static, Message> {
         .on_press(Message::WorkspaceReturned)
         .padding([spacing::XS, spacing::SM])
         .style(theme::secondary_button);
-
     row![play_pause, restart, skip, back]
         .spacing(spacing::XS)
         .into()
@@ -1488,39 +1584,14 @@ mod tests {
     }
 
     #[test]
-    fn stage_five_playback_controls_are_deterministic() {
+    fn unvalidated_candidate_is_gated_before_any_animation_state_exists() {
         let mut state = hydrogen_oxygen_state();
         update(&mut state, Message::StartReaction);
-        update(&mut state, Message::AnimationTick);
-        let advanced = state.sequence.expect("active sequence").progress;
-        assert!(advanced > 0.0);
-
-        update(&mut state, Message::PlaybackToggled);
-        update(&mut state, Message::AnimationTick);
-        assert!(
-            (state.sequence.expect("paused sequence").progress - advanced).abs() < f32::EPSILON
-        );
-
-        update(&mut state, Message::SequenceRestarted);
-        assert!(state.sequence.expect("restarted sequence").progress.abs() < f32::EPSILON);
-        update(&mut state, Message::SequenceSkipped);
-        let skipped = state.sequence.expect("skipped sequence");
-        assert!((skipped.progress - 1.0).abs() < f32::EPSILON);
-        assert_eq!(skipped.playback, PlaybackState::Complete);
+        assert_eq!(state.trigger, TriggerState::Queued("hydrogen-oxygen"));
+        assert!(state.sequence.is_none());
 
         update(&mut state, Message::WorkspaceReturned);
         assert!(!sequence_active(&state));
-    }
-
-    #[test]
-    fn reduced_motion_starts_on_the_static_product_frame() {
-        let mut state = hydrogen_oxygen_state();
-        update(&mut state, Message::MotionToggled);
-        update(&mut state, Message::StartReaction);
-
-        let sequence = state.sequence.expect("reduced-motion sequence");
-        assert!((sequence.progress - 1.0).abs() < f32::EPSILON);
-        assert_eq!(sequence.playback, PlaybackState::Complete);
     }
 
     fn hydrogen_oxygen_state() -> State {

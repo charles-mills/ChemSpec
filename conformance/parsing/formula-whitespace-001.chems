@@ -9,5 +9,9 @@ experiment FormulaWhitespace where
     beaker := open vessel 100 mL
   procedure
     place sample in beaker
+  model
+    event := representative
+    sequence := explanatory
+    structuralRule := ChemSpec.Structural.Test.Malformed
   by
     close

@@ -25,6 +25,7 @@ experiment            = "experiment", type-identifier, "where",
                         given-section,
                         vessels-section,
                         procedure-section,
+                        model-section,
                         { expectation-section },
                         proof-section,
                         DEDENT ;
@@ -73,6 +74,15 @@ procedure-section     = "procedure", NEWLINE, INDENT,
                         DEDENT, { NEWLINE } ;
 procedure-entry       = [ stage-label, ":" ], operation, NEWLINE ;
 stage-label           = value-identifier ;
+
+model-section         = "model", NEWLINE, INDENT,
+                        event-model-entry,
+                        sequence-model-entry,
+                        structural-rule-entry,
+                        DEDENT, { NEWLINE } ;
+event-model-entry     = "event", ":=", "representative", NEWLINE ;
+sequence-model-entry  = "sequence", ":=", "explanatory", NEWLINE ;
+structural-rule-entry = "structuralRule", ":=", qualified-name, NEWLINE ;
 
 operation             = place-operation |
                         add-operation |

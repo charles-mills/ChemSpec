@@ -490,7 +490,7 @@ fn push_wrapped_equation_side(output: &mut Vec<String>, indent: &str, side: &str
 mod tests {
     use super::format_source;
 
-    const DOCUMENT: &str = "chems 1\nuse catalog ChemSpec.Aqueous@1\nexperiment Demo where\n  conditions\n    medium := aqueous\n    temperature := 25 degC\n    pressure := 1 atm\n  given\n    water := 10 mL of H2O(l)\n  vessels\n    beaker := open vessel 100 mL\n  procedure\n    place water in beaker\n  expect\n    class := noReaction\n  by\n    close\n";
+    const DOCUMENT: &str = "chems 1\nuse catalog ChemSpec.Aqueous@1\nexperiment Demo where\n  conditions\n    medium := aqueous\n    temperature := 25 degC\n    pressure := 1 atm\n  given\n    water := 10 mL of H2O(l)\n  vessels\n    beaker := open vessel 100 mL\n  procedure\n    place water in beaker\n  model\n    event := representative\n    sequence := explanatory\n    structuralRule := ChemSpec.Structural.Test.NoReaction\n  expect\n    class := noReaction\n  by\n    close\n";
 
     #[test]
     fn canonical_format_is_idempotent() {

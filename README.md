@@ -120,6 +120,7 @@ experiment SilverChloridePrecipitation where
 - [The `.chems` language](docs/chems-language.md)
 - [`.chems` language specification](docs/chems-specification.md)
 - [`.chems` implementation plan](docs/chems-implementation-plan.md)
+- [Structural reaction animation contract](docs/structural-reaction-animation-contract.md)
 - [`.chems` conformance contract](conformance/README.md)
 - [Chemistry engine and validator](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
@@ -183,13 +184,14 @@ cargo run -p chemspec-app
 
 ## Current status
 
-ChemSpec is in active implementation. The language design and Slices 0–2 are
-complete, and the consolidated reaction-builder flow (`U-106`–`U-113`) is available for
-review. Stage 5 provides a deterministic 2D reaction storyboard with balanced
-representative counts, pause/restart/skip/return controls, and complete
-multi-product presentation. It is explicitly an illustrative preview;
-chemistry validation, 3D presentation, agent integration, and live simulation
-remain later stages.
+ChemSpec is in active implementation. The consolidated reaction-builder flow
+(`U-106`–`U-113`) remains available, and the canonical silver-chloride path now
+implements `U-114`: `.chems 1` selects a reviewed structural rule, the engine
+validates its immutable graph states, and one trusted frame sequence feeds a
+dedicated educational 2D page followed by a depth-tested Iced/wgpu 3D page.
+Other reaction candidates remain untrusted presentation data and stop at the
+validation gate. Source edits immediately discard structural frames until
+revalidation succeeds.
 
 ## License
 

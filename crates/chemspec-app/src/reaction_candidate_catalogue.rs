@@ -87,7 +87,44 @@ const CARBON_OXYGEN_STAGES: &[StoryboardStage] = &[
     },
 ];
 
+const SILVER_CHLORIDE_STAGES: &[StoryboardStage] = &[
+    StoryboardStage {
+        title: "Aqueous ions",
+        explanation: "The reviewed rule begins with conserved representative aqueous ions.",
+    },
+    StoryboardStage {
+        title: "Ionic association",
+        explanation: "The validated structural operation associates Ag⁺ with Cl⁻.",
+    },
+    StoryboardStage {
+        title: "Precipitate",
+        explanation: "Silver chloride is assigned as the solid product.",
+    },
+    StoryboardStage {
+        title: "Products",
+        explanation: "All atoms are assigned to silver chloride or aqueous sodium nitrate.",
+    },
+];
+
 pub const SUPPORTED: &[ReactionCandidate] = &[
+    ReactionCandidate {
+        id: "silver-chloride-precipitation",
+        name: "Silver nitrate and sodium chloride",
+        equation_preview: "AgNO₃ + NaCl  →  AgCl↓ + NaNO₃",
+        visual_reactants: &[
+            Participant::Composition("AgNO₃"),
+            Participant::Composition("NaCl"),
+        ],
+        visual_products: &[
+            Participant::Composition("AgCl"),
+            Participant::Composition("NaNO₃"),
+        ],
+        stages: SILVER_CHLORIDE_STAGES,
+        participants: &[
+            Participant::Composition("AgNO₃"),
+            Participant::Composition("NaCl"),
+        ],
+    },
     ReactionCandidate {
         id: "hydrogen-oxygen",
         name: "Hydrogen and oxygen",
@@ -199,6 +236,10 @@ mod tests {
 
     #[test]
     fn stage_one_drafts_match_only_supported_reaction_candidates() {
+        assert_eq!(
+            recognize_drafts(&[47, 7, 8, 8, 8], &[11, 17]).map(|candidate| candidate.id),
+            Some("silver-chloride-precipitation")
+        );
         assert_eq!(
             recognize_drafts(&[6], &[8, 8]).map(|candidate| candidate.id),
             Some("carbon-oxygen")

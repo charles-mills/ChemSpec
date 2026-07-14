@@ -13,6 +13,10 @@ experiment Comments where
     beaker := open vessel 100 mL
   procedure
     place water in beaker
+  model
+    event := representative
+    sequence := explanatory
+    structuralRule := ChemSpec.Structural.Test.Comments
   expect
     class := noReaction
   by

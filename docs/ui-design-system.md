@@ -89,12 +89,17 @@ reaction action; unsupported combinations keep it disabled. Starting copies
 the exact draft identities into the internal preview state and opens the 2D
 storyboard directly, without an intermediate workspace screen.
 
-Stage 5 replaces the builder/table surface with a full-height 2D storyboard
-while active. Four visible stages communicate reactants, approach,
-rearrangement, and products. Representative counts follow the displayed
-balanced equation, all products remain on screen, and controls expose pause,
-restart, skip, and return. This surface uses an amber preview disclosure and
-does not resemble a validated result.
+Before Stage 5, a full-height validation gate explains why a recognised formula
+cannot yet animate and lists the missing trusted pipeline evidence. It provides
+a clear return to reactant editing and never resembles a successful result.
+
+Validated Stage 5 will use two separate sequential pages. The first teaches the
+active structural operation in 2D with stable atom identity, relationship and
+electron highlights, concise captions, step position, and synchronized typed
+observations. A clear `Continue to 3D` action opens the second page. That page
+uses genuine 3D geometry, depth, camera transforms, and spatial exploration of
+the same frames. Both pages retain the representative/explanatory disclosure,
+visible focus states, reduced motion, and non-animating diagnostic states.
 
 ## Tokens
 

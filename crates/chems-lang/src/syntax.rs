@@ -139,8 +139,19 @@ pub struct SourceExperiment {
     pub materials: Vec<SourceNode>,
     pub vessels: Vec<SourceNode>,
     pub procedure: Vec<SourceNode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<SourceModel>,
     pub expectations: Vec<SourceExpectation>,
     pub tactics: Vec<SourceNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceModel {
+    pub span: ByteSpan,
+    pub event: String,
+    pub sequence: String,
+    pub structural_rule: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -202,6 +213,7 @@ pub enum SectionKind {
     Given,
     Vessels,
     Procedure,
+    Model,
     Expectation,
     Observation,
     Proof,
@@ -224,6 +236,9 @@ pub enum DeclarationKind {
     Openness,
     ProcedureEntry,
     StageLabel,
+    ModelEvent,
+    ModelSequence,
+    StructuralRule,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

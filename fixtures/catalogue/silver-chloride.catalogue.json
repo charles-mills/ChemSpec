@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "name": "ChemSpec.Aqueous",
+  "version": "1.0",
+  "production": true,
+  "elements": [
+    {"atomic_number": 7, "symbol": "N", "name": "nitrogen", "abridged_atomic_weight": "14.007", "evidence": ["source.ciaaw-2024"]},
+    {"atomic_number": 8, "symbol": "O", "name": "oxygen", "abridged_atomic_weight": "15.999", "evidence": ["source.ciaaw-2024"]},
+    {"atomic_number": 11, "symbol": "Na", "name": "sodium", "abridged_atomic_weight": "22.990", "evidence": ["source.ciaaw-2024"]},
+    {"atomic_number": 17, "symbol": "Cl", "name": "chlorine", "abridged_atomic_weight": "35.45", "evidence": ["source.ciaaw-2024"]},
+    {"atomic_number": 47, "symbol": "Ag", "name": "silver", "abridged_atomic_weight": "107.87", "evidence": ["source.ciaaw-2024"]}
+  ],
+  "species": [
+    {"id": "species.silver-nitrate-aq", "formula": "AgNO3", "charge": 0, "phase": "aqueous", "aliases": ["silverNitrate"]},
+    {"id": "species.sodium-chloride-aq", "formula": "NaCl", "charge": 0, "phase": "aqueous", "aliases": ["sodiumChloride"]},
+    {"id": "species.silver-chloride-s", "formula": "AgCl", "charge": 0, "phase": "solid", "aliases": []},
+    {"id": "species.sodium-nitrate-aq", "formula": "NaNO3", "charge": 0, "phase": "aqueous", "aliases": []},
+    {"id": "species.silver-ion-aq", "formula": "Ag", "charge": 1, "phase": "aqueous", "aliases": []},
+    {"id": "species.nitrate-ion-aq", "formula": "NO3", "charge": -1, "phase": "aqueous", "aliases": []},
+    {"id": "species.sodium-ion-aq", "formula": "Na", "charge": 1, "phase": "aqueous", "aliases": []},
+    {"id": "species.chloride-ion-aq", "formula": "Cl", "charge": -1, "phase": "aqueous", "aliases": []}
+  ],
+  "evidence": [
+    {
+      "id": "source.ciaaw-2024",
+      "title": "Abridged Standard Atomic Weights 2024",
+      "publisher": "IUPAC Commission on Isotopic Abundances and Atomic Weights",
+      "locator": "table entries N, O, Na, Cl, and Ag",
+      "url": "https://www.ciaaw.org/abridged-atomic-weights.htm",
+      "retrieved": "2026-07-14"
+    },
+    {
+      "id": "source.pubchem-agcl",
+      "title": "Silver Chloride, CID 24561",
+      "publisher": "National Library of Medicine PubChem",
+      "locator": "experimental properties and physical description",
+      "url": "https://pubchem.ncbi.nlm.nih.gov/compound/silver_chloride",
+      "retrieved": "2026-07-14"
+    },
+    {
+      "id": "source.libretexts-net-ionic",
+      "title": "Chemical Equations and Stoichiometry",
+      "publisher": "Chemistry LibreTexts",
+      "locator": "net ionic equations, silver nitrate and sodium chloride example",
+      "url": "https://chem.libretexts.org/Bookshelves/General_Chemistry/Chem1_(Lower)/04:_The_Basics_of_Chemistry/4.04:_Chemical_Equations_and_Stoichiometry",
+      "retrieved": "2026-07-14"
+    }
+  ],
+  "facts": [
+    {
+      "id": "fact.silver-nitrate-dissociation",
+      "proposition": {"kind": "dissociates", "substance": "species.silver-nitrate-aq", "products": ["species.silver-ion-aq", "species.nitrate-ion-aq"]},
+      "evidence": ["source.libretexts-net-ionic"],
+      "review": "reviewed",
+      "reviewed_by": "ChemSpec chemistry review",
+      "reviewed_on": "2026-07-14",
+      "rule_version": 1
+    },
+    {
+      "id": "fact.sodium-chloride-dissociation",
+      "proposition": {"kind": "dissociates", "substance": "species.sodium-chloride-aq", "products": ["species.sodium-ion-aq", "species.chloride-ion-aq"]},
+      "evidence": ["source.libretexts-net-ionic"],
+      "review": "reviewed",
+      "reviewed_by": "ChemSpec chemistry review",
+      "reviewed_on": "2026-07-14",
+      "rule_version": 1
+    },
+    {
+      "id": "fact.silver-chloride-insoluble",
+      "proposition": {"kind": "insoluble", "species": "species.silver-chloride-s", "medium": "aqueous"},
+      "evidence": ["source.pubchem-agcl", "source.libretexts-net-ionic"],
+      "review": "reviewed",
+      "reviewed_by": "ChemSpec chemistry review",
+      "reviewed_on": "2026-07-14",
+      "rule_version": 1
+    },
+    {
+      "id": "fact.silver-chloride-colour",
+      "proposition": {"kind": "hasColour", "species": "species.silver-chloride-s", "colour": "white"},
+      "evidence": ["source.pubchem-agcl"],
+      "review": "reviewed",
+      "reviewed_by": "ChemSpec chemistry review",
+      "reviewed_on": "2026-07-14",
+      "rule_version": 1
+    }
+  ],
+  "structural_rules": [
+    {
+      "id": "ChemSpec.Structural.Precipitation.SilverChloride",
+      "review": "reviewed",
+      "reviewed_by": "ChemSpec chemistry review",
+      "reviewed_on": "2026-07-14",
+      "evidence": ["source.pubchem-agcl", "source.libretexts-net-ionic"],
+      "reactants": ["species.silver-nitrate-aq", "species.sodium-chloride-aq"],
+      "products": ["species.silver-chloride-s", "species.sodium-nitrate-aq"],
+      "equation": {
+        "reactants": [
+          {"species":"species.silver-nitrate-aq","coefficient":1,"formula":"AgNO3"},
+          {"species":"species.sodium-chloride-aq","coefficient":1,"formula":"NaCl"}
+        ],
+        "products": [
+          {"species":"species.silver-chloride-s","coefficient":1,"formula":"AgCl"},
+          {"species":"species.sodium-nitrate-aq","coefficient":1,"formula":"NaNO3"}
+        ]
+      },
+      "states": [
+        {
+          "ordinal": 0,
+          "atoms": [
+            {"id": "atom.ag1", "element": "Ag", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.n1", "element": "N", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.o1", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0},
+            {"id": "atom.o2", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.o3", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.na1", "element": "Na", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.cl1", "element": "Cl", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0}
+          ],
+          "covalent_bonds": [
+            {"left": "atom.n1", "right": "atom.o1", "order": 2},
+            {"left": "atom.n1", "right": "atom.o2", "order": 1},
+            {"left": "atom.n1", "right": "atom.o3", "order": 1}
+          ],
+          "ionic_associations": [],
+          "product_memberships": []
+        },
+        {
+          "ordinal": 1,
+          "atoms": [
+            {"id": "atom.ag1", "element": "Ag", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.n1", "element": "N", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.o1", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0},
+            {"id": "atom.o2", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.o3", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.na1", "element": "Na", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.cl1", "element": "Cl", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0}
+          ],
+          "covalent_bonds": [
+            {"left": "atom.n1", "right": "atom.o1", "order": 2},
+            {"left": "atom.n1", "right": "atom.o2", "order": 1},
+            {"left": "atom.n1", "right": "atom.o3", "order": 1}
+          ],
+          "ionic_associations": [{"left": "atom.ag1", "right": "atom.cl1"}],
+          "product_memberships": []
+        },
+        {
+          "ordinal": 2,
+          "atoms": [
+            {"id": "atom.ag1", "element": "Ag", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.n1", "element": "N", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.o1", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0},
+            {"id": "atom.o2", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.o3", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.na1", "element": "Na", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.cl1", "element": "Cl", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0}
+          ],
+          "covalent_bonds": [
+            {"left": "atom.n1", "right": "atom.o1", "order": 2},
+            {"left": "atom.n1", "right": "atom.o2", "order": 1},
+            {"left": "atom.n1", "right": "atom.o3", "order": 1}
+          ],
+          "ionic_associations": [{"left": "atom.ag1", "right": "atom.cl1"}],
+          "product_memberships": [
+            {"product": "species.silver-chloride-s", "atoms": ["atom.ag1", "atom.cl1"]}
+          ]
+        },
+        {
+          "ordinal": 3,
+          "atoms": [
+            {"id": "atom.ag1", "element": "Ag", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.n1", "element": "N", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.o1", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0},
+            {"id": "atom.o2", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.o3", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0},
+            {"id": "atom.na1", "element": "Na", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"id": "atom.cl1", "element": "Cl", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0}
+          ],
+          "covalent_bonds": [
+            {"left": "atom.n1", "right": "atom.o1", "order": 2},
+            {"left": "atom.n1", "right": "atom.o2", "order": 1},
+            {"left": "atom.n1", "right": "atom.o3", "order": 1}
+          ],
+          "ionic_associations": [{"left": "atom.ag1", "right": "atom.cl1"}],
+          "product_memberships": [
+            {"product": "species.silver-chloride-s", "atoms": ["atom.ag1", "atom.cl1"]},
+            {"product": "species.sodium-nitrate-aq", "atoms": ["atom.na1", "atom.n1", "atom.o1", "atom.o2", "atom.o3"]}
+          ]
+        }
+      ],
+      "operations": [
+        {"kind": "associateIonic", "left": "atom.ag1", "right": "atom.cl1"},
+        {"kind": "assignProduct", "product": "species.silver-chloride-s", "atoms": ["atom.ag1", "atom.cl1"]},
+        {"kind": "assignProduct", "product": "species.sodium-nitrate-aq", "atoms": ["atom.na1", "atom.n1", "atom.o1", "atom.o2", "atom.o3"]}
+      ],
+      "observations": [
+        {"id": "observation.silver-chloride-forms", "trigger_ordinal": 2, "claim": {"kind": "productForms", "species": "species.silver-chloride-s"}},
+        {"id": "observation.silver-chloride-white", "trigger_ordinal": 2, "claim": {"kind": "productHasColour", "species": "species.silver-chloride-s", "colour": "white"}}
+      ],
+      "presentation": {
+        "id": "presentation.aqueous-precipitation",
+        "environment": "laboratoryBench",
+        "objects": [
+          {
+            "id": "object.reaction-vessel",
+            "asset": "beaker",
+            "semantic_identity": "reaction vessel",
+            "appearance": "clearGlass",
+            "role": "vessel",
+            "transform": {"translation": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1000, 1000, 1000]},
+            "visible_from_ordinal": 0
+          },
+          {
+            "id": "object.aqueous-contents",
+            "asset": "liquidVolume",
+            "semantic_identity": "mixed aqueous solutions",
+            "appearance": "aqueousColourless",
+            "role": "contents",
+            "transform": {"translation": [0, 300, 0], "rotation": [0, 0, 0], "scale": [860, 620, 860]},
+            "visible_from_ordinal": 0
+          },
+          {
+            "id": "object.silver-chloride",
+            "asset": "precipitateCloud",
+            "semantic_identity": "species.silver-chloride-s",
+            "appearance": "whitePrecipitate",
+            "role": "product",
+            "transform": {"translation": [0, 80, 0], "rotation": [0, 0, 0], "scale": [720, 360, 720]},
+            "visible_from_ordinal": 2
+          }
+        ],
+        "effects": [
+          {
+            "effect": "precipitateFormation",
+            "trigger_observation": "observation.silver-chloride-forms",
+            "intensity": "moderate",
+            "start_ordinal": 2,
+            "end_ordinal": 3
+          },
+          {
+            "effect": "clouding",
+            "trigger_observation": "observation.silver-chloride-white",
+            "intensity": "moderate",
+            "start_ordinal": 2,
+            "end_ordinal": 3
+          }
+        ],
+        "camera": [
+          {"behaviour": "wideEstablishingShot", "start_ordinal": 0, "end_ordinal": 0},
+          {"behaviour": "slowPushIn", "start_ordinal": 0, "end_ordinal": 2},
+          {"behaviour": "observationCloseUp", "start_ordinal": 2, "end_ordinal": 2},
+          {"behaviour": "finalHeroShot", "start_ordinal": 3, "end_ordinal": 3}
+        ],
+        "disclosure": "Stylised macroscopic visualization based only on reviewed precipitation and colour observations; timing, scale, fluid motion, and camera movement are illustrative."
+      }
+    }
+  ]
+}

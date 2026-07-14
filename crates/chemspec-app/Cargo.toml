@@ -20,7 +20,15 @@ icons = ["../../target/packaging/*.png"]
 binaries = [{ path = "chemspec-app", main = true }]
 
 [dependencies]
+bytemuck = { version = "1.25.1", features = ["derive"] }
+chem-catalogue = { path = "../chem-catalogue" }
+chem-engine = { path = "../chem-engine" }
+chem-presentation = { path = "../chem-presentation" }
+glam = "0.25.0"
 iced.workspace = true
+
+[dev-dependencies]
+chem-domain = { path = "../chem-domain" }
 
 [lints]
 workspace = true

@@ -233,10 +233,28 @@ has exposed the minimum shared shapes.
 | `U-111` | U | `U-110` | Add a deterministic Stage 5 2D reaction storyboard preview. Structured candidate data defines balanced representative reactants, every product, and four explanatory stages; controls support pause, restart, skip, and return. The preview never emits `ValidatedExperiment` or `SimulationFrame`. | 7 h |
 | `U-112` | U | `U-111` | Rework Stage 1 as a structured two-reactant composer. A complete 118-element, square-tile periodic table feeds one explicitly active reactant draft at a time; formulae build progressively, recognised and unresolved drafts remain untrusted previews, and continuing deterministically seeds the existing Stage 2 workspace without conferring validation. | 8 h |
 | `U-113` | U | `U-112` | Consolidate the builder flow. Keep the periodic table full-width while visually separating its s, d, and p blocks; reuse the deterministic orbiting-electron and shared-pair canvas in the active Stage 1 model; and launch a supported illustrative reaction sequence directly from the composer without exposing the intermediate manipulation workspace. | 5 h |
+| `U-114` | U | `U-113`, language Slices 8–11, `SP-003` | Replace the untrusted storyboard with two sequential views fed by one current `ValidatedStructuralReaction`: first a stepwise 2D structural explanation, then a dedicated genuine-3D scene using the existing Iced/wgpu device. Both consume the same renderer-independent frames; invalid, unsupported, incomplete, stale, and system-error results remain blocked. | 12 h |
+| `U-115` | U+C | `U-114` | Replace frame-as-storyboard and molecule-in-3D assumptions with reusable deterministic planners. `EducationalScenePlanner` compiles trusted structural frames into a continuous teaching plan; `RealWorldScenePlanner` compiles the validated reaction, typed observations, and reviewed presentation metadata into a macroscopic `ScenePlan`. The 3D renderer resolves only reusable assets, effects, appearance profiles, and camera behaviours. No planner or renderer invents chemistry, and no supported reaction requires a bespoke animation module. | 16 h |
 | `U-102` | U | `U-101`, `L-101` | Editable `.chems` source and diagnostics with spans. Any edit invalidates the previously validated result until revalidation succeeds. | 5 h |
 | `U-103` | U | `F-004`, `F-006` | Deterministic renderer-independent simulation model for the canonical reaction. Particle counts preserve ratios, excess, and spectator identities. | 6 h |
 | `U-104` | U | `SP-003`, `U-101`, `U-103` | 2D particle presentation shows dissolved ions, mixing, precipitate formation, pause/restart, and explanatory labels. | 6 h |
 | `I-101` | L+C+U | `L-102`, `C-102`, `U-102`, `U-104` | Wire source → parser → validator → simulation. The canonical fixture runs offline; one deliberate source error blocks playback and points to the correct span. | 5 h |
+
+The former `U-114` language-contract blocker is resolved by `SRC-020` and the
+required `model` section documented in
+`docs/structural-reaction-animation-contract.md`. The grammar, specification,
+fixtures, parser/formatter expectations, conformance manifest, reviewed
+catalogue, deterministic expansion, trusted validation, shared frames, and both
+renderers change together. Renderer code still may not interpret raw source or
+invent a missing binding.
+
+`U-115` is governed by `docs/automatic-animation-system.md`. It deliberately
+separates structural truth from educational pacing and macroscopic
+presentation. The 2D planner may group and interpolate validated operations but
+cannot alter them. The real-world planner does not consume atom geometry as a
+physical scene; every vessel, material form, effect, intensity, and camera cue
+must come from a reviewed presentation profile associated with the validated
+rule.
 
 ### Phase 3 — agent vertical slice
 

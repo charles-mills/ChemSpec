@@ -1,6 +1,9 @@
 [workspace]
 members = [
     "crates/chem-domain",
+    "crates/chem-catalogue",
+    "crates/chem-engine",
+    "crates/chem-presentation",
     "crates/chems-conformance",
     "crates/chems-lang",
     "crates/chemspec-app",

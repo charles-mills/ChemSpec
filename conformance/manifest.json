@@ -96,7 +96,8 @@
       "requirements": [
         "SRC-001", "SRC-002", "SRC-003", "SRC-005", "LEX-009", "LEX-010",
         "LEX-011", "LEX-012", "LEX-013", "LEX-014", "LEX-015", "LEX-016",
-        "LEX-017", "LEX-018", "LEX-020", "ART-002", "ART-003", "ART-011"
+        "LEX-017", "LEX-018", "LEX-020", "SRC-020",
+        "ART-002", "ART-003", "ART-011"
       ],
       "source": "conformance/parsing/all-productions-001.chems",
       "expected": {

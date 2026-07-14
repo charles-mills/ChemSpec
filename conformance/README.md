@@ -67,7 +67,7 @@ normalization, charge/phase values, and canonical serialization. The
 canonical output with the independently authored, canonical `.domain.json`
 files.
 
-Slice 2 adds executable source cases for encoding/layout, all 95 normative
+Slice 2 adds executable source cases for encoding/layout, all 99 normative
 grammar productions, lossless comment attachment, and canonical formatting.
 The parser test suite hashes the complete serialized CST and source AST against
 checked-in SHA-256 goldens, checks exact lexical diagnostic spans, exercises

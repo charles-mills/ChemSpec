@@ -54,6 +54,8 @@ Supported reaction families:
 3. A curated set of gas-forming reactions, beginning with acid/carbonate
    chemistry.
 4. No-net-reaction outcomes.
+5. Individually reviewed reactive-metal transformations, beginning with the
+   lithium/water educational slice. This does not confer general redox support.
 
 Supported inputs:
 
@@ -67,7 +69,7 @@ Initial exclusions:
 
 - arbitrary consumer materials with unknown compositions;
 - organic reactions and mechanisms;
-- general redox and electrochemistry;
+- general redox and electrochemistry beyond individually reviewed closed rules;
 - combustion;
 - quantitative kinetics;
 - reversible equilibria beyond explicitly supported rules;
@@ -131,13 +133,15 @@ launch the sequence. Selecting `Start Reaction` copies the drafts into the
 internal preview state and starts the explicitly illustrative storyboard. It
 does not create trusted products, confer validation, or emit a simulation frame.
 
-Stage 5 may present the queued candidate as an explicitly illustrative 2D
-storyboard before the validation pipeline is connected. It uses four stages—
-reactants, approach, rearrangement, and products—and preserves the displayed
-balanced representative counts. Pause, restart, skip-to-products, and return
-controls remain available. Every product remains visible for multi-product
-candidates. This storyboard is not a simulation, cannot create a trusted
-result, and never emits a `SimulationFrame`.
+Stage 5 is unavailable until the downstream language and chemistry pipeline
+produces a current validated structural artifact and renderer-independent
+frames. A recognised Stage 4 candidate opens an explicit validation gate; it
+does not launch the former formula-driven storyboard. Once implemented, Stage
+5 is two sequential views: a 2D educational structural explanation followed by
+a dedicated genuine-3D spatial view. Both use the same stable atom identities,
+immutable graph states, active structural operations, observations, and model
+disclosures. The sequence is labelled representative and explanatory; it is not
+presented as a proven elementary mechanism or molecular-dynamics trajectory.
 
 Natural-language entry remains available for learners who already know what
 they want to ask.
@@ -192,16 +196,30 @@ Assumptions
 If validation fails, the application highlights the exact source location and
 may ask the agent for a bounded repair. Each patch remains visible.
 
-### 6. Simulate
+### 6. Animate and simulate
 
-The learner can play, pause, restart, adjust presentation speed, toggle particle
-labels, and step through reaction stages. For silver chloride:
+The learner first watches a complete generated 2D educational explanation. A
+deterministic planner groups the trusted structural states, operations, and
+observations into introduction, reactant, equation, structural-change,
+observation, and summary scenes. The learner can pause, restart, and step
+without changing chemical meaning.
+
+The separate **View in Real Life** page is a macroscopic low-poly diorama, not a
+3D molecular viewer. It composes reviewed reusable environments, vessels,
+material forms, effects, and camera behaviours. For silver chloride:
 
 - aqueous ions begin dispersed;
 - `Ag+` and `Cl-` form representative clusters in a 1:1 ratio;
 - the clusters settle as a white precipitate;
 - `Na+` and `NO3-` remain dispersed as spectator ions;
 - quantity indicators reflect limiting-reagent consumption.
+
+For lithium and water, the 2D explanation uses metallic electron domains,
+explicit reviewed electron/bond operations, stable atoms, and product
+membership. The real-world page uses a generic beaker, liquid volume, metal
+chunk, gas-evolution effects, and near-isometric camera profiles selected by
+reviewed presentation metadata. It never turns atomic models into giant
+laboratory objects or invents unsupported flames, explosions, or observations.
 
 ### 7. Explain
 

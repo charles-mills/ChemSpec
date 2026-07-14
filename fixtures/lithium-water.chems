@@ -1,0 +1,42 @@
+chems 1
+use catalog ChemSpec.ReactiveMetals@1.0
+
+/- Virtual stoichiometric model only. This is not a laboratory procedure. -/
+experiment LithiumWater where
+  conditions
+    temperature := 25 degC
+    pressure := 1 atm
+    medium := aqueous
+
+  given
+    lithium := 2 mol of Li(s)
+    water := 2 mol of H2O(l)
+
+  vessels
+    reaction := open vessel 1 L
+
+  procedure
+    combine lithium with water in reaction
+
+  model
+    event := representative
+    sequence := explanatory
+    structuralRule := ChemSpec.Structural.Redox.LithiumWater
+
+  expect at final
+    class := gasFormation
+    produces LiOH(aq)
+    produces H2(g)
+    molecular := 2 Li(s) + 2 H2O(l) -> 2 LiOH(aq) + H2(g)
+
+    observe
+      gas H2(g)
+
+  by
+    infer products using curatedGasFormation
+    balance molecular
+    solve stoichiometry
+    verify atoms
+    verify charge
+    prove observations
+    close
