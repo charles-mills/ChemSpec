@@ -1,239 +1,126 @@
 (*
-  .chems normative surface grammar
+  .chems 1 normative authored-source grammar
 
   NEWLINE, INDENT, DEDENT, and EOF are produced by the layout lexer.
-  Horizontal whitespace is required where adjacent terminals would otherwise
-  join, and ignored between ordinary tokens. Comments behave as whitespace.
+  Horizontal whitespace is required where adjacent tokens would otherwise
+  join and is ignored between ordinary tokens. Nested block comments and line
+  comments behave as whitespace while remaining lossless source tokens.
+
+  Atom mappings and structural operations are not source productions. They
+  are deterministically expanded from the selected reviewed rule into the
+  inspectable structural certificate.
 *)
 
-document              = { NEWLINE }, language-header,
-                        { NEWLINE }, catalog-use,
-                        { NEWLINE }, experiment,
-                        { NEWLINE }, EOF ;
+document                = { NEWLINE }, language-header,
+                          { NEWLINE }, catalog-use,
+                          { NEWLINE }, reaction-declaration,
+                          { NEWLINE }, EOF ;
 
-language-header       = "chems", language-version, NEWLINE ;
-language-version      = positive-integer ;
+language-header         = "chems", language-version, NEWLINE ;
+language-version        = positive-integer ;
 
-catalog-use           = "use", "catalog", qualified-name,
-                        "@", catalog-version, NEWLINE ;
-catalog-version       = integer, { ".", integer } ;
+catalog-use             = "use", "catalog", qualified-name,
+                          "@", catalog-version, NEWLINE ;
+catalog-version         = integer, { ".", integer } ;
 
-experiment            = "experiment", type-identifier, "where",
-                        NEWLINE, INDENT,
-                        conditions-section,
-                        [ assumptions-section ],
-                        given-section,
-                        vessels-section,
-                        procedure-section,
-                        { expectation-section },
-                        proof-section,
-                        DEDENT ;
+reaction-declaration    = "reaction", type-identifier, "where", NEWLINE,
+                          INDENT,
+                          reactants-section,
+                          products-section,
+                          equation-section,
+                          model-section,
+                          observation-section,
+                          proof-section,
+                          DEDENT ;
 
-conditions-section    = "conditions", NEWLINE, INDENT,
-                        condition-entry, { condition-entry },
-                        DEDENT, { NEWLINE } ;
-condition-entry       = temperature-entry |
-                        pressure-entry |
-                        medium-entry ;
-temperature-entry     = "temperature", ":=", quantity, NEWLINE ;
-pressure-entry        = "pressure", ":=", quantity, NEWLINE ;
-medium-entry          = "medium", ":=",
-                        ( "aqueous" | qualified-name ), NEWLINE ;
+reactants-section       = "reactants", NEWLINE, INDENT,
+                          reactant-declaration,
+                          { reactant-declaration },
+                          { NEWLINE }, DEDENT ;
+reactant-declaration    = value-identifier, ":=", positive-integer,
+                          "of", qualified-name, NEWLINE ;
 
-assumptions-section   = "assuming", NEWLINE, INDENT,
-                        assumption-entry, { assumption-entry },
-                        DEDENT, { NEWLINE } ;
-assumption-entry      = qualified-name,
-                        [ "for", value-identifier ],
-                        [ "at", stage-reference ],
-                        NEWLINE ;
+products-section        = "products", NEWLINE, INDENT,
+                          product-declaration,
+                          { product-declaration },
+                          { NEWLINE }, DEDENT ;
+product-declaration     = value-identifier, ":=", positive-integer,
+                          "of", qualified-name, NEWLINE ;
 
-given-section         = "given", NEWLINE, INDENT,
-                        material-declaration,
-                        { material-declaration },
-                        DEDENT, { NEWLINE } ;
-material-declaration  = value-identifier, ":=", material-expression ;
-material-expression   = simple-material, NEWLINE |
-                        prepared-material ;
-simple-material       = quantity, "of", [ quantity ], species ;
-prepared-material     = "prepared", NEWLINE, INDENT,
-                        component-entry, { component-entry },
-                        DEDENT ;
-component-entry       = quantity, "of", species, NEWLINE ;
+equation-section        = "equation", NEWLINE, INDENT,
+                          equation, NEWLINE,
+                          { NEWLINE }, DEDENT ;
+equation                = equation-side,
+                          ( "->" | NEWLINE, "->" ),
+                          [ NEWLINE ], equation-side ;
+equation-side           = equation-term,
+                          { ( "+" | NEWLINE, "+" ),
+                            [ NEWLINE ], equation-term } ;
+equation-term           = [ positive-integer ], formula,
+                          "[", representation-kind, "]" ;
+representation-kind     = "molecular" | "ion" | "ionic" | "metallic" ;
 
-vessels-section       = "vessels", NEWLINE, INDENT,
-                        vessel-declaration, { vessel-declaration },
-                        DEDENT, { NEWLINE } ;
-vessel-declaration    = value-identifier, ":=", openness,
-                        "vessel", quantity, NEWLINE ;
-openness              = "open" | "closed" ;
+model-section           = "model", NEWLINE, INDENT,
+                          event-model-entry,
+                          sequence-model-entry,
+                          { NEWLINE }, DEDENT ;
+event-model-entry       = "event", ":=", "representative", NEWLINE ;
+sequence-model-entry    = "sequence", ":=", "explanatory", NEWLINE ;
 
-procedure-section     = "procedure", NEWLINE, INDENT,
-                        procedure-entry, { procedure-entry },
-                        DEDENT, { NEWLINE } ;
-procedure-entry       = [ stage-label, ":" ], operation, NEWLINE ;
-stage-label           = value-identifier ;
+observation-section     = "observe", "from", evidence-reference, NEWLINE,
+                          INDENT,
+                          observation-entry,
+                          { observation-entry },
+                          { NEWLINE }, DEDENT ;
+observation-entry       = gas-observation |
+                          disappearance-observation |
+                          formation-observation |
+                          colour-observation ;
+gas-observation         = "gas", value-identifier, "evolves",
+                          claim-reference, NEWLINE ;
+disappearance-observation = "reactant", value-identifier, "disappears",
+                            claim-reference, NEWLINE ;
+formation-observation   = "product", value-identifier, "forms",
+                          claim-reference, NEWLINE ;
+colour-observation      = "product", value-identifier, "has", "colour",
+                          qualified-name, claim-reference, NEWLINE ;
+claim-reference         = "claim", claim-identifier ;
+evidence-reference      = qualified-name, "@", catalog-version ;
 
-operation             = place-operation |
-                        add-operation |
-                        combine-operation |
-                        transfer-operation |
-                        stir-operation |
-                        heat-operation |
-                        cool-operation |
-                        wait-operation |
-                        seal-operation |
-                        open-operation |
-                        filter-operation |
-                        decant-operation ;
+proof-section           = "by", NEWLINE, INDENT,
+                          rule-application,
+                          DEDENT ;
+rule-application        = "apply", qualified-name, NEWLINE, INDENT,
+                          rule-binding,
+                          { rule-binding },
+                          { NEWLINE }, DEDENT ;
+rule-binding            = value-identifier, ":=", value-identifier, NEWLINE ;
 
-place-operation       = "place", value-identifier,
-                        "in", value-identifier ;
-add-operation         = "add", value-identifier,
-                        "to", value-identifier ;
-combine-operation     = "combine", value-identifier,
-                        "with", value-identifier,
-                        "in", value-identifier ;
-transfer-operation    = "transfer", [ quantity ],
-                        "from", value-identifier,
-                        "to", value-identifier ;
-stir-operation        = "stir", value-identifier,
-                        [ "for", quantity ] ;
-heat-operation        = "heat", value-identifier,
-                        "to", quantity ;
-cool-operation        = "cool", value-identifier,
-                        "to", quantity ;
-wait-operation        = "wait", quantity ;
-seal-operation        = "seal", value-identifier ;
-open-operation        = "open", value-identifier ;
-filter-operation      = "filter", value-identifier,
-                        "into", value-identifier,
-                        "and", value-identifier ;
-decant-operation      = "decant", value-identifier,
-                        "into", value-identifier ;
+formula                 = formula-segment,
+                          { ".", [ positive-integer ], formula-segment } ;
+formula-segment         = formula-part, { formula-part } ;
+formula-part            = element, [ positive-integer ] |
+                          "(", formula-segment, ")", [ positive-integer ] ;
+element                 = UPPER, [ LOWER ] ;
 
-expectation-section   = "expect", [ "at", stage-reference ],
-                        NEWLINE, INDENT,
-                        claim-entry, { claim-entry },
-                        DEDENT, { NEWLINE } ;
-stage-reference       = "initial" | "final" | stage-label ;
+qualified-name          = name-segment, { ".", name-segment } ;
+name-segment            = identifier ;
+type-identifier         = UPPER, { identifier-continue } ;
+value-identifier        = LOWER, { identifier-continue } ;
+claim-identifier        = UPPER, { UPPER | DIGIT | "_" } ;
+identifier              = ( LOWER | UPPER ), { identifier-continue } ;
+identifier-continue     = LOWER | UPPER | DIGIT | "_" ;
 
-claim-entry           = class-claim |
-                        identity-claim |
-                        equation-claim |
-                        amount-claim |
-                        limiting-claim |
-                        observation-section ;
-
-class-claim           = "class", ":=",
-                        ( reaction-class | hole ), NEWLINE ;
-reaction-class        = "precipitation" |
-                        "neutralization" |
-                        "gasFormation" |
-                        "noReaction" ;
-
-identity-claim        = identity-predicate,
-                        ( species | hole ), NEWLINE ;
-identity-predicate    = "produces" | "consumes" |
-                        "remains" | "spectator" ;
-
-equation-claim        = equation-kind, ":=", equation-claim-value ;
-equation-kind         = "molecular" | "completeIonic" | "netIonic" ;
-equation-claim-value  = hole, NEWLINE |
-                        equation, NEWLINE |
-                        NEWLINE, INDENT, equation, NEWLINE, DEDENT ;
-
-amount-claim          = "amount", species, ":=",
-                        ( quantity | hole ), NEWLINE ;
-limiting-claim        = "limiting", ":=",
-                        ( value-identifier | "none" | hole ), NEWLINE ;
-
-observation-section   = "observe", NEWLINE, INDENT,
-                        observation-entry, { observation-entry },
-                        DEDENT, { NEWLINE } ;
-observation-entry     = precipitate-observation |
-                        gas-observation |
-                        colour-observation |
-                        temperature-observation ;
-precipitate-observation = "precipitate", ( species | hole ), NEWLINE ;
-gas-observation       = "gas", ( species | hole ), NEWLINE ;
-colour-observation    = "colour", ":=", ( qualified-name | hole ), NEWLINE ;
-temperature-observation = "temperatureChange", ":=",
-                          ( temperature-direction | hole ), NEWLINE ;
-temperature-direction = "increase" | "decrease" | "none" ;
-
-proof-section         = "by", NEWLINE, INDENT,
-                        tactic, { tactic },
-                        DEDENT ;
-tactic                = dissociate-tactic |
-                        infer-products-tactic |
-                        balance-tactic |
-                        derive-tactic |
-                        cancel-spectators-tactic |
-                        solve-stoichiometry-tactic |
-                        verify-atoms-tactic |
-                        verify-charge-tactic |
-                        prove-observations-tactic |
-                        close-tactic |
-                        auto-tactic ;
-dissociate-tactic     = "dissociate", "aqueous", NEWLINE ;
-infer-products-tactic = "infer", "products", "using",
-                        qualified-name, NEWLINE ;
-balance-tactic        = "balance", equation-kind, NEWLINE ;
-derive-tactic         = "derive", equation-kind, NEWLINE ;
-cancel-spectators-tactic = "cancel", "spectators", NEWLINE ;
-solve-stoichiometry-tactic = "solve", "stoichiometry", NEWLINE ;
-verify-atoms-tactic   = "verify", "atoms", NEWLINE ;
-verify-charge-tactic  = "verify", "charge", NEWLINE ;
-prove-observations-tactic = "prove", "observations", NEWLINE ;
-close-tactic          = "close", NEWLINE ;
-auto-tactic           = "auto", NEWLINE ;
-
-equation              = equation-side,
-                        ( "->" | NEWLINE, "->" ),
-                        [ NEWLINE ], equation-side ;
-equation-side         = equation-term,
-                        { ( "+" | NEWLINE, "+" ),
-                          [ NEWLINE ], equation-term } ;
-equation-term         = [ positive-integer ], species ;
-
-species               = formula, [ charge ], phase ;
-formula               = formula-segment,
-                        { ".", [ positive-integer ], formula-segment } ;
-formula-segment       = formula-part, { formula-part } ;
-formula-part          = element, [ positive-integer ] |
-                        "(", formula-segment, ")", [ positive-integer ] ;
-element               = UPPER, [ LOWER ] ;
-charge                = "^", [ positive-integer ], ( "+" | "-" ) ;
-phase                 = "(", ( "aq" | "s" | "l" | "g" ), ")" ;
-
-quantity              = decimal, unit-expression ;
-decimal               = [ "+" | "-" ], integer,
-                        [ ".", DIGIT, { DIGIT } ] ;
-unit-expression       = unit-product, { "/", unit-product } ;
-unit-product          = unit-factor, { "*", unit-factor } ;
-unit-factor           = unit-symbol, [ "^", signed-integer ] ;
-unit-symbol           = unit-name | "%" ;
-unit-name             = LETTER, { LETTER | DIGIT | "_" } ;
-signed-integer        = [ "+" | "-" ], integer ;
-
-hole                  = "?" ;
-
-qualified-name        = name-segment, { ".", name-segment } ;
-name-segment          = value-identifier | type-identifier ;
-value-identifier      = LOWER, { LETTER | DIGIT | "_" } ;
-type-identifier       = UPPER, { LETTER | DIGIT | "_" } ;
-
-integer               = DIGIT, { DIGIT } ;
-positive-integer      = NON_ZERO_DIGIT, { DIGIT } ;
+positive-integer        = NON_ZERO_DIGIT, { DIGIT } ;
+integer                 = DIGIT, { DIGIT } ;
 
 (*
-  UPPER          = ASCII A through Z
-  LOWER          = ASCII a through z
-  LETTER         = UPPER or LOWER
-  DIGIT          = ASCII 0 through 9
+  NEWLINE       = logical line break token
+  INDENT        = indentation increase token
+  DEDENT        = indentation decrease token
+  EOF           = end of source token
+  UPPER         = ASCII A through Z
+  LOWER         = ASCII a through z
+  DIGIT         = ASCII 0 through 9
   NON_ZERO_DIGIT = ASCII 1 through 9
-
-  Reserved keywords cannot be used as identifiers. The reserved-word set is
-  specified in docs/chems-specification.md.
 *)

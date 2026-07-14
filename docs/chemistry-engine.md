@@ -2,184 +2,157 @@
 
 ## Trust model
 
-The chemistry engine is a small deterministic trusted kernel. The agent may
-propose a reaction, but it cannot declare its own output valid.
+The chemistry engine is a deterministic trusted kernel. The agent proposes a
+catalogue-bound reaction statement and evidence-backed observations; it cannot
+declare its own output valid.
 
-`Validated` means:
+A successful result means that one reviewed rule applies, source agrees with
+that rule, deterministic expansion succeeds, every structural operation is
+legal, every atom is mapped exactly once, system charge and explicit electrons
+are conserved, and the final graphs equal the declared products. Because the
+initial language requires representative/explanatory disclosures, that result
+is `ValidatedWithAssumptions`.
 
-> Given the declared inputs and assumptions, the program is internally
-> consistent and its result follows from ChemSpec's explicit, versioned
-> chemical rules and accepted catalogue data.
+It does not mean that ChemSpec proves every real-world outcome, a unique
+mechanism, rate, energy, trajectory, bulk solution structure, or universal
+safety.
 
-It does not mean that ChemSpec has mathematically proven every real-world
-outcome or modelled all competing reactions.
+## Two-stage decision
 
-## Validation contract
+### Applicability
 
-A passing program guarantees the following within the supported domain.
+Before observation research and source validation, the engine resolves the
+requested identities and searches reviewed reaction rules. The result is
+`Likely`, `NoReaction`, `Unsupported`, or `Invalid/Ambiguous`.
 
-### Language correctness
+Applicability belongs to the rule and may contain reviewed contextual premises
+needed to identify the intended outcome. `.chems` itself contains no laboratory
+recipe. Only a unique supported outcome proceeds.
 
-- The document parses unambiguously.
-- Names resolve to declared or catalogued entities.
-- Quantities have valid dimensions and compatible units.
-- Required phases and conditions are present or supplied by explicit defaults.
+### Structural validation
 
-### Chemical identity correctness
-
-- Every substance belongs to the selected catalogue.
-- Formula, composition, charge, phase, and dissociation behaviour match accepted
-  catalogue facts.
-- An unfamiliar substance cannot acquire invented properties during a run.
-
-### Equation correctness
-
-- Every element is conserved.
-- Net electric charge is conserved.
-- Stoichiometric coefficients are positive and normalized.
-- Only appropriate aqueous species dissociate.
-- Complete ionic equations preserve all species.
-- Net ionic equations remove spectator ions correctly.
-
-### Supported reaction derivation
-
-The outcome must be derivable from an implemented rule family:
-
-- precipitation through versioned solubility rules;
-- strong acid/base neutralization;
-- a curated gas-forming rule;
-- explicit no-net-reaction determination.
-
-A balanced equation alone is insufficient evidence that a reaction occurs.
-
-### Quantitative consistency
-
-When quantities are supplied:
-
-- amount conversions are dimensionally sound;
-- the limiting reagent is identified correctly;
-- consumption does not exceed supply;
-- remaining reactants and theoretical products follow stoichiometry.
-
-### Evidence traceability
-
-Every proof-relevant empirical premise resolves to a versioned catalogue fact
-with provenance. Live web research may explain the agent's proposal, but it
-cannot become validator authority during that run.
-
-## Result states
-
-- **Validated** — all required claims are derived in the supported domain.
-- **Validated with assumptions** — the derivation depends on displayed
-  assumptions such as temperature or idealized dissociation.
-- **Unsupported** — the input may represent legitimate chemistry, but required
-  data or reaction rules are unavailable.
-- **Invalid** — syntax, identity, invariants, or declared claims are wrong.
-
-Unsupported chemistry is never presented as chemically false.
-
-## Derivation artifact
-
-The validator produces a structured derivation, not a Boolean:
-
-```text
-AgNO3(aq) + NaCl(aq)
-  ├─ substances recognized
-  ├─ quantities normalized
-  ├─ aqueous strong electrolytes dissociated
-  ├─ candidate products generated
-  ├─ AgCl classified insoluble by catalogue rule
-  ├─ atoms conserved
-  ├─ charge conserved
-  ├─ stoichiometry solved
-  └─ net ionic result: Ag+ + Cl- -> AgCl(s)
-```
-
-The same artifact supports:
-
-- the educational **Why?** view;
-- precise diagnostics;
-- agent repairs;
-- provenance export;
-- regression tests.
+The validator resolves concise source and expands its selected rule. It then
+checks language identity, catalogue digest, structures, coefficients, equation,
+roles, evidence references, mapping, graph steps, electron state,
+conservation, and final products.
 
 ## Trusted catalogue
 
-The catalogue is part of ChemSpec's trusted computing base. Runtime agents may
-read it but cannot modify it.
-
-Conceptual substance entry:
+The immutable catalogue contains:
 
 ```text
-Substance
-  stable identifier
-  preferred name and aliases
-  formula and elemental composition
-  net charge
-  supported phases
-  aqueous dissociation
-  condition-qualified solubility
-  appearance
-  concise hazard classification
-  evidence references
+StructuralEntry
+  stable identity and aliases
+  formula summary and representation kind
+  atom nodes, formal charge, non-bonding and unpaired electrons
+  localized covalent edges
+  ionic components and associations
+  metallic site cores and delocalized electron domains
+  reusable groups
+  reviewed valence/electron premises
+
+ReactionRule
+  role schema
+  reactant and product patterns
+  applicability premises
+  coefficient and instance expansion
+  total atom-map template
+  ordered structural-operation template
+  model assumptions
+  compatible observation predicates
+  evidence and review metadata
 ```
 
-Reaction rules are stored separately from substance facts. A substance entry
-must not become a hard-coded experiment.
+Runtime agents may read these records but cannot modify them.
 
-Catalogue requirements:
+## Expansion boundary
 
-- stable unique identifiers;
-- explicit schema and semantic versions;
-- deterministic content digest;
-- provenance for each proof-relevant empirical fact;
-- conditions attached to facts that are not universal;
-- no flattened resolution of genuine source conflicts;
-- reproducible review and release process.
+`by apply RuleName` does not execute an agent-written proof script. It binds a
+reviewed rule to declared source names. The engine deterministically expands:
 
-Each `.chems` file names its catalogue version. Saved experiment provenance
-also records the exact catalogue digest.
+- coefficients into stable instances;
+- catalogue structures into stable atom IDs;
+- the mapping template into a total atom map; and
+- the operation template into exact typed operations with electron allocation.
 
-## Catalogue updates
+Every derived value records its source or catalogue origin. Equivalent source
+declaration order produces equivalent canonical HIR after semantic ordering.
 
-Live research may propose a future catalogue addition. Promotion into the
-trusted catalogue requires:
+## Structural operation semantics
 
-1. human authorship or review;
-2. supporting sources;
-3. schema validation;
-4. chemical invariant tests;
-5. regression tests against known experiments;
-6. a new catalogue version or digest.
+Every operation is a pure transition from one immutable graph state to the
+next. Failed preconditions return a diagnostic and no state.
 
-The active catalogue is immutable during an experiment.
+- Covalent cleavage removes the exact expected edge and allocates its electrons
+  homolytically or to one named endpoint.
+- Covalent formation consumes exact available unpaired electrons.
+- Bond-order change has explicit electron allocation.
+- Ionic association changes membership without inventing electron sharing.
+- Metallic release and join transfer ownership between site-local and
+  domain-delocalized electrons explicitly.
+- Electron transfer uses atom endpoints only and declares exact donor and
+  acceptor post-states, including unpaired-electron counts.
+- Product assignment changes final ownership without changing connectivity.
 
-## Initial chemistry universe
+After every operation, the engine validates local arithmetic and reviewed
+state support.
 
-The initial catalogue should provide enough breadth for all three supported
-reaction families and meaningful no-reaction examples. It should favour a
-coherent, well-evidenced set of acids, bases, carbonates, soluble ionic
-compounds, and insoluble products over a long unreviewed list.
+## Conservation
 
-Canonical fixtures:
+The engine proves:
 
-| Inputs | Expected class | Key observation |
-| --- | --- | --- |
-| `AgNO3(aq) + NaCl(aq)` | Precipitation | White `AgCl(s)` |
-| `HCl(aq) + NaOH(aq)` | Neutralization | Water formation |
-| `HCl(aq) + NaHCO3(aq)` | Gas formation | `CO2(g)` bubbles |
-| `KNO3(aq) + NaCl(aq)` | No net reaction | No supported visible change |
+- every mapped atom preserves element identity;
+- atom mapping is total and bijective;
+- system net charge is conserved, where atom-core formal-charge sum is reduced
+  by one for every domain-owned delocalized electron;
+- explicit valence electrons are conserved across atom-local, covalent, and
+  metallic-domain ownership; and
+- final transformed graphs equal catalogue product instances.
 
-## Explicit non-guarantees
+Charge conservation and electron conservation are recorded separately even
+when one can be derived from other closed-system facts, because local electron
+ownership is educational and operation-critical.
 
-The validator does not initially prove:
+## Observation boundary
 
-- exhaustive coverage of competing real-world reactions;
-- exact experimental yield;
-- reaction rate;
-- detailed equilibrium behaviour;
-- impurity effects;
-- universal safety;
-- literal microscopic fidelity of the particle animation.
+The agent supplies a typed evidence packet only after applicability succeeds.
+Source observation statements reference packet claim IDs. Validation checks
+subject, predicate, provenance, and rule compatibility, but observations never
+participate in graph proof or mutate the catalogue.
 
-These limits must remain visible in both product copy and developer APIs.
+## Derivation artifact
+
+The engine returns a structured derivation rather than a Boolean:
+
+```text
+LithiumAndWater
+  catalogue and evidence digests resolved
+  AlkaliMetalWithWater applicability established
+  source declarations and equation agree
+  instances expanded deterministically
+  atom map total, bijective, and element preserving
+  every structural step replayed
+  local valence, charge, radical, and electron states supported
+  atoms conserved
+  charge conserved
+  explicit valence electrons conserved
+  final graphs equal declared products
+```
+
+The derivation drives explanations, diagnostics, repair inputs, regression
+tests, expanded-certificate inspection, and renderer frames.
+
+## Result states
+
+- **Validated** — every required premise and invariant is established without
+  model assumptions; unreachable in the initial language.
+- **Validated with assumptions** — structural validation succeeds with visible
+  representative/explanatory model disclosures attached; this is the initial
+  language's successful result.
+- **Unsupported** — potentially legitimate chemistry lies outside reviewed
+  structures, rules, or state premises.
+- **Invalid** — source or derived structure contradicts the language or trusted
+  premises.
+- **System error** — the trusted bundle or runtime boundary is corrupt.
+
+Unsupported chemistry is never presented as chemically false.

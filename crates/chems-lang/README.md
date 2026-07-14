@@ -1,5 +1,9 @@
 # `chems-lang`
 
+> Rebaseline status: Slice 2 will migrate this frontend to the sole structural
+> `chems 1` grammar. Existing quantitative parsing behavior is temporary
+> internal implementation and has no compatibility status.
+
 `chems-lang` is the lossless source frontend and canonical formatter for
 `.chems`. It validates encoding and layout, tokenizes trivia and syntax,
 builds a concrete syntax tree (CST), lowers a source AST, attaches comments,

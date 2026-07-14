@@ -2,267 +2,73 @@
   "schema_version": 1,
   "requirements": "conformance/requirements.json",
   "components": [
-    { "id": "specification", "fixture_directory": "conformance/specification", "description": "Specification structure, requirement mapping, and language-data integrity." },
-    { "id": "encoding-layout", "fixture_directory": "conformance/encoding-layout", "description": "Source encoding, lexical structure, comments, whitespace, and layout." },
-    { "id": "parsing", "fixture_directory": "conformance/parsing", "description": "Grammar, CST, AST, names, scopes, and source compatibility." },
-    { "id": "formatting", "fixture_directory": "conformance/formatting", "description": "Canonical formatting and comment preservation." },
-    { "id": "quantities-types", "fixture_directory": "conformance/quantities-types", "description": "Exact numbers, dimensions, units, temperatures, and type judgments." },
-    { "id": "formula-species", "fixture_directory": "conformance/formula-species", "description": "Formulae, elements, charge, phase, substances, and species." },
-    { "id": "materials", "fixture_directory": "conformance/materials", "description": "Material constructors, premises, compositions, and linear identity." },
-    { "id": "procedures", "fixture_directory": "conformance/procedures", "description": "Vessels, inventories, operations, stages, and deterministic transitions." },
-    { "id": "claims-holes", "fixture_directory": "conformance/claims-holes", "description": "Claims, assumptions, holes, proof contexts, and goal generation." },
-    { "id": "kernel-tactics", "fixture_directory": "conformance/kernel-tactics", "description": "Kernel judgments, tactics, reaction rules, and derivations." },
-    { "id": "catalogue", "fixture_directory": "conformance/catalogue", "description": "Catalogue bundles, empirical facts, evidence, and coverage." },
-    { "id": "diagnostics-tooling", "fixture_directory": "conformance/diagnostics-tooling", "description": "Diagnostics, edits, editor services, and agent editing." },
-    { "id": "artifacts", "fixture_directory": "conformance/artifacts", "description": "Validated artifacts, identities, serialization, digesting, and replay." },
-    { "id": "end-to-end", "fixture_directory": "conformance/end-to-end", "description": "Complete result envelopes and reviewed experiment journeys." }
+    { "id": "specification", "fixture_directory": "conformance/specification", "description": "Language charter, authority, non-goals, and conformance mapping." },
+    { "id": "encoding-layout", "fixture_directory": "conformance/encoding-layout", "description": "UTF-8, comments, whitespace, indentation, layout tokens, and reserved words." },
+    { "id": "parsing", "fixture_directory": "conformance/parsing", "description": "The sole authored chems 1 grammar, CST, AST, names, equations, and source shape." },
+    { "id": "formatting", "fixture_directory": "conformance/formatting", "description": "Canonical formatting and deterministic comment preservation." },
+    { "id": "structural-domain", "fixture_directory": "conformance/structural-domain", "description": "Atoms, electrons, covalent graphs, groups, ionic associations, and metallic domains." },
+    { "id": "catalogue", "fixture_directory": "conformance/catalogue", "description": "Reviewed structures, reaction rules, applicability, provenance, review, and digests." },
+    { "id": "expansion", "fixture_directory": "conformance/expansion", "description": "Coefficient instances, atom maps, operation templates, typed HIR, and expanded certificates." },
+    { "id": "validation-kernel", "fixture_directory": "conformance/validation-kernel", "description": "Graph transitions, structural invariants, conservation, derivations, and validation." },
+    { "id": "observations", "fixture_directory": "conformance/observations", "description": "Typed observation claims, evidence packets, provenance, and rule compatibility." },
+    { "id": "diagnostics-tooling", "fixture_directory": "conformance/diagnostics-tooling", "description": "Stable diagnostics, spans, safe edits, and source inspection." },
+    { "id": "artifacts", "fixture_directory": "conformance/artifacts", "description": "Result states, model disclosures, identities, serialization, digests, and staleness." },
+    { "id": "frames", "fixture_directory": "conformance/frames", "description": "Deterministic structural and observation frames from validated states." },
+    { "id": "end-to-end", "fixture_directory": "conformance/end-to-end", "description": "Complete reviewed reaction journeys and artifact boundaries." }
   ],
   "cases": [
     {
-      "id": "numeric-precision-001",
-      "component": "quantities-types",
-      "requirements": ["TYP-002", "TYP-003"],
-      "input": "conformance/quantities-types/numeric-precision-001.input.json",
-      "expected": {
-        "state": "validated",
-        "domain": "conformance/quantities-types/numeric-precision-001.domain.json"
-      }
-    },
-    {
-      "id": "unit-temperature-001",
-      "component": "quantities-types",
-      "requirements": ["TYP-004", "TYP-005", "TYP-006"],
-      "input": "conformance/quantities-types/unit-temperature-001.input.json",
-      "expected": {
-        "state": "validated",
-        "domain": "conformance/quantities-types/unit-temperature-001.domain.json"
-      }
-    },
-    {
-      "id": "quantity-conversion-001",
-      "component": "quantities-types",
-      "requirements": ["TYP-006"],
-      "input": "conformance/quantities-types/quantity-conversion-001.input.json",
-      "expected": {
-        "state": "validated",
-        "domain": "conformance/quantities-types/quantity-conversion-001.domain.json"
-      }
-    },
-    {
-      "id": "formula-normalization-001",
-      "component": "formula-species",
-      "requirements": ["TYP-008", "TYP-009"],
-      "input": "conformance/formula-species/formula-normalization-001.input.json",
-      "expected": {
-        "state": "validated",
-        "domain": "conformance/formula-species/formula-normalization-001.domain.json"
-      }
-    },
-    {
-      "id": "charge-phase-001",
-      "component": "formula-species",
-      "requirements": ["TYP-011"],
-      "input": "conformance/formula-species/charge-phase-001.input.json",
-      "expected": {
-        "state": "validated",
-        "domain": "conformance/formula-species/charge-phase-001.domain.json"
-      }
-    },
-    {
-      "id": "canonical-identity-001",
-      "component": "artifacts",
-      "requirements": ["ART-009"],
-      "input": "conformance/artifacts/canonical-identity-001.input.json",
-      "expected": {
-        "state": "validated",
-        "domain": "conformance/artifacts/canonical-identity-001.domain.json"
-      }
-    },
-    {
-      "id": "nested-comments-001",
-      "component": "encoding-layout",
-      "requirements": [
-        "LEX-001", "LEX-002", "LEX-003", "LEX-004", "LEX-005",
-        "LEX-006", "LEX-007", "LEX-019"
-      ],
-      "source": "conformance/encoding-layout/nested-comments-001.chems",
-      "expected": {
-        "state": "validated"
-      }
-    },
-    {
-      "id": "all-productions-001",
+      "id": "canonical-source-001",
       "component": "parsing",
-      "requirements": [
-        "SRC-001", "SRC-002", "SRC-003", "SRC-005", "LEX-009", "LEX-010",
-        "LEX-011", "LEX-012", "LEX-013", "LEX-014", "LEX-015", "LEX-016",
-        "LEX-017", "LEX-018", "LEX-020", "ART-002", "ART-003", "ART-011"
-      ],
-      "source": "conformance/parsing/all-productions-001.chems",
+      "requirements": ["SRC-001", "SRC-003", "SRC-004", "SRC-005", "LEX-006"],
+      "source": "conformance/parsing/canonical-source-001.chems",
+      "expected": { "state": "incomplete" }
+    },
+    {
+      "id": "electron-model-001",
+      "component": "structural-domain",
+      "requirements": ["STR-002", "ELC-001"],
+      "input": "conformance/structural-domain/electron-model-001.input.json",
       "expected": {
-        "state": "validated",
-        "cst_sha256": "conformance/parsing/all-productions-001.cst.digest",
-        "ast_sha256": "conformance/parsing/all-productions-001.ast.digest"
+        "state": "incomplete",
+        "domain": "conformance/structural-domain/electron-model-001.domain.json"
       }
     },
     {
-      "id": "canonical-comments-001",
-      "component": "formatting",
-      "requirements": ["CAT-016", "CAT-017"],
-      "source": "conformance/formatting/canonical-comments-001.input.chems",
-      "expected": {
-        "state": "validated",
-        "formatted_source": "conformance/formatting/canonical-comments-001.formatted.chems"
-      }
-    },
-    {
-      "id": "formula-whitespace-001",
-      "component": "parsing",
-      "requirements": ["LEX-016"],
-      "source": "conformance/parsing/formula-whitespace-001.chems",
-      "expected": {
-        "state": "malformed",
-        "diagnostics": [{
-          "code": "CHEMS-P005",
-          "severity": "Error",
-          "primary_span": {
-            "fixture": "conformance/parsing/formula-whitespace-001.chems",
-            "start": 147,
-            "end": 148
-          }
-        }]
-      }
-    },
-    {
-      "id": "joined-quantity-001",
-      "component": "parsing",
-      "requirements": ["LEX-017"],
-      "source": "conformance/parsing/joined-quantity-001.chems",
-      "expected": {
-        "state": "malformed",
-        "diagnostics": [{
-          "code": "CHEMS-P006",
-          "severity": "Error",
-          "primary_span": {
-            "fixture": "conformance/parsing/joined-quantity-001.chems",
-            "start": 105,
-            "end": 105
-          }
-        }]
-      }
-    },
-    {
-      "id": "unsupported-major-001",
-      "component": "parsing",
-      "requirements": ["SRC-003", "ART-011"],
-      "source": "conformance/parsing/unsupported-major-001.chems",
-      "expected": {
-        "state": "malformed",
-        "diagnostics": [{
-          "code": "CHEMS-P002",
-          "severity": "Error",
-          "primary_span": {
-            "fixture": "conformance/parsing/unsupported-major-001.chems",
-            "start": 6,
-            "end": 60
-          }
-        }]
-      }
-    },
-    {
-      "id": "silver-chloride-001",
+      "id": "lithium-rule-001",
       "component": "catalogue",
-      "requirements": [
-        "SRC-004", "CAT-001", "CAT-002", "CAT-003", "CAT-004", "CAT-005",
-        "CAT-006", "CAT-007", "CAT-008"
-      ],
-      "catalogue": "conformance/catalogue/silver-chloride-001.catalogue.json",
+      "requirements": ["SRC-002", "CAT-001"],
+      "catalogue": "conformance/catalogue/lithium-rule-001.catalogue.json",
       "expected": {
-        "state": "validated",
-        "catalogue_sha256": "conformance/catalogue/silver-chloride-001.catalogue.digest",
-        "catalogue_review": "conformance/catalogue/silver-chloride-001.review.json"
+        "state": "incomplete",
+        "catalogue_review": "conformance/catalogue/lithium-rule-001.review.json"
       }
     },
     {
-      "id": "catalogue-corruptions-001",
-      "component": "catalogue",
-      "requirements": ["CAT-009", "CAT-011"],
-      "input": "conformance/catalogue/catalogue-corruptions-001.input.json",
+      "id": "canonical-expansion-001",
+      "component": "expansion",
+      "requirements": ["EXP-001", "EXP-002"],
+      "source": "conformance/expansion/canonical-expansion-001.chems",
       "expected": {
-        "state": "system-error"
+        "state": "incomplete",
+        "hir": "conformance/expansion/canonical-expansion-001.hir.json"
       }
     },
     {
-      "id": "typed-conditions-001",
-      "component": "quantities-types",
-      "requirements": ["SRC-006", "TYP-001", "TYP-007", "TYP-018", "TYP-019"],
-      "source": "conformance/quantities-types/typed-conditions-001.chems",
-      "expected": {
-        "state": "validated"
-      }
+      "id": "lithium-observations-001",
+      "component": "observations",
+      "requirements": ["OBS-001"],
+      "input": "conformance/observations/lithium-observations-001.input.json",
+      "expected": { "state": "incomplete" }
     },
     {
-      "id": "species-resolution-001",
-      "component": "formula-species",
-      "requirements": ["SRC-014", "TYP-010", "TYP-012", "TYP-013"],
-      "input": "conformance/formula-species/species-resolution-001.input.json",
-      "source": "conformance/formula-species/species-resolution-001.chems",
+      "id": "lithium-outcome-001",
+      "component": "end-to-end",
+      "requirements": ["END-001"],
+      "source": "conformance/end-to-end/lithium-outcome-001.chems",
       "expected": {
-        "state": "validated"
-      }
-    },
-    {
-      "id": "initial-materials-001",
-      "component": "materials",
-      "requirements": ["SRC-008", "TYP-014", "TYP-015", "TYP-016", "TYP-017"],
-      "input": "conformance/materials/initial-materials-001.input.json",
-      "source": "conformance/materials/initial-materials-001.chems",
-      "expected": {
-        "state": "validated",
-        "hir": "conformance/materials/initial-materials-001.hir.json"
-      }
-    },
-    {
-      "id": "state-timeline-001",
-      "component": "procedures",
-      "requirements": [
-        "SRC-009", "SRC-010", "SRC-015", "STA-001", "STA-002", "STA-003",
-        "STA-004", "STA-005", "STA-006", "STA-007", "STA-008", "STA-009",
-        "STA-012", "STA-013", "STA-016", "STA-017", "STA-018", "STA-024"
-      ],
-      "source": "conformance/procedures/state-timeline-001.chems",
-      "expected": {
-        "state": "validated",
-        "domain": "conformance/procedures/state-timeline-001.expected.json"
-      }
-    },
-    {
-      "id": "separation-001",
-      "component": "procedures",
-      "requirements": ["STA-019", "STA-020"],
-      "source": "conformance/procedures/separation-001.chems",
-      "expected": {
-        "state": "validated"
-      }
-    },
-    {
-      "id": "procedure-failures-001",
-      "component": "procedures",
-      "requirements": ["STA-021"],
-      "source": "conformance/procedures/procedure-failures-001.chems",
-      "expected": {
-        "state": "invalid",
-        "diagnostics": [
-          {
-            "code": "CHEMS-S012",
-            "severity": "Error",
-            "primary_span": {
-              "fixture": "conformance/procedures/procedure-failures-001.chems",
-              "start": 273,
-              "end": 298
-            }
-          }
-        ]
+        "state": "incomplete",
+        "artifact": "conformance/end-to-end/lithium-outcome-001.artifact.json"
       }
     }
   ]

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "formal_charge_equation": "valence - non_bonding - bond_order_sum",
+  "system_net_charge_equation": "atom_formal_charge_sum - delocalized_domain_electron_count",
+  "lithium_fragment": {
+    "atom_formal_charge_sum": 2,
+    "delocalized_domain_electron_count": 2,
+    "system_net_charge": 0
+  },
+  "all_cases_consistent": true,
+  "metallic_site_and_domain_ownership_disjoint": true
+}

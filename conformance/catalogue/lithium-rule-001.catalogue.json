@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "catalogue": "ChemSpec.Theoretical",
+  "catalogue_version": "1",
+  "review_state": "pending-chemist-review",
+  "electron_state_tuple_fields": ["formal_charge", "non_bonding_electrons", "unpaired_electrons"],
+  "structures": [
+    {
+      "id": "LithiumMetal",
+      "premise_id": "premise.structure.lithium-metal",
+      "formula": "Li",
+      "representation": "metallic",
+      "site": { "label": "li", "element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+      "delocalized_electrons_per_site": 1
+    },
+    {
+      "id": "Water",
+      "premise_id": "premise.structure.water",
+      "formula": "H2O",
+      "representation": "molecular",
+      "atoms": [
+        { "label": "o", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0 },
+        { "label": "h1", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+        { "label": "h2", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 }
+      ],
+      "bonds": [
+        { "left": "o", "right": "h1", "order": "single" },
+        { "left": "o", "right": "h2", "order": "single" }
+      ]
+    },
+    {
+      "id": "LithiumHydroxide",
+      "premise_id": "premise.structure.lithium-hydroxide",
+      "formula": "LiOH",
+      "representation": "ionic",
+      "components": [
+        { "label": "lithium", "atoms": [{ "label": "li", "element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0 }] },
+        {
+          "label": "hydroxide",
+          "atoms": [
+            { "label": "o", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0 },
+            { "label": "h", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 }
+          ],
+          "bonds": [{ "left": "o", "right": "h", "order": "single" }]
+        }
+      ],
+      "associations": [{ "left": "lithium", "right": "hydroxide", "kind": "ionic" }]
+    },
+    {
+      "id": "Hydrogen",
+      "premise_id": "premise.structure.hydrogen",
+      "formula": "H2",
+      "representation": "molecular",
+      "atoms": [
+        { "label": "h1", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 },
+        { "label": "h2", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0 }
+      ],
+      "bonds": [{ "left": "h1", "right": "h2", "order": "single" }]
+    }
+  ],
+  "valence_premises": [
+    {
+      "id": "premise.valence.li-h-o.initial-domain",
+      "tuple_fields": ["element", "formal_charge", "non_bonding_electrons", "unpaired_electrons", "covalent_bond_order_sum"],
+      "supported_states": [
+        ["Li", 1, 0, 0, 0],
+        ["Li", 0, 1, 1, 0],
+        ["O", 0, 4, 0, 2],
+        ["O", -1, 6, 0, 1],
+        ["H", 0, 0, 0, 1],
+        ["H", 1, 0, 0, 0],
+        ["H", 0, 1, 1, 0]
+      ],
+      "metallic_domain_states": [
+        { "element": "Li", "site_formal_charge": 1, "site_local_electrons": 0, "delocalized_electrons_per_site": 1 }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "Rules.AlkaliMetalWithWater",
+      "premise_ids": [
+        "premise.structure.lithium-metal",
+        "premise.structure.water",
+        "premise.structure.lithium-hydroxide",
+        "premise.structure.hydrogen",
+        "premise.rule.lithium-water.standard-outcome",
+        "premise.valence.li-h-o.initial-domain"
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.lithium-water.standard-outcome",
+        "request_relation": "contact",
+        "reactant_structure_ids": ["LithiumMetal", "Water"],
+        "required_context": "representative educational outcome under the reviewed standard-outcome premise"
+      },
+      "roles": {
+        "metal": "reactant:metallic",
+        "water": "reactant:molecular",
+        "hydroxide": "product:ionic",
+        "gasProduct": "product:molecular"
+      },
+      "reactant_pattern": [
+        { "role": "metal", "structure_id": "LithiumMetal", "coefficient": 2 },
+        { "role": "water", "structure_id": "Water", "coefficient": 2 }
+      ],
+      "product_pattern": [
+        { "role": "hydroxide", "structure_id": "LithiumHydroxide", "coefficient": 2 },
+        { "role": "gasProduct", "structure_id": "Hydrogen", "coefficient": 1 }
+      ],
+      "mapping_template": [
+        ["metal[1].li", "hydroxide[1].lithium.li"],
+        ["metal[2].li", "hydroxide[2].lithium.li"],
+        ["water[1].o", "hydroxide[1].hydroxide.o"],
+        ["water[1].h2", "hydroxide[1].hydroxide.h"],
+        ["water[2].o", "hydroxide[2].hydroxide.o"],
+        ["water[2].h2", "hydroxide[2].hydroxide.h"],
+        ["water[1].h1", "gasProduct[1].h1"],
+        ["water[2].h1", "gasProduct[1].h2"]
+      ],
+      "operation_template": [
+        {
+          "kind": "release_metallic",
+          "site": "metal[1].li",
+          "domain": "metal[1].metallic",
+          "allocation": "retain_electron",
+          "before": { "site": [1, 0, 0], "domain_electrons": 1 },
+          "after": { "site": [0, 1, 1], "domain_electrons": 0 }
+        },
+        {
+          "kind": "release_metallic",
+          "site": "metal[2].li",
+          "domain": "metal[2].metallic",
+          "allocation": "retain_electron",
+          "before": { "site": [1, 0, 0], "domain_electrons": 1 },
+          "after": { "site": [0, 1, 1], "domain_electrons": 0 }
+        },
+        {
+          "kind": "cleave_covalent",
+          "edge": ["water[1].o", "water[1].h1", "single"],
+          "allocation": { "heterolytic_to": "water[1].o" },
+          "before": { "left": [0, 4, 0], "right": [0, 0, 0] },
+          "after": { "left": [-1, 6, 0], "right": [1, 0, 0] }
+        },
+        {
+          "kind": "cleave_covalent",
+          "edge": ["water[2].o", "water[2].h1", "single"],
+          "allocation": { "heterolytic_to": "water[2].o" },
+          "before": { "left": [0, 4, 0], "right": [0, 0, 0] },
+          "after": { "left": [-1, 6, 0], "right": [1, 0, 0] }
+        },
+        {
+          "kind": "transfer_electron",
+          "count": 1,
+          "donor": "metal[1].li",
+          "acceptor": "water[1].h1",
+          "before": { "donor": [0, 1, 1], "acceptor": [1, 0, 0] },
+          "after": { "donor": [1, 0, 0], "acceptor": [0, 1, 1] }
+        },
+        {
+          "kind": "transfer_electron",
+          "count": 1,
+          "donor": "metal[2].li",
+          "acceptor": "water[2].h1",
+          "before": { "donor": [0, 1, 1], "acceptor": [1, 0, 0] },
+          "after": { "donor": [1, 0, 0], "acceptor": [0, 1, 1] }
+        },
+        {
+          "kind": "form_covalent",
+          "edge": ["water[1].h1", "water[2].h1", "single"],
+          "electron_contribution": { "left": 1, "right": 1 },
+          "before": { "left": [0, 1, 1], "right": [0, 1, 1] },
+          "after": { "left": [0, 0, 0], "right": [0, 0, 0] }
+        },
+        {
+          "kind": "associate_ionic",
+          "left": ["metal[1].li"],
+          "right": ["water[1].o", "water[1].h2"],
+          "component_charges": [1, -1]
+        },
+        {
+          "kind": "associate_ionic",
+          "left": ["metal[2].li"],
+          "right": ["water[2].o", "water[2].h2"],
+          "component_charges": [1, -1]
+        },
+        { "kind": "assign_product", "atoms": ["metal[1].li", "water[1].o", "water[1].h2"], "product": "hydroxide[1]" },
+        { "kind": "assign_product", "atoms": ["metal[2].li", "water[2].o", "water[2].h2"], "product": "hydroxide[2]" },
+        { "kind": "assign_product", "atoms": ["water[1].h1", "water[2].h1"], "product": "gasProduct[1]" }
+      ],
+      "observation_compatibility": [
+        { "subject_role": "gasProduct", "predicate": "evolves", "evidence_subject": "hydrogen" },
+        { "subject_role": "metal", "predicate": "disappears", "evidence_subject": "lithium" }
+      ],
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory"
+      }
+    }
+  ]
+}

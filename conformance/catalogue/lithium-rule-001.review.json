@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "catalogue_case": "lithium-rule-001",
+  "status": "pending-chemist-review",
+  "required_checks": [
+    "initial atom and electron states",
+    "metallic site-core and domain ownership",
+    "every intermediate formal-charge and radical state",
+    "mapping completeness",
+    "final product graphs",
+    "explanatory non-mechanism disclosure"
+  ]
+}

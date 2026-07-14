@@ -1,144 +1,121 @@
 # `.chems` implementation plan
 
-## Purpose
+## Authority
 
-This plan implements the complete
-[`.chems` specification](chems-specification.md) through independently
-verifiable slices. It is the execution authority for language work.
+This document is the execution authority for the definitive structural
+`.chems 1` language. The language has not been released, so the former
+quantitative experiment design is replaced directly rather than retained as a
+public legacy language or compatibility mode.
 
-The language design is fixed before implementation begins. A slice may expose a
-spec problem, but code convenience alone is not permission to change semantics. A
-design change first updates the specification, compatibility analysis,
-requirement coverage, and affected conformance cases.
+There are exactly seven implementation slices, numbered 0 through 6. They may
+not be split, merged, renamed, reordered, or supplemented with additional
+slices. Work discovered outside a slice is either required to satisfy that
+slice's acceptance criteria or is deferred outside this language plan.
 
-## Current state
+The normative source contract consists of:
 
-The language specification and normative grammar are the only source contract.
-Slices 0–5 are complete. The executable conformance scaffold has stable
-requirement IDs, schemas, fixture validation, grammar and reserved-word checks,
-and coverage reporting. `chem-domain` implements exact values and stable
-chemistry identities; `chems-lang` implements the complete lossless source
-frontend and formatter; `chem-catalogue` implements versioned digest-bearing
-bundles, canonical record ordering, validation, deterministic indexes, and the
-reviewed silver-chloride fixture. No legacy grammar or compatibility parser is
-retained. `chem-kernel` now resolves complete source into catalogue-backed
-`TypedExperiment` HIR with stable IDs, exact typed conditions and quantities,
-resolved species/materials/operands, explicit premise and assumption tracing,
-and source origins. `chem-domain` and `chem-kernel` now also construct immutable
-stage timelines, enforce the closed procedure transition set, preserve exact
-inventory lineage and conservation, and expose catalogue-scoped reaction
-opportunities without inferring reaction outcomes. Claim validation remains
-outside the completed boundary.
+- [`chems-specification.md`](chems-specification.md);
+- [`../grammar/chems.ebnf`](../grammar/chems.ebnf);
+- the requirement registry and fixtures under [`../conformance`](../conformance);
+- the reviewed catalogue schemas; and
+- the acceptance criteria in this plan.
 
-## Target crate boundaries
+## Product and trust boundary
+
+`.chems` describes the supported outcome of a reaction and a representative
+structural explanation. It is not a laboratory recipe, bulk-material model,
+mechanism claim, molecular-dynamics input, or universal reaction predictor.
 
 ```text
-chems-compiler
-├── chems-lang       lossless source, AST, formatting, diagnostics
-├── chem-catalogue   immutable facts, evidence, bundle validation
-├── chem-kernel      goals, rules, tactics, derivations, artifacts
-└── chem-domain      exact values and stable chemistry/state types
+reaction request
+    -> reviewed catalogue identity and rule selection
+    -> agent-authored concise .chems and evidence-backed observations
+    -> deterministic rule application and structural expansion
+    -> graph, mapping, step, atom, charge, and electron validation
+    -> ValidatedStructuralReaction
+    -> renderer-independent structural and observation frames
 ```
 
-### `chem-domain`
+The agent may select catalogue identities, state the expected equation, bind a
+reviewed rule, and reference observation claims. It may not introduce trusted
+structures, rules, mappings, transformations, or validation premises at run
+time. Applicability belongs to the reviewed rule. Unsupported chemistry remains
+`Unsupported`, not false or guessed.
 
-Owns pure, serializable values:
+## Fixed authored and expanded forms
 
-- exact integers/rationals and source decimals;
-- dimensions, units, quantities, and temperature points;
-- elements, formulae, charge, phase, species, and substances;
-- materials, inventories, vessels, operations, stages, and events;
-- identifiers and schema-version primitives.
+The normal authored form is concise and rule-oriented:
 
-It has no parsing, catalogue I/O, proof search, UI, networking, or GPU
-dependencies.
+```chems
+chems 1
+use catalog ChemSpec.Theoretical@1
 
-### `chems-lang`
+reaction LithiumAndWater where
+  reactants
+    lithium := 2 of LithiumMetal
+    water := 2 of Water
 
-Owns:
+  products
+    lithiumHydroxide := 2 of LithiumHydroxide
+    hydrogen := 1 of Hydrogen
 
-- language-version dispatch;
-- normative encoding/layout lexer and lossless CST;
-- source AST and comment attachment;
-- syntax diagnostics and safe edits;
-- canonical formatter;
-- source-origin maps.
+  equation
+    2 Li[metallic] + 2 H2O[molecular]
+    -> 2 LiOH[ionic] + H2[molecular]
 
-It constructs syntax, never a validated chemical result.
+  model
+    event := representative
+    sequence := explanatory
 
-### `chem-catalogue`
+  observe from Evidence.LithiumAndWater@1
+    gas hydrogen evolves claim R1
+    reactant lithium disappears claim R2
 
-Owns:
+  by
+    apply Rules.AlkaliMetalWithWater
+      metal := lithium
+      water := water
+      hydroxide := lithiumHydroxide
+      gasProduct := hydrogen
+```
 
-- catalogue schemas and canonical serialization;
-- bundle validation and digesting;
-- stable fact/substance/evidence identities;
-- condition applicability and lookup indexes;
-- the reviewed fixture catalogue.
+The selected rule deterministically expands coefficients into instances, atom
+mappings, and typed structural operations. The expanded structural certificate
+is human-readable and inspectable, but it is derived output rather than a
+second authoring language. There is one grammar and one parser target.
 
-It supplies typed premises and never decides proof goals.
+## Slice completion loop
 
-### `chem-kernel`
+Every slice follows the same mandatory loop:
 
-Owns:
+1. Select or add independently authored conformance evidence.
+2. Implement the complete slice and only that slice.
+3. Run formatting, focused tests, workspace tests, strict lint, documentation,
+   conformance validation, and diff hygiene in proportion to the slice.
+4. Send the complete slice to an independent sub-agent for review.
+5. Fix every actionable finding.
+6. Request re-review and repeat until the reviewer explicitly reports clean.
+7. Record the exact verification boundary, then begin the next slice.
 
-- typed elaboration that requires catalogue resolution;
-- procedure state transitions;
-- goals, tactics, reaction families, and exact stoichiometry;
-- derivation construction/replay;
-- private `ValidatedExperiment` construction.
+A slice is not complete merely because it compiles. No later slice begins while
+an earlier slice has an unresolved review finding.
 
-This is the trusted chemistry boundary.
+## Reuse and retirement boundary
 
-### `chems-compiler`
+Existing implementation is retained only where its semantics remain correct:
 
-Owns composition:
+- keep exact formula, element, charge, identifier, canonical-serialization,
+  source-span, lossless-token, diagnostic, catalogue-digest, provenance, and
+  review infrastructure;
+- rebuild syntax trees, HIR, catalogue records, and validation logic where they
+  encode the discarded quantitative language; and
+- remove units, quantities, conditions, materials, vessels, inventories,
+  physical procedures, and stage ledgers from the definitive language surface.
 
-- complete result envelopes;
-- version/schema selection;
-- incremental language-service API;
-- CLI commands;
-- conformance runner integration.
+Repository history remains available for archaeology. It is not a supported
+runtime compatibility path.
 
-It has no alternative path around `chem-kernel`.
-
-## Implementation rules
-
-1. Every slice starts by adding or selecting its conformance cases.
-2. Golden chemistry outputs are independently authored before implementation
-   produces them.
-3. Every public interchange envelope carries its relevant schema version.
-   Nested domain values are governed by that envelope and do not repeat the
-   version on every scalar, identifier, or formula node.
-4. No chemistry value uses binary floating point.
-5. No invalid, unsupported, or incomplete result can construct an artifact.
-6. Normal tests are deterministic and require no provider, API, or network.
-7. Unsafe Rust is forbidden throughout language/catalogue/kernel crates.
-8. A slice stops at its acceptance boundary; adjacent features wait for their
-   own slice.
-9. There is no legacy syntax or compatibility path outside the normative grammar.
-10. Exact commands and unsupported test boundaries are recorded at every gate.
-
-## First cross-team handoff
-
-Slice 0 is owned by the language workstream and does not require implementation
-from another workstream. As soon as Slice 0 establishes requirement IDs,
-conformance fixtures, and stable naming, the wider product's contracts phase
-starts in parallel:
-
-- the chemistry owner reviews the chemical identities and exact-value boundary,
-  then authors the first catalogue facts and expected silver-chloride derivation;
-- the agent owner freezes `ResearchResult`, `EvidenceClaim`, and `AgentEvent`
-  against a fake-provider fixture;
-- the application owner freezes `SimulationFrame` and exercises the Iced shell
-  against a hand-authored validated-result fixture.
-
-Within the language plan itself, Slice 3 is the first slice that requires
-substantial implementation from another owner: `chem-catalogue` and its
-scientifically reviewed fixture belong to the chemistry workstream. The earlier
-contract work prevents the other members from waiting for Slice 3 to begin.
-
-## Slice 0 — specification and conformance scaffold
+## Slice 0 — definitive language and conformance contract
 
 ### Depends on
 
@@ -146,473 +123,241 @@ Nothing.
 
 ### Deliverables
 
-- Assign stable requirement IDs to every normative language rule.
-- Create the conformance manifest schema and runner skeleton.
-- Establish fixture directories and naming conventions.
-- Add grammar-production validation and reserved-word coverage checks.
-- Add canonical-JSON and digest test helpers.
-- Add machine-readable schemas for requirements and conformance cases.
+- Rewrite the language overview, specification, architecture, chemistry-engine,
+  workflow, verification, and product documents around structural `.chems 1`.
+- Replace the normative grammar in `grammar/chems.ebnf`; remove alternate
+  structural grammar files and compatibility framing.
+- Define exact authored syntax, formatting, comments, identifiers, catalogue
+  references, reaction declarations, rule bindings, typed observations, and
+  evidence references.
+- Define the expanded certificate independently of source syntax.
+- Define atom, group, covalent, ionic, metallic, formal-charge, radical,
+  non-bonding-electron, and delocalized-electron semantics.
+- Define dative and aromatic support consistently across declarations,
+  operations, validation, and rendering—or explicitly exclude them from the
+  closed first domain.
+- Define rule-owned applicability, deterministic coefficient/instance
+  expansion, mapping templates, operation templates, and model assumptions.
+- Define mandatory validation; source cannot select or omit kernel invariants.
+- Replace requirement IDs, reserved words, manifest entries, schemas, and
+  fixtures to describe the new language.
+- Provide one complete lithium-and-water authored fixture, independently
+  reviewed expanded certificate, expected diagnostics, and observation packet.
 
 ### Acceptance
 
-- Every locked specification chapter has requirement IDs.
-- Every grammar production is defined and reachable.
-- Every grammar keyword appears in the reserved-word test.
-- The empty conformance runner reports component coverage rather than silently
-  succeeding.
-- CI runs specification and manifest validation.
+- Every normative statement has a stable requirement ID and conformance owner.
+- Every grammar production is defined and reachable; every keyword is reserved.
+- The canonical authored fixture parses according to the published grammar.
+- Its expanded certificate accounts for every reactant and product atom exactly
+  once and declares the electron state before and after every operation.
+- Catalogue applicability is sufficient to choose the rule without embedding
+  laboratory quantities or procedures in source.
+- No document claims implemented support that the current code does not have.
+- Conformance validation reports the structural plan honestly even before later
+  implementation slices satisfy it.
 
 ### Explicitly excluded
 
-No normative source parsing or chemical domain implementation.
+No structural Rust domain implementation or parser migration.
 
-## Slice 1 — exact domain foundation
+## Slice 1 — structural domain
 
 ### Depends on
 
-Slice 0.
+Slice 0 reviewed clean.
 
 ### Deliverables
 
-- `chem-domain` crate.
-- Arbitrary-precision rational and source-decimal representations.
-- Written precision metadata.
-- Dimension vectors, affine temperature points, and the language unit registry.
-- Exact unit-expression normalization and conversions.
-- Formula structural tree, element resolution interface, adduct/group
-  normalization, charge, and phase.
-- Typed IDs and canonical serialization primitives.
-
-### Conformance focus
-
-- every accepted unit and exact factor;
-- equivalent unit expressions;
-- invalid/unknown units;
-- negative Celsius and absolute-zero rejection;
-- grouped/adduct formula normalization;
-- charge/phase equality;
-- no-float serialization.
+- Stable typed IDs for structures, atoms, groups, bonds, associations, metallic
+  domains, instances, rules, operations, mappings, evidence, and claims.
+- Atom nodes with element, formal charge, and explicit local electron state.
+- Covalent edges with the closed supported bond-kind and order registry.
+- Deterministic group expansion to atom sets.
+- Ionic components and associations without fake covalent edges.
+- Metallic sites and explicit ownership of delocalized electrons.
+- Immutable structural graphs and reaction-side instance collections.
+- Total typed atom mappings and structural-operation values.
+- Canonical ordering, serialization, graph equality, and content digests.
 
 ### Acceptance
 
-- All arithmetic and conversion golden cases match exact rational values.
-- Property tests cover conversion round trips and formula normalization.
-- Canonical JSON is stable across repeated runs.
-- `cargo clippy -- -D warnings`, formatting, unit/property tests pass.
+- Invalid/self/duplicate edges, invalid groups, incompatible associations, and
+  inconsistent electron ownership cannot construct valid domain values.
+- Graph equality is independent of declaration order while preserving chemical
+  identity and bond semantics.
+- Equal formulae do not make structural isomers equal.
+- Property tests cover mapping bijection primitives, graph canonicalization,
+  group expansion, charge/electron accounting, and serialization stability.
 
 ### Explicitly excluded
 
-No `.chems` lexer/parser, catalogue facts, materials, or reactions.
+No `.chems` parsing, catalogue loading, rule application, or graph execution.
 
-## Slice 2 — lossless source frontend
-
-**Status:** complete.
+## Slice 2 — structural frontend
 
 ### Depends on
 
-Slices 0 and 1.
+Slice 1 reviewed clean.
 
 ### Deliverables
 
-- `chems 1` dispatch without guessing headerless source.
-- UTF-8/BOM/NUL/tab validation.
-- exact layout lexer with nested comments and lossless tokens.
-- CST, source AST, recovery nodes, and comment attachment.
-- complete normative grammar parsing.
-- source spans and initial `CHEMS-L`/`CHEMS-P` diagnostics.
-- canonical formatter and format CLI path.
-
-### Conformance focus
-
-- every grammar production;
-- blank/comment-only layout behavior;
-- nested/unclosed comments;
-- reserved identifiers;
-- formula/unit lexical contexts;
-- inline/multiline equations;
-- all operation, claim, hole, assumption, and tactic forms;
-- parse/format/parse and comment preservation.
+- Migrate `chems-lang` to the sole structural `chems 1` grammar.
+- Preserve encoding validation, lossless tokens, nested comments, source spans,
+  recovery diagnostics, comment attachment, and canonical formatting.
+- Replace source AST nodes with authored reactions, reactants, products,
+  equations, model declarations, typed observation references, and rule
+  applications.
+- Add exact malformed-source diagnostics and safe edits.
+- Reject discarded quantitative syntax without invoking a compatibility parser.
 
 ### Acceptance
 
-- All syntax fixtures produce their golden CST/AST or exact diagnostic codes and
-  spans.
-- Formatter is idempotent and preserves semantic AST plus all comments.
-- Parser fuzzing produces no panic on arbitrary bytes/UTF-8.
-- The frontend accepts only the normative grammar selected by `chems 1`.
+- Every normative production is exercised by conformance fixtures.
+- Parse/format/parse is lossless in meaning and canonical formatting is
+  idempotent.
+- The canonical authored fixture has independently authored CST and AST oracles.
+- Arbitrary bytes and UTF-8 input do not panic.
+- Diagnostic codes and byte spans are stable.
 
 ### Explicitly excluded
 
-No name resolution, units, catalogue lookup, or proof semantics.
+No catalogue resolution, chemical rule application, or structural validation.
 
-## Slice 3 — catalogue foundation
-
-**Status:** complete.
+## Slice 3 — structural catalogue and reaction rules
 
 ### Depends on
 
-Slices 0 and 1.
+Slice 2 reviewed clean.
 
 ### Deliverables
 
-- `chem-catalogue` crate and versioned bundle schema.
-- Canonical catalogue JSON and SHA-256 digest binding.
-- element, substance/species, medium, fact, evidence, assumption, and coverage
-  record variants, with stable evidence-bearing premise identity for both
-  identity records and empirical facts.
-- internal-consistency validator and lookup indexes.
-- independently reviewed minimal silver-chloride catalogue fixture.
-
-### Conformance focus
-
-- duplicate/conflicting records;
-- formula/charge/phase inconsistencies;
-- condition-domain boundaries;
-- evidence required for reviewed facts;
-- invalid coverage declarations;
-- digest binding across every semantic record category;
-- provisional facts excluded from production bundles.
+- Replace catalogue records and schemas with reviewed structures, groups,
+  electron premises, observation compatibility facts, applicability rules,
+  product patterns, atom-map templates, and operation templates.
+- Preserve deterministic bundle validation, canonical serialization, digests,
+  provenance, evidence eligibility, review attestations, and lookup indexes.
+- Implement the closed lithium, water, lithium-hydroxide, and hydrogen
+  structures and the `AlkaliMetalWithWater` rule.
+- Make every proof-relevant premise resolvable by stable fact ID.
 
 ### Acceptance
 
-- Valid bundle loads to one deterministic digest.
-- Every corrupt fixture is rejected as a catalogue system error.
-- The silver-chloride fixture resolves all required elements, species, medium,
-  dissociation, solubility, observation, and evidence facts.
+- Runtime agents cannot add or mutate trusted catalogue facts.
+- Corrupt structures, templates, mappings, applicability metadata, evidence, or
+  review state fail as typed system errors.
+- The canonical catalogue and rule are independently chemistry-reviewed.
+- Semantic mutation changes the catalogue digest; record-order changes do not.
+- Unsupported identities and rules remain distinct from invalid bundles.
 
 ### Explicitly excluded
 
-No source elaboration or reaction inference.
+No source elaboration or graph execution.
 
-## Slice 4 — typed elaboration and initial materials
-
-**Status: complete.** The canonical silver-chloride source byte-compares with
-its checked-in typed-HIR oracle. The quantity/type, formula/species, and
-materials conformance components are fully covered through this slice.
+## Slice 4 — elaboration and deterministic expansion
 
 ### Depends on
 
-Slices 1, 2, and 3.
+Slice 3 reviewed clean.
 
 ### Deliverables
 
-- experiment namespaces and stable typed IDs;
-- condition and catalogue-selection elaboration;
-- quantity and unit typing from source AST;
-- formula, species, substance, and medium resolution;
-- all material constructors and prepared composition normalization;
-- explicit assumption schema resolution;
-- complete `TypedExperiment` HIR and source-origin map;
-- `CHEMS-T`/`CHEMS-C` diagnostics.
-
-### Conformance focus
-
-- exact Sample/Solution constructor selection;
-- wrong dimensions and positivity;
-- unknown element versus unsupported substance;
-- analytical/actual species separation;
-- molar-mass/density/gas/solvent premise boundaries;
-- duplicate names and wrong assumption targets.
+- Resolve catalogue versions, structures, evidence packets, rules, bindings,
+  equation terms, reactant/product counts, and model declarations.
+- Validate rule applicability against resolved reaction identities.
+- Deterministically expand coefficients to stable labelled instances.
+- Instantiate the reviewed atom-map and structural-operation templates.
+- Produce typed structural HIR and a human-readable expanded certificate with
+  exact source origins and premise dependencies.
+- Distinguish invalid source, unsupported chemistry, and corrupt trusted data.
 
 ### Acceptance
 
-- Canonical source produces the independently authored typed-HIR fixture.
-- Malformed, ill-typed, and unsupported inputs remain distinct.
-- No HIR contains unresolved names, units, dimensions, species, or operands.
+- Equivalent declaration order produces equivalent typed HIR and certificate.
+- Equation coefficients, bound instance counts, rule patterns, mappings, and
+  products agree exactly.
+- Every expanded atom, operation, model assumption, observation, and premise is
+  traceable to source or catalogue provenance.
+- The canonical source expands to an independently authored certificate oracle.
 
 ### Explicitly excluded
 
-No procedure execution, claims, goals, reactions, or validated artifacts.
+No execution of structural operations and no construction of a validated
+reaction.
 
-## Slice 5 — procedure and stage engine
+## Slice 5 — structural validation kernel
 
 ### Depends on
 
-Slice 4.
+Slice 4 reviewed clean.
 
 ### Deliverables
 
-- immutable Stage and inventory-ledger types;
-- initial-stage construction and prepared-material validation boundary;
-- exact semantics for every procedure operation;
-- capacity, location, closure, temperature, pressure, and partition checks;
-- reaction-opportunity creation without reaction inference;
-- operation/stage source mapping.
-
-### Conformance focus
-
-- successful and failed place/add/combine;
-- whole and proportional transfer;
-- stir/heat/cool/wait/seal/open;
-- ideal filtration and decanting;
-- capacity and duplicate-inventory failures;
-- state equality and deterministic StageIds.
+- Execute every typed structural operation as an immutable graph transition.
+- Enforce exact step preconditions for covalent, ionic, metallic, and electron
+  operations.
+- Validate supported valence, local electron availability, formal charge,
+  radicals, association compatibility, and metallic electron ownership after
+  every step.
+- Validate total element-preserving atom mapping.
+- Prove atom, total charge, and electron conservation.
+- Compare final transformed graphs with declared product graphs.
+- Produce a structured derivation and privately construct
+  `ValidatedStructuralReaction` only after every invariant passes.
 
 ### Acceptance
 
-- Nonreactive fixtures produce exact independently authored timelines and
-  ledgers.
-- Every operation conserves inventory.
-- Missing physical premises become unsupported rather than guessed.
-- Property-generated legal transitions preserve stage invariants.
+- The canonical fixture validates to its independently authored derivation.
+- Negative fixtures cover every operation precondition and conservation class.
+- Removing, duplicating, remapping, or changing any atom/electron/bond premise
+  cannot reach validated output.
+- Source edits or catalogue-digest changes make previous output stale.
+- No renderer or application API can construct validated chemistry directly.
 
 ### Explicitly excluded
 
-Reaction outcomes remain open opportunities. No claim proof or artifact.
+No UI layout, motion, kinetics, trajectory, or mechanism inference.
 
-## Slice 6 — claims, holes, and goal generation
+## Slice 6 — structural frames and conformance closure
 
 ### Depends on
 
-Slices 4 and 5.
+Slice 5 reviewed clean.
 
 ### Deliverables
 
-- typed claim and expectation aggregation;
-- snapshot/cumulative evaluation windows;
-- typed holes and stable HoleIds;
-- immutable Goal/ProofState types;
-- generation of author-requested and mandatory kernel goals;
-- explicit/omitted/hole conflict handling;
-- result-envelope classification through `Incomplete`.
-
-### Conformance focus
-
-- every claim form and target stage;
-- duplicate/conflicting claims;
-- hole expected types;
-- amount aggregation across locations;
-- explicit assumptions and used/unused distinction;
-- deterministic goal IDs/dependency ordering.
+- Convert validated immutable graph states into deterministic,
+  renderer-independent structural frames.
+- Preserve stable atom identity, charge/electron labels, covalent edges, ionic
+  associations, metallic membership, changed relationships, active operation,
+  model disclosure, and product membership.
+- Define typed observation stages and deterministic synchronization with the
+  structural sequence.
+- Add authored-source and expanded-certificate CLI inspection.
+- Complete structural language, domain, catalogue, elaboration, kernel, frame,
+  diagnostic, and artifact conformance coverage.
+- Remove remaining definitive-product references to the discarded quantitative
+  language while preserving unrelated application work.
 
 ### Acceptance
 
-- Canonical source produces a golden open-goal graph.
-- Omitted claims do not remove mandatory artifact goals.
-- No tactic or chemistry rule is required to inspect the goal graph.
+- Restarting frame generation yields byte-identical semantic frames.
+- Presentation speed or layout cannot change chemistry.
+- Every frame is traceable to a validated graph state and active operation.
+- No invalid, unsupported, incomplete, or stale value reaches frame generation.
+- Full workspace formatting, tests, strict Clippy, warnings-as-errors
+  documentation, conformance validation, and diff hygiene pass.
+- Independent final review reports no actionable findings.
 
 ### Explicitly excluded
 
-No goal solving, derivations, or validated artifacts.
-
-## Slice 7 — derivation kernel and tactic framework
-
-### Depends on
-
-Slices 1, 3, 5, and 6.
-
-### Deliverables
-
-- `chem-kernel` trusted rule/checker core;
-- content-addressed derivation nodes and DAG replay;
-- exact equation normalization and balance solving;
-- atom/charge conservation and stoichiometric extent;
-- tactic dispatcher and proof-state transitions;
-- semantics for balance, derive prerequisites, cancel, solve, verify, and close;
-- private artifact builder that remains unreachable until all fields are proved.
-
-### Conformance focus
-
-- balanced/unbalanced equations;
-- exact coefficient normalization;
-- charge and atom mismatches;
-- limiting/extents/residuals;
-- changed-node/premise replay rejection;
-- open, solved, disproved, and unsupported goals.
-
-### Acceptance
-
-- The checker rejects every mutated golden derivation.
-- Mandatory conservation cannot be bypassed by omitted tactics.
-- Tactic traces alone cannot construct trusted values.
-- No reaction-family search exists yet.
-
-### Explicitly excluded
-
-No precipitation, neutralization, gas, or no-reaction inference.
-
-## Slice 8 — canonical precipitation vertical slice
-
-### Depends on
-
-Slice 7.
-
-### Deliverables
-
-- supported aqueous dissociation tactic;
-- precipitation candidate enumeration and rule premises;
-- deterministic closure/confluence handling;
-- molecular, complete ionic, and net ionic derivation;
-- precipitation observations;
-- complete canonical proof and bounded `auto` path;
-- first privately constructed `ValidatedExperiment`.
-
-### Acceptance
-
-The silver nitrate/sodium chloride source completes:
-
-```text
-source
-  -> typed HIR
-  -> stages/opportunity
-  -> goals/tactics
-  -> checked derivation
-  -> ValidatedExperiment
-```
-
-Additionally:
-
-- a wrong equation is `Invalid`;
-- unknown supported-looking chemistry is `Unsupported`;
-- omitted tactics leave `Incomplete` rather than weakening checks;
-- every empirical conclusion resolves to evidence provenance;
-- a source edit or catalogue digest change stales the artifact.
-
-### Explicitly excluded
-
-No other reaction family.
-
-## Slice 9 — reaction breadth and positive no-reaction proof
-
-### Depends on
-
-Slice 8.
-
-### Deliverables
-
-- strong acid/base neutralization family;
-- curated acid/carbonate gas-formation family;
-- rule-domain coverage declarations and no-reaction closure;
-- gas/closure premise handling;
-- all four independently reviewed canonical fixtures;
-- multi-family confluence/ambiguity behavior.
-
-### Acceptance
-
-- All four canonical experiments produce their reviewed artifacts.
-- Absence of candidates without coverage is `Unsupported`.
-- No-reaction succeeds only with complete coverage.
-- Competing non-confluent outcomes are `Unsupported` regardless of rule order.
-
-### Explicitly excluded
-
-Weak acid/base equilibria, redox, kinetics, organic chemistry, and arbitrary gas
-patterns.
-
-## Slice 10 — language service, diagnostics, and CLI
-
-### Depends on
-
-Slices 2, 4, 6, and 9.
-
-### Deliverables
-
-- complete compiler result envelope and diagnostic precedence;
-- all stable diagnostic namespaces and structured safe fixes;
-- source-version/catalogue-digest incremental API;
-- semantic tokens, completion, hover, goals, and provenance mappings;
-- `check`, `ast`, `hir`, `goals`, `derive`, `artifact`, and `format` CLI paths;
-- stale asynchronous result rejection.
-
-### Acceptance
-
-- CLI output and exit codes have golden tests for every result state.
-- Fix edits reject stale digests and cannot silently add assumptions.
-- Editor requests never return values for the wrong source/catalogue version.
-- Normal test execution consumes no network or model usage.
-
-## Slice 11 — artifact and simulation boundary
-
-### Depends on
-
-Slices 8 through 10.
-
-### Deliverables
-
-- stable artifact schema and canonical serializer;
-- checked deserializer with derivation replay;
-- artifact content digest;
-- renderer-independent conversion to simulation stages/frames;
-- source/claim/derivation/simulation linking IDs;
-- invalid/stale source gate.
-
-### Acceptance
-
-- Round-trip artifact replay succeeds only for unchanged canonical content.
-- Mutation of any chemistry field, premise, assumption, digest, or derivation
-  node is rejected.
-- Simulation can be constructed only from the private checked artifact type.
-- The canonical stage timeline produces deterministic simulation input.
-
-## Slice 12 — fuzzing, hardening, and conformance closure
-
-### Depends on
-
-All prior slices.
-
-### Deliverables
-
-- requirement-to-test coverage report;
-- full fuzz/property/metamorphic suites;
-- resource-limit and denial-of-service hardening;
-- complete licence and unsafe-code audit;
-- normative conformance manifest and golden artifacts;
-- implementation/spec discrepancy audit.
-
-### Acceptance
-
-- Every normative requirement ID has at least one conformance case.
-- All suite categories report complete coverage.
-- Fuzzing finds no panic or unchecked artifact construction.
-- Known unsupported domains remain explicit and documented.
-- The implementation claims `.chems` conformance only after this gate.
-
-## Integration gates
-
-| Gate | After slice | Demonstration |
-| --- | ---: | --- |
-| `G0` Specification executable | 0 | Requirement/grammar/conformance validation in CI |
-| `G1` Source and types | 4 | Canonical source to typed HIR with exact quantities/catalogue identities |
-| `G2` Experiment state | 6 | Canonical source to immutable stages and open proof goals |
-| `G3` First trusted chemistry | 8 | Silver chloride source to replayable validated artifact |
-| `G4` Initial domain complete | 9 | Four reaction-family fixtures and positive no-reaction proof |
-| `G5` Product-ready language | 11 | Checked artifact drives deterministic simulation input |
-| `G6` `.chems` conformance | 12 | Full coverage, fuzzing, and hardening evidence |
-
-No gate is passed by compilation alone.
-
-## Per-slice definition of done
-
-Every slice requires:
-
-- specification requirement IDs selected;
-- failing conformance fixtures added before behavior;
-- independently reviewed expected chemistry where applicable;
-- implementation limited to the slice boundary;
-- unit, integration, property, and golden tests appropriate to risk;
-- formatting and strict linting clean;
-- no unsafe Rust;
-- exact pass/fail commands recorded;
-- diagnostics and public schemas documented;
-- no invalid/unsupported/incomplete path to a validated artifact;
-- review by the owner of the next consuming boundary.
-
-## Change control
-
-When implementation reveals a specification problem:
-
-1. Stop the affected slice.
-2. Write the smallest concrete counterexample.
-3. Identify affected requirement IDs and compatibility consequences.
-4. Amend the specification and normative grammar if required.
-5. Add/update conformance cases.
-6. Resume implementation against the reviewed decision.
-
-Do not make the code's current behavior normative after the fact.
-
-## Immediate next action
-
-Begin Slice 6 against the completed immutable stage timeline. Elaborate claims
-and holes at resolved stage references, build deterministic open goals, and
-preserve the boundary that no tactic or chemistry rule is required merely to
-inspect the goal graph.
+No Iced/wgpu renderer implementation, provider implementation, catalogue breadth
+beyond reviewed closed-world fixtures, molecular dynamics, or real-world
+laboratory simulation.
+
+## Completion condition
+
+The structural `.chems 1` language is complete when Slice 6 is reviewed clean
+and all final gates pass. Broader chemistry, application rendering, provider
+integration, and additional catalogue content are separate product work, not
+additional language slices.

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "state": "incomplete",
+  "source": "conformance/end-to-end/lithium-outcome-001.chems",
+  "reason": "Slices 1 through 6 have not yet implemented structural expansion, validation, and frames",
+  "required_oracles": {
+    "catalogue": "conformance/catalogue/lithium-rule-001.catalogue.json",
+    "evidence": "conformance/observations/lithium-observations-001.input.json",
+    "expanded": "conformance/expansion/canonical-expansion-001.hir.json"
+  }
+}

@@ -2,202 +2,122 @@
 
 ## Summary
 
-ChemSpec turns a natural-language chemistry question into a researched,
-validated, and explainable virtual experiment.
+ChemSpec turns a theoretical chemistry question into a rule-supported,
+structurally validated, and visually explainable reaction outcome.
 
-The product exists to make chemical exploration cheaper, safer, and more
-transparent. It is not a chatbot wrapped around an animation: the model's
-proposal must pass a deterministic chemistry-aware validation layer before the
-application will simulate it.
+Deterministic catalogue rules first identify a supported outcome. An AI agent
+then supplies evidence-backed qualitative observations and concise `.chems 1`
+source. The engine expands the selected rule into an atom-mapped structural
+certificate, validates every graph state, and drives paired observation and
+structural-change simulations.
 
 ## Audience
 
-ChemSpec is built primarily for secondary-school chemistry students aged
-roughly 14–18. Educators and introductory undergraduate students are important
-secondary audiences.
+The primary audience is secondary-school chemistry students aged roughly
+14–18. Educators and introductory undergraduate students are secondary
+audiences.
 
-The interface uses progressive disclosure rather than separate audience modes:
+Progressive disclosure provides:
 
-- the default view explains the experiment accessibly;
-- **Why did this happen?** exposes the derivation;
-- **Inspect `.chems`** exposes the source program;
-- **Sources** exposes research provenance;
-- **Validation** exposes the formal checks.
+- paired simulations and a short explanation by default;
+- reaction-rule and structural-change reasoning under **Why did this happen?**;
+- authored source and expanded certificate under **Inspect `.chems`**;
+- claim-level evidence under **Sources**; and
+- mapping, graph, charge, and electron proofs under **Validation**.
 
 ## Learning outcome
 
-After running an initial aqueous experiment, a learner should be able to
-explain:
+After a supported reaction, a learner should be able to explain:
 
-- what changed and what remained;
-- why the supported reaction occurred or why there was no net reaction;
-- how the molecular, complete ionic, and net ionic equations relate;
-- which species are participating ions and which are spectators;
-- how atoms and charge remain conserved;
-- how supplied quantities determine the limiting reagent.
+- the outcome selected by the supported rule;
+- the expected visible changes;
+- which atoms persist into which products;
+- which localized covalent bonds change;
+- how ionic association and metallic electron domains differ from covalent
+  bonding;
+- how atoms, charge, and valence electrons remain conserved; and
+- why the displayed order is explanatory rather than automatically a proven
+  mechanism.
 
-ChemSpec is a learning and pre-lab tool, not a replacement for supervised
-practical laboratory work.
+## Product boundary
 
-## Initial scope
+ChemSpec shows a representative structural outcome of a known reviewed
+reaction. It is not a laboratory instruction system, bulk solution simulator,
+kinetics engine, molecular-dynamics system, or universal reaction predictor.
 
-The first chemistry universe is deliberately bounded:
+The authored language deliberately excludes quantities, apparatus, vessels,
+timed steps, and physical preparation. Context needed to decide whether a
+supported outcome applies belongs to the reviewed catalogue rule. The UI keeps
+that applicability premise and the representative/explanatory model disclosure
+visible.
 
-> Known pure substances interacting in water under declared, ordinary
-> classroom-laboratory conditions.
+## Chemistry scope
 
-Supported reaction families:
+The architecture supports molecular covalent structures, monatomic and
+polyatomic ions, ionic assemblies, metallic domains, reviewed groups, and
+atom-mapped transformations.
 
-1. Precipitation reactions.
-2. Strong acid/strong base neutralization.
-3. A curated set of gas-forming reactions, beginning with acid/carbonate
-   chemistry.
-4. No-net-reaction outcomes.
+Initial shipped chemistry is closed-world and fixture-led. Broader inorganic or
+A-Level organic coverage is added only through independently reviewed
+structures and rules. Missing coverage is Unsupported; the agent does not fill
+trusted-model gaps.
 
-Supported inputs:
-
-- catalogued pure compounds;
-- solid, liquid, gas, and aqueous phases where meaningful;
-- amounts, concentrations, and volumes;
-- water as the solvent;
-- explicit or default room-temperature and atmospheric-pressure assumptions.
-
-Initial exclusions:
-
-- arbitrary consumer materials with unknown compositions;
-- organic reactions and mechanisms;
-- general redox and electrochemistry;
-- combustion;
-- quantitative kinetics;
-- reversible equilibria beyond explicitly supported rules;
-- weak-acid and weak-base quantitative modelling;
-- thermodynamic prediction from first principles;
-- multi-stage real laboratory procedures.
-
-The word *substance* is preferred to *material* in the initial product. A named
-commercial product, alloy, biological sample, or unspecified mixture must not
-be silently treated as a pure compound.
+The first complete reaction is lithium with water because it exercises
+covalent, ionic, metallic, electron-transfer, observation, and mapping
+boundaries in one educational example.
 
 ## Canonical journey
 
-The canonical request is:
-
-> What happens if I mix 50 mL of 0.100 M silver nitrate with 50 mL of
-> 0.100 M sodium chloride?
-
-### 1. Choose a provider
-
-At startup, choose **Use Codex subscription** or **Use OpenAI API key**. The
-previous selection may be focused, but the choice remains visible.
-
-### 2. Ask
-
-The learner enters the request in ordinary language. Example prompts help
-learners discover the supported domain without requiring `.chems` knowledge.
-
-### 3. Watch the workflow
-
-The application exposes action summaries rather than hidden model reasoning:
-
-```text
-✓ Identified the requested substances
-● Researching aqueous behaviour...
-  Found 3 relevant sources
-○ Predicting the reaction
-○ Writing .chems
-○ Validating
-```
-
-Source cards appear as evidence is found. The generated source becomes visible
-as soon as it is available.
-
-### 4. Validate
-
-A successful result reports the checks and assumptions:
-
-```text
-Validated with assumptions
-
-✓ Syntax and types
-✓ Known substances
-✓ Atoms conserved
-✓ Charge conserved
-✓ Precipitation rule established
-✓ Stoichiometry solved
-
-Assumptions
-• Aqueous solutions
-• 25 degC
-• 1 atm
-• Idealized complete dissociation
-```
-
-If validation fails, the application highlights the exact source location and
-may ask the agent for a bounded repair. Each patch remains visible.
-
-### 5. Simulate
-
-The learner can play, pause, restart, adjust presentation speed, toggle particle
-labels, and step through reaction stages. For silver chloride:
-
-- aqueous ions begin dispersed;
-- `Ag+` and `Cl-` form representative clusters in a 1:1 ratio;
-- the clusters settle as a white precipitate;
-- `Na+` and `NO3-` remain dispersed as spectator ions;
-- quantity indicators reflect limiting-reagent consumption.
-
-### 6. Explain
-
-The explanation connects the macroscopic observation, particle view, equations,
-validation derivation, assumptions, and evidence. Selecting a species or claim
-in one representation should highlight its counterparts in the others where
-practical.
+1. **Ask.** The learner asks what happens when lithium reacts with water.
+2. **Resolve.** The engine resolves identities and uniquely selects the reviewed
+   `AlkaliMetalWithWater` rule.
+3. **Research.** The agent obtains typed qualitative observation claims and
+   claim-level evidence.
+4. **Author.** The agent writes concise `.chems 1` using catalogue identities
+   and binds the reviewed rule.
+5. **Expand.** The engine deterministically creates instances, atom mapping,
+   structural operations, and an inspectable certificate.
+6. **Validate.** Every mapping, graph step, valence, charge, electron,
+   association, metallic domain, conservation, and product invariant passes.
+7. **Simulate.** Observation and representative structural views play together.
+8. **Explain.** The agent connects visible observations to validated changes
+   without presenting a real-world method.
 
 ## Product states
 
-An experiment result is always one of:
+- **Validated** — every required premise and structural invariant passes with
+  no model assumption; unreachable in the initial language.
+- **Validated with assumptions** — validation passes with visible theoretical
+  model disclosures attached; this is the initial language's successful
+  result.
+- **Unsupported** — the catalogue lacks a reviewed identity, rule, state, or
+  applicability premise.
+- **Invalid** — source or derived structure contradicts the language or trusted
+  premises.
+- **System error** — trusted data or runtime infrastructure is corrupt.
 
-- **Validated** — completely derived inside the supported domain.
-- **Validated with assumptions** — derived under displayed environmental or
-  idealization assumptions.
-- **Unsupported** — potentially legitimate chemistry outside the current
-  catalogue or reaction rules.
-- **Invalid** — internally inconsistent, malformed, unknown, or contradicted by
-  the trusted inputs.
-
-`Unsupported` and `Invalid` are intentionally distinct.
+Provider failure is a workflow state, never a chemistry state.
 
 ## Simulation claim
 
-ChemSpec provides an explanatory, quantitatively constrained particle model.
-It preserves the validated stoichiometry, phases, limiting reagent, spectator
-ions, and supported observations. Particle scale, motion, spatial density, and
-elapsed time are illustrative.
-
 Persistent disclosure:
 
-> Explanatory particle model. Quantities and reaction relationships are
-> validated; particle scale, motion, and elapsed time are illustrative.
-
-The product does not initially claim molecular dynamics, real reaction rates,
-activation energies, intermolecular forces, quantitative diffusion, solvation
-shells, or crystal-structure fidelity.
+> Representative explanatory model. Structural identities, mapping, graph
+> operations, charge, and electron conservation are validated. Layout, motion,
+> timing, finite metallic fragments, and intermediate positions are
+> illustrative.
 
 ## Success criteria
 
 The product succeeds when a learner can:
 
-1. ask a supported chemistry question naturally;
-2. see what the agent researched and proposed;
-3. inspect a readable `.chems` program;
-4. distinguish deterministic validation from model confidence;
-5. explore the validated result visually;
-6. explain why the supported reaction occurred.
+1. ask about a supported reaction outcome;
+2. distinguish reviewed applicability from AI-supplied observations;
+3. inspect concise authored source and exact expanded structure;
+4. follow stable atoms from reactants to products;
+5. distinguish covalent, ionic, and metallic representations;
+6. understand the structural conservation proof; and
+7. receive an evidence-linked explanation.
 
-No invalid program may reach the simulation.
-
-## References
-
-- [OpenAI Build Week requirements and judging criteria](https://openai.devpost.com/)
-- [OpenStax: classifying aqueous chemical reactions](https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions)
-- [AQA GCSE chemistry subject content](https://www.aqa.org.uk/subjects/science/gcse-science-8464/specification/chemistry-subject-content)
+No invalid, unsupported, incomplete, or stale value may reach either
+simulation.

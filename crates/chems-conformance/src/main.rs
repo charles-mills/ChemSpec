@@ -30,8 +30,8 @@ fn main() -> ExitCode {
         summary.requirements, summary.grammar_productions, summary.reserved_words
     );
     println!(
-        "manifest: {} components; {} cases",
-        summary.components, summary.cases
+        "manifest: {} components; {} cases; {} incomplete",
+        summary.components, summary.cases, summary.incomplete_cases
     );
     for item in &summary.coverage {
         println!(
@@ -41,7 +41,10 @@ fn main() -> ExitCode {
     }
 
     if command == "report" && !summary.is_complete() {
-        eprintln!("conformance coverage is incomplete");
+        eprintln!(
+            "conformance is incomplete: {} incomplete cases and/or missing requirement coverage",
+            summary.incomplete_cases
+        );
         ExitCode::from(3)
     } else {
         ExitCode::SUCCESS

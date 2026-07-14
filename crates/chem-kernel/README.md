@@ -1,5 +1,9 @@
 # `chem-kernel`
 
+> Rebaseline status: Slices 4 and 5 will replace quantitative elaboration and
+> vessel procedures with deterministic structural expansion and graph-state
+> validation. Existing behavior is not a supported compatibility path.
+
 `chem-kernel` owns trusted typed elaboration, exact experiment state, goals,
 rules, derivations, and validated artifacts.
 

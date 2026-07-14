@@ -131,6 +131,7 @@ pub struct ValidationSummary {
     pub reserved_words: usize,
     pub components: usize,
     pub cases: usize,
+    pub incomplete_cases: usize,
     pub coverage: Vec<ComponentCoverage>,
 }
 
@@ -139,6 +140,7 @@ impl ValidationSummary {
     pub fn is_complete(&self) -> bool {
         self.requirements > 0
             && self.cases > 0
+            && self.incomplete_cases == 0
             && self
                 .coverage
                 .iter()
@@ -230,12 +232,18 @@ pub fn validate_repository(root: &Path) -> Result<ValidationSummary, ValidationE
         &manifest.components,
         &manifest.cases,
     );
+    let incomplete_cases = manifest
+        .cases
+        .iter()
+        .filter(|case| case.expected.state == "incomplete")
+        .count();
     Ok(ValidationSummary {
         requirements: requirements.requirements.len(),
         grammar_productions: grammar_report.productions,
         reserved_words: reserved_words.len(),
         components: manifest.components.len(),
         cases: manifest.cases.len(),
+        incomplete_cases,
         coverage,
     })
 }
@@ -622,7 +630,7 @@ fn valid_diagnostic_code(code: &str) -> bool {
         && bytes.starts_with(b"CHEMS-")
         && matches!(
             bytes[6],
-            b'L' | b'P' | b'T' | b'C' | b'K' | b'F' | b'I' | b'S'
+            b'L' | b'P' | b'T' | b'C' | b'X' | b'K' | b'F' | b'I'
         )
         && bytes[7..].iter().all(u8::is_ascii_digit)
 }
@@ -1000,9 +1008,30 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        CanonicalJsonError, Case, ExpectedResult, canonical_json, lowercase_hex, sha256,
-        valid_case_id, valid_kebab_id, validate_cases, validate_fixture_path,
+        CanonicalJsonError, Case, ComponentCoverage, ExpectedResult, ValidationSummary,
+        canonical_json, lowercase_hex, sha256, valid_case_id, valid_kebab_id, validate_cases,
+        validate_fixture_path,
     };
+
+    #[test]
+    fn incomplete_expected_cases_prevent_complete_status() {
+        let summary = ValidationSummary {
+            requirements: 1,
+            grammar_productions: 1,
+            reserved_words: 1,
+            components: 1,
+            cases: 1,
+            incomplete_cases: 1,
+            coverage: vec![ComponentCoverage {
+                component: "parsing".to_owned(),
+                cases: 1,
+                covered_requirements: 1,
+                total_requirements: 1,
+            }],
+        };
+
+        assert!(!summary.is_complete());
+    }
 
     #[test]
     fn case_ids_require_kebab_case_and_a_three_digit_suffix() {

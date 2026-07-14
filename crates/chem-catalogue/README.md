@@ -1,5 +1,9 @@
 # `chem-catalogue`
 
+> Rebaseline status: Slice 3 will replace the catalogue record model with
+> reviewed structures, electron premises, applicability rules, mapping and
+> operation templates, and typed observation compatibility.
+
 `chem-catalogue` owns immutable, versioned chemistry facts, evidence records,
 condition domains, coverage declarations, deterministic lookup indexes, and
 canonical digest validation.

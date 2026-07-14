@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.LithiumAndWater@1",
+  "review_state": "pending-chemist-review",
+  "claims": [
+    {
+      "id": "R1",
+      "subject_role": "gas",
+      "subject": "hydrogen",
+      "predicate": "evolves",
+      "sources": ["S1", "S2"]
+    },
+    {
+      "id": "R2",
+      "subject_role": "reactant",
+      "subject": "lithium",
+      "predicate": "disappears",
+      "sources": ["S2"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Becoming Mendeleev: periodic trends 14-16",
+      "publisher": "Royal Society of Chemistry",
+      "url": "https://edu.rsc.org/download?ac=538306",
+      "supports": ["R1"]
+    },
+    {
+      "id": "S2",
+      "title": "Reactions of Group 1 Elements with Water",
+      "publisher": "Chemistry LibreTexts",
+      "url": "https://chem.libretexts.org/Bookshelves/Inorganic_Chemistry/Supplemental_Modules_and_Websites_%28Inorganic_Chemistry%29/Descriptive_Chemistry/Elements_Organized_by_Block/1-s_Block_Elements/Group__1%3A_The_Alkali_Metals/2Reactions_of_the_Group_1_Elements/Reactions_of_Group_1_Elements_with_Water",
+      "supports": ["R1", "R2"]
+    }
+  ]
+}

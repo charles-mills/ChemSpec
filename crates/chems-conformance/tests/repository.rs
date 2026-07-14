@@ -11,10 +11,167 @@ fn workspace_root() -> PathBuf {
 fn repository_contract_is_internally_valid() {
     let summary =
         validate_repository(&workspace_root()).expect("repository contract should validate");
-    assert_eq!(summary.grammar_productions, 95);
-    assert_eq!(summary.components, 14);
-    assert_eq!(summary.cases, 20);
+    assert_eq!(summary.grammar_productions, 42);
+    assert_eq!(summary.components, 13);
+    assert_eq!(summary.cases, 6);
+    assert_eq!(summary.incomplete_cases, 6);
     assert!(!summary.is_complete());
+}
+
+#[test]
+fn canonical_expansion_oracle_has_total_immutable_state_chain() {
+    let root = workspace_root();
+    let oracle: Value = serde_json::from_str(
+        &fs::read_to_string(root.join("conformance/expansion/canonical-expansion-001.hir.json"))
+            .expect("expansion oracle should be readable"),
+    )
+    .expect("expansion oracle should be JSON");
+    let states = oracle["states"]
+        .as_array()
+        .expect("oracle should contain states");
+    let operations = oracle["operations"]
+        .as_array()
+        .expect("oracle should contain operations");
+    let expected_atoms = oracle["atom_elements"]
+        .as_object()
+        .expect("oracle should define stable atom identities")
+        .keys()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+
+    assert_eq!(states.len(), 13);
+    assert_eq!(operations.len(), 12);
+    assert_eq!(expected_atoms.len(), 8);
+
+    for (index, state) in states.iter().enumerate() {
+        assert_eq!(state["id"], format!("state[{index}]"));
+        let actual_atoms = state["atoms"]
+            .as_object()
+            .expect("every state should contain every atom")
+            .keys()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(actual_atoms, expected_atoms);
+        assert!(state["covalent_edges"].is_array());
+        assert!(state["metallic_domains"].is_array());
+        assert!(state["ionic_associations"].is_array());
+        assert!(state["product_assignments"].is_array());
+        let ledger = &state["ledger"];
+        let atom_local_non_bonding = state["atoms"]
+            .as_object()
+            .expect("atoms should be an object")
+            .values()
+            .map(|atom| atom[1].as_i64().expect("electron count should be integral"))
+            .sum::<i64>();
+        let atom_formal_charge_sum = state["atoms"]
+            .as_object()
+            .expect("atoms should be an object")
+            .values()
+            .map(|atom| atom[0].as_i64().expect("formal charge should be integral"))
+            .sum::<i64>();
+        let covalent_bond_electrons = state["covalent_edges"]
+            .as_array()
+            .expect("edges should be an array")
+            .iter()
+            .map(|edge| match edge[2].as_str() {
+                Some("single") => 2,
+                Some("double") => 4,
+                Some("triple") => 6,
+                order => panic!("unsupported oracle bond order: {order:?}"),
+            })
+            .sum::<i64>();
+        let metallic_domain_electrons = state["metallic_domains"]
+            .as_array()
+            .expect("domains should be an array")
+            .iter()
+            .map(|domain| domain[2].as_i64().expect("domain count should be integral"))
+            .sum::<i64>();
+        assert_eq!(ledger["atom_local_non_bonding"], atom_local_non_bonding);
+        assert_eq!(ledger["atom_formal_charge_sum"], atom_formal_charge_sum);
+        assert_eq!(ledger["covalent_bond_electrons"], covalent_bond_electrons);
+        assert_eq!(
+            ledger["metallic_domain_electrons"],
+            metallic_domain_electrons
+        );
+        assert_eq!(
+            atom_local_non_bonding + covalent_bond_electrons + metallic_domain_electrons,
+            18
+        );
+        assert_eq!(ledger["total_explicit_valence_electrons"], 18);
+        assert_eq!(ledger["system_net_charge"], 0);
+        assert_eq!(
+            ledger["system_net_charge"].as_i64(),
+            Some(
+                ledger["atom_formal_charge_sum"]
+                    .as_i64()
+                    .expect("formal-charge sum should be integral")
+                    - ledger["metallic_domain_electrons"]
+                        .as_i64()
+                        .expect("domain-electron count should be integral")
+            )
+        );
+    }
+
+    for (index, operation) in operations.iter().enumerate() {
+        assert_eq!(operation["id"], format!("operation[{}]", index + 1));
+        assert_eq!(operation["before_state"], format!("state[{index}]"));
+        assert_eq!(operation["after_state"], format!("state[{}]", index + 1));
+    }
+}
+
+#[test]
+fn canonical_rule_fixture_is_executable_data_not_prose() {
+    let root = workspace_root();
+    let catalogue: Value = serde_json::from_str(
+        &fs::read_to_string(root.join("conformance/catalogue/lithium-rule-001.catalogue.json"))
+            .expect("catalogue fixture should be readable"),
+    )
+    .expect("catalogue fixture should be JSON");
+    let rule = &catalogue["rules"][0];
+
+    let resolved_premises = catalogue["structures"]
+        .as_array()
+        .expect("structures should be an array")
+        .iter()
+        .chain(
+            catalogue["valence_premises"]
+                .as_array()
+                .expect("valence premises should be an array"),
+        )
+        .filter_map(|record| {
+            record["premise_id"]
+                .as_str()
+                .or_else(|| record["id"].as_str())
+        })
+        .chain(rule["applicability"]["premise_id"].as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+
+    assert_eq!(rule["reactant_pattern"].as_array().map(Vec::len), Some(2));
+    assert_eq!(rule["product_pattern"].as_array().map(Vec::len), Some(2));
+    assert_eq!(rule["mapping_template"].as_array().map(Vec::len), Some(8));
+    assert_eq!(
+        rule["operation_template"].as_array().map(Vec::len),
+        Some(12)
+    );
+    assert_eq!(
+        rule["observation_compatibility"].as_array().map(Vec::len),
+        Some(2)
+    );
+    assert!(rule["applicability"]["premise_id"].is_string());
+    let rule_premises = rule["premise_ids"]
+        .as_array()
+        .expect("rule premise IDs should be an array");
+    assert!(!rule_premises.is_empty());
+    for premise in rule_premises {
+        assert!(
+            resolved_premises.contains(
+                premise
+                    .as_str()
+                    .expect("rule premise ID should be a string")
+            ),
+            "unresolved rule premise: {premise}"
+        );
+    }
 }
 
 #[test]
@@ -30,9 +187,14 @@ fn partial_suite_reports_incomplete_coverage() {
         String::from_utf8_lossy(&output.stdout)
     );
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("coverage is incomplete"),
+        String::from_utf8_lossy(&output.stderr).contains("conformance is incomplete"),
         "incomplete result was not explicit: {}",
         String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("6 incomplete"),
+        "incomplete case count was missing: {}",
+        String::from_utf8_lossy(&output.stdout)
     );
 }
 

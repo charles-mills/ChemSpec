@@ -60,7 +60,7 @@
                   "additionalProperties": false,
                   "required": ["code", "severity", "primary_span"],
                   "properties": {
-                    "code": { "type": "string", "pattern": "^CHEMS-[LPTCKFIS][0-9]{3}$" },
+                    "code": { "type": "string", "pattern": "^CHEMS-[LPTCXKFI][0-9]{3}$" },
                     "severity": { "enum": ["Error", "Warning", "Information"] },
                     "primary_span": { "$ref": "#/$defs/span" },
                     "related_spans": {

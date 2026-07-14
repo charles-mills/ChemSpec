@@ -1,5 +1,10 @@
 # `chem-domain`
 
+> Rebaseline status: Slice 1 will replace quantity/material/vessel state with
+> the definitive structural atom, electron, graph, mapping, operation, artifact,
+> and frame domain. Existing code is temporary internal implementation, not a
+> supported language contract.
+
 `chem-domain` is the pure, deterministic value layer shared by later `.chems`
 compiler slices. It contains no source parser, empirical catalogue, proof
 search, application, networking, or rendering code.
