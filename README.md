@@ -67,7 +67,7 @@ kinetics or general molecular dynamics.
 
 ```chems
 chems 1
-use catalog ChemSpec.Aqueous@1
+use catalog ChemSpec.Aqueous@1.0
 
 experiment SilverChloridePrecipitation where
   conditions
@@ -86,6 +86,11 @@ experiment SilverChloridePrecipitation where
     place silverNitrate in reaction
     mixed: add sodiumChloride to reaction
     stir reaction
+
+  model
+    event := representative
+    sequence := explanatory
+    structuralRule := ChemSpec.Structural.Precipitation.SilverChloride
 
   expect at final
     class := precipitation
