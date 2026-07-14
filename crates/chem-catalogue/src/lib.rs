@@ -6,6 +6,7 @@
 //! digest and an exact external review attestation.
 
 mod model;
+mod pattern;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -21,6 +22,7 @@ use chem_domain::{
     StaticElementRegistry, StructuralGraph, StructureDefinition, StructureId, canonical_json,
 };
 pub use model::*;
+pub use pattern::*;
 
 /// Host-controlled trust root for the one closed production catalogue.
 ///
@@ -58,6 +60,7 @@ pub enum CatalogueErrorCode {
     InvalidStructuralTrait,
     InvalidStructureTemplate,
     InvalidStructureApplication,
+    InvalidGraphPattern,
 }
 
 impl CatalogueErrorCode {
@@ -84,6 +87,7 @@ impl CatalogueErrorCode {
             Self::InvalidStructuralTrait => "CHEMS-C018",
             Self::InvalidStructureTemplate => "CHEMS-C019",
             Self::InvalidStructureApplication => "CHEMS-C020",
+            Self::InvalidGraphPattern => "CHEMS-C021",
         }
     }
 }
@@ -200,6 +204,7 @@ pub struct ValidatedCatalogueBundle {
     structure_traits:
         BTreeMap<StructureId, BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>>,
     structure_application_provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
+    graph_patterns: BTreeMap<GraphPatternId, usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -333,6 +338,13 @@ impl ValidatedCatalogueBundle {
             &mut structure_premises,
             &mut structure_traits,
         )?;
+        let graph_patterns = pattern::validate_graph_patterns(
+            &document.graph_patterns,
+            &elements,
+            &document.structural_traits,
+            &structural_traits,
+            &premises,
+        )?;
         let rules = validate_rules(
             &document.rules,
             &structures,
@@ -361,6 +373,7 @@ impl ValidatedCatalogueBundle {
             structure_aliases: g1.aliases,
             structure_traits,
             structure_application_provenance: g1.provenance,
+            graph_patterns,
         })
     }
 
@@ -3904,6 +3917,15 @@ fn normalize_document(document: &mut CatalogueDocument) {
         .sort_by(|left, right| left.id().cmp(right.id()));
     document
         .structure_applications
+        .sort_by(|left, right| left.id.cmp(&right.id));
+    for pattern in &mut document.graph_patterns {
+        pattern.relationships.sort_by_key(|relationship| {
+            serde_json::to_string(relationship).expect("graph-pattern relationship serializes")
+        });
+        pattern.traits.sort();
+    }
+    document
+        .graph_patterns
         .sort_by(|left, right| left.id.cmp(&right.id));
 }
 

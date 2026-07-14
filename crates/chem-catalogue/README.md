@@ -41,7 +41,7 @@ or explicit cleavage allocation before they can enter the bundle.
 The catalogue digest is insensitive to record ordering where order has no
 meaning. The ordered operation template remains digest-significant.
 
-## Generalized-rules G1 boundary
+## Generalized-rules G2 boundary
 
 Catalogue schema 1 may optionally carry a reviewed element registry and
 element-category definitions. `ValidatedCatalogueBundle` derives deterministic
@@ -57,5 +57,14 @@ structural graph and valence checks as concrete records, enter ordinary
 structure lookup under their stable IDs and aliases, and retain separate
 template, argument, trait, application, and premise provenance.
 
-Graph-pattern matching, generalized reaction families, case selection,
-rewrite instantiation, and source elaboration remain unimplemented after G1.
+Schema 1 now also carries premise-backed typed graph patterns. The matcher
+enumerates injective atom bindings and exact shared/dative bonds, group and
+ionic membership, metallic ownership, and checked trait sites in canonical
+order. Multi-role matches are provisional read-only values: they cannot create
+an expanded reaction or cross the kernel boundary. Reactant-graph
+automorphism comparison is exposed separately so later elaboration can
+identify symmetric raw matches without selecting the first atom ID.
+
+Generalized reaction families, case selection, rewrite instantiation, product
+certificate equivalence, and source elaboration remain unimplemented after
+G2.

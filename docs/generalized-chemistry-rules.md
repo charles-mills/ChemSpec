@@ -1,8 +1,8 @@
 # Generalized chemistry rules and structural templates
 
-> **Status:** locked design, implemented through structural templates and
-> traits (G1). Typed matching, generalized families, elaboration, migration,
-> and authoring support remain queued as G2 through G6.
+> **Status:** locked design, implemented through typed graph patterns and
+> reactant automorphism support (G2). Generalized families, elaboration,
+> migration, and authoring support remain queued as G3 through G6.
 >
 > This document defines the intended catalogue and elaboration architecture for
 > generalized chemistry. The implemented `.chems 1` source grammar and concrete
@@ -338,6 +338,7 @@ geometry, stereochemistry, or computed numeric expressions.
   "relationships": [
     {
       "kind": "covalent",
+      "bond": "oh",
       "left": "oxygen",
       "right": "hydrogen",
       "order": "single",
@@ -351,6 +352,13 @@ geometry, stereochemistry, or computed numeric expressions.
 A match is an injective binding from pattern atom variables to concrete atom
 IDs plus exact bindings for every referenced relationship. Every constraint is
 checked against the immutable concrete graph.
+
+Every relationship also declares a stable local binding name: `bond` for a
+covalent edge, `group` for group membership, `association` for an ionic
+association, or `domain` for metallic ownership. Trait-site requirements bind
+their declared site kinds to atom or relationship binding names. Element
+parameter references are typed inputs to matching; G2 never infers them, and
+G3 supplies them only from a statically validated finite family domain.
 
 ## Match uniqueness, symmetry, and ambiguity
 

@@ -39,6 +39,8 @@ pub struct CatalogueDocument {
     pub structure_templates: Vec<StructureTemplateRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub structure_applications: Vec<StructureTemplateApplicationRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub graph_patterns: Vec<GraphPatternRecord>,
 }
 
 #[derive(Debug)]
@@ -172,6 +174,113 @@ impl IdKind for StructureTemplateIdKind {
     const NAME: &'static str = "StructureTemplateId";
 }
 pub type StructureTemplateId = DeclaredId<StructureTemplateIdKind>;
+
+#[derive(Debug)]
+pub enum GraphPatternIdKind {}
+impl IdKind for GraphPatternIdKind {
+    const NAME: &'static str = "GraphPatternId";
+}
+pub type GraphPatternId = DeclaredId<GraphPatternIdKind>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GraphPatternRecord {
+    pub id: GraphPatternId,
+    pub variables: BTreeMap<String, PatternVariableRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<GraphPatternRelationshipRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub traits: Vec<GraphPatternTraitRecord>,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PatternVariableRecord {
+    pub atom: PatternAtomConstraintRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct PatternAtomConstraintRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub element: Option<PatternElementRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formal_charge: Option<i16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub non_bonding_electrons: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unpaired_electrons: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bond_order_sum: Option<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PatternElementRecord {
+    Literal(ElementSymbol),
+    Parameter(TemplateParameterReferenceRecord),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GraphPatternRelationshipRecord {
+    Covalent {
+        bond: String,
+        left: String,
+        right: String,
+        order: BondOrderRecord,
+        #[serde(default, skip_serializing_if = "BondElectronOriginRecord::is_shared")]
+        electron_origin: BondElectronOriginRecord,
+    },
+    GroupMembership {
+        group: String,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        atoms: BTreeSet<String>,
+    },
+    IonicAssociation {
+        association: String,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        groups: BTreeSet<String>,
+    },
+    MetallicDomain {
+        domain: String,
+        #[serde(deserialize_with = "deserialize_unique_set")]
+        sites: BTreeSet<String>,
+        delocalized_electrons: u32,
+    },
+}
+
+impl GraphPatternRelationshipRecord {
+    #[must_use]
+    pub const fn binding_name(&self) -> &String {
+        match self {
+            Self::Covalent { bond, .. } => bond,
+            Self::GroupMembership { group, .. } => group,
+            Self::IonicAssociation { association, .. } => association,
+            Self::MetallicDomain { domain, .. } => domain,
+        }
+    }
+
+    #[must_use]
+    pub const fn binding_kind(&self) -> StructuralTraitSiteKindRecord {
+        match self {
+            Self::Covalent { .. } => StructuralTraitSiteKindRecord::CovalentBond,
+            Self::GroupMembership { .. } => StructuralTraitSiteKindRecord::Group,
+            Self::IonicAssociation { .. } => StructuralTraitSiteKindRecord::IonicAssociation,
+            Self::MetallicDomain { .. } => StructuralTraitSiteKindRecord::MetallicDomain,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GraphPatternTraitRecord {
+    #[serde(rename = "trait")]
+    pub trait_id: StructuralTraitId,
+    pub sites: BTreeMap<String, String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

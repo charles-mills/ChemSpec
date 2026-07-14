@@ -34,7 +34,8 @@
         "element_categories": {"type": "array", "items": {"$ref": "#/$defs/elementCategory"}},
         "structural_traits": {"type": "array", "items": {"$ref": "#/$defs/structuralTrait"}},
         "structure_templates": {"type": "array", "items": {"$ref": "#/$defs/structureTemplate"}},
-        "structure_applications": {"type": "array", "items": {"$ref": "#/$defs/structureApplication"}}
+        "structure_applications": {"type": "array", "items": {"$ref": "#/$defs/structureApplication"}},
+        "graph_patterns": {"type": "array", "items": {"$ref": "#/$defs/graphPattern"}}
       }
     },
     "created": {
@@ -146,6 +147,70 @@
         "id": {"$ref": "#/$defs/id"},
         "sites": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/traitSiteKind"}},
         "values": {"type": "object", "additionalProperties": {"$ref": "#/$defs/traitProjection"}},
+        "premise_ids": {"$ref": "#/$defs/premiseIds"}
+      }
+    },
+    "patternElement": {
+      "oneOf": [
+        {"$ref": "#/$defs/elementSymbol"},
+        {"type": "object", "additionalProperties": false, "required": ["parameter"], "properties": {"parameter": {"$ref": "#/$defs/id"}}}
+      ]
+    },
+    "patternAtomConstraint": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "element": {"$ref": "#/$defs/patternElement"},
+        "formal_charge": {"type": "integer", "minimum": -32768, "maximum": 32767},
+        "non_bonding_electrons": {"type": "integer", "minimum": 0, "maximum": 255},
+        "unpaired_electrons": {"type": "integer", "minimum": 0, "maximum": 255},
+        "bond_order_sum": {"type": "integer", "minimum": 0, "maximum": 255}
+      }
+    },
+    "graphPatternRelationship": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "bond", "left", "right", "order"],
+          "properties": {
+            "kind": {"const": "covalent"}, "bond": {"$ref": "#/$defs/id"},
+            "left": {"$ref": "#/$defs/id"}, "right": {"$ref": "#/$defs/id"},
+            "order": {"enum": ["single", "double", "triple"]},
+            "electron_origin": {"oneOf": [
+              {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "shared"}}},
+              {"type": "object", "additionalProperties": false, "required": ["kind", "donor", "acceptor"], "properties": {"kind": {"const": "dative"}, "donor": {"$ref": "#/$defs/id"}, "acceptor": {"$ref": "#/$defs/id"}}}
+            ]}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "group", "atoms"],
+          "properties": {"kind": {"const": "group_membership"}, "group": {"$ref": "#/$defs/id"}, "atoms": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "association", "groups"],
+          "properties": {"kind": {"const": "ionic_association"}, "association": {"$ref": "#/$defs/id"}, "groups": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "domain", "sites", "delocalized_electrons"],
+          "properties": {"kind": {"const": "metallic_domain"}, "domain": {"$ref": "#/$defs/id"}, "sites": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "delocalized_electrons": {"type": "integer", "minimum": 1, "maximum": 4294967295}}
+        }
+      ]
+    },
+    "graphPatternTrait": {
+      "type": "object", "additionalProperties": false,
+      "required": ["trait", "sites"],
+      "properties": {"trait": {"$ref": "#/$defs/id"}, "sites": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/id"}}}
+    },
+    "graphPattern": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "variables", "premise_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "variables": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["atom"], "properties": {"atom": {"$ref": "#/$defs/patternAtomConstraint"}}}},
+        "relationships": {"type": "array", "items": {"$ref": "#/$defs/graphPatternRelationship"}},
+        "traits": {"type": "array", "items": {"$ref": "#/$defs/graphPatternTrait"}},
         "premise_ids": {"$ref": "#/$defs/premiseIds"}
       }
     },
