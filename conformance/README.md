@@ -57,17 +57,18 @@ Slice 0 establishes:
 
 - `parsing/canonical-source-001.chems` — definitive authored source;
 - `structural-domain/electron-model-001.*` — formal-charge and electron ledger;
-- `catalogue/lithium-rule-001.*` — provisional structure/rule shape prepared
-  for review;
+- `catalogue/lithium-rule-001.*` — digest-bound provisional structural
+  catalogue, closed reaction rule, and exact chemist-review request;
 - `expansion/canonical-expansion-001.*` — complete atom map and operation
   certificate prepared for chemistry review;
 - `observations/lithium-observations-001.input.json` — typed evidence packet;
   and
 - `end-to-end/lithium-outcome-001.*` — honest incomplete vertical artifact.
 
-The catalogue, evidence, and expanded certificate explicitly remain
-`pending-chemist-review` until the resident chemist accepts their exact states.
-No implementation may convert that status into production trust.
+The catalogue, evidence packet, and expanded certificate explicitly remain
+`pending-chemist-review`. The trusted runtime catalogue type additionally
+requires a host-pinned digest and exact external attestation; implementation
+must not manufacture or infer that human sign-off.
 
 ## Slice progression
 

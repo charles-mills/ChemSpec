@@ -9,7 +9,6 @@ version.workspace = true
 
 [dependencies]
 chem-domain = { path = "../chem-domain" }
-num-bigint.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

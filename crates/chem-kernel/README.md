@@ -14,7 +14,7 @@ boundary; no old experiment or vessel API remains public.
 flowchart LR
     source[".chems source"] --> frontend["chems-lang<br/>parse_source"]
     frontend --> elaborate["chem-kernel<br/>structural expansion (Slice 4)"]
-    catalogue["chem-catalogue<br/>ValidatedCatalogue"] --> elaborate
+    catalogue["chem-catalogue<br/>TrustedCatalogue"] --> elaborate
     domain["chem-domain<br/>exact values and IDs"] --> elaborate
     elaborate --> hir["Structural certificate"]
     hir --> kernel["graph-state validation (Slice 5)"]

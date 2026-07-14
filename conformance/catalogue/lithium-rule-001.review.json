@@ -1,13 +1,16 @@
 {
   "schema_version": 1,
   "catalogue_case": "lithium-rule-001",
+  "catalogue_digest": "9f3493e5377c9559e5fc31ef46ad2fe3b3bf49e9520eee707f4e21a084f05dad",
   "status": "pending-chemist-review",
   "required_checks": [
+    "exact catalogue digest and every premise statement",
     "initial atom and electron states",
     "metallic site-core and domain ownership",
     "every intermediate formal-charge and radical state",
-    "mapping completeness",
-    "final product graphs",
+    "mapping completeness and element preservation",
+    "ionic component charges and final product graphs",
+    "observation compatibility facts",
     "explanatory non-mechanism disclosure"
   ]
 }

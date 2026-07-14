@@ -1,29 +1,37 @@
 # `chem-catalogue`
 
-> Rebaseline status: Slice 3 will replace the catalogue record model with
-> reviewed structures, electron premises, applicability rules, mapping and
-> operation templates, and typed observation compatibility.
+`chem-catalogue` owns the immutable, versioned structural identities and
+closed reaction rules used by `.chems 1`. Its first review-candidate bundle
+contains lithium metal, water, lithium hydroxide, hydrogen, the closed
+`Rules.AlkaliMetalWithWater` outcome, Li/H/O electron premises, typed
+observation compatibility, evidence, and review attestations.
 
-`chem-catalogue` owns immutable, versioned chemistry facts, evidence records,
-condition domains, coverage declarations, deterministic lookup indexes, and
-canonical digest validation.
+It does not elaborate `.chems` source or execute structural operations. Those
+are the Slice 4 and Slice 5 boundaries respectively.
 
-It does not elaborate `.chems` source, infer reactions, execute procedures, or
-construct validated experiment artifacts.
-
-## Validation flow
+## Trust boundary
 
 ```mermaid
 flowchart LR
-    json["Catalogue JSON"] --> envelope["CatalogueEnvelope"]
-    envelope --> checks["Digest, reference, review,<br/>and consistency checks"]
-    checks --> canonical["Canonical record order<br/>and content digest"]
-    checks --> indexes["Deterministic lookup indexes"]
-    canonical --> validated["ValidatedCatalogue"]
+    json["Untrusted catalogue JSON"] --> decode["Strict wire records"]
+    decode --> checks["Structures, valence, rules,<br/>mapping, templates, evidence, review"]
+    checks --> digest["Order-normalized canonical digest"]
+    checks --> indexes["Read-only deterministic indexes"]
+    digest --> validated["ValidatedCatalogueBundle<br/>(untrusted)"]
     indexes --> validated
-    validated --> kernel["chem-kernel"]
+    validated --> trust["Pinned digest + exact<br/>external attestation"]
+    trust --> trusted["TrustedCatalogue"]
+    trusted --> consumers["Elaborator and kernel"]
 ```
 
-Construction of `ValidatedCatalogue` is private to validation. Consumers can
-therefore resolve elements, substances, species, media, facts, assumptions,
-coverage declarations, and provenance without handling unchecked records.
+`ValidatedCatalogueBundle::from_json` checks untrusted data but does not grant
+trust. Only `TrustedCatalogue::from_canonical_json` can construct the runtime
+trust form, and it accepts exactly the host-pinned catalogue digest plus a
+separately host-pinned review artifact bound to every premise. Runtime agents
+cannot extend either trust root.
+
+Consumers receive immutable references and can distinguish an unsupported
+structure or rule lookup from a corrupt bundle system error.
+
+The catalogue digest is insensitive to record ordering where order has no
+meaning. The ordered operation template remains digest-significant.

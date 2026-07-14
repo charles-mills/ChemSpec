@@ -97,7 +97,6 @@ version = "0.1.0"
 dependencies = [
  "chem-domain",
  "jsonschema",
- "num-bigint",
  "serde",
  "serde_json",
 ]

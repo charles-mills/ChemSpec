@@ -119,6 +119,7 @@
       "catalogue": "conformance/catalogue/lithium-rule-001.catalogue.json",
       "expected": {
         "state": "incomplete",
+        "catalogue_sha256": "conformance/catalogue/lithium-rule-001.catalogue.digest",
         "catalogue_review": "conformance/catalogue/lithium-rule-001.review.json"
       }
     },

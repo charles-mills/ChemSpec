@@ -1,594 +1,612 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_catalogue::{
-    BoundaryKind, CatalogueEnvelope, CatalogueErrorCode, ConditionPoint, FactProposition,
-    ValidatedCatalogue,
+    CatalogueEnvelope, CatalogueErrorCode, CatalogueReviewAttestation,
+    ObservationCompatibilityRecord, ObservationPredicate, PublicationKind, ReviewStatus,
+    ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
 };
-use chem_domain::{
-    ContentDigest, EvidenceSourceId, ExactScalar, FactId, MediumId, Phase, Quantity, SourceDecimal,
-    SpeciesId, SubstanceId, UnitExpression, UnitSymbol,
-};
-use serde::Deserialize;
+use chem_domain::{EvidenceSourceId, PremiseId, ReactionRuleId, RepresentationKind, StructureId};
 use serde_json::Value;
-
-#[derive(Deserialize)]
-struct CorruptionFixture {
-    base: String,
-    corruptions: Vec<CorruptionExpectation>,
-}
-
-#[derive(Deserialize)]
-struct CorruptionExpectation {
-    mutation: String,
-    expected_code: String,
-    rebind_digest: bool,
-    operations: Vec<MutationOperation>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ReviewAttestation {
-    schema_version: u32,
-    id: String,
-    catalogue_digest: ContentDigest,
-    reviewer: String,
-    reviewed_on: String,
-    scope: String,
-    method: String,
-    sources: std::collections::BTreeSet<EvidenceSourceId>,
-    coverage_conclusion: String,
-    limitation: String,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-enum MutationOperation {
-    Replace { path: String, value: Value },
-    Add { path: String, value: Value },
-    Append { path: String, value: Value },
-    AppendCopy { path: String, from: String },
-}
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 fn fixture_bytes() -> Vec<u8> {
-    fs::read(workspace_root().join("conformance/catalogue/silver-chloride-001.catalogue.json"))
-        .expect("silver-chloride fixture should be readable")
+    fs::read(workspace_root().join("conformance/catalogue/lithium-rule-001.catalogue.json"))
+        .expect("lithium fixture should be readable")
 }
 
 fn envelope() -> CatalogueEnvelope {
     serde_json::from_slice(&fixture_bytes()).expect("fixture should deserialize")
 }
 
-fn apply_operations(document: &mut Value, operations: &[MutationOperation]) {
-    for operation in operations {
-        match operation {
-            MutationOperation::Replace { path, value } => {
-                *document
-                    .pointer_mut(path)
-                    .unwrap_or_else(|| panic!("replace path `{path}` should exist")) =
-                    value.clone();
-            }
-            MutationOperation::Add { path, value } => {
-                let (parent, key) = path
-                    .rsplit_once('/')
-                    .unwrap_or_else(|| panic!("add path `{path}` should have a parent"));
-                document
-                    .pointer_mut(parent)
-                    .and_then(Value::as_object_mut)
-                    .unwrap_or_else(|| panic!("add parent `{parent}` should be an object"))
-                    .insert(key.to_owned(), value.clone());
-            }
-            MutationOperation::Append { path, value } => document
-                .pointer_mut(path)
-                .and_then(Value::as_array_mut)
-                .unwrap_or_else(|| panic!("append path `{path}` should be an array"))
-                .push(value.clone()),
-            MutationOperation::AppendCopy { path, from } => {
-                let value = document
-                    .pointer(from)
-                    .unwrap_or_else(|| panic!("copy source `{from}` should exist"))
-                    .clone();
-                document
-                    .pointer_mut(path)
-                    .and_then(Value::as_array_mut)
-                    .unwrap_or_else(|| panic!("append-copy path `{path}` should be an array"))
-                    .push(value);
-            }
-        }
-    }
+fn rebound(mut envelope: CatalogueEnvelope) -> CatalogueEnvelope {
+    envelope.digest = envelope.computed_digest().expect("digest should compute");
+    envelope
 }
 
-fn rebind_json(document: &mut Value) {
-    let envelope: CatalogueEnvelope = serde_json::from_value(document.clone())
-        .expect("digest-rebound mutation should preserve the wire schema");
-    let digest = envelope
-        .computed_digest()
-        .expect("digest-rebound mutation should be canonicalizable");
-    document["digest"] = Value::String(digest.to_string());
-}
-
-fn id<T: FromStr>(source: &str) -> T
-where
-    T::Err: std::fmt::Debug,
-{
-    source.parse().expect("test identifier should be valid")
+fn rebound_error(envelope: CatalogueEnvelope) -> CatalogueErrorCode {
+    ValidatedCatalogueBundle::validate(rebound(envelope))
+        .expect_err("corruption must fail")
+        .code()
 }
 
 #[test]
-fn silver_chloride_fixture_matches_schema_and_bound_digest() {
+fn canonical_fixture_matches_schema_digest_and_closed_domain() {
+    let root = workspace_root();
     let schema: Value = serde_json::from_slice(
-        &fs::read(workspace_root().join("schemas/chem-catalogue-1.schema.json"))
-            .expect("catalogue schema should be readable"),
+        &fs::read(root.join("schemas/chem-catalogue-1.schema.json")).unwrap(),
     )
-    .expect("catalogue schema should parse");
-    let fixture: Value = serde_json::from_slice(&fixture_bytes()).expect("fixture should be JSON");
-    let validator = jsonschema::draft202012::new(&schema).expect("schema should compile");
+    .unwrap();
+    let fixture: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
     assert!(
         validator.is_valid(&fixture),
-        "fixture did not satisfy catalogue schema: {:?}",
+        "fixture schema errors: {:?}",
         validator.iter_errors(&fixture).collect::<Vec<_>>()
     );
+    let mut malformed_operation = fixture.clone();
+    malformed_operation["bundle"]["rules"][0]["operation_template"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("site");
+    assert!(!validator.is_valid(&malformed_operation));
+
+    let mut oversized_transfer = fixture.clone();
+    oversized_transfer["bundle"]["rules"][0]["operation_template"][4]["count"] = Value::from(256);
+    assert!(!validator.is_valid(&oversized_transfer));
+    assert!(serde_json::from_value::<CatalogueEnvelope>(oversized_transfer).is_err());
+
+    let mut oversized_charge = fixture.clone();
+    oversized_charge["bundle"]["rules"][0]["operation_template"][0]["before"]["site"][0] =
+        Value::from(32768);
+    assert!(!validator.is_valid(&oversized_charge));
+    assert!(serde_json::from_value::<CatalogueEnvelope>(oversized_charge).is_err());
 
     let envelope = envelope();
     assert_eq!(
-        envelope.computed_digest().expect("digest should compute"),
+        envelope.computed_digest().unwrap(),
         envelope.digest,
         "computed digest is {}",
         envelope.computed_digest().unwrap()
     );
-    let loaded = ValidatedCatalogue::from_json(&fixture_bytes()).expect("fixture should validate");
-    assert_eq!(loaded.digest(), envelope.digest);
-}
-
-#[test]
-fn external_review_attestation_binds_the_exact_catalogue_and_every_reviewer() {
-    let root = workspace_root();
-    let review_bytes =
-        fs::read(root.join("conformance/catalogue/silver-chloride-001.review.json")).unwrap();
-    let review_json: Value = serde_json::from_slice(&review_bytes).unwrap();
-    let review_schema: Value = serde_json::from_slice(
-        &fs::read(root.join("schemas/chem-catalogue-review-1.schema.json")).unwrap(),
-    )
-    .unwrap();
-    let review_validator = jsonschema::draft202012::new(&review_schema).unwrap();
-    assert!(
-        review_validator.is_valid(&review_json),
-        "review attestation must satisfy its schema: {:?}",
-        review_validator
-            .iter_errors(&review_json)
-            .collect::<Vec<_>>()
+    let catalogue = ValidatedCatalogueBundle::from_json(&fixture_bytes()).unwrap();
+    assert_eq!(catalogue.structures().len(), 4);
+    assert_eq!(catalogue.rules().len(), 1);
+    assert_eq!(
+        catalogue
+            .structure(&StructureId::from_str("LithiumMetal").unwrap())
+            .unwrap()
+            .representation(),
+        RepresentationKind::Metallic
     );
-    let review: ReviewAttestation = serde_json::from_value(review_json).unwrap();
-    let envelope = envelope();
-    let digest_golden =
-        fs::read_to_string(root.join("conformance/catalogue/silver-chloride-001.catalogue.digest"))
-            .unwrap();
-    assert_eq!(review.schema_version, 1);
-    assert_eq!(review.catalogue_digest, envelope.digest);
-    assert_eq!(review.catalogue_digest.to_string(), digest_golden.trim());
-    assert!(!review.reviewer.is_empty());
-    assert_eq!(review.reviewed_on, "2026-07-13");
-    assert!(!review.scope.is_empty());
-    assert!(!review.method.is_empty());
-    assert!(!review.coverage_conclusion.is_empty());
-    assert!(!review.limitation.is_empty());
-    for source in &review.sources {
-        assert!(
-            envelope
-                .bundle
-                .evidence
-                .iter()
-                .any(|evidence| &evidence.id == source),
-            "review source `{source}` must resolve in the reviewed catalogue"
-        );
-    }
-
-    let identity_reviews = envelope
-        .bundle
-        .elements
-        .iter()
-        .map(|record| &record.provenance.review)
-        .chain(
-            envelope
-                .bundle
-                .substances
-                .iter()
-                .map(|record| &record.provenance.review),
-        )
-        .chain(
-            envelope
-                .bundle
-                .species
-                .iter()
-                .map(|record| &record.provenance.review),
-        )
-        .chain(
-            envelope
-                .bundle
-                .media
-                .iter()
-                .map(|record| &record.provenance.review),
-        );
-    let reviewed_records = identity_reviews
-        .chain(envelope.bundle.facts.iter().map(|fact| &fact.review))
-        .chain(
-            envelope
-                .bundle
-                .assumption_kinds
-                .iter()
-                .map(|assumption| &assumption.review),
-        )
-        .chain(
-            envelope
-                .bundle
-                .coverage
-                .iter()
-                .map(|coverage| &coverage.review),
-        );
-    for metadata in reviewed_records {
-        for reviewer in &metadata.reviewers {
-            assert_eq!(reviewer.reference.as_deref(), Some(review.id.as_str()));
-        }
-    }
+    assert_eq!(
+        catalogue
+            .structure(&StructureId::from_str("LithiumHydroxide").unwrap())
+            .unwrap()
+            .representation(),
+        RepresentationKind::Ionic
+    );
+    assert_eq!(
+        catalogue
+            .rule(&ReactionRuleId::from_str("Rules.AlkaliMetalWithWater").unwrap())
+            .unwrap()
+            .reactant_atoms()
+            .len(),
+        8
+    );
 }
 
 #[test]
-fn quantity_schema_accepts_domain_wire_values_and_rejects_loose_objects() {
-    let schema: Value = serde_json::from_slice(
-        &fs::read(workspace_root().join("schemas/chem-catalogue-1.schema.json")).unwrap(),
+fn pending_review_request_cannot_promote_a_trusted_catalogue() {
+    let root = workspace_root();
+    let review_json: Value = serde_json::from_slice(
+        &fs::read(root.join("conformance/catalogue/lithium-rule-001.review.json")).unwrap(),
     )
     .unwrap();
-    let validator = jsonschema::draft202012::new(&schema).unwrap();
-    let quantity = Quantity::new(
-        SourceDecimal::parse("1.0").unwrap(),
-        UnitExpression::single(UnitSymbol::from_str("kg").unwrap()),
+    assert_eq!(review_json["status"], "pending-chemist-review");
+    let review_bytes = serde_json::to_vec(&review_json).unwrap();
+    assert_eq!(
+        TrustedCatalogue::from_canonical_json(&fixture_bytes(), &review_bytes)
+            .unwrap_err()
+            .code(),
+        CatalogueErrorCode::InvalidReview
+    );
+}
+
+#[test]
+fn self_asserted_reviews_cannot_extend_the_host_trust_root() {
+    let mut invented = envelope();
+    invented.bundle.publication = PublicationKind::Production;
+    for premise in &mut invented.bundle.premises {
+        premise.review.status = ReviewStatus::Reviewed;
+        premise.review.reviewers = vec![ReviewerRecord {
+            reviewer: "Invented runtime agent".to_owned(),
+            reviewed_on: "2026-07-14".to_owned(),
+            reference: "self-asserted".to_owned(),
+            notes: None,
+        }];
+    }
+    invented = rebound(invented);
+    let attestation = CatalogueReviewAttestation {
+        schema_version: 1,
+        id: "review.invented".to_owned(),
+        catalogue_digest: invented.digest,
+        reviewer: "Invented runtime agent".to_owned(),
+        reviewed_on: "2026-07-14".to_owned(),
+        scope: "invented".to_owned(),
+        method: "invented".to_owned(),
+        sources: [EvidenceSourceId::from_str("evidence.openstax.chemistry-2e").unwrap()]
+            .into_iter()
+            .collect(),
+        premises: invented
+            .bundle
+            .premises
+            .iter()
+            .map(|premise| premise.id.clone())
+            .collect(),
+        coverage_conclusion: "invented".to_owned(),
+        limitation: "invented".to_owned(),
+    };
+    let error = TrustedCatalogue::from_canonical_json(
+        &serde_json::to_vec(&invented).unwrap(),
+        &serde_json::to_vec(&attestation).unwrap(),
     )
-    .unwrap();
-    let mut document: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
-    let mut density_fact = document["bundle"]["facts"][7].clone();
-    density_fact["id"] = Value::String("density.water".to_owned());
-    density_fact["proposition"] = serde_json::json!({
-        "kind": "hasDensity",
-        "substance": "water",
-        "density": quantity,
-    });
-    document["bundle"]["facts"]
+    .unwrap_err();
+    assert_eq!(error.code(), CatalogueErrorCode::InvalidReview);
+}
+
+#[test]
+fn every_rule_premise_and_observation_premise_resolves() {
+    let catalogue = ValidatedCatalogueBundle::from_json(&fixture_bytes()).unwrap();
+    let rule = catalogue
+        .rule(&ReactionRuleId::from_str("Rules.AlkaliMetalWithWater").unwrap())
+        .unwrap();
+    for premise in &rule.record().premise_ids {
+        assert!(catalogue.premise(premise).is_some(), "missing `{premise}`");
+    }
+    for observation in &rule.record().observation_compatibility {
+        assert!(catalogue.premise(&observation.premise_id).is_some());
+    }
+    assert!(
+        catalogue
+            .valence_premise(&PremiseId::from_str("premise.valence.li-h-o.initial-domain").unwrap())
+            .is_some()
+    );
+}
+
+#[test]
+fn semantic_mutation_changes_digest_but_record_order_does_not() {
+    let original = envelope();
+    let digest = original.computed_digest().unwrap();
+
+    let mut reordered = original.clone();
+    reordered.bundle.evidence.reverse();
+    reordered.bundle.premises.reverse();
+    reordered.bundle.structures.reverse();
+    reordered.bundle.rules.reverse();
+    reordered.bundle.rules[0].mapping_template.reverse();
+    reordered.bundle.structures[0..2].reverse();
+    if let chem_catalogue::OperationTemplateRecord::AssociateIonic {
+        components,
+        component_charges,
+        ..
+    } = &mut reordered.bundle.rules[0].operation_template[7]
+    {
+        components.reverse();
+        component_charges.reverse();
+        components[0].reverse();
+    }
+    if let chem_catalogue::OperationTemplateRecord::AssignProduct { atoms, .. } =
+        &mut reordered.bundle.rules[0].operation_template[9]
+    {
+        atoms.reverse();
+    }
+    assert_eq!(reordered.computed_digest().unwrap(), digest);
+    assert_eq!(
+        reordered.canonical_json().unwrap(),
+        original.canonical_json().unwrap()
+    );
+
+    let mut changed = original;
+    changed.bundle.rules[0]
+        .applicability
+        .required_context
+        .push('!');
+    assert_ne!(changed.computed_digest().unwrap(), digest);
+}
+
+#[test]
+fn corrupt_structure_is_a_typed_system_error() {
+    let mut value: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    value["bundle"]["structures"][1]["atoms"][0]["formal_charge"] = Value::from(1);
+    let mut envelope: CatalogueEnvelope = serde_json::from_value(value).unwrap();
+    envelope = rebound(envelope);
+    let error = ValidatedCatalogueBundle::validate(envelope).unwrap_err();
+    assert!(error.is_system_error());
+    assert!(matches!(
+        error.code(),
+        CatalogueErrorCode::InvalidStructure | CatalogueErrorCode::InvalidValencePremise
+    ));
+}
+
+#[test]
+fn corrupt_mapping_is_a_typed_system_error() {
+    let mut envelope = envelope();
+    envelope.bundle.rules[0].mapping_template.pop();
+    assert_eq!(rebound_error(envelope), CatalogueErrorCode::InvalidMapping);
+}
+
+#[test]
+fn omitted_structure_premise_and_overlapping_assignment_are_rejected() {
+    let mut missing_premise = envelope();
+    missing_premise.bundle.rules[0]
+        .premise_ids
+        .remove(&PremiseId::from_str("premise.structure.water").unwrap());
+    assert_eq!(
+        rebound_error(missing_premise),
+        CatalogueErrorCode::InvalidRule
+    );
+
+    let mut value: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    value["bundle"]["rules"][0]["operation_template"][10]["atoms"][0] = Value::from("metal[1].li");
+    let overlapping: CatalogueEnvelope = serde_json::from_value(value).unwrap();
+    assert_eq!(
+        rebound_error(overlapping),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+}
+
+#[test]
+fn corrupt_applicability_is_a_typed_system_error() {
+    let mut envelope = envelope();
+    envelope.bundle.rules[0]
+        .applicability
+        .reactant_structure_ids
+        .pop_first();
+    assert_eq!(
+        rebound_error(envelope),
+        CatalogueErrorCode::InvalidApplicability
+    );
+}
+
+#[test]
+fn corrupt_operation_template_is_a_typed_system_error() {
+    let mut value: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    value["bundle"]["rules"][0]["operation_template"][4]["count"] = Value::from(0);
+    let envelope: CatalogueEnvelope = serde_json::from_value(value).unwrap();
+    assert_eq!(
+        rebound_error(envelope),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+}
+
+#[test]
+fn unsupported_states_relationships_and_component_charges_are_rejected() {
+    let mut unsupported: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    unsupported["bundle"]["rules"][0]["operation_template"][0]["after"]["site"] =
+        serde_json::json!([0, 3, 1]);
+    assert_eq!(
+        rebound_error(serde_json::from_value(unsupported).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+
+    let mut absent_edge: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    absent_edge["bundle"]["rules"][0]["operation_template"][2]["edge"] =
+        serde_json::json!(["water[1].h1", "water[1].h2", "single"]);
+    assert_eq!(
+        rebound_error(serde_json::from_value(absent_edge).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+
+    let mut wrong_charge: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    wrong_charge["bundle"]["rules"][0]["operation_template"][7]["component_charges"] =
+        serde_json::json!([2, -2]);
+    assert_eq!(
+        rebound_error(serde_json::from_value(wrong_charge).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+
+    let mut incomplete_component: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    incomplete_component["bundle"]["rules"][0]["operation_template"][7]["components"][1]
         .as_array_mut()
         .unwrap()
-        .push(density_fact);
-    assert!(
-        validator.is_valid(&document),
-        "domain Quantity serialization must satisfy the catalogue schema: {:?}",
-        validator.iter_errors(&document).collect::<Vec<_>>()
+        .pop();
+    assert_eq!(
+        rebound_error(serde_json::from_value(incomplete_component).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
     );
 
-    let valid_density_fact = document["bundle"]["facts"][8].clone();
-    document["bundle"]["facts"][8]["proposition"]["density"] = serde_json::json!({"value": 1});
-    assert!(!validator.is_valid(&document));
+    let mut unbound_valence: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    unbound_valence["bundle"]["premises"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "id": "premise.valence.unbound",
+            "statement": "A deliberately unbound test premise.",
+            "evidence": ["evidence.iupac.goldbook"],
+            "review": {"status": "provisional"},
+            "rule_version": "1"
+        }));
+    unbound_valence["bundle"]["valence_premises"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "premise_id": "premise.valence.unbound",
+            "neutral_valence": [{"element": "O", "neutral_valence_electrons": 6}],
+            "supported_states": [{
+                "element": "O", "formal_charge": -1,
+                "non_bonding_electrons": 6, "unpaired_electrons": 2,
+                "covalent_bond_order_sum": 1
+            }]
+        }));
+    unbound_valence["bundle"]["rules"][0]["operation_template"][2]["after"]["left"] =
+        serde_json::json!([-1, 6, 2]);
+    assert_eq!(
+        rebound_error(serde_json::from_value(unbound_valence).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+}
 
-    for (pointer, overflow) in [
-        (
-            "/proposition/density/dimension/mass",
-            serde_json::json!(2_147_483_648_i64),
-        ),
-        (
-            "/proposition/density/source_decimal/scale",
-            serde_json::json!(4_294_967_296_u64),
-        ),
-        (
-            "/proposition/density/source_decimal/precision/written_digits",
-            serde_json::json!(4_294_967_296_u64),
-        ),
-        (
-            "/proposition/density/source_unit/dividend/factors/0/exponent",
-            serde_json::json!(-2_147_483_649_i64),
-        ),
-        (
-            "/proposition/density/conversion_derivation/steps/0/exponent",
-            serde_json::json!(2_147_483_648_i64),
-        ),
-    ] {
-        let mut overflow_document: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
-        let mut overflow_fact = valid_density_fact.clone();
-        *overflow_fact.pointer_mut(pointer).unwrap() = overflow;
-        overflow_document["bundle"]["facts"]
+#[test]
+fn every_closed_operation_variant_has_a_negative_validation_case() {
+    let base: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    let mut cases = Vec::new();
+
+    let mut release = base.clone();
+    release["bundle"]["rules"][0]["operation_template"][0]["domain"] =
+        Value::from("metal[1].missing");
+    cases.push(release);
+
+    let mut cleave = base.clone();
+    cleave["bundle"]["rules"][0]["operation_template"][2]["edge"] =
+        serde_json::json!(["water[1].h1", "water[1].h2", "single"]);
+    cases.push(cleave);
+
+    let mut form = base.clone();
+    form["bundle"]["rules"][0]["operation_template"][6]["electron_contribution"] =
+        serde_json::json!({"left": 0, "right": 0});
+    cases.push(form);
+
+    let mut change = base.clone();
+    change["bundle"]["rules"][0]["operation_template"]
+        .as_array_mut()
+        .unwrap()
+        .insert(
+            7,
+            serde_json::json!({
+                "kind": "change_covalent",
+                "edge": ["water[1].o", "water[1].h1"],
+                "old_order": "single",
+                "new_order": "single",
+                "allocation": "homolytic",
+                "before": {"left": [0,4,0], "right": [0,0,0]},
+                "after": {"left": [0,4,0], "right": [0,0,0]}
+            }),
+        );
+    cases.push(change);
+
+    let mut associate = base.clone();
+    associate["bundle"]["rules"][0]["operation_template"][7]["component_charges"] =
+        serde_json::json!([2, -2]);
+    cases.push(associate);
+
+    let mut dissociate = base.clone();
+    dissociate["bundle"]["rules"][0]["operation_template"]
+        .as_array_mut()
+        .unwrap()
+        .insert(
+            7,
+            serde_json::json!({
+                "kind": "dissociate_ionic",
+                "association": "water[1].missing"
+            }),
+        );
+    cases.push(dissociate);
+
+    let mut join = base.clone();
+    join["bundle"]["rules"][0]["operation_template"]
+        .as_array_mut()
+        .unwrap()
+        .insert(
+            7,
+            serde_json::json!({
+                "kind": "join_metallic",
+                "site": "metal[1].li",
+                "domain": "metal[1].missing",
+                "allocation": "donate_electron",
+                "before": {"site": [0,1,1], "domain_electrons": 0},
+                "after": {"site": [1,0,0], "domain_electrons": 1}
+            }),
+        );
+    cases.push(join);
+
+    let mut transfer = base.clone();
+    transfer["bundle"]["rules"][0]["operation_template"][4]["count"] = Value::from(0);
+    cases.push(transfer);
+
+    let mut assign = base;
+    assign["bundle"]["rules"][0]["operation_template"][9]["product"] = Value::from("missing[1]");
+    cases.push(assign);
+
+    for case in cases {
+        let envelope: CatalogueEnvelope = serde_json::from_value(case).unwrap();
+        assert_eq!(
+            rebound_error(envelope),
+            CatalogueErrorCode::InvalidOperationTemplate
+        );
+    }
+}
+
+#[test]
+fn dative_style_formation_and_inexact_metallic_radicals_are_rejected() {
+    let mut dative: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    dative["bundle"]["rules"][0]["operation_template"][6] = serde_json::json!({
+        "kind": "form_covalent",
+        "edge": ["water[1].o", "water[1].h1", "single"],
+        "electron_contribution": {"left": 2, "right": 0},
+        "before": {"left": [-1,6,0], "right": [1,0,0]},
+        "after": {"left": [0,4,0], "right": [0,0,0]}
+    });
+    assert_eq!(
+        rebound_error(serde_json::from_value(dative).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+
+    let add_states = |value: &mut Value| {
+        let states = value["bundle"]["valence_premises"][0]["supported_states"]
             .as_array_mut()
-            .unwrap()
-            .push(overflow_fact);
-        assert!(!validator.is_valid(&overflow_document), "{pointer}");
-    }
+            .unwrap();
+        states.push(serde_json::json!({
+            "element": "Li", "formal_charge": -1,
+            "non_bonding_electrons": 2, "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+        }));
+        states.push(serde_json::json!({
+            "element": "Li", "formal_charge": -2,
+            "non_bonding_electrons": 3, "unpaired_electrons": 3,
+            "covalent_bond_order_sum": 0
+        }));
+    };
+
+    let mut release: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    add_states(&mut release);
+    release["bundle"]["rules"][0]["operation_template"][0]["before"]["site"] =
+        serde_json::json!([-1, 2, 0]);
+    release["bundle"]["rules"][0]["operation_template"][0]["after"]["site"] =
+        serde_json::json!([-2, 3, 3]);
+    assert_eq!(
+        rebound_error(serde_json::from_value(release).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+
+    let mut join: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    add_states(&mut join);
+    join["bundle"]["rules"][0]["operation_template"]
+        .as_array_mut()
+        .unwrap()
+        .insert(
+            7,
+            serde_json::json!({
+                "kind": "join_metallic",
+                "site": "metal[1].li",
+                "domain": "metal[1].metallic",
+                "allocation": "donate_electron",
+                "before": {"site": [-2,3,3], "domain_electrons": 0},
+                "after": {"site": [-1,2,0], "domain_electrons": 1}
+            }),
+        );
+    assert_eq!(
+        rebound_error(serde_json::from_value(join).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
 }
 
 #[test]
-fn silver_chloride_fixture_resolves_the_complete_teaching_domain() {
-    let catalogue =
-        ValidatedCatalogue::from_json(&fixture_bytes()).expect("fixture should validate");
-    for symbol in ["H", "N", "O", "Na", "Cl", "Ag"] {
-        assert!(
-            catalogue.element(&symbol.parse().unwrap()).is_some(),
-            "{symbol}"
-        );
-    }
-    for substance in [
-        "water",
-        "sodium-chloride",
-        "silver-nitrate",
-        "sodium-nitrate",
-        "silver-chloride",
-        "sodium-ion",
-        "chloride-ion",
-        "silver-ion",
-        "nitrate-ion",
-    ] {
-        assert!(catalogue.substance(&id::<SubstanceId>(substance)).is_some());
-    }
-    for species in [
-        "sodium-chloride.aq",
-        "silver-nitrate.aq",
-        "sodium-nitrate.aq",
-        "silver-chloride.s",
-        "sodium.aq.plus",
-        "chloride.aq.minus",
-        "silver.aq.plus",
-        "nitrate.aq.minus",
-    ] {
-        assert!(catalogue.species(&id::<SpeciesId>(species)).is_some());
-    }
+fn corrupt_evidence_and_review_are_typed_system_errors() {
+    let mut missing_evidence = envelope();
+    missing_evidence.bundle.evidence.pop();
+    assert_eq!(
+        rebound_error(missing_evidence),
+        CatalogueErrorCode::MissingEvidence
+    );
+
+    let mut provisional = envelope();
+    provisional.bundle.publication = PublicationKind::Production;
+    assert_eq!(
+        rebound_error(provisional),
+        CatalogueErrorCode::IneligibleProductionRecord
+    );
+}
+
+#[test]
+fn calendar_dates_are_validated_for_all_review_and_evidence_metadata() {
+    let mut invalid_creation = envelope();
+    invalid_creation.bundle.created.created_on = "2026-02-29".to_owned();
+    assert_eq!(
+        rebound_error(invalid_creation),
+        CatalogueErrorCode::InvalidMetadata
+    );
+
+    let mut invalid_evidence = envelope();
+    invalid_evidence.bundle.evidence[0].retrieved_on = "2026-99-99".to_owned();
+    assert_eq!(
+        rebound_error(invalid_evidence),
+        CatalogueErrorCode::MissingEvidence
+    );
+
+    let mut invalid_reviewer = envelope();
+    invalid_reviewer.bundle.premises[0].review.status = ReviewStatus::Reviewed;
+    invalid_reviewer.bundle.premises[0].review.reviewers = vec![ReviewerRecord {
+        reviewer: "Reviewer".to_owned(),
+        reviewed_on: "0000-00-00".to_owned(),
+        reference: "review.invalid-date".to_owned(),
+        notes: None,
+    }];
+    assert_eq!(
+        rebound_error(invalid_reviewer),
+        CatalogueErrorCode::InvalidReview
+    );
+}
+
+#[test]
+fn all_four_language_observation_predicates_are_typed() {
+    let mut extended = envelope();
+    let rule = &mut extended.bundle.rules[0];
+    rule.observation_compatibility
+        .push(ObservationCompatibilityRecord {
+            subject_role: "gasProduct".to_owned(),
+            predicate: ObservationPredicate::Forms,
+            evidence_subject: "hydrogen".to_owned(),
+            value: None,
+            premise_id: PremiseId::from_str("premise.observation.hydrogen-evolves").unwrap(),
+        });
+    rule.observation_compatibility
+        .push(ObservationCompatibilityRecord {
+            subject_role: "gasProduct".to_owned(),
+            predicate: ObservationPredicate::Colour,
+            evidence_subject: "hydrogen".to_owned(),
+            value: Some("colourless".to_owned()),
+            premise_id: PremiseId::from_str("premise.observation.hydrogen-evolves").unwrap(),
+        });
+    ValidatedCatalogueBundle::validate(rebound(extended)).unwrap();
+
+    let mut missing_value = envelope();
+    missing_value.bundle.rules[0]
+        .observation_compatibility
+        .push(ObservationCompatibilityRecord {
+            subject_role: "gasProduct".to_owned(),
+            predicate: ObservationPredicate::Colour,
+            evidence_subject: "hydrogen".to_owned(),
+            value: None,
+            premise_id: PremiseId::from_str("premise.observation.hydrogen-evolves").unwrap(),
+        });
+    assert_eq!(
+        rebound_error(missing_value),
+        CatalogueErrorCode::InvalidRule
+    );
+}
+
+#[test]
+fn unsupported_lookup_is_distinct_from_invalid_bundle() {
+    let catalogue = ValidatedCatalogueBundle::from_json(&fixture_bytes()).unwrap();
+    let unknown_structure = StructureId::from_str("UnknownStructure").unwrap();
+    let unknown_rule = ReactionRuleId::from_str("Rules.Unknown").unwrap();
+    assert!(catalogue.structure(&unknown_structure).is_none());
+    assert!(catalogue.rule(&unknown_rule).is_none());
     assert_eq!(
         catalogue
-            .medium_by_alias("aqueous")
-            .map(|medium| medium.id.as_str()),
-        Some("water")
+            .require_structure(&unknown_structure)
+            .unwrap_err()
+            .to_string(),
+        "unsupported structure `UnknownStructure`"
     );
     assert_eq!(
         catalogue
-            .substance_by_alias("AgCl")
-            .map(|substance| substance.id.as_str()),
-        Some("silver-chloride")
+            .require_rule(&unknown_rule)
+            .unwrap_err()
+            .to_string(),
+        "unsupported reaction rule `Rules.Unknown`"
     );
-
-    let chloride = id::<SpeciesId>("chloride.aq.minus");
-    let room = ConditionPoint {
-        temperature_kelvin: ExactScalar::new(5963.into(), 20.into()).unwrap(),
-        pressure_pascal: ExactScalar::from_integer(101_325),
-        medium: id::<MediumId>("water"),
-        phase: Some(Phase::Aqueous),
-    };
-    let applicable = catalogue.applicable_facts_for_species(&chloride, &room);
-    assert!(
-        applicable
-            .iter()
-            .any(|fact| matches!(fact.proposition, FactProposition::Dissociates { .. }))
-    );
-    assert!(
-        catalogue
-            .fact(&id::<FactId>("solubility.silver-chloride"))
-            .is_some()
-    );
-    assert!(
-        catalogue
-            .fact(&id::<FactId>("observation.silver-chloride-colour"))
-            .is_some()
-    );
-    for evidence in [
-        "iupac.periodic-table",
-        "openstax.reaction-classification",
-        "openstax.solubility",
-        "openstax.precipitation",
-        "pubchem.silver-chloride",
-    ] {
-        assert!(
-            catalogue
-                .evidence(&id::<EvidenceSourceId>(evidence))
-                .is_some()
-        );
-    }
-    assert!(catalogue.document().coverage.is_empty());
-}
-
-#[test]
-fn every_identity_and_fact_is_a_resolvable_provenance_premise() {
-    let catalogue =
-        ValidatedCatalogue::from_json(&fixture_bytes()).expect("fixture should validate");
-    let document = catalogue.document();
-    let identity_count = document.elements.len()
-        + document.substances.len()
-        + document.species.len()
-        + document.media.len();
-
-    let identity_premises = document
-        .elements
-        .iter()
-        .map(|record| &record.provenance)
-        .chain(document.substances.iter().map(|record| &record.provenance))
-        .chain(document.species.iter().map(|record| &record.provenance))
-        .chain(document.media.iter().map(|record| &record.provenance));
-    for provenance in identity_premises {
-        let premise = catalogue
-            .premise(&provenance.id)
-            .expect("identity premise should resolve by stable fact ID");
-        assert_eq!(premise.id(), &provenance.id);
-        assert!(!premise.evidence().is_empty());
-        assert_eq!(
-            premise.review().status,
-            chem_catalogue::ReviewStatus::Reviewed
-        );
-        assert!(!premise.rule_version().is_empty());
-    }
-    for fact in &document.facts {
-        assert_eq!(catalogue.premise(&fact.id).unwrap().id(), &fact.id);
-    }
-    assert_eq!(identity_count, 25);
-}
-
-#[test]
-fn condition_domains_do_not_extrapolate_across_boundaries() {
-    let catalogue =
-        ValidatedCatalogue::from_json(&fixture_bytes()).expect("fixture should validate");
-    let fact = catalogue
-        .fact(&id::<FactId>("solubility.silver-chloride"))
-        .unwrap();
-    let at_boundary = ConditionPoint {
-        temperature_kelvin: ExactScalar::new(5963.into(), 20.into()).unwrap(),
-        pressure_pascal: ExactScalar::from_integer(101_325),
-        medium: id::<MediumId>("water"),
-        phase: Some(Phase::Solid),
-    };
-    assert!(fact.condition.contains(&at_boundary));
-    let mut outside = at_boundary;
-    outside.temperature_kelvin = ExactScalar::new(5964.into(), 20.into()).unwrap();
-    assert!(!fact.condition.contains(&outside));
-    let range = fact.condition.temperature_kelvin.as_ref().unwrap();
-    assert_eq!(range.minimum_bound, BoundaryKind::Inclusive);
-    assert_eq!(range.maximum_bound, BoundaryKind::Inclusive);
-}
-
-#[test]
-fn species_fact_lookup_intersects_the_species_implicit_phase() {
-    let mut envelope = envelope();
-    envelope.bundle.facts[0].condition.phases = None;
-    envelope.digest = envelope.computed_digest().unwrap();
-    let catalogue = envelope.validate().unwrap();
-    let species = id::<SpeciesId>("sodium-chloride.aq");
-    let wrong_phase = ConditionPoint {
-        temperature_kelvin: ExactScalar::new(5963.into(), 20.into()).unwrap(),
-        pressure_pascal: ExactScalar::from_integer(101_325),
-        medium: id::<MediumId>("water"),
-        phase: Some(Phase::Gas),
-    };
-    assert!(
-        catalogue
-            .applicable_facts_for_species(&species, &wrong_phase)
-            .is_empty()
-    );
-
-    let mut implicit_phase = wrong_phase;
-    implicit_phase.phase = None;
-    assert!(
-        catalogue
-            .applicable_facts_for_species(&species, &implicit_phase)
-            .iter()
-            .any(|fact| fact.id.as_str() == "dissociation.sodium-chloride")
-    );
-}
-
-#[test]
-fn every_corrupt_catalogue_is_a_typed_system_error() {
-    let expected: CorruptionFixture = serde_json::from_slice(
-        &fs::read(
-            workspace_root().join("conformance/catalogue/catalogue-corruptions-001.input.json"),
-        )
-        .expect("corruption fixture should be readable"),
-    )
-    .expect("corruption fixture should parse");
-    assert_eq!(expected.base, "silver-chloride-001.catalogue.json");
-    let all_codes = expected
-        .corruptions
-        .iter()
-        .map(|fixture| fixture.expected_code.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(
-        all_codes.len(),
-        17,
-        "every catalogue error code needs an oracle"
-    );
-
-    for fixture in &expected.corruptions {
-        let mut corrupt: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
-        apply_operations(&mut corrupt, &fixture.operations);
-        if fixture.rebind_digest {
-            rebind_json(&mut corrupt);
-        }
-        let bytes = serde_json::to_vec(&corrupt).unwrap();
-        let error = ValidatedCatalogue::from_json(&bytes).expect_err("corrupt bundle must fail");
-        assert!(error.is_system_error());
-        assert_eq!(
-            error.diagnostic_code(),
-            fixture.expected_code,
-            "{}: {error}",
-            fixture.mutation
-        );
-    }
-}
-
-#[test]
-fn semantic_mutation_changes_the_digest_and_stale_binding_fails() {
-    let original = envelope();
-    let mut mutated = original.clone();
-    mutated.bundle.created.notes = Some("semantically changed".to_owned());
-    let changed = mutated.computed_digest().unwrap();
-    assert_ne!(changed, original.digest);
-    let error = mutated.validate().expect_err("stale digest must fail");
-    assert_eq!(error.code(), CatalogueErrorCode::DigestMismatch);
-
-    assert_eq!(
-        ContentDigest::from_str(&original.digest.to_string()).unwrap(),
-        original.digest
-    );
-}
-
-#[test]
-fn digest_binds_each_semantic_catalogue_record_category() {
-    let original = envelope();
-    let mut mutations = Vec::new();
-
-    let mut metadata = original.clone();
-    metadata.bundle.name = "chemspec.changed".to_owned();
-    mutations.push(metadata);
-    let mut element = original.clone();
-    element.bundle.elements[0].name = "protium".to_owned();
-    mutations.push(element);
-    let mut substance = original.clone();
-    substance.bundle.substances[0]
-        .aliases
-        .push("oxidane".to_owned());
-    mutations.push(substance);
-    let mut species = original.clone();
-    species.bundle.species[0].id = id("water.liquid.changed");
-    mutations.push(species);
-    let mut medium = original.clone();
-    medium.bundle.media[0]
-        .aliases
-        .push("water-medium".to_owned());
-    mutations.push(medium);
-    let mut fact = original.clone();
-    fact.bundle.facts[7].rule_version = "observation-2".to_owned();
-    mutations.push(fact);
-    let mut evidence = original.clone();
-    evidence.bundle.evidence[0].locator = "changed locator".to_owned();
-    mutations.push(evidence);
-    let mut provenance = original.clone();
-    provenance.bundle.elements[0].provenance.rule_version = "element-identity-2".to_owned();
-    mutations.push(provenance);
-
-    for mutation in mutations {
-        assert_ne!(mutation.computed_digest().unwrap(), original.digest);
-    }
-}
-
-#[test]
-fn canonical_digest_ignores_record_and_reaction_side_order() {
-    let original = envelope();
-    let mut reordered = original.clone();
-    reordered.bundle.elements.reverse();
-    reordered.bundle.substances.reverse();
-    reordered.bundle.species.reverse();
-    reordered.bundle.facts.reverse();
-    reordered.bundle.evidence.reverse();
-    let dissociation_index = reordered
-        .bundle
-        .facts
-        .iter()
-        .position(|fact| fact.id.as_str() == "dissociation.sodium-chloride")
-        .unwrap();
-    let FactProposition::Dissociates { products, .. } =
-        &mut reordered.bundle.facts[dissociation_index].proposition
-    else {
-        unreachable!()
-    };
-    products.reverse();
-    assert_eq!(reordered.computed_digest().unwrap(), original.digest);
 }

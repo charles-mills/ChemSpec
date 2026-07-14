@@ -127,23 +127,14 @@ fn canonical_rule_fixture_is_executable_data_not_prose() {
             .expect("catalogue fixture should be readable"),
     )
     .expect("catalogue fixture should be JSON");
-    let rule = &catalogue["rules"][0];
+    let bundle = &catalogue["bundle"];
+    let rule = &bundle["rules"][0];
 
-    let resolved_premises = catalogue["structures"]
+    let resolved_premises = bundle["premises"]
         .as_array()
-        .expect("structures should be an array")
+        .expect("premises should be an array")
         .iter()
-        .chain(
-            catalogue["valence_premises"]
-                .as_array()
-                .expect("valence premises should be an array"),
-        )
-        .filter_map(|record| {
-            record["premise_id"]
-                .as_str()
-                .or_else(|| record["id"].as_str())
-        })
-        .chain(rule["applicability"]["premise_id"].as_str())
+        .filter_map(|record| record["id"].as_str())
         .collect::<std::collections::BTreeSet<_>>();
 
     assert_eq!(rule["reactant_pattern"].as_array().map(Vec::len), Some(2));
