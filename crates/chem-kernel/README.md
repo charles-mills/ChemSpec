@@ -1,7 +1,7 @@
 # `chem-kernel`
 
-`chem-kernel` owns deterministic structural elaboration and, in Slice 5, the
-trusted graph-state validation boundary. There is no discarded quantitative
+`chem-kernel` owns deterministic structural elaboration and the trusted
+graph-state validation boundary. There is no discarded quantitative
 compatibility path.
 
 Slice 4 resolves complete `chems 1` source, an immutable catalogue, and one
@@ -37,6 +37,23 @@ exact source spans and per-derived-value catalogue premises. It exposes a
 declaration-order-invariant semantic certificate plus a separate physical
 provenance report, and labels expansion explicitly `unexecuted`. No Slice 4
 API executes a graph operation or constructs a validated reaction.
+
+## Structural validation
+
+Slice 5 consumes expanded operations in their immutable ordinal sequence. For
+every transition it checks the immediately preceding endpoint/bond/domain
+state, reconstructs a validated `StructuralGraph`, checks reviewed valence and
+formal-charge facts, and proves atom-count, explicit-electron, and closed-system
+charge conservation. The final mapped atoms, covalent edges, ionic components,
+metallic domains, and product assignments must exactly equal the declared
+product graphs.
+
+`validate_review_candidate` produces a derivation whose serialized trust is
+explicitly `review_candidate`; it cannot construct trusted chemistry.
+`validate_trusted` accepts only the unforgeable trusted expansion and
+host-reviewed `TrustedCatalogue`, and is the sole constructor of
+`ValidatedStructuralReaction`. The derivation records source, expansion, and
+catalogue identities and rejects stale reuse.
 
 Failures retain a stable class and `CHEMS-X...` code:
 

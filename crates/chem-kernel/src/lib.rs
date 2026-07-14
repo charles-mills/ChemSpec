@@ -9,6 +9,7 @@ mod elaborate;
 mod error;
 mod evidence;
 mod hir;
+mod validate;
 
 pub use elaborate::{expand_review_candidate, expand_trusted};
 pub use error::{ExpansionError, ExpansionFailureClass};
@@ -23,4 +24,9 @@ pub use hir::{
     ResolvedEquationTerm, ResolvedEvidence, ResolvedModel, ResolvedObservation,
     ResolvedReactionClaim, ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding,
     SourceOrigin, SourceReference, TrustedExpandedStructuralReaction,
+};
+pub use validate::{
+    DerivationTrust, KernelError, KernelFailureClass, ReviewCandidateStructuralDerivation,
+    StructuralDerivation, StructuralLedger, StructuralState, ValidatedStructuralReaction,
+    ValidationResult, validate_review_candidate, validate_trusted,
 };

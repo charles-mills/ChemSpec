@@ -79,7 +79,8 @@ attestation; implementation must not manufacture or infer that human sign-off.
 - Slice 2 replaces parser/formatter cases and their independent CST/AST oracles.
 - Slice 3 validates reviewed catalogue and rule fixtures.
 - Slice 4 validates expansion and certificate oracles.
-- Slice 5 adds operation, conservation, derivation, and negative kernel cases.
+- Slice 5 executes the complete independent state-chain oracle and adds exact
+  operation-precondition, conservation, mapping, product, and staleness cases.
 - Slice 6 adds frames, staleness, artifact, and complete end-to-end evidence.
 
 Each case is promoted from `incomplete` only when its producing implementation

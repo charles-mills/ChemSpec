@@ -144,6 +144,22 @@
       "expected": { "state": "incomplete" }
     },
     {
+      "id": "canonical-kernel-001",
+      "component": "validation-kernel",
+      "requirements": ["KER-001", "KER-002"],
+      "expected": {
+        "state": "incomplete",
+        "derivation": "conformance/validation-kernel/canonical-kernel-001.derivation.json"
+      }
+    },
+    {
+      "id": "kernel-negative-001",
+      "component": "validation-kernel",
+      "requirements": ["KER-001", "KER-002"],
+      "input": "conformance/validation-kernel/kernel-negative-001.input.json",
+      "expected": { "state": "validated" }
+    },
+    {
       "id": "lithium-outcome-001",
       "component": "end-to-end",
       "requirements": ["END-001"],
