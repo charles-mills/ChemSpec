@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use chem_domain::{AtomId, CovalentElectronOrigin};
-use chem_kernel::{ObservationStatus, SimulationFrame, SimulationFrames};
+use chem_kernel::{SimulationFrame, SimulationFrames};
 use iced::alignment;
 use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
@@ -55,63 +55,6 @@ impl<Message> canvas::Program<Message> for ReactionSequenceDiagram<'_> {
         }
 
         vec![canvas.into_geometry()]
-    }
-}
-
-#[must_use]
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    reason = "progress is clamped to 0..=1 and the result is clamped to the existing frame range"
-)]
-pub fn frame_index(progress: f32, frame_count: usize) -> usize {
-    if frame_count <= 1 {
-        return 0;
-    }
-    let last = frame_count - 1;
-    let scaled = progress.clamp(0.0, 1.0) * last as f32;
-    (scaled.round() as usize).min(last)
-}
-
-#[must_use]
-pub fn stage_index(progress: f32) -> usize {
-    match progress.clamp(0.0, 1.0) {
-        value if value < 0.20 => 0,
-        value if value < 0.72 => 1,
-        value if value < 0.92 => 2,
-        _ => 3,
-    }
-}
-
-pub const STAGES: [&str; 4] = [
-    "Validated reactants",
-    "Structural changes",
-    "Ionic products",
-    "Assigned products",
-];
-
-pub fn frame_summary(frame: &SimulationFrame) -> String {
-    let established = frame
-        .observations()
-        .iter()
-        .filter(|observation| observation.status == ObservationStatus::Established)
-        .count();
-    match frame.active_operation() {
-        Some(operation) => format!(
-            "Validated operation {} · {} structural changes · {} observations established",
-            operation.ordinal,
-            frame.changes().len(),
-            established
-        ),
-        None if frame.ordinal() == 0 => {
-            "Validated initial graph · atom identities preserved through every frame".to_owned()
-        }
-        None => format!(
-            "Validated state {} · {} products assigned",
-            frame.ordinal(),
-            frame.product_membership().len()
-        ),
     }
 }
 
@@ -320,22 +263,4 @@ const fn element_color(symbol: &str) -> Color {
 
 fn with_alpha(color: Color, alpha: f32) -> Color {
     Color::from_rgba(color.r, color.g, color.b, color.a * alpha.clamp(0.0, 1.0))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::chemistry;
-
-    #[test]
-    fn progress_selects_only_existing_trusted_frames() {
-        let frame_count = chemistry::run(chemistry::Experience::DEFAULT)
-            .unwrap()
-            .frames()
-            .frames()
-            .len();
-        assert_eq!(frame_index(0.0, frame_count), 0);
-        assert_eq!(frame_index(1.0, frame_count), frame_count - 1);
-        assert!(frame_index(0.5, frame_count) < frame_count);
-    }
 }

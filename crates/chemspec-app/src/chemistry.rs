@@ -6,7 +6,6 @@
 use std::sync::LazyLock;
 
 use chem_catalogue::{ObservationPredicate, TrustedCatalogue};
-use chem_domain::ContentDigest;
 use chem_kernel::{
     CurrentArtifactIdentity, SimulationFrames, expand_trusted, generate_frames, validate_trusted,
 };
@@ -133,18 +132,12 @@ impl Experience {
 #[derive(Debug)]
 pub struct TrustedRun {
     frames: SimulationFrames,
-    frame_digest: ContentDigest,
 }
 
 impl TrustedRun {
     #[must_use]
     pub const fn frames(&self) -> &SimulationFrames {
         &self.frames
-    }
-
-    #[must_use]
-    pub const fn frame_digest(&self) -> ContentDigest {
-        self.frame_digest
     }
 }
 
@@ -174,11 +167,7 @@ pub fn run(experience: Experience) -> Result<&'static TrustedRun, &'static str> 
 
 fn build_run(experience: Experience) -> Result<TrustedRun, String> {
     let frames = validate_experience_source(experience, experience.source())?;
-    let frame_digest = frames.digest().map_err(|error| error.to_string())?;
-    Ok(TrustedRun {
-        frames,
-        frame_digest,
-    })
+    Ok(TrustedRun { frames })
 }
 
 /// Parses, expands, validates, and projects source against the exact host-pinned

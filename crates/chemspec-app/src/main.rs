@@ -11,7 +11,6 @@ mod particle_visualization;
 mod periodic_table;
 mod reactant_composer;
 mod reaction_sequence;
-mod reaction_workspace;
 mod scene_registry;
 mod structural_2d;
 mod structural_3d;
@@ -261,7 +260,6 @@ enum Message {
     ProviderContinue,
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
-    ReactionWorkspace(reaction_workspace::Message),
     RequestChanged(String),
     RequestSubmitted,
     SourceEdited(text_editor::Action),
@@ -298,7 +296,6 @@ struct App {
     api_key: String,
     periodic_table: periodic_table::State,
     reactant_composer: reactant_composer::State,
-    reaction_workspace: reaction_workspace::State,
     active_experience: chemistry::Experience,
     request: String,
     source: text_editor::Content,
@@ -324,7 +321,6 @@ impl Default for App {
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
-            reaction_workspace: reaction_workspace::State::default(),
             active_experience,
             request: active_experience.request().to_owned(),
             source: text_editor::Content::with_text(active_experience.source()),
@@ -357,9 +353,7 @@ impl App {
             }
             Message::PeriodicTable(message) => {
                 periodic_table::update(&mut self.periodic_table, message);
-                if !reaction_workspace::sequence_active(&self.reaction_workspace)
-                    && let periodic_table::Message::Activated(atomic_number) = message
-                {
+                if let periodic_table::Message::Activated(atomic_number) = message {
                     reactant_composer::update(
                         &mut self.reactant_composer,
                         reactant_composer::Message::AddElement(atomic_number),
@@ -368,9 +362,6 @@ impl App {
             }
             Message::ReactantComposer(message) => {
                 self.update_reactant_composer(message);
-            }
-            Message::ReactionWorkspace(message) => {
-                reaction_workspace::update(&mut self.reaction_workspace, message);
             }
             Message::RequestChanged(request) => self.request = request,
             // The offline fixture crosses the same trusted language/kernel
@@ -466,17 +457,11 @@ impl App {
             return;
         }
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-        let first = first.to_vec();
-        let second = second.to_vec();
-        let Some(experience) = chemistry::experience_for_drafts(&first, &second) else {
+        let Some(experience) = chemistry::experience_for_drafts(first, second) else {
             return;
         };
         self.select_experience(experience);
-        reaction_workspace::load_reactants(&mut self.reaction_workspace, &first, &second);
-        reaction_workspace::update(
-            &mut self.reaction_workspace,
-            reaction_workspace::Message::StartReaction,
-        );
+        self.open_structural_animation();
     }
 
     fn revalidate_source(&mut self) {
@@ -568,17 +553,10 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         if self.screen == Screen::Builder {
-            let composer = if reaction_workspace::sequence_active(&self.reaction_workspace) {
-                Subscription::none()
-            } else {
-                reactant_composer::subscription(&self.reactant_composer)
-                    .map(Message::ReactantComposer)
-            };
             Subscription::batch([
                 periodic_table::subscription(&self.periodic_table).map(Message::PeriodicTable),
-                composer,
-                reaction_workspace::subscription(&self.reaction_workspace)
-                    .map(Message::ReactionWorkspace),
+                reactant_composer::subscription(&self.reactant_composer)
+                    .map(Message::ReactantComposer),
             ])
         } else if matches!(self.screen, Screen::Structural2d | Screen::Structural3d)
             && self
@@ -741,13 +719,13 @@ impl App {
             Ok(animation) => {
                 self.structural_animation = Some(animation);
                 self.structural_error = None;
-                self.screen = Screen::Structural2d;
             }
             Err(error) => {
                 self.structural_animation = None;
                 self.structural_error = Some(error);
             }
         }
+        self.screen = Screen::Structural2d;
     }
 
     fn advance_educational_playback(&mut self, elapsed_ms: u32) {
@@ -1318,7 +1296,6 @@ impl App {
     fn builder_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
         let outer_padding = if compact { spacing::XS } else { spacing::SM };
-        let sequence_active = reaction_workspace::sequence_active(&self.reaction_workspace);
 
         let library =
             periodic_table::view(&self.periodic_table, compact).map(Message::PeriodicTable);
@@ -1328,24 +1305,17 @@ impl App {
             compact,
         )
         .map(Message::ReactantComposer);
-        let sequence: Element<'_, Message> =
-            reaction_workspace::view(&self.reaction_workspace, None, compact)
-                .map(Message::ReactionWorkspace);
 
-        let stages: Element<'_, Message> = if sequence_active {
-            container(sequence).width(Fill).height(Fill).into()
-        } else {
-            column![composer, library]
-                .spacing(spacing::XS)
-                .width(Fill)
-                .height(Fill)
-                .into()
-        };
+        let stages: Element<'_, Message> = column![composer, library]
+            .spacing(spacing::XS)
+            .width(Fill)
+            .height(Fill)
+            .into();
 
         let content = column![
-            Self::builder_context_bar(compact, sequence_active),
+            Self::builder_context_bar(compact),
             stages,
-            Self::builder_status_bar(compact, sequence_active),
+            Self::builder_status_bar(compact),
         ]
         .spacing(spacing::XS)
         .height(Fill);
@@ -1510,7 +1480,7 @@ impl App {
         .into()
     }
 
-    fn builder_context_bar(compact: bool, sequence_active: bool) -> Element<'static, Message> {
+    fn builder_context_bar(compact: bool) -> Element<'static, Message> {
         let brand = row![
             container(text("CS").size(type_scale::CAPTION).color(color::ACCENT))
                 .style(theme::accent_tint)
@@ -1521,11 +1491,7 @@ impl App {
                     .size(type_scale::MICRO)
                     .color(color::TEXT_SOFT),
                 text(if compact {
-                    if sequence_active {
-                        "Stage 5 · Animate"
-                    } else {
-                        "Stage 1 · Build"
-                    }
+                    "Stage 1 · Build"
                 } else {
                     "Elements  →  Build reactants  →  Animate  →  Result"
                 })
@@ -1553,27 +1519,17 @@ impl App {
             .into()
     }
 
-    fn builder_status_bar(compact: bool, sequence_active: bool) -> Element<'static, Message> {
+    fn builder_status_bar(compact: bool) -> Element<'static, Message> {
         container(
             row![
-                text(if sequence_active {
-                    "STAGE 5 · 2D PREVIEW"
-                } else {
-                    "STAGE 1 · REACTANT COMPOSER"
-                })
-                .size(type_scale::MICRO)
-                .color(color::SUCCESS),
+                text("STAGE 1 · REACTANT COMPOSER")
+                    .size(type_scale::MICRO)
+                    .color(color::SUCCESS),
                 space().width(Fill),
-                text(if !sequence_active {
-                    if compact {
-                        "NEXT · REACTION PREVIEW"
-                    } else {
-                        "NEXT · 2D REACTION PREVIEW · LOCKED UNTIL A SUPPORTED PAIR IS SET"
-                    }
-                } else if compact {
-                    "NEXT · 3D VIEW"
+                text(if compact {
+                    "NEXT · GUIDED ANIMATION"
                 } else {
-                    "NEXT · 3D LAB VISUALISATION · LOCKED UNTIL APPROVAL"
+                    "NEXT · GUIDED 2D ANIMATION · LOCKED UNTIL A SUPPORTED PAIR IS SET"
                 })
                 .size(type_scale::MICRO)
                 .color(color::MUTED),
@@ -2332,30 +2288,7 @@ mod tests {
     }
 
     #[test]
-    fn periodic_drag_can_drop_directly_into_workspace() {
-        let mut app = App::default();
-
-        app.update(Message::PeriodicTable(
-            periodic_table::Message::DragStarted(8),
-        ));
-        let dragged = periodic_table::dragging_atomic_number(&app.periodic_table)
-            .expect("periodic drag should remain active outside the tile");
-        app.update(Message::ReactionWorkspace(
-            reaction_workspace::Message::PointerMoved(iced::Point::new(0.4, 0.5)),
-        ));
-        app.update(Message::ReactionWorkspace(
-            reaction_workspace::Message::LibraryElementDropped(dragged),
-        ));
-        app.update(Message::PeriodicTable(periodic_table::Message::DragEnded));
-
-        assert_eq!(
-            reaction_workspace::placed_atom_count(&app.reaction_workspace),
-            1
-        );
-    }
-
-    #[test]
-    fn stage_one_supported_drafts_launch_the_sequence_without_a_workspace_screen() {
+    fn stage_one_supported_drafts_open_the_guided_animation_directly() {
         let mut app = App::default();
 
         app.update(Message::PeriodicTable(periodic_table::Message::Activated(
@@ -2384,17 +2317,15 @@ mod tests {
             reactant_composer::Message::StartReactionRequested,
         ));
 
-        assert!(reaction_workspace::sequence_active(&app.reaction_workspace));
-        assert_eq!(
-            reaction_workspace::placed_atom_count(&app.reaction_workspace),
-            4
-        );
+        assert_eq!(app.screen, Screen::Structural2d);
+        assert_eq!(app.active_experience, chemistry::Experience::Lithium);
+        let animation = app
+            .structural_animation
+            .as_ref()
+            .expect("guided animation compiles from the trusted frames");
+        assert!(animation.playing);
 
-        app.update(Message::ReactionWorkspace(
-            reaction_workspace::Message::WorkspaceReturned,
-        ));
-        assert!(!reaction_workspace::sequence_active(
-            &app.reaction_workspace
-        ));
+        app.update(Message::ScreenSelected(Screen::Builder));
+        assert_eq!(app.screen, Screen::Builder);
     }
 }
