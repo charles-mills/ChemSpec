@@ -19,6 +19,8 @@ pub enum DerivedQuantityRule {
     AmountFromLiquidVolume,
     IdealGasAmount,
     PreparedComponentSum,
+    MixtureVolume,
+    DissociationStoichiometry,
     ProportionalSplit,
 }
 

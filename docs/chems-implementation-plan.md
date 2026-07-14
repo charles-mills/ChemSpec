@@ -14,7 +14,7 @@ requirement coverage, and affected conformance cases.
 ## Current state
 
 The language specification and normative grammar are the only source contract.
-Slices 0–4 are complete. The executable conformance scaffold has stable
+Slices 0–5 are complete. The executable conformance scaffold has stable
 requirement IDs, schemas, fixture validation, grammar and reserved-word checks,
 and coverage reporting. `chem-domain` implements exact values and stable
 chemistry identities; `chems-lang` implements the complete lossless source
@@ -24,8 +24,11 @@ reviewed silver-chloride fixture. No legacy grammar or compatibility parser is
 retained. `chem-kernel` now resolves complete source into catalogue-backed
 `TypedExperiment` HIR with stable IDs, exact typed conditions and quantities,
 resolved species/materials/operands, explicit premise and assumption tracing,
-and source origins. Procedure execution and claim validation remain outside the
-completed boundary.
+and source origins. `chem-domain` and `chem-kernel` now also construct immutable
+stage timelines, enforce the closed procedure transition set, preserve exact
+inventory lineage and conservation, and expose catalogue-scoped reaction
+opportunities without inferring reaction outcomes. Claim validation remains
+outside the completed boundary.
 
 ## Target crate boundaries
 
@@ -609,8 +612,7 @@ Do not make the code's current behavior normative after the fact.
 
 ## Immediate next action
 
-Begin Slice 5 against the completed typed HIR. Add immutable initial stages and
-inventory ledgers, validate prepared-material initial state, execute the closed
-procedure operation set exactly, enforce vessel/location/capacity/closure and
-condition invariants, and create reaction opportunities without beginning
-reaction inference, claims, goals, tactics, or artifact construction.
+Begin Slice 6 against the completed immutable stage timeline. Elaborate claims
+and holes at resolved stage references, build deterministic open goals, and
+preserve the boundary that no tactic or chemistry rule is required merely to
+inspect the goal graph.

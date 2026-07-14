@@ -1,0 +1,29 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+
+experiment StateTimeline where
+  conditions
+    temperature := 25 degC
+    pressure := 1 atm
+    medium := aqueous
+
+  given
+    solution := 50 mL of 0.100 mol/L AgNO3(aq)
+
+  vessels
+    source := open vessel 100 mL
+    target := open vessel 100 mL
+
+  procedure
+    place solution in source
+    aliquot: transfer 20 mL from source to target
+    stir target for 2 min
+    wait 30 s
+    seal target
+    open target
+
+  expect at final
+    amount AgNO3(aq) := ?
+
+  by
+    solve stoichiometry

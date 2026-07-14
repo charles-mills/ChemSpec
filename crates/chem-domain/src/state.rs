@@ -1,10 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
 use crate::{
-    AnalyticalComponent, ExactScalar, InventoryPortionId, MaterialId, MediumId, OperationId,
-    Phase, Quantity, ReactionOpportunityId, StageId, TemperaturePoint, VesselId,
+    AnalyticalComponent, CoverageId, DerivedQuantity, ExactScalar, FactId, InventoryPortionId,
+    MaterialId, MediumId, OperationId, Phase, Quantity, ReactionOpportunityId, SpeciesId, StageId,
+    TemperaturePoint, VesselId,
 };
 
 /// Closure state of one logical vessel.
@@ -15,12 +16,23 @@ pub enum ClosureState {
     Closed,
 }
 
-/// Contact state asserted by explicit procedure operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Closed rule establishing that a mobile partition may be homogeneous.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum ContactRule {
+    SameMediumAqueous,
+    SameSpeciesLiquid,
+}
+
+/// Contact state asserted by explicit procedure operations.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum MixingState {
     Unmixed,
-    HomogeneousContact,
+    HomogeneousContact {
+        mobile_phases: BTreeSet<Phase>,
+        rules: BTreeSet<ContactRule>,
+    },
 }
 
 /// One active, linearly identified inventory portion.
@@ -33,15 +45,39 @@ pub struct InventoryPortion {
     pub parent: Option<InventoryPortionId>,
     pub components: Vec<AnalyticalComponent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub known_volume: Option<ExactScalar>,
+    pub known_volume: Option<DerivedQuantity>,
 }
 
 /// Current location of an active inventory portion.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum InventoryLocation {
-    Unplaced { material: MaterialId },
-    InVessel { vessel: VesselId },
+    Unplaced {
+        material: MaterialId,
+    },
+    InVessel {
+        vessel: VesselId,
+    },
+    SeparatedInto {
+        vessel: VesselId,
+        operation: OperationId,
+    },
+}
+
+/// One child and destination produced by an ideal separation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SeparatedProduct {
+    pub portion: InventoryPortionId,
+    pub location: InventoryLocation,
+}
+
+/// Deterministically ordered active inventory within one physical phase.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PhasePartition {
+    pub phase: Phase,
+    pub portions: Vec<InventoryPortionId>,
 }
 
 /// Append-only inventory movement and lineage ledger.
@@ -64,11 +100,15 @@ pub enum LedgerEntry {
         moved: InventoryPortionId,
         operation: OperationId,
         moved_fraction: ExactScalar,
+        from: InventoryLocation,
+        retained_at: InventoryLocation,
+        moved_to: InventoryLocation,
     },
     Separate {
         parent: InventoryPortionId,
-        products: Vec<InventoryPortionId>,
         operation: OperationId,
+        from: InventoryLocation,
+        products: Vec<SeparatedProduct>,
     },
 }
 
@@ -82,17 +122,30 @@ pub struct VesselState {
     pub temperature: TemperaturePoint,
     pub pressure: Quantity,
     pub contents: Vec<InventoryPortion>,
-    pub phase_partitions: BTreeMap<Phase, Vec<InventoryPortionId>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_volume: Option<DerivedQuantity>,
+    pub phase_partitions: Vec<PhasePartition>,
     pub mixing: MixingState,
+}
+
+/// One catalogue-resolved actual species candidate at a reaction boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionCandidate {
+    pub species: SpeciesId,
+    pub phase: Phase,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount: Option<DerivedQuantity>,
+    pub premises: BTreeSet<FactId>,
 }
 
 /// Closed kernel rule families which may later inspect an opportunity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ReactionRuleFamily {
-    Dissociation,
-    Solubility,
-    GasPattern,
+    Precipitation,
+    StrongAcidBase,
+    CuratedGasFormation,
     PhasePartition,
 }
 
@@ -119,10 +172,12 @@ pub struct ReactionOpportunity {
     pub stage: StageId,
     pub vessel: VesselId,
     pub trigger: OpportunityTrigger,
-    pub candidates: Vec<AnalyticalComponent>,
+    pub candidates: Vec<ReactionCandidate>,
     pub temperature: TemperaturePoint,
     pub pressure: Quantity,
     pub families: Vec<ReactionRuleFamily>,
+    pub coverage: Vec<CoverageId>,
+    pub premises: BTreeSet<FactId>,
 }
 
 /// Exact environment retained by every stage.
@@ -155,6 +210,7 @@ pub struct Stage {
     pub environment: StageEnvironment,
     pub vessels: BTreeMap<VesselId, VesselState>,
     pub unplaced: BTreeMap<MaterialId, InventoryPortion>,
+    pub portion_history: BTreeMap<InventoryPortionId, InventoryPortion>,
     pub ledger: Vec<LedgerEntry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transition: Option<OperationId>,

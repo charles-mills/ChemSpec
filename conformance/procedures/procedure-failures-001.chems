@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Aqueous@1
+
+experiment CapacityFailure where
+  conditions
+    temperature := 25 degC
+    pressure := 1 atm
+    medium := aqueous
+
+  given
+    solution := 50 mL of 0.100 mol/L AgNO3(aq)
+
+  vessels
+    source := open vessel 10 mL
+
+  procedure
+    place solution in source
+
+  expect at final
+    amount AgNO3(aq) := ?
+
+  by
+    solve stoichiometry

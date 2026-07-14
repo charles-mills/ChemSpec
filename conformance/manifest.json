@@ -221,6 +221,49 @@
         "state": "validated",
         "hir": "conformance/materials/initial-materials-001.hir.json"
       }
+    },
+    {
+      "id": "state-timeline-001",
+      "component": "procedures",
+      "requirements": [
+        "SRC-009", "SRC-010", "SRC-015", "STA-001", "STA-002", "STA-003",
+        "STA-004", "STA-005", "STA-006", "STA-007", "STA-008", "STA-009",
+        "STA-012", "STA-013", "STA-016", "STA-017", "STA-018", "STA-024"
+      ],
+      "source": "conformance/procedures/state-timeline-001.chems",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/procedures/state-timeline-001.expected.json"
+      }
+    },
+    {
+      "id": "separation-001",
+      "component": "procedures",
+      "requirements": ["STA-019", "STA-020"],
+      "source": "conformance/procedures/separation-001.chems",
+      "expected": {
+        "state": "validated"
+      }
+    },
+    {
+      "id": "procedure-failures-001",
+      "component": "procedures",
+      "requirements": ["STA-021"],
+      "source": "conformance/procedures/procedure-failures-001.chems",
+      "expected": {
+        "state": "invalid",
+        "diagnostics": [
+          {
+            "code": "CHEMS-S012",
+            "severity": "Error",
+            "primary_span": {
+              "fixture": "conformance/procedures/procedure-failures-001.chems",
+              "start": 273,
+              "end": 298
+            }
+          }
+        ]
+      }
     }
   ]
 }

@@ -57,6 +57,22 @@ impl ElaborationDiagnostic {
         }
     }
 
+    pub(crate) fn system_error(
+        code: &str,
+        summary: impl Into<String>,
+        primary_span: ByteSpan,
+    ) -> Self {
+        Self {
+            code: code.to_owned(),
+            severity: Severity::Error,
+            status: None,
+            summary: summary.into(),
+            primary_span,
+            related_spans: Vec::new(),
+            help: None,
+        }
+    }
+
     pub(crate) fn related(mut self, span: ByteSpan) -> Self {
         self.related_spans.push(span);
         self

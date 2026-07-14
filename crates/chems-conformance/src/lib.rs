@@ -620,7 +620,10 @@ fn valid_diagnostic_code(code: &str) -> bool {
     let bytes = code.as_bytes();
     bytes.len() == 10
         && bytes.starts_with(b"CHEMS-")
-        && matches!(bytes[6], b'L' | b'P' | b'T' | b'C' | b'K' | b'F' | b'I')
+        && matches!(
+            bytes[6],
+            b'L' | b'P' | b'T' | b'C' | b'K' | b'F' | b'I' | b'S'
+        )
         && bytes[7..].iter().all(u8::is_ascii_digit)
 }
 

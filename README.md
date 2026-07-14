@@ -129,8 +129,10 @@ silver-chloride teaching domain in
 stable experiment/material/vessel/stage/operation IDs, exact conditions and
 quantities, catalogue-resolved species and media, dimension-directed initial
 materials, explicit premise and assumption dependencies, typed procedure
-operands, and source origins. It deliberately does not execute the procedure or
-validate reaction claims yet.
+operands, and source origins. Its procedure engine then constructs immutable
+stages, exact vessel and inventory state, append-only movement/split/separation
+lineage, deterministic reaction opportunities, and classified transition
+diagnostics. Reaction outcomes and claim validation remain deferred.
 
 ```sh
 cargo run -p chems-conformance -- validate
@@ -146,10 +148,9 @@ plain `chems format <path>` writes canonical source to standard output.
 
 ## Current status
 
-ChemSpec is in active implementation. The language design and Slices 0–4 are
-complete. Slice 5 is the procedure and stage engine: immutable inventories,
-vessel state, exact operation semantics, and reaction-opportunity creation
-without yet inferring reactions.
+ChemSpec is in active implementation. The language design and Slices 0–5 are
+complete. Slice 6 will elaborate stage-targeted claims and holes into open proof
+goals without yet running chemistry rules or tactics.
 
 ## License
 

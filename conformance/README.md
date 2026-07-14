@@ -96,3 +96,14 @@ prepared-component normalization, fact and explicit-assumption premise
 boundaries, typed operation operands, non-blocking warnings, and exact HIR
 serialization. The quantities/types, formula/species, and materials components
 are fully covered through this slice.
+
+Slice 5 adds exact nonreactive timeline and separation fixtures plus the
+immutable procedure engine. The `chem-kernel` suite checks every closed
+operation, deterministic stage and portion identity, append-only lineage,
+capacity/location/closure/temperature/partition preconditions, exact
+proportional splitting, conservation properties, catalogue-bound reaction
+opportunities, and the Invalid-versus-Unsupported boundary. The procedures
+manifest deliberately claims 21 of 28 normative requirement IDs. The remaining
+reaction-closure and observation requirements belong to later slices; focused
+Rust tests cover combine equivalence and thermal-domain boundaries without
+misrepresenting those implementation tests as independently reviewed fixtures.

@@ -26,9 +26,9 @@ pub use material::{
 pub use scalar::{ExactScalar, ScalarError, SourceDecimal, SourceDecimalError, WrittenPrecision};
 pub use serialization::{CanonicalJsonError, canonical_json, lowercase_hex, sha256};
 pub use state::{
-    ClosureState, InventoryLocation, InventoryPortion, LedgerEntry, MixingState,
-    OpportunityTrigger, ReactionOpportunity, ReactionRuleFamily, SourceRange, Stage,
-    StageEnvironment, StageTimeline, VesselState,
+    ClosureState, ContactRule, InventoryLocation, InventoryPortion, LedgerEntry, MixingState,
+    OpportunityTrigger, PhasePartition, ReactionCandidate, ReactionOpportunity, ReactionRuleFamily,
+    SeparatedProduct, SourceRange, Stage, StageEnvironment, StageTimeline, VesselState,
 };
 pub use unit::{
     Dimension, DimensionError, Quantity, QuantityConversion, QuantityError, ResolvedUnit,
