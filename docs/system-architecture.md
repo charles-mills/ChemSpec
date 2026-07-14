@@ -12,7 +12,7 @@ No component may bypass the component immediately downstream of it.
 ## Runtime flow
 
 ```text
-Natural-language request
+Visual reaction-builder request or natural-language request
     -> AgentProvider
     -> research packet + .chems source
     -> chems-lang parser
@@ -126,6 +126,7 @@ cannot consume more of a species than the validated result permits.
 Product composition:
 
 - Iced state, messages, tasks, and subscriptions;
+- visual reaction-builder composition and element catalogue presentation;
 - startup and provider selection;
 - request composer and workflow timeline;
 - `.chems` editor;
@@ -213,6 +214,10 @@ Suggested feature state boundaries:
 
 ```text
 App
+  reaction_builder
+    element_library
+    workspace
+    sequence
   startup
   provider
   workflow
@@ -221,6 +226,40 @@ App
   simulation
   sources
 ```
+
+The reaction builder owns only presentation and user intent. Element metadata
+shown by `element_library` is a curated UI catalogue; selecting or dragging an
+element cannot construct a compound, reaction, or `ValidatedExperiment`.
+`workspace` stores placed element identities and normalized presentation
+positions. Its small closed-world combination catalogue may label a grouping
+as a composition preview and present its members as one compound card, but the
+preview is not a supported-reaction verdict and never constructs a trusted
+domain value. Member atom identities remain the durable state; the compound
+card is derived presentation. The workspace will eventually
+serialize typed user intent for the normal parser/validator path. `sequence`
+and result presentation must consume engine or simulation outputs rather than
+infer chemistry from tile placement.
+
+Stage 3 atomic canvases are also derived presentation. They consume curated
+element shell metadata and existing composition-preview membership, and may
+animate only illustrative outer-electron positions. Grouped compositions keep
+their member atomic models visible and may mark curated covalent relationships
+with shared-electron pairs. They cannot create a validated reaction sequence,
+result state, or `SimulationFrame`.
+
+The Stage 4 reaction-candidate catalogue is an input-composition affordance,
+not the chemistry catalogue. A match may enable and queue the trigger, while an
+exact mismatch disables it. Neither branch validates chemistry. The queued
+candidate must still travel through the provider, parser, chemistry engine, and
+validated simulation boundary before any validated reaction animation can
+begin.
+
+The Stage 5 `reaction_sequence` module is an untrusted storyboard preview, not
+the architecture's validated `sequence` or `simulation` feature. It consumes
+only the Stage 4 candidate's reviewed presentation data, preserves every listed
+visual product, and owns playback presentation state. It cannot produce domain
+products, validation dispositions, `ValidatedExperiment`, or `SimulationFrame`.
+Validated playback remains blocked until the normal downstream pipeline exists.
 
 Stale asynchronous results carry a request or generation identifier and are
 ignored when they no longer match active state.

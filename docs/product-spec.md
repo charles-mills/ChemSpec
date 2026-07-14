@@ -2,8 +2,9 @@
 
 ## Summary
 
-ChemSpec turns a natural-language chemistry question into a researched,
-validated, and explainable virtual experiment.
+ChemSpec lets a learner compose a reaction visually or describe it in natural
+language, then turns that untrusted request into a researched, validated, and
+explainable virtual experiment.
 
 The product exists to make chemical exploration cheaper, safer, and more
 transparent. It is not a chatbot wrapped around an animation: the model's
@@ -85,17 +86,66 @@ The canonical request is:
 > What happens if I mix 50 mL of 0.100 M silver nitrate with 50 mL of
 > 0.100 M sodium chloride?
 
-### 1. Choose a provider
+### 1. Build the question
+
+The primary entry point is a reaction builder. It begins with a persistent
+reaction box above a full-width curated periodic table. A learner drags
+elements directly from the table into the box through a window-level drag
+plane, so the tile remains visible across both surfaces.
+
+Element selection is a composition aid, not a chemistry conclusion. It does
+not establish a substance, formula, reaction, or supported outcome. Later
+builder stages may turn the learner's choices into a request, but that request
+must still pass through parsing and chemistry validation before simulation.
+
+The reaction workspace accepts multiple instances of selected elements. A
+learner can place, reposition, group, select, remove, and clear atoms. Nearby
+atoms may produce a closed-world composition preview for `H2`, `O2`, `H2O`,
+`LiOH`, `NaCl`, or `CO2`; every other grouping remains visibly unrecognised. A
+recognised grouping is presented as one draggable compound card while every
+member remains visibly represented by its electron-shell atomic model. Atom
+identities remain in workspace state. These previews are interaction guidance
+only and remain pending validation.
+
+Loose atoms use a simplified shell diagram with electrons shown only on the
+outermost shell. The orbit is illustrative and stops in reduced-motion mode.
+When a recognised grouping forms, its shell diagrams move into one deterministic
+grouped-atomic surface; they are not replaced by a ball-and-bond molecular
+model. Both representations describe the untrusted composition workspace;
+neither is a reaction simulation or a validation result. Electron revolution
+is deliberately slow and illustrative. Covalent groupings show shared electron
+pairs between the relevant shell models; ionic groupings do not claim shared
+pairs.
+
+The Stage 4 trigger appears once at least two reactant objects are present. A
+small structured catalogue distinguishes a supported reaction-request
+candidate from an unsupported combination, provides equation-preview feedback,
+and prevents duplicate triggering. Selecting `Start Reaction` only queues the
+candidate for the downstream validation path. It does not create products,
+confer trust, or authorize animation.
+
+Stage 5 may present the queued candidate as an explicitly illustrative 2D
+storyboard before the validation pipeline is connected. It uses four stages—
+reactants, approach, rearrangement, and products—and preserves the displayed
+balanced representative counts. Pause, restart, skip-to-products, and return
+controls remain available. Every product remains visible for multi-product
+candidates. This storyboard is not a simulation, cannot create a trusted
+result, and never emits a `SimulationFrame`.
+
+Natural-language entry remains available for learners who already know what
+they want to ask.
+
+### 2. Choose a provider
 
 At startup, choose **Use Codex subscription** or **Use OpenAI API key**. The
 previous selection may be focused, but the choice remains visible.
 
-### 2. Ask
+### 3. Ask
 
 The learner enters the request in ordinary language. Example prompts help
 learners discover the supported domain without requiring `.chems` knowledge.
 
-### 3. Watch the workflow
+### 4. Watch the workflow
 
 The application exposes action summaries rather than hidden model reasoning:
 
@@ -111,7 +161,7 @@ The application exposes action summaries rather than hidden model reasoning:
 Source cards appear as evidence is found. The generated source becomes visible
 as soon as it is available.
 
-### 4. Validate
+### 5. Validate
 
 A successful result reports the checks and assumptions:
 
@@ -135,7 +185,7 @@ Assumptions
 If validation fails, the application highlights the exact source location and
 may ask the agent for a bounded repair. Each patch remains visible.
 
-### 5. Simulate
+### 6. Simulate
 
 The learner can play, pause, restart, adjust presentation speed, toggle particle
 labels, and step through reaction stages. For silver chloride:
@@ -146,7 +196,7 @@ labels, and step through reaction stages. For silver chloride:
 - `Na+` and `NO3-` remain dispersed as spectator ions;
 - quantity indicators reflect limiting-reagent consumption.
 
-### 6. Explain
+### 7. Explain
 
 The explanation connects the macroscopic observation, particle view, equations,
 validation derivation, assumptions, and evidence. Selecting a species or claim

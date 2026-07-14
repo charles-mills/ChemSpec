@@ -16,7 +16,7 @@ version = "0.1.0"
 
 [workspace.dependencies]
 jsonschema = { version = "0.40", default-features = false }
-iced = { version = "=0.14.0", features = ["canvas"] }
+iced = { version = "=0.14.0", features = ["canvas", "tokio"] }
 num-bigint = { version = "0.4", features = ["serde"] }
 num-rational = "0.4"
 num-traits = "0.2"

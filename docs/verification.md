@@ -134,6 +134,22 @@ Drive Iced update logic through fake providers and deterministic messages:
 Normal tests never consume subscription or API usage. Live Codex and Responses
 API checks are explicit opt-in smoke tests.
 
+Reaction-builder presentation tests additionally check that shell counts and
+outer-electron counts come from curated element metadata, grouped atomic
+layouts are deterministic, reduced motion disables orbital ticks, and forming
+a composition retains exactly one model for each member atom. Stage 4 tests
+check exact, order-independent reaction-candidate matching; unsupported and
+extra reactants remain disabled; and repeated triggering cannot create a second
+queue event. These checks do not confer validation or authorize simulation
+playback.
+
+Stage 5 tests additionally verify deterministic progress-to-stage mapping,
+pause without progress, restart, skip-to-products, reduced-motion fallback,
+return-to-workspace, balanced representative visual counts, and preservation of
+every listed product in multi-product previews. Live smoke checks confirm the
+periodic table still shows names and atomic masses without reintroducing
+scrolling.
+
 ## Cross-platform verification
 
 CI should compile and test supported targets for macOS, Windows, and Linux.

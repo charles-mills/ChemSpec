@@ -123,6 +123,7 @@ experiment SilverChloridePrecipitation where
 - [`.chems` conformance contract](conformance/README.md)
 - [Chemistry engine and validator](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
+- [Interface design system](docs/ui-design-system.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
 - [Safety policy](docs/safety.md)
 - [Verification strategy](docs/verification.md)
@@ -151,9 +152,21 @@ plain `chems format <path>` writes canonical source to standard output.
 
 ## Application shell
 
-The static Iced shell presents the request, workflow, experiment source,
-validation, evidence, and simulation regions using the canonical
-silver-chloride fixture.
+The Iced application opens in a vertically composed reaction builder: a
+dedicated Stage 2 reaction workspace sits above a full-width periodic table
+that fits without horizontal scrolling. Elements can be dragged directly
+between them, repositioned, duplicated, and removed. Curated composition
+matches collapse into single draggable compound cards that remain clearly
+labelled as untrusted previews pending future chemistry validation. Loose atoms
+and recognised groups both remain electron-shell atomic models; grouping adds a
+shared composition surface without replacing atoms with a ball-and-bond model.
+Shared electron pairs appear between covalently bonded atomic shells. Periodic
+tiles retain each element's name and atomic mass after the redundant table
+instruction strip and bottom padding were removed.
+The fixed builder composition fits the reaction box, controls, and complete
+periodic table on one page without builder scrolling. The existing
+validated-record screen remains available for the canonical silver-chloride
+fixture.
 
 ```sh
 cargo run -p chemspec-app
@@ -162,9 +175,12 @@ cargo run -p chemspec-app
 ## Current status
 
 ChemSpec is in active implementation. The language design and Slices 0–2 are
-complete, and the static Iced application shell is available. Slice 3 is the
-catalogue foundation; chemistry validation, agent integration, and live
-simulation follow it.
+complete, and reaction-builder Stages 1–5 (`U-106`–`U-111`) are available for
+review. Stage 5 provides a deterministic 2D reaction storyboard with balanced
+representative counts, pause/restart/skip/return controls, and complete
+multi-product presentation. It is explicitly an illustrative preview;
+chemistry validation, 3D presentation, agent integration, and live simulation
+remain later stages.
 
 ## License
 
