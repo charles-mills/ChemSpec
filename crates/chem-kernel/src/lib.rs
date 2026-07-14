@@ -12,6 +12,9 @@ mod frames;
 mod hir;
 mod validate;
 
+#[cfg(test)]
+mod dative_tests;
+
 pub use elaborate::{expand_review_candidate, expand_trusted};
 pub use error::{ExpansionError, ExpansionFailureClass};
 pub use evidence::{

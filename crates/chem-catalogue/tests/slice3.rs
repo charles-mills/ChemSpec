@@ -446,6 +446,29 @@ fn every_closed_operation_variant_has_a_negative_validation_case() {
         serde_json::json!({"left": 0, "right": 0});
     cases.push(form);
 
+    let mut cleave_dative = base.clone();
+    cleave_dative["bundle"]["rules"][0]["operation_template"][2] = serde_json::json!({
+        "kind": "cleave_dative",
+        "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
+        "donor": "water[1].o",
+        "acceptor": "water[1].h1",
+        "allocation": {"heterolytic_to": "water[1].o"},
+        "before": {"left": [0,4,0], "right": [0,0,0]},
+        "after": {"left": [-1,6,0], "right": [1,0,0]}
+    });
+    cases.push(cleave_dative);
+
+    let mut form_dative = base.clone();
+    form_dative["bundle"]["rules"][0]["operation_template"][6] = serde_json::json!({
+        "kind": "form_dative",
+        "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
+        "donor": "water[1].o",
+        "acceptor": "water[1].h1",
+        "before": {"left": [-1,6,6], "right": [1,0,0]},
+        "after": {"left": [0,4,6], "right": [0,0,0]}
+    });
+    cases.push(form_dative);
+
     let mut change = base.clone();
     change["bundle"]["rules"][0]["operation_template"]
         .as_array_mut()
@@ -520,7 +543,7 @@ fn every_closed_operation_variant_has_a_negative_validation_case() {
 }
 
 #[test]
-fn dative_style_formation_and_inexact_metallic_radicals_are_rejected() {
+fn ordinary_covalent_formation_rejects_dative_electron_allocation() {
     let mut dative: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
     dative["bundle"]["rules"][0]["operation_template"][6] = serde_json::json!({
         "kind": "form_covalent",
@@ -534,7 +557,104 @@ fn dative_style_formation_and_inexact_metallic_radicals_are_rejected() {
         rebound_error(serde_json::from_value(dative).unwrap()),
         CatalogueErrorCode::InvalidOperationTemplate
     );
+}
 
+#[test]
+fn reviewed_dative_operation_templates_require_premises_and_a_donor_pair() {
+    let mut dative: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    dative["bundle"]["rules"][0]["operation_template"][6] = serde_json::json!({
+        "kind": "form_dative",
+        "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
+        "donor": "water[1].o",
+        "acceptor": "water[1].h1",
+        "before": {"left": [-1,6,0], "right": [1,0,0]},
+        "after": {"left": [0,4,0], "right": [0,0,0]}
+    });
+    let envelope: CatalogueEnvelope = serde_json::from_value(dative.clone()).unwrap();
+    assert!(ValidatedCatalogueBundle::validate(rebound(envelope)).is_ok());
+
+    let mut missing_premise = dative.clone();
+    missing_premise["bundle"]["rules"][0]["operation_template"][6]["premise_ids"] =
+        serde_json::json!([]);
+    assert_eq!(
+        rebound_error(serde_json::from_value(missing_premise).unwrap()),
+        CatalogueErrorCode::InvalidRule
+    );
+
+    dative["bundle"]["rules"][0]["operation_template"][6]["before"]["left"] =
+        serde_json::json!([-1, 6, 6]);
+    assert_eq!(
+        rebound_error(serde_json::from_value(dative).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+}
+
+#[test]
+fn reviewed_dative_cleavage_requires_the_exact_directed_edge() {
+    let mut dative: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    dative["bundle"]["structures"][1]["bonds"][0]["electron_origin"] = serde_json::json!({
+        "kind": "dative",
+        "donor": "o",
+        "acceptor": "h1"
+    });
+    for (index, instance) in [(2, 1), (3, 2)] {
+        dative["bundle"]["rules"][0]["operation_template"][index] = serde_json::json!({
+            "kind": "cleave_dative",
+            "premise_ids": ["premise.rule.lithium-water.standard-outcome", "premise.structure.water", "premise.valence.li-h-o.initial-domain"],
+            "donor": format!("water[{instance}].o"),
+            "acceptor": format!("water[{instance}].h1"),
+            "allocation": {"heterolytic_to": format!("water[{instance}].o")},
+            "before": {"left": [0,4,0], "right": [0,0,0]},
+            "after": {"left": [-1,6,0], "right": [1,0,0]}
+        });
+    }
+    let envelope: CatalogueEnvelope = serde_json::from_value(dative.clone()).unwrap();
+    match &envelope.bundle.rules[0].operation_template[2] {
+        chem_catalogue::OperationTemplateRecord::CleaveDative { premise_ids, .. } => {
+            assert_eq!(premise_ids.len(), 3);
+            assert!(premise_ids.contains(&PremiseId::from_str("premise.structure.water").unwrap()));
+        }
+        operation => panic!("unexpected operation: {operation:?}"),
+    }
+    assert!(ValidatedCatalogueBundle::validate(rebound(envelope)).is_ok());
+
+    let mut reversed = dative.clone();
+    reversed["bundle"]["rules"][0]["operation_template"][2]["donor"] = Value::from("water[1].h1");
+    reversed["bundle"]["rules"][0]["operation_template"][2]["acceptor"] = Value::from("water[1].o");
+    assert_eq!(
+        rebound_error(serde_json::from_value(reversed).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+
+    dative["bundle"]["rules"][0]["operation_template"][2]["acceptor"] = Value::from("water[1].h2");
+    assert_eq!(
+        rebound_error(serde_json::from_value(dative).unwrap()),
+        CatalogueErrorCode::InvalidOperationTemplate
+    );
+}
+
+#[test]
+fn dative_structure_records_reject_non_single_and_nonendpoint_origins() {
+    let base: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
+    for origin in [
+        serde_json::json!({"kind": "dative", "donor": "o", "acceptor": "h1"}),
+        serde_json::json!({"kind": "dative", "donor": "o", "acceptor": "missing"}),
+    ] {
+        let mut value = base.clone();
+        value["bundle"]["structures"][1]["bonds"][0]["electron_origin"] = origin;
+        if value["bundle"]["structures"][1]["bonds"][0]["electron_origin"]["acceptor"] == "h1" {
+            value["bundle"]["structures"][1]["bonds"][0]["order"] = serde_json::json!("double");
+        }
+        let envelope: CatalogueEnvelope = serde_json::from_value(value).unwrap();
+        assert_eq!(
+            rebound_error(envelope),
+            CatalogueErrorCode::InvalidStructure
+        );
+    }
+}
+
+#[test]
+fn inexact_metallic_radicals_are_rejected() {
     let add_states = |value: &mut Value| {
         let states = value["bundle"]["valence_premises"][0]["supported_states"]
             .as_array_mut()

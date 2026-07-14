@@ -33,5 +33,10 @@ cannot extend either trust root.
 Consumers receive immutable references and can distinguish an unsupported
 structure or rule lookup from a corrupt bundle system error.
 
+Structure records distinguish ordinary shared covalent bonds from directed
+dative single bonds. Reviewed dative operation templates retain their premise
+IDs, require exact donor/acceptor identity, and validate donor-pair formation
+or explicit cleavage allocation before they can enter the bundle.
+
 The catalogue digest is insensitive to record ordering where order has no
 meaning. The ordered operation template remains digest-significant.

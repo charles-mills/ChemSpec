@@ -5,9 +5,9 @@ use std::{
 
 use chem_catalogue::{EventModel, ObservationPredicate, SequenceModel};
 use chem_domain::{
-    AtomGroupId, AtomId, BondOrder, ContentDigest, CovalentBondId, ElectronState, ElementSymbol,
-    IonicAssociationId, MetallicDomainId, StructuralOperation, StructuralOperationView,
-    StructureInstanceId, canonical_json,
+    AtomGroupId, AtomId, BondOrder, ContentDigest, CovalentBondId, CovalentElectronOrigin,
+    ElectronState, ElementSymbol, IonicAssociationId, MetallicDomainId, StructuralOperation,
+    StructuralOperationView, StructureInstanceId, canonical_json,
 };
 use serde::Serialize;
 
@@ -130,6 +130,8 @@ pub struct FrameCovalentEdge {
     pub left: AtomId,
     pub right: AtomId,
     pub order: BondOrder,
+    #[serde(flatten, skip_serializing_if = "CovalentElectronOrigin::is_shared")]
+    pub electron_origin: CovalentElectronOrigin,
 }
 
 /// Exact named atom membership retained for ionic and educational grouping.
@@ -176,6 +178,10 @@ pub enum FrameChange {
         right: AtomId,
         before: Option<BondOrder>,
         after: Option<BondOrder>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        before_electron_origin: Option<CovalentElectronOrigin>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        after_electron_origin: Option<CovalentElectronOrigin>,
     },
     Group {
         group: AtomGroupId,
@@ -428,7 +434,9 @@ fn ensure_current(
     Ok(())
 }
 
-fn project_frames(derivation: &StructuralDerivation) -> Result<SimulationFrames, FrameError> {
+pub(crate) fn project_frames(
+    derivation: &StructuralDerivation,
+) -> Result<SimulationFrames, FrameError> {
     let expanded = derivation.expanded();
     let derivation_digest = derivation
         .digest()
@@ -540,6 +548,7 @@ fn frame_bonds(state: &StructuralState) -> BTreeMap<CovalentBondId, FrameCovalen
                     left: bond.left().clone(),
                     right: bond.right().clone(),
                     order: bond.order(),
+                    electron_origin: bond.electron_origin().clone(),
                 },
             )
         })
@@ -620,12 +629,23 @@ fn frame_metallic(state: &StructuralState) -> BTreeMap<MetallicDomainId, FrameMe
 
 type EdgeKey = (AtomId, AtomId);
 
-fn edge_orders(state: &StructuralState) -> BTreeMap<EdgeKey, BondOrder> {
+type EdgeSemantics = (BondOrder, Option<CovalentElectronOrigin>);
+
+fn edge_semantics(state: &StructuralState) -> BTreeMap<EdgeKey, EdgeSemantics> {
     state
         .graph()
         .covalent_bonds()
         .values()
-        .map(|bond| ((bond.left().clone(), bond.right().clone()), bond.order()))
+        .map(|bond| {
+            let origin = match bond.electron_origin() {
+                CovalentElectronOrigin::Shared => None,
+                value @ CovalentElectronOrigin::Dative { .. } => Some(value.clone()),
+            };
+            (
+                (bond.left().clone(), bond.right().clone()),
+                (bond.order(), origin),
+            )
+        })
         .collect()
 }
 
@@ -643,22 +663,24 @@ fn frame_changes(previous: &StructuralState, current: &StructuralState) -> Vec<F
             });
         }
     }
-    let before_edges = edge_orders(previous);
-    let after_edges = edge_orders(current);
+    let before_edges = edge_semantics(previous);
+    let after_edges = edge_semantics(current);
     for edge in before_edges
         .keys()
         .chain(after_edges.keys())
         .cloned()
         .collect::<BTreeSet<_>>()
     {
-        let before = before_edges.get(&edge).copied();
-        let after = after_edges.get(&edge).copied();
+        let before = before_edges.get(&edge).cloned();
+        let after = after_edges.get(&edge).cloned();
         if before != after {
             changes.push(FrameChange::Covalent {
                 left: edge.0,
                 right: edge.1,
-                before,
-                after,
+                before: before.as_ref().map(|value| value.0),
+                after: after.as_ref().map(|value| value.0),
+                before_electron_origin: before.and_then(|value| value.1),
+                after_electron_origin: after.and_then(|value| value.1),
             });
         }
     }

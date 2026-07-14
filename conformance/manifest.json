@@ -100,6 +100,16 @@
       }
     },
     {
+      "id": "dative-bonding-001",
+      "component": "structural-domain",
+      "requirements": ["STR-007"],
+      "input": "conformance/structural-domain/dative-bonding-001.input.json",
+      "expected": {
+        "state": "validated",
+        "domain": "conformance/structural-domain/dative-bonding-001.domain.json"
+      }
+    },
+    {
       "id": "ionic-structure-001",
       "component": "structural-domain",
       "requirements": ["STR-004", "STR-005"],

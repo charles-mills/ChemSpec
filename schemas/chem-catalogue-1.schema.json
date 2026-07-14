@@ -151,7 +151,13 @@
       "properties": {
         "left": {"$ref": "#/$defs/id"},
         "right": {"$ref": "#/$defs/id"},
-        "order": {"enum": ["single", "double", "triple"]}
+        "order": {"enum": ["single", "double", "triple"]},
+        "electron_origin": {
+          "oneOf": [
+            {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "shared"}}},
+            {"type": "object", "additionalProperties": false, "required": ["kind", "donor", "acceptor"], "properties": {"kind": {"const": "dative"}, "donor": {"$ref": "#/$defs/id"}, "acceptor": {"$ref": "#/$defs/id"}}}
+          ]
+        }
       }
     },
     "group": {
@@ -250,6 +256,24 @@
             "premise_ids": {"$ref": "#/$defs/premiseIds"},
             "edge": {"type": "array", "prefixItems": [{"$ref": "#/$defs/nonempty"}, {"$ref": "#/$defs/nonempty"}, {"enum": ["single", "double", "triple"]}], "minItems": 3, "maxItems": 3},
             "electron_contribution": {"type": "object", "additionalProperties": false, "required": ["left", "right"], "properties": {"left": {"type": "integer", "minimum": 0, "maximum": 255}, "right": {"type": "integer", "minimum": 0, "maximum": 255}}},
+            "before": {"$ref": "#/$defs/binaryState"}, "after": {"$ref": "#/$defs/binaryState"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "premise_ids", "donor", "acceptor", "allocation", "before", "after"],
+          "properties": {
+            "kind": {"const": "cleave_dative"}, "premise_ids": {"$ref": "#/$defs/premiseIds"},
+            "donor": {"$ref": "#/$defs/nonempty"}, "acceptor": {"$ref": "#/$defs/nonempty"},
+            "allocation": {"$ref": "#/$defs/cleavageAllocation"}, "before": {"$ref": "#/$defs/binaryState"}, "after": {"$ref": "#/$defs/binaryState"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "premise_ids", "donor", "acceptor", "before", "after"],
+          "properties": {
+            "kind": {"const": "form_dative"}, "premise_ids": {"$ref": "#/$defs/premiseIds"},
+            "donor": {"$ref": "#/$defs/nonempty"}, "acceptor": {"$ref": "#/$defs/nonempty"},
             "before": {"$ref": "#/$defs/binaryState"}, "after": {"$ref": "#/$defs/binaryState"}
           }
         },

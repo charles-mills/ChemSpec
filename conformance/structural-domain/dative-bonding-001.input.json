@@ -1,0 +1,17 @@
+{
+  "bond": {
+    "id": "ammonium.n-h4",
+    "donor": "ammonia.n",
+    "acceptor": "proton.h",
+    "order": "single"
+  },
+  "formation": {
+    "donor_before": [0, 2, 0],
+    "donor_after": [1, 0, 0],
+    "acceptor_before": [1, 0, 0],
+    "acceptor_after": [0, 0, 0]
+  },
+  "cleavage": {
+    "allocation": { "heterolytic_to": "ammonia.n" }
+  }
+}

@@ -116,10 +116,17 @@ every state ledger.
 
 ### Initial closed bond domain
 
-The first closed domain supports localized single, double, and triple bonds.
-Aromatic and dative models remain Unsupported until their declaration,
-electron, operation, validation, and rendering semantics are specified
-together. They are not approximated silently.
+The closed domain supports localized single, double, and triple covalent bond
+orders. A dative bond uses the single order plus a directional donor-to-acceptor
+electron-origin annotation. Formation consumes a paired electron pair from the
+donor and none from the acceptor; cleavage names the pair allocation explicitly.
+The annotation is preserved through canonical graph identity and frames for
+explanation, while final valence and bond-order arithmetic remains that of a
+single covalent bond.
+
+Aromatic models remain Unsupported until their declaration, electron,
+operation, validation, and rendering semantics are specified together. They
+are not approximated silently.
 
 ## Rule architecture
 
@@ -142,9 +149,9 @@ Ambiguous or uncovered requests stop before source validation.
 
 ## Structural operations
 
-Expanded operations cover covalent cleavage, formation, and order change;
-ionic association and dissociation; metallic release and join; atom-to-atom
-electron transfer; and product assignment. Each operation declares all
+Expanded operations cover shared and dative covalent cleavage and formation,
+covalent order change; ionic association and dissociation; metallic release and
+join; atom-to-atom electron transfer; and product assignment. Each operation declares all
 electron allocation and exact endpoint before/after electron states needed to
 make its successor state deterministic. Allocation alone never determines
 radical pairing.
@@ -181,6 +188,8 @@ observation stage, and explanatory disclosure.
 Visual conventions remain distinct:
 
 - one, two, or three solid lines for localized covalent order;
+- a donor-to-acceptor arrow on a dative single bond while that provenance is
+  educationally relevant;
 - charge labels and dashed membership links for ionic association;
 - lattice sites plus a delocalized field for metallic domains; and
 - stable atom colour and identity across every frame.

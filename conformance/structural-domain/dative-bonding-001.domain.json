@@ -1,0 +1,9 @@
+{
+  "bond_order": "single",
+  "electron_origin": "dative",
+  "donor": "ammonia.n",
+  "acceptor": "proton.h",
+  "formation_valid": true,
+  "cleavage_valid": true,
+  "explicit_electrons_conserved": true
+}

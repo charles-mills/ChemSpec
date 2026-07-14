@@ -5,7 +5,7 @@ contract through the fixed Slices 0–6.
 
 | Crate | Definitive responsibility |
 | --- | --- |
-| [`chem-domain`](chem-domain/) | Pure structural identities, atom/electron state, graphs, mappings, and operations |
+| [`chem-domain`](chem-domain/) | Pure structural identities, atom/electron state, shared and dative graphs, mappings, and operations |
 | [`chems-lang`](chems-lang/) | Sole authored-source lexer, lossless CST, AST, formatter, spans, and syntax diagnostics |
 | [`chem-catalogue`](chem-catalogue/) | Immutable reviewed structures, reaction rules, templates, evidence premises, provenance, and digests |
 | [`chem-kernel`](chem-kernel/) | Resolution, deterministic expansion, graph transitions, conservation, derivations, and private validation |

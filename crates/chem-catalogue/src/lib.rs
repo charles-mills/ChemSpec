@@ -15,10 +15,10 @@ use std::{
 };
 
 use chem_domain::{
-    Atom, AtomGroup, AtomId, BondOrder, ContentDigest, CovalentBond, ElectronState,
-    ElementInventory, ElementSymbol, EvidenceSourceId, IonicAssociation, MetallicDomain, PremiseId,
-    ReactionRuleId, RepresentationKind, StructuralGraph, StructureDefinition, StructureId,
-    canonical_json,
+    Atom, AtomGroup, AtomId, BondOrder, ContentDigest, CovalentBond, CovalentElectronOrigin,
+    ElectronState, ElementInventory, ElementSymbol, EvidenceSourceId, IonicAssociation,
+    MetallicDomain, PremiseId, ReactionRuleId, RepresentationKind, StructuralGraph,
+    StructureDefinition, StructureId, canonical_json,
 };
 pub use model::*;
 
@@ -770,10 +770,20 @@ fn build_structure(record: &StructureRecord) -> Result<StructureDefinition, Cata
                     atoms.push(atom);
                 }
                 for bond in &component.bonds {
+                    let electron_origin = match &bond.electron_origin {
+                        BondElectronOriginRecord::Shared => BondElectronOriginRecord::Shared,
+                        BondElectronOriginRecord::Dative { donor, acceptor } => {
+                            BondElectronOriginRecord::Dative {
+                                donor: format!("{}.{}", component.label, donor),
+                                acceptor: format!("{}.{}", component.label, acceptor),
+                            }
+                        }
+                    };
                     bonds.push(BondRecord {
                         left: format!("{}.{}", component.label, bond.left),
                         right: format!("{}.{}", component.label, bond.right),
                         order: bond.order,
+                        electron_origin,
                     });
                 }
                 groups.push(GroupRecord {
@@ -870,12 +880,26 @@ fn build_graph(
         .map(|(index, record)| {
             let left = parse_id::<chem_domain::AtomKind>(&record.left)?;
             let right = parse_id::<chem_domain::AtomKind>(&record.right)?;
-            CovalentBond::new(
-                parse_id::<chem_domain::CovalentBondKind>(&format!("bond.{index}"))?,
-                left,
-                right,
-                record.order.into(),
-            )
+            let id = parse_id::<chem_domain::CovalentBondKind>(&format!("bond.{index}"))?;
+            match &record.electron_origin {
+                BondElectronOriginRecord::Shared => {
+                    CovalentBond::new(id, left, right, record.order.into())
+                }
+                BondElectronOriginRecord::Dative { donor, acceptor } => {
+                    let donor = parse_id::<chem_domain::AtomKind>(donor)?;
+                    let acceptor = parse_id::<chem_domain::AtomKind>(acceptor)?;
+                    if record.order != BondOrderRecord::Single
+                        || !((donor == left && acceptor == right)
+                            || (donor == right && acceptor == left))
+                    {
+                        return Err(CatalogueError::new(
+                            CatalogueErrorCode::InvalidStructure,
+                            "dative bond must be single and name its two edge endpoints",
+                        ));
+                    }
+                    CovalentBond::new_dative(id, donor, acceptor)
+                }
+            }
             .map_err(structure_error)
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -1340,6 +1364,58 @@ fn validate_operations(
                     return operation_error(&rule.id, "invalid bond-formation electron ledger");
                 }
             }
+            OperationTemplateRecord::CleaveDative {
+                donor,
+                acceptor,
+                allocation,
+                before,
+                after,
+                ..
+            } => {
+                require_distinct_atoms(rule, reactants, donor, acceptor)?;
+                validate_binary_states(before, after)?;
+                require_initial_dative_bond(rule, donor, acceptor, structures)?;
+                validate_supported_state(donor, before.left, reactants, valence_records)?;
+                validate_supported_state(acceptor, before.right, reactants, valence_records)?;
+                validate_supported_state(donor, after.left, reactants, valence_records)?;
+                validate_supported_state(acceptor, after.right, reactants, valence_records)?;
+                let Some((donor_local_delta, acceptor_local_delta)) =
+                    allocation_local_deltas(allocation, donor, acceptor, -1)
+                else {
+                    return operation_error(&rule.id, "invalid dative cleavage allocation");
+                };
+                if !valid_covalent_endpoint(before.left, after.left, donor_local_delta, -1)
+                    || !valid_covalent_endpoint(before.right, after.right, acceptor_local_delta, -1)
+                {
+                    return operation_error(&rule.id, "invalid dative-cleavage electron ledger");
+                }
+            }
+            OperationTemplateRecord::FormDative {
+                donor,
+                acceptor,
+                before,
+                after,
+                ..
+            } => {
+                require_distinct_atoms(rule, reactants, donor, acceptor)?;
+                validate_binary_states(before, after)?;
+                validate_supported_state(donor, before.left, reactants, valence_records)?;
+                validate_supported_state(acceptor, before.right, reactants, valence_records)?;
+                validate_supported_state(donor, after.left, reactants, valence_records)?;
+                validate_supported_state(acceptor, after.right, reactants, valence_records)?;
+                let donor_paired_electrons = before.left.1.saturating_sub(before.left.2);
+                if donor_paired_electrons < 2
+                    || before.left.2 != after.left.2
+                    || before.right.2 != after.right.2
+                    || !valid_covalent_endpoint(before.left, after.left, -2, 1)
+                    || !valid_covalent_endpoint(before.right, after.right, 0, 1)
+                {
+                    return operation_error(
+                        &rule.id,
+                        "dative formation requires one donor lone pair and no acceptor contribution",
+                    );
+                }
+            }
             OperationTemplateRecord::ChangeCovalent {
                 edge,
                 old_order,
@@ -1798,6 +1874,7 @@ fn require_initial_bond(
         ((bond.left() == left_atom.id() && bond.right() == right_atom.id())
             || (bond.left() == right_atom.id() && bond.right() == left_atom.id()))
             && bond.order() == BondOrder::from(order)
+            && bond.electron_origin().is_shared()
     });
     if exists {
         Ok(())
@@ -1805,6 +1882,60 @@ fn require_initial_bond(
         operation_error(
             &rule.id,
             "referenced covalent edge/order is absent from the template",
+        )
+    }
+}
+
+fn require_initial_dative_bond(
+    rule: &ReactionRuleRecord,
+    donor: &str,
+    acceptor: &str,
+    structures: &BTreeMap<StructureId, StructureDefinition>,
+) -> Result<(), CatalogueError> {
+    let (donor_instance, _) = split_template_reference(donor).ok_or_else(|| {
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidOperationTemplate,
+            "malformed dative donor",
+        )
+    })?;
+    let (acceptor_instance, _) = split_template_reference(acceptor).ok_or_else(|| {
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidOperationTemplate,
+            "malformed dative acceptor",
+        )
+    })?;
+    if donor_instance != acceptor_instance {
+        return operation_error(&rule.id, "dative edge spans structure instances");
+    }
+    let donor_atom = resolve_template_atom(donor, &rule.reactant_pattern, structures)?;
+    let acceptor_atom = resolve_template_atom(acceptor, &rule.reactant_pattern, structures)?;
+    let (role_name, _) = parse_instance(donor_instance).ok_or_else(|| {
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidOperationTemplate,
+            "malformed dative bond instance",
+        )
+    })?;
+    let structure = rule
+        .reactant_pattern
+        .iter()
+        .find(|term| term.role == role_name)
+        .map(|term| &structures[&term.structure_id])
+        .expect("resolved atom role has a pattern term");
+    let exists = structure.graph().covalent_bonds().values().any(|bond| {
+        matches!(
+            bond.electron_origin(),
+            CovalentElectronOrigin::Dative {
+                donor,
+                acceptor
+            } if donor == donor_atom.id() && acceptor == acceptor_atom.id()
+        )
+    });
+    if exists {
+        Ok(())
+    } else {
+        operation_error(
+            &rule.id,
+            "referenced directed dative edge is absent from the template",
         )
     }
 }

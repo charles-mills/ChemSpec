@@ -133,8 +133,8 @@ Nothing.
 - Define the expanded certificate independently of source syntax.
 - Define atom, group, covalent, ionic, metallic, formal-charge, radical,
   non-bonding-electron, and delocalized-electron semantics.
-- Define dative and aromatic support consistently across declarations,
-  operations, validation, and rendering—or explicitly exclude them from the
+- Define dative support consistently across structure records, operations,
+  validation, and rendering; explicitly exclude aromatic bonding from the
   closed first domain.
 - Define rule-owned applicability, deterministic coefficient/instance
   expansion, mapping templates, operation templates, and model assumptions.
@@ -172,7 +172,8 @@ Slice 0 reviewed clean.
 - Stable typed IDs for structures, atoms, groups, bonds, associations, metallic
   domains, instances, rules, operations, mappings, evidence, and claims.
 - Atom nodes with element, formal charge, and explicit local electron state.
-- Covalent edges with the closed supported bond-kind and order registry.
+- Covalent edges with the closed supported order registry and optional dative
+  donor-to-acceptor electron-origin annotation.
 - Deterministic group expansion to atom sets.
 - Ionic components and associations without fake covalent edges.
 - Metallic sites and explicit ownership of delocalized electrons.
@@ -235,6 +236,8 @@ Slice 2 reviewed clean.
 - Replace catalogue records and schemas with reviewed structures, groups,
   electron premises, observation compatibility facts, applicability rules,
   product patterns, atom-map templates, and operation templates.
+- Validate dative structure annotations and donor-pair formation/cleavage
+  operation templates without treating dative bonding as a fourth bond order.
 - Preserve deterministic bundle validation, canonical serialization, digests,
   provenance, evidence eligibility, review attestations, and lookup indexes.
 - Implement the closed lithium, water, lithium-hydroxide, and hydrogen
@@ -296,8 +299,8 @@ Slice 4 reviewed clean.
 ### Deliverables
 
 - Execute every typed structural operation as an immutable graph transition.
-- Enforce exact step preconditions for covalent, ionic, metallic, and electron
-  operations.
+- Enforce exact step preconditions for shared covalent, dative covalent, ionic,
+  metallic, and electron operations.
 - Validate supported valence, local electron availability, formal charge,
   radicals, association compatibility, and metallic electron ownership after
   every step.
@@ -330,9 +333,9 @@ Slice 5 reviewed clean.
 
 - Convert validated immutable graph states into deterministic,
   renderer-independent structural frames.
-- Preserve stable atom identity, charge/electron labels, covalent edges, ionic
-  associations, metallic membership, changed relationships, active operation,
-  model disclosure, and product membership.
+- Preserve stable atom identity, charge/electron labels, covalent edges and
+  dative donor direction, ionic associations, metallic membership, changed
+  relationships, active operation, model disclosure, and product membership.
 - Define typed observation stages and deterministic synchronization with the
   structural sequence.
 - Add authored-source and expanded-certificate CLI inspection.

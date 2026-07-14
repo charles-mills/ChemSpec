@@ -306,6 +306,32 @@ fn operation_oracle(operation: &ExpandedOperation) -> Value {
                 "right": electron_tuple(transitions[right].after())
             }
         }),
+        StructuralOperationView::CleaveDative {
+            donor,
+            acceptor,
+            allocation,
+            transitions,
+        } => json!({
+            "id": id, "kind": "cleave_dative", "before_state": before,
+            "after_state": after, "donor": donor, "acceptor": acceptor,
+            "allocation": allocation,
+            "endpoints_after": {
+                "donor": electron_tuple(transitions[donor].after()),
+                "acceptor": electron_tuple(transitions[acceptor].after())
+            }
+        }),
+        StructuralOperationView::FormDative {
+            donor,
+            acceptor,
+            transitions,
+        } => json!({
+            "id": id, "kind": "form_dative", "before_state": before,
+            "after_state": after, "donor": donor, "acceptor": acceptor,
+            "endpoints_after": {
+                "donor": electron_tuple(transitions[donor].after()),
+                "acceptor": electron_tuple(transitions[acceptor].after())
+            }
+        }),
         StructuralOperationView::ChangeCovalent {
             left,
             right,
@@ -702,6 +728,26 @@ fn reidentify(template: &ExpandedOperation, ordinal: u32) -> ExpandedOperation {
             left: left.clone(),
             right: right.clone(),
             order,
+            transitions: transitions.values().cloned().collect(),
+        },
+        StructuralOperationView::CleaveDative {
+            donor,
+            acceptor,
+            allocation,
+            transitions,
+        } => StructuralOperationInput::CleaveDative {
+            donor: donor.clone(),
+            acceptor: acceptor.clone(),
+            allocation: allocation.clone(),
+            transitions: transitions.values().cloned().collect(),
+        },
+        StructuralOperationView::FormDative {
+            donor,
+            acceptor,
+            transitions,
+        } => StructuralOperationInput::FormDative {
+            donor: donor.clone(),
+            acceptor: acceptor.clone(),
             transitions: transitions.values().cloned().collect(),
         },
         StructuralOperationView::ChangeCovalent {

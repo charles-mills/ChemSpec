@@ -59,9 +59,11 @@ distinguish compounds and structural isomers.
 
 ### Bonding models remain distinct
 
-Covalent edges, ionic association, and metallic electron domains are different
-domain values and receive different visual treatment. The engine never encodes
-ionic or metallic bonding as convenient fake covalent edges.
+Shared and directed dative covalent edges, ionic association, and metallic
+electron domains are different domain values and receive different visual
+treatment. A dative edge remains a single covalent bond, but its donor-to-
+acceptor electron origin is proof-relevant. The engine never encodes ionic or
+metallic bonding as convenient fake covalent edges.
 
 ### Applicability belongs to rules
 

@@ -2,11 +2,11 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 
 use chem_domain::{
     Atom, AtomGroup, AtomGroupId, AtomId, AtomMapping, AtomMappingId, BondOrder, CovalentBond,
-    CovalentBondId, ElectronAllocation, ElectronState, ElectronTransition, ElementInventory,
-    ElementSymbol, IonicAssociation, IonicAssociationId, MetallicDomain, MetallicDomainId,
-    MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError, StructuralGraph,
-    StructuralOperation, StructuralOperationId, StructuralOperationInput, StructureDefinition,
-    StructureId, StructureInstance, StructureInstanceId,
+    CovalentBondId, CovalentElectronOrigin, ElectronAllocation, ElectronState, ElectronTransition,
+    ElementInventory, ElementSymbol, IonicAssociation, IonicAssociationId, MetallicDomain,
+    MetallicDomainId, MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError,
+    StructuralGraph, StructuralOperation, StructuralOperationId, StructuralOperationInput,
+    StructureDefinition, StructureId, StructureInstance, StructureInstanceId,
 };
 use proptest::prelude::*;
 use serde_json::Value;
@@ -44,6 +44,23 @@ fn inventory(elements: &[(&str, u64)]) -> ElementInventory {
 fn bond(value: &str, left: &str, right: &str, order: BondOrder) -> CovalentBond {
     CovalentBond::new(bond_id(value), atom_id(left), atom_id(right), order)
         .expect("test bond should be valid")
+}
+
+fn dative_bond(value: &str, donor: &str, acceptor: &str) -> CovalentBond {
+    CovalentBond::new_dative(bond_id(value), atom_id(donor), atom_id(acceptor))
+        .expect("test dative bond should be valid")
+}
+
+fn electron_state_fixture(value: &Value) -> ElectronState {
+    let values = value
+        .as_array()
+        .expect("electron-state fixture should be an array");
+    ElectronState::new(
+        i16::try_from(values[0].as_i64().unwrap()).unwrap(),
+        u8::try_from(values[1].as_u64().unwrap()).unwrap(),
+        u8::try_from(values[2].as_u64().unwrap()).unwrap(),
+    )
+    .expect("electron-state fixture should be valid")
 }
 
 fn graph(
@@ -967,6 +984,190 @@ fn structural_operations_check_covalent_electron_ledgers() {
             cleavage(ElectronState::new(0, 6, 0).unwrap()),
         ),
         Err(StructuralError::InvalidCovalentElectronLedger)
+    );
+}
+
+#[test]
+fn dative_bonds_retain_direction_and_shared_serialization_is_compatible() {
+    let forward = dative_bond("ammonium.n-h4", "ammonia.n", "proton.h");
+    let reverse = dative_bond("ammonium.n-h4", "proton.h", "ammonia.n");
+    assert_eq!(forward.order(), BondOrder::Single);
+    assert_ne!(forward, reverse);
+    assert_eq!(
+        forward.electron_origin(),
+        &CovalentElectronOrigin::Dative {
+            donor: atom_id("ammonia.n"),
+            acceptor: atom_id("proton.h"),
+        }
+    );
+    let value: Value =
+        serde_json::from_slice(&chem_domain::canonical_structural_json(&forward).unwrap()).unwrap();
+    assert_eq!(value["electron_origin"], "dative");
+    assert_eq!(value["donor"], "ammonia.n");
+    assert_eq!(value["acceptor"], "proton.h");
+
+    let shared = bond("water.o-h", "water.o", "water.h", BondOrder::Single);
+    let shared_value: Value =
+        serde_json::from_slice(&chem_domain::canonical_structural_json(&shared).unwrap()).unwrap();
+    assert!(shared_value.get("electron_origin").is_none());
+    assert_eq!(
+        CovalentBond::new_dative(bond_id("bad"), atom_id("same"), atom_id("same")),
+        Err(StructuralError::SelfBond(atom_id("same")))
+    );
+}
+
+#[test]
+fn dative_operations_require_a_donor_pair_and_explicit_cleavage_allocation() {
+    let donor_before = ElectronState::new(0, 2, 0).unwrap();
+    let donor_after = ElectronState::new(1, 0, 0).unwrap();
+    let acceptor_before = ElectronState::new(1, 0, 0).unwrap();
+    let acceptor_after = ElectronState::new(0, 0, 0).unwrap();
+    let formation_transitions = vec![
+        ElectronTransition::new(atom_id("ammonia.n"), donor_before, donor_after),
+        ElectronTransition::new(atom_id("proton.h"), acceptor_before, acceptor_after),
+    ];
+    assert!(
+        StructuralOperation::new(
+            StructuralOperationId::new("operation.form-dative").unwrap(),
+            StructuralOperationInput::FormDative {
+                donor: atom_id("ammonia.n"),
+                acceptor: atom_id("proton.h"),
+                transitions: formation_transitions.clone(),
+            },
+        )
+        .is_ok()
+    );
+    let no_pair = vec![
+        ElectronTransition::new(
+            atom_id("ammonia.n"),
+            ElectronState::new(0, 2, 2).unwrap(),
+            ElectronState::new(1, 0, 0).unwrap(),
+        ),
+        ElectronTransition::new(atom_id("proton.h"), acceptor_before, acceptor_after),
+    ];
+    assert_eq!(
+        StructuralOperation::new(
+            StructuralOperationId::new("operation.form-dative-without-pair").unwrap(),
+            StructuralOperationInput::FormDative {
+                donor: atom_id("ammonia.n"),
+                acceptor: atom_id("proton.h"),
+                transitions: no_pair,
+            },
+        ),
+        Err(StructuralError::InvalidDativeElectronLedger)
+    );
+
+    let heterolytic_transitions = formation_transitions
+        .into_iter()
+        .map(|transition| {
+            ElectronTransition::new(
+                transition.atom().clone(),
+                transition.after(),
+                transition.before(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        StructuralOperation::new(
+            StructuralOperationId::new("operation.cleave-dative-heterolytic").unwrap(),
+            StructuralOperationInput::CleaveDative {
+                donor: atom_id("ammonia.n"),
+                acceptor: atom_id("proton.h"),
+                allocation: ElectronAllocation::HeterolyticTo(atom_id("ammonia.n")),
+                transitions: heterolytic_transitions,
+            },
+        )
+        .is_ok()
+    );
+    assert!(
+        StructuralOperation::new(
+            StructuralOperationId::new("operation.cleave-dative-homolytic").unwrap(),
+            StructuralOperationInput::CleaveDative {
+                donor: atom_id("ammonia.n"),
+                acceptor: atom_id("proton.h"),
+                allocation: ElectronAllocation::Homolytic,
+                transitions: vec![
+                    ElectronTransition::new(
+                        atom_id("ammonia.n"),
+                        donor_after,
+                        ElectronState::new(1, 1, 1).unwrap(),
+                    ),
+                    ElectronTransition::new(
+                        atom_id("proton.h"),
+                        acceptor_after,
+                        ElectronState::new(0, 1, 1).unwrap(),
+                    ),
+                ],
+            },
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn dative_bonding_conformance_fixture_executes_exact_electron_arithmetic() {
+    let input = fixture("conformance/structural-domain/dative-bonding-001.input.json");
+    let expected = fixture("conformance/structural-domain/dative-bonding-001.domain.json");
+    let donor = atom_id(input["bond"]["donor"].as_str().unwrap());
+    let acceptor = atom_id(input["bond"]["acceptor"].as_str().unwrap());
+    let dative = CovalentBond::new_dative(
+        bond_id(input["bond"]["id"].as_str().unwrap()),
+        donor.clone(),
+        acceptor.clone(),
+    )
+    .unwrap();
+    let donor_before = electron_state_fixture(&input["formation"]["donor_before"]);
+    let donor_after = electron_state_fixture(&input["formation"]["donor_after"]);
+    let acceptor_before = electron_state_fixture(&input["formation"]["acceptor_before"]);
+    let acceptor_after = electron_state_fixture(&input["formation"]["acceptor_after"]);
+    let transitions = vec![
+        ElectronTransition::new(donor.clone(), donor_before, donor_after),
+        ElectronTransition::new(acceptor.clone(), acceptor_before, acceptor_after),
+    ];
+    let formation_valid = StructuralOperation::new(
+        StructuralOperationId::new("operation.fixture-form-dative").unwrap(),
+        StructuralOperationInput::FormDative {
+            donor: donor.clone(),
+            acceptor: acceptor.clone(),
+            transitions: transitions.clone(),
+        },
+    )
+    .is_ok();
+    let cleavage_valid = StructuralOperation::new(
+        StructuralOperationId::new("operation.fixture-cleave-dative").unwrap(),
+        StructuralOperationInput::CleaveDative {
+            donor: donor.clone(),
+            acceptor: acceptor.clone(),
+            allocation: ElectronAllocation::HeterolyticTo(donor.clone()),
+            transitions: transitions
+                .into_iter()
+                .map(|transition| {
+                    ElectronTransition::new(
+                        transition.atom().clone(),
+                        transition.after(),
+                        transition.before(),
+                    )
+                })
+                .collect(),
+        },
+    )
+    .is_ok();
+    let before_electrons = u16::from(donor_before.non_bonding_electrons())
+        + u16::from(acceptor_before.non_bonding_electrons());
+    let after_electrons = u16::from(donor_after.non_bonding_electrons())
+        + u16::from(acceptor_after.non_bonding_electrons())
+        + 2 * u16::from(dative.order().order());
+    assert_eq!(
+        serde_json::json!({
+            "bond_order": "single",
+            "electron_origin": "dative",
+            "donor": donor,
+            "acceptor": acceptor,
+            "formation_valid": formation_valid,
+            "cleavage_valid": cleavage_valid,
+            "explicit_electrons_conserved": before_electrons == after_electrons
+        }),
+        expected
     );
 }
 

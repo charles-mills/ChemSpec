@@ -19,6 +19,7 @@
     { "id": "STR-004", "section": "Groups", "component": "structural-domain" },
     { "id": "STR-005", "section": "Ionic structures", "component": "structural-domain" },
     { "id": "STR-006", "section": "Metallic structures", "component": "structural-domain" },
+    { "id": "STR-007", "section": "Dative covalent bonding", "component": "structural-domain" },
     { "id": "ELC-001", "section": "Electron and formal-charge model", "component": "structural-domain" },
 
     { "id": "KER-001", "section": "Structural operations", "component": "validation-kernel" },

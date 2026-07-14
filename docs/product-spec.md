@@ -53,9 +53,11 @@ visible.
 
 ## Chemistry scope
 
-The architecture supports molecular covalent structures, monatomic and
+The architecture supports molecular covalent structures (including localized
+dative single bonds with donor-to-acceptor provenance), monatomic and
 polyatomic ions, ionic assemblies, metallic domains, reviewed groups, and
-atom-mapped transformations.
+atom-mapped transformations. Aromatic bonding remains outside the closed
+domain.
 
 Initial shipped chemistry is closed-world and fixture-led. Broader inorganic or
 A-Level organic coverage is added only through independently reviewed

@@ -37,11 +37,12 @@ pub use state::{
     SeparatedProduct, SourceRange, Stage, StageEnvironment, StageTimeline, VesselState,
 };
 pub use structural::{
-    Atom, AtomGroup, AtomMapping, BondOrder, CovalentBond, ElectronAllocation, ElectronState,
-    ElectronTransition, ElementInventory, IonicAssociation, MetallicDomain, MetallicJoinAllocation,
-    MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError, StructuralGraph,
-    StructuralOperation, StructuralOperationInput, StructuralOperationView, StructureDefinition,
-    StructureInstance, canonical_structural_json, structural_digest,
+    Atom, AtomGroup, AtomMapping, BondOrder, CovalentBond, CovalentElectronOrigin,
+    ElectronAllocation, ElectronState, ElectronTransition, ElementInventory, IonicAssociation,
+    MetallicDomain, MetallicJoinAllocation, MetallicReleaseAllocation, ReactionSide,
+    RepresentationKind, StructuralError, StructuralGraph, StructuralOperation,
+    StructuralOperationInput, StructuralOperationView, StructureDefinition, StructureInstance,
+    canonical_structural_json, structural_digest,
 };
 pub use unit::{
     Dimension, DimensionError, Quantity, QuantityConversion, QuantityError, ResolvedUnit,

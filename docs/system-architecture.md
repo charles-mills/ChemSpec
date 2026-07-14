@@ -49,9 +49,9 @@ mark a reaction valid.
 ### `chem-domain`
 
 Pure stable types for elements, formulae, typed IDs, atom/electron state,
-covalent graphs, groups, ionic association, metallic domains, reaction
-instances, atom mappings, structural operations, immutable graph states,
-derivations, validated artifacts, and renderer-independent frames.
+shared and directed dative covalent graphs, groups, ionic association, metallic
+domains, reaction instances, atom mappings, structural operations, immutable
+graph states, derivations, validated artifacts, and renderer-independent frames.
 
 It has no parsing, catalogue I/O, UI, networking, provider, or GPU dependency.
 
@@ -133,7 +133,7 @@ private construction token
 observation stage
 structural state
   stable atoms and charge/electron presentation
-  covalent edges
+  shared and directed dative covalent edges
   ionic associations
   metallic domains
   changed relationships

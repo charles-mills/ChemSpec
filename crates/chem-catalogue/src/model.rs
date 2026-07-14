@@ -207,6 +207,8 @@ pub struct BondRecord {
     pub left: String,
     pub right: String,
     pub order: BondOrderRecord,
+    #[serde(default, skip_serializing_if = "BondElectronOriginRecord::is_shared")]
+    pub electron_origin: BondElectronOriginRecord,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -215,6 +217,24 @@ pub enum BondOrderRecord {
     Single,
     Double,
     Triple,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BondElectronOriginRecord {
+    #[default]
+    Shared,
+    Dative {
+        donor: String,
+        acceptor: String,
+    },
+}
+
+impl BondElectronOriginRecord {
+    #[must_use]
+    pub const fn is_shared(&self) -> bool {
+        matches!(self, Self::Shared)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -400,6 +420,21 @@ pub enum OperationTemplateRecord {
         before: BinaryElectronStateRecord,
         after: BinaryElectronStateRecord,
     },
+    CleaveDative {
+        premise_ids: BTreeSet<PremiseId>,
+        donor: String,
+        acceptor: String,
+        allocation: CleavageAllocationRecord,
+        before: BinaryElectronStateRecord,
+        after: BinaryElectronStateRecord,
+    },
+    FormDative {
+        premise_ids: BTreeSet<PremiseId>,
+        donor: String,
+        acceptor: String,
+        before: BinaryElectronStateRecord,
+        after: BinaryElectronStateRecord,
+    },
     ChangeCovalent {
         premise_ids: BTreeSet<PremiseId>,
         edge: (String, String),
@@ -456,6 +491,8 @@ impl OperationTemplateRecord {
         match self {
             Self::CleaveCovalent { premise_ids, .. }
             | Self::FormCovalent { premise_ids, .. }
+            | Self::CleaveDative { premise_ids, .. }
+            | Self::FormDative { premise_ids, .. }
             | Self::ChangeCovalent { premise_ids, .. }
             | Self::AssociateIonic { premise_ids, .. }
             | Self::DissociateIonic { premise_ids, .. }

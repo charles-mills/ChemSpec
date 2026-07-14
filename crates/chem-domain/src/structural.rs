@@ -142,6 +142,25 @@ impl BondOrder {
     }
 }
 
+/// Electron-origin annotation for a localized covalent edge.
+///
+/// A dative edge remains a single covalent bond. Its directed annotation
+/// records that both forming electrons originated at the donor; it is
+/// explanatory provenance, not a fourth bond order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(tag = "electron_origin", rename_all = "snake_case")]
+pub enum CovalentElectronOrigin {
+    Shared,
+    Dative { donor: AtomId, acceptor: AtomId },
+}
+
+impl CovalentElectronOrigin {
+    #[must_use]
+    pub const fn is_shared(&self) -> bool {
+        matches!(self, Self::Shared)
+    }
+}
+
 /// Canonical normalized element inventory used as a structural formula
 /// summary. It records composition only and never substitutes for graph
 /// identity.
@@ -189,6 +208,8 @@ pub struct CovalentBond {
     left: AtomId,
     right: AtomId,
     order: BondOrder,
+    #[serde(flatten, skip_serializing_if = "CovalentElectronOrigin::is_shared")]
+    electron_origin: CovalentElectronOrigin,
 }
 
 impl CovalentBond {
@@ -216,6 +237,34 @@ impl CovalentBond {
             left,
             right,
             order,
+            electron_origin: CovalentElectronOrigin::Shared,
+        })
+    }
+
+    /// Constructs a directed dative single bond from donor to acceptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StructuralError::SelfBond`] when both endpoints are equal.
+    pub fn new_dative(
+        id: CovalentBondId,
+        donor: AtomId,
+        acceptor: AtomId,
+    ) -> Result<Self, StructuralError> {
+        if donor == acceptor {
+            return Err(StructuralError::SelfBond(donor));
+        }
+        let (left, right) = if donor < acceptor {
+            (donor.clone(), acceptor.clone())
+        } else {
+            (acceptor.clone(), donor.clone())
+        };
+        Ok(Self {
+            id,
+            left,
+            right,
+            order: BondOrder::Single,
+            electron_origin: CovalentElectronOrigin::Dative { donor, acceptor },
         })
     }
 
@@ -237,6 +286,11 @@ impl CovalentBond {
     #[must_use]
     pub const fn order(&self) -> BondOrder {
         self.order
+    }
+
+    #[must_use]
+    pub const fn electron_origin(&self) -> &CovalentElectronOrigin {
+        &self.electron_origin
     }
 }
 
@@ -905,6 +959,17 @@ pub enum StructuralOperationInput {
         order: BondOrder,
         transitions: Vec<ElectronTransition>,
     },
+    CleaveDative {
+        donor: AtomId,
+        acceptor: AtomId,
+        allocation: ElectronAllocation,
+        transitions: Vec<ElectronTransition>,
+    },
+    FormDative {
+        donor: AtomId,
+        acceptor: AtomId,
+        transitions: Vec<ElectronTransition>,
+    },
     ChangeCovalent {
         left: AtomId,
         right: AtomId,
@@ -962,6 +1027,17 @@ enum StructuralOperationKind {
         left: AtomId,
         right: AtomId,
         order: BondOrder,
+        transitions: BTreeMap<AtomId, ElectronTransition>,
+    },
+    CleaveDative {
+        donor: AtomId,
+        acceptor: AtomId,
+        allocation: ElectronAllocation,
+        transitions: BTreeMap<AtomId, ElectronTransition>,
+    },
+    FormDative {
+        donor: AtomId,
+        acceptor: AtomId,
         transitions: BTreeMap<AtomId, ElectronTransition>,
     },
     ChangeCovalent {
@@ -1023,6 +1099,17 @@ pub enum StructuralOperationView<'a> {
         left: &'a AtomId,
         right: &'a AtomId,
         order: BondOrder,
+        transitions: &'a BTreeMap<AtomId, ElectronTransition>,
+    },
+    CleaveDative {
+        donor: &'a AtomId,
+        acceptor: &'a AtomId,
+        allocation: &'a ElectronAllocation,
+        transitions: &'a BTreeMap<AtomId, ElectronTransition>,
+    },
+    FormDative {
+        donor: &'a AtomId,
+        acceptor: &'a AtomId,
         transitions: &'a BTreeMap<AtomId, ElectronTransition>,
     },
     ChangeCovalent {
@@ -1098,6 +1185,7 @@ impl StructuralOperation {
     }
 
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn view(&self) -> StructuralOperationView<'_> {
         match &self.kind {
             StructuralOperationKind::CleaveCovalent {
@@ -1122,6 +1210,26 @@ impl StructuralOperation {
                 left,
                 right,
                 order: *order,
+                transitions,
+            },
+            StructuralOperationKind::CleaveDative {
+                donor,
+                acceptor,
+                allocation,
+                transitions,
+            } => StructuralOperationView::CleaveDative {
+                donor,
+                acceptor,
+                allocation,
+                transitions,
+            },
+            StructuralOperationKind::FormDative {
+                donor,
+                acceptor,
+                transitions,
+            } => StructuralOperationView::FormDative {
+                donor,
+                acceptor,
                 transitions,
             },
             StructuralOperationKind::ChangeCovalent {
@@ -1246,6 +1354,41 @@ fn validate_operation(
                 left,
                 right,
                 order,
+                transitions,
+            })
+        }
+        StructuralOperationInput::CleaveDative {
+            donor,
+            acceptor,
+            allocation,
+            transitions,
+        } => {
+            validate_endpoints(&donor, &acceptor)?;
+            validate_allocation(&allocation, &donor, &acceptor)?;
+            let transitions = canonical_transitions(transitions, [&donor, &acceptor])?;
+            if !valid_bond_electron_ledger(&transitions, &donor, &acceptor, -1, Some(&allocation)) {
+                return Err(StructuralError::InvalidDativeElectronLedger);
+            }
+            Ok(StructuralOperationKind::CleaveDative {
+                donor,
+                acceptor,
+                allocation,
+                transitions,
+            })
+        }
+        StructuralOperationInput::FormDative {
+            donor,
+            acceptor,
+            transitions,
+        } => {
+            validate_endpoints(&donor, &acceptor)?;
+            let transitions = canonical_transitions(transitions, [&donor, &acceptor])?;
+            if !valid_dative_formation(&transitions, &donor, &acceptor) {
+                return Err(StructuralError::InvalidDativeElectronLedger);
+            }
+            Ok(StructuralOperationKind::FormDative {
+                donor,
+                acceptor,
                 transitions,
             })
         }
@@ -1460,6 +1603,27 @@ fn valid_bond_electron_ledger(
         && valid_endpoint_delta(&transitions[right], right_local_delta, bond_order_delta)
 }
 
+fn valid_dative_formation(
+    transitions: &BTreeMap<AtomId, ElectronTransition>,
+    donor: &AtomId,
+    acceptor: &AtomId,
+) -> bool {
+    let donor_transition = &transitions[donor];
+    let acceptor_transition = &transitions[acceptor];
+    let donor_has_pair = donor_transition
+        .before()
+        .non_bonding_electrons()
+        .saturating_sub(donor_transition.before().unpaired_electrons())
+        >= 2;
+    donor_has_pair
+        && donor_transition.before().unpaired_electrons()
+            == donor_transition.after().unpaired_electrons()
+        && acceptor_transition.before().unpaired_electrons()
+            == acceptor_transition.after().unpaired_electrons()
+        && valid_endpoint_delta(donor_transition, -2, 1)
+        && valid_endpoint_delta(acceptor_transition, 0, 1)
+}
+
 fn valid_endpoint_delta(
     transition: &ElectronTransition,
     local_delta: i16,
@@ -1542,12 +1706,18 @@ fn relabel_graph(
         .covalent_bonds()
         .values()
         .map(|bond| {
-            CovalentBond::new(
-                qualified_id(instance, bond.id())?,
-                atoms[bond.left()].clone(),
-                atoms[bond.right()].clone(),
-                bond.order(),
-            )
+            let id = qualified_id(instance, bond.id())?;
+            match bond.electron_origin() {
+                CovalentElectronOrigin::Shared => CovalentBond::new(
+                    id,
+                    atoms[bond.left()].clone(),
+                    atoms[bond.right()].clone(),
+                    bond.order(),
+                ),
+                CovalentElectronOrigin::Dative { donor, acceptor } => {
+                    CovalentBond::new_dative(id, atoms[donor].clone(), atoms[acceptor].clone())
+                }
+            }
         })
         .collect::<Result<Vec<_>, _>>()?;
     let group_ids = graph
@@ -1873,6 +2043,7 @@ pub enum StructuralError {
     ZeroElectronTransfer,
     InvalidElectronTransfer,
     InvalidCovalentElectronLedger,
+    InvalidDativeElectronLedger,
     InvalidMetallicElectronLedger,
     EmptyProductAssignment,
     DuplicateProductAssignmentAtom(AtomId),
@@ -2075,6 +2246,8 @@ impl fmt::Display for StructuralError {
             }
             Self::InvalidCovalentElectronLedger => formatter
                 .write_str("covalent operation endpoint states do not match its bond allocation"),
+            Self::InvalidDativeElectronLedger => formatter
+                .write_str("dative operation endpoint states do not match donor-pair allocation"),
             Self::InvalidMetallicElectronLedger => formatter
                 .write_str("metallic operation endpoint states or domain ledger are inconsistent"),
             Self::EmptyProductAssignment => {

@@ -155,10 +155,19 @@ A molecular structure or polyatomic ion is an atom graph. A covalent edge joins
 two distinct atoms and has order `single`, `double`, or `triple`. Duplicate
 unordered endpoints and self edges are invalid.
 
-For the initial closed domain, aromatic and dative bonding are unsupported
-rather than approximated as ordinary localized bonds. Later support requires a
-language-design change defining declaration, operation, electron, validation,
-and renderer semantics together.
+### Dative covalent bonding
+
+A dative bond is a localized `single` covalent edge whose electron-origin
+annotation records a donor atom and an acceptor atom. It is not a fourth bond
+order: after formation it contributes one to each endpoint's covalent
+bond-order sum and owns two electrons exactly like any other single bond. The
+direction records that both forming electrons came from the donor and is
+retained for structural explanation and rendering. It does not imply a
+permanent physical polarity or a different final bond strength.
+
+Aromatic bonding remains unsupported rather than being silently approximated
+as alternating localized edges. Later aromatic support requires declaration,
+operation, electron, validation, and renderer semantics to be defined together.
 
 ### Groups
 
@@ -255,6 +264,12 @@ The initial operation set is closed:
 - `FormCovalent(A, B, order)` consumes one available unpaired electron from
   each endpoint per new bond order and creates the edge atomically, with exact
   endpoint post-states;
+- `FormDative(donor, acceptor)` consumes one paired non-bonding electron pair
+  from the donor, consumes no acceptor-local electron, and creates a
+  donor-to-acceptor annotated single covalent edge with exact endpoint
+  post-states;
+- `CleaveDative(donor, acceptor, allocation)` removes that exact annotated edge
+  and explicitly allocates the bonding pair homolytically or heterolytically;
 - `ChangeCovalent(A, B, old_order, new_order, allocation)` performs a checked
   order decrease or increase with explicit allocation and exact endpoint
   post-states;
@@ -362,8 +377,9 @@ The kernel always checks:
 4. deterministic instance, mapping, and operation expansion;
 5. total bijective element-preserving atom mapping;
 6. every operation precondition at its exact step;
-7. supported valence, formal charge, non-bonding electrons, radicals, ionic
-   associations, and metallic-domain ownership after every step;
+7. supported valence, formal charge, non-bonding electrons, radicals, dative
+   donor-pair provenance, ionic associations, and metallic-domain ownership
+   after every step;
 8. atom, total charge, and explicit valence-electron conservation;
 9. product assignment consistency; and
 10. equality between final transformed graphs and declared catalogue products.

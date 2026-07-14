@@ -47,7 +47,9 @@ state, reconstructs a validated `StructuralGraph`, checks reviewed valence and
 formal-charge facts, and proves atom-count, explicit-electron, and closed-system
 charge conservation. The final mapped atoms, covalent edges, ionic components,
 metallic domains, and product assignments must exactly equal the declared
-product graphs.
+product graphs. Shared covalent operations cannot consume dative edges; dative
+formation and cleavage require exact donor-to-acceptor identity, and that
+direction remains proof-relevant in final-product comparison.
 
 `validate_review_candidate` produces a derivation whose serialized trust is
 explicitly `review_candidate`; it cannot construct trusted chemistry.
@@ -60,7 +62,8 @@ catalogue identities and rejects stale reuse.
 
 Slice 6 projects only a current `ValidatedStructuralReaction` into immutable
 `SimulationFrame` values. Every frame retains exact atoms and electron labels,
-distinct covalent/ionic/metallic relationships, product membership, typed
+distinct shared/dative covalent, ionic, and metallic relationships, including
+dative donor direction, plus product membership, typed
 active-operation data, model disclosure, observation status, and source,
 expansion, catalogue, derivation, and state digests. Presentation timing and
 layout are absent from the chemistry artifact.

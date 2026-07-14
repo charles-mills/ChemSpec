@@ -9,8 +9,8 @@ use chem_catalogue::{
     EventModel, SequenceModel, TrustedCatalogue, ValencePremiseRecord, ValidatedCatalogueBundle,
 };
 use chem_domain::{
-    Atom, AtomGroup, AtomGroupId, AtomId, AtomMapping, BondOrder, ContentDigest, CovalentBond,
-    CovalentBondId, IonicAssociation, IonicAssociationId, MetallicDomain, MetallicDomainId,
+    Atom, AtomGroup, AtomGroupId, AtomId, AtomMapping, ContentDigest, CovalentBond, CovalentBondId,
+    CovalentElectronOrigin, IonicAssociation, IonicAssociationId, MetallicDomain, MetallicDomainId,
     MetallicReleaseAllocation, ReactionSide, StructuralGraph, StructuralOperationId,
     StructuralOperationView, StructureInstanceId, canonical_json,
 };
@@ -712,8 +712,11 @@ impl WorkingState {
                 ..
             } => {
                 let bond = self.require_bond(left, right, ordinal)?;
-                if bond.order() != expected_order {
-                    return Err(precondition(ordinal, "covalent bond order mismatch"));
+                if bond.order() != expected_order || !bond.electron_origin().is_shared() {
+                    return Err(precondition(
+                        ordinal,
+                        "shared covalent bond identity or order mismatch",
+                    ));
                 }
                 let bond_id = bond.id().clone();
                 self.bonds.remove(&bond_id);
@@ -772,6 +775,47 @@ impl WorkingState {
                     })?;
                 self.bonds.insert(id, bond);
             }
+            StructuralOperationView::CleaveDative {
+                donor,
+                acceptor,
+                transitions,
+                ..
+            } => {
+                let bond = self.require_bond(donor, acceptor, ordinal)?;
+                if bond.electron_origin()
+                    != (&CovalentElectronOrigin::Dative {
+                        donor: donor.clone(),
+                        acceptor: acceptor.clone(),
+                    })
+                {
+                    return Err(precondition(
+                        ordinal,
+                        "directed dative bond identity mismatch",
+                    ));
+                }
+                let bond_id = bond.id().clone();
+                self.bonds.remove(&bond_id);
+                self.apply_transitions(transitions, ordinal)?;
+            }
+            StructuralOperationView::FormDative {
+                donor,
+                acceptor,
+                transitions,
+            } => {
+                if self.find_bond(donor, acceptor).is_some() {
+                    return Err(precondition(ordinal, "covalent bond already exists"));
+                }
+                self.apply_transitions(transitions, ordinal)?;
+                let id = CovalentBondId::from_str(&format!("{}.bond", expanded.operation.id()))
+                    .map_err(|error| {
+                        KernelError::corrupt("CHEMS-K090", error.to_string(), Some(ordinal))
+                    })?;
+                let bond = CovalentBond::new_dative(id.clone(), donor.clone(), acceptor.clone())
+                    .map_err(|error| {
+                        KernelError::invalid("CHEMS-K021", error.to_string(), Some(ordinal))
+                    })?;
+                self.bonds.insert(id, bond);
+            }
             StructuralOperationView::ChangeCovalent {
                 left,
                 right,
@@ -781,8 +825,11 @@ impl WorkingState {
                 ..
             } => {
                 let old = self.require_bond(left, right, ordinal)?.clone();
-                if old.order() != old_order {
-                    return Err(precondition(ordinal, "old covalent order mismatch"));
+                if old.order() != old_order || !old.electron_origin().is_shared() {
+                    return Err(precondition(
+                        ordinal,
+                        "shared covalent bond identity or old order mismatch",
+                    ));
                 }
                 self.apply_transitions(transitions, ordinal)?;
                 let changed =
@@ -1321,24 +1368,40 @@ fn compare_final_bonds(
     expanded: &ExpandedStructuralReaction,
     state: &WorkingState,
 ) -> Result<(), KernelError> {
-    let map_edge = |left: &AtomId, right: &AtomId, order: BondOrder| {
+    let map_edge = |bond: &CovalentBond| {
         let mut ends = [
-            expanded.mapping.entries()[left].clone(),
-            expanded.mapping.entries()[right].clone(),
+            expanded.mapping.entries()[bond.left()].clone(),
+            expanded.mapping.entries()[bond.right()].clone(),
         ];
         ends.sort();
-        (ends[0].clone(), ends[1].clone(), order)
+        let origin = match bond.electron_origin() {
+            CovalentElectronOrigin::Shared => None,
+            CovalentElectronOrigin::Dative { donor, acceptor } => Some((
+                expanded.mapping.entries()[donor].clone(),
+                expanded.mapping.entries()[acceptor].clone(),
+            )),
+        };
+        (ends[0].clone(), ends[1].clone(), bond.order(), origin)
     };
-    let actual = state
-        .bonds
-        .values()
-        .map(|bond| map_edge(bond.left(), bond.right(), bond.order()))
-        .collect::<BTreeSet<_>>();
+    let actual = state.bonds.values().map(map_edge).collect::<BTreeSet<_>>();
     let expected = expanded
         .product_instances
         .values()
         .flat_map(|instance| instance.instance.graph().covalent_bonds().values())
-        .map(|bond| (bond.left().clone(), bond.right().clone(), bond.order()))
+        .map(|bond| {
+            let origin = match bond.electron_origin() {
+                CovalentElectronOrigin::Shared => None,
+                CovalentElectronOrigin::Dative { donor, acceptor } => {
+                    Some((donor.clone(), acceptor.clone()))
+                }
+            };
+            (
+                bond.left().clone(),
+                bond.right().clone(),
+                bond.order(),
+                origin,
+            )
+        })
         .collect::<BTreeSet<_>>();
     if actual != expected {
         return Err(KernelError::invalid(

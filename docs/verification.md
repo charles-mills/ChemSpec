@@ -28,6 +28,8 @@ Property and table-driven tests cover:
 - graph equality independent of declaration order;
 - equal formula but unequal structural isomers;
 - duplicate/self/unsupported covalent edges;
+- dative donor/acceptor identity, donor-pair formation, explicit cleavage
+  allocation, and stable canonical serialization;
 - deterministic group expansion;
 - ionic component charge and association membership;
 - metallic site-core and delocalized-electron ownership;

@@ -45,7 +45,7 @@ StructuralEntry
   stable identity and aliases
   formula summary and representation kind
   atom nodes, formal charge, non-bonding and unpaired electrons
-  localized covalent edges
+  localized shared and directed dative covalent edges
   ionic components and associations
   metallic site cores and delocalized electron domains
   reusable groups
@@ -83,9 +83,12 @@ declaration order produces equivalent canonical HIR after semantic ordering.
 Every operation is a pure transition from one immutable graph state to the
 next. Failed preconditions return a diagnostic and no state.
 
-- Covalent cleavage removes the exact expected edge and allocates its electrons
-  homolytically or to one named endpoint.
-- Covalent formation consumes exact available unpaired electrons.
+- Shared covalent cleavage removes the exact expected edge and allocates its
+  electrons homolytically or to one named endpoint.
+- Shared covalent formation consumes exact available unpaired electrons.
+- Dative formation consumes one donor-local pair and records its directed
+  donor-to-acceptor origin on the resulting single covalent edge. Dative
+  cleavage requires that exact directed identity and an explicit allocation.
 - Bond-order change has explicit electron allocation.
 - Ionic association changes membership without inventing electron sharing.
 - Metallic release and join transfer ownership between site-local and
@@ -107,7 +110,8 @@ The engine proves:
   by one for every domain-owned delocalized electron;
 - explicit valence electrons are conserved across atom-local, covalent, and
   metallic-domain ownership; and
-- final transformed graphs equal catalogue product instances.
+- final transformed graphs, including dative donor-to-acceptor origin, equal
+  catalogue product instances.
 
 Charge conservation and electron conservation are recorded separately even
 when one can be derived from other closed-system facts, because local electron

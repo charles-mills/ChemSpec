@@ -23,7 +23,8 @@ request
 ```
 
 - Formulae summarize composition; catalogue graphs define structure.
-- Covalent, ionic, and metallic representations remain distinct.
+- Shared and dative covalent bonds, ionic associations, and metallic domains
+  remain distinct; dative direction records donor-pair origin on a single bond.
 - Applicability belongs to reviewed reaction rules, not agent invention.
 - The authored source is visible and editable.
 - The expanded atom map and structural certificate are visible and derived.

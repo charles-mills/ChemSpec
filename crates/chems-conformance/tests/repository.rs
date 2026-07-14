@@ -13,7 +13,7 @@ fn repository_contract_is_internally_valid() {
         validate_repository(&workspace_root()).expect("repository contract should validate");
     assert_eq!(summary.grammar_productions, 42);
     assert_eq!(summary.components, 13);
-    assert_eq!(summary.cases, 18);
+    assert_eq!(summary.cases, 19);
     assert_eq!(summary.incomplete_cases, 6);
     assert!(!summary.is_complete());
 }

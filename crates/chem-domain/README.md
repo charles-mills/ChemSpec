@@ -12,7 +12,8 @@ graph execution, networking, application state, or rendering.
   associations, metallic domains, expanded instances, rules, operations,
   mappings, evidence packets, claims, and premises;
 - atom-local formal charge, non-bonding electrons, and unpaired electrons;
-- the closed `single | double | triple` localized covalent order domain;
+- the closed `single | double | triple` localized covalent order domain, with
+  shared or directed dative electron origin on single bonds;
 - canonical nonempty atom groups and many-body ionic associations;
 - explicit metallic site and delocalized-electron-domain ownership;
 - privately constructed immutable `StructuralGraph` values;
@@ -30,7 +31,8 @@ digests. Formula inventories must equal graph element inventories and never
 replace graph identity; formula-equal structural isomers remain unequal.
 
 Construction rejects empty or duplicate identities, self/duplicate/unknown
-covalent edges, empty or repeated group membership, overlapping/non-neutral
+covalent edges, invalid dative endpoints or bond orders, empty or repeated
+group membership, overlapping/non-neutral
 ionic association components, multiply owned metallic sites, and simultaneous
 site-local/domain-owned electrons. Validated graph fields are private and the
 types intentionally do not deserialize directly; later trusted-boundary crates
@@ -63,8 +65,8 @@ definitive `.chems 1` contract or a compatibility language.
 
 `tests/structural.rs` covers constructor failure classes, all relationship
 kinds, electron and charge accounting, formula-equal structural isomers,
-reaction-side atom identity, mapping totality/bijection, validated operation
-endpoint states, definition-derived instance relabeling, canonical
+reaction-side atom identity, mapping totality/bijection, shared and dative
+operation endpoint states, definition-derived instance relabeling, canonical
 serialization, digests, generated `proptest` properties, and the promoted
 structural conformance fixtures under
 `conformance/structural-domain`.

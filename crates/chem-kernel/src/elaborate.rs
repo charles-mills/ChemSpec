@@ -1055,6 +1055,44 @@ fn expand_operation_input(
                 none,
             ))
         }
+        OperationTemplateRecord::CleaveDative {
+            donor,
+            acceptor,
+            allocation,
+            before,
+            after,
+            ..
+        } => {
+            let donor = atom_ref(donor, bindings)?;
+            let acceptor = atom_ref(acceptor, bindings)?;
+            Ok((
+                StructuralOperationInput::CleaveDative {
+                    donor: donor.clone(),
+                    acceptor: acceptor.clone(),
+                    allocation: electron_allocation(allocation, bindings)?,
+                    transitions: binary_transitions(&donor, &acceptor, before, after)?,
+                },
+                none,
+            ))
+        }
+        OperationTemplateRecord::FormDative {
+            donor,
+            acceptor,
+            before,
+            after,
+            ..
+        } => {
+            let donor = atom_ref(donor, bindings)?;
+            let acceptor = atom_ref(acceptor, bindings)?;
+            Ok((
+                StructuralOperationInput::FormDative {
+                    donor: donor.clone(),
+                    acceptor: acceptor.clone(),
+                    transitions: binary_transitions(&donor, &acceptor, before, after)?,
+                },
+                none,
+            ))
+        }
         OperationTemplateRecord::ChangeCovalent {
             edge,
             old_order,
