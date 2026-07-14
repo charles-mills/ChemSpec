@@ -9,6 +9,24 @@ interchange envelopes. The future source-AST, HIR, catalogue, and validated
 artifact envelopes carry their applicable schema versions and govern the
 domain values they contain.
 
+## Module map
+
+```mermaid
+flowchart TB
+    serialization["serialization<br/>canonical JSON and SHA-256"] --> identity["identity<br/>typed and content-derived IDs"]
+    scalar["scalar<br/>source decimals and exact rationals"] --> unit["unit<br/>dimensions and conversions"]
+    formula["formula<br/>syntax, normalization, charge, phase"] --> material["material<br/>resolved species and exact preparations"]
+    unit --> material
+    identity --> material
+    material --> state["state<br/>stages, vessels, inventory, lineage"]
+    unit --> state
+    identity --> state
+```
+
+The arrows show where lower-level domain concepts are composed into richer
+values. All public modules remain deterministic and independent of parsing,
+catalogue policy, and procedure execution.
+
 ## Exact numeric contract
 
 - `SourceDecimal` retains the original lexeme, integer coefficient, decimal
