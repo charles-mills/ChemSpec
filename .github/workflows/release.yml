@@ -1,0 +1,200 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_PACKAGER_VERSION: 0.11.8
+
+jobs:
+  validate-tag:
+    name: Validate release tag
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Require the tag to match the Cargo version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must have the form v0.0.0." >&2
+            exit 1
+          fi
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          cargo_version="$({ cargo metadata --no-deps --format-version 1; } | jq -r '.packages[] | select(.name == "chemspec-app") | .version')"
+
+          if [[ "$tag_version" != "$cargo_version" ]]; then
+            echo "Tag version $tag_version does not match Cargo version $cargo_version." >&2
+            exit 1
+          fi
+
+  windows:
+    name: Build Windows MSI
+    needs: validate-tag
+    runs-on: windows-2022
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build release binary
+        run: cargo build -p chemspec-app --release --locked
+
+      - name: Install cargo-packager
+        shell: pwsh
+        run: cargo install cargo-packager --version $env:CARGO_PACKAGER_VERSION --locked
+
+      - name: Build MSI
+        run: cargo packager --release --packages chemspec-app --formats wix --out-dir dist
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: dist/*.msi
+          if-no-files-found: error
+
+  linux:
+    name: Build Linux AppImage and binary
+    needs: validate-tag
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install AppImage build dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libfuse2
+
+      - name: Build release binary
+        run: cargo build -p chemspec-app --release --locked
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --version "$CARGO_PACKAGER_VERSION" --locked
+
+      # cargo-packager requires a square PNG for AppImage metadata. Keep this
+      # transparent placeholder out of the repository until a real icon exists.
+      - name: Create placeholder AppImage icon
+        run: |
+          mkdir -p target/packaging
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' \
+            | base64 --decode > target/packaging/placeholder.png
+
+      - name: Build AppImage
+        run: cargo packager --release --packages chemspec-app --formats appimage --out-dir dist
+
+      - name: Stage standalone binary
+        run: install -m 755 target/release/chemspec-app dist/chemspec-app-linux-x86_64
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: |
+            dist/*.AppImage
+            dist/chemspec-app-linux-x86_64
+          if-no-files-found: error
+
+  macos:
+    name: Build universal macOS DMG
+    needs: validate-tag
+    runs-on: macos-14
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install macOS Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build both macOS architectures
+        run: |
+          cargo build -p chemspec-app --release --locked --target aarch64-apple-darwin
+          cargo build -p chemspec-app --release --locked --target x86_64-apple-darwin
+
+      - name: Create universal binary
+        run: |
+          mkdir -p target/release
+          lipo -create \
+            target/aarch64-apple-darwin/release/chemspec-app \
+            target/x86_64-apple-darwin/release/chemspec-app \
+            -output target/release/chemspec-app
+          archs="$(lipo -archs target/release/chemspec-app)"
+          [[ "$archs" == *x86_64* && "$archs" == *arm64* ]]
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --version "$CARGO_PACKAGER_VERSION" --locked
+
+      - name: Build unsigned DMG
+        run: cargo packager --release --packages chemspec-app --formats dmg --out-dir dist
+
+      - name: Name DMG as a universal build
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(dist/*.dmg)
+          if [[ ${#dmgs[@]} -ne 1 ]]; then
+            echo "Expected exactly one DMG, found ${#dmgs[@]}." >&2
+            exit 1
+          fi
+          mv "${dmgs[0]}" "dist/ChemSpec_${GITHUB_REF_NAME#v}_universal.dmg"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs:
+      - windows
+      - linux
+      - macos
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          artifacts=(dist/*)
+          if [[ ${#artifacts[@]} -eq 0 ]]; then
+            echo "No release artifacts were downloaded." >&2
+            exit 1
+          fi
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${artifacts[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${artifacts[@]}" \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi

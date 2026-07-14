@@ -130,6 +130,16 @@ experiment SilverChloridePrecipitation where
 - [Build Week delivery plan](docs/delivery-plan.md)
 - [Build Week implementation plan](docs/implementation-plan.md)
 
+## Releases
+
+Pushing a tag in the exact form `vMAJOR.MINOR.PATCH` builds and publishes a
+GitHub Release containing a Windows MSI, a Linux AppImage and standalone
+x86_64 binary, and a universal macOS DMG. The tag version must match
+`[workspace.package].version` in `Cargo.toml`.
+
+The packages are currently unsigned. Windows SmartScreen and macOS Gatekeeper
+may therefore warn when they are downloaded and opened.
+
 ## Language toolchain
 
 Slices 0–2 provide the executable specification boundary, exact domain
