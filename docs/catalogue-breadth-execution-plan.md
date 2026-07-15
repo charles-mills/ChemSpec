@@ -167,19 +167,27 @@ two parameters: `M : Categories.AlkaliMetal` (base) and
 HX(aq) + MOH(aq) -> MX(aq) + H2O(l)        X in {Cl, Br, I}, M in {Li, Na, K}
 ```
 
-Mechanism (mirrors the proton-transfer/dative pattern already reviewed for
-`Rules.AlkaliMetalWithWater`'s hydrogen chemistry):
+Mechanism (mirrors the release/transfer/form-bond pattern already reviewed
+for `Rules.AlkaliMetalWithWater`'s hydrogen chemistry — implemented with
+`transfer_electron` + `form_covalent` rather than `form_dative`, because a
+dative bond's directed electron-origin annotation is part of its structural
+identity and would not equal `Water`'s plain shared O-H bonds in the final
+graph comparison):
 
 1. `cleave_covalent` H-X heterolytic to X — X becomes a halide anion
    (charge -1, 4 lone pairs), H becomes a bare proton (charge +1, no
    electrons).
-2. `form_dative` donor = hydroxide oxygen's lone pair, acceptor = the bare
-   proton — the hydroxide's O-H group gains a second O-H bond and becomes
-   neutral: this is exactly `Water`'s existing oxygen state
-   (charge 0, 2 lone pairs, bond-order sum 2), so the product reuses the
-   existing trusted `Water` structure unmodified.
-3. `associate_ionic` M+ with X- — the new salt.
-4. `assign_product` x2.
+2. `transfer_electron` from the hydroxide oxygen to the bare proton (count
+   1) — the oxygen becomes a transient odd-electron radical state, the
+   proton becomes a neutral radical with one available unpaired electron.
+3. `form_covalent` between the same oxygen and that hydrogen (order single,
+   one electron contributed by each) — the hydroxide's O-H group gains a
+   second, ordinary shared O-H bond and becomes neutral: this is exactly
+   `Water`'s existing oxygen state (charge 0, 2 lone pairs, bond-order sum
+   2), so the product reuses the existing trusted `Water` structure
+   unmodified.
+4. `associate_ionic` M+ with X- — the new salt.
+5. `assign_product` x2.
 
 ### Structures, templates, applications (new)
 
@@ -244,7 +252,7 @@ below rather than a silently missing combination.
 - Explicit unsupported boundary (documented, not a parameter of this rule):
   fully deprotonated carbonate salts (e.g. Na2CO3, K2CO3) are out of scope
   for this rule; they would need a second protonation step (an additional
-  `form_dative`/`cleave_covalent` pair) that is a straightforward but
+  `transfer_electron`/`form_covalent`/`cleave_covalent` sequence) that is a straightforward but
   separate extension, deliberately deferred to keep this family's domain
   small and exact.
 
@@ -260,11 +268,14 @@ lone pairs), O_B (single, -OH, neutral, carries H_B), O_C (single, charge
 (one canonical resonance form, consistent with the domain's no-resonance
 rule) with total charge -1, matching HCO3-.
 
-Mechanism (six new rewrite operations plus the acid-cleave and salt
-association already used by family 2):
+Mechanism (dative-free, for the same final-graph-identity reason recorded
+for family 2: every new bond that survives to a final product must be an
+ordinary shared bond, formed via `transfer_electron` + `form_covalent`, not
+`form_dative`; `change_covalent` is used once for the C=O bond-order
+increase):
 
 1. `cleave_covalent` H-X heterolytic to X — as family 2.
-2. `form_dative` donor = O_C lone pair, acceptor = the bare proton — O_C
+2. `transfer_electron` + `form_covalent`, O_C to the bare proton — O_C
    becomes a second neutral -OH group (now structurally equivalent to fully
    protonated carbonic acid, H2CO3, transient and never assigned to a
    product).
@@ -281,10 +292,10 @@ association already used by family 2):
    supplying the second bonding pair — O_C becomes the second carbonyl
    oxygen (charge 0, 2 lone pairs, bond-order sum 2) and C returns to
    neutral, bond-order sum 4: this is exactly `CO2`'s structure (O_A=C=O_C).
-6. `form_dative` donor = O_B's remaining lone pair, acceptor = the bare
-   proton freed in step 4 — O_B gains a second H (H_new), becoming neutral
-   water (bond-order sum 2, 2 lone pairs): exactly the existing `Water`
-   structure's oxygen state.
+6. `transfer_electron` + `form_covalent`, O_B to the bare proton freed in
+   step 4 — O_B gains a second H (H_new), becoming neutral water (bond-order
+   sum 2, 2 lone pairs): exactly the existing `Water` structure's oxygen
+   state.
 7. `associate_ionic` M+ with X- — the new salt.
 8. `assign_product` x3 (CO2, water, salt).
 
