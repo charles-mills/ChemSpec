@@ -106,9 +106,14 @@ recognised uncatalogued pairs and unrecognised drafts remain distinct states.
 The kernel verifies exact structural transitions, electron bookkeeping,
 represented-electron and charge conservation, bond changes, stable atoms,
 observation activation, and complete product assignment. Every trusted binding
-opens the structural 2D explanation. The alkali-water family also has a
-macroscopic scene profile; other families remain in 2D until their
-family-specific profiles are supplied.
+opens the structural 2D explanation and a family-selected macroscopic scene.
+The macroscopic profiles cover alkali-water, silver-halide precipitation,
+acid-base neutralization, carbonate/bicarbonate gas evolution, and aqueous
+halogen displacement. Effects remain gated by observations in the trusted
+frames and cannot begin before the matching observation becomes active.
+Value-bearing visuals such as precipitate colour are selected from and bound
+to the exact trusted value. A family with no supported visible effect is
+presented without inventing one.
 
 Future operation or presentation variants must be added vertically: catalogue
 schema, trusted transition validation, frames, planner primitives, renderers,

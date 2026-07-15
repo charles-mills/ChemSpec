@@ -631,6 +631,8 @@ pub enum AppearanceProfile {
     Water,
     AqueousColourless,
     WhitePrecipitate,
+    CreamPrecipitate,
+    YellowPrecipitate,
     AlkaliMetal,
     MetalSilver,
 }
@@ -651,6 +653,16 @@ pub struct PresentationObject {
     pub role: SceneRole,
     pub transform: PresentationTransform,
     pub visible_from_ordinal: u16,
+    pub observation: Option<ObjectObservationBinding>,
+}
+
+/// A trusted observation that must activate before an object may be shown.
+/// An expected value closes the binding over value-bearing predicates such as
+/// precipitate colour.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectObservationBinding {
+    pub predicate: ObservationPredicate,
+    pub value: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -814,29 +826,62 @@ pub struct ScenePlan {
     pub virtual_only_disclosure: String,
 }
 
-/// Binds a host-selected visual profile to a trusted generation. Effects whose
-/// observation trigger is absent are rejected instead of guessed.
+/// Binds a host-selected visual profile to a trusted generation. Effects and
+/// observation-bound objects must begin no earlier than the matching active
+/// observation; value-bearing bindings must also match the trusted value.
 ///
 /// # Errors
 ///
-/// Returns an error when an effect lacks a matching validated observation or
-/// the trusted frame digest is unavailable.
+/// Returns an error when a visual precedes or mismatches its validated
+/// observation, or the trusted frame digest is unavailable.
 pub fn compile_real_world_plan(
     frames: &SimulationFrames,
     profile: &PresentationProfile,
 ) -> Result<ScenePlan, PlanError> {
-    let predicates = frames
+    let active_observations = frames
         .frames()
         .iter()
-        .flat_map(SimulationFrame::observations)
-        .map(|observation| observation.predicate)
+        .filter_map(|frame| {
+            u16::try_from(frame.ordinal())
+                .ok()
+                .map(|ordinal| (ordinal, frame))
+        })
+        .flat_map(|(ordinal, frame)| {
+            frame
+                .observations()
+                .iter()
+                .filter(|observation| observation.status == ObservationStatus::Active)
+                .map(move |observation| (ordinal, observation))
+        })
         .collect::<Vec<_>>();
-    if profile
-        .effects
-        .iter()
-        .any(|effect| !predicates.contains(&effect.trigger))
-    {
+    if profile.effects.iter().any(|effect| {
+        active_observations
+            .iter()
+            .filter(|(_, observation)| observation.predicate == effect.trigger)
+            .map(|(ordinal, _)| *ordinal)
+            .min()
+            .is_none_or(|ordinal| effect.start_ordinal < ordinal)
+    }) {
         return Err(PlanError::UnsupportedEffectTrigger);
+    }
+    if profile.objects.iter().any(|object| {
+        (object.role == SceneRole::Product && object.observation.is_none())
+            || object.observation.as_ref().is_some_and(|binding| {
+                active_observations
+                    .iter()
+                    .filter(|(_, observation)| {
+                        observation.predicate == binding.predicate
+                            && observation.value == binding.value
+                            && (binding.predicate != ObservationPredicate::Colour
+                                || appearance_colour_value(object.appearance)
+                                    == binding.value.as_deref())
+                    })
+                    .map(|(ordinal, _)| *ordinal)
+                    .min()
+                    .is_none_or(|ordinal| object.visible_from_ordinal < ordinal)
+            })
+    }) {
+        return Err(PlanError::UnsupportedObjectObservation);
     }
     let final_ordinal = frames
         .frames()
@@ -860,6 +905,15 @@ pub fn compile_real_world_plan(
         disclosure: profile.disclosure.clone(),
         virtual_only_disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     })
+}
+
+const fn appearance_colour_value(appearance: AppearanceProfile) -> Option<&'static str> {
+    match appearance {
+        AppearanceProfile::WhitePrecipitate => Some("White"),
+        AppearanceProfile::CreamPrecipitate => Some("Cream"),
+        AppearanceProfile::YellowPrecipitate => Some("Yellow"),
+        _ => None,
+    }
 }
 
 fn compile_real_world_timeline(
@@ -973,6 +1027,7 @@ pub enum PlanError {
     InvalidFrameSequence,
     MissingOperation(u32),
     UnsupportedEffectTrigger,
+    UnsupportedObjectObservation,
     PresentationRange,
     Digest,
 }
@@ -985,9 +1040,12 @@ impl fmt::Display for PlanError {
             Self::MissingOperation(ordinal) => {
                 write!(formatter, "frame {ordinal} has no operation")
             }
-            Self::UnsupportedEffectTrigger => {
-                formatter.write_str("presentation effect has no validated observation trigger")
-            }
+            Self::UnsupportedEffectTrigger => formatter.write_str(
+                "presentation effect precedes or lacks an active validated observation trigger",
+            ),
+            Self::UnsupportedObjectObservation => formatter.write_str(
+                "presentation object precedes or mismatches its active validated observation",
+            ),
             Self::PresentationRange => {
                 formatter.write_str("trusted frames exceed the presentation range")
             }

@@ -227,9 +227,13 @@ Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 drafts, slow orbit progression, and exhaustive order-independent reachability
 for all 36 trusted request bindings. Recognised unsupported, recognised
 uncatalogued, and unrecognised pairs have separate regression coverage. The
-handoff tests prove every trusted family can open the 2D sequence while the 3D
-transition remains gated on an available macroscopic profile. Periodic-table
-tests require all 118 atomic numbers and
+handoff tests prove every trusted family can open both the 2D sequence and its
+macroscopic profile. Profile tests compile all 36 supported bindings against
+their active trusted observations, reject premature effects and mismatched
+values, and separately preserve the validated white, cream, and yellow
+silver-halide appearances through scene geometry. Effect-free profiles are
+checked for a single liquid volume without transparent overdraw. Periodic-table tests require all 118
+atomic numbers and
 long-form display positions to be unique, every tile to remain square, the
 18-column grid to fit without horizontal scrolling, and the s/d and d/p block
 gaps to remain larger than within-block spacing.

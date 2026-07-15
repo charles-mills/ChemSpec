@@ -131,7 +131,8 @@ fn launch_state() -> App {
         if let Some(animation) = &mut app.structural_animation {
             let three_dimensional = smoke_mode == SmokeMode::Structural3d;
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
-            if three_dimensional && let Some(plan) = animation.real_world_plan.as_ref() {
+            if three_dimensional {
+                let plan = &animation.real_world_plan;
                 animation.real_world_playhead_ms =
                     plan.timeline.duration_ms().saturating_mul(2) / 3;
                 if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
@@ -161,7 +162,7 @@ fn launch_state() -> App {
                 }
             }
             animation.playing = false;
-            app.screen = if three_dimensional && animation.real_world_plan.is_some() {
+            app.screen = if three_dimensional {
                 Screen::Structural3d
             } else {
                 Screen::Structural2d
@@ -267,7 +268,7 @@ enum Message {
 struct StructuralAnimation {
     frames: chem_kernel::SimulationFrames,
     educational_plan: EducationalPlan,
-    real_world_plan: Option<ScenePlan>,
+    real_world_plan: ScenePlan,
     equation: String,
     educational_playhead_ms: u64,
     frame_index: usize,
@@ -403,13 +404,12 @@ impl App {
             }
             Message::ContinueTo3d => {
                 if self.structural_animation.as_ref().is_some_and(|animation| {
-                    animation.real_world_plan.is_some()
-                        && animation
-                            .educational_plan
-                            .locate(animation.educational_playhead_ms)
-                            .is_some_and(|position| {
-                                position.scene_index + 1 == animation.educational_plan.scenes.len()
-                            })
+                    animation
+                        .educational_plan
+                        .locate(animation.educational_playhead_ms)
+                        .is_some_and(|position| {
+                            position.scene_index + 1 == animation.educational_plan.scenes.len()
+                        })
                 }) {
                     if let Some(animation) = &mut self.structural_animation {
                         animation.frame_index = 0;
@@ -668,18 +668,9 @@ impl App {
                 .clone();
             let educational_plan =
                 compile_educational_plan(&frames).map_err(|error| error.to_string())?;
-            let last_ordinal = frames
-                .frames()
-                .last()
-                .and_then(|frame| u16::try_from(frame.ordinal()).ok())
-                .ok_or_else(|| "trusted frames exceed the presentation range".to_owned())?;
+            let profile = chemistry::presentation_profile(self.active_request, &frames)?;
             let real_world_plan =
-                chemistry::presentation_profile(self.active_request, last_ordinal)
-                    .map(|profile| {
-                        compile_real_world_plan(&frames, &profile)
-                            .map_err(|error| error.to_string())
-                    })
-                    .transpose()?;
+                compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
             Ok::<_, String>(StructuralAnimation {
                 frames,
                 educational_plan,
@@ -737,10 +728,7 @@ impl App {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
-        let Some(real_world_plan) = animation.real_world_plan.as_ref() else {
-            animation.playing = false;
-            return;
-        };
+        let real_world_plan = &animation.real_world_plan;
         let duration = real_world_plan.timeline.duration_ms();
         animation.real_world_playhead_ms = animation
             .real_world_playhead_ms
@@ -766,10 +754,7 @@ impl App {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
-        let Some(real_world_plan) = animation.real_world_plan.as_ref() else {
-            animation.playing = false;
-            return;
-        };
+        let real_world_plan = &animation.real_world_plan;
         animation.real_world_playhead_ms = elapsed_ms.min(real_world_plan.timeline.duration_ms());
         if let Some(position) = real_world_plan
             .timeline
@@ -873,17 +858,16 @@ impl App {
             .on_press(Message::ScreenSelected(Screen::Builder))
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let continue_3d: Element<'_, Message> = if animation.real_world_plan.is_some()
-            && timeline_position.scene_index + 1 == animation.educational_plan.scenes.len()
-        {
-            button(text("View in real life  →"))
-                .on_press(Message::ContinueTo3d)
-                .padding([spacing::XS, spacing::MD])
-                .style(theme::primary_button)
-                .into()
-        } else {
-            space().width(Length::Shrink).into()
-        };
+        let continue_3d: Element<'_, Message> =
+            if timeline_position.scene_index + 1 == animation.educational_plan.scenes.len() {
+                button(text("View in real life  →"))
+                    .on_press(Message::ContinueTo3d)
+                    .padding([spacing::XS, spacing::MD])
+                    .style(theme::primary_button)
+                    .into()
+            } else {
+                space().width(Length::Shrink).into()
+            };
 
         let equation = plan_equation(animation).map(str::to_owned);
         let scene_context = structural_2d::SceneContext::new(
@@ -1076,11 +1060,7 @@ impl App {
         let Some(animation) = &self.structural_animation else {
             return Self::structural_unavailable_view("Validated frames are unavailable");
         };
-        let Some(real_world_plan) = animation.real_world_plan.as_ref() else {
-            return Self::structural_unavailable_view(
-                "A macroscopic profile is not available for this reaction yet",
-            );
-        };
+        let real_world_plan = &animation.real_world_plan;
         let Some(moment) = real_world_plan
             .timeline
             .locate(animation.real_world_playhead_ms)
@@ -1382,14 +1362,7 @@ mod tests {
             .as_ref()
             .expect("animation planning succeeds");
         assert_eq!(animation.educational_plan.id, expected);
-        assert_eq!(
-            animation
-                .real_world_plan
-                .as_ref()
-                .expect("default experience has a macroscopic plan")
-                .reaction,
-            expected
-        );
+        assert_eq!(animation.real_world_plan.reaction, expected);
     }
 
     #[test]
@@ -1495,8 +1468,7 @@ mod tests {
         let target = app
             .structural_animation
             .as_ref()
-            .and_then(|animation| animation.real_world_plan.as_ref())
-            .map(|plan| plan.timeline.duration_ms() / 2)
+            .map(|animation| animation.real_world_plan.timeline.duration_ms() / 2)
             .expect("animation exists");
 
         app.update(Message::StructuralRealWorldTimelineScrubbed(
@@ -1506,8 +1478,6 @@ mod tests {
         let animation = app.structural_animation.as_ref().expect("animation exists");
         let position = animation
             .real_world_plan
-            .as_ref()
-            .expect("default experience has a macroscopic plan")
             .timeline
             .locate(target)
             .expect("timeline position exists");
@@ -1534,7 +1504,7 @@ mod tests {
     }
 
     #[test]
-    fn trusted_families_without_a_macroscopic_profile_still_open_in_2d() {
+    fn newly_integrated_families_open_with_both_presentation_plans() {
         let mut app = App::default();
         let request =
             chemistry::ReactionRequest::silver_halide_precipitation(chemistry::Halogen::Chlorine);
@@ -1548,10 +1518,12 @@ mod tests {
             .as_ref()
             .expect("trusted educational animation compiles");
         assert_eq!(animation.equation, request.equation());
-        assert!(animation.real_world_plan.is_none());
+        assert!(!animation.real_world_plan.timeline.beats.is_empty());
 
+        let duration = animation.educational_plan.duration_ms();
+        app.seek_educational_timeline(duration);
         app.update(Message::ContinueTo3d);
-        assert_eq!(app.screen, Screen::Structural2d);
+        assert_eq!(app.screen, Screen::Structural3d);
     }
 
     #[test]

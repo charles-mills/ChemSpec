@@ -10,12 +10,13 @@ use chem_catalogue::{
 };
 use chem_domain::ReactionRuleId;
 use chem_kernel::{
-    CurrentArtifactIdentity, SimulationFrames, expand_trusted, generate_frames, validate_trusted,
+    CurrentArtifactIdentity, ObservationStatus, SimulationFrames, expand_trusted, generate_frames,
+    validate_trusted,
 };
 use chem_presentation::{
     AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, EffectIntensity, EffectProfile,
-    PresentationEffect, PresentationObject, PresentationProfile, PresentationTransform, SceneRole,
-    VIRTUAL_ONLY_DISCLOSURE,
+    ObjectObservationBinding, PresentationEffect, PresentationObject, PresentationProfile,
+    PresentationTransform, SceneRole, VIRTUAL_ONLY_DISCLOSURE,
 };
 
 use crate::composition_catalogue::{self, CompositionId};
@@ -602,13 +603,6 @@ impl ReactionRequest {
         }
     }
 
-    fn alkali_water_metal(self) -> Option<AlkaliMetal> {
-        match self.kind {
-            ReactionKind::AlkaliWater { metal } => Some(metal),
-            _ => None,
-        }
-    }
-
     fn participants(self) -> [DraftParticipant; 2] {
         match self.kind {
             ReactionKind::AlkaliWater { metal } => [
@@ -874,107 +868,278 @@ pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
 
 /// Host-selected macroscopic styling for an exact trusted experience. This
 /// profile can select meshes and effects, but cannot alter chemistry.
+#[allow(clippy::too_many_lines)]
 pub fn presentation_profile(
     request: ReactionRequest,
-    last_ordinal: u16,
-) -> Option<PresentationProfile> {
-    let metal = request.alkali_water_metal()?;
+    frames: &SimulationFrames,
+) -> Result<PresentationProfile, String> {
+    let last_ordinal = frames
+        .frames()
+        .last()
+        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
+        .ok_or_else(|| "trusted frames exceed the presentation range".to_owned())?;
     let transform = |translation, scale| PresentationTransform {
         translation,
         rotation: [0, 0, 0],
         scale,
     };
-    Some(PresentationProfile {
+    let vessel = |asset| PresentationObject {
+        id: "vessel".to_owned(),
+        asset,
+        semantic_identity: "open reaction vessel".to_owned(),
+        appearance: AppearanceProfile::ClearGlass,
+        role: SceneRole::Vessel,
+        transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
+        visible_from_ordinal: 0,
+        observation: None,
+    };
+    let contents = |id: &str, identity: &str, appearance| PresentationObject {
+        id: id.to_owned(),
+        asset: AssetProfile::LiquidVolume,
+        semantic_identity: identity.to_owned(),
+        appearance,
+        role: SceneRole::Contents,
+        transform: transform([0, -150, 0], [1_000, 850, 1_000]),
+        visible_from_ordinal: 0,
+        observation: None,
+    };
+    let effect = |effect, trigger, start_ordinal, intensity| PresentationEffect {
+        effect,
+        trigger,
+        intensity,
+        start_ordinal,
+        end_ordinal: last_ordinal,
+    };
+    let camera = vec![
+        CameraCue {
+            behaviour: CameraBehaviour::WideEstablishingShot,
+            start_ordinal: 0,
+            end_ordinal: 1.min(last_ordinal),
+        },
+        CameraCue {
+            behaviour: CameraBehaviour::ReactionFocus,
+            start_ordinal: 1.min(last_ordinal),
+            end_ordinal: last_ordinal.saturating_sub(1),
+        },
+        CameraCue {
+            behaviour: CameraBehaviour::FinalHeroShot,
+            start_ordinal: last_ordinal,
+            end_ordinal: last_ordinal,
+        },
+    ];
+
+    let (objects, effects) = match request.kind {
+        ReactionKind::AlkaliWater { metal } => {
+            let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
+            let (disappears_ordinal, _) =
+                active_observation(frames, ObservationPredicate::Disappears)?;
+            (
+                vec![
+                    vessel(AssetProfile::Beaker),
+                    contents("water", "water", AppearanceProfile::Water),
+                    PresentationObject {
+                        id: metal.lower_name().to_owned(),
+                        asset: AssetProfile::MetalChunk,
+                        semantic_identity: format!("{} metal", metal.lower_name()),
+                        appearance: AppearanceProfile::AlkaliMetal,
+                        role: SceneRole::Reactant,
+                        transform: transform([0, 610, 0], [650, 650, 650]),
+                        visible_from_ordinal: 0,
+                        observation: None,
+                    },
+                    PresentationObject {
+                        id: "hydrogen".to_owned(),
+                        asset: AssetProfile::GasCloud,
+                        semantic_identity: "hydrogen gas".to_owned(),
+                        appearance: AppearanceProfile::AqueousColourless,
+                        role: SceneRole::Product,
+                        transform: transform([180, 930, 0], [600, 600, 600]),
+                        visible_from_ordinal: gas_ordinal,
+                        observation: Some(ObjectObservationBinding {
+                            predicate: ObservationPredicate::Evolves,
+                            value: None,
+                        }),
+                    },
+                ],
+                vec![
+                    effect(
+                        EffectProfile::BubbleEmitter,
+                        ObservationPredicate::Evolves,
+                        gas_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::GasRelease,
+                        ObservationPredicate::Evolves,
+                        gas_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::SurfaceDisturbance,
+                        ObservationPredicate::Disappears,
+                        disappears_ordinal,
+                        EffectIntensity::Subtle,
+                    ),
+                    effect(
+                        EffectProfile::ObjectShrinkage,
+                        ObservationPredicate::Disappears,
+                        disappears_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                ],
+            )
+        }
+        ReactionKind::SilverHalidePrecipitation { halogen } => {
+            let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
+            let (colour_ordinal, colour) =
+                active_observation(frames, ObservationPredicate::Colour)?;
+            let colour = colour
+                .ok_or_else(|| "trusted precipitate colour observation has no value".to_owned())?;
+            let appearance = match colour.as_str() {
+                "White" => AppearanceProfile::WhitePrecipitate,
+                "Cream" => AppearanceProfile::CreamPrecipitate,
+                "Yellow" => AppearanceProfile::YellowPrecipitate,
+                value => return Err(format!("unsupported trusted precipitate colour `{value}`")),
+            };
+            (
+                vec![
+                    vessel(AssetProfile::TestTube),
+                    contents(
+                        "aqueous-reactants",
+                        "aqueous silver nitrate and sodium halide",
+                        AppearanceProfile::AqueousColourless,
+                    ),
+                    PresentationObject {
+                        id: format!("silver-{}", halogen.halide_name().to_lowercase()),
+                        asset: AssetProfile::PrecipitateCloud,
+                        semantic_identity: format!(
+                            "silver {} precipitate",
+                            halogen.halide_name().to_lowercase()
+                        ),
+                        appearance,
+                        role: SceneRole::Product,
+                        transform: transform([0, -520, 0], [760, 360, 760]),
+                        visible_from_ordinal: colour_ordinal,
+                        observation: Some(ObjectObservationBinding {
+                            predicate: ObservationPredicate::Colour,
+                            value: Some(colour),
+                        }),
+                    },
+                ],
+                vec![
+                    effect(
+                        EffectProfile::PrecipitateFormation,
+                        ObservationPredicate::Forms,
+                        forms_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::Clouding,
+                        ObservationPredicate::Forms,
+                        forms_ordinal,
+                        EffectIntensity::Subtle,
+                    ),
+                ],
+            )
+        }
+        ReactionKind::AcidBaseNeutralization { .. } => (
+            vec![
+                vessel(AssetProfile::Beaker),
+                contents(
+                    "neutralization-mixture",
+                    "aqueous acid and alkali hydroxide",
+                    AppearanceProfile::AqueousColourless,
+                ),
+            ],
+            Vec::new(),
+        ),
+        ReactionKind::AcidBicarbonateGasEvolution { .. }
+        | ReactionKind::AcidCarbonateGasEvolution { .. } => {
+            let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
+            let (disappears_ordinal, _) =
+                active_observation(frames, ObservationPredicate::Disappears)?;
+            (
+                vec![
+                    vessel(AssetProfile::ConicalFlask),
+                    contents(
+                        "aqueous-reactants",
+                        "aqueous acid and carbonate reactants",
+                        AppearanceProfile::AqueousColourless,
+                    ),
+                    PresentationObject {
+                        id: "carbon-dioxide".to_owned(),
+                        asset: AssetProfile::GasCloud,
+                        semantic_identity: "carbon dioxide gas".to_owned(),
+                        appearance: AppearanceProfile::AqueousColourless,
+                        role: SceneRole::Product,
+                        transform: transform([160, 930, 0], [620, 620, 620]),
+                        visible_from_ordinal: gas_ordinal,
+                        observation: Some(ObjectObservationBinding {
+                            predicate: ObservationPredicate::Evolves,
+                            value: None,
+                        }),
+                    },
+                ],
+                vec![
+                    effect(
+                        EffectProfile::BubbleEmitter,
+                        ObservationPredicate::Evolves,
+                        gas_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::GasRelease,
+                        ObservationPredicate::Evolves,
+                        gas_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::SurfaceDisturbance,
+                        ObservationPredicate::Disappears,
+                        disappears_ordinal,
+                        EffectIntensity::Subtle,
+                    ),
+                ],
+            )
+        }
+        ReactionKind::HalogenDisplacement { .. } => {
+            (vec![vessel(AssetProfile::TestTube)], Vec::new())
+        }
+    };
+
+    Ok(PresentationProfile {
         id: format!("presentation.ai.{}", request.id()),
         environment: AssetProfile::LaboratoryBench,
-        objects: vec![
-            PresentationObject {
-                id: "vessel".to_owned(),
-                asset: AssetProfile::Beaker,
-                semantic_identity: "open reaction vessel".to_owned(),
-                appearance: AppearanceProfile::ClearGlass,
-                role: SceneRole::Vessel,
-                transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
-                visible_from_ordinal: 0,
-            },
-            PresentationObject {
-                id: "water".to_owned(),
-                asset: AssetProfile::LiquidVolume,
-                semantic_identity: "water".to_owned(),
-                appearance: AppearanceProfile::Water,
-                role: SceneRole::Contents,
-                transform: transform([0, -150, 0], [1_000, 850, 1_000]),
-                visible_from_ordinal: 0,
-            },
-            PresentationObject {
-                id: metal.lower_name().to_owned(),
-                asset: AssetProfile::MetalChunk,
-                semantic_identity: format!("{} metal", metal.lower_name()),
-                appearance: AppearanceProfile::AlkaliMetal,
-                role: SceneRole::Reactant,
-                transform: transform([0, 610, 0], [650, 650, 650]),
-                visible_from_ordinal: 0,
-            },
-            PresentationObject {
-                id: "hydrogen".to_owned(),
-                asset: AssetProfile::GasCloud,
-                semantic_identity: "hydrogen gas".to_owned(),
-                appearance: AppearanceProfile::AqueousColourless,
-                role: SceneRole::Product,
-                transform: transform([180, 930, 0], [600, 600, 600]),
-                visible_from_ordinal: last_ordinal.saturating_sub(2),
-            },
-        ],
-        effects: vec![
-            PresentationEffect {
-                effect: EffectProfile::BubbleEmitter,
-                trigger: ObservationPredicate::Evolves,
-                intensity: EffectIntensity::Moderate,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-            PresentationEffect {
-                effect: EffectProfile::GasRelease,
-                trigger: ObservationPredicate::Evolves,
-                intensity: EffectIntensity::Moderate,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-            PresentationEffect {
-                effect: EffectProfile::SurfaceDisturbance,
-                trigger: ObservationPredicate::Disappears,
-                intensity: EffectIntensity::Subtle,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-            PresentationEffect {
-                effect: EffectProfile::ObjectShrinkage,
-                trigger: ObservationPredicate::Disappears,
-                intensity: EffectIntensity::Moderate,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-        ],
-        camera: vec![
-            CameraCue {
-                behaviour: CameraBehaviour::WideEstablishingShot,
-                start_ordinal: 0,
-                end_ordinal: 1,
-            },
-            CameraCue {
-                behaviour: CameraBehaviour::ReactionFocus,
-                start_ordinal: 2,
-                end_ordinal: last_ordinal.saturating_sub(1),
-            },
-            CameraCue {
-                behaviour: CameraBehaviour::FinalHeroShot,
-                start_ordinal: last_ordinal,
-                end_ordinal: last_ordinal,
-            },
-        ],
+        objects,
+        effects,
+        camera,
         equation: request.equation(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     })
+}
+
+fn active_observation(
+    frames: &SimulationFrames,
+    predicate: ObservationPredicate,
+) -> Result<(u16, Option<String>), String> {
+    frames
+        .frames()
+        .iter()
+        .find_map(|frame| {
+            frame
+                .observations()
+                .iter()
+                .find(|observation| {
+                    observation.predicate == predicate
+                        && observation.status == ObservationStatus::Active
+                })
+                .and_then(|observation| {
+                    u16::try_from(frame.ordinal())
+                        .ok()
+                        .map(|ordinal| (ordinal, observation.value.clone()))
+                })
+        })
+        .ok_or_else(|| format!("trusted frames have no active {predicate:?} observation"))
 }
 
 #[cfg(test)]
@@ -1148,14 +1313,147 @@ mod tests {
     }
 
     #[test]
-    fn macroscopic_profiles_remain_explicit_until_family_profiles_land() {
-        assert!(presentation_profile(ReactionRequest::DEFAULT, 4).is_some());
-        assert!(
-            presentation_profile(
-                ReactionRequest::silver_halide_precipitation(Halogen::Chlorine),
-                4
-            )
-            .is_none()
+    fn every_supported_request_compiles_a_macroscopic_plan() {
+        let mut profile_ids = std::collections::BTreeSet::new();
+        for request in ReactionRequest::ALL {
+            let run = run(request).expect("supported request validates");
+            let profile = presentation_profile(request, run.frames())
+                .expect("trusted observations select a presentation profile");
+            assert!(profile_ids.insert(profile.id.clone()));
+            assert_eq!(profile.equation, request.equation());
+            assert!(
+                profile
+                    .objects
+                    .iter()
+                    .any(|object| object.role == SceneRole::Vessel)
+            );
+            if request.family() != ReactionFamily::HalogenDisplacement {
+                assert!(
+                    profile
+                        .objects
+                        .iter()
+                        .any(|object| object.role == SceneRole::Contents)
+                );
+            }
+            let plan = chem_presentation::compile_real_world_plan(run.frames(), &profile)
+                .expect("profile effects are bound to validated observations");
+            assert_eq!(plan.profile_id, profile.id);
+            assert!(!plan.timeline.beats.is_empty());
+            for effect in &profile.effects {
+                let (ordinal, _) = active_observation(run.frames(), effect.trigger)
+                    .expect("effect trigger activates in trusted frames");
+                assert_eq!(effect.start_ordinal, ordinal);
+            }
+            for object in &profile.objects {
+                let Some(binding) = &object.observation else {
+                    continue;
+                };
+                let (ordinal, value) = active_observation(run.frames(), binding.predicate)
+                    .expect("object observation activates in trusted frames");
+                assert_eq!(object.visible_from_ordinal, ordinal);
+                assert_eq!(binding.value, value);
+            }
+        }
+        assert_eq!(profile_ids.len(), ReactionRequest::ALL.len());
+    }
+
+    #[test]
+    fn precipitation_profiles_preserve_each_validated_precipitate_colour() {
+        for (halogen, expected) in [
+            (Halogen::Chlorine, AppearanceProfile::WhitePrecipitate),
+            (Halogen::Bromine, AppearanceProfile::CreamPrecipitate),
+            (Halogen::Iodine, AppearanceProfile::YellowPrecipitate),
+        ] {
+            let request = ReactionRequest::silver_halide_precipitation(halogen);
+            let run = run(request).expect("precipitation request validates");
+            let profile = presentation_profile(request, run.frames())
+                .expect("trusted colour selects a supported appearance");
+            let product = profile
+                .objects
+                .iter()
+                .find(|object| object.role == SceneRole::Product)
+                .expect("precipitate product is presented");
+            let binding = product
+                .observation
+                .as_ref()
+                .expect("precipitate is bound to its colour observation");
+            let (ordinal, value) = active_observation(run.frames(), ObservationPredicate::Colour)
+                .expect("trusted colour observation activates");
+            assert_eq!(product.appearance, expected);
+            assert_eq!(product.visible_from_ordinal, ordinal);
+            assert_eq!(binding.value, value);
+        }
+    }
+
+    #[test]
+    fn macroscopic_compiler_rejects_early_or_value_mismatched_observation_bindings() {
+        let alkali = run(ReactionRequest::DEFAULT).expect("alkali request validates");
+        let mut early = presentation_profile(ReactionRequest::DEFAULT, alkali.frames())
+            .expect("alkali profile compiles");
+        early.effects[0].start_ordinal = 0;
+        assert_eq!(
+            chem_presentation::compile_real_world_plan(alkali.frames(), &early),
+            Err(chem_presentation::PlanError::UnsupportedEffectTrigger)
+        );
+
+        let request = ReactionRequest::silver_halide_precipitation(Halogen::Bromine);
+        let precipitation = run(request).expect("precipitation request validates");
+        let mut mismatched = presentation_profile(request, precipitation.frames())
+            .expect("precipitation profile compiles");
+        let product = mismatched
+            .objects
+            .iter_mut()
+            .find(|object| object.role == SceneRole::Product)
+            .expect("precipitate product exists");
+        product
+            .observation
+            .as_mut()
+            .expect("product has an observation binding")
+            .value = Some("Magenta".to_owned());
+        assert_eq!(
+            chem_presentation::compile_real_world_plan(precipitation.frames(), &mismatched),
+            Err(chem_presentation::PlanError::UnsupportedObjectObservation)
+        );
+
+        let product = mismatched
+            .objects
+            .iter_mut()
+            .find(|object| object.role == SceneRole::Product)
+            .expect("precipitate product exists");
+        product
+            .observation
+            .as_mut()
+            .expect("product has an observation binding")
+            .value = None;
+        assert_eq!(
+            chem_presentation::compile_real_world_plan(precipitation.frames(), &mismatched),
+            Err(chem_presentation::PlanError::UnsupportedObjectObservation)
+        );
+
+        let mut premature = presentation_profile(request, precipitation.frames())
+            .expect("precipitation profile compiles");
+        let product = premature
+            .objects
+            .iter_mut()
+            .find(|object| object.role == SceneRole::Product)
+            .expect("precipitate product exists");
+        product.visible_from_ordinal = product.visible_from_ordinal.saturating_sub(1);
+        assert_eq!(
+            chem_presentation::compile_real_world_plan(precipitation.frames(), &premature),
+            Err(chem_presentation::PlanError::UnsupportedObjectObservation)
+        );
+
+        let mut unbound = presentation_profile(request, precipitation.frames())
+            .expect("precipitation profile compiles");
+        unbound
+            .objects
+            .iter_mut()
+            .find(|object| object.role == SceneRole::Product)
+            .expect("precipitate product exists")
+            .observation = None;
+        assert_eq!(
+            chem_presentation::compile_real_world_plan(precipitation.frames(), &unbound),
+            Err(chem_presentation::PlanError::UnsupportedObjectObservation)
         );
     }
 }
