@@ -1,0 +1,24 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction SilverNitrateAndSodiumChloride where
+  reactants
+    silverNitrate := 1 of SilverNitrate
+    sodiumChloride := 1 of SodiumChloride
+  products
+    silverChloride := 1 of SilverChloride
+    sodiumNitrate := 1 of SodiumNitrate
+  equation
+    AgNO3[ionic] + NaCl[ionic]
+    -> AgCl[ionic] + NaNO3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.SilverHalidePrecipitation@1
+    product silverChloride forms claim R1
+    product silverChloride has colour White claim R2
+  by
+    apply Rules.SilverHalidePrecipitation
+      silverSource := silverNitrate
+      halideSource := sodiumChloride
+      precipitate := silverChloride
+      spectatorSalt := sodiumNitrate

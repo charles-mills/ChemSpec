@@ -63,6 +63,140 @@ fn source() -> String {
     .unwrap()
 }
 
+fn precipitation_candidate() -> Value {
+    serde_json::from_slice(
+        &fs::read(root().join("catalogue/candidates/precipitation-silver-halide/candidate.json"))
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+fn precipitation_source() -> String {
+    fs::read_to_string(
+        root().join("catalogue/candidates/precipitation-silver-halide/example.chems"),
+    )
+    .unwrap()
+}
+
+fn write_precipitation_package(path: &Path, candidate: &Value, source: &str) {
+    fs::create_dir_all(path).unwrap();
+    fs::write(
+        path.join("candidate.json"),
+        serde_json::to_vec_pretty(candidate).unwrap(),
+    )
+    .unwrap();
+    fs::write(path.join("example.chems"), source).unwrap();
+    fs::copy(
+        root().join("catalogue/candidates/precipitation-silver-halide/evidence.json"),
+        path.join("evidence.json"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn precipitation_candidate_checks_with_the_base_package_and_covers_the_halide_domain() {
+    let temporary = temp_root("precipitation");
+    fs::create_dir(&temporary).unwrap();
+    let output = temporary.join("output");
+    let base = root().join("catalogue/candidates/periodic-table-and-alkali-water");
+    let precipitation = root().join("catalogue/candidates/precipitation-silver-halide");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        output.to_str().unwrap(),
+        base.to_str().unwrap(),
+        precipitation.to_str().unwrap(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+
+    let candidate = precipitation_candidate();
+    let rule = &candidate["generalized_rules"][0];
+    assert_eq!(rule["id"], "Rules.SilverHalidePrecipitation");
+    let cases = rule["cases"].as_array().unwrap();
+    let supported = cases
+        .iter()
+        .find(|case| case["status"] == "supported")
+        .unwrap();
+    assert_eq!(
+        supported["when"]["values"],
+        json!(["Cl", "Br", "I"]),
+        "the supported case must cover exactly the insoluble silver halides"
+    );
+    let unsupported = cases
+        .iter()
+        .find(|case| case["status"] == "unsupported")
+        .unwrap();
+    assert_eq!(unsupported["when"]["value"], "F");
+
+    let request: Value =
+        serde_json::from_slice(&fs::read(output.join("review-request.json")).unwrap()).unwrap();
+    assert_eq!(request["status"], "pending-ai-review");
+    assert!(
+        fs::read(
+            output
+                .join("inspections/precipitation-silver-halide")
+                .join("frames.json")
+        )
+        .is_ok(),
+        "the precipitation example must produce candidate frames"
+    );
+
+    // Reversing package order must not change the merged digest.
+    let reversed_output = temporary.join("reversed-output");
+    let reversed = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        reversed_output.to_str().unwrap(),
+        precipitation.to_str().unwrap(),
+        base.to_str().unwrap(),
+    ]);
+    assert!(
+        reversed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&reversed.stderr)
+    );
+    assert_eq!(
+        fs::read(output.join("catalogue.digest")).unwrap(),
+        fs::read(reversed_output.join("catalogue.digest")).unwrap()
+    );
+    fs::remove_dir_all(temporary).unwrap();
+}
+
+#[test]
+fn silver_fluoride_remains_unsupported_rather_than_precipitating() {
+    let temporary = temp_root("precipitation-fluoride");
+    fs::create_dir(&temporary).unwrap();
+    let base = root().join("catalogue/candidates/periodic-table-and-alkali-water");
+    let unsupported_source = precipitation_source()
+        .replace("SodiumChloride", "SodiumFluoride")
+        .replace("NaCl[ionic]", "NaF[ionic]");
+    // The precipitate side has no fluoride application (the case is unsupported and
+    // therefore never resolves a product), so binding the fluoride salt as the
+    // halide source is sufficient to force the unsupported case.
+    let package = temporary.join("fluoride");
+    write_precipitation_package(&package, &precipitation_candidate(), &unsupported_source);
+    let output = temporary.join("output");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        output.to_str().unwrap(),
+        base.to_str().unwrap(),
+        package.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    let error = String::from_utf8_lossy(&result.stderr);
+    assert!(error.contains("UnsupportedChemistry"), "{error}");
+    assert!(!output.exists());
+    fs::remove_dir_all(temporary).unwrap();
+}
+
 #[test]
 fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
     let temporary = temp_root("physical");
