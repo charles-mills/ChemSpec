@@ -791,3 +791,150 @@ fn hydrofluoric_acid_remains_unsupported_for_gas_evolution_too() {
     assert!(!output.exists());
     fs::remove_dir_all(temporary).unwrap();
 }
+
+fn displacement_candidate() -> Value {
+    serde_json::from_slice(
+        &fs::read(
+            root().join("catalogue/candidates/single-displacement-alkali-metal/candidate.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+fn displacement_source() -> String {
+    fs::read_to_string(
+        root().join("catalogue/candidates/single-displacement-alkali-metal/example.chems"),
+    )
+    .unwrap()
+}
+
+fn write_displacement_package(path: &Path, candidate: &Value, source: &str) {
+    fs::create_dir_all(path).unwrap();
+    fs::write(
+        path.join("candidate.json"),
+        serde_json::to_vec_pretty(candidate).unwrap(),
+    )
+    .unwrap();
+    fs::write(path.join("example.chems"), source).unwrap();
+    fs::copy(
+        root().join("catalogue/candidates/single-displacement-alkali-metal/evidence.json"),
+        path.join("evidence.json"),
+    )
+    .unwrap();
+}
+
+fn displacement_packages() -> [PathBuf; 5] {
+    [
+        root().join("catalogue/candidates/periodic-table-and-alkali-water"),
+        root().join("catalogue/candidates/precipitation-silver-halide"),
+        root().join("catalogue/candidates/acid-base-neutralization"),
+        root().join("catalogue/candidates/acid-bicarbonate-gas-evolution"),
+        root().join("catalogue/candidates/single-displacement-alkali-metal"),
+    ]
+}
+
+#[test]
+fn displacement_candidate_checks_with_all_prior_packages_and_reuses_shared_structures() {
+    let temporary = temp_root("displacement");
+    fs::create_dir(&temporary).unwrap();
+    let output = temporary.join("output");
+    let packages = displacement_packages();
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        output.to_str().unwrap(),
+        packages[0].to_str().unwrap(),
+        packages[1].to_str().unwrap(),
+        packages[2].to_str().unwrap(),
+        packages[3].to_str().unwrap(),
+        packages[4].to_str().unwrap(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+
+    let candidate = displacement_candidate();
+    let rule = &candidate["generalized_rules"][0];
+    assert_eq!(rule["id"], "Rules.AlkaliMetalActivitySeriesDisplacement");
+    assert_eq!(rule["cases"].as_array().unwrap().len(), 1);
+    // No new elemental-metal or salt template is declared: this family
+    // reuses Templates.AlkaliMetal (base package) and
+    // Templates.AlkaliMetalHalide (family 1) exactly.
+    assert!(
+        candidate["structure_templates"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        fs::read(
+            output
+                .join("inspections/single-displacement-alkali-metal")
+                .join("frames.json")
+        )
+        .is_ok()
+    );
+
+    let reversed_output = temporary.join("reversed-output");
+    let reversed = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        reversed_output.to_str().unwrap(),
+        packages[4].to_str().unwrap(),
+        packages[3].to_str().unwrap(),
+        packages[2].to_str().unwrap(),
+        packages[1].to_str().unwrap(),
+        packages[0].to_str().unwrap(),
+    ]);
+    assert!(
+        reversed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&reversed.stderr)
+    );
+    assert_eq!(
+        fs::read(output.join("catalogue.digest")).unwrap(),
+        fs::read(reversed_output.join("catalogue.digest")).unwrap()
+    );
+    fs::remove_dir_all(temporary).unwrap();
+}
+
+#[test]
+fn less_reactive_metal_cannot_displace_a_more_reactive_one() {
+    let temporary = temp_root("displacement-reversed");
+    fs::create_dir(&temporary).unwrap();
+    // Rebind the "potassiumMetal" reactant slot to elemental sodium so the
+    // inferred parameters become (member=Na, displaced=Na) — a self-pairing
+    // no supported case covers — while leaving every other declaration and
+    // binding name alone.
+    let unsupported_source = displacement_source()
+        .replace(
+            "potassiumMetal := 1 of PotassiumMetal",
+            "potassiumMetal := 1 of SodiumMetal",
+        )
+        .replace("K[metallic] + NaCl[ionic]", "Na[metallic] + NaCl[ionic]");
+    let package = temporary.join("reversed");
+    write_displacement_package(&package, &displacement_candidate(), &unsupported_source);
+    let packages = displacement_packages();
+    let output = temporary.join("output");
+    let result = run(&[
+        "catalogue",
+        "check",
+        "--out",
+        output.to_str().unwrap(),
+        packages[0].to_str().unwrap(),
+        packages[1].to_str().unwrap(),
+        packages[2].to_str().unwrap(),
+        packages[3].to_str().unwrap(),
+        package.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    let error = String::from_utf8_lossy(&result.stderr);
+    assert!(error.contains("UnsupportedChemistry"), "{error}");
+    assert!(!output.exists());
+    fs::remove_dir_all(temporary).unwrap();
+}

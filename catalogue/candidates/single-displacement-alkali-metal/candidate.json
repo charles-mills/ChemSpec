@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "id": "single-displacement-alkali-metal",
+  "evidence": [
+    {
+      "id": "evidence.openstax.chemistry-2e.activity-series",
+      "title": "Chemistry 2e",
+      "publisher": "OpenStax",
+      "locator": "Single-Displacement Reactions; Activity Series; Periodic Variations: Group 1 Reactivity Trend",
+      "reference": "https://openstax.org/details/books/chemistry-2e",
+      "publication_date": "2019-02-14",
+      "retrieved_on": "2026-07-15",
+      "usage": "Group 1 (alkali metal) reactivity trend (K more reactive than Na, more reactive than Li) and the single-displacement redox mechanism"
+    }
+  ],
+  "premises": [
+    {
+      "id": "premise.rule.alkali-metal-activity-series.standard-outcome",
+      "statement": "A more reactive alkali metal displaces a less reactive alkali metal from its halide salt, following the reviewed group 1 reactivity trend K > Na > Li: member(s) + displaced-X -> member-X + displaced(s), a single electron transfer from the displacing metal to the displaced metal's cation followed by ionic re-association. This is a theoretical simulation of the activity-series displacement principle (see docs/safety.md's virtual-educational-model framing), not a recommended real-world aqueous bench procedure; alkali metals also react with water, a confound this package does not model or claim to avoid.",
+      "evidence": ["evidence.openstax.chemistry-2e.activity-series"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.valence.activity-series.initial-domain",
+      "statement": "The listed Li, Na, K, Cl, Br, I, and F tuples, including the transient monatomic radical intermediate shared by metallic release and metallic join, are the closed valence domain for alkali-metal single-displacement chemistry.",
+      "evidence": ["evidence.openstax.chemistry-2e.activity-series"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.displaced-metal-forms",
+      "statement": "The displaced elemental alkali metal is compatible with the authored observation predicate forms for this family outcome.",
+      "evidence": ["evidence.openstax.chemistry-2e.activity-series"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.salt-source-disappears",
+      "statement": "The original alkali-metal halide salt is compatible with the authored observation predicate disappears for this family outcome.",
+      "evidence": ["evidence.openstax.chemistry-2e.activity-series"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    }
+  ],
+  "valence_premises": [
+    {
+      "premise_id": "premise.valence.activity-series.initial-domain",
+      "neutral_valence": [
+        {"element": "Li", "neutral_valence_electrons": 1},
+        {"element": "Na", "neutral_valence_electrons": 1},
+        {"element": "K", "neutral_valence_electrons": 1},
+        {"element": "Cl", "neutral_valence_electrons": 7},
+        {"element": "Br", "neutral_valence_electrons": 7},
+        {"element": "I", "neutral_valence_electrons": 7},
+        {"element": "F", "neutral_valence_electrons": 7}
+      ],
+      "supported_states": [
+        {"element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "Li", "formal_charge": 0, "non_bonding_electrons": 1, "unpaired_electrons": 1, "covalent_bond_order_sum": 0},
+        {"element": "Na", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "Na", "formal_charge": 0, "non_bonding_electrons": 1, "unpaired_electrons": 1, "covalent_bond_order_sum": 0},
+        {"element": "K", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "K", "formal_charge": 0, "non_bonding_electrons": 1, "unpaired_electrons": 1, "covalent_bond_order_sum": 0},
+        {"element": "Cl", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "Br", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "I", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "F", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0}
+      ],
+      "metallic_domain_states": [
+        {"element": "Li", "site_formal_charge": 1, "site_local_electrons": 0, "delocalized_electrons_per_site": 1},
+        {"element": "Na", "site_formal_charge": 1, "site_local_electrons": 0, "delocalized_electrons_per_site": 1},
+        {"element": "K", "site_formal_charge": 1, "site_local_electrons": 0, "delocalized_electrons_per_site": 1}
+      ]
+    }
+  ],
+  "structures": [],
+  "element_categories": [],
+  "structure_templates": [],
+  "structure_applications": [
+    {
+      "id": "LithiumFluoride",
+      "template": "Templates.AlkaliMetalHalide",
+      "arguments": {"member": "Li", "halide": "F"},
+      "formula": "LiF",
+      "premise_ids": ["premise.structure.alkali-metal-halide"]
+    },
+    {
+      "id": "PotassiumFluoride",
+      "template": "Templates.AlkaliMetalHalide",
+      "arguments": {"member": "K", "halide": "F"},
+      "formula": "KF",
+      "premise_ids": ["premise.structure.alkali-metal-halide"]
+    }
+  ],
+  "graph_patterns": [
+    {
+      "id": "Patterns.AlkaliMetalHalideAsSaltSource",
+      "variables": {
+        "cation": {"atom": {"element": {"parameter": "displaced"}, "formal_charge": 1}},
+        "anion": {"atom": {"element": {"parameter": "halide"}, "formal_charge": -1}}
+      },
+      "relationships": [
+        {"kind": "group_membership", "group": "cationGroup", "atoms": ["cation"]},
+        {"kind": "group_membership", "group": "anionGroup", "atoms": ["anion"]},
+        {"kind": "ionic_association", "association": "salt", "groups": ["cationGroup", "anionGroup"]}
+      ],
+      "premise_ids": ["premise.structure.alkali-metal-halide"]
+    }
+  ],
+  "generalized_rules": [
+    {
+      "id": "Rules.AlkaliMetalActivitySeriesDisplacement",
+      "parameters": {
+        "member": {"kind": "element", "category": "Categories.AlkaliMetal"},
+        "displaced": {"kind": "element", "category": "Categories.AlkaliMetal"},
+        "halide": {"kind": "element", "category": "Categories.Halide"}
+      },
+      "roles": {
+        "displacingMetal": {"side": "reactant", "representation": "metallic", "coefficient": 1},
+        "saltSource": {"side": "reactant", "representation": "ionic", "coefficient": 1},
+        "newSalt": {"side": "product", "representation": "ionic", "coefficient": 1},
+        "displacedMetal": {"side": "product", "representation": "metallic", "coefficient": 1}
+      },
+      "reactants": {
+        "displacingMetal": {
+          "kind": "template",
+          "template": "Templates.AlkaliMetal",
+          "arguments": {"member": {"parameter": "member"}}
+        },
+        "saltSource": {
+          "kind": "template",
+          "template": "Templates.AlkaliMetalHalide",
+          "arguments": {"member": {"parameter": "displaced"}, "halide": {"parameter": "halide"}}
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "more-reactive-displaces-less-reactive",
+          "when": {
+            "kind": "any",
+            "predicates": [
+              {
+                "kind": "all",
+                "predicates": [
+                  {"kind": "parameter_equals", "parameter": "member", "value": "K"},
+                  {"kind": "parameter_in_set", "parameter": "displaced", "values": ["Na", "Li"]}
+                ]
+              },
+              {
+                "kind": "all",
+                "predicates": [
+                  {"kind": "parameter_equals", "parameter": "member", "value": "Na"},
+                  {"kind": "parameter_equals", "parameter": "displaced", "value": "Li"}
+                ]
+              }
+            ]
+          },
+          "products": {
+            "newSalt": {
+              "kind": "template",
+              "template": "Templates.AlkaliMetalHalide",
+              "arguments": {"member": {"parameter": "member"}, "halide": {"parameter": "halide"}}
+            },
+            "displacedMetal": {
+              "kind": "template",
+              "template": "Templates.AlkaliMetal",
+              "arguments": {"member": {"parameter": "displaced"}}
+            }
+          },
+          "patterns": {
+            "displacingMetal": "Patterns.AlkaliMetal",
+            "saltSource": "Patterns.AlkaliMetalHalideAsSaltSource"
+          },
+          "correspondence": [
+            {
+              "reactant": "displacingMetal[1].metal",
+              "product": "newSalt[1].cation.cation",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal", "premise.structure.alkali-metal-halide"]
+            },
+            {
+              "reactant": "saltSource[1].anion",
+              "product": "newSalt[1].anion.anion",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal-halide"]
+            },
+            {
+              "reactant": "saltSource[1].cation",
+              "product": "displacedMetal[1].metal",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal-halide", "premise.structure.alkali-metal"]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal-halide"],
+              "association": "saltSource[1].salt"
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal", "premise.valence.activity-series.initial-domain"],
+              "site": "displacingMetal[1].metal",
+              "domain": "displacingMetal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {"site": [1, 0, 0], "domain_electrons": 1},
+              "after": {"site": [0, 1, 1], "domain_electrons": 0}
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal", "premise.structure.alkali-metal-halide", "premise.valence.activity-series.initial-domain"],
+              "count": 1,
+              "donor": "displacingMetal[1].metal",
+              "acceptor": "saltSource[1].cation",
+              "before": {"donor": [0, 1, 1], "acceptor": [1, 0, 0]},
+              "after": {"donor": [1, 0, 0], "acceptor": [0, 1, 1]}
+            },
+            {
+              "kind": "join_metallic",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal", "premise.valence.activity-series.initial-domain"],
+              "site": "saltSource[1].cation",
+              "domain": "displacingMetal[1].metallic",
+              "allocation": "donate_electron",
+              "before": {"site": [0, 1, 1], "domain_electrons": 0},
+              "after": {"site": [1, 0, 0], "domain_electrons": 1}
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal-halide", "premise.valence.activity-series.initial-domain"],
+              "label": "ionic.newSalt",
+              "components": [["displacingMetal[1].metal"], ["saltSource[1].anion"]],
+              "component_charges": [1, -1]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal-halide"],
+              "atoms": ["displacingMetal[1].metal", "saltSource[1].anion"],
+              "product": "newSalt[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome", "premise.structure.alkali-metal"],
+              "atoms": ["saltSource[1].cation"],
+              "product": "displacedMetal[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "displacedMetal",
+              "predicate": "forms",
+              "evidence_subject": "displaced alkali metal",
+              "premise_id": "premise.observation.displaced-metal-forms"
+            },
+            {
+              "subject_role": "saltSource",
+              "predicate": "disappears",
+              "evidence_subject": "original alkali-metal halide",
+              "premise_id": "premise.observation.salt-source-disappears"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.alkali-metal-activity-series.standard-outcome",
+            "premise.structure.alkali-metal",
+            "premise.structure.alkali-metal-halide",
+            "premise.valence.activity-series.initial-domain",
+            "premise.observation.displaced-metal-forms",
+            "premise.observation.salt-source-disappears"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.alkali-metal-activity-series.standard-outcome",
+        "request_relation": "contact",
+        "required_context": "representative educational outcome under the reviewed standard-outcome premise"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": ["premise.rule.alkali-metal-activity-series.standard-outcome"]
+      },
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table",
+        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.category.halide",
+        "premise.structure.alkali-metal",
+        "premise.structure.alkali-metal-halide",
+        "premise.rule.alkali-metal-activity-series.standard-outcome",
+        "premise.valence.activity-series.initial-domain",
+        "premise.observation.displaced-metal-forms",
+        "premise.observation.salt-source-disappears"
+      ]
+    }
+  ]
+}

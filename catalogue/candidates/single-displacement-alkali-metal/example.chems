@@ -1,0 +1,24 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction PotassiumDisplacesSodiumFromChloride where
+  reactants
+    potassiumMetal := 1 of PotassiumMetal
+    sodiumChloride := 1 of SodiumChloride
+  products
+    potassiumChloride := 1 of PotassiumChloride
+    sodiumMetal := 1 of SodiumMetal
+  equation
+    K[metallic] + NaCl[ionic]
+    -> KCl[ionic] + Na[metallic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.AlkaliMetalActivitySeriesDisplacement@1
+    product sodiumMetal forms claim R1
+    reactant sodiumChloride disappears claim R2
+  by
+    apply Rules.AlkaliMetalActivitySeriesDisplacement
+      displacingMetal := potassiumMetal
+      saltSource := sodiumChloride
+      newSalt := potassiumChloride
+      displacedMetal := sodiumMetal
