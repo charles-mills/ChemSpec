@@ -746,6 +746,61 @@ impl ReactionRequest {
         let structure = self.definition()?.product_structure?;
         composition_catalogue::trusted_preview_by_structure_id(structure)
     }
+
+    /// Exact reviewed reactant graphs used only to identify particles in the
+    /// 3D presentation. The models are projected from the same host-pinned
+    /// catalogue as the product preview and never participate in validation.
+    #[must_use]
+    pub fn reactant_previews(self) -> Vec<composition_catalogue::TrustedCompositionPreview> {
+        if let Some(definition) = self.definition() {
+            return definition
+                .participants
+                .into_iter()
+                .filter_map(trusted_participant_preview)
+                .collect();
+        }
+        self.legacy_participants()
+            .into_iter()
+            .flatten()
+            .filter_map(trusted_draft_participant_preview)
+            .collect()
+    }
+}
+
+fn trusted_participant_preview(
+    participant: ExperienceParticipantDefinition,
+) -> Option<composition_catalogue::TrustedCompositionPreview> {
+    match participant {
+        ExperienceParticipantDefinition::Element(atomic_number) => {
+            composition_catalogue::trusted_preview(standardize_elemental_draft(&[atomic_number]))
+        }
+        ExperienceParticipantDefinition::Composition(formula) => composition_catalogue::SUPPORTED
+            .iter()
+            .find(|preview| preview.formula == formula)
+            .and_then(|preview| trusted_composition_preview(*preview)),
+    }
+}
+
+fn trusted_draft_participant_preview(
+    participant: DraftParticipant,
+) -> Option<composition_catalogue::TrustedCompositionPreview> {
+    match participant {
+        DraftParticipant::Atom(atomic_number) => {
+            composition_catalogue::trusted_preview(standardize_elemental_draft(&[atomic_number]))
+        }
+        DraftParticipant::Composition(id) => composition_catalogue::SUPPORTED
+            .iter()
+            .find(|preview| preview.id == id)
+            .and_then(|preview| trusted_composition_preview(*preview)),
+    }
+}
+
+fn trusted_composition_preview(
+    preview: composition_catalogue::CompositionPreview,
+) -> Option<composition_catalogue::TrustedCompositionPreview> {
+    composition_catalogue::trusted_preview(preview.atoms.iter().flat_map(
+        |(atomic_number, count)| std::iter::repeat_n(*atomic_number, usize::from(*count)),
+    ))
 }
 
 pub fn requests() -> impl Iterator<Item = ReactionRequest> {

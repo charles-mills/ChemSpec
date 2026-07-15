@@ -156,11 +156,13 @@ enum RenderOperation {
         left: String,
         right: String,
         order: u8,
+        endpoint_states: [Option<RenderAtom>; 4],
     },
     FormCovalent {
         left: String,
         right: String,
         order: u8,
+        endpoint_states: [Option<RenderAtom>; 4],
     },
     AssociateIonic {
         atoms: Vec<String>,
@@ -271,6 +273,7 @@ fn render_operation(
             left: left.as_str().to_owned(),
             right: right.as_str().to_owned(),
             order: expected_order.order(),
+            endpoint_states: render_endpoint_states(before, after, left, right),
         },
         StructuralOperationView::FormCovalent {
             left, right, order, ..
@@ -278,6 +281,7 @@ fn render_operation(
             left: left.as_str().to_owned(),
             right: right.as_str().to_owned(),
             order: order.order(),
+            endpoint_states: render_endpoint_states(before, after, left, right),
         },
         StructuralOperationView::CleaveDative {
             donor, acceptor, ..
@@ -336,6 +340,30 @@ fn render_operation(
             atoms: atoms.iter().map(|atom| atom.as_str().to_owned()).collect(),
         },
     }
+}
+
+fn render_endpoint_states(
+    before: &SimulationFrame,
+    after: &SimulationFrame,
+    left: &chem_domain::AtomId,
+    right: &chem_domain::AtomId,
+) -> [Option<RenderAtom>; 4] {
+    [
+        render_atom_state(before, left),
+        render_atom_state(after, left),
+        render_atom_state(before, right),
+        render_atom_state(after, right),
+    ]
+}
+
+fn render_atom_state(frame: &SimulationFrame, id: &chem_domain::AtomId) -> Option<RenderAtom> {
+    frame.atoms().get(id).map(|atom| RenderAtom {
+        id: atom.id.as_str().to_owned(),
+        element: atom.element.as_str().to_owned(),
+        formal_charge: atom.electrons.formal_charge(),
+        non_bonding_electrons: atom.electrons.non_bonding_electrons(),
+        unpaired_electrons: atom.electrons.unpaired_electrons(),
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -812,7 +840,9 @@ fn layout_component(
         positions.insert(component[0].clone(), center);
         return;
     }
-    let spacing = (cell_extent * 0.24).clamp(52.0, 82.0);
+    // Leave enough room between atom shells for shared pairs and multiple
+    // bond orders to remain visible even when many molecules share the grid.
+    let spacing = (cell_extent * 0.30).clamp(74.0, 96.0);
     if component.len() == 2 {
         positions.insert(
             component[0].clone(),
@@ -1183,7 +1213,7 @@ fn draw_covalent(
     let magnitude = vector_magnitude(direction).max(1.0);
     let along = direction / magnitude;
     let perpendicular = Vector::new(-along.y, along.x);
-    let atom_clearance = 25.0 * scale;
+    let atom_clearance = 26.0 * scale;
     let start = left + along * atom_clearance;
     let end = right - along * atom_clearance;
     let midpoint = lerp_point(start, end, 0.5);
@@ -1201,8 +1231,8 @@ fn draw_covalent(
                 visible_end + perpendicular * *offset * scale,
             ),
             Stroke::default()
-                .with_color(chemistry_color::COVALENT.scale_alpha(alpha * 0.88))
-                .with_width(2.4 * scale),
+                .with_color(chemistry_color::COVALENT.scale_alpha(alpha * 0.96))
+                .with_width(2.8 * scale),
         );
         if show_electrons {
             let electron_center = midpoint + perpendicular * *offset * scale;
@@ -1713,9 +1743,9 @@ fn draw_operation_motion(
                 scale,
             ),
             operation @ (StructuralOperation::CleaveCovalent { .. }
-            | StructuralOperation::FormCovalent { .. }) => draw_covalent_electron_motion(
-                frame, before, after, operation, positions, progress, phase, scale,
-            ),
+            | StructuralOperation::FormCovalent { .. }) => {
+                draw_covalent_electron_motion(frame, operation, positions, progress, phase, scale);
+            }
             StructuralOperation::AssociateIonic { .. }
             | StructuralOperation::AssignProduct { .. }
             | StructuralOperation::Other { .. } => {}
@@ -1768,33 +1798,44 @@ fn draw_metallic_electron_transfer(
 #[allow(clippy::too_many_arguments)]
 fn draw_covalent_electron_motion(
     frame: &mut canvas::Frame,
-    before: &StructuralFrame,
-    after: &StructuralFrame,
     operation: &StructuralOperation,
     positions: &BTreeMap<String, Point>,
     progress: f32,
     phase: f32,
     scale: f32,
 ) {
-    let (left, right, order, forming) = match operation {
+    let (left, right, order, forming, endpoint_states) = match operation {
         StructuralOperation::FormCovalent {
-            left, right, order, ..
-        } => (left.as_str(), right.as_str(), *order, true),
+            left,
+            right,
+            order,
+            endpoint_states,
+        } => (left.as_str(), right.as_str(), *order, true, endpoint_states),
         StructuralOperation::CleaveCovalent {
-            left, right, order, ..
-        } => (left.as_str(), right.as_str(), *order, false),
+            left,
+            right,
+            order,
+            endpoint_states,
+        } => (
+            left.as_str(),
+            right.as_str(),
+            *order,
+            false,
+            endpoint_states,
+        ),
         _ => return,
     };
     let (Some(left_center), Some(right_center)) = (positions.get(left), positions.get(right))
     else {
         return;
     };
-    let (Some(before_left), Some(after_left), Some(before_right), Some(after_right)) = (
-        atom(before, left),
-        atom(after, left),
-        atom(before, right),
-        atom(after, right),
-    ) else {
+    let [
+        Some(before_left),
+        Some(after_left),
+        Some(before_right),
+        Some(after_right),
+    ] = endpoint_states
+    else {
         return;
     };
 
@@ -1926,13 +1967,13 @@ fn draw_electron_route(
     frame.stroke(
         &path,
         Stroke::default()
-            .with_color(chemistry_color::ELECTRON.scale_alpha(0.16 + progress * 0.12))
-            .with_width(scale),
+            .with_color(chemistry_color::ELECTRON.scale_alpha(0.36 + progress * 0.22))
+            .with_width(1.6 * scale),
     );
     let moving = quadratic_point(start, control, end, progress);
     frame.fill(
         &Path::circle(moving, 8.0 * scale),
-        chemistry_color::ELECTRON.scale_alpha(0.10),
+        chemistry_color::ELECTRON.scale_alpha(0.18),
     );
     frame.fill(
         &Path::circle(moving, 3.0 * scale),
@@ -2630,6 +2671,36 @@ mod tests {
         assert_eq!(positions["a"], Point::new(0.0, 0.0));
         assert_eq!(positions["b"], Point::new(15.0, 0.0));
         assert_eq!(positions["c"], Point::new(30.0, 0.0));
+    }
+
+    #[test]
+    fn crowded_diatomic_layout_keeps_multiple_bonds_visible() {
+        let frame = RenderFrame {
+            atoms: vec![atom_state("left", 2, 0), atom_state("right", 2, 0)],
+            covalent_bonds: vec![RenderBond {
+                left: "left".to_owned(),
+                right: "right".to_owned(),
+                order: 3,
+                effective_order: None,
+            }],
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let mut positions = BTreeMap::new();
+        layout_component(
+            &frame,
+            &["left".to_owned(), "right".to_owned()],
+            Point::new(100.0, 100.0),
+            120.0,
+            &mut positions,
+        );
+
+        let distance = vector_magnitude(positions["right"] - positions["left"]);
+        assert!(distance >= 74.0);
+        assert!(
+            distance - 52.0 >= 22.0,
+            "the bond must clear both atom shells"
+        );
     }
 
     #[test]

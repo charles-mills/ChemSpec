@@ -76,6 +76,7 @@ pub struct CompoundAtomicDiagram {
     elements: Vec<ElementSpec>,
     phase: f32,
     reveal: f32,
+    show_shells: bool,
 }
 
 impl CompoundAtomicDiagram {
@@ -90,12 +91,20 @@ impl CompoundAtomicDiagram {
             elements,
             phase,
             reveal: 1.0,
+            show_shells: true,
         }
     }
 
     /// Fades the whole diagram with a 0..=1 reveal progress.
     pub const fn with_reveal(mut self, reveal: f32) -> Self {
         self.reveal = reveal;
+        self
+    }
+
+    /// Uses a compact ball-and-stick treatment for selection cards where a
+    /// full shell model would make larger molecules illegible.
+    pub const fn structure_only(mut self) -> Self {
+        self.show_shells = false;
         self
     }
 }
@@ -131,18 +140,53 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
             }
         }
         for (element, position) in atoms {
-            draw_atomic_model_revealed(
-                &mut frame,
-                element,
-                position,
-                compound_atom_radius(element).min(layout_atom_radius(bounds, self.elements.len())),
-                self.phase,
-                self.reveal,
-            );
+            let radius =
+                compound_atom_radius(element).min(layout_atom_radius(bounds, self.elements.len()));
+            if self.show_shells {
+                draw_atomic_model_revealed(
+                    &mut frame,
+                    element,
+                    position,
+                    radius,
+                    self.phase,
+                    self.reveal,
+                );
+            } else {
+                draw_structure_atom(&mut frame, element, position, radius, self.reveal);
+            }
         }
 
         vec![frame.into_geometry()]
     }
+}
+
+fn draw_structure_atom(
+    frame: &mut canvas::Frame,
+    element: ElementSpec,
+    center: Point,
+    radius: f32,
+    reveal: f32,
+) {
+    let radius = (radius * 0.72).clamp(9.0, 18.0);
+    let color = element_color(element.atomic_number);
+    frame.fill(
+        &Path::circle(center, radius + 2.0),
+        color.scale_alpha(0.20 * reveal),
+    );
+    frame.fill(&Path::circle(center, radius), color.scale_alpha(reveal));
+    frame.stroke(
+        &Path::circle(center, radius),
+        Stroke::default()
+            .with_color(Color::WHITE.scale_alpha(0.28 * reveal))
+            .with_width(1.0),
+    );
+    draw_label(
+        frame,
+        center,
+        element.symbol,
+        symbol_color(color).scale_alpha(reveal),
+        11.0,
+    );
 }
 
 fn draw_shared_pairs(frame: &mut canvas::Frame, start: Point, end: Point, pairs: u8, reveal: f32) {

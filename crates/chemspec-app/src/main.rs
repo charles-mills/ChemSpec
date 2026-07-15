@@ -22,8 +22,8 @@ use chem_presentation::{
     compile_educational_plan, compile_real_world_plan,
 };
 use iced::widget::{
-    button, canvas, column, container, responsive, row, rule, slider, space, stack, text,
-    text_input,
+    button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
+    text, text_input,
 };
 use iced::{Center, Element, Fill, Length, Size, Subscription, Theme};
 
@@ -33,12 +33,15 @@ fn plan_equation(animation: &StructuralAnimation) -> Option<&str> {
     (!animation.equation.is_empty()).then_some(animation.equation.as_str())
 }
 
-fn reviewed_outcome_choice(request: chemistry::ReactionRequest) -> Element<'static, Message> {
+fn reviewed_outcome_choice(
+    request: chemistry::ReactionRequest,
+    compact: bool,
+) -> Element<'static, Message> {
     let labels = column![
         text(request.name())
             .size(type_scale::BODY_LARGE)
             .color(color::TEXT),
-        text(request.equation())
+        text(nomenclature::display_equation(&request.equation()))
             .size(type_scale::CAPTION)
             .color(color::MUTED),
     ]
@@ -46,11 +49,11 @@ fn reviewed_outcome_choice(request: chemistry::ReactionRequest) -> Element<'stat
     .width(Fill);
     let choice: Element<'static, Message> = if let Some(preview) = request.product_preview() {
         row![
-            canvas(particle_visualization::CompoundAtomicDiagram::new(
-                preview, 0.0,
-            ))
-            .width(Length::Fixed(220.0))
-            .height(Length::Fixed(150.0)),
+            canvas(
+                particle_visualization::CompoundAtomicDiagram::new(preview, 0.0).structure_only()
+            )
+            .width(Length::Fixed(if compact { 132.0 } else { 176.0 }))
+            .height(Length::Fixed(if compact { 84.0 } else { 104.0 })),
             labels,
         ]
         .spacing(spacing::MD)
@@ -394,6 +397,8 @@ struct StructuralAnimation {
     frames: chem_kernel::SimulationFrames,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
+    reactant_previews: Vec<composition_catalogue::TrustedCompositionPreview>,
+    product_preview: Option<composition_catalogue::TrustedCompositionPreview>,
     equation: String,
     educational_playhead_ms: u64,
     frame_index: usize,
@@ -675,14 +680,16 @@ impl App {
         match self.screen {
             Screen::ProviderSetup => responsive(|size| self.provider_setup_view(size)).into(),
             Screen::Builder => responsive(|size| self.builder_view(size)).into(),
-            Screen::OutcomeChoice => self.outcome_choice_view(),
+            Screen::OutcomeChoice => responsive(|size| self.outcome_choice_view(size)).into(),
             Screen::Structural2d => responsive(|size| self.structural_2d_view(size)).into(),
             Screen::Structural3d => responsive(|size| self.structural_3d_view(size)).into(),
         }
     }
 
-    fn outcome_choice_view(&self) -> Element<'_, Message> {
+    fn outcome_choice_view(&self, size: Size) -> Element<'_, Message> {
         use chem_catalogue::{OxygenOutcome, StructuralSupport};
+
+        let compact = size.width < breakpoint::MOBILE || size.height < 760.0;
 
         let back = button(text("← Reactants"))
             .on_press(Message::ScreenSelected(Screen::Builder))
@@ -690,17 +697,28 @@ impl App {
             .style(theme::secondary_button);
 
         let content: Element<'_, Message> = if !self.pending_requests.is_empty() {
-            let mut choices = column![
-                text("Choose the product")
-                    .size(type_scale::DISPLAY)
-                    .color(color::TEXT),
+            let mut choices = column![].spacing(spacing::SM).width(Fill);
+            for request in &self.pending_requests {
+                choices = choices.push(reviewed_outcome_choice(*request, compact));
+            }
+            column![
+                row![
+                    back,
+                    text("Choose the product")
+                        .size(if compact {
+                            type_scale::TITLE
+                        } else {
+                            type_scale::DISPLAY
+                        })
+                        .color(color::TEXT),
+                ]
+                .spacing(spacing::SM)
+                .align_y(Center),
+                scrollable(choices).width(Fill).height(Fill),
             ]
             .spacing(spacing::MD)
-            .width(Fill);
-            for request in &self.pending_requests {
-                choices = choices.push(reviewed_outcome_choice(*request));
-            }
-            choices.push(back).into()
+            .height(Fill)
+            .into()
         } else if let Some(assessment) = &self.oxygen_assessment {
             let (status, detail, equation) = match &assessment.outcome {
                 OxygenOutcome::Representative {
@@ -728,7 +746,7 @@ impl App {
                 || space().height(Length::Shrink).into(),
                 |equation| {
                     container(
-                        text(equation)
+                        text(nomenclature::display_equation(equation))
                             .size(type_scale::BODY_LARGE)
                             .color(color::TEXT),
                     )
@@ -761,9 +779,9 @@ impl App {
             .into()
         };
 
-        container(container(content).width(Fill).max_width(768.0))
+        container(container(content).width(Fill).height(Fill).max_width(768.0))
             .center(Fill)
-            .padding(spacing::XL)
+            .padding(if compact { spacing::MD } else { spacing::XL })
             .style(theme::app_background)
             .into()
     }
@@ -920,6 +938,8 @@ impl App {
                 frames,
                 educational_plan,
                 real_world_plan,
+                reactant_previews: self.active_request.reactant_previews(),
+                product_preview: self.active_request.product_preview(),
                 equation: self.active_request.equation(),
                 educational_playhead_ms: 0,
                 frame_index: 0,
@@ -1125,7 +1145,7 @@ impl App {
             .style(theme::secondary_button);
         let continue_3d: Element<'_, Message> =
             if timeline_position.scene_index + 1 == animation.educational_plan.scenes.len() {
-                button(text("View in real life  →"))
+                button(text("View 3D model  →"))
                     .on_press(Message::ContinueTo3d)
                     .padding([spacing::XS, spacing::MD])
                     .style(theme::primary_button)
@@ -1134,7 +1154,7 @@ impl App {
                 space().width(Length::Shrink).into()
             };
 
-        let equation = plan_equation(animation).map(str::to_owned);
+        let equation = plan_equation(animation).map(nomenclature::display_equation);
         let scene_context = structural_2d::SceneContext::new(
             educational_scene.kind,
             timeline_position.scene_index,
@@ -1361,13 +1381,13 @@ impl App {
             .map(|effect| macroscopic_effect_label(effect.effect))
             .collect::<Vec<_>>()
             .join("  ·  ");
-        let annotation = active_annotation.map_or_else(
+        let mut annotation = active_annotation.map_or_else(
             || {
                 column![
                     text("REVIEWED SCENE")
                         .size(type_scale::MICRO)
                         .color(color::ACCENT),
-                    text(real_world_plan.equation.as_str())
+                    text(nomenclature::display_equation(&real_world_plan.equation))
                         .size(type_scale::BODY_LARGE)
                         .color(color::TEXT),
                 ]
@@ -1392,10 +1412,25 @@ impl App {
                 content
             },
         );
-        let scene_view =
-            iced::widget::Shader::new(structural_3d::Scene::new(real_world_plan, moment))
-                .width(Fill)
-                .height(Fill);
+        let product_visible = real_world_plan.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Product
+                && object.visible_from_ordinal <= moment.ordinal
+        });
+        if product_visible && let Some(preview) = &animation.product_preview {
+            annotation = annotation.push(
+                text(format!("Molecular model · {}", preview.formula))
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+            );
+        }
+        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
+            real_world_plan,
+            moment,
+            &animation.reactant_previews,
+            animation.product_preview.as_ref(),
+        ))
+        .width(Fill)
+        .height(Fill);
         let annotation_layer = container(
             column![
                 space().height(Fill),
@@ -1478,10 +1513,10 @@ impl App {
                 row![
                     back,
                     column![
-                        text("VALIDATED MACROSCOPIC VIEW")
+                        text("VALIDATED 3D MODEL")
                             .size(type_scale::MICRO)
                             .color(color::ACCENT),
-                        text("Cinematic real-world approximation")
+                        text("Illustrative molecular and macroscopic view")
                             .size(if compact {
                                 type_scale::BODY_LARGE
                             } else {
@@ -1501,9 +1536,6 @@ impl App {
                 .align_y(Center),
                 scene,
                 controls,
-                text(real_world_plan.disclosure.as_str())
-                    .size(type_scale::MICRO)
-                    .color(color::TEXT_SOFT),
                 text(real_world_plan.virtual_only_disclosure.as_str())
                     .size(type_scale::MICRO)
                     .color(color::WARNING),
@@ -2052,6 +2084,42 @@ mod tests {
     }
 
     #[test]
+    fn repeated_if7_changes_share_teaching_scenes_without_losing_operations() {
+        let request = chemistry::ReactionRequest::from_id("covalent-i-f-if7")
+            .expect("reviewed IF7 request exists");
+        let mut app = App::default();
+        app.select_request(request);
+        app.open_structural_animation();
+        let animation = app
+            .structural_animation
+            .as_ref()
+            .expect("IF7 presentation plans compile");
+        let group_sizes = animation
+            .educational_plan
+            .scenes
+            .iter()
+            .flat_map(|scene| &scene.cues)
+            .filter_map(|cue| match cue {
+                chem_presentation::EducationalCue::ApplyOperations { operations } => {
+                    Some(operations.len())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let largest_group = group_sizes.iter().copied().max().unwrap_or(0);
+
+        assert!(
+            largest_group >= 7,
+            "equivalent IF7 changes should be grouped"
+        );
+        assert!(
+            animation.educational_plan.duration_ms() <= 60_000,
+            "the grouped IF7 explanation should remain under one minute, got {} ms across {group_sizes:?}",
+            animation.educational_plan.duration_ms(),
+        );
+    }
+
+    #[test]
     fn reviewed_oxygen_screening_is_visible_without_fabricating_frames() {
         let mut app = App {
             screen: Screen::Builder,
@@ -2073,6 +2141,12 @@ mod tests {
     fn all_responsive_compositions_build() {
         let app = App::default();
 
+        let choice_app = App {
+            pending_requests: chemistry::requests_for_drafts(&[53], &[9]),
+            screen: Screen::OutcomeChoice,
+            ..App::default()
+        };
+
         for size in [
             Size::new(560.0, 620.0),
             Size::new(900.0, 800.0),
@@ -2080,6 +2154,7 @@ mod tests {
         ] {
             let _ = app.builder_view(size);
             let _ = app.provider_setup_view(size);
+            let _ = choice_app.outcome_choice_view(size);
         }
     }
 
