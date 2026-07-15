@@ -12,6 +12,7 @@ use iced::{Color, Point, Rectangle, Renderer, Theme, Vector};
 
 use crate::composition_catalogue::TrustedCompositionPreview;
 use crate::elements::ElementSpec;
+use crate::fonts;
 use crate::theme::{LAB_DARK, chemistry_color};
 
 const SHELL: Color = Color {
@@ -360,6 +361,7 @@ fn draw_label(frame: &mut canvas::Frame, position: Point, content: &str, color: 
         size: iced::Pixels(size),
         align_x: iced::alignment::Horizontal::Center.into(),
         align_y: alignment::Vertical::Center,
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
 }

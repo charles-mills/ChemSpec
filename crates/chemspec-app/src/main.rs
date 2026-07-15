@@ -7,6 +7,7 @@
 mod chemistry;
 mod composition_catalogue;
 mod elements;
+mod fonts;
 mod icons;
 mod nomenclature;
 mod particle_visualization;
@@ -116,6 +117,11 @@ fn main() -> iced::Result {
         .title(App::title)
         .subscription(App::subscription)
         .theme(App::theme)
+        .font(fonts::INTER_REGULAR_BYTES)
+        .font(fonts::INTER_MEDIUM_BYTES)
+        .font(fonts::INTER_SEMIBOLD_BYTES)
+        .font(fonts::INTER_BOLD_BYTES)
+        .default_font(fonts::REGULAR)
         .scale_factor(|app| app.ui_zoom)
         .window(iced::window::Settings {
             size: DESIGN_SIZE,

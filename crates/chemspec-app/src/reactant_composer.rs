@@ -16,25 +16,20 @@ use iced::widget::{
 };
 use iced::{
     Center, Color, Element, Fill, Font, Length, Point, Radians, Rectangle, Renderer, Subscription,
-    Theme, font,
+    Theme,
 };
 
 use crate::chemistry;
 use crate::composition_catalogue;
 use crate::elements::{self, ElementSpec};
+use crate::fonts;
 use crate::particle_visualization::{AtomDiagram, CompoundAtomicDiagram};
 use crate::theme::{self, color, motion, space as spacing, type_scale};
 
 const MAX_ATOMS_PER_REACTANT: usize = 12;
 
-const SENTENCE_FONT: Font = Font {
-    weight: font::Weight::Medium,
-    ..Font::DEFAULT
-};
-const FORMULA_FONT: Font = Font {
-    weight: font::Weight::Semibold,
-    ..Font::DEFAULT
-};
+const SENTENCE_FONT: Font = fonts::MEDIUM;
+const FORMULA_FONT: Font = fonts::SEMIBOLD;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveReactant {

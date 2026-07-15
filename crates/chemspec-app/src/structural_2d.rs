@@ -14,6 +14,7 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Size, Theme, Vector, border};
 
+use crate::fonts;
 use crate::theme::{LAB_DARK, chemistry_color, color};
 
 const ACCENT: Color = color::ACCENT;
@@ -1366,6 +1367,7 @@ fn draw_atom_shell(
         size: iced::Pixels(15.0 * scale),
         align_x: iced::alignment::Horizontal::Center.into(),
         align_y: iced::alignment::Vertical::Center,
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
 }
@@ -1557,6 +1559,7 @@ fn draw_charge(frame: &mut canvas::Frame, center: Point, charge: i16, alpha: f32
         size: iced::Pixels(11.0 * scale),
         align_x: iced::alignment::Horizontal::Center.into(),
         align_y: iced::alignment::Vertical::Center,
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
 }
@@ -2022,6 +2025,7 @@ fn draw_context_card(
         position: Point::new(rect.x + 14.0 * scale, rect.y + 13.0 * scale),
         color: accent.scale_alpha(reveal),
         size: iced::Pixels(9.5 * scale),
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
     for (index, line) in lines.iter().enumerate() {
@@ -2033,6 +2037,7 @@ fn draw_context_card(
             ),
             color: TEXT.scale_alpha(reveal),
             size: iced::Pixels(11.5 * scale),
+            font: fonts::REGULAR,
             ..canvas::Text::default()
         });
     }
@@ -2088,6 +2093,7 @@ fn draw_scene_context(
         color: TEXT.scale_alpha(enter),
         size: iced::Pixels(11.0 * scale),
         align_y: iced::alignment::Vertical::Center,
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
     if context.kind == EducationalSceneKind::Equation
@@ -2134,6 +2140,7 @@ fn draw_equation_card(
         color: GOLD.scale_alpha(reveal),
         size: iced::Pixels(10.0 * scale),
         align_x: iced::alignment::Horizontal::Center.into(),
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
     frame.fill_text(canvas::Text {
@@ -2142,6 +2149,7 @@ fn draw_equation_card(
         color: TEXT.scale_alpha(reveal),
         size: iced::Pixels(21.0 * scale),
         align_x: iced::alignment::Horizontal::Center.into(),
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
 }
@@ -2190,6 +2198,7 @@ fn draw_observation_context(
             color: TEXT.scale_alpha(reveal),
             size: iced::Pixels(10.5 * scale),
             align_y: iced::alignment::Vertical::Center,
+            font: fonts::REGULAR,
             ..canvas::Text::default()
         });
         x += width + 8.0 * scale;
@@ -2237,6 +2246,7 @@ fn draw_explanation_label(
         position: Point::new(rect.x + 30.0 * scale, rect.y + 22.0 * scale),
         color: accent.scale_alpha(alpha),
         size: iced::Pixels(9.5 * scale),
+        font: fonts::REGULAR,
         ..canvas::Text::default()
     });
     for (index, line) in lines.iter().enumerate() {
@@ -2248,6 +2258,7 @@ fn draw_explanation_label(
             ),
             color: TEXT.scale_alpha(alpha),
             size: iced::Pixels(13.5 * scale),
+            font: fonts::REGULAR,
             ..canvas::Text::default()
         });
     }
