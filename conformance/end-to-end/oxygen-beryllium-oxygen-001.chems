@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction BerylliumAndOxygen where
+  reactants
+    subject := 2 of BeMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 2 of BeDivalentNormalOxide
+  equation
+    2 Be[metallic] + 1 O2[molecular]
+    -> 2 BeO[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.DivalentNormalOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

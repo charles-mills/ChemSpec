@@ -2,10 +2,11 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 
 use chem_domain::{
     Atom, AtomGroup, AtomGroupId, AtomId, AtomMapping, AtomMappingId, BondOrder, CovalentBond,
-    CovalentBondId, CovalentElectronOrigin, ElectronAllocation, ElectronState, ElectronTransition,
-    ElementInventory, ElementSymbol, IonicAssociation, IonicAssociationId, MetallicDomain,
-    MetallicDomainId, MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError,
-    StructuralGraph, StructuralOperation, StructuralOperationId, StructuralOperationInput,
+    CovalentBondId, CovalentDelocalization, CovalentDelocalizationId, CovalentElectronOrigin,
+    EffectiveBondOrder, ElectronAllocation, ElectronState, ElectronTransition, ElementInventory,
+    ElementSymbol, IonicAssociation, IonicAssociationId, MetallicDomain, MetallicDomainId,
+    MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError, StructuralGraph,
+    StructuralOperation, StructuralOperationId, StructuralOperationInput, StructuralOperationView,
     StructureDefinition, StructureId, StructureInstance, StructureInstanceId,
 };
 use proptest::prelude::*;
@@ -49,6 +50,103 @@ fn bond(value: &str, left: &str, right: &str, order: BondOrder) -> CovalentBond 
 fn dative_bond(value: &str, donor: &str, acceptor: &str) -> CovalentBond {
     CovalentBond::new_dative(bond_id(value), atom_id(donor), atom_id(acceptor))
         .expect("test dative bond should be valid")
+}
+
+#[test]
+fn superoxide_uses_integral_electrons_with_a_three_halves_effective_bond() {
+    let effective = EffectiveBondOrder::new(3, 2).expect("3/2 is a valid effective order");
+    let delocalization = CovalentDelocalization::new(
+        CovalentDelocalizationId::new("superoxide.resonance").expect("valid domain ID"),
+        effective,
+    );
+    let bond = CovalentBond::new_delocalized(
+        bond_id("superoxide.oo"),
+        atom_id("superoxide.o1"),
+        atom_id("superoxide.o2"),
+        BondOrder::Single,
+        delocalization,
+    )
+    .expect("superoxide edge is valid");
+    let graph = graph(
+        vec![
+            atom("superoxide.o1", "O", -1, 6, 0),
+            atom("superoxide.o2", "O", 0, 5, 1),
+        ],
+        vec![bond],
+        vec![],
+        vec![],
+        vec![],
+    )
+    .expect("resonance contributor is structurally valid");
+    let edge = graph.covalent_bonds().values().next().expect("edge");
+    assert_eq!(edge.order(), BondOrder::Single);
+    assert_eq!(
+        edge.delocalization()
+            .expect("delocalized")
+            .effective_order(),
+        effective
+    );
+    assert_eq!(graph.explicit_valence_electron_count(), 13);
+}
+
+#[test]
+fn delocalisation_is_a_reversible_structural_operation() {
+    let state = CovalentDelocalization::new(
+        CovalentDelocalizationId::new("superoxide.resonance").unwrap(),
+        EffectiveBondOrder::new(3, 2).unwrap(),
+    );
+    let operation = StructuralOperation::new(
+        StructuralOperationId::new("operation.delocalise").unwrap(),
+        StructuralOperationInput::ChangeCovalentDelocalization {
+            left: atom_id("superoxide.o1"),
+            right: atom_id("superoxide.o2"),
+            expected: None,
+            replacement: Some(state.clone()),
+        },
+    )
+    .expect("localised-to-delocalised operation should be valid");
+    assert!(matches!(
+        operation.view(),
+        StructuralOperationView::ChangeCovalentDelocalization {
+            expected: None,
+            replacement: Some(actual),
+            ..
+        } if actual == &state
+    ));
+
+    assert_eq!(
+        StructuralOperation::new(
+            StructuralOperationId::new("operation.unchanged-delocalisation").unwrap(),
+            StructuralOperationInput::ChangeCovalentDelocalization {
+                left: atom_id("superoxide.o1"),
+                right: atom_id("superoxide.o2"),
+                expected: Some(state.clone()),
+                replacement: Some(state),
+            },
+        ),
+        Err(StructuralError::UnchangedCovalentDelocalization)
+    );
+}
+
+#[test]
+fn metallic_release_can_localise_multiple_valence_electrons() {
+    let site = atom_id("magnesium.metal");
+    let operation = StructuralOperation::new(
+        StructuralOperationId::new("operation.release-magnesium").unwrap(),
+        StructuralOperationInput::ReleaseMetallic {
+            site: site.clone(),
+            domain: MetallicDomainId::new("magnesium.domain").unwrap(),
+            allocation: MetallicReleaseAllocation::RetainElectron,
+            transition: ElectronTransition::new(
+                site,
+                ElectronState::new(2, 0, 0).unwrap(),
+                ElectronState::new(0, 2, 2).unwrap(),
+            ),
+            domain_electrons_before: 2,
+            domain_electrons_after: 0,
+        },
+    );
+    assert!(operation.is_ok());
 }
 
 fn electron_state_fixture(value: &Value) -> ElectronState {

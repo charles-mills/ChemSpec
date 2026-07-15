@@ -941,6 +941,7 @@ fn validate_rewrite_references(
     let mut assigned_product_count = 0;
     for operation in rewrite {
         let valid = match operation {
+            OperationTemplateRecord::ReconfigureElectrons { atom: site, .. } => atom(site),
             OperationTemplateRecord::CleaveCovalent {
                 edge, allocation, ..
             } => {
@@ -976,6 +977,9 @@ fn validate_rewrite_references(
                     && atom(&edge.0)
                     && atom(&edge.1)
                     && cleavage_allocation_valid(allocation, &edge.0, &edge.1)
+            }
+            OperationTemplateRecord::ChangeCovalentDelocalization { edge, .. } => {
+                edge.0 != edge.1 && atom(&edge.0) && atom(&edge.1)
             }
             OperationTemplateRecord::AssociateIonic {
                 label,

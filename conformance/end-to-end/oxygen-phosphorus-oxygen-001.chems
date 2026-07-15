@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction PhosphorusAndOxygen where
+  reactants
+    subject := 1 of Phosphorus4ForOxygen
+    oxygen := 5 of Oxygen
+  products
+    oxide := 1 of Phosphorus5Oxide
+  equation
+    1 P4[molecular] + 5 O2[molecular]
+    -> 1 P4O10[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.Phosphorus5Oxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

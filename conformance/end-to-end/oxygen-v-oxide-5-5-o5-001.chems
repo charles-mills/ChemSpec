@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction VAndOxygenToTransitionG5Pentoxide where
+  reactants
+    subject := 4 of VTransitionG5PentoxideMetalForOxygen
+    oxygen := 5 of Oxygen
+  products
+    oxide := 2 of VTransitionG5PentoxideOxide
+  equation
+    4 V[metallic] + 5 O2[molecular]
+    -> 2 V2O5[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG5Pentoxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

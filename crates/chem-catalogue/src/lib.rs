@@ -8,6 +8,7 @@
 mod generalized;
 mod generalized_elaboration;
 mod model;
+mod oxygen;
 mod pattern;
 
 use std::{
@@ -18,14 +19,16 @@ use std::{
 };
 
 use chem_domain::{
-    Atom, AtomGroup, AtomId, BondOrder, ContentDigest, CovalentBond, CovalentElectronOrigin,
-    ElectronState, Element, ElementId, ElementInventory, ElementSymbol, EvidenceSourceId,
-    IonicAssociation, MetallicDomain, PremiseId, ReactionRuleId, RepresentationKind,
-    StaticElementRegistry, StructuralGraph, StructureDefinition, StructureId, canonical_json,
+    Atom, AtomGroup, AtomId, BondOrder, ContentDigest, CovalentBond, CovalentDelocalization,
+    CovalentElectronOrigin, EffectiveBondOrder, ElectronState, Element, ElementId,
+    ElementInventory, ElementSymbol, EvidenceSourceId, IonicAssociation, MetallicDomain, PremiseId,
+    ReactionRuleId, RepresentationKind, StaticElementRegistry, StructuralGraph,
+    StructureDefinition, StructureId, canonical_json,
 };
 pub use generalized::*;
 pub use generalized_elaboration::*;
 pub use model::*;
+pub use oxygen::*;
 pub use pattern::*;
 
 /// Host-controlled trust root for the one closed production catalogue.
@@ -34,15 +37,15 @@ pub use pattern::*;
 /// can validate newly generated JSON, but cannot promote its digest into the
 /// trusted catalogue type.
 pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
-    "7b1a8eaa7a917e165c889483378a5d8c58336acd12ac5ffb5b41986278cbfc72";
+    "4ea76115c5b003aa36f4cec504aa64ba8c2232b436c85d474c9d72d4a118be02";
 
-/// Host-controlled digest of the exact AI review attestation selected for the
+/// Host-controlled digest of the exact chemist review attestation selected for the
 /// canonical educational catalogue.
 ///
-/// The attestation is explicit about AI authorship and limitations. Runtime
+/// The attestation is explicit about its scope and limitations. Runtime
 /// data cannot populate or override this compiled trust decision.
 pub const PINNED_CANONICAL_REVIEW_DIGEST: &str =
-    "f3830a53946832177c7dcf34f75f8fb536f8a9274e8c5ea7f913c3ed8f4f727b";
+    "de159d643469314bf4f8d5c385c9f75971df80ebdab3ea201ceb120c95a8b8f7";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogueErrorCode {
@@ -2388,6 +2391,7 @@ fn instantiate_template_bonds(
                 right: bond.right.clone(),
                 order,
                 electron_origin: bond.electron_origin.clone(),
+                delocalization: bond.delocalization.clone(),
             })
         })
         .collect()
@@ -2511,6 +2515,7 @@ fn build_structure(record: &StructureRecord) -> Result<StructureDefinition, Cata
                         right: format!("{}.{}", component.label, bond.right),
                         order: bond.order,
                         electron_origin,
+                        delocalization: bond.delocalization.clone(),
                     });
                 }
                 groups.push(GroupRecord {
@@ -2610,12 +2615,31 @@ fn build_graph(
             let id = parse_id::<chem_domain::CovalentBondKind>(&format!("bond.{index}"))?;
             match &record.electron_origin {
                 BondElectronOriginRecord::Shared => {
-                    CovalentBond::new(id, left, right, record.order.into())
+                    if let Some(delocalization) = &record.delocalization {
+                        let domain = parse_id::<chem_domain::CovalentDelocalizationKind>(
+                            &delocalization.domain,
+                        )?;
+                        let order = EffectiveBondOrder::new(
+                            delocalization.effective_order.numerator,
+                            delocalization.effective_order.denominator,
+                        )
+                        .map_err(structure_error)?;
+                        CovalentBond::new_delocalized(
+                            id,
+                            left,
+                            right,
+                            record.order.into(),
+                            CovalentDelocalization::new(domain, order),
+                        )
+                    } else {
+                        CovalentBond::new(id, left, right, record.order.into())
+                    }
                 }
                 BondElectronOriginRecord::Dative { donor, acceptor } => {
                     let donor = parse_id::<chem_domain::AtomKind>(donor)?;
                     let acceptor = parse_id::<chem_domain::AtomKind>(acceptor)?;
-                    if record.order != BondOrderRecord::Single
+                    if record.delocalization.is_some()
+                        || record.order != BondOrderRecord::Single
                         || !((donor == left && acceptor == right)
                             || (donor == right && acceptor == left))
                     {
@@ -3023,6 +3047,21 @@ fn validate_operations(
     let mut assigned_products = BTreeSet::new();
     for operation in &rule.operation_template {
         match operation {
+            OperationTemplateRecord::ReconfigureElectrons {
+                atom,
+                before,
+                after,
+                ..
+            } => {
+                validate_supported_state(atom, *before, reactants, valence_records)?;
+                validate_supported_state(atom, *after, reactants, valence_records)?;
+                if before == after || before.0 != after.0 || before.1 != after.1 {
+                    return operation_error(
+                        &rule.id,
+                        "electron reconfiguration must only change unpaired-electron occupancy",
+                    );
+                }
+            }
             OperationTemplateRecord::CleaveCovalent {
                 edge,
                 allocation,
@@ -3180,6 +3219,52 @@ fn validate_operations(
                     )
                 {
                     return operation_error(&rule.id, "invalid bond-order electron ledger");
+                }
+            }
+            OperationTemplateRecord::ChangeCovalentDelocalization {
+                edge,
+                expected,
+                replacement,
+                ..
+            } => {
+                require_distinct_atoms(rule, reactants, &edge.0, &edge.1)?;
+                if expected == replacement {
+                    return operation_error(&rule.id, "covalent delocalisation is unchanged");
+                }
+                for value in expected.iter().chain(replacement.iter()) {
+                    chem_domain::CovalentDelocalizationId::from_str(&value.domain).map_err(
+                        |error| {
+                            CatalogueError::new(
+                                CatalogueErrorCode::InvalidOperationTemplate,
+                                error.to_string(),
+                            )
+                        },
+                    )?;
+                    EffectiveBondOrder::new(
+                        value.effective_order.numerator,
+                        value.effective_order.denominator,
+                    )
+                    .map_err(|error| {
+                        CatalogueError::new(
+                            CatalogueErrorCode::InvalidOperationTemplate,
+                            error.to_string(),
+                        )
+                    })?;
+                }
+                let has_shared_edge = [
+                    BondOrderRecord::Single,
+                    BondOrderRecord::Double,
+                    BondOrderRecord::Triple,
+                ]
+                .into_iter()
+                .any(|order| {
+                    require_initial_bond(rule, &edge.0, &edge.1, order, structures).is_ok()
+                });
+                if !has_shared_edge {
+                    return operation_error(
+                        &rule.id,
+                        "delocalisation change requires an initial shared covalent edge",
+                    );
                 }
             }
             OperationTemplateRecord::AssociateIonic {

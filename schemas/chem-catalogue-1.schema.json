@@ -116,6 +116,17 @@
     "elementScalar": {"oneOf": [{"type": "string"}, {"type": "integer"}]},
     "elementPredicate": {
       "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "premise_ids", "atom", "before", "after"],
+          "properties": {
+            "kind": {"const": "reconfigure_electrons"},
+            "premise_ids": {"$ref": "#/$defs/premiseIds"},
+            "atom": {"$ref": "#/$defs/nonempty"},
+            "before": {"$ref": "#/$defs/electronState"},
+            "after": {"$ref": "#/$defs/electronState"}
+          }
+        },
         {"type": "object", "additionalProperties": false, "required": ["kind", "predicates"], "properties": {"kind": {"const": "all"}, "predicates": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/elementPredicate"}}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "predicates"], "properties": {"kind": {"const": "any"}, "predicates": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/elementPredicate"}}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "predicate"], "properties": {"kind": {"const": "not"}, "predicate": {"$ref": "#/$defs/elementPredicate"}}},
@@ -311,6 +322,8 @@
     "parameterReference": {"type": "object", "additionalProperties": false, "required": ["parameter"], "properties": {"parameter": {"$ref": "#/$defs/id"}}},
     "templateElement": {"oneOf": [{"$ref": "#/$defs/elementSymbol"}, {"$ref": "#/$defs/parameterReference"}]},
     "templateBondOrder": {"oneOf": [{"enum": ["single", "double", "triple"]}, {"$ref": "#/$defs/parameterReference"}]},
+    "effectiveBondOrder": {"type": "object", "additionalProperties": false, "required": ["numerator", "denominator"], "properties": {"numerator": {"type": "integer", "minimum": 1, "maximum": 255}, "denominator": {"type": "integer", "minimum": 1, "maximum": 255}}},
+    "bondDelocalization": {"type": "object", "additionalProperties": false, "required": ["domain", "effective_order"], "properties": {"domain": {"$ref": "#/$defs/id"}, "effective_order": {"$ref": "#/$defs/effectiveBondOrder"}}},
     "templateAtom": {
       "type": "object", "additionalProperties": false,
       "required": ["label", "element", "formal_charge", "non_bonding_electrons", "unpaired_electrons"],
@@ -330,7 +343,8 @@
             {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "shared"}}},
             {"type": "object", "additionalProperties": false, "required": ["kind", "donor", "acceptor"], "properties": {"kind": {"const": "dative"}, "donor": {"$ref": "#/$defs/id"}, "acceptor": {"$ref": "#/$defs/id"}}}
           ]
-        }
+        },
+        "delocalization": {"$ref": "#/$defs/bondDelocalization"}
       }
     },
     "templateComponent": {
@@ -418,7 +432,8 @@
             {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "shared"}}},
             {"type": "object", "additionalProperties": false, "required": ["kind", "donor", "acceptor"], "properties": {"kind": {"const": "dative"}, "donor": {"$ref": "#/$defs/id"}, "acceptor": {"$ref": "#/$defs/id"}}}
           ]
-        }
+        },
+        "delocalization": {"$ref": "#/$defs/bondDelocalization"}
       }
     },
     "group": {
@@ -550,6 +565,17 @@
             "edge": {"type": "array", "prefixItems": [{"$ref": "#/$defs/nonempty"}, {"$ref": "#/$defs/nonempty"}], "minItems": 2, "maxItems": 2},
             "old_order": {"enum": ["single", "double", "triple"]}, "new_order": {"enum": ["single", "double", "triple"]},
             "allocation": {"$ref": "#/$defs/cleavageAllocation"}, "before": {"$ref": "#/$defs/binaryState"}, "after": {"$ref": "#/$defs/binaryState"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "premise_ids", "edge", "expected", "replacement"],
+          "properties": {
+            "kind": {"const": "change_covalent_delocalization"},
+            "premise_ids": {"$ref": "#/$defs/premiseIds"},
+            "edge": {"type": "array", "prefixItems": [{"$ref": "#/$defs/nonempty"}, {"$ref": "#/$defs/nonempty"}], "minItems": 2, "maxItems": 2},
+            "expected": {"oneOf": [{"$ref": "#/$defs/bondDelocalization"}, {"type": "null"}]},
+            "replacement": {"oneOf": [{"$ref": "#/$defs/bondDelocalization"}, {"type": "null"}]}
           }
         },
         {

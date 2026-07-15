@@ -76,6 +76,12 @@ expansion, complete atom mapping, exact electron allocations, and the ordered
 structural-operation template. The kernel validates the expanded result in
 full; `by apply` cannot select or omit checks.
 
+The reaction builder can screen every element with `O2` using a dedicated
+closed-world catalogue. It reports representative, no-direct-reaction,
+ambiguous, or unsupported outcomes; compounds are limited to existing
+catalogue structures. Screening is separate from simulation, so new products
+remain non-animatable until reviewed structural rules and frames are added.
+
 ## Documentation
 
 - [Product specification](docs/product-spec.md)
@@ -133,8 +139,12 @@ candidate packages still cannot promote themselves.
 The Iced application now selects Li, Na, or K with water and consumes the
 corresponding `.chems 1` source through the real catalogue, generalized
 expansion, kernel-validation, and `SimulationFrames` APIs. Its
-local periodic-table and composition models are draft presentation only; they
-do not choose products or construct bonds for simulation.
+local periodic-table and composition models remain presentation-only and do
+not choose reaction products. The reactant viewer resolves an atom multiset
+only through structural identities in the host-pinned trusted catalogue, then
+draws that validated graph's covalent bonds, formal charges and ionic
+associations. Missing or ambiguous current-rule structures render as one `?`
+particle instead of loose atoms or a newly invented Lewis structure.
 
 ## Development commands
 

@@ -14,9 +14,14 @@ use super::{
     StructureAutomorphism, ValidatedCatalogueBundle,
 };
 
-const MAX_CERTIFICATE_CANDIDATES: usize = 4_096;
+const MAX_CERTIFICATE_CANDIDATES: usize = 32_768;
 
 type InstancePatternMatches = BTreeMap<String, Vec<RolePatternMatchBinding>>;
+
+struct EnumeratedInstanceMatches {
+    representatives: Vec<InstancePatternMatches>,
+    equivalent_match_count: usize,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneralizedRoleInput {
@@ -333,20 +338,20 @@ fn elaborate_supported(
         Ok(matches) => matches,
         Err(result) => return Ok(Err(result)),
     };
-    if matches.is_empty() {
+    if matches.representatives.is_empty() {
         return Ok(Err(failure(
             GeneralizedElaborationFailureClass::Unsupported,
             "selected generalized case has no graph match",
         )));
     }
-    let symmetry_maps = match certificate_symmetry_maps(catalogue, generalized, by_role)? {
-        Ok(maps) => maps,
+    let role_symmetries = match certificate_role_symmetries(catalogue, generalized, by_role)? {
+        Ok(symmetries) => symmetries,
         Err(result) => return Ok(Err(result)),
     };
     let mut work = 0_usize;
     let mut classes =
         BTreeMap::<Vec<u8>, (Vec<u8>, ReactionRuleRecord, InstancePatternMatches)>::new();
-    for matched in &matches {
+    for matched in &matches.representatives {
         let concrete = instantiate_rule(
             generalized,
             case_id,
@@ -359,11 +364,11 @@ fn elaborate_supported(
             matched,
         )?;
         let raw_key = canonical_rule_key(&concrete)?;
-        let certificate_key = match canonical_certificate_key(&concrete, &symmetry_maps, &mut work)?
-        {
-            Ok(key) => key,
-            Err(result) => return Ok(Err(result)),
-        };
+        let certificate_key =
+            match canonical_certificate_key(&concrete, &role_symmetries, &mut work)? {
+                Ok(key) => key,
+                Err(result) => return Ok(Err(result)),
+            };
         classes
             .entry(certificate_key)
             .and_modify(|representative| {
@@ -393,7 +398,7 @@ fn elaborate_supported(
         parameter_binding: binding.clone(),
         parameter_premise_ids: provenance.parameters,
         case_id: case_id.clone(),
-        equivalent_match_count: matches.len(),
+        equivalent_match_count: matches.equivalent_match_count,
         matched_sites: matched_sites(&representative_match),
         role_premise_ids: provenance.roles,
         selected_premise_ids: provenance.selected,
@@ -561,11 +566,13 @@ fn collect_strings(value: &serde_json::Value, output: &mut Vec<String>) {
 
 fn set_operation_premises(operation: &mut OperationTemplateRecord, premises: BTreeSet<PremiseId>) {
     match operation {
-        OperationTemplateRecord::CleaveCovalent { premise_ids, .. }
+        OperationTemplateRecord::ReconfigureElectrons { premise_ids, .. }
+        | OperationTemplateRecord::CleaveCovalent { premise_ids, .. }
         | OperationTemplateRecord::FormCovalent { premise_ids, .. }
         | OperationTemplateRecord::CleaveDative { premise_ids, .. }
         | OperationTemplateRecord::FormDative { premise_ids, .. }
         | OperationTemplateRecord::ChangeCovalent { premise_ids, .. }
+        | OperationTemplateRecord::ChangeCovalentDelocalization { premise_ids, .. }
         | OperationTemplateRecord::AssociateIonic { premise_ids, .. }
         | OperationTemplateRecord::DissociateIonic { premise_ids, .. }
         | OperationTemplateRecord::ReleaseMetallic { premise_ids, .. }
@@ -620,8 +627,9 @@ fn enumerate_instance_matches(
     patterns: &BTreeMap<String, super::GraphPatternId>,
     by_role: &BTreeMap<String, &GeneralizedRoleInput>,
     element_parameters: &BTreeMap<String, ElementSymbol>,
-) -> Result<Result<Vec<InstancePatternMatches>, GeneralizedElaborationFailure>, CatalogueError> {
+) -> Result<Result<EnumeratedInstanceMatches, GeneralizedElaborationFailure>, CatalogueError> {
     let mut combined = vec![BTreeMap::new()];
+    let mut equivalent_match_count = 1_usize;
     for (role, pattern) in patterns {
         if !catalogue.pattern_match_work_is_bounded(pattern, &by_role[role].structure)? {
             return Ok(Err(failure(
@@ -637,11 +645,43 @@ fn enumerate_instance_matches(
             }],
             element_parameters,
         )?;
-        let role_matches = raw
+        let raw_role_matches = raw
             .iter()
             .filter_map(|matched| matched.roles().get(role).cloned())
             .collect::<Vec<_>>();
+        let mut role_matches = Vec::new();
+        for candidate in &raw_role_matches {
+            let mut equivalent = false;
+            for representative in &role_matches {
+                if catalogue
+                    .role_pattern_matches_are_automorphism_related(representative, candidate)?
+                {
+                    equivalent = true;
+                    break;
+                }
+            }
+            if !equivalent {
+                role_matches.push(candidate.clone());
+            }
+        }
         let coefficient = generalized.roles[role].coefficient as usize;
+        let raw_selection_count = raw_role_matches
+            .len()
+            .checked_pow(generalized.roles[role].coefficient)
+            .ok_or_else(|| {
+                CatalogueError::new(
+                    super::CatalogueErrorCode::InvalidGeneralizedRule,
+                    "equivalent match count exceeds the platform limit",
+                )
+            })?;
+        equivalent_match_count = equivalent_match_count
+            .checked_mul(raw_selection_count)
+            .ok_or_else(|| {
+                CatalogueError::new(
+                    super::CatalogueErrorCode::InvalidGeneralizedRule,
+                    "equivalent match count exceeds the platform limit",
+                )
+            })?;
         let selection_count = role_matches
             .len()
             .checked_pow(generalized.roles[role].coefficient)
@@ -680,15 +720,21 @@ fn enumerate_instance_matches(
         }
         combined = next;
     }
-    Ok(Ok(combined))
+    Ok(Ok(EnumeratedInstanceMatches {
+        representatives: combined,
+        equivalent_match_count,
+    }))
 }
 
-fn certificate_symmetry_maps(
+fn certificate_role_symmetries(
     catalogue: &ValidatedCatalogueBundle,
     generalized: &GeneralizedReactionRuleRecord,
     by_role: &BTreeMap<String, &GeneralizedRoleInput>,
-) -> Result<Result<Vec<BTreeMap<String, String>>, GeneralizedElaborationFailure>, CatalogueError> {
-    let mut combined = vec![BTreeMap::new()];
+) -> Result<
+    Result<Vec<(String, u32, Vec<StructureAutomorphism>)>, GeneralizedElaborationFailure>,
+    CatalogueError,
+> {
+    let mut result = Vec::new();
     for (role, schema) in &generalized.roles {
         let Some(automorphisms) = catalogue.structure_automorphisms(&by_role[role].structure)?
         else {
@@ -697,132 +743,15 @@ fn certificate_symmetry_maps(
                 format!("role `{role}` exceeds the automorphism work limit"),
             )));
         };
-        let Some(role_maps) = role_symmetry_maps(role, schema.coefficient, &automorphisms) else {
+        if automorphisms.is_empty() {
             return Ok(Err(failure(
-                GeneralizedElaborationFailureClass::Ambiguous,
-                format!("role `{role}` exceeds the certificate symmetry limit"),
-            )));
-        };
-        if combined
-            .len()
-            .checked_mul(role_maps.len())
-            .is_none_or(|count| count > MAX_CERTIFICATE_CANDIDATES)
-        {
-            return Ok(Err(failure(
-                GeneralizedElaborationFailureClass::Ambiguous,
-                "complete-certificate symmetry exceeds the work limit",
+                GeneralizedElaborationFailureClass::InvalidSource,
+                format!("role `{role}` has no structure automorphism"),
             )));
         }
-        let mut next = Vec::with_capacity(combined.len() * role_maps.len());
-        for prefix in &combined {
-            for role_map in &role_maps {
-                let mut value = prefix.clone();
-                value.extend(role_map.clone());
-                next.push(value);
-            }
-        }
-        combined = next;
+        result.push((role.clone(), schema.coefficient, automorphisms));
     }
-    Ok(Ok(combined))
-}
-
-fn role_symmetry_maps(
-    role: &str,
-    coefficient: u32,
-    automorphisms: &[StructureAutomorphism],
-) -> Option<Vec<BTreeMap<String, String>>> {
-    let coefficient = coefficient as usize;
-    let permutations = bounded_permutations(coefficient)?;
-    let automorphism_choices = automorphisms
-        .len()
-        .checked_pow(u32::try_from(coefficient).ok()?)?;
-    if permutations
-        .len()
-        .checked_mul(automorphism_choices)
-        .is_none_or(|count| count > MAX_CERTIFICATE_CANDIDATES)
-    {
-        return None;
-    }
-    let mut results = Vec::new();
-    for permutation in permutations {
-        append_automorphism_choices(
-            role,
-            &permutation,
-            automorphisms,
-            0,
-            &mut Vec::new(),
-            &mut results,
-        );
-    }
-    Some(results)
-}
-
-fn append_automorphism_choices(
-    role: &str,
-    permutation: &[usize],
-    automorphisms: &[StructureAutomorphism],
-    ordinal: usize,
-    chosen: &mut Vec<usize>,
-    results: &mut Vec<BTreeMap<String, String>>,
-) {
-    if ordinal == permutation.len() {
-        let mut map = BTreeMap::new();
-        for (source_ordinal, target_ordinal) in permutation.iter().copied().enumerate() {
-            let source_instance = format!("{role}[{}]", source_ordinal + 1);
-            let target_instance = format!("{role}[{}]", target_ordinal + 1);
-            map.insert(source_instance.clone(), target_instance.clone());
-            for (source, target) in automorphisms[chosen[source_ordinal]].sites() {
-                map.insert(
-                    format!("{source_instance}.{source}"),
-                    format!("{target_instance}.{target}"),
-                );
-            }
-        }
-        results.push(map);
-        return;
-    }
-    for index in 0..automorphisms.len() {
-        chosen.push(index);
-        append_automorphism_choices(
-            role,
-            permutation,
-            automorphisms,
-            ordinal + 1,
-            chosen,
-            results,
-        );
-        chosen.pop();
-    }
-}
-
-fn bounded_permutations(count: usize) -> Option<Vec<Vec<usize>>> {
-    fn append(
-        count: usize,
-        current: &mut Vec<usize>,
-        used: &mut BTreeSet<usize>,
-        results: &mut Vec<Vec<usize>>,
-    ) -> bool {
-        if results.len() > MAX_CERTIFICATE_CANDIDATES {
-            return false;
-        }
-        if current.len() == count {
-            results.push(current.clone());
-            return results.len() <= MAX_CERTIFICATE_CANDIDATES;
-        }
-        for value in 0..count {
-            if used.insert(value) {
-                current.push(value);
-                if !append(count, current, used, results) {
-                    return false;
-                }
-                current.pop();
-                used.remove(&value);
-            }
-        }
-        true
-    }
-    let mut results = Vec::new();
-    append(count, &mut Vec::new(), &mut BTreeSet::new(), &mut results).then_some(results)
+    Ok(Ok(result))
 }
 
 fn canonical_rule_key(rule: &ReactionRuleRecord) -> Result<Vec<u8>, CatalogueError> {
@@ -842,34 +771,52 @@ fn canonical_rule_key(rule: &ReactionRuleRecord) -> Result<Vec<u8>, CatalogueErr
 
 fn canonical_certificate_key(
     rule: &ReactionRuleRecord,
-    symmetry_maps: &[BTreeMap<String, String>],
+    role_symmetries: &[(String, u32, Vec<StructureAutomorphism>)],
     work: &mut usize,
 ) -> Result<Result<Vec<u8>, GeneralizedElaborationFailure>, CatalogueError> {
-    let mut minimum = None::<Vec<u8>>;
-    for map in symmetry_maps {
-        *work += 1;
-        if *work > MAX_CERTIFICATE_CANDIDATES {
-            return Ok(Err(failure(
-                GeneralizedElaborationFailureClass::Ambiguous,
-                "complete-certificate comparison exceeds the work limit",
-            )));
-        }
-        let mut transformed = rule.clone();
-        transform_rule_references(&mut transformed, map);
-        let key = canonical_rule_key(&transformed)?;
-        if minimum.as_ref().is_none_or(|current| key < *current) {
-            minimum = Some(key);
+    // Role instances have canonical ordinals, and each structure automorphism
+    // changes references inside exactly one such instance. Canonicalize those
+    // independent choices one instance at a time. This is equivalent to the
+    // former Cartesian-product search, but its work is the sum rather than the
+    // product of the automorphism counts (important for M2O5 and larger ions).
+    let mut transformed = rule.clone();
+    for (role, coefficient, automorphisms) in role_symmetries {
+        for ordinal in 1..=*coefficient {
+            let instance = format!("{role}[{ordinal}]");
+            let mut minimum = None::<(Vec<u8>, ReactionRuleRecord)>;
+            for automorphism in automorphisms {
+                *work += 1;
+                if *work > MAX_CERTIFICATE_CANDIDATES {
+                    return Ok(Err(failure(
+                        GeneralizedElaborationFailureClass::Ambiguous,
+                        "complete-certificate comparison exceeds the work limit",
+                    )));
+                }
+                let mut map = BTreeMap::new();
+                map.insert(instance.clone(), instance.clone());
+                for (source, target) in automorphism.sites() {
+                    map.insert(
+                        format!("{instance}.{source}"),
+                        format!("{instance}.{target}"),
+                    );
+                }
+                let mut candidate = transformed.clone();
+                transform_rule_references(&mut candidate, &map);
+                let key = canonical_rule_key(&candidate)?;
+                if minimum.as_ref().is_none_or(|(current, _)| key < *current) {
+                    minimum = Some((key, candidate));
+                }
+            }
+            let Some((_, canonical)) = minimum else {
+                return Err(CatalogueError::new(
+                    super::CatalogueErrorCode::InvalidGeneralizedRule,
+                    "validated generalized role symmetry set is empty",
+                ));
+            };
+            transformed = canonical;
         }
     }
-    minimum.map_or_else(
-        || {
-            Err(CatalogueError::new(
-                super::CatalogueErrorCode::InvalidGeneralizedRule,
-                "validated generalized role symmetry set is empty",
-            ))
-        },
-        |key| Ok(Ok(key)),
-    )
+    Ok(Ok(canonical_rule_key(&transformed)?))
 }
 
 fn transform_rule_references(rule: &mut ReactionRuleRecord, map: &BTreeMap<String, String>) {
@@ -888,6 +835,9 @@ fn transform_operation_references(
     map: &BTreeMap<String, String>,
 ) {
     match operation {
+        OperationTemplateRecord::ReconfigureElectrons { atom, .. } => {
+            transform_reference(atom, map);
+        }
         OperationTemplateRecord::CleaveCovalent {
             edge, allocation, ..
         } => {
@@ -924,6 +874,10 @@ fn transform_operation_references(
             transform_reference(&mut edge.0, map);
             transform_reference(&mut edge.1, map);
             transform_allocation_reference(allocation, map);
+        }
+        OperationTemplateRecord::ChangeCovalentDelocalization { edge, .. } => {
+            transform_reference(&mut edge.0, map);
+            transform_reference(&mut edge.1, map);
         }
         OperationTemplateRecord::AssociateIonic { components, .. } => {
             for component in components {
@@ -1044,6 +998,17 @@ fn instantiate_operation(
 ) -> Result<OperationTemplateRecord, CatalogueError> {
     let reference = |value: &str| instantiate_reference(value, matched);
     Ok(match operation {
+        OperationTemplateRecord::ReconfigureElectrons {
+            premise_ids,
+            atom,
+            before,
+            after,
+        } => OperationTemplateRecord::ReconfigureElectrons {
+            premise_ids: premise_ids.clone(),
+            atom: reference(atom)?,
+            before: *before,
+            after: *after,
+        },
         OperationTemplateRecord::CleaveCovalent {
             premise_ids,
             edge,
@@ -1114,6 +1079,17 @@ fn instantiate_operation(
             allocation: instantiate_allocation(allocation, matched)?,
             before: before.clone(),
             after: after.clone(),
+        },
+        OperationTemplateRecord::ChangeCovalentDelocalization {
+            premise_ids,
+            edge,
+            expected,
+            replacement,
+        } => OperationTemplateRecord::ChangeCovalentDelocalization {
+            premise_ids: premise_ids.clone(),
+            edge: (reference(&edge.0)?, reference(&edge.1)?),
+            expected: expected.clone(),
+            replacement: replacement.clone(),
         },
         OperationTemplateRecord::AssociateIonic {
             premise_ids,

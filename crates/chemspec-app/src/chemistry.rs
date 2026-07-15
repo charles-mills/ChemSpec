@@ -5,14 +5,13 @@
 
 use std::sync::LazyLock;
 
-use chem_catalogue::{ObservationPredicate, TrustedCatalogue};
+use chem_catalogue::{OxygenOutcome, TrustedCatalogue, ValidatedOxygenScreening};
 use chem_kernel::{
     CurrentArtifactIdentity, SimulationFrames, expand_trusted, generate_frames, validate_trusted,
 };
 use chem_presentation::{
-    AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, EffectIntensity, EffectProfile,
-    PresentationEffect, PresentationObject, PresentationProfile, PresentationTransform, SceneRole,
-    VIRTUAL_ONLY_DISCLOSURE,
+    AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, PresentationObject,
+    PresentationProfile, PresentationTransform, SceneRole, VIRTUAL_ONLY_DISCLOSURE,
 };
 
 pub const DISCLOSURE: &str = "Representative educational outcome. The structural sequence is explanatory, not a mechanism claim or laboratory procedure.";
@@ -21,112 +20,70 @@ const CATALOGUE: &[u8] =
     include_bytes!("../../../catalogue/trusted/periodic-table-and-alkali-water/catalogue.json");
 const ATTESTATION: &[u8] =
     include_bytes!("../../../catalogue/trusted/periodic-table-and-alkali-water/review.json");
+const OXYGEN_SCREENING: &[u8] = include_bytes!("../../../catalogue/oxygen-screening/oxygen.json");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Experience {
-    Lithium,
-    Sodium,
-    Potassium,
+pub struct Experience(usize);
+
+pub struct ExperienceDefinition {
+    id: &'static str,
+    atomic_number: u8,
+    co_reactant_atoms: &'static [u8],
+    source_name: &'static str,
+    source: &'static str,
+    evidence: &'static str,
+    request: &'static str,
+    equation: &'static str,
+    subject_name: &'static str,
 }
 
+include!(concat!(env!("OUT_DIR"), "/experience_registry.rs"));
+
 impl Experience {
-    pub const DEFAULT: Self = Self::Lithium;
-    pub const ALL: [Self; 3] = [Self::Lithium, Self::Sodium, Self::Potassium];
+    pub const DEFAULT: Self = Self(0);
 
-    #[must_use]
-    pub const fn atomic_number(self) -> u8 {
-        match self {
-            Self::Lithium => 3,
-            Self::Sodium => 11,
-            Self::Potassium => 19,
-        }
+    fn definition(self) -> &'static ExperienceDefinition {
+        &EXPERIENCE_DEFINITIONS[self.0]
     }
 
     #[must_use]
-    pub const fn source_name(self) -> &'static str {
-        match self {
-            Self::Lithium => "conformance/end-to-end/alkali-water-li-001.chems",
-            Self::Sodium => "conformance/end-to-end/alkali-water-na-001.chems",
-            Self::Potassium => "conformance/end-to-end/alkali-water-k-001.chems",
-        }
+    pub fn atomic_number(self) -> u8 {
+        self.definition().atomic_number
     }
-
     #[must_use]
-    pub const fn source(self) -> &'static str {
-        match self {
-            Self::Lithium => {
-                include_str!("../../../conformance/end-to-end/alkali-water-li-001.chems")
-            }
-            Self::Sodium => {
-                include_str!("../../../conformance/end-to-end/alkali-water-na-001.chems")
-            }
-            Self::Potassium => {
-                include_str!("../../../conformance/end-to-end/alkali-water-k-001.chems")
-            }
-        }
+    pub fn source_name(self) -> &'static str {
+        self.definition().source_name
     }
-
-    const fn evidence(self) -> &'static [u8] {
-        match self {
-            Self::Lithium => {
-                include_bytes!(
-                    "../../../conformance/observations/alkali-water-li-001.evidence.json"
-                )
-            }
-            Self::Sodium => {
-                include_bytes!(
-                    "../../../conformance/observations/alkali-water-na-001.evidence.json"
-                )
-            }
-            Self::Potassium => {
-                include_bytes!("../../../conformance/observations/alkali-water-k-001.evidence.json")
-            }
-        }
-    }
-
     #[must_use]
-    pub const fn request(self) -> &'static str {
-        match self {
-            Self::Lithium => "What happens when lithium metal comes into contact with water?",
-            Self::Sodium => "What happens when sodium metal comes into contact with water?",
-            Self::Potassium => "What happens when potassium metal comes into contact with water?",
-        }
+    pub fn source(self) -> &'static str {
+        self.definition().source
     }
-
+    fn evidence(self) -> &'static [u8] {
+        self.definition().evidence.as_bytes()
+    }
     #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Lithium => "Lithium and water",
-            Self::Sodium => "Sodium and water",
-            Self::Potassium => "Potassium and water",
-        }
+    pub fn request(self) -> &'static str {
+        self.definition().request
     }
-
     #[must_use]
-    pub const fn equation(self) -> &'static str {
-        match self {
-            Self::Lithium => "2Li + 2H₂O  →  2LiOH + H₂",
-            Self::Sodium => "2Na + 2H₂O  →  2NaOH + H₂",
-            Self::Potassium => "2K + 2H₂O  →  2KOH + H₂",
-        }
+    pub fn name(self) -> String {
+        run(self).map_or_else(
+            |_| "reaction products".to_owned(),
+            |run| crate::nomenclature::product_names(run.frames()),
+        )
     }
-
-    const fn metal_name(self) -> &'static str {
-        match self {
-            Self::Lithium => "lithium",
-            Self::Sodium => "sodium",
-            Self::Potassium => "potassium",
-        }
-    }
-
     #[must_use]
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::Lithium => "alkali-water-lithium",
-            Self::Sodium => "alkali-water-sodium",
-            Self::Potassium => "alkali-water-potassium",
-        }
+    pub fn equation(self) -> &'static str {
+        self.definition().equation
     }
+    #[must_use]
+    pub fn id(self) -> &'static str {
+        self.definition().id
+    }
+}
+
+pub fn experiences() -> impl ExactSizeIterator<Item = Experience> {
+    (0..EXPERIENCE_DEFINITIONS.len()).map(Experience)
 }
 
 #[derive(Debug)]
@@ -144,25 +101,28 @@ impl TrustedRun {
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
     TrustedCatalogue::from_canonical_json(CATALOGUE, ATTESTATION).map_err(|error| error.to_string())
 });
-static LITHIUM_RUN: LazyLock<Result<TrustedRun, String>> =
-    LazyLock::new(|| build_run(Experience::Lithium));
-static SODIUM_RUN: LazyLock<Result<TrustedRun, String>> =
-    LazyLock::new(|| build_run(Experience::Sodium));
-static POTASSIUM_RUN: LazyLock<Result<TrustedRun, String>> =
-    LazyLock::new(|| build_run(Experience::Potassium));
+
+pub(crate) fn trusted_catalogue() -> Result<&'static TrustedCatalogue, &'static str> {
+    TRUSTED_CATALOGUE.as_ref().map_err(String::as_str)
+}
+static VALIDATED_OXYGEN_SCREENING: LazyLock<Result<ValidatedOxygenScreening, String>> =
+    LazyLock::new(|| {
+        let catalogue = TRUSTED_CATALOGUE.as_ref().map_err(Clone::clone)?;
+        ValidatedOxygenScreening::from_json(OXYGEN_SCREENING, catalogue)
+            .map_err(|error| error.to_string())
+    });
+static RUNS: LazyLock<Vec<Result<TrustedRun, String>>> =
+    LazyLock::new(|| experiences().map(build_run).collect());
 
 /// Returns a host-pinned, AI-reviewed experience result.
 ///
 /// The returned frame type cannot be constructed by the application. Failure
 /// is retained and shown honestly instead of falling back to UI-authored chemistry.
 pub fn run(experience: Experience) -> Result<&'static TrustedRun, &'static str> {
-    match experience {
-        Experience::Lithium => &LITHIUM_RUN,
-        Experience::Sodium => &SODIUM_RUN,
-        Experience::Potassium => &POTASSIUM_RUN,
-    }
-    .as_ref()
-    .map_err(String::as_str)
+    RUNS.get(experience.0)
+        .ok_or("experience registry index is invalid")?
+        .as_ref()
+        .map_err(String::as_str)
 }
 
 fn build_run(experience: Experience) -> Result<TrustedRun, String> {
@@ -176,7 +136,7 @@ pub fn validate_experience_source(
     experience: Experience,
     source: &str,
 ) -> Result<SimulationFrames, String> {
-    let catalogue = TRUSTED_CATALOGUE.as_ref().map_err(String::as_str)?;
+    let catalogue = trusted_catalogue()?;
     let expanded = expand_trusted(
         experience.source_name(),
         source,
@@ -190,58 +150,104 @@ pub fn validate_experience_source(
     generate_frames(&validated, current).map_err(|error| error.to_string())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DraftParticipant {
-    Atom(u8),
-    Composition(&'static str),
-}
-
-/// Recognizes a supported input identity. This selects a request source; it
-/// does not select products or construct chemistry.
-pub fn experience_for_participants(
-    participants: impl IntoIterator<Item = DraftParticipant>,
-) -> Option<Experience> {
-    let mut actual = participants.into_iter().collect::<Vec<_>>();
-    actual.sort_unstable();
-    Experience::ALL.into_iter().find(|experience| {
-        actual
-            == [
-                DraftParticipant::Atom(experience.atomic_number()),
-                DraftParticipant::Composition("H₂O"),
-            ]
-    })
-}
-
 #[must_use]
-pub fn experience_for_drafts(first: &[u8], second: &[u8]) -> Option<Experience> {
-    fn participant(atoms: &[u8]) -> Option<DraftParticipant> {
+pub fn experiences_for_drafts(first: &[u8], second: &[u8]) -> Vec<Experience> {
+    fn sorted(atoms: &[u8]) -> Vec<u8> {
         let mut atoms = atoms.to_vec();
         atoms.sort_unstable();
-        match atoms.as_slice() {
-            [3 | 11 | 19] => Some(DraftParticipant::Atom(atoms[0])),
-            [1, 1, 8] => Some(DraftParticipant::Composition("H₂O")),
-            _ => None,
-        }
+        atoms
     }
 
-    let first = participant(first)?;
-    let second = participant(second)?;
-    experience_for_participants([first, second])
+    let first = sorted(first);
+    let second = sorted(second);
+    experiences()
+        .filter(|experience| {
+            let definition = experience.definition();
+            (first.as_slice() == [experience.atomic_number()]
+                && second == definition.co_reactant_atoms)
+                || (second.as_slice() == [experience.atomic_number()]
+                    && first == definition.co_reactant_atoms)
+        })
+        .collect()
 }
 
 #[must_use]
 pub fn supports_drafts(first: &[u8], second: &[u8]) -> bool {
-    experience_for_drafts(first, second).is_some()
+    !experiences_for_drafts(first, second).is_empty()
+        || oxygen_assessment_for_drafts(first, second).is_some()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OxygenAssessment {
+    pub subject: String,
+    pub outcome: OxygenOutcome,
+}
+
+/// Screens an element, or a compound already present in the structural
+/// catalogue, against elemental oxygen. A representative result is still not
+/// a simulation authorization; that requires reviewed structural frames.
+#[must_use]
+pub fn oxygen_assessment_for_drafts(first: &[u8], second: &[u8]) -> Option<OxygenAssessment> {
+    let screening = VALIDATED_OXYGEN_SCREENING.as_ref().ok()?;
+    let (subject, oxygen) = if is_oxygen(first) {
+        (second, first)
+    } else {
+        (first, second)
+    };
+    if !is_oxygen(oxygen) {
+        return None;
+    }
+    if let [atomic_number] = subject {
+        let element = crate::elements::by_atomic_number(*atomic_number)?;
+        return Some(OxygenAssessment {
+            subject: element.name.to_owned(),
+            outcome: screening.element(*atomic_number)?.clone(),
+        });
+    }
+
+    let formula = catalogue_compound_formula(subject)?;
+    Some(OxygenAssessment {
+        subject: formula.to_owned(),
+        outcome: screening.compound(formula)?.clone(),
+    })
+}
+
+fn is_oxygen(atoms: &[u8]) -> bool {
+    atoms == [8, 8]
+}
+
+fn catalogue_compound_formula(atoms: &[u8]) -> Option<&'static str> {
+    let mut atoms = atoms.to_vec();
+    atoms.sort_unstable();
+    match atoms.as_slice() {
+        [1, 1] => Some("H2"),
+        [1, 1, 8] => Some("H2O"),
+        [1, 3, 8] => Some("LiOH"),
+        [1, 8, 11] => Some("NaOH"),
+        [1, 8, 19] => Some("KOH"),
+        _ => None,
+    }
 }
 
 /// Host-selected macroscopic styling for an exact trusted experience. This
 /// profile can select meshes and effects, but cannot alter chemistry.
 #[must_use]
-pub fn presentation_profile(experience: Experience, last_ordinal: u16) -> PresentationProfile {
+pub fn presentation_profile(
+    experience: Experience,
+    last_ordinal: u16,
+    _frames: &SimulationFrames,
+) -> PresentationProfile {
     let transform = |translation, scale| PresentationTransform {
         translation,
         rotation: [0, 0, 0],
         scale,
+    };
+    let co_reactant = if experience.definition().co_reactant_atoms == [8, 8] {
+        "oxygen"
+    } else if experience.definition().co_reactant_atoms == [1, 8, 1] {
+        "water"
+    } else {
+        "co-reactant"
     };
     PresentationProfile {
         id: format!("presentation.ai.{}", experience.id()),
@@ -257,63 +263,42 @@ pub fn presentation_profile(experience: Experience, last_ordinal: u16) -> Presen
                 visible_from_ordinal: 0,
             },
             PresentationObject {
-                id: "water".to_owned(),
-                asset: AssetProfile::LiquidVolume,
-                semantic_identity: "water".to_owned(),
-                appearance: AppearanceProfile::Water,
-                role: SceneRole::Contents,
-                transform: transform([0, -150, 0], [1_000, 850, 1_000]),
-                visible_from_ordinal: 0,
-            },
-            PresentationObject {
-                id: experience.metal_name().to_owned(),
-                asset: AssetProfile::MetalChunk,
-                semantic_identity: format!("{} metal", experience.metal_name()),
-                appearance: AppearanceProfile::AlkaliMetal,
+                id: "subject".to_owned(),
+                asset: AssetProfile::PowderPile,
+                semantic_identity: experience.definition().subject_name.to_owned(),
+                appearance: AppearanceProfile::LaboratoryNeutral,
                 role: SceneRole::Reactant,
-                transform: transform([0, 610, 0], [650, 650, 650]),
+                transform: transform([-300, 250, 0], [650, 650, 650]),
                 visible_from_ordinal: 0,
             },
             PresentationObject {
-                id: "hydrogen".to_owned(),
-                asset: AssetProfile::GasCloud,
-                semantic_identity: "hydrogen gas".to_owned(),
-                appearance: AppearanceProfile::AqueousColourless,
+                id: "co-reactant".to_owned(),
+                asset: if co_reactant == "water" {
+                    AssetProfile::LiquidVolume
+                } else {
+                    AssetProfile::GasCloud
+                },
+                semantic_identity: co_reactant.to_owned(),
+                appearance: if co_reactant == "water" {
+                    AppearanceProfile::Water
+                } else {
+                    AppearanceProfile::LaboratoryNeutral
+                },
+                role: SceneRole::Reactant,
+                transform: transform([300, 250, 0], [650, 650, 650]),
+                visible_from_ordinal: 0,
+            },
+            PresentationObject {
+                id: "product".to_owned(),
+                asset: AssetProfile::CrystalCluster,
+                semantic_identity: format!("product of {}", experience.equation()),
+                appearance: AppearanceProfile::LaboratoryNeutral,
                 role: SceneRole::Product,
-                transform: transform([180, 930, 0], [600, 600, 600]),
-                visible_from_ordinal: last_ordinal.saturating_sub(2),
+                transform: transform([0, 250, 0], [750, 750, 750]),
+                visible_from_ordinal: last_ordinal,
             },
         ],
-        effects: vec![
-            PresentationEffect {
-                effect: EffectProfile::BubbleEmitter,
-                trigger: ObservationPredicate::Evolves,
-                intensity: EffectIntensity::Moderate,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-            PresentationEffect {
-                effect: EffectProfile::GasRelease,
-                trigger: ObservationPredicate::Evolves,
-                intensity: EffectIntensity::Moderate,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-            PresentationEffect {
-                effect: EffectProfile::SurfaceDisturbance,
-                trigger: ObservationPredicate::Disappears,
-                intensity: EffectIntensity::Subtle,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-            PresentationEffect {
-                effect: EffectProfile::ObjectShrinkage,
-                trigger: ObservationPredicate::Disappears,
-                intensity: EffectIntensity::Moderate,
-                start_ordinal: 1,
-                end_ordinal: last_ordinal,
-            },
-        ],
+        effects: Vec::new(),
         camera: vec![
             CameraCue {
                 behaviour: CameraBehaviour::WideEstablishingShot,
@@ -342,8 +327,13 @@ mod tests {
 
     #[test]
     fn every_registered_experience_crosses_the_trusted_frame_boundary() {
-        for experience in Experience::ALL {
-            let run = run(experience).expect("registered run should be trusted");
+        for experience in experiences() {
+            let run = run(experience).unwrap_or_else(|error| {
+                panic!(
+                    "registered run `{}` should be trusted: {error}",
+                    experience.id()
+                )
+            });
             assert!(!run.frames().frames().is_empty());
             assert_eq!(run.frames().trust(), chem_kernel::DerivationTrust::Trusted);
             assert_eq!(
@@ -355,22 +345,74 @@ mod tests {
 
     #[test]
     fn draft_recognition_selects_li_na_or_k_with_water() {
-        for (atomic_number, expected) in [
-            (3, Experience::Lithium),
-            (11, Experience::Sodium),
-            (19, Experience::Potassium),
-        ] {
+        for atomic_number in [3, 11, 19] {
+            let expected = experiences()
+                .find(|experience| experience.atomic_number() == atomic_number)
+                .expect("registered atomic number");
             assert_eq!(
-                experience_for_drafts(&[atomic_number], &[1, 8, 1]),
-                Some(expected)
+                experiences_for_drafts(&[atomic_number], &[1, 8, 1]),
+                vec![expected]
             );
             assert_eq!(
-                experience_for_drafts(&[8, 1, 1], &[atomic_number]),
-                Some(expected)
+                experiences_for_drafts(&[8, 1, 1], &[atomic_number]),
+                vec![expected]
             );
         }
-        assert_eq!(experience_for_drafts(&[20], &[1, 1, 8]), None);
-        assert_eq!(experience_for_drafts(&[1, 1], &[8, 8]), None);
+        assert!(experiences_for_drafts(&[20], &[1, 1, 8]).is_empty());
+        assert!(experiences_for_drafts(&[1, 1], &[8, 8]).is_empty());
+    }
+
+    #[test]
+    fn iron_and_oxygen_exposes_all_three_reviewed_products() {
+        let outcomes = experiences_for_drafts(&[26], &[8, 8]);
+        assert_eq!(outcomes.len(), 3);
+        assert_eq!(
+            outcomes
+                .iter()
+                .map(|experience| experience.equation())
+                .collect::<std::collections::BTreeSet<_>>(),
+            std::collections::BTreeSet::from([
+                "2 Fe + O2 -> 2 FeO",
+                "3 Fe + 2 O2 -> Fe3O4",
+                "4 Fe + 3 O2 -> 2 Fe2O3",
+            ])
+        );
+    }
+
+    #[test]
+    fn product_names_are_derived_from_validated_structures() {
+        let names = experiences()
+            .map(|experience| (experience.id(), experience.name()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(names["oxygen-fe-oxide-2-o1"], "iron(II) oxide");
+        assert_eq!(names["oxygen-fe-oxide-3-3-o3"], "iron(III) oxide");
+        assert_eq!(names["oxygen-fe-oxide-2-3-3-o4"], "iron(II,III) oxide");
+        assert_eq!(names["oxygen-sodium-oxygen"], "sodium peroxide");
+        assert_eq!(names["oxygen-potassium-oxygen"], "potassium superoxide");
+        assert_eq!(names["oxygen-barium-oxygen"], "barium oxide");
+        assert_eq!(names["oxygen-carbon-oxygen"], "carbon dioxide");
+        assert_eq!(
+            names["oxygen-phosphorus-oxygen"],
+            "tetraphosphorus decoxide"
+        );
+    }
+
+    #[test]
+    fn barium_and_oxygen_resolves_the_normal_oxide() {
+        let outcomes = experiences_for_drafts(&[56], &[8, 8]);
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].equation(), "2 Ba + O2 -> 2 BaO");
+        assert_eq!(outcomes[0].name(), "barium oxide");
+        run(outcomes[0]).expect("reviewed BaO structure should produce trusted frames");
+    }
+
+    #[test]
+    fn every_element_can_be_screened_with_oxygen_but_unknown_compounds_cannot() {
+        for atomic_number in 1..=118 {
+            assert!(oxygen_assessment_for_drafts(&[atomic_number], &[8, 8]).is_some());
+            assert!(supports_drafts(&[8, 8], &[atomic_number]));
+        }
+        assert!(oxygen_assessment_for_drafts(&[6, 8], &[8, 8]).is_none());
     }
 
     #[test]

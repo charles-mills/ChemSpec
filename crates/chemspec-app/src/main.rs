@@ -7,6 +7,7 @@
 mod chemistry;
 mod composition_catalogue;
 mod elements;
+mod nomenclature;
 mod particle_visualization;
 mod periodic_table;
 mod reactant_composer;
@@ -29,8 +30,11 @@ use iced::{Center, Element, Fill, FillPortion, Font, Length, Size, Subscription,
 use theme::{breakpoint, color, space as spacing, type_scale};
 
 fn plan_equation(animation: &StructuralAnimation) -> Option<&str> {
-    (!animation.real_world_plan.equation.is_empty())
-        .then_some(animation.real_world_plan.equation.as_str())
+    animation
+        .real_world_plan
+        .as_ref()
+        .filter(|plan| !plan.equation.is_empty())
+        .map(|plan| plan.equation.as_str())
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -128,16 +132,12 @@ fn launch_state() -> App {
             let three_dimensional = smoke.ends_with("3d-smoke");
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
             if three_dimensional {
-                animation.real_world_playhead_ms = animation
-                    .real_world_plan
-                    .timeline
-                    .duration_ms()
-                    .saturating_mul(2)
-                    / 3;
-                if let Some(position) = animation
-                    .real_world_plan
-                    .timeline
-                    .locate(animation.real_world_playhead_ms)
+                let Some(plan) = animation.real_world_plan.as_ref() else {
+                    return app;
+                };
+                animation.real_world_playhead_ms =
+                    plan.timeline.duration_ms().saturating_mul(2) / 3;
+                if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
                     && let Some(frame_index) = animation
                         .frames
                         .frames()
@@ -178,6 +178,7 @@ fn launch_state() -> App {
 enum Screen {
     ProviderSetup,
     Builder,
+    OxygenAssessment,
     ValidatedRecord,
     Structural2d,
     Structural3d,
@@ -260,6 +261,7 @@ enum Message {
     ProviderContinue,
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
+    OutcomeSelected(chemistry::Experience),
     RequestChanged(String),
     RequestSubmitted,
     SourceEdited(text_editor::Action),
@@ -281,7 +283,8 @@ enum Message {
 struct StructuralAnimation {
     frames: chem_kernel::SimulationFrames,
     educational_plan: EducationalPlan,
-    real_world_plan: ScenePlan,
+    real_world_plan: Option<ScenePlan>,
+    real_world_error: Option<String>,
     educational_playhead_ms: u64,
     frame_index: usize,
     real_world_playhead_ms: u64,
@@ -296,6 +299,8 @@ struct App {
     api_key: String,
     periodic_table: periodic_table::State,
     reactant_composer: reactant_composer::State,
+    oxygen_assessment: Option<chemistry::OxygenAssessment>,
+    pending_experiences: Vec<chemistry::Experience>,
     active_experience: chemistry::Experience,
     request: String,
     source: text_editor::Content,
@@ -321,6 +326,8 @@ impl Default for App {
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
+            oxygen_assessment: None,
+            pending_experiences: Vec::new(),
             active_experience,
             request: active_experience.request().to_owned(),
             source: text_editor::Content::with_text(active_experience.source()),
@@ -362,6 +369,12 @@ impl App {
             }
             Message::ReactantComposer(message) => {
                 self.update_reactant_composer(message);
+            }
+            Message::OutcomeSelected(experience) => {
+                self.pending_experiences.clear();
+                self.oxygen_assessment = None;
+                self.select_experience(experience);
+                self.open_structural_animation();
             }
             Message::RequestChanged(request) => self.request = request,
             // The offline fixture crosses the same trusted language/kernel
@@ -430,12 +443,13 @@ impl App {
             }
             Message::ContinueTo3d => {
                 if self.structural_animation.as_ref().is_some_and(|animation| {
-                    animation
-                        .educational_plan
-                        .locate(animation.educational_playhead_ms)
-                        .is_some_and(|position| {
-                            position.scene_index + 1 == animation.educational_plan.scenes.len()
-                        })
+                    animation.real_world_plan.is_some()
+                        && animation
+                            .educational_plan
+                            .locate(animation.educational_playhead_ms)
+                            .is_some_and(|position| {
+                                position.scene_index + 1 == animation.educational_plan.scenes.len()
+                            })
                 }) {
                     if let Some(animation) = &mut self.structural_animation {
                         animation.frame_index = 0;
@@ -457,11 +471,21 @@ impl App {
             return;
         }
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-        let Some(experience) = chemistry::experience_for_drafts(first, second) else {
-            return;
-        };
-        self.select_experience(experience);
-        self.open_structural_animation();
+        let experiences = chemistry::experiences_for_drafts(first, second);
+        if experiences.len() == 1 {
+            self.oxygen_assessment = None;
+            self.pending_experiences.clear();
+            self.select_experience(experiences[0]);
+            self.open_structural_animation();
+        } else if !experiences.is_empty() {
+            self.oxygen_assessment = None;
+            self.pending_experiences = experiences;
+            self.screen = Screen::OxygenAssessment;
+        } else if let Some(assessment) = chemistry::oxygen_assessment_for_drafts(first, second) {
+            self.pending_experiences.clear();
+            self.oxygen_assessment = Some(assessment);
+            self.screen = Screen::OxygenAssessment;
+        }
     }
 
     fn revalidate_source(&mut self) {
@@ -574,6 +598,7 @@ impl App {
         match self.screen {
             Screen::ProviderSetup => responsive(|size| self.provider_setup_view(size)).into(),
             Screen::Builder => responsive(|size| self.builder_view(size)).into(),
+            Screen::OxygenAssessment => self.oxygen_assessment_view(),
             Screen::ValidatedRecord => responsive(|size| self.responsive_view(size)).into(),
             Screen::Structural2d => responsive(|size| self.structural_2d_view(size)).into(),
             Screen::Structural3d => responsive(|size| self.structural_3d_view(size)).into(),
@@ -701,13 +726,18 @@ impl App {
                 .last()
                 .and_then(|frame| u16::try_from(frame.ordinal()).ok())
                 .ok_or_else(|| "trusted frames exceed the presentation range".to_owned())?;
-            let profile = chemistry::presentation_profile(self.active_experience, last_ordinal);
-            let real_world_plan =
-                compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
+            let profile =
+                chemistry::presentation_profile(self.active_experience, last_ordinal, &frames);
+            let (real_world_plan, real_world_error) =
+                match compile_real_world_plan(&frames, &profile) {
+                    Ok(plan) => (Some(plan), None),
+                    Err(error) => (None, Some(error.to_string())),
+                };
             Ok::<_, String>(StructuralAnimation {
                 frames,
                 educational_plan,
                 real_world_plan,
+                real_world_error,
                 educational_playhead_ms: 0,
                 frame_index: 0,
                 real_world_playhead_ms: 0,
@@ -760,15 +790,16 @@ impl App {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
-        let duration = animation.real_world_plan.timeline.duration_ms();
+        let Some(plan) = animation.real_world_plan.as_ref() else {
+            animation.playing = false;
+            return;
+        };
+        let duration = plan.timeline.duration_ms();
         animation.real_world_playhead_ms = animation
             .real_world_playhead_ms
             .saturating_add(u64::from(elapsed_ms))
             .min(duration);
-        if let Some(position) = animation
-            .real_world_plan
-            .timeline
-            .locate(animation.real_world_playhead_ms)
+        if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
             && let Some(frame_index) = animation
                 .frames
                 .frames()
@@ -786,12 +817,11 @@ impl App {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
-        animation.real_world_playhead_ms =
-            elapsed_ms.min(animation.real_world_plan.timeline.duration_ms());
-        if let Some(position) = animation
-            .real_world_plan
-            .timeline
-            .locate(animation.real_world_playhead_ms)
+        let Some(plan) = animation.real_world_plan.as_ref() else {
+            return;
+        };
+        animation.real_world_playhead_ms = elapsed_ms.min(plan.timeline.duration_ms());
+        if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
             && let Some(frame_index) = animation
                 .frames
                 .frames()
@@ -805,13 +835,20 @@ impl App {
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     fn structural_2d_view(&self, size: Size) -> Element<'_, Message> {
         let Some(animation) = &self.structural_animation else {
-            return Self::structural_unavailable_view("Trusted frames are unavailable");
+            return Self::structural_unavailable_view(
+                self.structural_error
+                    .as_deref()
+                    .unwrap_or("Trusted frames are unavailable")
+                    .to_owned(),
+            );
         };
         let Some(timeline_position) = animation
             .educational_plan
             .locate(animation.educational_playhead_ms)
         else {
-            return Self::structural_unavailable_view("The educational timeline is unavailable");
+            return Self::structural_unavailable_view(
+                "The educational timeline is unavailable".to_owned(),
+            );
         };
         let Some(educational_scene) = animation
             .educational_plan
@@ -819,7 +856,7 @@ impl App {
             .get(timeline_position.scene_index)
         else {
             return Self::structural_unavailable_view(
-                "The current educational scene is unavailable",
+                "The current educational scene is unavailable".to_owned(),
             );
         };
         let frames = animation.frames.frames();
@@ -829,7 +866,9 @@ impl App {
             .iter()
             .find(|candidate| candidate.trace().state_digest == educational_scene.end_frame)
         else {
-            return Self::structural_unavailable_view("The current frame is unavailable");
+            return Self::structural_unavailable_view(
+                "The current frame is unavailable".to_owned(),
+            );
         };
         let before_frame = animation
             .frames
@@ -838,6 +877,26 @@ impl App {
             .find(|candidate| candidate.trace().state_digest == educational_scene.start_frame)
             .or_else(|| frames.get(animation.frame_index))
             .unwrap_or(frame);
+        let operation_transitions = educational_scene
+            .cues
+            .iter()
+            .filter_map(|cue| match cue {
+                chem_presentation::EducationalCue::ApplyOperations { operations } => {
+                    Some(operations)
+                }
+                _ => None,
+            })
+            .flatten()
+            .filter_map(|operation| {
+                let before = frames
+                    .iter()
+                    .find(|candidate| candidate.trace().state_digest == operation.before)?;
+                let after = frames
+                    .iter()
+                    .find(|candidate| candidate.trace().state_digest == operation.after)?;
+                Some((before, after))
+            })
+            .collect::<Vec<_>>();
         let scene_progress = if educational_scene.duration_ms == 0 {
             1.0
         } else {
@@ -913,6 +972,7 @@ impl App {
             canvas(structural_2d::Diagram::new(
                 before_frame,
                 frame,
+                &operation_transitions,
                 scene_progress,
                 explanation,
                 &context_labels,
@@ -1067,7 +1127,7 @@ impl App {
         .into()
     }
 
-    fn structural_unavailable_view(message: &'static str) -> Element<'static, Message> {
+    fn structural_unavailable_view(message: String) -> Element<'static, Message> {
         container(
             column![
                 text("ANIMATION UNAVAILABLE")
@@ -1091,14 +1151,23 @@ impl App {
     fn structural_3d_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
         let Some(animation) = &self.structural_animation else {
-            return Self::structural_unavailable_view("Validated frames are unavailable");
+            return Self::structural_unavailable_view(
+                "Validated frames are unavailable".to_owned(),
+            );
         };
-        let Some(moment) = animation
-            .real_world_plan
-            .timeline
-            .locate(animation.real_world_playhead_ms)
-        else {
-            return Self::structural_unavailable_view("The macroscopic timeline is unavailable");
+        let Some(plan) = animation.real_world_plan.as_ref() else {
+            return Self::structural_unavailable_view(
+                animation
+                    .real_world_error
+                    .as_deref()
+                    .unwrap_or("Macroscopic simulation is unavailable")
+                    .to_owned(),
+            );
+        };
+        let Some(moment) = plan.timeline.locate(animation.real_world_playhead_ms) else {
+            return Self::structural_unavailable_view(
+                "The macroscopic timeline is unavailable".to_owned(),
+            );
         };
         let back = button(text("← 2D explanation"))
             .on_press(Message::ReturnTo2d)
@@ -1116,16 +1185,10 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let active_annotation = animation
-            .real_world_plan
-            .annotations
-            .iter()
-            .rfind(|annotation| {
-                annotation.start_ordinal <= moment.ordinal
-                    && moment.ordinal <= annotation.end_ordinal
-            });
-        let active_effects = animation
-            .real_world_plan
+        let active_annotation = plan.annotations.iter().rfind(|annotation| {
+            annotation.start_ordinal <= moment.ordinal && moment.ordinal <= annotation.end_ordinal
+        });
+        let active_effects = plan
             .effects
             .iter()
             .filter(|effect| {
@@ -1140,7 +1203,7 @@ impl App {
                     text("REVIEWED SCENE")
                         .size(type_scale::MICRO)
                         .color(color::ACCENT),
-                    text(animation.real_world_plan.equation.as_str())
+                    text(plan.equation.as_str())
                         .size(type_scale::BODY_LARGE)
                         .color(color::TEXT),
                 ]
@@ -1165,12 +1228,9 @@ impl App {
                 content
             },
         );
-        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
-            &animation.real_world_plan,
-            moment,
-        ))
-        .width(Fill)
-        .height(Fill);
+        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(plan, moment))
+            .width(Fill)
+            .height(Fill);
         let annotation_layer = container(
             column![
                 space().height(Fill),
@@ -1192,7 +1252,7 @@ impl App {
         .style(theme::inset)
         .width(Fill)
         .height(Fill);
-        let duration_ms = animation.real_world_plan.timeline.duration_ms();
+        let duration_ms = plan.timeline.duration_ms();
         let slider_duration = u32::try_from(duration_ms).unwrap_or(u32::MAX).max(1);
         let slider_playhead = u32::try_from(animation.real_world_playhead_ms)
             .unwrap_or(u32::MAX)
@@ -1229,7 +1289,7 @@ impl App {
                     text(format!(
                         "SCENE {:02} / {:02}  ·  CINEMATIC TIMELINE",
                         moment.beat_index + 1,
-                        animation.real_world_plan.timeline.beats.len()
+                        plan.timeline.beats.len()
                     ))
                     .size(type_scale::MICRO)
                     .color(color::ACCENT),
@@ -1276,10 +1336,10 @@ impl App {
                 .align_y(Center),
                 scene,
                 controls,
-                text(animation.real_world_plan.disclosure.as_str())
+                text(plan.disclosure.as_str())
                     .size(type_scale::MICRO)
                     .color(color::TEXT_SOFT),
-                text(animation.real_world_plan.virtual_only_disclosure.as_str())
+                text(plan.virtual_only_disclosure.as_str())
                     .size(type_scale::MICRO)
                     .color(color::WARNING),
             ]
@@ -2077,6 +2137,104 @@ impl App {
         .into()
     }
 
+    fn oxygen_assessment_view(&self) -> Element<'_, Message> {
+        use chem_catalogue::{OxygenOutcome, StructuralSupport};
+
+        if !self.pending_experiences.is_empty() {
+            let mut choices = column![
+                text("CHEMSPEC  /  PRODUCT OUTCOME")
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT),
+                text("Choose the reviewed product")
+                    .size(type_scale::DISPLAY)
+                    .color(color::TEXT),
+                text("Each option is backed by its own trusted catalogue rule and structural simulation.")
+                    .size(type_scale::BODY)
+                    .color(color::MUTED),
+            ]
+            .spacing(spacing::MD);
+            for experience in &self.pending_experiences {
+                choices = choices.push(
+                    button(
+                        column![
+                            text(experience.name()).size(type_scale::TITLE),
+                            text(experience.equation())
+                                .size(type_scale::BODY)
+                                .color(color::MUTED),
+                        ]
+                        .spacing(spacing::XXS),
+                    )
+                    .on_press(Message::OutcomeSelected(*experience))
+                    .padding(spacing::MD)
+                    .width(Fill)
+                    .style(theme::secondary_button),
+                );
+            }
+            choices = choices.push(
+                button(text("← Reactants"))
+                    .on_press(Message::ScreenSelected(Screen::Builder))
+                    .padding([spacing::SM, spacing::MD])
+                    .style(theme::secondary_button),
+            );
+            return container(container(choices).style(theme::frame).padding(spacing::XL))
+                .style(theme::app_background)
+                .center(Fill)
+                .into();
+        }
+
+        let Some(assessment) = &self.oxygen_assessment else {
+            return container(text("Oxygen assessment is unavailable"))
+                .style(theme::app_background)
+                .center(Fill)
+                .into();
+        };
+        let (status, detail, equation) = match &assessment.outcome {
+            OxygenOutcome::Representative {
+                product_formula,
+                equation,
+                product_oxygen_atoms,
+                structural_support,
+                ..
+            } => {
+                let model = match structural_support {
+                    StructuralSupport::PendingReviewedModel => "reviewed structural model pending",
+                    StructuralSupport::UnsupportedBondModel => "bond model not yet supported",
+                };
+                (
+                    "REPRESENTATIVE OUTCOME",
+                    format!(
+                        "Selected product formula: {product_formula}, with {product_oxygen_atoms} oxygen atom(s) per formula unit. Simulation locked: {model}."
+                    ),
+                    Some(equation.as_str()),
+                )
+            }
+            OxygenOutcome::NoDirectReaction { reason } => {
+                ("NO DIRECT REACTION", reason.clone(), None)
+            }
+            OxygenOutcome::Ambiguous { reason } => ("AMBIGUOUS OUTCOME", reason.clone(), None),
+            OxygenOutcome::Unsupported { reason } => ("UNSUPPORTED", reason.clone(), None),
+        };
+        let equation = equation.unwrap_or("No equation is asserted for this outcome.");
+        let card = container(column![
+            text("CHEMSPEC  /  OXYGEN CHECK").size(type_scale::MICRO).color(color::ACCENT),
+            text(format!("{} + O₂", assessment.subject)).size(type_scale::DISPLAY).color(color::TEXT),
+            text(status).size(type_scale::MICRO).color(color::WARNING),
+            container(text(equation).size(type_scale::TITLE).color(color::TEXT))
+                .style(theme::inset).padding(spacing::MD).width(Fill),
+            text(detail).size(type_scale::BODY).color(color::MUTED),
+            text("Only catalogue-defined compounds are screened. An assessment cannot authorize animation without validated structural frames.")
+                .size(type_scale::CAPTION).color(color::FAINT),
+            button(text("← Reactants"))
+                .on_press(Message::ScreenSelected(Screen::Builder))
+                .padding([spacing::SM, spacing::MD]).style(theme::secondary_button),
+        ].spacing(spacing::MD))
+        .style(theme::frame).padding(spacing::XL).width(Fill).max_width(900.0);
+        container(card)
+            .style(theme::app_background)
+            .center(Fill)
+            .into()
+    }
+
     fn panel_heading(
         eyebrow: &'static str,
         title: &'static str,
@@ -2161,12 +2319,70 @@ mod tests {
             .as_ref()
             .expect("animation planning succeeds");
         assert_eq!(animation.educational_plan.id, expected);
-        assert_eq!(animation.real_world_plan.reaction, expected);
+        assert_eq!(
+            animation
+                .real_world_plan
+                .as_ref()
+                .expect("macroscopic plan compiles")
+                .reaction,
+            expected
+        );
+    }
+
+    #[test]
+    fn guided_animation_groups_equivalent_independent_changes() {
+        let mut app = App::default();
+        app.update(Message::OpenStructural2d);
+        let animation = app
+            .structural_animation
+            .as_ref()
+            .expect("animation planning succeeds");
+        let grouped = animation
+            .educational_plan
+            .scenes
+            .iter()
+            .filter_map(|scene| {
+                let operations = scene.cues.iter().find_map(|cue| match cue {
+                    chem_presentation::EducationalCue::ApplyOperations { operations }
+                        if operations.len() > 1 =>
+                    {
+                        Some(operations)
+                    }
+                    _ => None,
+                })?;
+                Some((scene, operations))
+            })
+            .collect::<Vec<_>>();
+
+        assert!(!grouped.is_empty());
+        assert!(grouped.iter().any(|(_, operations)| operations.len() == 2));
+        for (scene, operations) in grouped {
+            let representative = &operations[0].affected_atoms;
+            for cue in &scene.cues {
+                match cue {
+                    chem_presentation::EducationalCue::ShowContext { label } => {
+                        assert_eq!(&label.target_atoms, representative);
+                        assert!(!label.text.contains("equivalent changes"));
+                    }
+                    chem_presentation::EducationalCue::ShowExplanation { label } => {
+                        assert_eq!(&label.target_atoms, representative);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(
+            animation
+                .educational_plan
+                .scenes
+                .iter()
+                .all(|scene| { scene.kind != EducationalSceneKind::ObservationConnection })
+        );
     }
 
     #[test]
     fn educational_context_does_not_repeat_what_changed_copy() {
-        for experience in chemistry::Experience::ALL {
+        for experience in chemistry::experiences() {
             let frames = chemistry::run(experience)
                 .expect("pinned experience validates")
                 .frames();
@@ -2274,7 +2490,15 @@ mod tests {
         let target = app
             .structural_animation
             .as_ref()
-            .map(|animation| animation.real_world_plan.timeline.duration_ms() / 2)
+            .map(|animation| {
+                animation
+                    .real_world_plan
+                    .as_ref()
+                    .expect("macroscopic plan compiles")
+                    .timeline
+                    .duration_ms()
+                    / 2
+            })
             .expect("animation exists");
 
         app.update(Message::StructuralRealWorldTimelineScrubbed(
@@ -2284,6 +2508,8 @@ mod tests {
         let animation = app.structural_animation.as_ref().expect("animation exists");
         let position = animation
             .real_world_plan
+            .as_ref()
+            .expect("macroscopic plan compiles")
             .timeline
             .locate(target)
             .expect("timeline position exists");
@@ -2308,10 +2534,7 @@ mod tests {
     #[test]
     fn selecting_an_experience_updates_source_request_and_trusted_frames_together() {
         let mut app = App::default();
-        for experience in [
-            chemistry::Experience::Sodium,
-            chemistry::Experience::Potassium,
-        ] {
+        for experience in chemistry::experiences().skip(1) {
             app.select_experience(experience);
             assert_eq!(app.active_experience, experience);
             assert_eq!(app.request, experience.request());
@@ -2319,6 +2542,46 @@ mod tests {
             assert!(app.validated_frames.is_some());
             assert!(app.validation_error.is_none());
         }
+    }
+
+    #[test]
+    fn every_registered_experience_opens_the_guided_animation() {
+        let mut app = App::default();
+        for experience in chemistry::experiences() {
+            app.select_experience(experience);
+            app.open_structural_animation();
+            assert!(
+                app.structural_animation.is_some(),
+                "experience `{}` failed to open: {}",
+                experience.id(),
+                app.structural_error.as_deref().unwrap_or("unknown error")
+            );
+        }
+    }
+
+    #[test]
+    fn iron_and_oxygen_opens_the_product_picker_before_simulation() {
+        let mut app = App::default();
+        reactant_composer::update(
+            &mut app.reactant_composer,
+            reactant_composer::Message::AddElement(26),
+        );
+        reactant_composer::update(
+            &mut app.reactant_composer,
+            reactant_composer::Message::Activate(reactant_composer::ActiveReactant::Second),
+        );
+        reactant_composer::update(
+            &mut app.reactant_composer,
+            reactant_composer::Message::AddElement(8),
+        );
+        reactant_composer::update(
+            &mut app.reactant_composer,
+            reactant_composer::Message::AddElement(8),
+        );
+        app.update_reactant_composer(reactant_composer::Message::StartReactionRequested);
+        assert_eq!(app.screen, Screen::OxygenAssessment);
+        assert_eq!(app.pending_experiences.len(), 3);
+        assert!(app.structural_animation.is_none());
     }
 
     #[test]
@@ -2366,7 +2629,7 @@ mod tests {
         ));
 
         assert_eq!(app.screen, Screen::Structural2d);
-        assert_eq!(app.active_experience, chemistry::Experience::Lithium);
+        assert_eq!(app.active_experience, chemistry::Experience::DEFAULT);
         let animation = app
             .structural_animation
             .as_ref()

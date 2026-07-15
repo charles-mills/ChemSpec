@@ -348,6 +348,16 @@ fn operation_oracle(operation: &ExpandedOperation) -> Value {
                 "right": electron_tuple(transitions[right].after())
             }
         }),
+        StructuralOperationView::ChangeCovalentDelocalization {
+            left,
+            right,
+            expected,
+            replacement,
+        } => json!({
+            "id": id, "kind": "change_covalent_delocalization",
+            "before_state": before, "after_state": after,
+            "edge": [left, right], "expected": expected, "replacement": replacement
+        }),
         StructuralOperationView::AssociateIonic { .. } => {
             let components = &operation.ionic_components;
             json!({
@@ -764,6 +774,17 @@ fn reidentify(template: &ExpandedOperation, ordinal: u32) -> ExpandedOperation {
             new_order,
             allocation: allocation.clone(),
             transitions: transitions.values().cloned().collect(),
+        },
+        StructuralOperationView::ChangeCovalentDelocalization {
+            left,
+            right,
+            expected,
+            replacement,
+        } => StructuralOperationInput::ChangeCovalentDelocalization {
+            left: left.clone(),
+            right: right.clone(),
+            expected: expected.cloned(),
+            replacement: replacement.cloned(),
         },
         StructuralOperationView::AssociateIonic { association } => {
             StructuralOperationInput::AssociateIonic {

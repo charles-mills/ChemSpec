@@ -13,7 +13,7 @@ use super::{
     StructuralTraitSiteKindRecord, ValidatedCatalogueBundle, require_premise, validate_label,
 };
 
-const MAX_RAW_PATTERN_MATCHES: usize = 4_096;
+const MAX_RAW_PATTERN_MATCHES: usize = 65_536;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureAutomorphism {
@@ -107,6 +107,27 @@ impl RolePatternMatchBinding {
 }
 
 impl ValidatedCatalogueBundle {
+    pub(super) fn role_pattern_matches_are_automorphism_related(
+        &self,
+        left: &RolePatternMatchBinding,
+        right: &RolePatternMatchBinding,
+    ) -> Result<bool, CatalogueError> {
+        if left.pattern != right.pattern || left.structure != right.structure {
+            return pattern_error(
+                "automorphism comparison has different pattern or structure identities",
+            );
+        }
+        let graph = self
+            .structure(&left.structure)
+            .ok_or_else(|| pattern_error_value("match structure no longer resolves"))?
+            .graph();
+        bindings_related_by_automorphism(graph, left, right).ok_or_else(|| {
+            pattern_error_value(format!(
+                "automorphism comparison exceeds the work limit of {MAX_RAW_PATTERN_MATCHES}"
+            ))
+        })
+    }
+
     #[must_use]
     pub fn graph_pattern(&self, id: &GraphPatternId) -> Option<&GraphPatternRecord> {
         self.graph_patterns
@@ -332,7 +353,7 @@ fn enumerate_automorphisms(
     let source = &sources[index];
     for target in graph.atoms().keys() {
         if used.contains(target)
-            || atom_signature(&graph.atoms()[source]) != atom_signature(&graph.atoms()[target])
+            || atom_signature(graph, source) != atom_signature(graph, target)
             || !partial_bonds_preserved(graph, source, target, mapping)
         {
             continue;
@@ -1247,7 +1268,7 @@ fn automorphism_search(
     };
     for target in candidates {
         if used.contains(target)
-            || atom_signature(&graph.atoms()[source]) != atom_signature(&graph.atoms()[target])
+            || atom_signature(graph, source) != atom_signature(graph, target)
             || !partial_bonds_preserved(graph, source, target, mapping)
         {
             continue;
@@ -1275,12 +1296,47 @@ fn automorphism_search(
     Some(false)
 }
 
-fn atom_signature(atom: &Atom) -> (&ElementSymbol, i16, u8, u8) {
+fn atom_signature<'a>(
+    graph: &'a StructuralGraph,
+    atom_id: &AtomId,
+) -> (&'a ElementSymbol, i16, u8, u8, [u8; 5], usize, usize) {
+    let atom = &graph.atoms()[atom_id];
+    let mut bonds = [0_u8; 5];
+    for bond in graph.covalent_bonds().values() {
+        let position = if bond.left() == atom_id {
+            Some(0)
+        } else if bond.right() == atom_id {
+            Some(1)
+        } else {
+            None
+        };
+        let Some(position) = position else { continue };
+        let index = match bond.electron_origin() {
+            CovalentElectronOrigin::Shared => usize::from(bond.order().order() - 1),
+            CovalentElectronOrigin::Dative { donor, .. } if donor == atom_id => 3,
+            CovalentElectronOrigin::Dative { .. } => 4,
+        };
+        let _ = position;
+        bonds[index] = bonds[index].saturating_add(1);
+    }
+    let group_memberships = graph
+        .groups()
+        .values()
+        .filter(|group| group.atoms().contains(atom_id))
+        .count();
+    let metallic_memberships = graph
+        .metallic_domains()
+        .values()
+        .filter(|domain| domain.sites().contains(atom_id))
+        .count();
     (
         atom.element(),
         atom.electrons().formal_charge(),
         atom.electrons().non_bonding_electrons(),
         atom.electrons().unpaired_electrons(),
+        bonds,
+        group_memberships,
+        metallic_memberships,
     )
 }
 

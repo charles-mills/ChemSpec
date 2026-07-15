@@ -1,0 +1,1002 @@
+{
+    "schema_version":  1,
+    "experiences":  [
+                        {
+                            "id":  "alkali-water-lithium",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      1,
+                                                      1,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/alkali-water-li-001.chems",
+                            "evidence_path":  "conformance/observations/alkali-water-li-001.evidence.json",
+                            "request":  "What happens when lithium metal comes into contact with water?",
+                            "equation":  "2Li + 2H₂O  →  2LiOH + H₂",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "alkali-water-sodium",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      1,
+                                                      1,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/alkali-water-na-001.chems",
+                            "evidence_path":  "conformance/observations/alkali-water-na-001.evidence.json",
+                            "request":  "What happens when sodium metal comes into contact with water?",
+                            "equation":  "2Na + 2H₂O  →  2NaOH + H₂",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "alkali-water-potassium",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      1,
+                                                      1,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/alkali-water-k-001.chems",
+                            "evidence_path":  "conformance/observations/alkali-water-k-001.evidence.json",
+                            "request":  "What happens when potassium metal comes into contact with water?",
+                            "equation":  "2K + 2H₂O  →  2KOH + H₂",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "oxygen-hydrogen-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  1,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-hydrogen-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-hydrogen-oxygen-001.evidence.json",
+                            "request":  "What happens when hydrogen reacts with oxygen?",
+                            "equation":  "2H2 + O2 -\u003e 2H2O",
+                            "subject_name":  "hydrogen"
+                        },
+                        {
+                            "id":  "oxygen-lithium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-lithium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-lithium-oxygen-001.evidence.json",
+                            "request":  "What happens when lithium reacts with oxygen?",
+                            "equation":  "4Li + O2 -\u003e 2Li2O",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "oxygen-beryllium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-beryllium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-beryllium-oxygen-001.evidence.json",
+                            "request":  "What happens when beryllium reacts with oxygen?",
+                            "equation":  "2Be + O2 -\u003e 2BeO",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "oxygen-boron-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  5,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-boron-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-boron-oxygen-001.evidence.json",
+                            "request":  "What happens when boron reacts with oxygen?",
+                            "equation":  "4B + 3O2 -\u003e 2B2O3",
+                            "subject_name":  "boron"
+                        },
+                        {
+                            "id":  "oxygen-carbon-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  6,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-carbon-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-carbon-oxygen-001.evidence.json",
+                            "request":  "What happens when carbon reacts with oxygen?",
+                            "equation":  "C + O2 -\u003e CO2",
+                            "subject_name":  "carbon"
+                        },
+                        {
+                            "id":  "oxygen-sodium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-sodium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-sodium-oxygen-001.evidence.json",
+                            "request":  "What happens when sodium reacts with oxygen?",
+                            "equation":  "2Na + O2 -\u003e Na2O2",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "oxygen-magnesium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-magnesium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-magnesium-oxygen-001.evidence.json",
+                            "request":  "What happens when magnesium reacts with oxygen?",
+                            "equation":  "2Mg + O2 -\u003e 2MgO",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "oxygen-aluminium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-aluminium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-aluminium-oxygen-001.evidence.json",
+                            "request":  "What happens when aluminium reacts with oxygen?",
+                            "equation":  "4Al + 3O2 -\u003e 2Al2O3",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "oxygen-silicon-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  14,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-silicon-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-silicon-oxygen-001.evidence.json",
+                            "request":  "What happens when silicon reacts with oxygen?",
+                            "equation":  "Si + O2 -\u003e SiO2",
+                            "subject_name":  "silicon"
+                        },
+                        {
+                            "id":  "oxygen-phosphorus-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  15,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-phosphorus-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-phosphorus-oxygen-001.evidence.json",
+                            "request":  "What happens when phosphorus reacts with oxygen?",
+                            "equation":  "P4 + 5O2 -\u003e P4O10",
+                            "subject_name":  "phosphorus"
+                        },
+                        {
+                            "id":  "oxygen-sulfur-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  16,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-sulfur-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-sulfur-oxygen-001.evidence.json",
+                            "request":  "What happens when sulfur reacts with oxygen?",
+                            "equation":  "S + O2 -\u003e SO2",
+                            "subject_name":  "sulfur"
+                        },
+                        {
+                            "id":  "oxygen-potassium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-potassium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-potassium-oxygen-001.evidence.json",
+                            "request":  "What happens when potassium reacts with oxygen?",
+                            "equation":  "K + O2 -\u003e KO2",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "oxygen-calcium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-calcium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-calcium-oxygen-001.evidence.json",
+                            "request":  "What happens when calcium reacts with oxygen?",
+                            "equation":  "2Ca + O2 -\u003e 2CaO",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "oxygen-rubidium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-rubidium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-rubidium-oxygen-001.evidence.json",
+                            "request":  "What happens when rubidium reacts with oxygen?",
+                            "equation":  "Rb + O2 -\u003e RbO2",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "oxygen-strontium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-strontium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-strontium-oxygen-001.evidence.json",
+                            "request":  "What happens when strontium reacts with oxygen?",
+                            "equation":  "2Sr + O2 -\u003e 2SrO",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "oxygen-caesium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-caesium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-caesium-oxygen-001.evidence.json",
+                            "request":  "What happens when caesium reacts with oxygen?",
+                            "equation":  "Cs + O2 -\u003e CsO2",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "oxygen-barium-oxygen",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-barium-oxygen-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-barium-oxygen-001.evidence.json",
+                            "request":  "What happens when barium reacts with oxygen?",
+                            "equation":  "2 Ba + O2 -\u003e 2 BaO",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "oxygen-sc-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  21,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-sc-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-sc-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when scandium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Sc + 3 O2 -\u003e 2 Sc2O3",
+                            "subject_name":  "scandium"
+                        },
+                        {
+                            "id":  "oxygen-y-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  39,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-y-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-y-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when yttrium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Y + 3 O2 -\u003e 2 Y2O3",
+                            "subject_name":  "yttrium"
+                        },
+                        {
+                            "id":  "oxygen-ti-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  22,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ti-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ti-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when titanium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Ti + O2 -\u003e 2 TiO",
+                            "subject_name":  "titanium"
+                        },
+                        {
+                            "id":  "oxygen-ti-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  22,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ti-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ti-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when titanium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Ti + 3 O2 -\u003e 2 Ti2O3",
+                            "subject_name":  "titanium"
+                        },
+                        {
+                            "id":  "oxygen-ti-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  22,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ti-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ti-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when titanium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Ti + O2 -\u003e TiO2",
+                            "subject_name":  "titanium"
+                        },
+                        {
+                            "id":  "oxygen-zr-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  40,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-zr-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-zr-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when zirconium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Zr + O2 -\u003e ZrO2",
+                            "subject_name":  "zirconium"
+                        },
+                        {
+                            "id":  "oxygen-hf-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  72,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-hf-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-hf-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when hafnium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Hf + O2 -\u003e HfO2",
+                            "subject_name":  "hafnium"
+                        },
+                        {
+                            "id":  "oxygen-v-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  23,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-v-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-v-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 V + O2 -\u003e 2 VO",
+                            "subject_name":  "vanadium"
+                        },
+                        {
+                            "id":  "oxygen-v-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  23,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-v-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-v-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 V + 3 O2 -\u003e 2 V2O3",
+                            "subject_name":  "vanadium"
+                        },
+                        {
+                            "id":  "oxygen-v-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  23,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-v-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-v-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "V + O2 -\u003e VO2",
+                            "subject_name":  "vanadium"
+                        },
+                        {
+                            "id":  "oxygen-nb-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  41,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-nb-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-nb-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when niobium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Nb + O2 -\u003e NbO2",
+                            "subject_name":  "niobium"
+                        },
+                        {
+                            "id":  "oxygen-v-oxide-5-5-o5",
+                            "status":  "trusted",
+                            "atomic_number":  23,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-v-oxide-5-5-o5-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-v-oxide-5-5-o5-001.evidence.json",
+                            "request":  "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 V + 5 O2 -\u003e 2 V2O5",
+                            "subject_name":  "vanadium"
+                        },
+                        {
+                            "id":  "oxygen-nb-oxide-5-5-o5",
+                            "status":  "trusted",
+                            "atomic_number":  41,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-nb-oxide-5-5-o5-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-nb-oxide-5-5-o5-001.evidence.json",
+                            "request":  "What happens when niobium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Nb + 5 O2 -\u003e 2 Nb2O5",
+                            "subject_name":  "niobium"
+                        },
+                        {
+                            "id":  "oxygen-ta-oxide-5-5-o5",
+                            "status":  "trusted",
+                            "atomic_number":  73,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ta-oxide-5-5-o5-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ta-oxide-5-5-o5-001.evidence.json",
+                            "request":  "What happens when tantalum reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Ta + 5 O2 -\u003e 2 Ta2O5",
+                            "subject_name":  "tantalum"
+                        },
+                        {
+                            "id":  "oxygen-cr-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  24,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-cr-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-cr-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when chromium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Cr + O2 -\u003e 2 CrO",
+                            "subject_name":  "chromium"
+                        },
+                        {
+                            "id":  "oxygen-cr-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  24,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-cr-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-cr-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when chromium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Cr + 3 O2 -\u003e 2 Cr2O3",
+                            "subject_name":  "chromium"
+                        },
+                        {
+                            "id":  "oxygen-cr-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  24,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-cr-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-cr-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when chromium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Cr + O2 -\u003e CrO2",
+                            "subject_name":  "chromium"
+                        },
+                        {
+                            "id":  "oxygen-mo-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  42,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-mo-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-mo-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when molybdenum reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Mo + O2 -\u003e MoO2",
+                            "subject_name":  "molybdenum"
+                        },
+                        {
+                            "id":  "oxygen-w-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  74,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-w-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-w-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when tungsten reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "W + O2 -\u003e WO2",
+                            "subject_name":  "tungsten"
+                        },
+                        {
+                            "id":  "oxygen-mn-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  25,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-mn-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-mn-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when manganese reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Mn + O2 -\u003e 2 MnO",
+                            "subject_name":  "manganese"
+                        },
+                        {
+                            "id":  "oxygen-mn-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  25,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-mn-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-mn-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when manganese reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Mn + 3 O2 -\u003e 2 Mn2O3",
+                            "subject_name":  "manganese"
+                        },
+                        {
+                            "id":  "oxygen-mn-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  25,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-mn-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-mn-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when manganese reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Mn + O2 -\u003e MnO2",
+                            "subject_name":  "manganese"
+                        },
+                        {
+                            "id":  "oxygen-tc-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  43,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-tc-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-tc-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when technetium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Tc + O2 -\u003e TcO2",
+                            "subject_name":  "technetium"
+                        },
+                        {
+                            "id":  "oxygen-re-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  75,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-re-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-re-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when rhenium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Re + O2 -\u003e ReO2",
+                            "subject_name":  "rhenium"
+                        },
+                        {
+                            "id":  "oxygen-mn-oxide-2-3-3-o4",
+                            "status":  "trusted",
+                            "atomic_number":  25,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-mn-oxide-2-3-3-o4-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-mn-oxide-2-3-3-o4-001.evidence.json",
+                            "request":  "What happens when manganese reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "3 Mn + 2 O2 -\u003e Mn3O4",
+                            "subject_name":  "manganese"
+                        },
+                        {
+                            "id":  "oxygen-fe-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  26,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-fe-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-fe-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when iron reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Fe + O2 -\u003e 2 FeO",
+                            "subject_name":  "iron"
+                        },
+                        {
+                            "id":  "oxygen-fe-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  26,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-fe-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-fe-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when iron reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Fe + 3 O2 -\u003e 2 Fe2O3",
+                            "subject_name":  "iron"
+                        },
+                        {
+                            "id":  "oxygen-fe-oxide-2-3-3-o4",
+                            "status":  "trusted",
+                            "atomic_number":  26,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-fe-oxide-2-3-3-o4-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-fe-oxide-2-3-3-o4-001.evidence.json",
+                            "request":  "What happens when iron reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "3 Fe + 2 O2 -\u003e Fe3O4",
+                            "subject_name":  "iron"
+                        },
+                        {
+                            "id":  "oxygen-ru-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  44,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ru-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ru-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when ruthenium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Ru + O2 -\u003e RuO2",
+                            "subject_name":  "ruthenium"
+                        },
+                        {
+                            "id":  "oxygen-os-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  76,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-os-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-os-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when osmium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Os + O2 -\u003e OsO2",
+                            "subject_name":  "osmium"
+                        },
+                        {
+                            "id":  "oxygen-co-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  27,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-co-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-co-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when cobalt reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Co + O2 -\u003e 2 CoO",
+                            "subject_name":  "cobalt"
+                        },
+                        {
+                            "id":  "oxygen-co-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  27,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-co-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-co-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when cobalt reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Co + 3 O2 -\u003e 2 Co2O3",
+                            "subject_name":  "cobalt"
+                        },
+                        {
+                            "id":  "oxygen-rh-oxide-3-3-o3",
+                            "status":  "trusted",
+                            "atomic_number":  45,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-rh-oxide-3-3-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-rh-oxide-3-3-o3-001.evidence.json",
+                            "request":  "What happens when rhodium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Rh + 3 O2 -\u003e 2 Rh2O3",
+                            "subject_name":  "rhodium"
+                        },
+                        {
+                            "id":  "oxygen-co-oxide-2-3-3-o4",
+                            "status":  "trusted",
+                            "atomic_number":  27,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-co-oxide-2-3-3-o4-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-co-oxide-2-3-3-o4-001.evidence.json",
+                            "request":  "What happens when cobalt reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "3 Co + 2 O2 -\u003e Co3O4",
+                            "subject_name":  "cobalt"
+                        },
+                        {
+                            "id":  "oxygen-rh-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  45,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-rh-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-rh-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when rhodium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Rh + O2 -\u003e RhO2",
+                            "subject_name":  "rhodium"
+                        },
+                        {
+                            "id":  "oxygen-ir-oxide-4-o2",
+                            "status":  "trusted",
+                            "atomic_number":  77,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ir-oxide-4-o2-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ir-oxide-4-o2-001.evidence.json",
+                            "request":  "What happens when iridium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Ir + O2 -\u003e IrO2",
+                            "subject_name":  "iridium"
+                        },
+                        {
+                            "id":  "oxygen-ni-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  28,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ni-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ni-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when nickel reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Ni + O2 -\u003e 2 NiO",
+                            "subject_name":  "nickel"
+                        },
+                        {
+                            "id":  "oxygen-pd-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  46,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-pd-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-pd-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when palladium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Pd + O2 -\u003e 2 PdO",
+                            "subject_name":  "palladium"
+                        },
+                        {
+                            "id":  "oxygen-cu-oxide-1-1-o1",
+                            "status":  "trusted",
+                            "atomic_number":  29,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-cu-oxide-1-1-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-cu-oxide-1-1-o1-001.evidence.json",
+                            "request":  "What happens when copper reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Cu + O2 -\u003e 2 Cu2O",
+                            "subject_name":  "copper"
+                        },
+                        {
+                            "id":  "oxygen-cu-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  29,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-cu-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-cu-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when copper reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Cu + O2 -\u003e 2 CuO",
+                            "subject_name":  "copper"
+                        },
+                        {
+                            "id":  "oxygen-zn-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  30,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-zn-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-zn-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when zinc reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Zn + O2 -\u003e 2 ZnO",
+                            "subject_name":  "zinc"
+                        },
+                        {
+                            "id":  "oxygen-cd-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  48,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-cd-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-cd-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when cadmium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Cd + O2 -\u003e 2 CdO",
+                            "subject_name":  "cadmium"
+                        },
+                        {
+                            "id":  "oxygen-hg-oxide-2-o1",
+                            "status":  "trusted",
+                            "atomic_number":  80,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-hg-oxide-2-o1-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-hg-oxide-2-o1-001.evidence.json",
+                            "request":  "What happens when mercury reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Hg + O2 -\u003e 2 HgO",
+                            "subject_name":  "mercury"
+                        },
+                        {
+                            "id":  "oxygen-cr-oxide-6-o3",
+                            "status":  "trusted",
+                            "atomic_number":  24,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-cr-oxide-6-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-cr-oxide-6-o3-001.evidence.json",
+                            "request":  "What happens when chromium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Cr + 3 O2 -\u003e 2 CrO3",
+                            "subject_name":  "chromium"
+                        },
+                        {
+                            "id":  "oxygen-mo-oxide-6-o3",
+                            "status":  "trusted",
+                            "atomic_number":  42,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-mo-oxide-6-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-mo-oxide-6-o3-001.evidence.json",
+                            "request":  "What happens when molybdenum reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 Mo + 3 O2 -\u003e 2 MoO3",
+                            "subject_name":  "molybdenum"
+                        },
+                        {
+                            "id":  "oxygen-w-oxide-6-o3",
+                            "status":  "trusted",
+                            "atomic_number":  74,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-w-oxide-6-o3-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-w-oxide-6-o3-001.evidence.json",
+                            "request":  "What happens when tungsten reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "2 W + 3 O2 -\u003e 2 WO3",
+                            "subject_name":  "tungsten"
+                        },
+                        {
+                            "id":  "oxygen-mn-oxide-7-7-o7",
+                            "status":  "trusted",
+                            "atomic_number":  25,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-mn-oxide-7-7-o7-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-mn-oxide-7-7-o7-001.evidence.json",
+                            "request":  "What happens when manganese reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Mn + 7 O2 -\u003e 2 Mn2O7",
+                            "subject_name":  "manganese"
+                        },
+                        {
+                            "id":  "oxygen-tc-oxide-7-7-o7",
+                            "status":  "trusted",
+                            "atomic_number":  43,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-tc-oxide-7-7-o7-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-tc-oxide-7-7-o7-001.evidence.json",
+                            "request":  "What happens when technetium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Tc + 7 O2 -\u003e 2 Tc2O7",
+                            "subject_name":  "technetium"
+                        },
+                        {
+                            "id":  "oxygen-re-oxide-7-7-o7",
+                            "status":  "trusted",
+                            "atomic_number":  75,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-re-oxide-7-7-o7-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-re-oxide-7-7-o7-001.evidence.json",
+                            "request":  "What happens when rhenium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "4 Re + 7 O2 -\u003e 2 Re2O7",
+                            "subject_name":  "rhenium"
+                        },
+                        {
+                            "id":  "oxygen-ru-oxide-8-o4",
+                            "status":  "trusted",
+                            "atomic_number":  44,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-ru-oxide-8-o4-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-ru-oxide-8-o4-001.evidence.json",
+                            "request":  "What happens when ruthenium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Ru + 2 O2 -\u003e RuO4",
+                            "subject_name":  "ruthenium"
+                        },
+                        {
+                            "id":  "oxygen-os-oxide-8-o4",
+                            "status":  "trusted",
+                            "atomic_number":  76,
+                            "co_reactant_atoms":  [
+                                                      8,
+                                                      8
+                                                  ],
+                            "source_path":  "conformance/end-to-end/oxygen-os-oxide-8-o4-001.chems",
+                            "evidence_path":  "conformance/observations/oxygen-os-oxide-8-o4-001.evidence.json",
+                            "request":  "What happens when osmium reacts with oxygen for this reviewed product outcome?",
+                            "equation":  "Os + 2 O2 -\u003e OsO4",
+                            "subject_name":  "osmium"
+                        }
+                    ]
+}

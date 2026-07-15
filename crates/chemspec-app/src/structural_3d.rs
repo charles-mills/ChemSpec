@@ -1515,7 +1515,7 @@ mod tests {
         .expect("ordinal fits presentation range");
         compile_real_world_plan(
             run.frames(),
-            &chemistry::presentation_profile(chemistry::Experience::DEFAULT, last),
+            &chemistry::presentation_profile(chemistry::Experience::DEFAULT, last, run.frames()),
         )
         .expect("plan compiles from trusted frames")
     }
@@ -1545,22 +1545,11 @@ mod tests {
     }
 
     #[test]
-    fn reaction_motion_is_seeded_repeatable_and_settles_at_effect_edges() {
+    fn reaction_motion_is_absent_when_macroscopic_effects_are_not_authored() {
         let plan = canonical_plan();
-        let disturbance = plan
-            .effects
-            .iter()
-            .find(|effect| effect.effect == EffectProfile::SurfaceDisturbance)
-            .expect("surface disturbance exists");
-        let start = reaction_surface_motion(&plan, disturbance.start_ordinal, 0.0);
-        let active = reaction_surface_motion(&plan, disturbance.start_ordinal, 0.5);
-        let repeated = reaction_surface_motion(&plan, disturbance.start_ordinal, 0.5);
-        let end = reaction_surface_motion(&plan, disturbance.end_ordinal, 1.0);
-
-        assert!(start.length() < f32::EPSILON);
-        assert!(active.length() > 0.0);
-        assert_eq!(active, repeated);
-        assert!(end.length() < f32::EPSILON);
+        assert!(plan.effects.is_empty());
+        assert!(reaction_surface_motion(&plan, 0, 0.0).length() < f32::EPSILON);
+        assert!(reaction_surface_motion(&plan, 6, 0.5).length() < f32::EPSILON);
     }
 
     #[test]
@@ -1586,15 +1575,13 @@ mod tests {
     }
 
     #[test]
-    fn lithium_scene_adds_visible_surface_and_reaction_effect_geometry() {
+    fn scene_remains_renderable_without_macroscopic_effect_geometry() {
         let plan = canonical_plan();
         let before = build_scene(&plan, 0, 0.5);
         let reacting = build_scene(&plan, 6, 0.5);
-        assert!(reacting.0.len() > before.0.len());
-        assert!(plan.effects.iter().any(|effect| {
-            effect.effect == EffectProfile::SurfaceDisturbance
-                || effect.effect == EffectProfile::SplashEmitter
-        }));
+        assert!(before.0.len() > 100);
+        assert!(reacting.0.len() > 100);
+        assert!(plan.effects.is_empty());
         let moment = plan.timeline.locate(0).expect("timeline begins");
         let (_, pitch, _) = camera_pose(&plan, moment);
         assert!(pitch < -0.5);

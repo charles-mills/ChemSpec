@@ -3,7 +3,10 @@
 //! These canvases explain the learner's untrusted workspace composition. They
 //! do not infer reactions, construct validated chemistry, or feed simulation.
 
-use std::f32::consts::TAU;
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    f32::consts::TAU,
+};
 
 use iced::alignment;
 use iced::mouse::Cursor;
@@ -42,8 +45,53 @@ impl<Message> canvas::Program<Message> for AtomDiagram {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
         let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
         let maximum_radius = (bounds.width.min(bounds.height) / 2.0 - 5.0).max(8.0);
-        draw_atomic_model(&mut frame, self.element, center, maximum_radius, self.phase);
+        draw_atomic_model(
+            &mut frame,
+            self.element,
+            center,
+            maximum_radius,
+            self.phase,
+            self.element.valence_electrons,
+        );
 
+        vec![frame.into_geometry()]
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnknownCompositionDiagram;
+
+impl<Message> canvas::Program<Message> for UnknownCompositionDiagram {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        _theme: &Theme,
+        bounds: Rectangle,
+        _cursor: Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
+        let radius = (bounds.width.min(bounds.height) * 0.18).clamp(24.0, 42.0);
+        frame.fill(
+            &Path::circle(center, radius),
+            Color::from_rgb(0.18, 0.22, 0.28),
+        );
+        frame.stroke(
+            &Path::circle(center, radius),
+            Stroke::default()
+                .with_color(Color::from_rgb(0.96, 0.64, 0.28))
+                .with_width(2.0),
+        );
+        draw_label(
+            &mut frame,
+            center,
+            "?",
+            Color::from_rgb(0.96, 0.72, 0.36),
+            28.0,
+        );
         vec![frame.into_geometry()]
     }
 }
@@ -51,21 +99,12 @@ impl<Message> canvas::Program<Message> for AtomDiagram {
 #[derive(Debug, Clone)]
 pub struct CompoundAtomicDiagram {
     preview: CompositionPreview,
-    elements: Vec<ElementSpec>,
     phase: f32,
 }
 
 impl CompoundAtomicDiagram {
-    pub fn new(
-        preview: CompositionPreview,
-        elements: impl IntoIterator<Item = ElementSpec>,
-        phase: f32,
-    ) -> Self {
-        Self {
-            preview,
-            elements: elements.into_iter().collect(),
-            phase,
-        }
+    pub const fn new(preview: CompositionPreview, phase: f32) -> Self {
+        Self { preview, phase }
     }
 }
 
@@ -81,70 +120,35 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let atoms = arranged_atoms(self.preview.formula, &self.elements, bounds);
-        for bond in covalent_bonds(self.preview.formula) {
-            if let (Some((_, start)), Some((_, end))) = (atoms.get(bond.start), atoms.get(bond.end))
-            {
-                draw_shared_pairs(&mut frame, *start, *end, bond.pairs);
+        let positions = arranged_atoms(&self.preview, bounds);
+        for bond in self.preview.covalent_bonds() {
+            if let (Some(start), Some(end)) = (positions.get(bond.start), positions.get(bond.end)) {
+                draw_shared_pairs(&mut frame, *start, *end, bond.order);
             }
         }
-        for (element, position) in atoms {
-            draw_atomic_model(&mut frame, element, position, 22.0, self.phase);
+        for link in self.preview.ionic_links() {
+            if let (Some(start), Some(end)) = (positions.get(link.start), positions.get(link.end)) {
+                draw_ionic_link(&mut frame, *start, *end);
+            }
+        }
+        for (index, atom) in self.preview.atoms.iter().enumerate() {
+            let Some(element) = crate::elements::by_atomic_number(atom.atomic_number).copied()
+            else {
+                continue;
+            };
+            let position = positions[index];
+            draw_atomic_model(
+                &mut frame,
+                element,
+                position,
+                22.0,
+                self.phase,
+                atom.non_bonding_electrons,
+            );
+            draw_formal_charge(&mut frame, position, atom.formal_charge);
         }
 
         vec![frame.into_geometry()]
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CovalentBond {
-    start: usize,
-    end: usize,
-    pairs: u8,
-}
-
-fn covalent_bonds(formula: &str) -> &'static [CovalentBond] {
-    match formula {
-        "H₂" => &[CovalentBond {
-            start: 0,
-            end: 1,
-            pairs: 1,
-        }],
-        "O₂" => &[CovalentBond {
-            start: 0,
-            end: 1,
-            pairs: 2,
-        }],
-        "H₂O" => &[
-            CovalentBond {
-                start: 0,
-                end: 1,
-                pairs: 1,
-            },
-            CovalentBond {
-                start: 1,
-                end: 2,
-                pairs: 1,
-            },
-        ],
-        "LiOH" => &[CovalentBond {
-            start: 1,
-            end: 2,
-            pairs: 1,
-        }],
-        "CO₂" => &[
-            CovalentBond {
-                start: 0,
-                end: 1,
-                pairs: 2,
-            },
-            CovalentBond {
-                start: 1,
-                end: 2,
-                pairs: 2,
-            },
-        ],
-        _ => &[],
     }
 }
 
@@ -176,59 +180,126 @@ fn draw_shared_pairs(frame: &mut canvas::Frame, start: Point, end: Point, pairs:
     }
 }
 
-fn arranged_atoms(
-    formula: &str,
-    elements: &[ElementSpec],
-    bounds: Rectangle,
-) -> Vec<(ElementSpec, Point)> {
+fn arranged_atoms(preview: &CompositionPreview, bounds: Rectangle) -> Vec<Point> {
     let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
-    let find = |atomic_number| {
-        elements
+    let count = preview.atoms.len();
+    if count == 0 {
+        return Vec::new();
+    }
+    if count == 1 {
+        return vec![center];
+    }
+    if count == 2 {
+        return vec![
+            center + Vector::new(-36.0, 0.0),
+            center + Vector::new(36.0, 0.0),
+        ];
+    }
+
+    let mut adjacency = vec![BTreeSet::new(); count];
+    let mut bond_orders = BTreeMap::new();
+    for bond in preview.covalent_bonds() {
+        adjacency[bond.start].insert(bond.end);
+        adjacency[bond.end].insert(bond.start);
+        bond_orders.insert(sorted_indices(bond.start, bond.end), bond.order);
+    }
+    for link in preview.ionic_links() {
+        adjacency[link.start].insert(link.end);
+        adjacency[link.end].insert(link.start);
+    }
+    let root = (0..count)
+        .max_by(|left, right| {
+            adjacency[*left]
+                .len()
+                .cmp(&adjacency[*right].len())
+                .then_with(|| right.cmp(left))
+        })
+        .unwrap_or(0);
+    let spacing = (bounds.width.min(bounds.height) * 0.19).clamp(48.0, 72.0);
+    let mut positions = vec![center; count];
+    let mut seen = BTreeSet::from([root]);
+    let mut queue = VecDeque::from([(root, 0_usize, 0.0_f32)]);
+    while let Some((parent, depth, parent_angle)) = queue.pop_front() {
+        let children = adjacency[parent]
             .iter()
             .copied()
-            .find(|element| element.atomic_number == atomic_number)
-    };
-    let entry = |element, offset: Vector| (element, center + offset);
-
-    match formula {
-        "H₂O" => [
-            find(1).map(|element| entry(element, Vector::new(-48.0, 12.0))),
-            find(8).map(|element| entry(element, Vector::new(0.0, -8.0))),
-            find(1).map(|element| entry(element, Vector::new(48.0, 12.0))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect(),
-        "LiOH" => [
-            find(3).map(|element| entry(element, Vector::new(-50.0, 0.0))),
-            find(8).map(|element| entry(element, Vector::new(0.0, 0.0))),
-            find(1).map(|element| entry(element, Vector::new(50.0, 0.0))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect(),
-        "CO₂" => [
-            find(8).map(|element| entry(element, Vector::new(-50.0, 0.0))),
-            find(6).map(|element| entry(element, Vector::new(0.0, 0.0))),
-            find(8).map(|element| entry(element, Vector::new(50.0, 0.0))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect(),
-        _ => {
-            let offsets: &[f32] = match elements.len() {
-                2 => &[-34.0, 34.0],
-                3 => &[-50.0, 0.0, 50.0],
-                _ => &[0.0],
-            };
-            elements
+            .filter(|child| !seen.contains(child))
+            .collect::<Vec<_>>();
+        let parent_position = positions[parent];
+        let linear_root = depth == 0
+            && children.len() == 2
+            && children
                 .iter()
-                .copied()
-                .zip(offsets.iter().copied())
-                .map(|(element, offset)| entry(element, Vector::new(offset, 0.0)))
-                .collect()
+                .map(|child| {
+                    bond_orders
+                        .get(&sorted_indices(parent, *child))
+                        .copied()
+                        .unwrap_or(0)
+                })
+                .sum::<u8>()
+                >= 4;
+        for (ordinal, child) in children.iter().copied().enumerate() {
+            seen.insert(child);
+            let angle = if linear_root {
+                [std::f32::consts::PI, 0.0][ordinal]
+            } else if depth == 0 && children.len() == 2 {
+                [std::f32::consts::PI - 0.52, 0.52][ordinal]
+            } else if depth == 0 {
+                -std::f32::consts::FRAC_PI_2 + TAU * ordinal as f32 / children.len().max(1) as f32
+            } else {
+                parent_angle - 0.55 + 1.1 * (ordinal as f32 + 0.5) / children.len().max(1) as f32
+            };
+            positions[child] =
+                parent_position + Vector::new(angle.cos() * spacing, angle.sin() * spacing);
+            queue.push_back((child, depth + 1, angle));
         }
     }
+    for index in 0..count {
+        if !seen.contains(&index) {
+            let angle = TAU * index as f32 / count as f32;
+            positions[index] = center + Vector::new(angle.cos() * spacing, angle.sin() * spacing);
+        }
+    }
+    positions
+}
+
+const fn sorted_indices(left: usize, right: usize) -> (usize, usize) {
+    if left <= right {
+        (left, right)
+    } else {
+        (right, left)
+    }
+}
+
+fn draw_ionic_link(frame: &mut canvas::Frame, start: Point, end: Point) {
+    let delta = end - start;
+    for step in 2_u8..10 {
+        let progress = f32::from(step) / 11.0;
+        frame.fill(
+            &Path::circle(start + delta * progress, 1.5),
+            Color::from_rgba(0.96, 0.72, 0.36, 0.72),
+        );
+    }
+}
+
+fn draw_formal_charge(frame: &mut canvas::Frame, center: Point, charge: i16) {
+    if charge == 0 {
+        return;
+    }
+    let sign = if charge > 0 { "+" } else { "-" };
+    let magnitude = charge.unsigned_abs();
+    let label = if magnitude == 1 {
+        sign.to_owned()
+    } else {
+        format!("{magnitude}{sign}")
+    };
+    draw_label(
+        frame,
+        center + Vector::new(14.0, -14.0),
+        &label,
+        Color::from_rgb(0.96, 0.72, 0.36),
+        10.0,
+    );
 }
 
 fn draw_atomic_model(
@@ -237,6 +308,7 @@ fn draw_atomic_model(
     center: Point,
     maximum_radius: f32,
     phase: f32,
+    outer_shell_electrons: u8,
 ) {
     let shell_count = element.period.max(1);
     for shell in 1..=shell_count {
@@ -254,7 +326,7 @@ fn draw_atomic_model(
     );
     draw_label(frame, center, element.symbol, Color::BLACK, 11.0);
 
-    let count = element.valence_electrons.max(1);
+    let count = outer_shell_electrons;
     for electron in 0..count {
         let angle = phase * TAU + f32::from(electron) * TAU / f32::from(count);
         let position = Point::new(
@@ -297,26 +369,66 @@ const fn element_color(atomic_number: u8) -> Color {
 mod tests {
     use super::*;
     use crate::composition_catalogue;
-    use crate::elements;
 
     #[test]
-    fn water_layout_places_oxygen_between_two_hydrogens() {
+    fn catalogue_graph_places_water_around_oxygen_without_formula_switches() {
         let preview = composition_catalogue::recognize([1, 8, 1]).expect("water preview");
-        let elements = [
-            *elements::by_atomic_number(1).expect("hydrogen"),
-            *elements::by_atomic_number(8).expect("oxygen"),
-            *elements::by_atomic_number(1).expect("hydrogen"),
-        ];
         let atoms = arranged_atoms(
-            preview.formula,
-            &elements,
-            Rectangle::new(Point::ORIGIN, iced::Size::new(140.0, 80.0)),
+            &preview,
+            Rectangle::new(Point::ORIGIN, iced::Size::new(180.0, 120.0)),
         );
+        let oxygen = preview
+            .atoms
+            .iter()
+            .position(|atom| atom.atomic_number == 8)
+            .expect("oxygen");
+        let hydrogens = preview
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect::<Vec<_>>();
 
         assert_eq!(atoms.len(), 3);
-        assert_eq!(atoms[1].0.atomic_number, 8);
-        assert!(atoms[0].1.x < atoms[1].1.x && atoms[1].1.x < atoms[2].1.x);
-        assert_eq!(covalent_bonds(preview.formula).len(), 2);
-        assert_eq!(covalent_bonds("NaCl").len(), 0);
+        assert!(atoms[hydrogens[0]].x < atoms[oxygen].x);
+        assert!(atoms[oxygen].x < atoms[hydrogens[1]].x);
+        assert_eq!(preview.covalent_bonds().len(), 2);
+    }
+
+    #[test]
+    fn carbon_dioxide_catalogue_graph_is_linear() {
+        let preview = composition_catalogue::recognize([8, 6, 8]).expect("CO2 preview");
+        let positions = arranged_atoms(
+            &preview,
+            Rectangle::new(Point::ORIGIN, iced::Size::new(220.0, 120.0)),
+        );
+        let carbon = preview
+            .atoms
+            .iter()
+            .position(|atom| atom.atomic_number == 6)
+            .expect("carbon");
+        let oxygens = preview
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 8).then_some(index))
+            .collect::<Vec<_>>();
+        assert!(positions[oxygens[0]].x < positions[carbon].x);
+        assert!(positions[carbon].x < positions[oxygens[1]].x);
+        assert!((positions[oxygens[0]].y - positions[oxygens[1]].y).abs() < 0.01);
+    }
+
+    #[test]
+    fn lithium_hydroxide_layout_uses_covalent_and_ionic_topology() {
+        let preview = composition_catalogue::recognize([3, 8, 1]).expect("LiOH preview");
+        assert_eq!(preview.covalent_bonds().len(), 1);
+        assert_eq!(preview.ionic_links().len(), 1);
+        let linked_atoms = preview
+            .ionic_links()
+            .iter()
+            .flat_map(|link| [link.start, link.end])
+            .map(|index| preview.atoms[index].atomic_number)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(linked_atoms, BTreeSet::from([3, 8]));
     }
 }

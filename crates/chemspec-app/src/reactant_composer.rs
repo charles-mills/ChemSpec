@@ -12,7 +12,9 @@ use iced::{Element, Fill, FillPortion, Length, Padding, Subscription};
 use crate::chemistry;
 use crate::composition_catalogue::{self, CompositionPreview};
 use crate::elements;
-use crate::particle_visualization::{AtomDiagram, CompoundAtomicDiagram};
+use crate::particle_visualization::{
+    AtomDiagram, CompoundAtomicDiagram, UnknownCompositionDiagram,
+};
 use crate::theme::{self, color, space as spacing, type_scale};
 
 const MAX_ATOMS_PER_REACTANT: usize = 12;
@@ -180,7 +182,7 @@ pub fn reactants(state: &State) -> (&[u8], &[u8]) {
 pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'static, Message> {
     let active_atoms = &state.drafts[state.active.index()].atoms;
     let preview = composition_catalogue::recognize(active_atoms.iter().copied());
-    let preview_panel = active_preview(state, active_atoms, preview);
+    let preview_panel = active_preview(state, active_atoms, preview.as_ref());
     let equation = equation_panel(state, library_drag, compact);
     let history = history_panel(state);
 
@@ -234,17 +236,17 @@ pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
 fn active_preview(
     state: &State,
     atoms: &[u8],
-    preview: Option<CompositionPreview>,
+    preview: Option<&CompositionPreview>,
 ) -> Element<'static, Message> {
-    let formula = formula(atoms);
+    let formula = preview.map_or_else(|| formula(atoms), |item| item.formula.clone());
     let status = if state.limit_reached {
         "ATOM LIMIT REACHED"
     } else if preview.is_some() {
-        "RECOGNISED COMPOSITION PREVIEW"
+        "STRUCTURE RESOLVED FROM CURRENT RULES"
     } else if atoms.is_empty() {
         "WAITING FOR AN ELEMENT"
     } else {
-        "UNRECOGNISED OR INTERMEDIATE DRAFT"
+        "NO STRUCTURE IN CURRENT RULE CATALOGUE"
     };
     let status_color = if preview.is_some() {
         color::SUCCESS
@@ -281,9 +283,12 @@ fn active_preview(
             .size(type_scale::TITLE)
             .color(color::TEXT),
             row![
-                text(preview.map_or("Current atomic draft", |item| item.name))
-                    .size(type_scale::CAPTION)
-                    .color(status_color),
+                text(preview.map_or_else(
+                    || "Unresolved structure".to_owned(),
+                    |item| item.formula.clone(),
+                ))
+                .size(type_scale::CAPTION)
+                .color(status_color),
                 space().width(Fill),
                 motion,
             ]
@@ -302,46 +307,61 @@ fn active_preview(
 
 fn atomic_model_preview(
     atoms: &[u8],
-    preview: Option<CompositionPreview>,
+    preview: Option<&CompositionPreview>,
     orbital_phase: f32,
 ) -> Element<'static, Message> {
-    if atoms.is_empty() {
-        text("Select an element below")
+    match preview_model_kind(atoms, preview) {
+        PreviewModelKind::Empty => text("Select an element below")
             .size(type_scale::BODY)
             .color(color::MUTED)
-            .into()
-    } else if let Some(preview) = preview {
-        let members = atoms
-            .iter()
-            .filter_map(|number| elements::by_atomic_number(*number).copied());
-        canvas(CompoundAtomicDiagram::new(preview, members, orbital_phase))
+            .into(),
+        PreviewModelKind::Atom => elements::by_atomic_number(atoms[0]).map_or_else(
+            || {
+                canvas(UnknownCompositionDiagram)
+                    .width(Fill)
+                    .height(Fill)
+                    .into()
+            },
+            |element| {
+                canvas(AtomDiagram::new(*element, orbital_phase))
+                    .width(Fill)
+                    .height(Fill)
+                    .into()
+            },
+        ),
+        PreviewModelKind::Resolved => canvas(CompoundAtomicDiagram::new(
+            preview
+                .expect("resolved preview kind requires a graph")
+                .clone(),
+            orbital_phase,
+        ))
+        .width(Fill)
+        .height(Fill)
+        .into(),
+        PreviewModelKind::Unknown => canvas(UnknownCompositionDiagram)
             .width(Fill)
             .height(Fill)
-            .into()
+            .into(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PreviewModelKind {
+    Empty,
+    Atom,
+    Resolved,
+    Unknown,
+}
+
+fn preview_model_kind(atoms: &[u8], preview: Option<&CompositionPreview>) -> PreviewModelKind {
+    if atoms.is_empty() {
+        PreviewModelKind::Empty
+    } else if atoms.len() == 1 {
+        PreviewModelKind::Atom
+    } else if preview.is_some() {
+        PreviewModelKind::Resolved
     } else {
-        atoms
-            .chunks(4)
-            .take(2)
-            .fold(column![].spacing(spacing::XXS), |models, chunk| {
-                models.push(
-                    chunk
-                        .iter()
-                        .fold(row![].spacing(spacing::XXS), |row, number| {
-                            let model: Element<'static, Message> =
-                                elements::by_atomic_number(*number).map_or_else(
-                                    || space().into(),
-                                    |element| {
-                                        canvas(AtomDiagram::new(*element, orbital_phase))
-                                            .width(Length::Fixed(52.0))
-                                            .height(Length::Fixed(52.0))
-                                            .into()
-                                    },
-                                );
-                            row.push(model)
-                        }),
-                )
-            })
-            .into()
+        PreviewModelKind::Unknown
     }
 }
 
@@ -381,7 +401,7 @@ fn equation_panel(
         )
         .style(theme::secondary_button);
     let continue_button = button(text(if can_start_reaction(state) {
-        "Start reaction  →"
+        "Check reaction  →"
     } else {
         "Set a supported reaction"
     }))
@@ -565,7 +585,7 @@ mod tests {
         assert_eq!(
             composition_catalogue::recognize(reactants(&state).0.iter().copied())
                 .map(|item| item.formula),
-            Some("CO₂")
+            Some("CO₂".to_owned())
         );
     }
 
@@ -589,6 +609,23 @@ mod tests {
         }
         assert_eq!(formula(reactants(&state).0), "RbCO₂");
         assert!(composition_catalogue::recognize(reactants(&state).0.iter().copied()).is_none());
+    }
+
+    #[test]
+    fn viewer_uses_one_unknown_particle_until_current_rules_resolve_a_structure() {
+        let invalid = [6, 6];
+        assert_eq!(
+            preview_model_kind(&invalid, composition_catalogue::recognize(invalid).as_ref()),
+            PreviewModelKind::Unknown
+        );
+
+        let lithium_hydroxide = [3, 8, 1];
+        let resolved = composition_catalogue::recognize(lithium_hydroxide);
+        assert_eq!(
+            preview_model_kind(&lithium_hydroxide, resolved.as_ref()),
+            PreviewModelKind::Resolved
+        );
+        assert_eq!(preview_model_kind(&[3], None), PreviewModelKind::Atom);
     }
 
     #[test]

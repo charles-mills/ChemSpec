@@ -41,10 +41,13 @@ The composer mirrors a conventional reaction equation: an atomic preview,
 Reactant 1, `+`, Reactant 2, and `→`, with a compact input history at the edge.
 One slot always has an explicit active-input treatment. Recognised composition
 previews use a named status; unknown or intermediate drafts preserve their
-formula and atoms with an unrecognised label. The active atomic preview uses the
-same deterministic shell canvas as the former workspace: electrons orbit
-slowly, curated covalent compositions show their shared pairs, and an explicit
-control pauses continuous motion.
+formula but render as one `?` particle. The viewer accepts a complete structure
+only when the current host-pinned catalogue resolves the exact atom multiset to
+one unambiguous structural graph. It does not run a separate permissive valence
+guess. The active atomic preview uses the same deterministic shell canvas as
+the former workspace: electrons orbit slowly, catalogue covalent bonds show
+their shared pairs, ionic components show formal charges and association links,
+and an explicit control pauses continuous motion.
 
 Element tiles preserve their group and period positions. The reaction box sits
 above the full-width periodic table, matching the direction in which elements

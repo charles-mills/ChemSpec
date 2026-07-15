@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction MnAndOxygenToTransitionG7Heptoxide where
+  reactants
+    subject := 4 of MnTransitionG7HeptoxideMetalForOxygen
+    oxygen := 7 of Oxygen
+  products
+    oxide := 2 of MnTransitionG7HeptoxideOxide
+  equation
+    4 Mn[metallic] + 7 O2[molecular]
+    -> 2 Mn2O7[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG7Heptoxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

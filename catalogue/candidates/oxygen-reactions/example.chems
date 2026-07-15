@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction PotassiumAndOxygen where
+  reactants
+    subject := 1 of KMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 1 of KSuperoxide
+  equation
+    1 K[metallic] + 1 O2[molecular]
+    -> 1 KO2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.Superoxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

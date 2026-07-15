@@ -541,6 +541,8 @@ dependencies = [
  "chems-lang",
  "glam",
  "iced",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

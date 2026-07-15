@@ -67,6 +67,11 @@ Every catalogue build checks:
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
 
+Oxygen-screening verification additionally proves that all 118 registered
+atomic numbers resolve to an explicit or closed-world fallback outcome, that
+unknown atomic numbers do not resolve, that product oxygen counts are stored
+per case, and that compound screening cannot escape the structural catalogue.
+
 ## Agent evaluation
 
 Use a fixed prompt corpus covering:
@@ -223,8 +228,10 @@ input, stable geometry while seeking, and macroscopic effects whose presence is
 authorized by the reviewed scene plan.
 
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
-`CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
-drafts, slow orbit progression, and direct launch only for a supported pair.
+`CO₂`), catalogue-graph resolution for LiOH, H₂O, O₂ and CO₂, the single-`?`
+fallback for atom multisets absent from current trusted rules, independent
+reactant slots, undo/clear/swap behavior, slow orbit progression, and direct
+launch only for a supported pair.
 The handoff test proves the sequence becomes active without exposing the
 manipulation workspace. Periodic-table tests require all 118 atomic numbers and
 long-form display positions to be unique, every tile to remain square, the

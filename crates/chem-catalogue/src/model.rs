@@ -571,6 +571,8 @@ pub struct TemplateBondRecord {
     pub order: TemplateBondOrderRecord,
     #[serde(default, skip_serializing_if = "BondElectronOriginRecord::is_shared")]
     pub electron_origin: BondElectronOriginRecord,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delocalization: Option<BondDelocalizationRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -865,6 +867,16 @@ impl StructureRecord {
     }
 
     #[must_use]
+    pub fn formula(&self) -> &str {
+        match self {
+            Self::Molecular { formula, .. }
+            | Self::Ion { formula, .. }
+            | Self::Ionic { formula, .. }
+            | Self::Metallic { formula, .. } => formula,
+        }
+    }
+
+    #[must_use]
     pub const fn premise_id(&self) -> &PremiseId {
         match self {
             Self::Molecular { premise_id, .. }
@@ -913,6 +925,22 @@ pub struct BondRecord {
     pub order: BondOrderRecord,
     #[serde(default, skip_serializing_if = "BondElectronOriginRecord::is_shared")]
     pub electron_origin: BondElectronOriginRecord,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delocalization: Option<BondDelocalizationRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BondDelocalizationRecord {
+    pub domain: String,
+    pub effective_order: EffectiveBondOrderRecord,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EffectiveBondOrderRecord {
+    pub numerator: u8,
+    pub denominator: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1110,6 +1138,12 @@ pub struct MetallicElectronStateRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperationTemplateRecord {
+    ReconfigureElectrons {
+        premise_ids: BTreeSet<PremiseId>,
+        atom: String,
+        before: ElectronStateRecord,
+        after: ElectronStateRecord,
+    },
     CleaveCovalent {
         premise_ids: BTreeSet<PremiseId>,
         edge: (String, String, BondOrderRecord),
@@ -1147,6 +1181,12 @@ pub enum OperationTemplateRecord {
         allocation: CleavageAllocationRecord,
         before: BinaryElectronStateRecord,
         after: BinaryElectronStateRecord,
+    },
+    ChangeCovalentDelocalization {
+        premise_ids: BTreeSet<PremiseId>,
+        edge: (String, String),
+        expected: Option<BondDelocalizationRecord>,
+        replacement: Option<BondDelocalizationRecord>,
     },
     AssociateIonic {
         premise_ids: BTreeSet<PremiseId>,
@@ -1193,11 +1233,13 @@ impl OperationTemplateRecord {
     #[must_use]
     pub const fn premise_ids(&self) -> &BTreeSet<PremiseId> {
         match self {
-            Self::CleaveCovalent { premise_ids, .. }
+            Self::ReconfigureElectrons { premise_ids, .. }
+            | Self::CleaveCovalent { premise_ids, .. }
             | Self::FormCovalent { premise_ids, .. }
             | Self::CleaveDative { premise_ids, .. }
             | Self::FormDative { premise_ids, .. }
             | Self::ChangeCovalent { premise_ids, .. }
+            | Self::ChangeCovalentDelocalization { premise_ids, .. }
             | Self::AssociateIonic { premise_ids, .. }
             | Self::DissociateIonic { premise_ids, .. }
             | Self::ReleaseMetallic { premise_ids, .. }

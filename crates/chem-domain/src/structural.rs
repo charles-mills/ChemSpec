@@ -6,8 +6,8 @@ use serde::Serialize;
 use crate::identity::IdKind;
 use crate::{
     AtomGroupId, AtomId, AtomMappingId, CanonicalJsonError, ContentDigest, CovalentBondId,
-    DeclaredId, ElementSymbol, IonicAssociationId, MetallicDomainId, StructuralOperationId,
-    StructureId, StructureInstanceId, canonical_json,
+    CovalentDelocalizationId, DeclaredId, ElementSymbol, IonicAssociationId, MetallicDomainId,
+    StructuralOperationId, StructureId, StructureInstanceId, canonical_json,
 };
 
 /// Exact atom-local electron state.
@@ -126,6 +126,93 @@ pub enum BondOrder {
     Triple,
 }
 
+/// Reduced rational effective bond order for a delocalised covalent edge.
+///
+/// Localized electron accounting continues to use [`BondOrder`]. This value
+/// records the experimentally meaningful average over equivalent resonance
+/// contributors, such as `3/2` for the oxygen-oxygen edge in superoxide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct EffectiveBondOrder {
+    numerator: u8,
+    denominator: u8,
+}
+
+impl EffectiveBondOrder {
+    /// Constructs a reduced positive rational order no greater than three.
+    ///
+    /// # Errors
+    ///
+    /// Rejects zero, unreduced, integral, or greater-than-triple values.
+    pub const fn new(numerator: u8, denominator: u8) -> Result<Self, StructuralError> {
+        if numerator == 0
+            || denominator == 0
+            || numerator % denominator == 0
+            || numerator > denominator.saturating_mul(3)
+            || gcd(numerator, denominator) != 1
+        {
+            return Err(StructuralError::InvalidEffectiveBondOrder {
+                numerator,
+                denominator,
+            });
+        }
+        Ok(Self {
+            numerator,
+            denominator,
+        })
+    }
+
+    #[must_use]
+    pub const fn numerator(self) -> u8 {
+        self.numerator
+    }
+
+    #[must_use]
+    pub const fn denominator(self) -> u8 {
+        self.denominator
+    }
+}
+
+const fn gcd(mut left: u8, mut right: u8) -> u8 {
+    while right != 0 {
+        let remainder = left % right;
+        left = right;
+        right = remainder;
+    }
+    left
+}
+
+/// Typed resonance/delocalisation annotation attached to a localized Lewis
+/// contributor. It changes displayed effective order without inventing
+/// fractional electrons or weakening integral conservation proofs.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct CovalentDelocalization {
+    domain: CovalentDelocalizationId,
+    effective_order: EffectiveBondOrder,
+}
+
+impl CovalentDelocalization {
+    #[must_use]
+    pub const fn new(
+        domain: CovalentDelocalizationId,
+        effective_order: EffectiveBondOrder,
+    ) -> Self {
+        Self {
+            domain,
+            effective_order,
+        }
+    }
+
+    #[must_use]
+    pub const fn domain(&self) -> &CovalentDelocalizationId {
+        &self.domain
+    }
+
+    #[must_use]
+    pub const fn effective_order(&self) -> EffectiveBondOrder {
+        self.effective_order
+    }
+}
+
 impl BondOrder {
     #[must_use]
     pub const fn order(self) -> u8 {
@@ -210,6 +297,8 @@ pub struct CovalentBond {
     order: BondOrder,
     #[serde(flatten, skip_serializing_if = "CovalentElectronOrigin::is_shared")]
     electron_origin: CovalentElectronOrigin,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    delocalization: Option<CovalentDelocalization>,
 }
 
 impl CovalentBond {
@@ -238,6 +327,7 @@ impl CovalentBond {
             right,
             order,
             electron_origin: CovalentElectronOrigin::Shared,
+            delocalization: None,
         })
     }
 
@@ -265,7 +355,34 @@ impl CovalentBond {
             right,
             order: BondOrder::Single,
             electron_origin: CovalentElectronOrigin::Dative { donor, acceptor },
+            delocalization: None,
         })
+    }
+
+    /// Constructs a shared localized Lewis edge with a typed effective order
+    /// representing its delocalised resonance average.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StructuralError::SelfBond`] for equal endpoints or
+    /// [`StructuralError::RedundantEffectiveBondOrder`] when the effective
+    /// order equals the localized integral order.
+    pub fn new_delocalized(
+        id: CovalentBondId,
+        left: AtomId,
+        right: AtomId,
+        localized_order: BondOrder,
+        delocalization: CovalentDelocalization,
+    ) -> Result<Self, StructuralError> {
+        if u16::from(delocalization.effective_order().numerator())
+            == u16::from(localized_order.order())
+                * u16::from(delocalization.effective_order().denominator())
+        {
+            return Err(StructuralError::RedundantEffectiveBondOrder);
+        }
+        let mut bond = Self::new(id, left, right, localized_order)?;
+        bond.delocalization = Some(delocalization);
+        Ok(bond)
     }
 
     #[must_use]
@@ -291,6 +408,11 @@ impl CovalentBond {
     #[must_use]
     pub const fn electron_origin(&self) -> &CovalentElectronOrigin {
         &self.electron_origin
+    }
+
+    #[must_use]
+    pub const fn delocalization(&self) -> Option<&CovalentDelocalization> {
+        self.delocalization.as_ref()
     }
 }
 
@@ -946,6 +1068,9 @@ impl ElectronTransition {
 /// Unvalidated construction input for a structural operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralOperationInput {
+    ReconfigureElectrons {
+        transition: ElectronTransition,
+    },
     CleaveCovalent {
         left: AtomId,
         right: AtomId,
@@ -977,6 +1102,12 @@ pub enum StructuralOperationInput {
         new_order: BondOrder,
         allocation: ElectronAllocation,
         transitions: Vec<ElectronTransition>,
+    },
+    ChangeCovalentDelocalization {
+        left: AtomId,
+        right: AtomId,
+        expected: Option<CovalentDelocalization>,
+        replacement: Option<CovalentDelocalization>,
     },
     AssociateIonic {
         association: IonicAssociation,
@@ -1016,12 +1147,21 @@ pub enum StructuralOperationInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum StructuralOperationKind {
+    ReconfigureElectrons {
+        transition: ElectronTransition,
+    },
     CleaveCovalent {
         left: AtomId,
         right: AtomId,
         expected_order: BondOrder,
         allocation: ElectronAllocation,
         transitions: BTreeMap<AtomId, ElectronTransition>,
+    },
+    ChangeCovalentDelocalization {
+        left: AtomId,
+        right: AtomId,
+        expected: Option<CovalentDelocalization>,
+        replacement: Option<CovalentDelocalization>,
     },
     FormCovalent {
         left: AtomId,
@@ -1088,12 +1228,21 @@ enum StructuralOperationKind {
 /// cannot forge a validated operation or bypass [`StructuralOperation::new`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructuralOperationView<'a> {
+    ReconfigureElectrons {
+        transition: &'a ElectronTransition,
+    },
     CleaveCovalent {
         left: &'a AtomId,
         right: &'a AtomId,
         expected_order: BondOrder,
         allocation: &'a ElectronAllocation,
         transitions: &'a BTreeMap<AtomId, ElectronTransition>,
+    },
+    ChangeCovalentDelocalization {
+        left: &'a AtomId,
+        right: &'a AtomId,
+        expected: Option<&'a CovalentDelocalization>,
+        replacement: Option<&'a CovalentDelocalization>,
     },
     FormCovalent {
         left: &'a AtomId,
@@ -1188,6 +1337,9 @@ impl StructuralOperation {
     #[allow(clippy::too_many_lines)]
     pub fn view(&self) -> StructuralOperationView<'_> {
         match &self.kind {
+            StructuralOperationKind::ReconfigureElectrons { transition } => {
+                StructuralOperationView::ReconfigureElectrons { transition }
+            }
             StructuralOperationKind::CleaveCovalent {
                 left,
                 right,
@@ -1246,6 +1398,17 @@ impl StructuralOperation {
                 new_order: *new_order,
                 allocation,
                 transitions,
+            },
+            StructuralOperationKind::ChangeCovalentDelocalization {
+                left,
+                right,
+                expected,
+                replacement,
+            } => StructuralOperationView::ChangeCovalentDelocalization {
+                left,
+                right,
+                expected: expected.as_ref(),
+                replacement: replacement.as_ref(),
             },
             StructuralOperationKind::AssociateIonic { association } => {
                 StructuralOperationView::AssociateIonic { association }
@@ -1306,6 +1469,15 @@ fn validate_operation(
     input: StructuralOperationInput,
 ) -> Result<StructuralOperationKind, StructuralError> {
     match input {
+        StructuralOperationInput::ReconfigureElectrons { transition } => {
+            if transition.before().formal_charge() != transition.after().formal_charge()
+                || transition.before().non_bonding_electrons()
+                    != transition.after().non_bonding_electrons()
+            {
+                return Err(StructuralError::InvalidElectronReconfiguration);
+            }
+            Ok(StructuralOperationKind::ReconfigureElectrons { transition })
+        }
         StructuralOperationInput::CleaveCovalent {
             left,
             right,
@@ -1423,6 +1595,23 @@ fn validate_operation(
                 new_order,
                 allocation,
                 transitions,
+            })
+        }
+        StructuralOperationInput::ChangeCovalentDelocalization {
+            left,
+            right,
+            expected,
+            replacement,
+        } => {
+            validate_endpoints(&left, &right)?;
+            if expected == replacement {
+                return Err(StructuralError::UnchangedCovalentDelocalization);
+            }
+            Ok(StructuralOperationKind::ChangeCovalentDelocalization {
+                left,
+                right,
+                expected,
+                replacement,
             })
         }
         StructuralOperationInput::AssociateIonic { association } => {
@@ -1645,10 +1834,19 @@ fn valid_release(
 ) -> bool {
     match allocation {
         MetallicReleaseAllocation::RetainElectron => {
-            domain_after.checked_add(1) == Some(domain_before)
-                && transition.before().non_bonding_electrons().checked_add(1)
+            let Some(released) = domain_before.checked_sub(domain_after) else {
+                return false;
+            };
+            let Ok(released) = u8::try_from(released) else {
+                return false;
+            };
+            released > 0
+                && transition
+                    .before()
+                    .non_bonding_electrons()
+                    .checked_add(released)
                     == Some(transition.after().non_bonding_electrons())
-                && i32::from(transition.before().formal_charge()) - 1
+                && i32::from(transition.before().formal_charge()) - i32::from(released)
                     == i32::from(transition.after().formal_charge())
         }
         MetallicReleaseAllocation::LeaveElectron => {
@@ -1658,10 +1856,19 @@ fn valid_release(
 }
 
 fn valid_join(transition: &ElectronTransition, domain_before: u32, domain_after: u32) -> bool {
-    domain_before.checked_add(1) == Some(domain_after)
-        && transition.before().non_bonding_electrons().checked_sub(1)
+    let Some(joined) = domain_after.checked_sub(domain_before) else {
+        return false;
+    };
+    let Ok(joined) = u8::try_from(joined) else {
+        return false;
+    };
+    joined > 0
+        && transition
+            .before()
+            .non_bonding_electrons()
+            .checked_sub(joined)
             == Some(transition.after().non_bonding_electrons())
-        && i32::from(transition.before().formal_charge()) + 1
+        && i32::from(transition.before().formal_charge()) + i32::from(joined)
             == i32::from(transition.after().formal_charge())
 }
 
@@ -1982,6 +2189,11 @@ pub enum StructuralError {
     EmptyGraph,
     DuplicateIdentity(&'static str, String),
     SelfBond(AtomId),
+    InvalidEffectiveBondOrder {
+        numerator: u8,
+        denominator: u8,
+    },
+    RedundantEffectiveBondOrder,
     DuplicateCovalentEdge(AtomId, AtomId),
     UnknownAtom(AtomId),
     EmptyGroup(AtomGroupId),
@@ -2040,8 +2252,10 @@ pub enum StructuralError {
     DuplicateOperationTransition(AtomId),
     IncompleteOperationTransitions,
     UnchangedBondOrder,
+    UnchangedCovalentDelocalization,
     ZeroElectronTransfer,
     InvalidElectronTransfer,
+    InvalidElectronReconfiguration,
     InvalidCovalentElectronLedger,
     InvalidDativeElectronLedger,
     InvalidMetallicElectronLedger,
@@ -2075,6 +2289,19 @@ impl fmt::Display for StructuralError {
             Self::DuplicateIdentity(kind, id) => {
                 write!(formatter, "duplicate {kind} identity `{id}`")
             }
+            Self::InvalidEffectiveBondOrder {
+                numerator,
+                denominator,
+            } => write!(
+                formatter,
+                "effective bond order `{numerator}/{denominator}` is not a reduced positive non-integral order up to three"
+            ),
+            Self::RedundantEffectiveBondOrder => formatter.write_str(
+                "a delocalised effective bond order must differ from its localized Lewis edge",
+            ),
+            Self::UnchangedCovalentDelocalization => formatter.write_str(
+                "a covalent delocalisation operation must change the resonance annotation",
+            ),
             Self::SelfBond(atom) => write!(formatter, "atom `{atom}` cannot bond to itself"),
             Self::DuplicateCovalentEdge(left, right) => {
                 write!(formatter, "duplicate covalent edge `{left}`-`{right}`")
@@ -2244,6 +2471,9 @@ impl fmt::Display for StructuralError {
             Self::InvalidElectronTransfer => {
                 formatter.write_str("electron transfer endpoint states do not match its count")
             }
+            Self::InvalidElectronReconfiguration => formatter.write_str(
+                "electron reconfiguration must preserve formal charge and local electron count",
+            ),
             Self::InvalidCovalentElectronLedger => formatter
                 .write_str("covalent operation endpoint states do not match its bond allocation"),
             Self::InvalidDativeElectronLedger => formatter

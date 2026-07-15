@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction FeAndOxygenToTransitionG8MixedOxide where
+  reactants
+    subject := 3 of FeTransitionG8MixedOxideMetalForOxygen
+    oxygen := 2 of Oxygen
+  products
+    oxide := 1 of FeTransitionG8MixedOxideOxide
+  equation
+    3 Fe[metallic] + 2 O2[molecular]
+    -> 1 Fe3O4[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG8MixedOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide
