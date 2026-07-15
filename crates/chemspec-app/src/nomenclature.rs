@@ -22,7 +22,10 @@ pub fn product_names(frames: &SimulationFrames) -> String {
     }
 }
 
-fn product_name(frame: &SimulationFrame, product_atoms: &BTreeSet<chem_domain::AtomId>) -> String {
+pub(crate) fn product_name(
+    frame: &SimulationFrame,
+    product_atoms: &BTreeSet<chem_domain::AtomId>,
+) -> String {
     let mut counts = BTreeMap::<String, usize>::new();
     for atom in product_atoms {
         if let Some(atom) = frame.atoms().get(atom) {

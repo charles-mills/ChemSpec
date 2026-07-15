@@ -222,6 +222,20 @@ surface, readable key/fill lighting, automatic progression without stage-button
 input, stable geometry while seeking, and macroscopic effects whose presence is
 authorized by the reviewed scene plan.
 
+Post-simulation product-record tests require the macroscopic timeline to reach
+its exact end before navigation unlocks. They compile products only from final
+trusted membership, group duplicate instances deterministically, preserve
+covalent bond orders and ionic distinction, use exact decimal element masses,
+and reconstruct the same 3D layout and typewriter state for the same elapsed
+time. Responsive composition tests must build the split desktop and stacked
+compact views without hiding either the model or the property table. The
+macroscopic environment test additionally proves the floor remains while no
+rear wall geometry is emitted.
+
+Product geometry tests require distinct covalent components to remain spatially
+legible, ionic components to remain separated without invented bonds, and
+lone-pair-bearing two-bond centres to produce a deterministic bent geometry.
+
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
 drafts, slow orbit progression, and exhaustive order-independent reachability

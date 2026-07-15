@@ -217,6 +217,25 @@ intensity. This creates coordinated cinematic movement without changing the
 reviewed outcome, inventing an effect, or adding animation instructions to a
 particular `.chems` file.
 
+## Post-simulation product record
+
+After the macroscopic timeline reaches its exact end, the application may
+compile a final product record directly from the trusted final
+`SimulationFrame`. Product membership determines which atoms belong together;
+the frame supplies element identity, formal charge, non-bonding electrons,
+covalent edges, ionic associations, and metallic domains. Duplicate validated
+instances are grouped for presentation without changing their coefficient.
+
+The record renders a perspective-projected model rotating around a real
+three-dimensional axis. This summary model is explicitly representative
+geometry, not the macroscopic
+real-world `ScenePlan` and not a molecular-dynamics claim. Ionic associations
+remain enclosures rather than invented covalent bonds. Property wording and
+values are deterministic local templates; the optional reference molar mass is
+summed using fixed decimal element metadata rather than binary floating point.
+No AI, network request, reaction-name branch, or runtime code generation is
+used.
+
 ## Blocking and invalidation
 
 Malformed, ill-typed, incomplete, invalid, unsupported, stale, and system-error

@@ -63,6 +63,9 @@ Natural 3D easing, particle variation, emission envelopes, shared reaction
 motion, and camera drift are likewise reusable renderer behaviours selected by
 typed reviewed effect and intensity metadata; they do not extend the language
 or introduce reaction-specific animation fields.
+The final product record also requires no new syntax: it reads validated final
+product membership and structural relationships, with reference atomic masses
+coming from bundled element presentation metadata.
 Supporting a new animated reaction still requires a reviewed catalogue rule and,
 for the macroscopic view, a reviewed reusable presentation profile. If that
 trusted metadata is unavailable or incompatible, animation remains unavailable

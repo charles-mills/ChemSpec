@@ -958,12 +958,6 @@ fn instantiate_asset(
                 Vec3::new(20.0, 0.28, 10.0) * scale,
                 color,
             );
-            add_box(
-                &mut meshes.opaque,
-                position + Vec3::new(0.0, 2.40, -3.68),
-                Vec3::new(20.0, 5.0, 0.18) * scale,
-                [0.075, 0.10, 0.13, 1.0],
-            );
             add_disc(
                 &mut meshes.translucent,
                 position + Vec3::new(0.0, 0.148, 0.0),
@@ -1744,6 +1738,32 @@ mod tests {
             bytemuck::cast_slice::<Vertex, u8>(&unrotated),
             bytemuck::cast_slice::<Vertex, u8>(&rotated),
             "catalogue-authored rotation must reach positions and normals"
+        );
+    }
+
+    #[test]
+    fn laboratory_environment_keeps_the_floor_without_a_backdrop_wall() {
+        let mut meshes = SceneMeshes::default();
+        instantiate_asset(
+            &mut meshes,
+            AssetProfile::LaboratoryBench,
+            AppearanceProfile::LaboratoryNeutral,
+            &PresentationTransform {
+                translation: [0, -900, 0],
+                rotation: [0, 0, 0],
+                scale: [1000, 1000, 1000],
+            },
+            1.0,
+            Vec3::ZERO,
+            Quat::IDENTITY,
+            0,
+        );
+        let (vertices, _, opaque_indices) = meshes.finish();
+
+        assert!(opaque_indices > 0, "the floor remains opaque geometry");
+        assert!(
+            vertices.iter().all(|vertex| vertex.position[1] < 0.0),
+            "the environment must not add a vertical wall above the floor"
         );
     }
 }
