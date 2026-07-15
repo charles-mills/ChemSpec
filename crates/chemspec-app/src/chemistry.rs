@@ -3,9 +3,12 @@
 //! The UI may identify an exact supported draft, but every product, bond,
 //! observation, and frame below is produced by the language and kernel crates.
 
-use std::sync::LazyLock;
+use std::{collections::BTreeMap, str::FromStr, sync::LazyLock};
 
-use chem_catalogue::{ObservationPredicate, TrustedCatalogue};
+use chem_catalogue::{
+    GeneralizedCaseSelection, GeneralizedReactionCaseRecord, ObservationPredicate, TrustedCatalogue,
+};
+use chem_domain::ReactionRuleId;
 use chem_kernel::{
     CurrentArtifactIdentity, SimulationFrames, expand_trusted, generate_frames, validate_trusted,
 };
@@ -14,6 +17,8 @@ use chem_presentation::{
     PresentationEffect, PresentationObject, PresentationProfile, PresentationTransform, SceneRole,
     VIRTUAL_ONLY_DISCLOSURE,
 };
+
+use crate::composition_catalogue::{self, CompositionId};
 
 const CATALOGUE: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
 const ATTESTATION: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/review.json");
@@ -68,6 +73,30 @@ impl AlkaliMetal {
             Self::Potassium => 19,
         }
     }
+
+    const fn hydroxide(self) -> CompositionId {
+        match self {
+            Self::Lithium => CompositionId::LithiumHydroxide,
+            Self::Sodium => CompositionId::SodiumHydroxide,
+            Self::Potassium => CompositionId::PotassiumHydroxide,
+        }
+    }
+
+    const fn carbonate(self) -> CompositionId {
+        match self {
+            Self::Lithium => CompositionId::LithiumCarbonate,
+            Self::Sodium => CompositionId::SodiumCarbonate,
+            Self::Potassium => CompositionId::PotassiumCarbonate,
+        }
+    }
+
+    const fn bicarbonate(self) -> CompositionId {
+        match self {
+            Self::Lithium => CompositionId::LithiumBicarbonate,
+            Self::Sodium => CompositionId::SodiumBicarbonate,
+            Self::Potassium => CompositionId::PotassiumBicarbonate,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,6 +137,225 @@ impl Halogen {
             Self::Bromine => ("R3", "Cream", "R4"),
             Self::Iodine => ("R5", "Yellow", "R6"),
         }
+    }
+
+    const fn hydrogen_halide(self) -> CompositionId {
+        match self {
+            Self::Chlorine => CompositionId::HydrogenChloride,
+            Self::Bromine => CompositionId::HydrogenBromide,
+            Self::Iodine => CompositionId::HydrogenIodide,
+        }
+    }
+
+    const fn sodium_halide(self) -> CompositionId {
+        match self {
+            Self::Chlorine => CompositionId::SodiumChloride,
+            Self::Bromine => CompositionId::SodiumBromide,
+            Self::Iodine => CompositionId::SodiumIodide,
+        }
+    }
+
+    const fn molecule(self) -> CompositionId {
+        match self {
+            Self::Chlorine => CompositionId::Chlorine,
+            Self::Bromine => CompositionId::Bromine,
+            Self::Iodine => CompositionId::Iodine,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HalideElement {
+    Fluorine,
+    Chlorine,
+    Bromine,
+    Iodine,
+}
+
+impl HalideElement {
+    const fn symbol(self) -> &'static str {
+        match self {
+            Self::Fluorine => "F",
+            Self::Chlorine => "Cl",
+            Self::Bromine => "Br",
+            Self::Iodine => "I",
+        }
+    }
+
+    const fn from_molecule(id: CompositionId) -> Option<Self> {
+        match id {
+            CompositionId::Fluorine => Some(Self::Fluorine),
+            CompositionId::Chlorine => Some(Self::Chlorine),
+            CompositionId::Bromine => Some(Self::Bromine),
+            CompositionId::Iodine => Some(Self::Iodine),
+            _ => None,
+        }
+    }
+
+    const fn from_sodium_halide(id: CompositionId) -> Option<Self> {
+        match id {
+            CompositionId::SodiumFluoride => Some(Self::Fluorine),
+            CompositionId::SodiumChloride => Some(Self::Chlorine),
+            CompositionId::SodiumBromide => Some(Self::Bromine),
+            CompositionId::SodiumIodide => Some(Self::Iodine),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnsupportedAcidFamily {
+    Hydroxide,
+    Bicarbonate,
+    Carbonate,
+}
+
+impl UnsupportedAcidFamily {
+    const fn rule_id(self) -> &'static str {
+        match self {
+            Self::Hydroxide => "Rules.MonoproticAcidHydroxideNeutralization",
+            Self::Bicarbonate => "Rules.MonoproticAcidBicarbonateGasEvolution",
+            Self::Carbonate => "Rules.DiproticAcidCarbonateGasEvolution",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnsupportedRequest {
+    SilverFluoride,
+    HydrofluoricAcid {
+        family: UnsupportedAcidFamily,
+        metal: AlkaliMetal,
+    },
+    HalogenDisplacement {
+        displacing: HalideElement,
+        displaced: HalideElement,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnsupportedCase {
+    pub id: String,
+    pub required_feature: String,
+    pub explanation: String,
+}
+
+impl UnsupportedRequest {
+    fn from_participants(participants: [DraftParticipant; 2]) -> Option<Self> {
+        let [
+            DraftParticipant::Composition(first),
+            DraftParticipant::Composition(second),
+        ] = participants
+        else {
+            return None;
+        };
+        let pair = [first, second];
+        let has = |id| pair.contains(&id);
+
+        if has(CompositionId::SilverNitrate) && has(CompositionId::SodiumFluoride) {
+            return Some(Self::SilverFluoride);
+        }
+
+        if has(CompositionId::HydrogenFluoride) {
+            let other = if first == CompositionId::HydrogenFluoride {
+                second
+            } else {
+                first
+            };
+            let (family, metal) = match other {
+                CompositionId::LithiumHydroxide => {
+                    (UnsupportedAcidFamily::Hydroxide, AlkaliMetal::Lithium)
+                }
+                CompositionId::SodiumHydroxide => {
+                    (UnsupportedAcidFamily::Hydroxide, AlkaliMetal::Sodium)
+                }
+                CompositionId::PotassiumHydroxide => {
+                    (UnsupportedAcidFamily::Hydroxide, AlkaliMetal::Potassium)
+                }
+                CompositionId::LithiumBicarbonate => {
+                    (UnsupportedAcidFamily::Bicarbonate, AlkaliMetal::Lithium)
+                }
+                CompositionId::SodiumBicarbonate => {
+                    (UnsupportedAcidFamily::Bicarbonate, AlkaliMetal::Sodium)
+                }
+                CompositionId::PotassiumBicarbonate => {
+                    (UnsupportedAcidFamily::Bicarbonate, AlkaliMetal::Potassium)
+                }
+                CompositionId::LithiumCarbonate => {
+                    (UnsupportedAcidFamily::Carbonate, AlkaliMetal::Lithium)
+                }
+                CompositionId::SodiumCarbonate => {
+                    (UnsupportedAcidFamily::Carbonate, AlkaliMetal::Sodium)
+                }
+                CompositionId::PotassiumCarbonate => {
+                    (UnsupportedAcidFamily::Carbonate, AlkaliMetal::Potassium)
+                }
+                _ => return None,
+            };
+            return Some(Self::HydrofluoricAcid { family, metal });
+        }
+
+        let displacing = pair
+            .iter()
+            .copied()
+            .find_map(HalideElement::from_molecule)?;
+        let displaced = pair
+            .iter()
+            .copied()
+            .find_map(HalideElement::from_sodium_halide)?;
+        Some(Self::HalogenDisplacement {
+            displacing,
+            displaced,
+        })
+    }
+
+    fn catalogue_case(self) -> Result<UnsupportedCase, String> {
+        let (rule, binding) = match self {
+            Self::SilverFluoride => (
+                "Rules.SilverHalidePrecipitation",
+                BTreeMap::from([("halide".to_owned(), "F".to_owned())]),
+            ),
+            Self::HydrofluoricAcid { family, metal } => (
+                family.rule_id(),
+                BTreeMap::from([
+                    ("halide".to_owned(), "F".to_owned()),
+                    ("member".to_owned(), metal.symbol().to_owned()),
+                ]),
+            ),
+            Self::HalogenDisplacement {
+                displacing,
+                displaced,
+            } => (
+                "Rules.HalogenDisplacement",
+                BTreeMap::from([
+                    ("displacing".to_owned(), displacing.symbol().to_owned()),
+                    ("displaced".to_owned(), displaced.symbol().to_owned()),
+                ]),
+            ),
+        };
+        let rule_id = ReactionRuleId::from_str(rule).map_err(|error| error.to_string())?;
+        let catalogue = TRUSTED_CATALOGUE.as_ref().map_err(String::as_str)?;
+        let selection = catalogue
+            .select_generalized_case(&rule_id, &binding)
+            .map_err(|error| error.to_string())?;
+        let Some(GeneralizedCaseSelection::Unsupported(
+            GeneralizedReactionCaseRecord::Unsupported {
+                id,
+                required_feature,
+                explanation,
+                ..
+            },
+        )) = selection
+        else {
+            return Err(format!(
+                "trusted catalogue did not select an unsupported case for `{rule_id}`"
+            ));
+        };
+        Ok(UnsupportedCase {
+            id: id.clone(),
+            required_feature: required_feature.clone(),
+            explanation: explanation.clone(),
+        })
     }
 }
 
@@ -361,6 +609,38 @@ impl ReactionRequest {
         }
     }
 
+    fn participants(self) -> [DraftParticipant; 2] {
+        match self.kind {
+            ReactionKind::AlkaliWater { metal } => [
+                DraftParticipant::Atom(metal.atomic_number()),
+                DraftParticipant::Composition(CompositionId::Water),
+            ],
+            ReactionKind::SilverHalidePrecipitation { halogen } => [
+                DraftParticipant::Composition(CompositionId::SilverNitrate),
+                DraftParticipant::Composition(halogen.sodium_halide()),
+            ],
+            ReactionKind::AcidBaseNeutralization { metal, halogen } => [
+                DraftParticipant::Composition(halogen.hydrogen_halide()),
+                DraftParticipant::Composition(metal.hydroxide()),
+            ],
+            ReactionKind::AcidBicarbonateGasEvolution { metal, halogen } => [
+                DraftParticipant::Composition(halogen.hydrogen_halide()),
+                DraftParticipant::Composition(metal.bicarbonate()),
+            ],
+            ReactionKind::AcidCarbonateGasEvolution { metal, halogen } => [
+                DraftParticipant::Composition(halogen.hydrogen_halide()),
+                DraftParticipant::Composition(metal.carbonate()),
+            ],
+            ReactionKind::HalogenDisplacement {
+                displacing,
+                displaced,
+            } => [
+                DraftParticipant::Composition(displacing.molecule()),
+                DraftParticipant::Composition(displaced.sodium_halide()),
+            ],
+        }
+    }
+
     #[must_use]
     pub fn source(self) -> String {
         match self.kind {
@@ -509,7 +789,34 @@ fn validate_request_source(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DraftParticipant {
     Atom(u8),
-    Composition(&'static str),
+    Composition(CompositionId),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DraftResolution {
+    Supported(ReactionRequest),
+    ExplicitlyUnsupported(UnsupportedCase),
+    Uncatalogued,
+    Unrecognized,
+    SystemError(String),
+}
+
+impl DraftResolution {
+    #[must_use]
+    pub fn message(&self) -> Option<&str> {
+        match self {
+            Self::Supported(_) => None,
+            Self::ExplicitlyUnsupported(case) => Some(case.explanation.as_str()),
+            Self::Uncatalogued => Some("No trusted local model for this pair yet."),
+            Self::Unrecognized => Some("Build two recognized reactants to continue."),
+            Self::SystemError(_) => Some("The trusted chemistry catalogue is unavailable."),
+        }
+    }
+
+    #[must_use]
+    pub const fn is_system_error(&self) -> bool {
+        matches!(self, Self::SystemError(_))
+    }
 }
 
 /// Recognizes a supported input identity. This selects a request source; it
@@ -520,37 +827,49 @@ pub fn request_for_participants(
     let mut actual = participants.into_iter().collect::<Vec<_>>();
     actual.sort_unstable();
     ReactionRequest::ALL.into_iter().find(|request| {
-        let ReactionKind::AlkaliWater { metal } = request.kind else {
-            return false;
-        };
-        actual
-            == [
-                DraftParticipant::Atom(metal.atomic_number()),
-                DraftParticipant::Composition("H₂O"),
-            ]
+        let mut expected = request.participants();
+        expected.sort_unstable();
+        actual == expected
     })
 }
 
+#[cfg(test)]
 #[must_use]
 pub fn request_for_drafts(first: &[u8], second: &[u8]) -> Option<ReactionRequest> {
-    fn participant(atoms: &[u8]) -> Option<DraftParticipant> {
-        let mut atoms = atoms.to_vec();
-        atoms.sort_unstable();
-        match atoms.as_slice() {
-            [3 | 11 | 19] => Some(DraftParticipant::Atom(atoms[0])),
-            [1, 1, 8] => Some(DraftParticipant::Composition("H₂O")),
-            _ => None,
-        }
+    match resolve_drafts(first, second) {
+        DraftResolution::Supported(request) => Some(request),
+        DraftResolution::ExplicitlyUnsupported(_)
+        | DraftResolution::Uncatalogued
+        | DraftResolution::Unrecognized
+        | DraftResolution::SystemError(_) => None,
     }
-
-    let first = participant(first)?;
-    let second = participant(second)?;
-    request_for_participants([first, second])
 }
 
 #[must_use]
-pub fn supports_drafts(first: &[u8], second: &[u8]) -> bool {
-    request_for_drafts(first, second).is_some()
+pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
+    fn participant(atoms: &[u8]) -> Option<DraftParticipant> {
+        if let [atomic_number] = atoms {
+            return Some(DraftParticipant::Atom(*atomic_number));
+        }
+        composition_catalogue::recognize(atoms.iter().copied())
+            .map(|preview| DraftParticipant::Composition(preview.id))
+    }
+
+    let (Some(first), Some(second)) = (participant(first), participant(second)) else {
+        return DraftResolution::Unrecognized;
+    };
+    if let Some(request) = request_for_participants([first, second]) {
+        return DraftResolution::Supported(request);
+    }
+
+    if let Some(request) = UnsupportedRequest::from_participants([first, second]) {
+        return match request.catalogue_case() {
+            Ok(case) => DraftResolution::ExplicitlyUnsupported(case),
+            Err(error) => DraftResolution::SystemError(error),
+        };
+    }
+
+    DraftResolution::Uncatalogued
 }
 
 /// Host-selected macroscopic styling for an exact trusted experience. This
@@ -558,16 +877,14 @@ pub fn supports_drafts(first: &[u8], second: &[u8]) -> bool {
 pub fn presentation_profile(
     request: ReactionRequest,
     last_ordinal: u16,
-) -> Result<PresentationProfile, String> {
-    let metal = request
-        .alkali_water_metal()
-        .ok_or_else(|| format!("no macroscopic profile is registered for {}", request.id()))?;
+) -> Option<PresentationProfile> {
+    let metal = request.alkali_water_metal()?;
     let transform = |translation, scale| PresentationTransform {
         translation,
         rotation: [0, 0, 0],
         scale,
     };
-    Ok(PresentationProfile {
+    Some(PresentationProfile {
         id: format!("presentation.ai.{}", request.id()),
         environment: AssetProfile::LaboratoryBench,
         objects: vec![
@@ -664,6 +981,26 @@ pub fn presentation_profile(
 mod tests {
     use super::*;
 
+    fn participant_atoms(participant: DraftParticipant) -> Vec<u8> {
+        match participant {
+            DraftParticipant::Atom(atomic_number) => vec![atomic_number],
+            DraftParticipant::Composition(id) => composition_atoms(id),
+        }
+    }
+
+    fn composition_atoms(id: CompositionId) -> Vec<u8> {
+        composition_catalogue::SUPPORTED
+            .iter()
+            .find(|preview| preview.id == id)
+            .expect("request composition is recognized by the composer")
+            .atoms
+            .iter()
+            .flat_map(|(atomic_number, count)| {
+                std::iter::repeat_n(*atomic_number, usize::from(*count))
+            })
+            .collect()
+    }
+
     #[test]
     fn every_supported_request_crosses_the_trusted_frame_boundary() {
         let mut ids = std::collections::BTreeSet::new();
@@ -695,21 +1032,101 @@ mod tests {
     }
 
     #[test]
-    fn draft_recognition_selects_li_na_or_k_with_water() {
-        for (atomic_number, expected) in [
-            (3, ReactionRequest::alkali_water(AlkaliMetal::Lithium)),
-            (11, ReactionRequest::alkali_water(AlkaliMetal::Sodium)),
-            (19, ReactionRequest::alkali_water(AlkaliMetal::Potassium)),
-        ] {
-            assert_eq!(
-                request_for_drafts(&[atomic_number], &[1, 8, 1]),
-                Some(expected)
-            );
-            assert_eq!(
-                request_for_drafts(&[8, 1, 1], &[atomic_number]),
-                Some(expected)
-            );
+    fn every_supported_request_is_reachable_from_drafts_in_either_order() {
+        for expected in ReactionRequest::ALL {
+            let [first, second] = expected.participants().map(participant_atoms);
+            assert_eq!(request_for_drafts(&first, &second), Some(expected));
+            assert_eq!(request_for_drafts(&second, &first), Some(expected));
         }
+    }
+
+    #[test]
+    fn all_23_unsupported_bindings_are_selected_from_the_trusted_catalogue() {
+        let DraftResolution::ExplicitlyUnsupported(silver_fluoride) =
+            resolve_drafts(&[47, 7, 8, 8, 8], &[11, 9])
+        else {
+            panic!("silver fluoride must reach its catalogue case");
+        };
+        assert_eq!(silver_fluoride.id, "silver-fluoride-soluble");
+        assert_eq!(
+            silver_fluoride.required_feature,
+            "Features.SolubleHalideException"
+        );
+        assert!(
+            silver_fluoride
+                .explanation
+                .starts_with("Silver fluoride is soluble")
+        );
+
+        let acid_sources = [
+            CompositionId::LithiumHydroxide,
+            CompositionId::SodiumHydroxide,
+            CompositionId::PotassiumHydroxide,
+            CompositionId::LithiumBicarbonate,
+            CompositionId::SodiumBicarbonate,
+            CompositionId::PotassiumBicarbonate,
+            CompositionId::LithiumCarbonate,
+            CompositionId::SodiumCarbonate,
+            CompositionId::PotassiumCarbonate,
+        ];
+        for source in acid_sources {
+            let resolution = resolve_drafts(
+                &composition_atoms(CompositionId::HydrogenFluoride),
+                &composition_atoms(source),
+            );
+            let DraftResolution::ExplicitlyUnsupported(case) = resolution else {
+                panic!("HF family member must reach its catalogue case: {source:?}");
+            };
+            assert!(case.id.starts_with("hydrofluoric-acid-"));
+            assert_eq!(case.required_feature, "Features.WeakAcidEquilibrium");
+        }
+
+        let halogens = [
+            CompositionId::Fluorine,
+            CompositionId::Chlorine,
+            CompositionId::Bromine,
+            CompositionId::Iodine,
+        ];
+        let halides = [
+            CompositionId::SodiumFluoride,
+            CompositionId::SodiumChloride,
+            CompositionId::SodiumBromide,
+            CompositionId::SodiumIodide,
+        ];
+        let mut supported = 0;
+        let mut unsupported = 0;
+        for halogen in halogens {
+            for halide in halides {
+                match resolve_drafts(&composition_atoms(halogen), &composition_atoms(halide)) {
+                    DraftResolution::Supported(_) => supported += 1,
+                    DraftResolution::ExplicitlyUnsupported(case) => {
+                        unsupported += 1;
+                        assert!(!case.id.is_empty());
+                        assert!(!case.required_feature.is_empty());
+                        assert!(!case.explanation.is_empty());
+                    }
+                    other => panic!("halogen binding was not catalogue-classified: {other:?}"),
+                }
+            }
+        }
+        assert_eq!(supported, 3);
+        assert_eq!(unsupported, 13);
+    }
+
+    #[test]
+    fn uncatalogued_and_unrecognized_pairs_are_distinct() {
+        assert_eq!(
+            resolve_drafts(&[1, 1], &[8, 8]),
+            DraftResolution::Uncatalogued
+        );
+        assert_eq!(
+            resolve_drafts(&[20], &[1, 1, 8]),
+            DraftResolution::Uncatalogued
+        );
+        assert_eq!(
+            resolve_drafts(&[6, 6], &[8, 8]),
+            DraftResolution::Unrecognized
+        );
         assert_eq!(request_for_drafts(&[20], &[1, 1, 8]), None);
         assert_eq!(request_for_drafts(&[1, 1], &[8, 8]), None);
     }
@@ -732,13 +1149,13 @@ mod tests {
 
     #[test]
     fn macroscopic_profiles_remain_explicit_until_family_profiles_land() {
-        assert!(presentation_profile(ReactionRequest::DEFAULT, 4).is_ok());
+        assert!(presentation_profile(ReactionRequest::DEFAULT, 4).is_some());
         assert!(
             presentation_profile(
                 ReactionRequest::silver_halide_precipitation(Halogen::Chlorine),
                 4
             )
-            .is_err()
+            .is_none()
         );
     }
 }

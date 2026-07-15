@@ -224,9 +224,12 @@ authorized by the reviewed scene plan.
 
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
-drafts, slow orbit progression, and direct launch only for a supported pair.
-The handoff test proves the sequence becomes active without exposing the
-manipulation workspace. Periodic-table tests require all 118 atomic numbers and
+drafts, slow orbit progression, and exhaustive order-independent reachability
+for all 36 trusted request bindings. Recognised unsupported, recognised
+uncatalogued, and unrecognised pairs have separate regression coverage. The
+handoff tests prove every trusted family can open the 2D sequence while the 3D
+transition remains gated on an available macroscopic profile. Periodic-table
+tests require all 118 atomic numbers and
 long-form display positions to be unique, every tile to remain square, the
 18-column grid to fit without horizontal scrolling, and the s/d and d/p block
 gaps to remain larger than within-block spacing.

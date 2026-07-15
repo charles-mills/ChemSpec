@@ -199,9 +199,14 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
 }
 
 pub fn can_start_reaction(state: &State) -> bool {
-    chemistry::supports_drafts(&state.drafts[0].atoms, &state.drafts[1].atoms)
+    matches!(resolution(state), chemistry::DraftResolution::Supported(_))
 }
 
+pub fn resolution(state: &State) -> chemistry::DraftResolution {
+    chemistry::resolve_drafts(&state.drafts[0].atoms, &state.drafts[1].atoms)
+}
+
+#[cfg(test)]
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
@@ -293,14 +298,33 @@ fn action_row(state: &State) -> Element<'static, Message> {
         .padding([spacing::XS, spacing::MD])
         .style(theme::secondary_button);
 
-    row![
+    let controls = row![
         run,
         action_hint(undo, "You can also click the selected box to undo."),
         action_hint(clear, "You can also hold a box to clear it."),
     ]
     .spacing(spacing::XS)
-    .align_y(Center)
-    .into()
+    .align_y(Center);
+    let both_present = state.drafts.iter().all(|draft| !draft.atoms.is_empty());
+    let resolution = resolution(state);
+    let status_color = if resolution.is_system_error() {
+        color::DANGER
+    } else {
+        color::WARNING
+    };
+    let status = both_present
+        .then(|| resolution.message())
+        .flatten()
+        .map(|message| {
+            text(message.to_owned())
+                .size(type_scale::CAPTION)
+                .color(status_color)
+        });
+    let mut content = column![controls].spacing(spacing::XS).align_x(Center);
+    if let Some(status) = status {
+        content = content.push(status);
+    }
+    content.into()
 }
 
 /// A small gesture hint under an action button.
@@ -502,7 +526,7 @@ fn draft_body(state: &State, reactant: ActiveReactant, reveal: f32) -> Element<'
                 .height(Length::Fixed(110.0))
                 .into(),
             Some(preview.name),
-            "Recognised compound",
+            preview.kind().recognition_label(),
             color::SUCCESS,
         )
     } else {
@@ -686,6 +710,28 @@ mod tests {
         assert_eq!(formula(reactants(&state).0), "Rb");
         assert_eq!(formula(reactants(&state).1), "Li");
         assert!(!can_start_reaction(&state));
+    }
+
+    #[test]
+    fn broader_trusted_pairs_enable_run_and_unsupported_pairs_explain_the_block() {
+        let mut state = State::default();
+        state.drafts[0].atoms = vec![47, 7, 8, 8, 8];
+        state.drafts[1].atoms = vec![11, 17];
+        assert!(can_start_reaction(&state));
+        assert!(matches!(
+            resolution(&state),
+            chemistry::DraftResolution::Supported(_)
+        ));
+
+        state.drafts[1].atoms = vec![11, 9];
+        assert!(!can_start_reaction(&state));
+        let resolution = resolution(&state);
+        assert!(
+            resolution
+                .message()
+                .is_some_and(|message| message.starts_with("Silver fluoride is soluble"))
+        );
+        let _ = action_row(&state);
     }
 
     #[test]

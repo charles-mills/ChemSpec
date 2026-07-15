@@ -99,13 +99,16 @@ contains the generalized alkali-water, silver-halide precipitation,
 neutralization, carbonate/bicarbonate gas-evolution, and halogen-displacement
 families. The application has a typed finite request and deterministic source
 authoring path for all 36 supported bindings. The reactant composer currently
-routes only the lithium, sodium, and potassium alkali-water subset; broader
-draft recognition is a separate integration boundary.
+recognises and routes every one of those bindings in either reactant order.
+Recognised but deliberately unsupported pairs explain the missing model;
+recognised uncatalogued pairs and unrecognised drafts remain distinct states.
 
 The kernel verifies exact structural transitions, electron bookkeeping,
 represented-electron and charge conservation, bond changes, stable atoms,
-observation activation, and complete product assignment. The host then selects
-the same reusable presentation machinery for all three trusted outcomes.
+observation activation, and complete product assignment. Every trusted binding
+opens the structural 2D explanation. The alkali-water family also has a
+macroscopic scene profile; other families remain in 2D until their
+family-specific profiles are supplied.
 
 Future operation or presentation variants must be added vertically: catalogue
 schema, trusted transition validation, frames, planner primitives, renderers,
