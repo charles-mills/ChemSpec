@@ -90,18 +90,36 @@ const fn educational_scene_title(kind: EducationalSceneKind) -> &'static str {
     }
 }
 
+/// The window size the interface's fixed pixel tokens were designed against;
+/// larger windows zoom the whole interface up instead of stretching layouts.
+const DESIGN_SIZE: Size = Size::new(1_440.0, 900.0);
+/// Upper bound on the adaptive zoom so very large monitors stay reasonable.
+const MAX_UI_ZOOM: f32 = 2.0;
+
 fn main() -> iced::Result {
     iced::application(launch_state, App::update, App::view)
         .title(App::title)
         .subscription(App::subscription)
         .theme(App::theme)
+        .scale_factor(|app| app.ui_zoom)
         .window(iced::window::Settings {
-            size: Size::new(1_440.0, 900.0),
+            size: DESIGN_SIZE,
             min_size: Some(Size::new(560.0, 760.0)),
             position: iced::window::Position::Centered,
             ..iced::window::Settings::default()
         })
         .run()
+}
+
+/// Resize events report sizes already divided by the active zoom, so the new
+/// factor is computed from zoom-invariant design units. Windows at or below
+/// the design size keep the 1:1 layout.
+fn adaptive_zoom(reported: Size, current_zoom: f32) -> f32 {
+    let width = reported.width * current_zoom;
+    let height = reported.height * current_zoom;
+    (width / DESIGN_SIZE.width)
+        .min(height / DESIGN_SIZE.height)
+        .clamp(1.0, MAX_UI_ZOOM)
 }
 
 fn codex_available() -> bool {
@@ -254,6 +272,7 @@ impl PlaybackSpeed {
 
 #[derive(Debug, Clone)]
 enum Message {
+    WindowResized(Size),
     ScreenSelected(Screen),
     ProviderSelected(ProviderChoice),
     ApiKeyChanged(String),
@@ -295,6 +314,8 @@ struct App {
     validated_frames: Option<chem_kernel::SimulationFrames>,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
+    /// Interface zoom applied on top of the system scale factor.
+    ui_zoom: f32,
 }
 
 impl Default for App {
@@ -315,6 +336,7 @@ impl Default for App {
                 .map(|run| run.frames().clone()),
             structural_animation: None,
             structural_error: None,
+            ui_zoom: 1.0,
         }
     }
 }
@@ -341,6 +363,7 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: Message) {
         match message {
+            Message::WindowResized(size) => self.ui_zoom = adaptive_zoom(size, self.ui_zoom),
             Message::ScreenSelected(screen) => self.screen = screen,
             Message::ProviderSelected(provider) => self.provider = Some(provider),
             Message::ApiKeyChanged(api_key) => self.api_key = api_key,
@@ -505,7 +528,8 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if self.screen == Screen::Builder {
+        let resize = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
+        let screen = if self.screen == Screen::Builder {
             Subscription::batch([
                 periodic_table::subscription(&self.periodic_table).map(Message::PeriodicTable),
                 reactant_composer::subscription(&self.reactant_composer)
@@ -520,7 +544,9 @@ impl App {
             iced::time::every(std::time::Duration::from_millis(33)).map(|_| Message::StructuralTick)
         } else {
             Subscription::none()
-        }
+        };
+
+        Subscription::batch([resize, screen])
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -1315,6 +1341,31 @@ mod tests {
     fn initial_provider_follows_codex_availability() {
         assert_eq!(initial_provider(true), ProviderChoice::CodexSubscription);
         assert_eq!(initial_provider(false), ProviderChoice::ApiKey);
+    }
+
+    #[test]
+    fn adaptive_zoom_scales_windows_beyond_the_design_size() {
+        // At or below the design size the layout stays 1:1.
+        assert!((adaptive_zoom(DESIGN_SIZE, 1.0) - 1.0).abs() < f32::EPSILON);
+        assert!((adaptive_zoom(Size::new(560.0, 760.0), 1.0) - 1.0).abs() < f32::EPSILON);
+
+        // A 32in 4K-class window zooms by its most constrained axis (height).
+        let zoom = adaptive_zoom(Size::new(2_650.0, 1_490.0), 1.0);
+        assert!((zoom - 1_490.0 / DESIGN_SIZE.height).abs() < 0.001);
+
+        // Zoom never exceeds the cap, however large the window.
+        assert!((adaptive_zoom(Size::new(7_680.0, 4_320.0), 1.0) - MAX_UI_ZOOM).abs() < 0.001);
+    }
+
+    #[test]
+    fn adaptive_zoom_is_stable_across_already_zoomed_resize_events() {
+        // Resize events report design units (physical over total scale), so a
+        // window that settled on a zoom keeps it: 2880x1800 physical reads as
+        // 1440x900 under zoom 2.0 and recomputes to exactly 2.0 again.
+        let settled = adaptive_zoom(Size::new(2_880.0, 1_800.0), 1.0);
+        assert!((settled - 2.0).abs() < f32::EPSILON);
+        let recomputed = adaptive_zoom(Size::new(1_440.0, 900.0), settled);
+        assert!((recomputed - settled).abs() < f32::EPSILON);
     }
 
     #[test]
