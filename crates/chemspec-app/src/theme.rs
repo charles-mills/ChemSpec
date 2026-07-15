@@ -4,7 +4,7 @@
 //! character of the `ChemistrySim` reference into reusable Iced styles. Layout
 //! code should use these tokens instead of introducing one-off values.
 
-use iced::widget::{button, container, slider, text_input};
+use iced::widget::{button, container, rule, slider, text_input};
 use iced::{Background, Border, Color, Shadow, Theme, Vector, border};
 
 pub mod color {
@@ -181,6 +181,40 @@ pub fn success_tint(_: &Theme) -> container::Style {
         ))
 }
 
+pub fn provider_button(selected: bool, status: button::Status) -> button::Style {
+    let (background, border_color, text_color) = if selected {
+        match status {
+            button::Status::Active => (color::ACCENT_FAINT, color::ACCENT, color::TEXT),
+            button::Status::Hovered => (color::ACCENT_SOFT, color::ACCENT_HOVER, color::TEXT),
+            button::Status::Pressed => (color::SURFACE_ACTIVE, color::ACCENT, color::TEXT),
+            button::Status::Disabled => (color::PANEL, color::LINE, color::FAINT),
+        }
+    } else {
+        match status {
+            button::Status::Active => (color::SURFACE, color::LINE_STRONG, color::TEXT),
+            button::Status::Hovered => (color::SURFACE_HOVER, color::ACCENT, color::TEXT),
+            button::Status::Pressed => (color::SURFACE_ACTIVE, color::ACCENT_HOVER, color::TEXT),
+            button::Status::Disabled => (color::CANVAS_RAISED, color::LINE, color::FAINT),
+        }
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color,
+        border: border_style(border_color, 1.0, radius::CONTROL),
+        ..button::Style::default()
+    }
+}
+
+pub fn danger_divider(_: &Theme) -> rule::Style {
+    rule::Style {
+        color: color::DANGER,
+        radius: border::Radius::default(),
+        fill_mode: rule::FillMode::Full,
+        snap: true,
+    }
+}
+
 pub fn primary_button(_: &Theme, status: button::Status) -> button::Style {
     let (background, border_color, text_color, shadow) = match status {
         button::Status::Active => (
@@ -188,9 +222,9 @@ pub fn primary_button(_: &Theme, status: button::Status) -> button::Style {
             color::ACCENT,
             color::CANVAS,
             Shadow {
-                color: Color::from_rgba(0.176, 0.514, 0.855, 0.26),
-                offset: Vector::new(0.0, 4.0),
-                blur_radius: 14.0,
+                color: Color::from_rgba(0.176, 0.514, 0.855, 0.10),
+                offset: Vector::new(0.0, 2.0),
+                blur_radius: 8.0,
             },
         ),
         button::Status::Hovered => (
@@ -198,9 +232,9 @@ pub fn primary_button(_: &Theme, status: button::Status) -> button::Style {
             color::ACCENT_HOVER,
             color::CANVAS,
             Shadow {
-                color: Color::from_rgba(0.176, 0.514, 0.855, 0.38),
-                offset: Vector::new(0.0, 6.0),
-                blur_radius: 18.0,
+                color: Color::from_rgba(0.176, 0.514, 0.855, 0.16),
+                offset: Vector::new(0.0, 3.0),
+                blur_radius: 10.0,
             },
         ),
         button::Status::Pressed => (color::ACCENT, color::TEXT, color::CANVAS, Shadow::default()),

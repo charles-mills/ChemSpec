@@ -7,6 +7,7 @@
 mod chemistry;
 mod composition_catalogue;
 mod elements;
+mod icons;
 mod particle_visualization;
 mod periodic_table;
 mod reactant_composer;
@@ -109,6 +110,14 @@ fn codex_available() -> bool {
         .arg("--version")
         .output()
         .is_ok_and(|output| output.status.success())
+}
+
+const fn initial_provider(codex_available: bool) -> ProviderChoice {
+    if codex_available {
+        ProviderChoice::CodexSubscription
+    } else {
+        ProviderChoice::ApiKey
+    }
 }
 
 fn launch_state() -> App {
@@ -309,6 +318,7 @@ struct App {
 
 impl Default for App {
     fn default() -> Self {
+        let codex_available = codex_available();
         let active_experience = chemistry::Experience::DEFAULT;
         let (validated_frames, validation_error) = match chemistry::run(active_experience) {
             Ok(run) => (Some(run.frames().clone()), None),
@@ -316,8 +326,8 @@ impl Default for App {
         };
         Self {
             screen: Screen::ProviderSetup,
-            codex_available: codex_available(),
-            provider: None,
+            codex_available,
+            provider: Some(initial_provider(codex_available)),
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
@@ -334,6 +344,17 @@ impl Default for App {
     }
 }
 
+fn api_key_format_is_valid(api_key: &str) -> bool {
+    let Some(secret) = api_key.strip_prefix("sk-") else {
+        return false;
+    };
+
+    (20..=256).contains(&api_key.len())
+        && secret
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
 impl App {
     #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: Message) {
@@ -344,7 +365,7 @@ impl App {
             Message::ProviderContinue => {
                 let ready = match self.provider {
                     Some(ProviderChoice::CodexSubscription) => self.codex_available,
-                    Some(ProviderChoice::ApiKey) => !self.api_key.trim().is_empty(),
+                    Some(ProviderChoice::ApiKey) => api_key_format_is_valid(&self.api_key),
                     None => false,
                 };
                 if ready {
@@ -580,110 +601,139 @@ impl App {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn provider_setup_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
         let codex_selected = self.provider == Some(ProviderChoice::CodexSubscription);
         let api_selected = self.provider == Some(ProviderChoice::ApiKey);
 
+        let codex_icon_color = if self.codex_available {
+            color::ACCENT
+        } else {
+            color::FAINT
+        };
+
         let codex = button(
-            column![
-                text("Use Codex subscription")
-                    .size(type_scale::BODY_LARGE)
-                    .color(color::TEXT),
-                text(if self.codex_available {
-                    "codex binary detected · recommended"
-                } else {
-                    "codex binary not found on PATH"
-                })
-                .size(type_scale::CAPTION)
-                .color(if self.codex_available {
-                    color::SUCCESS
-                } else {
-                    color::WARNING
-                }),
+            row![
+                icons::codex(20.0, codex_icon_color),
+                text("Codex subscription").size(type_scale::BODY_LARGE),
             ]
-            .spacing(spacing::XXS),
+            .spacing(spacing::SM)
+            .align_y(Center),
         )
         .on_press_maybe(
             self.codex_available
                 .then_some(Message::ProviderSelected(ProviderChoice::CodexSubscription)),
         )
-        .padding(spacing::MD)
+        .padding([spacing::SM, spacing::MD])
         .width(Fill)
-        .style(move |_, status| theme::navigation_button(codex_selected, status));
+        .style(move |_, status| theme::provider_button(codex_selected, status));
 
         let api = button(
-            column![
-                text("Use API key")
-                    .size(type_scale::BODY_LARGE)
-                    .color(color::TEXT),
-                text("No Codex installation required · kept in memory")
-                    .size(type_scale::CAPTION)
-                    .color(color::MUTED),
+            row![
+                icons::api_key(20.0, color::ACCENT),
+                text("OpenAI API key").size(type_scale::BODY_LARGE),
             ]
-            .spacing(spacing::XXS),
+            .spacing(spacing::SM)
+            .align_y(Center),
         )
         .on_press(Message::ProviderSelected(ProviderChoice::ApiKey))
-        .padding(spacing::MD)
+        .padding([spacing::SM, spacing::MD])
         .width(Fill)
-        .style(move |_, status| theme::navigation_button(api_selected, status));
+        .style(move |_, status| theme::provider_button(api_selected, status));
 
-        let choices: Element<'_, Message> = if compact {
-            column![codex, api].spacing(spacing::SM).into()
+        let choices: Element<'_, Message> = column![codex, api].spacing(spacing::SM).into();
+        let ready = (codex_selected && self.codex_available)
+            || (api_selected && api_key_format_is_valid(&self.api_key));
+        let continue_label = if api_selected {
+            "Continue with API key"
         } else {
-            row![codex, api].spacing(spacing::SM).into()
+            "Continue with Codex"
         };
-        let api_key: Element<'_, Message> = if api_selected {
-            text_input("OpenAI API key", &self.api_key)
+        let continue_icon_color = if ready { color::CANVAS } else { color::FAINT };
+        let continue_button = button(
+            row![
+                text(continue_label),
+                icons::arrow_right(16.0, continue_icon_color),
+            ]
+            .spacing(spacing::XS)
+            .align_y(Center),
+        )
+        .on_press_maybe(ready.then_some(Message::ProviderContinue))
+        .padding([spacing::SM, spacing::MD])
+        .style(theme::primary_button);
+
+        let action: Element<'_, Message> = if api_selected {
+            let input = text_input("sk-…", &self.api_key)
                 .on_input(Message::ApiKeyChanged)
                 .secure(true)
                 .padding(spacing::SM)
-                .into()
-        } else {
-            space().height(Length::Shrink).into()
-        };
-        let ready = (codex_selected && self.codex_available)
-            || (api_selected && !self.api_key.trim().is_empty());
+                .width(Fill)
+                .style(theme::request_input);
 
-        let content = container(
-            column![
-                text("CHEMSPEC  /  PROVIDER")
-                    .size(type_scale::MICRO)
-                    .color(color::ACCENT),
-                text("How should ChemSpec research reactions?")
-                    .size(if compact {
-                        type_scale::TITLE
-                    } else {
-                        type_scale::DISPLAY
-                    })
-                    .color(color::TEXT),
-                text("Choose Codex subscription for the primary experience or an API key for the dependency-free mode.")
-                    .size(type_scale::BODY)
-                    .color(color::MUTED),
-                choices,
-                api_key,
+            if compact {
+                column![input, continue_button]
+                    .spacing(spacing::SM)
+                    .width(Fill)
+                    .into()
+            } else {
+                row![input, continue_button]
+                    .spacing(spacing::SM)
+                    .align_y(Center)
+                    .width(Fill)
+                    .into()
+            }
+        } else {
+            row![space().width(Fill), continue_button]
+                .align_y(Center)
+                .width(Fill)
+                .into()
+        };
+
+        let mut sections: Vec<Element<'_, Message>> = vec![
+            text("How should ChemSpec research?")
+                .size(if compact {
+                    type_scale::TITLE
+                } else {
+                    type_scale::DISPLAY
+                })
+                .color(color::TEXT)
+                .into(),
+        ];
+
+        if !self.codex_available {
+            sections.push(
                 row![
-                    text("The canonical offline fixture remains available after setup.")
-                        .size(type_scale::CAPTION)
-                        .color(color::MUTED),
-                    space().width(Fill),
-                    button(text("Continue  →"))
-                        .on_press_maybe(ready.then_some(Message::ProviderContinue))
-                        .padding([spacing::SM, spacing::MD])
-                        .style(theme::primary_button),
+                    container(rule::vertical(2).style(theme::danger_divider)).height(48),
+                    icons::alert(20.0, color::DANGER),
+                    column![
+                        text("Codex wasn’t found")
+                            .size(type_scale::BODY_LARGE)
+                            .color(color::TEXT),
+                        text("Use an API key or install Codex.")
+                            .size(type_scale::CAPTION)
+                            .color(color::MUTED),
+                    ]
+                    .spacing(spacing::XXS),
                 ]
-                .align_y(Center),
-            ]
-            .spacing(spacing::MD),
-        )
-        .style(theme::frame)
-        .padding(if compact { spacing::MD } else { spacing::XL })
-        .width(Length::Fill)
-        .max_width(900.0);
+                .spacing(spacing::SM)
+                .align_y(Center)
+                .into(),
+            );
+        }
+
+        sections.extend([choices, action]);
+
+        let content = container(column(sections).spacing(spacing::LG))
+            .width(Fill)
+            .max_width(768.0);
 
         container(content)
-            .style(theme::app_background)
             .center(Fill)
+            .style(theme::app_background)
+            .padding(if compact { spacing::LG } else { spacing::XL })
+            .width(Fill)
+            .height(Fill)
             .into()
     }
 
@@ -2120,15 +2170,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn initial_provider_follows_codex_availability() {
+        assert_eq!(initial_provider(true), ProviderChoice::CodexSubscription);
+        assert_eq!(initial_provider(false), ProviderChoice::ApiKey);
+    }
+
+    #[test]
     fn api_key_provider_requires_an_in_memory_key_before_continuing() {
         let mut app = App::default();
         assert_eq!(app.screen, Screen::ProviderSetup);
         app.update(Message::ProviderSelected(ProviderChoice::ApiKey));
         app.update(Message::ProviderContinue);
         assert_eq!(app.screen, Screen::ProviderSetup);
-        app.update(Message::ApiKeyChanged("test-only-key".to_owned()));
+        app.update(Message::ApiKeyChanged(
+            "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789".to_owned(),
+        ));
         app.update(Message::ProviderContinue);
         assert_eq!(app.screen, Screen::Builder);
+    }
+
+    #[test]
+    fn api_key_format_rejects_obvious_invalid_values() {
+        assert!(!api_key_format_is_valid(""));
+        assert!(!api_key_format_is_valid("sk-short"));
+        assert!(!api_key_format_is_valid(
+            "not-an-openai-key-abcdefghijklmnopqrstuvwxyz"
+        ));
+        assert!(!api_key_format_is_valid(
+            "sk-proj-abcdefghijklmnopqrstuvwxyz with-space"
+        ));
+        assert!(api_key_format_is_valid(
+            "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789"
+        ));
     }
 
     #[test]
