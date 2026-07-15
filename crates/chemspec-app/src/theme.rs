@@ -7,63 +7,276 @@
 use iced::widget::{button, container, rule, slider, text_input};
 use iced::{Background, Border, Color, Shadow, Theme, Vector, border};
 
+/// Complete visual configuration for the shipped dark theme.
+///
+/// Iced's [`Theme`] carries its widget palette. These application-owned tokens
+/// cover the additional semantic roles used by custom styles and Canvas
+/// renderers. Chemistry colours stay separate from interaction and status
+/// colours so a theme change cannot alter scientific meaning.
+#[derive(Debug, Clone, Copy)]
+pub struct ThemeTokens {
+    pub colors: ColorTokens,
+    pub chemistry: ChemistryColorTokens,
+    pub space: SpaceTokens,
+    pub radius: RadiusTokens,
+    pub type_scale: TypeScaleTokens,
+    pub breakpoint: BreakpointTokens,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ColorTokens {
+    pub canvas: Color,
+    pub canvas_raised: Color,
+    pub panel: Color,
+    pub surface: Color,
+    pub surface_hover: Color,
+    pub surface_active: Color,
+    pub text: Color,
+    pub text_soft: Color,
+    pub muted: Color,
+    pub faint: Color,
+    pub line: Color,
+    pub line_strong: Color,
+    pub shadow: Color,
+    pub accent: Color,
+    pub accent_hover: Color,
+    pub accent_soft: Color,
+    pub accent_faint: Color,
+    pub success: Color,
+    pub success_soft: Color,
+    pub warning: Color,
+    pub danger: Color,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ChemistryColorTokens {
+    pub covalent: Color,
+    pub ionic: Color,
+    pub metallic: Color,
+    pub electron: Color,
+    pub structural_canvas: Color,
+    pub structural_panel: Color,
+    pub summary: Color,
+    pub hydrogen: Color,
+    pub lithium: Color,
+    pub silver: Color,
+    pub carbon: Color,
+    pub nitrogen: Color,
+    pub oxygen: Color,
+    pub sodium: Color,
+    pub chlorine: Color,
+    pub element_default: Color,
+    pub alkali_metal: Color,
+    pub alkaline_earth: Color,
+    pub transition_metal: Color,
+    pub post_transition_metal: Color,
+    pub metalloid: Color,
+    pub reactive_nonmetal: Color,
+    pub halogen: Color,
+    pub noble_gas: Color,
+    pub lanthanide: Color,
+    pub actinide: Color,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SpaceTokens {
+    pub xxs: f32,
+    pub xs: f32,
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+    pub xl: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RadiusTokens {
+    pub control: f32,
+    pub panel: f32,
+    pub frame: f32,
+    pub pill: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TypeScaleTokens {
+    pub micro: f32,
+    pub caption: f32,
+    pub body: f32,
+    pub body_large: f32,
+    pub title: f32,
+    pub display: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BreakpointTokens {
+    pub mobile: f32,
+    pub desktop: f32,
+}
+
+pub const LAB_DARK: ThemeTokens = ThemeTokens {
+    colors: ColorTokens {
+        canvas: Color::from_rgb8(0x09, 0x0B, 0x0E),
+        canvas_raised: Color::from_rgb8(0x0C, 0x0F, 0x13),
+        panel: Color::from_rgb8(0x10, 0x14, 0x19),
+        surface: Color::from_rgb8(0x15, 0x1A, 0x20),
+        surface_hover: Color::from_rgb8(0x1B, 0x22, 0x2A),
+        surface_active: Color::from_rgb8(0x20, 0x28, 0x31),
+        text: Color::from_rgb8(0xF4, 0xF7, 0xFA),
+        text_soft: Color::from_rgb8(0xC3, 0xCE, 0xD9),
+        muted: Color::from_rgb8(0x9A, 0xA6, 0xB2),
+        faint: Color::from_rgb8(0x6A, 0x76, 0x82),
+        line: Color::from_rgb8(0x2A, 0x32, 0x3C),
+        line_strong: Color::from_rgb8(0x3B, 0x48, 0x56),
+        shadow: Color::BLACK,
+        // A fresh laboratory-glass green: vivid enough to guide interaction
+        // without reading as fluorescent or hazardous.
+        accent: Color::from_rgb8(0x72, 0xD9, 0x8D),
+        accent_hover: Color::from_rgb8(0x8B, 0xE6, 0xA3),
+        accent_soft: Color::from_rgb8(0x1D, 0x42, 0x2B),
+        accent_faint: Color::from_rgb8(0x10, 0x27, 0x1A),
+        // Validation remains a distinct teal trust signal.
+        success: Color::from_rgb8(0x4D, 0xC8, 0xB0),
+        success_soft: Color::from_rgb8(0x0F, 0x30, 0x2B),
+        warning: Color::from_rgb8(0xF1, 0xB5, 0x5A),
+        danger: Color::from_rgb8(0xFB, 0x71, 0x81),
+    },
+    chemistry: ChemistryColorTokens {
+        covalent: Color::from_rgb8(0x8F, 0xC5, 0xFF),
+        ionic: Color::from_rgb8(0x7A, 0xE3, 0xB0),
+        metallic: Color::from_rgb8(0xF2, 0xB8, 0x59),
+        electron: Color::from_rgb8(0xB7, 0xDB, 0xFF),
+        structural_canvas: Color::from_rgb8(0x07, 0x09, 0x0C),
+        structural_panel: Color::from_rgb8(0x0E, 0x13, 0x19),
+        summary: Color::from_rgb8(0xB3, 0xE0, 0xC7),
+        hydrogen: Color::from_rgb8(0xE6, 0xED, 0xF5),
+        lithium: Color::from_rgb8(0xB5, 0x94, 0xF5),
+        silver: Color::from_rgb8(0xC7, 0xD4, 0xE0),
+        carbon: Color::from_rgb8(0x63, 0x75, 0x8A),
+        nitrogen: Color::from_rgb8(0x73, 0xA8, 0xF5),
+        oxygen: Color::from_rgb8(0xF2, 0x66, 0x6B),
+        sodium: Color::from_rgb8(0xAB, 0x8A, 0xF0),
+        chlorine: Color::from_rgb8(0x7A, 0xE3, 0xB0),
+        element_default: Color::from_rgb8(0x9E, 0xAD, 0xBD),
+        alkali_metal: Color::from_rgb8(0xE8, 0x7D, 0xB8),
+        alkaline_earth: Color::from_rgb8(0xF2, 0xB5, 0x59),
+        transition_metal: Color::from_rgb8(0x8F, 0xC5, 0xFF),
+        post_transition_metal: Color::from_rgb8(0x8A, 0xD6, 0xDB),
+        metalloid: Color::from_rgb8(0xB8, 0xA3, 0xF5),
+        reactive_nonmetal: Color::from_rgb8(0x6E, 0xD6, 0x94),
+        halogen: Color::from_rgb8(0x80, 0xDB, 0xBF),
+        noble_gas: Color::from_rgb8(0x6E, 0xC2, 0xF0),
+        lanthanide: Color::from_rgb8(0xCC, 0x99, 0xEB),
+        actinide: Color::from_rgb8(0xE0, 0x85, 0xA3),
+    },
+    space: SpaceTokens {
+        xxs: 4.0,
+        xs: 8.0,
+        sm: 12.0,
+        md: 16.0,
+        lg: 24.0,
+        xl: 32.0,
+    },
+    radius: RadiusTokens {
+        control: 8.0,
+        panel: 12.0,
+        frame: 16.0,
+        pill: 999.0,
+    },
+    type_scale: TypeScaleTokens {
+        micro: 10.0,
+        caption: 12.0,
+        body: 14.0,
+        body_large: 16.0,
+        title: 22.0,
+        display: 30.0,
+    },
+    breakpoint: BreakpointTokens {
+        mobile: 720.0,
+        desktop: 1_120.0,
+    },
+};
+
 pub mod color {
     use iced::Color;
 
-    pub const CANVAS: Color = Color::from_rgb(0.035, 0.043, 0.055);
-    pub const CANVAS_RAISED: Color = Color::from_rgb(0.047, 0.059, 0.075);
-    pub const PANEL: Color = Color::from_rgb(0.063, 0.078, 0.098);
-    pub const SURFACE: Color = Color::from_rgb(0.082, 0.102, 0.125);
-    pub const SURFACE_HOVER: Color = Color::from_rgb(0.105, 0.133, 0.165);
-    pub const SURFACE_ACTIVE: Color = Color::from_rgb(0.125, 0.157, 0.192);
+    use super::LAB_DARK;
 
-    pub const TEXT: Color = Color::from_rgb(0.957, 0.969, 0.980);
-    pub const TEXT_SOFT: Color = Color::from_rgb(0.765, 0.808, 0.851);
-    pub const MUTED: Color = Color::from_rgb(0.604, 0.651, 0.698);
-    pub const FAINT: Color = Color::from_rgb(0.416, 0.463, 0.510);
+    pub const CANVAS: Color = LAB_DARK.colors.canvas;
+    pub const CANVAS_RAISED: Color = LAB_DARK.colors.canvas_raised;
+    pub const PANEL: Color = LAB_DARK.colors.panel;
+    pub const SURFACE: Color = LAB_DARK.colors.surface;
+    pub const SURFACE_HOVER: Color = LAB_DARK.colors.surface_hover;
+    pub const SURFACE_ACTIVE: Color = LAB_DARK.colors.surface_active;
 
-    pub const LINE: Color = Color::from_rgb(0.165, 0.196, 0.235);
-    pub const LINE_STRONG: Color = Color::from_rgb(0.231, 0.282, 0.337);
+    pub const TEXT: Color = LAB_DARK.colors.text;
+    pub const TEXT_SOFT: Color = LAB_DARK.colors.text_soft;
+    pub const MUTED: Color = LAB_DARK.colors.muted;
+    pub const FAINT: Color = LAB_DARK.colors.faint;
 
-    pub const ACCENT: Color = Color::from_rgb(0.561, 0.773, 1.0);
-    pub const ACCENT_HOVER: Color = Color::from_rgb(0.659, 0.824, 1.0);
-    pub const ACCENT_SOFT: Color = Color::from_rgb(0.102, 0.180, 0.263);
-    pub const ACCENT_FAINT: Color = Color::from_rgb(0.067, 0.122, 0.180);
+    pub const LINE: Color = LAB_DARK.colors.line;
+    pub const LINE_STRONG: Color = LAB_DARK.colors.line_strong;
+    pub const SHADOW: Color = LAB_DARK.colors.shadow;
 
-    pub const SUCCESS: Color = Color::from_rgb(0.431, 0.839, 0.576);
-    pub const SUCCESS_SOFT: Color = Color::from_rgb(0.071, 0.180, 0.118);
-    pub const WARNING: Color = Color::from_rgb(0.945, 0.710, 0.353);
-    pub const DANGER: Color = Color::from_rgb(0.984, 0.443, 0.506);
+    pub const ACCENT: Color = LAB_DARK.colors.accent;
+    pub const ACCENT_HOVER: Color = LAB_DARK.colors.accent_hover;
+    pub const ACCENT_SOFT: Color = LAB_DARK.colors.accent_soft;
+    pub const ACCENT_FAINT: Color = LAB_DARK.colors.accent_faint;
+
+    pub const SUCCESS: Color = LAB_DARK.colors.success;
+    pub const SUCCESS_SOFT: Color = LAB_DARK.colors.success_soft;
+    pub const WARNING: Color = LAB_DARK.colors.warning;
+    pub const DANGER: Color = LAB_DARK.colors.danger;
+}
+
+pub mod chemistry_color {
+    use iced::Color;
+
+    use super::LAB_DARK;
+
+    pub const COVALENT: Color = LAB_DARK.chemistry.covalent;
+    pub const IONIC: Color = LAB_DARK.chemistry.ionic;
+    pub const METALLIC: Color = LAB_DARK.chemistry.metallic;
+    pub const ELECTRON: Color = LAB_DARK.chemistry.electron;
+    pub const STRUCTURAL_CANVAS: Color = LAB_DARK.chemistry.structural_canvas;
+    pub const STRUCTURAL_PANEL: Color = LAB_DARK.chemistry.structural_panel;
+    pub const SUMMARY: Color = LAB_DARK.chemistry.summary;
 }
 
 pub mod space {
-    pub const XXS: f32 = 4.0;
-    pub const XS: f32 = 8.0;
-    pub const SM: f32 = 12.0;
-    pub const MD: f32 = 16.0;
-    pub const LG: f32 = 24.0;
-    pub const XL: f32 = 32.0;
+    use super::LAB_DARK;
+
+    pub const XXS: f32 = LAB_DARK.space.xxs;
+    pub const XS: f32 = LAB_DARK.space.xs;
+    pub const SM: f32 = LAB_DARK.space.sm;
+    pub const MD: f32 = LAB_DARK.space.md;
+    pub const LG: f32 = LAB_DARK.space.lg;
+    pub const XL: f32 = LAB_DARK.space.xl;
 }
 
 pub mod radius {
-    pub const CONTROL: f32 = 8.0;
-    pub const PANEL: f32 = 12.0;
-    pub const FRAME: f32 = 16.0;
-    pub const PILL: f32 = 999.0;
+    use super::LAB_DARK;
+
+    pub const CONTROL: f32 = LAB_DARK.radius.control;
+    pub const PANEL: f32 = LAB_DARK.radius.panel;
+    pub const FRAME: f32 = LAB_DARK.radius.frame;
+    pub const PILL: f32 = LAB_DARK.radius.pill;
 }
 
 pub mod type_scale {
-    pub const MICRO: f32 = 10.0;
-    pub const CAPTION: f32 = 12.0;
-    pub const BODY: f32 = 14.0;
-    pub const BODY_LARGE: f32 = 16.0;
-    pub const TITLE: f32 = 22.0;
-    pub const DISPLAY: f32 = 30.0;
+    use super::LAB_DARK;
+
+    pub const MICRO: f32 = LAB_DARK.type_scale.micro;
+    pub const CAPTION: f32 = LAB_DARK.type_scale.caption;
+    pub const BODY: f32 = LAB_DARK.type_scale.body;
+    pub const BODY_LARGE: f32 = LAB_DARK.type_scale.body_large;
+    pub const TITLE: f32 = LAB_DARK.type_scale.title;
+    pub const DISPLAY: f32 = LAB_DARK.type_scale.display;
 }
 
 pub mod breakpoint {
-    pub const MOBILE: f32 = 720.0;
-    pub const DESKTOP: f32 = 1_120.0;
+    use super::LAB_DARK;
+
+    pub const MOBILE: f32 = LAB_DARK.breakpoint.mobile;
+    pub const DESKTOP: f32 = LAB_DARK.breakpoint.desktop;
 }
 
 pub fn app_theme() -> Theme {
@@ -105,7 +318,7 @@ pub fn frame(_: &Theme) -> container::Style {
         .background(color::PANEL)
         .border(border_style(color::LINE, 1.0, radius::FRAME))
         .shadow(Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.32),
+            color: color::SHADOW.scale_alpha(0.32),
             offset: Vector::new(0.0, 12.0),
             blur_radius: 32.0,
         })
@@ -131,10 +344,10 @@ pub fn raised(_: &Theme) -> container::Style {
 
 pub fn media_bar(_: &Theme) -> container::Style {
     container::Style::default()
-        .background(Color::from_rgba(0.035, 0.048, 0.064, 0.98))
+        .background(color::CANVAS_RAISED.scale_alpha(0.98))
         .border(border_style(color::LINE_STRONG, 1.0, radius::PANEL))
         .shadow(Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.22),
+            color: color::SHADOW.scale_alpha(0.22),
             offset: Vector::new(0.0, 5.0),
             blur_radius: 18.0,
         })
@@ -175,7 +388,7 @@ pub fn success_tint(_: &Theme) -> container::Style {
     container::Style::default()
         .background(color::SUCCESS_SOFT)
         .border(border_style(
-            Color::from_rgba(0.431, 0.839, 0.576, 0.42),
+            color::SUCCESS.scale_alpha(0.42),
             1.0,
             radius::PILL,
         ))
@@ -222,7 +435,7 @@ pub fn primary_button(_: &Theme, status: button::Status) -> button::Style {
             color::ACCENT,
             color::CANVAS,
             Shadow {
-                color: Color::from_rgba(0.176, 0.514, 0.855, 0.10),
+                color: color::ACCENT.scale_alpha(0.10),
                 offset: Vector::new(0.0, 2.0),
                 blur_radius: 8.0,
             },
@@ -232,7 +445,7 @@ pub fn primary_button(_: &Theme, status: button::Status) -> button::Style {
             color::ACCENT_HOVER,
             color::CANVAS,
             Shadow {
-                color: Color::from_rgba(0.176, 0.514, 0.855, 0.16),
+                color: color::ACCENT.scale_alpha(0.16),
                 offset: Vector::new(0.0, 3.0),
                 blur_radius: 10.0,
             },
@@ -316,5 +529,58 @@ pub fn request_input(_: &Theme, status: text_input::Status) -> text_input::Style
         placeholder: color::FAINT,
         value: color::TEXT,
         selection: color::ACCENT_SOFT,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn linear_channel(channel: f32) -> f32 {
+        if channel <= 0.040_45 {
+            channel / 12.92
+        } else {
+            ((channel + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    fn luminance(color: Color) -> f32 {
+        0.2126 * linear_channel(color.r)
+            + 0.7152 * linear_channel(color.g)
+            + 0.0722 * linear_channel(color.b)
+    }
+
+    fn contrast_ratio(left: Color, right: Color) -> f32 {
+        let light = luminance(left).max(luminance(right));
+        let dark = luminance(left).min(luminance(right));
+        (light + 0.05) / (dark + 0.05)
+    }
+
+    fn color_distance_squared(left: Color, right: Color) -> f32 {
+        (left.r - right.r).powi(2) + (left.g - right.g).powi(2) + (left.b - right.b).powi(2)
+    }
+
+    #[test]
+    fn iced_palette_is_derived_from_semantic_tokens() {
+        let palette = app_theme().palette();
+        assert_eq!(palette.background, color::CANVAS);
+        assert_eq!(palette.text, color::TEXT);
+        assert_eq!(palette.primary, color::ACCENT);
+        assert_eq!(palette.success, color::SUCCESS);
+        assert_eq!(palette.warning, color::WARNING);
+        assert_eq!(palette.danger, color::DANGER);
+    }
+
+    #[test]
+    fn primary_actions_have_strong_dark_theme_contrast() {
+        assert!(contrast_ratio(color::ACCENT, color::CANVAS) >= 7.0);
+        assert!(contrast_ratio(color::ACCENT_HOVER, color::CANVAS) >= 7.0);
+        assert!(contrast_ratio(color::TEXT, color::CANVAS) >= 7.0);
+    }
+
+    #[test]
+    fn accent_and_validation_are_visually_distinct() {
+        assert!(color_distance_squared(color::ACCENT, color::SUCCESS) >= 0.03);
+        assert!(contrast_ratio(color::SUCCESS, color::CANVAS) >= 7.0);
     }
 }

@@ -14,14 +14,16 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Size, Theme, Vector, border};
 
-const ACCENT: Color = Color::from_rgb(0.56, 0.77, 1.0);
-const ACCENT_BRIGHT: Color = Color::from_rgb(0.72, 0.87, 1.0);
-const IONIC: Color = Color::from_rgb(0.48, 0.89, 0.69);
-const GOLD: Color = Color::from_rgb(0.95, 0.72, 0.35);
-const CANVAS: Color = Color::from_rgb(0.027, 0.036, 0.048);
-const PANEL: Color = Color::from_rgb(0.055, 0.076, 0.099);
-const TEXT: Color = Color::from_rgb(0.94, 0.96, 0.98);
-const TEXT_SOFT: Color = Color::from_rgb(0.70, 0.76, 0.82);
+use crate::theme::{LAB_DARK, chemistry_color, color};
+
+const ACCENT: Color = color::ACCENT;
+const ACCENT_BRIGHT: Color = color::ACCENT_HOVER;
+const IONIC: Color = chemistry_color::IONIC;
+const GOLD: Color = color::WARNING;
+const CANVAS: Color = chemistry_color::STRUCTURAL_CANVAS;
+const PANEL: Color = chemistry_color::STRUCTURAL_PANEL;
+const TEXT: Color = color::TEXT;
+const TEXT_SOFT: Color = color::TEXT_SOFT;
 
 #[derive(Debug, Clone)]
 pub struct SceneContext {
@@ -502,12 +504,7 @@ fn draw_atmosphere(frame: &mut canvas::Frame, bounds: Rectangle, phase: f32) {
     for (index, radius) in [110.0_f32, 210.0, 340.0, 500.0].iter().enumerate() {
         frame.fill(
             &Path::circle(center, *radius),
-            Color::from_rgba(
-                0.11,
-                0.25,
-                0.38,
-                (0.021 + pulse * 0.006) * (1.0 - index as f32 * 0.16),
-            ),
+            color::ACCENT_FAINT.scale_alpha((0.021 + pulse * 0.006) * (1.0 - index as f32 * 0.16)),
         );
     }
     let spacing = 54.0;
@@ -522,10 +519,7 @@ fn draw_atmosphere(frame: &mut canvas::Frame, bounds: Rectangle, phase: f32) {
                 f32::from(column) * spacing + 14.0,
                 f32::from(row) * spacing + 12.0,
             );
-            frame.fill(
-                &Path::circle(position, 0.8),
-                Color::from_rgba(0.56, 0.77, 1.0, 0.10),
-            );
+            frame.fill(&Path::circle(position, 0.8), ACCENT.scale_alpha(0.10));
         }
     }
     frame.stroke(
@@ -534,7 +528,7 @@ fn draw_atmosphere(frame: &mut canvas::Frame, bounds: Rectangle, phase: f32) {
             Point::new(82.0, bounds.height - 24.0),
         ),
         Stroke::default()
-            .with_color(Color::from_rgba(0.56, 0.77, 1.0, 0.25))
+            .with_color(ACCENT.scale_alpha(0.25))
             .with_width(1.0),
     );
 }
@@ -999,7 +993,7 @@ fn draw_covalent(
                 visible_end + perpendicular * *offset * scale,
             ),
             Stroke::default()
-                .with_color(ACCENT.scale_alpha(alpha * 0.88))
+                .with_color(chemistry_color::COVALENT.scale_alpha(alpha * 0.88))
                 .with_width(2.4 * scale),
         );
         if show_electrons {
@@ -1145,7 +1139,7 @@ fn draw_atom_shell(
     }
     frame.fill(
         &Path::circle(center + Vector::new(0.0, 3.0 * scale), radius + 2.0 * scale),
-        Color::from_rgba(0.0, 0.0, 0.0, alpha * 0.24),
+        color::SHADOW.scale_alpha(alpha * 0.24),
     );
     frame.fill(
         &Path::circle(center, radius),
@@ -1160,7 +1154,7 @@ fn draw_atom_shell(
     frame.fill_text(canvas::Text {
         content: atom.element.clone(),
         position: center,
-        color: Color::from_rgb(0.025, 0.040, 0.055).scale_alpha(alpha),
+        color: color::CANVAS.scale_alpha(alpha),
         size: iced::Pixels(15.0 * scale),
         align_x: iced::alignment::Horizontal::Center.into(),
         align_y: iced::alignment::Vertical::Center,
@@ -1343,7 +1337,7 @@ fn draw_charge(frame: &mut canvas::Frame, center: Point, charge: i16, alpha: f32
     let badge = center + Vector::new(19.0 * scale, -19.0 * scale);
     frame.fill(
         &Path::circle(badge, 9.0 * scale),
-        Color::from_rgb(0.025, 0.040, 0.055).scale_alpha(alpha),
+        color::CANVAS.scale_alpha(alpha),
     );
     frame.stroke(
         &Path::circle(badge, 9.0 * scale),
@@ -1727,11 +1721,14 @@ fn draw_electron_route(
     frame.stroke(
         &path,
         Stroke::default()
-            .with_color(ACCENT.scale_alpha(0.16 + progress * 0.12))
+            .with_color(chemistry_color::ELECTRON.scale_alpha(0.16 + progress * 0.12))
             .with_width(scale),
     );
     let moving = quadratic_point(start, control, end, progress);
-    frame.fill(&Path::circle(moving, 8.0 * scale), ACCENT.scale_alpha(0.10));
+    frame.fill(
+        &Path::circle(moving, 8.0 * scale),
+        chemistry_color::ELECTRON.scale_alpha(0.10),
+    );
     frame.fill(
         &Path::circle(moving, 3.0 * scale),
         Color::WHITE.scale_alpha(0.96),
@@ -2135,7 +2132,7 @@ fn draw_glass_panel(
             ),
             radius,
         ),
-        Color::from_rgba(0.0, 0.0, 0.0, alpha * 0.24),
+        color::SHADOW.scale_alpha(alpha * 0.24),
     );
     let path = rounded_rectangle(rect, radius);
     frame.fill(&path, PANEL.scale_alpha(alpha * 0.96));
@@ -2164,7 +2161,7 @@ fn explanation_color(kind: ExplanationLabelKind) -> Color {
             IONIC
         }
         ExplanationLabelKind::EquationExplanation => GOLD,
-        ExplanationLabelKind::SummaryExplanation => Color::from_rgb(0.70, 0.88, 0.78),
+        ExplanationLabelKind::SummaryExplanation => chemistry_color::SUMMARY,
         ExplanationLabelKind::ConceptExplanation
         | ExplanationLabelKind::StructuralChangeExplanation => ACCENT,
     }
@@ -2239,14 +2236,14 @@ fn active_atoms(operation: Option<&RenderOperation>) -> BTreeSet<&str> {
 
 fn element_color(symbol: &str) -> Color {
     match symbol {
-        "H" => Color::from_rgb(0.86, 0.91, 0.96),
-        "Li" => Color::from_rgb(0.71, 0.58, 0.96),
-        "Ag" => Color::from_rgb(0.78, 0.83, 0.88),
-        "Cl" => Color::from_rgb(0.48, 0.89, 0.69),
-        "Na" => Color::from_rgb(0.67, 0.54, 0.94),
-        "N" => Color::from_rgb(0.45, 0.66, 0.96),
-        "O" => Color::from_rgb(0.95, 0.40, 0.42),
-        _ => Color::from_rgb(0.62, 0.68, 0.74),
+        "H" => LAB_DARK.chemistry.hydrogen,
+        "Li" => LAB_DARK.chemistry.lithium,
+        "Ag" => LAB_DARK.chemistry.silver,
+        "Cl" => LAB_DARK.chemistry.chlorine,
+        "Na" => LAB_DARK.chemistry.sodium,
+        "N" => LAB_DARK.chemistry.nitrogen,
+        "O" => LAB_DARK.chemistry.oxygen,
+        _ => LAB_DARK.chemistry.element_default,
     }
 }
 

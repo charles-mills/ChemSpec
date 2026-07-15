@@ -9,7 +9,7 @@ use iced::{
 };
 
 use crate::elements::{self, Category, ElementSpec};
-use crate::theme::{self, color, radius, space as spacing, type_scale};
+use crate::theme::{self, LAB_DARK, color, radius, space as spacing, type_scale};
 
 const DISPLAY_ROWS: usize = 9;
 const GROUPS: usize = 18;
@@ -448,22 +448,17 @@ fn tile_style(category: Category, dimmed: bool, emphasis: TileEmphasis) -> conta
     let is_dragging = emphasis == TileEmphasis::Dragging;
 
     let background = if dimmed {
-        Color::from_rgba(
-            color::CANVAS_RAISED.r,
-            color::CANVAS_RAISED.g,
-            color::CANVAS_RAISED.b,
-            0.5,
-        )
+        color::CANVAS_RAISED.scale_alpha(0.5)
     } else if is_dragging {
-        Color::from_rgba(accent.r, accent.g, accent.b, 0.24)
+        accent.scale_alpha(0.24)
     } else if is_selected || is_hovered {
-        Color::from_rgba(accent.r, accent.g, accent.b, 0.14)
+        accent.scale_alpha(0.14)
     } else {
         color::SURFACE
     };
 
     let border_color = if dimmed {
-        Color::from_rgba(color::LINE.r, color::LINE.g, color::LINE.b, 0.42)
+        color::LINE.scale_alpha(0.42)
     } else if is_selected || is_dragging || is_hovered {
         accent
     } else {
@@ -480,7 +475,7 @@ fn tile_style(category: Category, dimmed: bool, emphasis: TileEmphasis) -> conta
         },
         shadow: if is_dragging {
             Shadow {
-                color: Color::from_rgba(accent.r, accent.g, accent.b, 0.28),
+                color: accent.scale_alpha(0.28),
                 offset: Vector::new(0.0, 6.0),
                 blur_radius: 16.0,
             }
@@ -493,29 +488,29 @@ fn tile_style(category: Category, dimmed: bool, emphasis: TileEmphasis) -> conta
 
 fn category_color(category: Category) -> Color {
     match category {
-        Category::AlkaliMetal => Color::from_rgb(0.91, 0.49, 0.72),
-        Category::AlkalineEarth => Color::from_rgb(0.95, 0.71, 0.35),
-        Category::TransitionMetal => Color::from_rgb(0.56, 0.77, 1.0),
-        Category::PostTransitionMetal => Color::from_rgb(0.54, 0.84, 0.86),
-        Category::Metalloid => Color::from_rgb(0.72, 0.64, 0.96),
-        Category::ReactiveNonmetal => Color::from_rgb(0.43, 0.84, 0.58),
-        Category::Halogen => Color::from_rgb(0.50, 0.86, 0.75),
-        Category::NobleGas => Color::from_rgb(0.43, 0.76, 0.94),
-        Category::Lanthanide => Color::from_rgb(0.80, 0.60, 0.92),
-        Category::Actinide => Color::from_rgb(0.88, 0.52, 0.64),
+        Category::AlkaliMetal => LAB_DARK.chemistry.alkali_metal,
+        Category::AlkalineEarth => LAB_DARK.chemistry.alkaline_earth,
+        Category::TransitionMetal => LAB_DARK.chemistry.transition_metal,
+        Category::PostTransitionMetal => LAB_DARK.chemistry.post_transition_metal,
+        Category::Metalloid => LAB_DARK.chemistry.metalloid,
+        Category::ReactiveNonmetal => LAB_DARK.chemistry.reactive_nonmetal,
+        Category::Halogen => LAB_DARK.chemistry.halogen,
+        Category::NobleGas => LAB_DARK.chemistry.noble_gas,
+        Category::Lanthanide => LAB_DARK.chemistry.lanthanide,
+        Category::Actinide => LAB_DARK.chemistry.actinide,
     }
 }
 
 fn drag_style(accent: Color) -> container::Style {
     container::Style::default()
-        .background(Color::from_rgba(accent.r, accent.g, accent.b, 0.25))
+        .background(accent.scale_alpha(0.25))
         .border(Border {
             color: accent,
             width: 2.0,
             radius: border::Radius::new(radius::CONTROL),
         })
         .shadow(Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.48),
+            color: color::SHADOW.scale_alpha(0.48),
             offset: Vector::new(0.0, 10.0),
             blur_radius: 22.0,
         })

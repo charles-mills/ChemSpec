@@ -12,9 +12,13 @@ use iced::{Color, Point, Rectangle, Renderer, Theme, Vector};
 
 use crate::composition_catalogue::CompositionPreview;
 use crate::elements::ElementSpec;
+use crate::theme::{LAB_DARK, chemistry_color};
 
-const SHELL: Color = Color::from_rgba(0.56, 0.77, 1.0, 0.28);
-const ELECTRON: Color = Color::from_rgb(0.56, 0.77, 1.0);
+const SHELL: Color = Color {
+    a: 0.28,
+    ..chemistry_color::ELECTRON
+};
+const ELECTRON: Color = chemistry_color::ELECTRON;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AtomDiagram {
@@ -168,10 +172,7 @@ fn draw_shared_pairs(frame: &mut canvas::Frame, start: Point, end: Point, pairs:
         for direction in [-1.0, 1.0] {
             let electron = pair_center + along * (direction * 2.8);
             frame.fill(&Path::circle(electron, 2.6), ELECTRON);
-            frame.fill(
-                &Path::circle(electron, 5.0),
-                Color::from_rgba(ELECTRON.r, ELECTRON.g, ELECTRON.b, 0.16),
-            );
+            frame.fill(&Path::circle(electron, 5.0), ELECTRON.scale_alpha(0.16));
         }
     }
 }
@@ -262,10 +263,7 @@ fn draw_atomic_model(
             center.y + angle.sin() * maximum_radius,
         );
         frame.fill(&Path::circle(position, 2.5), ELECTRON);
-        frame.fill(
-            &Path::circle(position, 4.5),
-            Color::from_rgba(ELECTRON.r, ELECTRON.g, ELECTRON.b, 0.12),
-        );
+        frame.fill(&Path::circle(position, 4.5), ELECTRON.scale_alpha(0.12));
     }
 }
 
@@ -283,13 +281,13 @@ fn draw_label(frame: &mut canvas::Frame, position: Point, content: &str, color: 
 
 const fn element_color(atomic_number: u8) -> Color {
     match atomic_number {
-        1 => Color::from_rgb(0.94, 0.96, 0.98),
-        3 => Color::from_rgb(0.79, 0.56, 0.95),
-        6 => Color::from_rgb(0.39, 0.46, 0.54),
-        8 => Color::from_rgb(0.96, 0.39, 0.43),
-        11 => Color::from_rgb(0.56, 0.48, 0.94),
-        17 => Color::from_rgb(0.42, 0.86, 0.58),
-        _ => Color::from_rgb(0.56, 0.77, 1.0),
+        1 => LAB_DARK.chemistry.hydrogen,
+        3 => LAB_DARK.chemistry.lithium,
+        6 => LAB_DARK.chemistry.carbon,
+        8 => LAB_DARK.chemistry.oxygen,
+        11 => LAB_DARK.chemistry.sodium,
+        17 => LAB_DARK.chemistry.chlorine,
+        _ => LAB_DARK.chemistry.element_default,
     }
 }
 

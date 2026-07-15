@@ -9,10 +9,15 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Theme, Vector};
 
-const ACCENT: Color = Color::from_rgb(0.56, 0.77, 1.0);
-const IONIC: Color = Color::from_rgb(0.42, 0.86, 0.76);
-const METALLIC: Color = Color::from_rgb(0.95, 0.72, 0.34);
-const GRID: Color = Color::from_rgba(0.56, 0.77, 1.0, 0.045);
+use crate::theme::{LAB_DARK, chemistry_color, color};
+
+const COVALENT: Color = chemistry_color::COVALENT;
+const IONIC: Color = chemistry_color::IONIC;
+const METALLIC: Color = chemistry_color::METALLIC;
+const GRID: Color = Color {
+    a: 0.045,
+    ..color::ACCENT
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReactionSequenceDiagram<'a> {
@@ -49,7 +54,7 @@ impl<Message> canvas::Program<Message> for ReactionSequenceDiagram<'_> {
                 &mut canvas,
                 Point::new(bounds.width / 2.0, bounds.height / 2.0),
                 "Trusted frame unavailable",
-                Color::from_rgb(0.96, 0.39, 0.43),
+                color::DANGER,
                 14.0,
             ),
         }
@@ -134,7 +139,7 @@ fn draw_covalent_edges(
                     *left + perpendicular * offset,
                     *right + perpendicular * offset,
                 ),
-                Stroke::default().with_color(ACCENT).with_width(2.0),
+                Stroke::default().with_color(COVALENT).with_width(2.0),
             );
         }
         if let CovalentElectronOrigin::Dative { donor, acceptor } = &edge.electron_origin
@@ -254,10 +259,10 @@ fn format_charge(charge: i16) -> String {
 
 const fn element_color(symbol: &str) -> Color {
     match symbol.as_bytes() {
-        b"H" => Color::from_rgb(0.94, 0.96, 0.98),
-        b"Li" => Color::from_rgb(0.79, 0.56, 0.95),
-        b"O" => Color::from_rgb(0.96, 0.39, 0.43),
-        _ => ACCENT,
+        b"H" => LAB_DARK.chemistry.hydrogen,
+        b"Li" => LAB_DARK.chemistry.lithium,
+        b"O" => LAB_DARK.chemistry.oxygen,
+        _ => LAB_DARK.chemistry.element_default,
     }
 }
 
