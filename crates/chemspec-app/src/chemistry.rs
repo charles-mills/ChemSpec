@@ -543,6 +543,11 @@ impl ReactionRequest {
     }
 
     #[must_use]
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|request| request.id() == id)
+    }
+
+    #[must_use]
     pub fn source_name(self) -> String {
         format!("generated/{}.chems", self.id())
     }
@@ -1171,7 +1176,9 @@ mod tests {
         let mut ids = std::collections::BTreeSet::new();
         let mut families = std::collections::BTreeMap::new();
         for request in ReactionRequest::ALL {
-            assert!(ids.insert(request.id()), "request IDs must be unique");
+            let id = request.id();
+            assert!(ids.insert(id.clone()), "request IDs must be unique");
+            assert_eq!(ReactionRequest::from_id(&id), Some(request));
             *families.entry(request.family()).or_insert(0) += 1;
             let source = request.source();
             assert_eq!(

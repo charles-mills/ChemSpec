@@ -47,6 +47,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 mode="${1:-2d}"
+reaction="${2:-alkali-water-lithium}"
 if [[ "$mode" == "stop" ]]; then
     stop_smoke
     exit 0
@@ -66,7 +67,7 @@ case "$mode" in
         smoke_title="Structural 3D"
         ;;
     *)
-        echo "Usage: just agent-smoke [builder|2d|3d|stop]" >&2
+        echo "Usage: just agent-smoke [builder|2d|3d|stop] [reaction-id]" >&2
         exit 2
         ;;
 esac
@@ -124,12 +125,15 @@ if ! cmp -s "$source_executable" "$bundled_executable"; then
     exit 1
 fi
 
+"$bundled_executable" "--validate-smoke-reaction=$reaction"
+
 binary_sha="$(shasum -a 256 "$bundled_executable" | awk '{print $1}')"
-open -n "$bundle" --args "$smoke_argument"
+open -n "$bundle" --args "$smoke_argument" "--smoke-reaction=$reaction"
 
 cat <<EOF
 Computer Use app: $app_name
 Window title: $app_name — $smoke_title
+Reaction: $reaction
 Bundle: $bundle
 Bundle identifier: $bundle_id
 Binary SHA-256: $binary_sha

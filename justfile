@@ -17,8 +17,9 @@ run:
     cargo run -p chemspec-app
 
 # Launch a fresh macOS bundle for Computer Use, or stop it
-agent-smoke mode="2d":
-    ./packaging/scripts/agent-smoke-macos.sh '{{ mode }}'
+[positional-arguments]
+agent-smoke mode="2d" reaction="alkali-water-lithium":
+    ./packaging/scripts/agent-smoke-macos.sh "$1" "$2"
 
 # Check the workspace without producing binaries
 check:

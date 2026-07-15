@@ -124,6 +124,7 @@ For direct live smokes on macOS:
 ```sh
 just agent-smoke 2d
 just agent-smoke 3d
+just agent-smoke 3d silver-halide-precipitation-bromide
 just agent-smoke stop
 ```
 
@@ -131,13 +132,16 @@ These commands recreate and byte-check the uniquely identified
 `ChemSpec Agent Smoke.app` bundle before launching it. Computer Use must target
 `ChemSpec Agent Smoke` and verify the mode-specific `Structural 2D` or
 `Structural 3D` window title. It must not target a release-named `ChemSpec`
-bundle.
+bundle. The optional second argument is an exact supported reaction ID; an
+unknown ID fails a non-GUI validation handshake before the bundle is opened,
+instead of silently opening the default reaction.
 
 On other platforms, the direct binary flags remain available:
 
 ```sh
 cargo run -p chemspec-app -- --structural-2d-smoke
-cargo run -p chemspec-app -- --structural-3d-smoke
+cargo run -p chemspec-app -- --structural-3d-smoke \
+  --smoke-reaction=acid-carbonate-sodium-chloride
 ```
 
 These launch options still cross the complete bundled source, trusted

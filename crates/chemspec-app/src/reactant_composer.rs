@@ -211,6 +211,13 @@ pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
 
+#[cfg(test)]
+pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
+    state.drafts = drafts.map(|atoms| ReactantDraft { atoms });
+    state.active = ActiveReactant::First;
+    state.limit_reached = false;
+}
+
 pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'static, Message> {
     let sentence = sentence(state, library_drag, compact);
     let actions = action_row(state);

@@ -90,6 +90,21 @@ const fn educational_scene_title(kind: EducationalSceneKind) -> &'static str {
 }
 
 fn main() -> iced::Result {
+    let arguments = std::env::args().collect::<Vec<_>>();
+    if let Some(validation) = arguments
+        .iter()
+        .find_map(|argument| validate_smoke_request_from_argument(argument))
+    {
+        if let Err(error) = validation {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+        return Ok(());
+    }
+    if let Err(error) = validate_structural_smoke_arguments(arguments.iter().map(String::as_str)) {
+        eprintln!("{error}");
+        std::process::exit(2);
+    }
     iced::application(launch_state, App::update, App::view)
         .title(App::title)
         .subscription(App::subscription)
@@ -121,11 +136,23 @@ const fn initial_provider(codex_available: bool) -> ProviderChoice {
 fn launch_state() -> App {
     let mut app = App::default();
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
+    let smoke_request =
+        std::env::args().find_map(|argument| smoke_request_from_argument(&argument));
     if let Some(smoke_mode) = smoke_mode {
         app.smoke_mode = Some(smoke_mode);
         if smoke_mode == SmokeMode::Builder {
             app.screen = Screen::Builder;
             return app;
+        }
+        if let Some(request) = smoke_request {
+            match request {
+                Ok(request) => app.select_request(request),
+                Err(error) => {
+                    app.screen = Screen::Builder;
+                    app.structural_error = Some(error);
+                    return app;
+                }
+            }
         }
         app.open_structural_animation();
         if let Some(animation) = &mut app.structural_animation {
@@ -170,6 +197,47 @@ fn launch_state() -> App {
         }
     }
     app
+}
+
+fn smoke_request_from_argument(
+    argument: &str,
+) -> Option<Result<chemistry::ReactionRequest, String>> {
+    argument
+        .strip_prefix("--smoke-reaction=")
+        .map(smoke_request_from_id)
+}
+
+fn validate_smoke_request_from_argument(
+    argument: &str,
+) -> Option<Result<chemistry::ReactionRequest, String>> {
+    argument
+        .strip_prefix("--validate-smoke-reaction=")
+        .map(smoke_request_from_id)
+}
+
+fn smoke_request_from_id(id: &str) -> Result<chemistry::ReactionRequest, String> {
+    chemistry::ReactionRequest::from_id(id)
+        .ok_or_else(|| format!("unsupported smoke reaction `{id}`"))
+}
+
+fn validate_structural_smoke_arguments<'a>(
+    arguments: impl IntoIterator<Item = &'a str>,
+) -> Result<(), String> {
+    let arguments = arguments.into_iter().collect::<Vec<_>>();
+    let structural_smoke = arguments.iter().any(|argument| {
+        matches!(
+            SmokeMode::from_argument(argument),
+            Some(SmokeMode::Structural2d | SmokeMode::Structural3d)
+        )
+    });
+    if !structural_smoke {
+        return Ok(());
+    }
+    arguments
+        .iter()
+        .find_map(|argument| smoke_request_from_argument(argument))
+        .transpose()
+        .map(|_| ())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1289,6 +1357,138 @@ impl App {
 mod tests {
     use super::*;
 
+    type DraftCase = (&'static str, &'static [u8], &'static [u8]);
+
+    // Independently authored UI fixtures. These deliberately do not use
+    // ReactionRequest::participants(), so a wrong production mapping cannot
+    // make the routing test prove itself.
+    const SUPPORTED_DRAFT_CASES: [DraftCase; 36] = [
+        ("alkali-water-lithium", &[3], &[1, 1, 8]),
+        ("alkali-water-sodium", &[11], &[1, 1, 8]),
+        ("alkali-water-potassium", &[19], &[1, 1, 8]),
+        (
+            "silver-halide-precipitation-chloride",
+            &[47, 7, 8, 8, 8],
+            &[11, 17],
+        ),
+        (
+            "silver-halide-precipitation-bromide",
+            &[47, 7, 8, 8, 8],
+            &[11, 35],
+        ),
+        (
+            "silver-halide-precipitation-iodide",
+            &[47, 7, 8, 8, 8],
+            &[11, 53],
+        ),
+        ("acid-base-lithium-chloride", &[1, 17], &[3, 8, 1]),
+        ("acid-base-lithium-bromide", &[1, 35], &[3, 8, 1]),
+        ("acid-base-lithium-iodide", &[1, 53], &[3, 8, 1]),
+        ("acid-base-sodium-chloride", &[1, 17], &[11, 8, 1]),
+        ("acid-base-sodium-bromide", &[1, 35], &[11, 8, 1]),
+        ("acid-base-sodium-iodide", &[1, 53], &[11, 8, 1]),
+        ("acid-base-potassium-chloride", &[1, 17], &[19, 8, 1]),
+        ("acid-base-potassium-bromide", &[1, 35], &[19, 8, 1]),
+        ("acid-base-potassium-iodide", &[1, 53], &[19, 8, 1]),
+        (
+            "acid-bicarbonate-lithium-chloride",
+            &[1, 17],
+            &[3, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-lithium-bromide",
+            &[1, 35],
+            &[3, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-lithium-iodide",
+            &[1, 53],
+            &[3, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-sodium-chloride",
+            &[1, 17],
+            &[11, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-sodium-bromide",
+            &[1, 35],
+            &[11, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-sodium-iodide",
+            &[1, 53],
+            &[11, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-potassium-chloride",
+            &[1, 17],
+            &[19, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-potassium-bromide",
+            &[1, 35],
+            &[19, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-bicarbonate-potassium-iodide",
+            &[1, 53],
+            &[19, 1, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-lithium-chloride",
+            &[1, 17],
+            &[3, 3, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-lithium-bromide",
+            &[1, 35],
+            &[3, 3, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-lithium-iodide",
+            &[1, 53],
+            &[3, 3, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-sodium-chloride",
+            &[1, 17],
+            &[11, 11, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-sodium-bromide",
+            &[1, 35],
+            &[11, 11, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-sodium-iodide",
+            &[1, 53],
+            &[11, 11, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-potassium-chloride",
+            &[1, 17],
+            &[19, 19, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-potassium-bromide",
+            &[1, 35],
+            &[19, 19, 6, 8, 8, 8],
+        ),
+        (
+            "acid-carbonate-potassium-iodide",
+            &[1, 53],
+            &[19, 19, 6, 8, 8, 8],
+        ),
+        (
+            "halogen-displacement-chlorine-bromide",
+            &[17, 17],
+            &[11, 35],
+        ),
+        ("halogen-displacement-chlorine-iodide", &[17, 17], &[11, 53]),
+        ("halogen-displacement-bromine-iodide", &[35, 35], &[11, 53]),
+    ];
+
     #[test]
     fn initial_provider_follows_codex_availability() {
         assert_eq!(initial_provider(true), ProviderChoice::CodexSubscription);
@@ -1306,6 +1506,38 @@ mod tests {
             Some(SmokeMode::Structural3d)
         );
         assert_eq!(SmokeMode::from_argument("--not-a-smoke"), None);
+        assert_eq!(
+            smoke_request_from_argument("--smoke-reaction=silver-halide-precipitation-bromide")
+                .and_then(Result::ok)
+                .map(chemistry::ReactionRequest::family),
+            Some(chemistry::ReactionFamily::SilverHalidePrecipitation),
+        );
+        assert!(
+            smoke_request_from_argument("--smoke-reaction=not-supported")
+                .is_some_and(|request| request.is_err())
+        );
+        assert!(
+            validate_smoke_request_from_argument(
+                "--validate-smoke-reaction=acid-base-sodium-chloride"
+            )
+            .is_some_and(|request| request.is_ok())
+        );
+        assert!(
+            validate_structural_smoke_arguments([
+                "chemspec-app",
+                "--structural-3d-smoke",
+                "--smoke-reaction=acid-base-sodium-chloride",
+            ])
+            .is_ok()
+        );
+        assert!(
+            validate_structural_smoke_arguments([
+                "chemspec-app",
+                "--structural-3d-smoke",
+                "--smoke-reaction=not-supported",
+            ])
+            .is_err()
+        );
 
         let mut app = App::default();
         assert_eq!(app.title(), "ChemSpec — reaction builder");
@@ -1524,6 +1756,52 @@ mod tests {
         app.seek_educational_timeline(duration);
         app.update(Message::ContinueTo3d);
         assert_eq!(app.screen, Screen::Structural3d);
+    }
+
+    #[test]
+    fn every_supported_binding_crosses_the_complete_app_path() {
+        let mut families = std::collections::BTreeSet::new();
+        let mut requests = std::collections::BTreeSet::new();
+        for (request_id, first, second) in SUPPORTED_DRAFT_CASES {
+            let request = chemistry::ReactionRequest::from_id(request_id)
+                .expect("independent fixture names a supported request");
+            let mut app = App {
+                screen: Screen::Builder,
+                ..App::default()
+            };
+            reactant_composer::replace_reactants(
+                &mut app.reactant_composer,
+                [first.to_vec(), second.to_vec()],
+            );
+
+            app.update(Message::ReactantComposer(
+                reactant_composer::Message::StartReactionRequested,
+            ));
+
+            assert_eq!(app.active_request, request);
+            assert_eq!(app.screen, Screen::Structural2d);
+            assert!(app.structural_error.is_none());
+            let animation = app
+                .structural_animation
+                .as_ref()
+                .expect("supported draft compiles both presentation plans");
+            let digest = animation
+                .frames
+                .digest()
+                .expect("trusted frames have a digest");
+            assert_eq!(animation.educational_plan.id, digest);
+            assert_eq!(animation.real_world_plan.reaction, digest);
+            assert_eq!(animation.equation, request.equation());
+
+            let duration = animation.educational_plan.duration_ms();
+            app.seek_educational_timeline(duration);
+            app.update(Message::ContinueTo3d);
+            assert_eq!(app.screen, Screen::Structural3d);
+            families.insert(request.family());
+            assert!(requests.insert(request.id()));
+        }
+        assert_eq!(families.len(), 6);
+        assert_eq!(requests.len(), chemistry::ReactionRequest::ALL.len());
     }
 
     #[test]
