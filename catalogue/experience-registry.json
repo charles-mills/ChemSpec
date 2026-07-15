@@ -2169,8 +2169,8 @@
                             "status":  "trusted",
                             "atomic_number":  11,
                             "co_reactant_atoms":  [
-                                                      0,
-                                                      0
+                                                      8,
+                                                      8
                                                   ],
                             "source_path":  "conformance/end-to-end/ionpair-na-o-001.chems",
                             "evidence_path":  "conformance/observations/ionpair-na-o-001.evidence.json",
@@ -2183,8 +2183,8 @@
                             "status":  "trusted",
                             "atomic_number":  19,
                             "co_reactant_atoms":  [
-                                                      0,
-                                                      0
+                                                      8,
+                                                      8
                                                   ],
                             "source_path":  "conformance/end-to-end/ionpair-k-o-001.chems",
                             "evidence_path":  "conformance/observations/ionpair-k-o-001.evidence.json",
@@ -2197,8 +2197,8 @@
                             "status":  "trusted",
                             "atomic_number":  37,
                             "co_reactant_atoms":  [
-                                                      0,
-                                                      0
+                                                      8,
+                                                      8
                                                   ],
                             "source_path":  "conformance/end-to-end/ionpair-rb-o-001.chems",
                             "evidence_path":  "conformance/observations/ionpair-rb-o-001.evidence.json",
@@ -2211,8 +2211,8 @@
                             "status":  "trusted",
                             "atomic_number":  55,
                             "co_reactant_atoms":  [
-                                                      0,
-                                                      0
+                                                      8,
+                                                      8
                                                   ],
                             "source_path":  "conformance/end-to-end/ionpair-cs-o-001.chems",
                             "evidence_path":  "conformance/observations/ionpair-cs-o-001.evidence.json",

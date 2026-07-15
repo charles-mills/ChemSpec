@@ -195,14 +195,8 @@ fn elemental_molecule_guidance(state: &State) -> Option<String> {
         53 => (2, "iodine", "I₂"),
         _ => return None,
     };
-    (partial.atoms.len() < required).then(|| {
-        format!(
-            "Elemental {name} is {formula} — add {} more {} atom{}",
-            required - partial.atoms.len(),
-            name,
-            if required - partial.atoms.len() == 1 { "" } else { "s" }
-        )
-    })
+    (partial.atoms.len() < required)
+        .then(|| format!("Elemental {name} is represented as {formula}"))
 }
 
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {
@@ -558,9 +552,10 @@ fn history_panel(state: &State) -> Element<'static, Message> {
 }
 
 fn formula(atoms: &[u8]) -> String {
+    let atoms = chemistry::standardize_elemental_draft(atoms);
     let mut order = Vec::new();
     let mut counts = BTreeMap::<u8, usize>::new();
-    for atomic_number in atoms {
+    for atomic_number in &atoms {
         if !counts.contains_key(atomic_number) {
             order.push(*atomic_number);
         }

@@ -158,8 +158,8 @@ pub fn experiences_for_drafts(first: &[u8], second: &[u8]) -> Vec<Experience> {
         atoms
     }
 
-    let first = sorted(first);
-    let second = sorted(second);
+    let first = sorted(&standardize_elemental_draft(first));
+    let second = sorted(&standardize_elemental_draft(second));
     experiences()
         .filter(|experience| {
             let definition = experience.definition();
@@ -169,6 +169,23 @@ pub fn experiences_for_drafts(first: &[u8], second: &[u8]) -> Vec<Experience> {
                     && first == definition.co_reactant_atoms)
         })
         .collect()
+}
+
+/// A single periodic-table selection denotes the element in its catalogue
+/// standard state when it occupies a complete reactant slot. Compound drafts
+/// containing two or more selected atoms are preserved exactly.
+#[must_use]
+pub fn standardize_elemental_draft(atoms: &[u8]) -> Vec<u8> {
+    let [atomic_number] = atoms else {
+        return atoms.to_vec();
+    };
+    let count = match atomic_number {
+        7 | 8 | 9 | 17 | 35 | 53 => 2,
+        15 => 4,
+        16 => 8,
+        _ => 1,
+    };
+    vec![*atomic_number; count]
 }
 
 #[must_use]
@@ -189,10 +206,14 @@ pub struct OxygenAssessment {
 #[must_use]
 pub fn oxygen_assessment_for_drafts(first: &[u8], second: &[u8]) -> Option<OxygenAssessment> {
     let screening = VALIDATED_OXYGEN_SCREENING.as_ref().ok()?;
-    let (subject, oxygen) = if is_oxygen(first) {
-        (second, first)
+    let first_elemental = standardize_elemental_draft(first);
+    let second_elemental = standardize_elemental_draft(second);
+    let (subject, oxygen) = if is_oxygen(&first_elemental)
+        && (first.len() > 1 || !is_oxygen(&second_elemental))
+    {
+        (second, first_elemental.as_slice())
     } else {
-        (first, second)
+        (first, second_elemental.as_slice())
     };
     if !is_oxygen(oxygen) {
         return None;
@@ -421,6 +442,22 @@ mod tests {
             "16 Al + 3 S8 -> 8 Al2S3"
         );
         assert_eq!(aluminium_sulfide[0].name(), "aluminium sulfide");
+    }
+
+    #[test]
+    fn every_fixed_charge_ion_pair_accepts_one_elemental_nonmetal_selection() {
+        for experience in
+            experiences().filter(|experience| experience.id().starts_with("ionpair-"))
+        {
+            let definition = experience.definition();
+            let selected = [definition.co_reactant_atoms[0]];
+            assert!(
+                experiences_for_drafts(&[experience.atomic_number()], &selected)
+                    .contains(&experience),
+                "{} should be unlocked by one elemental selection",
+                experience.id()
+            );
+        }
     }
 
     #[test]

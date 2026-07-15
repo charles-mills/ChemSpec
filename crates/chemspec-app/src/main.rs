@@ -2641,14 +2641,12 @@ mod tests {
     }
 
     #[test]
-    fn magnesium_and_fluorine_opens_its_guided_animation_from_the_builder() {
+    fn one_click_magnesium_and_fluorine_opens_its_guided_animation() {
         let mut app = App::default();
         app.update(Message::PeriodicTable(periodic_table::Message::Activated(12)));
         app.update(Message::ReactantComposer(
             reactant_composer::Message::Activate(reactant_composer::ActiveReactant::Second),
         ));
-        app.update(Message::PeriodicTable(periodic_table::Message::Activated(9)));
-        assert!(!reactant_composer::can_start_reaction(&app.reactant_composer));
         app.update(Message::PeriodicTable(periodic_table::Message::Activated(9)));
         assert!(reactant_composer::can_start_reaction(&app.reactant_composer));
 
@@ -2657,6 +2655,24 @@ mod tests {
         ));
         assert_eq!(app.screen, Screen::Structural2d);
         assert_eq!(app.active_experience.equation(), "Mg + F2 -> MgF2");
+        assert!(app.structural_animation.is_some());
+    }
+
+    #[test]
+    fn one_click_sodium_and_chlorine_opens_sodium_chloride_animation() {
+        let mut app = App::default();
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(11)));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::Activate(reactant_composer::ActiveReactant::Second),
+        ));
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(17)));
+        assert!(reactant_composer::can_start_reaction(&app.reactant_composer));
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+        assert_eq!(app.screen, Screen::Structural2d);
+        assert_eq!(app.active_experience.equation(), "2 Na + Cl2 -> 2 NaCl");
         assert!(app.structural_animation.is_some());
     }
 }

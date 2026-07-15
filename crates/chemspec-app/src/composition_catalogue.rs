@@ -63,6 +63,8 @@ fn resolve_with_catalogue(
     catalogue: &TrustedCatalogue,
     atomic_numbers: impl IntoIterator<Item = u8>,
 ) -> Option<CompositionPreview> {
+    let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
+    let atomic_numbers = chemistry::standardize_elemental_draft(&atomic_numbers);
     let selected = atomic_numbers.into_iter().try_fold(
         BTreeMap::<String, u64>::new(),
         |mut counts, number| {

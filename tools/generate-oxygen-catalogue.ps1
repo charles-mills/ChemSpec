@@ -406,7 +406,7 @@ $fixedCations = [ordered]@{
     '2' = @('Be','Mg','Ca','Sr','Ba')
     '3' = @('Al')
 }
-$atomicNumbers = [ordered]@{Li=3;Be=4;N=7;F=9;Na=11;Mg=12;Al=13;P=15;S=16;Cl=17;K=19;Ca=20;Br=35;Rb=37;Sr=38;I=53;Cs=55;Ba=56}
+$atomicNumbers = [ordered]@{Li=3;Be=4;N=7;O=8;F=9;Na=11;Mg=12;Al=13;P=15;S=16;Cl=17;K=19;Ca=20;Br=35;Rb=37;Sr=38;I=53;Cs=55;Ba=56}
 
 function Get-Gcd([int]$a,[int]$b){while($b -ne 0){$t=$b;$b=$a%$b;$a=$t};$a}
 function Get-Formula($cation,[int]$cationCount,$anion,[int]$anionCount){
