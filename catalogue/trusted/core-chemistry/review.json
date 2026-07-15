@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "id": "review.ai.core-chemistry",
-  "catalogue_digest": "b309c458e74b84b338afa1d172da7c48b8ef1f08bf0a82fd30f3aedbe7d11440",
+  "catalogue_digest": "877f0dfe4f1140c89d315c3e11fb6e257ea417a19614259910bbfd346d09aeeb",
   "reviewer": "OpenAI Codex (AI)",
   "reviewed_on": "2026-07-15",
-  "scope": "The exact generated ChemSpec catalogue containing 118 element identity records; the explicit Li/Na/K alkali-metal and F/Cl/Br/I halide categories; the structures, templates, applications, premises, and generalized rules for alkali metals with water, silver-halide precipitation, strong-acid/alkali-hydroxide neutralization, acid-carbonate and acid-bicarbonate gas evolution, and aqueous halogen displacement.",
-  "method": "Host-selected AI review against the cited IUPAC, OpenStax Chemistry 2e, and Royal Society of Chemistry sources for element identities, terminology, qualitative outcomes, boundaries, and observations; and against the cited ChemSpec design authority for explicitly labeled explanatory structural representations and executable intermediate states. Review then covered deterministic catalogue generation, schema and reference validation, structural rewrites, execution of every finite supported and explicitly unsupported binding through ordinary .chems parsing, generalized elaboration, kernel validation, and frame generation, package-order invariance, and exact digest binding.",
+  "scope": "The exact generated ChemSpec catalogue containing 118 element identity records; the structures, templates, applications, premises, and generalized rules for 36 established finite bindings across alkali-metal/water, silver-halide precipitation, strong-acid neutralization, acid-carbonate and acid-bicarbonate gas evolution, and aqueous halogen displacement; 68 representative element/oxygen structural experiences; and 81 fixed-charge main-group binary ionic experiences covering Group 1, Group 2, and aluminium cations with halide, oxide, sulfide, nitride, and phosphide anions.",
+  "method": "Host-selected AI review against the cited IUPAC, OpenStax Chemistry 2e, and Royal Society of Chemistry sources for element identities, terminology, qualitative outcomes, boundaries, and observations; and against the cited ChemSpec design authority for explicitly labeled explanatory structural representations and executable intermediate states. Review covered deterministic six-package generation, public-schema and Rust-model agreement, reference and structural validation, bounded graph matching and symmetry canonicalization, electron and charge conservation, execution of every registered supported experience through ordinary .chems parsing, generalized elaboration, kernel validation, and frame generation, package-order invariance, and exact digest binding.",
   "sources": [
     "evidence.chemspec.explanatory-structural-model",
     "evidence.iupac.goldbook",
@@ -15,6 +15,8 @@
     "evidence.openstax.chemistry-2e.gas-evolution",
     "evidence.openstax.chemistry-2e.halogen-displacement",
     "evidence.openstax.chemistry-2e.solubility",
+    "evidence.openstax.ionic-compounds",
+    "evidence.openstax.oxygen-compounds",
     "evidence.rsc.halogen-displacement",
     "evidence.rsc.silver-halide-colours"
   ],
@@ -31,6 +33,8 @@
     "premise.observation.alkali-metal-disappears",
     "premise.observation.carbon-dioxide-evolves",
     "premise.observation.displaced-halogen-forms",
+    "premise.observation.element-oxygen",
+    "premise.observation.fixed-charge-ion-pairs",
     "premise.observation.hydrogen-evolves",
     "premise.observation.precipitate-forms",
     "premise.observation.silver-bromide-colour",
@@ -41,6 +45,8 @@
     "premise.rule.acid-bicarbonate-gas-evolution.standard-outcome",
     "premise.rule.acid-carbonate-gas-evolution.standard-outcome",
     "premise.rule.alkali-metal-water.standard-outcome",
+    "premise.rule.element-oxygen.representative-outcomes",
+    "premise.rule.fixed-charge-ion-pairs",
     "premise.rule.halogen-displacement.standard-outcome",
     "premise.rule.silver-halide-precipitation.standard-outcome",
     "premise.structure.alkali-metal",
@@ -51,6 +57,8 @@
     "premise.structure.alkali-metal-nitrate",
     "premise.structure.carbon-dioxide",
     "premise.structure.diatomic-halogen",
+    "premise.structure.element-oxygen.structural-models",
+    "premise.structure.fixed-charge-ion-pairs",
     "premise.structure.hydrogen",
     "premise.structure.hydrogen-halide",
     "premise.structure.silver-halide",
@@ -59,9 +67,11 @@
     "premise.valence.acid-base.initial-domain",
     "premise.valence.acid-carbonate-family.initial-domain",
     "premise.valence.alkali-h-o.initial-domain",
+    "premise.valence.element-oxygen.closed-domain",
+    "premise.valence.fixed-charge-ion-pairs",
     "premise.valence.halogen-displacement.initial-domain",
     "premise.valence.precipitation.initial-domain"
   ],
-  "coverage_conclusion": "The exact catalogue is internally consistent, evidence-linked, structurally conservative, and suitable for the 36 supported representative educational reactions in its five closed families. The 23 explicitly unsupported new-family bindings remain rejected, and the remaining element identity records do not imply reaction support.",
-  "limitation": "This is an explicitly AI-reviewed trust decision, not human expert certification. AI review can be wrong. ChemSpec's closed structural representations and transient execution states are explanatory modeling assumptions and must not be presented as empirical evidence, physical intermediates, or mechanisms. The trusted families describe representative qualitative outcomes for education, not laboratory procedure, quantitative equilibrium, kinetics, thermodynamics, concentrations, physical conditions, or safety guidance."
+  "coverage_conclusion": "The exact catalogue is internally consistent, evidence-linked, structurally conservative, and suitable for 185 supported representative educational experiences: 36 established finite bindings, 68 oxygen reactions, and 81 fixed-charge ionic pairs. Explicitly unsupported cases remain rejected, oxygen screening does not authorize frames, and the remaining element identity records do not imply reaction support.",
+  "limitation": "This is an explicitly AI-reviewed trust decision, not human expert certification. AI review can be wrong. ChemSpec's finite formula-unit, closed structural representations and transient execution states are explanatory modeling assumptions and must not be presented as empirical evidence, infinite crystal lattices, physical intermediates, or mechanisms. The trusted families describe representative qualitative outcomes for education, not laboratory procedure, quantitative equilibrium, kinetics, thermodynamics, concentrations, physical conditions, variable-occupancy solids, or safety guidance."
 }

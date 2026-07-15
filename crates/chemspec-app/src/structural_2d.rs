@@ -122,12 +122,19 @@ struct RenderBond {
     left: String,
     right: String,
     order: u8,
+    effective_order: Option<(u8, u8)>,
 }
 
 #[derive(Debug, Clone)]
 struct RenderIonicAssociation {
-    left: String,
-    right: String,
+    id: String,
+    components: Vec<RenderIonicComponent>,
+}
+
+#[derive(Debug, Clone)]
+struct RenderIonicComponent {
+    atoms: Vec<String>,
+    charge: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -176,7 +183,6 @@ struct RenderFrame {
     covalent_bonds: Vec<RenderBond>,
     ionic_associations: Vec<RenderIonicAssociation>,
     metallic_domains: Vec<RenderMetallicDomain>,
-    active_operation: Option<RenderOperation>,
 }
 
 impl From<&SimulationFrame> for RenderFrame {
@@ -199,19 +205,29 @@ impl From<&SimulationFrame> for RenderFrame {
                 left: bond.left.as_str().to_owned(),
                 right: bond.right.as_str().to_owned(),
                 order: bond.order.order(),
+                effective_order: bond.delocalization.as_ref().map(|value| {
+                    let order = value.effective_order();
+                    (order.numerator(), order.denominator())
+                }),
             })
             .collect();
         let ionic_associations = frame
             .ionic_associations()
             .values()
-            .filter_map(|association| {
-                let mut components = association.components.values();
-                let left = components.next()?.iter().next()?;
-                let right = components.next()?.iter().next()?;
-                Some(RenderIonicAssociation {
-                    left: left.as_str().to_owned(),
-                    right: right.as_str().to_owned(),
-                })
+            .map(|association| RenderIonicAssociation {
+                id: association.id.as_str().to_owned(),
+                components: association
+                    .components
+                    .iter()
+                    .map(|(group, atoms)| RenderIonicComponent {
+                        atoms: atoms.iter().map(|atom| atom.as_str().to_owned()).collect(),
+                        charge: association
+                            .component_charges
+                            .get(group)
+                            .copied()
+                            .unwrap_or(0),
+                    })
+                    .collect(),
             })
             .collect();
         let metallic_domains = frame
@@ -228,24 +244,24 @@ impl From<&SimulationFrame> for RenderFrame {
                     .unwrap_or(u16::MAX),
             })
             .collect();
-        let active_operation = frame
-            .active_operation()
-            .map(|active| render_operation(active.operation.view(), frame));
         Self {
             atoms,
             covalent_bonds,
             ionic_associations,
             metallic_domains,
-            active_operation,
         }
     }
 }
 
 fn render_operation(
     operation: StructuralOperationView<'_>,
-    frame: &SimulationFrame,
+    before: &SimulationFrame,
+    after: &SimulationFrame,
 ) -> RenderOperation {
     match operation {
+        StructuralOperationView::ReconfigureElectrons { transition } => RenderOperation::Other {
+            atoms: vec![transition.atom().as_str().to_owned()],
+        },
         StructuralOperationView::CleaveCovalent {
             left,
             right,
@@ -271,15 +287,18 @@ fn render_operation(
         } => RenderOperation::Other {
             atoms: vec![donor.as_str().to_owned(), acceptor.as_str().to_owned()],
         },
-        StructuralOperationView::ChangeCovalent { left, right, .. } => RenderOperation::Other {
-            atoms: vec![left.as_str().to_owned(), right.as_str().to_owned()],
-        },
+        StructuralOperationView::ChangeCovalent { left, right, .. }
+        | StructuralOperationView::ChangeCovalentDelocalization { left, right, .. } => {
+            RenderOperation::Other {
+                atoms: vec![left.as_str().to_owned(), right.as_str().to_owned()],
+            }
+        }
         StructuralOperationView::AssociateIonic { association } => {
             RenderOperation::AssociateIonic {
                 atoms: association
                     .components()
                     .iter()
-                    .filter_map(|group| frame.groups().get(group))
+                    .filter_map(|group| after.groups().get(group))
                     .flat_map(|group| group.atoms.iter())
                     .map(|atom| atom.as_str().to_owned())
                     .collect(),
@@ -298,10 +317,16 @@ fn render_operation(
             count,
             ..
         } => RenderOperation::TransferMetallicElectron {
-            domain: frame
+            domain: before
                 .metallic_domains()
                 .values()
                 .find(|domain| domain.sites.contains(donor))
+                .or_else(|| {
+                    after
+                        .metallic_domains()
+                        .values()
+                        .find(|domain| domain.sites.contains(donor))
+                })
                 .map_or_else(String::new, |domain| domain.id.as_str().to_owned()),
             donor_site: donor.as_str().to_owned(),
             acceptor: acceptor.as_str().to_owned(),
@@ -317,6 +342,7 @@ fn render_operation(
 pub struct Diagram {
     before: RenderFrame,
     after: RenderFrame,
+    operations: Vec<RenderOperation>,
     progress: f32,
     explanation: Option<ExplanationLabel>,
     context_labels: Vec<ContextLabel>,
@@ -330,6 +356,7 @@ impl Diagram {
     pub fn new(
         before: &SimulationFrame,
         after: &SimulationFrame,
+        operation_transitions: &[(&SimulationFrame, &SimulationFrame)],
         progress: f32,
         explanation: Option<&ExplanationLabel>,
         context_labels: &[ContextLabel],
@@ -340,6 +367,14 @@ impl Diagram {
         Self {
             before: RenderFrame::from(before),
             after: RenderFrame::from(after),
+            operations: operation_transitions
+                .iter()
+                .filter_map(|(before, after)| {
+                    after
+                        .active_operation()
+                        .map(|active| render_operation(active.operation.view(), before, after))
+                })
+                .collect(),
             progress: progress.clamp(0.0, 1.0),
             explanation: explanation.cloned(),
             context_labels: context_labels.to_vec(),
@@ -381,7 +416,7 @@ impl<Message> canvas::Program<Message> for Diagram {
             layout_transition(&self.before, &self.after, bounds);
         let action = animation_phase(structural_progress).action;
         let positions = interpolated_positions(&before_positions, &after_positions, action);
-        let active = active_atoms(self.after.active_operation.as_ref());
+        let active = active_atoms(&self.operations);
         let content_alpha = if self.context.kind == EducationalSceneKind::Equation {
             0.34
         } else {
@@ -393,7 +428,7 @@ impl<Message> canvas::Program<Message> for Diagram {
             &self.before,
             &self.after,
             &positions,
-            self.after.active_operation.as_ref(),
+            &self.operations,
             action,
             self.ambient_progress,
             content_alpha,
@@ -414,7 +449,7 @@ impl<Message> canvas::Program<Message> for Diagram {
             &self.after,
             &positions,
             &active,
-            self.after.active_operation.as_ref(),
+            &self.operations,
             action,
             self.ambient_progress,
             content_alpha,
@@ -426,7 +461,7 @@ impl<Message> canvas::Program<Message> for Diagram {
                 &mut frame,
                 &self.before,
                 &self.after,
-                self.after.active_operation.as_ref(),
+                &self.operations,
                 &positions,
                 action,
                 self.ambient_progress,
@@ -678,7 +713,7 @@ fn connected_components(frame: &StructuralFrame) -> Vec<Vec<String>> {
         link(&bond.left, &bond.right);
     }
     for association in &frame.ionic_associations {
-        link(&association.left, &association.right);
+        link_ionic_components(association, frame, &mut link);
     }
     for domain in &frame.metallic_domains {
         if let Some(first) = domain.sites.first() {
@@ -711,7 +746,58 @@ fn connected_components(frame: &StructuralFrame) -> Vec<Vec<String>> {
         components.push(component);
     }
     components.sort_by(|left, right| left.first().cmp(&right.first()));
-    components
+    charge_ordered_components(frame, components)
+}
+
+fn charge_ordered_components(
+    frame: &StructuralFrame,
+    components: Vec<Vec<String>>,
+) -> Vec<Vec<String>> {
+    let mut positive = VecDeque::new();
+    let mut negative = VecDeque::new();
+    let mut neutral = Vec::new();
+    for component in components {
+        match component_charge(frame, &component).signum() {
+            1 => positive.push_back(component),
+            -1 => negative.push_back(component),
+            _ => neutral.push(component),
+        }
+    }
+    if positive.is_empty() || negative.is_empty() {
+        positive.extend(negative);
+        positive.extend(neutral);
+        return positive.into_iter().collect();
+    }
+
+    let mut ordered = Vec::with_capacity(positive.len() + negative.len() + neutral.len());
+    let start_positive = positive.len() >= negative.len();
+    while !positive.is_empty() || !negative.is_empty() {
+        if start_positive {
+            if let Some(component) = positive.pop_front() {
+                ordered.push(component);
+            }
+            if let Some(component) = negative.pop_front() {
+                ordered.push(component);
+            }
+        } else {
+            if let Some(component) = negative.pop_front() {
+                ordered.push(component);
+            }
+            if let Some(component) = positive.pop_front() {
+                ordered.push(component);
+            }
+        }
+    }
+    ordered.extend(neutral);
+    ordered
+}
+
+fn component_charge(frame: &StructuralFrame, component: &[String]) -> i64 {
+    component
+        .iter()
+        .filter_map(|id| atom(frame, id))
+        .map(|atom| i64::from(atom.formal_charge))
+        .sum()
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -816,7 +902,7 @@ fn component_adjacency(
         link(&bond.left, &bond.right);
     }
     for association in &frame.ionic_associations {
-        link(&association.left, &association.right);
+        link_ionic_components(association, frame, &mut link);
     }
     for domain in &frame.metallic_domains {
         if let Some(first) = domain.sites.first() {
@@ -872,7 +958,7 @@ fn draw_relationship_transition(
         .collect::<BTreeSet<_>>()
     {
         let bond = after_bonds.get(&key).or_else(|| before_bonds.get(&key));
-        let Some((left_id, right_id, order)) = bond else {
+        let Some((left_id, right_id, order, effective_order)) = bond else {
             continue;
         };
         let (Some(left), Some(right)) = (positions.get(left_id), positions.get(right_id)) else {
@@ -896,6 +982,9 @@ fn draw_relationship_transition(
             in_before == in_after,
             scale,
         );
+        if effective_order.is_some() {
+            draw_delocalized_overlay(frame, *left, *right, reveal, alpha * opacity, scale);
+        }
     }
 
     let before_ionic = ionic_map(before);
@@ -906,11 +995,8 @@ fn draw_relationship_transition(
         .cloned()
         .collect::<BTreeSet<_>>()
     {
-        let pair = after_ionic.get(&key).or_else(|| before_ionic.get(&key));
-        let Some((left_id, right_id)) = pair else {
-            continue;
-        };
-        let (Some(left), Some(right)) = (positions.get(left_id), positions.get(right_id)) else {
+        let association = after_ionic.get(&key).or_else(|| before_ionic.get(&key));
+        let Some(association) = association else {
             continue;
         };
         let in_before = before_ionic.contains_key(&key);
@@ -921,11 +1007,19 @@ fn draw_relationship_transition(
             (true, false) => 1.0 - progress,
             (false, false) => 0.0,
         };
-        draw_ionic(frame, *left, *right, reveal, opacity, scale);
+        for (left, right) in ionic_component_pairs(association) {
+            let (Some(left), Some(right)) = (
+                ionic_component_position(&association.components[left], after, positions),
+                ionic_component_position(&association.components[right], after, positions),
+            ) else {
+                continue;
+            };
+            draw_ionic(frame, left, right, reveal, opacity, scale);
+        }
     }
 }
 
-type CovalentMap = BTreeMap<String, (String, String, u8)>;
+type CovalentMap = BTreeMap<String, (String, String, u8, Option<(u8, u8)>)>;
 
 fn covalent_map(frame: &StructuralFrame) -> CovalentMap {
     frame
@@ -934,22 +1028,111 @@ fn covalent_map(frame: &StructuralFrame) -> CovalentMap {
         .map(|bond| {
             let (left, right) = sorted_pair(&bond.left, &bond.right);
             (
-                format!("{left}|{right}|{}", bond.order),
-                (left, right, bond.order),
+                format!("{left}|{right}|{}|{:?}", bond.order, bond.effective_order),
+                (left, right, bond.order, bond.effective_order),
             )
         })
         .collect()
 }
 
-fn ionic_map(frame: &StructuralFrame) -> BTreeMap<String, (String, String)> {
+fn ionic_map(frame: &StructuralFrame) -> BTreeMap<String, RenderIonicAssociation> {
     frame
         .ionic_associations
         .iter()
-        .map(|association| {
-            let pair = sorted_pair(&association.left, &association.right);
-            (format!("{}|{}", pair.0, pair.1), pair)
-        })
+        .map(|association| (association.id.clone(), association.clone()))
         .collect()
+}
+
+fn link_ionic_components(
+    association: &RenderIonicAssociation,
+    frame: &StructuralFrame,
+    link: &mut impl FnMut(&str, &str),
+) {
+    for component in &association.components {
+        if let Some(first) = component.atoms.first() {
+            for atom in component.atoms.iter().skip(1) {
+                link(first, atom);
+            }
+        }
+    }
+    let anchors = association
+        .components
+        .iter()
+        .map(|component| ionic_anchor_id(component, frame))
+        .collect::<Vec<_>>();
+    for (left, right) in ionic_component_pairs(association) {
+        if let (Some(left), Some(right)) = (anchors[left], anchors[right]) {
+            link(left, right);
+        }
+    }
+}
+
+/// Returns a deterministic, connected bipartite topology for an ionic
+/// association. Catalogue component order is an identity concern, not a
+/// presentation topology: linking adjacent records could place cation beside
+/// cation and anion beside anion. This tree alternates charge signs and then
+/// attaches any surplus ions only to oppositely charged components.
+fn ionic_component_pairs(association: &RenderIonicAssociation) -> Vec<(usize, usize)> {
+    let positive = association
+        .components
+        .iter()
+        .enumerate()
+        .filter_map(|(index, component)| (component.charge > 0).then_some(index))
+        .collect::<Vec<_>>();
+    let negative = association
+        .components
+        .iter()
+        .enumerate()
+        .filter_map(|(index, component)| (component.charge < 0).then_some(index))
+        .collect::<Vec<_>>();
+    if positive.is_empty() || negative.is_empty() {
+        return Vec::new();
+    }
+
+    let shared = positive.len().min(negative.len());
+    let mut pairs = Vec::with_capacity(positive.len() + negative.len() - 1);
+    for index in 0..shared {
+        pairs.push((positive[index], negative[index]));
+        if index + 1 < shared {
+            pairs.push((negative[index], positive[index + 1]));
+        }
+    }
+    for (offset, component) in positive.iter().copied().skip(shared).enumerate() {
+        pairs.push((component, negative[offset % negative.len()]));
+    }
+    for (offset, component) in negative.iter().copied().skip(shared).enumerate() {
+        pairs.push((component, positive[offset % positive.len()]));
+    }
+    pairs
+}
+
+fn ionic_component_position(
+    component: &RenderIonicComponent,
+    frame: &StructuralFrame,
+    positions: &BTreeMap<String, Point>,
+) -> Option<Point> {
+    ionic_anchor_id(component, frame)
+        .and_then(|anchor| positions.get(anchor).copied())
+        .or_else(|| average_position(component.atoms.iter().map(String::as_str), positions))
+}
+
+fn ionic_anchor_id<'a>(
+    component: &'a RenderIonicComponent,
+    frame: &'a StructuralFrame,
+) -> Option<&'a str> {
+    component
+        .atoms
+        .iter()
+        .filter_map(|id| atom(frame, id).map(|atom| (id.as_str(), atom.formal_charge)))
+        .max_by(|left, right| {
+            let left_matches = i64::from(left.1.signum()) == component.charge.signum();
+            let right_matches = i64::from(right.1.signum()) == component.charge.signum();
+            left_matches
+                .cmp(&right_matches)
+                .then_with(|| left.1.unsigned_abs().cmp(&right.1.unsigned_abs()))
+                .then_with(|| right.0.cmp(left.0))
+        })
+        .map(|(id, _)| id)
 }
 
 fn sorted_pair(left: &str, right: &str) -> (String, String) {
@@ -957,6 +1140,31 @@ fn sorted_pair(left: &str, right: &str) -> (String, String) {
         (left.to_owned(), right.to_owned())
     } else {
         (right.to_owned(), left.to_owned())
+    }
+}
+
+fn draw_delocalized_overlay(
+    frame: &mut canvas::Frame,
+    left: Point,
+    right: Point,
+    reveal: f32,
+    alpha: f32,
+    scale: f32,
+) {
+    let direction = right - left;
+    let magnitude = vector_magnitude(direction).max(1.0);
+    let along = direction / magnitude;
+    let perpendicular = Vector::new(-along.y, along.x);
+    let start = left + along * 25.0 * scale + perpendicular * 6.0 * scale;
+    let end = right - along * 25.0 * scale + perpendicular * 6.0 * scale;
+    for step in 1_u8..=9 {
+        let progress = f32::from(step) / 10.0;
+        if progress <= reveal {
+            frame.fill(
+                &Path::circle(lerp_point(start, end, progress), 1.7 * scale),
+                ACCENT.scale_alpha(alpha * 0.78),
+            );
+        }
     }
 }
 
@@ -1038,7 +1246,7 @@ fn draw_atom_transition(
     after: &StructuralFrame,
     positions: &BTreeMap<String, Point>,
     active: &BTreeSet<&str>,
-    operation: Option<&StructuralOperation>,
+    operations: &[StructuralOperation],
     progress: f32,
     ambient_progress: f32,
     opacity: f32,
@@ -1094,7 +1302,7 @@ fn draw_atom_transition(
             frame,
             before_atom,
             after_atom,
-            operation,
+            operations,
             id,
             position,
             progress,
@@ -1167,7 +1375,7 @@ fn draw_electron_transition(
     frame: &mut canvas::Frame,
     before: Option<&AtomState>,
     after: Option<&AtomState>,
-    operation: Option<&StructuralOperation>,
+    operations: &[StructuralOperation],
     atom_id: &str,
     center: Point,
     progress: f32,
@@ -1176,7 +1384,7 @@ fn draw_electron_transition(
     scale: f32,
 ) {
     let delta = electron_state_delta(before, after);
-    if operation_moves_atom_electrons(operation, atom_id) {
+    if operation_moves_atom_electrons(operations, atom_id) {
         let before_positions = before.map_or_else(Vec::new, |atom| {
             electron_positions(center, atom, phase, scale)
         });
@@ -1226,20 +1434,17 @@ fn electron_state_delta(
     }
 }
 
-fn operation_moves_atom_electrons(operation: Option<&StructuralOperation>, atom_id: &str) -> bool {
-    match operation {
-        Some(StructuralOperation::TransferMetallicElectron { acceptor, .. }) => acceptor == atom_id,
-        Some(
-            StructuralOperation::CleaveCovalent { left, right, .. }
-            | StructuralOperation::FormCovalent { left, right, .. },
-        ) => left == atom_id || right == atom_id,
-        Some(
-            StructuralOperation::AssociateIonic { .. }
-            | StructuralOperation::AssignProduct { .. }
-            | StructuralOperation::Other { .. },
-        )
-        | None => false,
-    }
+fn operation_moves_atom_electrons(operations: &[StructuralOperation], atom_id: &str) -> bool {
+    operations.iter().any(|operation| match operation {
+        StructuralOperation::TransferMetallicElectron { acceptor, .. } => acceptor == atom_id,
+        StructuralOperation::CleaveCovalent { left, right, .. }
+        | StructuralOperation::FormCovalent { left, right, .. } => {
+            left == atom_id || right == atom_id
+        }
+        StructuralOperation::AssociateIonic { .. }
+        | StructuralOperation::AssignProduct { .. }
+        | StructuralOperation::Other { .. } => false,
+    })
 }
 
 fn draw_electrons(
@@ -1372,7 +1577,7 @@ fn draw_metallic_transition(
     before: &StructuralFrame,
     after: &StructuralFrame,
     positions: &BTreeMap<String, Point>,
-    operation: Option<&StructuralOperation>,
+    operations: &[StructuralOperation],
     progress: f32,
     phase: f32,
     opacity: f32,
@@ -1441,10 +1646,12 @@ fn draw_metallic_transition(
                 .with_width(1.2 * scale),
         );
         let perimeter = rect.width * 2.0 + rect.height * 2.0;
-        let active_transfer = matches!(
-            operation,
-            Some(StructuralOperation::TransferMetallicElectron { domain, .. }) if domain == id
-        );
+        let active_transfer = operations.iter().any(|operation| {
+            matches!(
+                operation,
+                StructuralOperation::TransferMetallicElectron { domain, .. } if domain == id
+            )
+        });
         let stationary_electrons = if active_transfer {
             after_domain.map_or(0, |domain| domain.delocalized_electrons)
         } else {
@@ -1488,33 +1695,31 @@ fn draw_operation_motion(
     frame: &mut canvas::Frame,
     before: &StructuralFrame,
     after: &StructuralFrame,
-    operation: Option<&StructuralOperation>,
+    operations: &[StructuralOperation],
     positions: &BTreeMap<String, Point>,
     progress: f32,
     phase: f32,
     scale: f32,
 ) {
-    match operation {
-        Some(StructuralOperation::TransferMetallicElectron {
-            donor_site,
-            acceptor,
-            count,
-            ..
-        }) => draw_metallic_electron_transfer(
-            frame, before, after, donor_site, acceptor, *count, positions, progress, phase, scale,
-        ),
-        Some(
+    for operation in operations {
+        match operation {
+            StructuralOperation::TransferMetallicElectron {
+                donor_site,
+                acceptor,
+                count,
+                ..
+            } => draw_metallic_electron_transfer(
+                frame, before, after, donor_site, acceptor, *count, positions, progress, phase,
+                scale,
+            ),
             operation @ (StructuralOperation::CleaveCovalent { .. }
-            | StructuralOperation::FormCovalent { .. }),
-        ) => draw_covalent_electron_motion(
-            frame, before, after, operation, positions, progress, phase, scale,
-        ),
-        Some(
+            | StructuralOperation::FormCovalent { .. }) => draw_covalent_electron_motion(
+                frame, before, after, operation, positions, progress, phase, scale,
+            ),
             StructuralOperation::AssociateIonic { .. }
             | StructuralOperation::AssignProduct { .. }
-            | StructuralOperation::Other { .. },
-        )
-        | None => {}
+            | StructuralOperation::Other { .. } => {}
+        }
     }
 }
 
@@ -1860,7 +2065,9 @@ fn draw_scene_context(
     scale: f32,
 ) {
     let enter = smoother_step((progress / 0.14).clamp(0.0, 1.0));
-    let title = scene_title(context.kind);
+    let Some(title) = scene_title(context.kind) else {
+        return;
+    };
     let chip_width = (title.len() as f32 * 7.2 + 86.0).clamp(160.0, 250.0) * scale;
     let chip_height = 34.0 * scale;
     let rect = Rectangle::new(
@@ -1890,15 +2097,16 @@ fn draw_scene_context(
     }
 }
 
-fn scene_title(kind: EducationalSceneKind) -> &'static str {
+fn scene_title(kind: EducationalSceneKind) -> Option<&'static str> {
     match kind {
-        EducationalSceneKind::Introduction => "VALIDATED REACTION",
-        EducationalSceneKind::ReactantSetup => "REACTANT STRUCTURES",
-        EducationalSceneKind::Equation => "BALANCED EQUATION",
-        EducationalSceneKind::StructuralChange => "STRUCTURAL CHANGE",
-        EducationalSceneKind::ExplanationPause => "PAUSE & UNDERSTAND",
-        EducationalSceneKind::ObservationConnection => "OBSERVATION LINK",
-        EducationalSceneKind::Summary => "VALIDATED OUTCOME",
+        EducationalSceneKind::Introduction => Some("VALIDATED REACTION"),
+        EducationalSceneKind::ReactantSetup => Some("REACTANT STRUCTURES"),
+        EducationalSceneKind::Equation => Some("BALANCED EQUATION"),
+        EducationalSceneKind::ExplanationPause => Some("PAUSE & UNDERSTAND"),
+        EducationalSceneKind::Summary => Some("VALIDATED OUTCOME"),
+        EducationalSceneKind::StructuralChange | EducationalSceneKind::ObservationConnection => {
+            None
+        }
     }
 }
 
@@ -1997,6 +2205,9 @@ fn draw_explanation_label(
     progress: f32,
     scale: f32,
 ) {
+    if label.kind == ExplanationLabelKind::ObservationExplanation {
+        return;
+    }
     let target = average_position(label.target_atoms.iter().map(String::as_str), positions);
     let max_width = (bounds.width - 40.0).max(240.0);
     let width = (410.0 * scale).clamp(260.0, max_width.min(460.0));
@@ -2171,7 +2382,7 @@ fn explanation_title(kind: ExplanationLabelKind) -> &'static str {
     match kind {
         ExplanationLabelKind::ConceptExplanation => "KEY CONCEPT",
         ExplanationLabelKind::StructuralChangeExplanation => "WHAT CHANGED",
-        ExplanationLabelKind::ObservationExplanation => "WHY YOU OBSERVE THIS",
+        ExplanationLabelKind::ObservationExplanation => "OBSERVATION",
         ExplanationLabelKind::EquationExplanation => "EQUATION CONTEXT",
         ExplanationLabelKind::ImportantResult => "IMPORTANT RESULT",
         ExplanationLabelKind::SummaryExplanation => "REACTION SUMMARY",
@@ -2214,24 +2425,24 @@ fn average_position<'a>(
     ))
 }
 
-fn active_atoms(operation: Option<&RenderOperation>) -> BTreeSet<&str> {
-    match operation {
-        Some(RenderOperation::TransferMetallicElectron {
-            donor_site,
-            acceptor,
-            ..
-        }) => BTreeSet::from([donor_site.as_str(), acceptor.as_str()]),
-        Some(
+fn active_atoms(operations: &[RenderOperation]) -> BTreeSet<&str> {
+    operations
+        .iter()
+        .flat_map(|operation| match operation {
+            RenderOperation::TransferMetallicElectron {
+                donor_site,
+                acceptor,
+                ..
+            } => vec![donor_site.as_str(), acceptor.as_str()],
             RenderOperation::CleaveCovalent { left, right, .. }
-            | RenderOperation::FormCovalent { left, right, .. },
-        ) => BTreeSet::from([left.as_str(), right.as_str()]),
-        Some(
+            | RenderOperation::FormCovalent { left, right, .. } => {
+                vec![left.as_str(), right.as_str()]
+            }
             RenderOperation::AssociateIonic { atoms }
             | RenderOperation::AssignProduct { atoms }
-            | RenderOperation::Other { atoms },
-        ) => atoms.iter().map(String::as_str).collect(),
-        None => BTreeSet::new(),
-    }
+            | RenderOperation::Other { atoms } => atoms.iter().map(String::as_str).collect(),
+        })
+        .collect()
 }
 
 fn element_color(symbol: &str) -> Color {
@@ -2266,6 +2477,123 @@ mod tests {
     }
 
     #[test]
+    fn ionic_association_anchors_to_the_charged_atom_in_a_polyatomic_component() {
+        let frame = RenderFrame {
+            atoms: vec![
+                RenderAtom {
+                    id: "li".to_owned(),
+                    element: "Li".to_owned(),
+                    formal_charge: 1,
+                    non_bonding_electrons: 0,
+                    unpaired_electrons: 0,
+                },
+                RenderAtom {
+                    id: "o".to_owned(),
+                    element: "O".to_owned(),
+                    formal_charge: -1,
+                    non_bonding_electrons: 6,
+                    unpaired_electrons: 0,
+                },
+                RenderAtom {
+                    id: "h".to_owned(),
+                    element: "H".to_owned(),
+                    formal_charge: 0,
+                    non_bonding_electrons: 0,
+                    unpaired_electrons: 0,
+                },
+            ],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let hydroxide = RenderIonicComponent {
+            atoms: vec!["h".to_owned(), "o".to_owned()],
+            charge: -1,
+        };
+
+        assert_eq!(ionic_anchor_id(&hydroxide, &frame), Some("o"));
+    }
+
+    #[test]
+    fn ionic_layout_uses_opposite_charge_topology_in_every_frame() {
+        let atoms = [
+            ("mn1", "Mn", 3),
+            ("mn2", "Mn", 3),
+            ("o1", "O", -2),
+            ("o2", "O", -2),
+            ("o3", "O", -2),
+        ]
+        .into_iter()
+        .map(|(id, element, formal_charge)| RenderAtom {
+            id: id.to_owned(),
+            element: element.to_owned(),
+            formal_charge,
+            non_bonding_electrons: if formal_charge < 0 { 8 } else { 5 },
+            unpaired_electrons: if formal_charge < 0 { 0 } else { 5 },
+        })
+        .collect();
+        let association = RenderIonicAssociation {
+            id: "manganese-oxide".to_owned(),
+            components: vec![
+                RenderIonicComponent {
+                    atoms: vec!["mn1".to_owned()],
+                    charge: 3,
+                },
+                RenderIonicComponent {
+                    atoms: vec!["mn2".to_owned()],
+                    charge: 3,
+                },
+                RenderIonicComponent {
+                    atoms: vec!["o1".to_owned()],
+                    charge: -2,
+                },
+                RenderIonicComponent {
+                    atoms: vec!["o2".to_owned()],
+                    charge: -2,
+                },
+                RenderIonicComponent {
+                    atoms: vec!["o3".to_owned()],
+                    charge: -2,
+                },
+            ],
+        };
+        let frame = RenderFrame {
+            atoms,
+            covalent_bonds: Vec::new(),
+            ionic_associations: vec![association.clone()],
+            metallic_domains: Vec::new(),
+        };
+
+        let pairs = ionic_component_pairs(&association);
+        assert_eq!(pairs.len(), association.components.len() - 1);
+        assert!(pairs.iter().all(|(left, right)| {
+            association.components[*left].charge.signum()
+                != association.components[*right].charge.signum()
+        }));
+        assert_eq!(connected_components(&frame).len(), 1);
+
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(900.0, 600.0));
+        let positions = layout(&frame, bounds);
+        assert!(vector_magnitude(positions["mn2"] - positions["mn1"]) > 50.0);
+
+        let disconnected = RenderFrame {
+            atoms: frame.atoms.clone(),
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let disconnected_components = connected_components(&disconnected);
+        let charge_signs = disconnected_components
+            .iter()
+            .map(|component| component_charge(&disconnected, component).signum())
+            .collect::<Vec<_>>();
+        assert_eq!(charge_signs, vec![-1, 1, -1, 1, -1]);
+
+        let (_, transition_after) = layout_transition(&disconnected, &frame, bounds);
+        assert!(vector_magnitude(transition_after["mn2"] - transition_after["mn1"]) > 50.0);
+    }
+
+    #[test]
     fn animation_phases_are_smooth_and_bounded() {
         let mut previous = 0.0;
         for step in 0_u8..=100 {
@@ -2276,6 +2604,15 @@ mod tests {
         }
         assert!(animation_phase(0.0).action.abs() < f32::EPSILON);
         assert!((animation_phase(1.0).action - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn action_and_observation_scenes_have_no_top_left_chip() {
+        assert_eq!(scene_title(EducationalSceneKind::StructuralChange), None);
+        assert_eq!(
+            scene_title(EducationalSceneKind::ObservationConnection),
+            None
+        );
     }
 
     #[test]

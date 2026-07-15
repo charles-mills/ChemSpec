@@ -19,7 +19,9 @@ use super::{
 
 const MAX_GENERALIZED_PARAMETER_BINDINGS: usize = 4_096;
 const MAX_GENERALIZED_PARAMETERS: usize = 64;
-const MAX_GENERALIZED_ROLE_COEFFICIENT: u32 = 8;
+// Large elemental formula units such as S8 and P4 can require more than eight
+// metal atoms even after reduction (for example 12 M + P4 -> 4 M3P).
+const MAX_GENERALIZED_ROLE_COEFFICIENT: u32 = 32;
 const MAX_GENERALIZED_TOTAL_INSTANCES: u32 = 32;
 
 #[derive(Debug, Clone)]
@@ -941,6 +943,7 @@ fn validate_rewrite_references(
     let mut assigned_product_count = 0;
     for operation in rewrite {
         let valid = match operation {
+            OperationTemplateRecord::ReconfigureElectrons { atom: site, .. } => atom(site),
             OperationTemplateRecord::CleaveCovalent {
                 edge, allocation, ..
             } => {
@@ -976,6 +979,9 @@ fn validate_rewrite_references(
                     && atom(&edge.0)
                     && atom(&edge.1)
                     && cleavage_allocation_valid(allocation, &edge.0, &edge.1)
+            }
+            OperationTemplateRecord::ChangeCovalentDelocalization { edge, .. } => {
+                edge.0 != edge.1 && atom(&edge.0) && atom(&edge.1)
             }
             OperationTemplateRecord::AssociateIonic {
                 label,

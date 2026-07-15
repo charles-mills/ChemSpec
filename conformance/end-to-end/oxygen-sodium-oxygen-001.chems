@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction SodiumAndOxygen where
+  reactants
+    subject := 2 of NaMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 1 of NaMonovalentPeroxide
+  equation
+    2 Na[metallic] + 1 O2[molecular]
+    -> 1 Na2O2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.MonovalentPeroxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

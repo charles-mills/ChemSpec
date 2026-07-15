@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction KAndNitride where
+  reactants
+    cation := 6 of KFixedCation1Metal
+    anion := 1 of ElementalNitrogen
+  products
+    salt := 2 of KFixedCation1Nitride
+  equation
+    6 K[metallic] + 1 N2[molecular]
+    -> 2 K3N[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1Nitride
+      cation := cation
+      anion := anion
+      salt := salt

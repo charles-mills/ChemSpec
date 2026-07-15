@@ -8,6 +8,7 @@ mod chemistry;
 mod composition_catalogue;
 mod elements;
 mod icons;
+mod nomenclature;
 mod particle_visualization;
 mod periodic_table;
 mod reactant_composer;
@@ -244,6 +245,7 @@ fn validate_structural_smoke_arguments<'a>(
 enum Screen {
     ProviderSetup,
     Builder,
+    OutcomeChoice,
     Structural2d,
     Structural3d,
 }
@@ -321,6 +323,7 @@ enum Message {
     ProviderContinue,
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
+    OutcomeSelected(chemistry::ReactionRequest),
     StructuralPlaybackToggled,
     StructuralSpeedChanged,
     StructuralTimelineScrubbed(u32),
@@ -353,6 +356,8 @@ struct App {
     api_key: String,
     periodic_table: periodic_table::State,
     reactant_composer: reactant_composer::State,
+    pending_requests: Vec<chemistry::ReactionRequest>,
+    oxygen_assessment: Option<chemistry::OxygenAssessment>,
     active_request: chemistry::ReactionRequest,
     validated_frames: Option<chem_kernel::SimulationFrames>,
     structural_animation: Option<StructuralAnimation>,
@@ -371,6 +376,8 @@ impl Default for App {
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
+            pending_requests: Vec::new(),
+            oxygen_assessment: None,
             active_request,
             validated_frames: chemistry::run(active_request)
                 .ok()
@@ -427,6 +434,12 @@ impl App {
             }
             Message::ReactantComposer(message) => {
                 self.update_reactant_composer(message);
+            }
+            Message::OutcomeSelected(request) => {
+                self.pending_requests.clear();
+                self.oxygen_assessment = None;
+                self.select_request(request);
+                self.open_structural_animation();
             }
             Message::StructuralPlaybackToggled => {
                 if let Some(animation) = &mut self.structural_animation {
@@ -496,13 +509,28 @@ impl App {
             reactant_composer::update(&mut self.reactant_composer, message);
             return;
         }
-        let chemistry::DraftResolution::Supported(request) =
-            reactant_composer::resolution(&self.reactant_composer)
-        else {
-            return;
-        };
-        self.select_request(request);
-        self.open_structural_animation();
+        match reactant_composer::resolution(&self.reactant_composer) {
+            chemistry::DraftResolution::Supported(request) => {
+                self.pending_requests.clear();
+                self.oxygen_assessment = None;
+                self.select_request(request);
+                self.open_structural_animation();
+            }
+            chemistry::DraftResolution::Multiple(requests) => {
+                self.pending_requests = requests;
+                self.oxygen_assessment = None;
+                self.screen = Screen::OutcomeChoice;
+            }
+            chemistry::DraftResolution::Screened(assessment) => {
+                self.pending_requests.clear();
+                self.oxygen_assessment = Some(assessment);
+                self.screen = Screen::OutcomeChoice;
+            }
+            chemistry::DraftResolution::ExplicitlyUnsupported(_)
+            | chemistry::DraftResolution::Uncatalogued
+            | chemistry::DraftResolution::Unrecognized
+            | chemistry::DraftResolution::SystemError(_) => {}
+        }
     }
 
     // The offline fixture crosses the same trusted language/kernel boundary
@@ -586,9 +614,114 @@ impl App {
         match self.screen {
             Screen::ProviderSetup => responsive(|size| self.provider_setup_view(size)).into(),
             Screen::Builder => responsive(|size| self.builder_view(size)).into(),
+            Screen::OutcomeChoice => self.outcome_choice_view(),
             Screen::Structural2d => responsive(|size| self.structural_2d_view(size)).into(),
             Screen::Structural3d => responsive(|size| self.structural_3d_view(size)).into(),
         }
+    }
+
+    fn outcome_choice_view(&self) -> Element<'_, Message> {
+        use chem_catalogue::{OxygenOutcome, StructuralSupport};
+
+        let back = button(text("← Reactants"))
+            .on_press(Message::ScreenSelected(Screen::Builder))
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
+
+        let content: Element<'_, Message> = if !self.pending_requests.is_empty() {
+            let mut choices = column![
+                text("Choose the product")
+                    .size(type_scale::DISPLAY)
+                    .color(color::TEXT),
+            ]
+            .spacing(spacing::MD)
+            .width(Fill);
+            for request in &self.pending_requests {
+                choices = choices.push(
+                    button(
+                        column![
+                            text(request.name())
+                                .size(type_scale::BODY_LARGE)
+                                .color(color::TEXT),
+                            text(request.equation())
+                                .size(type_scale::CAPTION)
+                                .color(color::MUTED),
+                        ]
+                        .spacing(spacing::XXS)
+                        .width(Fill),
+                    )
+                    .on_press(Message::OutcomeSelected(*request))
+                    .padding(spacing::MD)
+                    .width(Fill)
+                    .style(theme::secondary_button),
+                );
+            }
+            choices.push(back).into()
+        } else if let Some(assessment) = &self.oxygen_assessment {
+            let (status, detail, equation) = match &assessment.outcome {
+                OxygenOutcome::Representative {
+                    equation,
+                    structural_support,
+                    ..
+                } => {
+                    let detail = match structural_support {
+                        StructuralSupport::PendingReviewedModel => {
+                            "A structural simulation has not been reviewed yet."
+                        }
+                        StructuralSupport::UnsupportedBondModel => {
+                            "This bonding model is not supported yet."
+                        }
+                    };
+                    ("Representative outcome", detail, Some(equation.as_str()))
+                }
+                OxygenOutcome::NoDirectReaction { reason } => {
+                    ("No direct reaction", reason.as_str(), None)
+                }
+                OxygenOutcome::Ambiguous { reason } => ("Ambiguous outcome", reason.as_str(), None),
+                OxygenOutcome::Unsupported { reason } => ("Unsupported", reason.as_str(), None),
+            };
+            let equation: Element<'_, Message> = equation.map_or_else(
+                || space().height(Length::Shrink).into(),
+                |equation| {
+                    container(
+                        text(equation)
+                            .size(type_scale::BODY_LARGE)
+                            .color(color::TEXT),
+                    )
+                    .padding(spacing::MD)
+                    .style(theme::inset)
+                    .width(Fill)
+                    .into()
+                },
+            );
+            column![
+                text(format!("{} + O₂", assessment.subject))
+                    .size(type_scale::DISPLAY)
+                    .color(color::TEXT),
+                text(status).size(type_scale::MICRO).color(color::WARNING),
+                equation,
+                text(detail).size(type_scale::BODY).color(color::MUTED),
+                back,
+            ]
+            .spacing(spacing::MD)
+            .width(Fill)
+            .into()
+        } else {
+            column![
+                text("Outcome unavailable")
+                    .size(type_scale::TITLE)
+                    .color(color::TEXT),
+                back,
+            ]
+            .spacing(spacing::MD)
+            .into()
+        };
+
+        container(container(content).width(Fill).max_width(768.0))
+            .center(Fill)
+            .padding(spacing::XL)
+            .style(theme::app_background)
+            .into()
     }
 
     #[allow(clippy::too_many_lines)]
@@ -873,6 +1006,26 @@ impl App {
             .find(|candidate| candidate.trace().state_digest == educational_scene.start_frame)
             .or_else(|| frames.get(animation.frame_index))
             .unwrap_or(frame);
+        let operation_transitions = educational_scene
+            .cues
+            .iter()
+            .filter_map(|cue| match cue {
+                chem_presentation::EducationalCue::ApplyOperations { operations } => {
+                    Some(operations)
+                }
+                _ => None,
+            })
+            .flatten()
+            .filter_map(|operation| {
+                let before = frames
+                    .iter()
+                    .find(|candidate| candidate.trace().state_digest == operation.before)?;
+                let after = frames
+                    .iter()
+                    .find(|candidate| candidate.trace().state_digest == operation.after)?;
+                Some((before, after))
+            })
+            .collect::<Vec<_>>();
         let scene_progress = if educational_scene.duration_ms == 0 {
             1.0
         } else {
@@ -948,6 +1101,7 @@ impl App {
             canvas(structural_2d::Diagram::new(
                 before_frame,
                 frame,
+                &operation_transitions,
                 scene_progress,
                 explanation,
                 &context_labels,
@@ -1802,6 +1956,48 @@ mod tests {
         }
         assert_eq!(families.len(), 6);
         assert_eq!(requests.len(), chemistry::ReactionRequest::ALL.len());
+    }
+
+    #[test]
+    fn ambiguous_reviewed_products_require_an_explicit_choice() {
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![8]]);
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+
+        assert_eq!(app.screen, Screen::OutcomeChoice);
+        assert_eq!(app.pending_requests.len(), 3);
+        assert!(app.oxygen_assessment.is_none());
+
+        let selected = app.pending_requests[0];
+        app.update(Message::OutcomeSelected(selected));
+        assert_eq!(app.screen, Screen::Structural2d);
+        assert_eq!(app.active_request, selected);
+        assert!(app.pending_requests.is_empty());
+        assert!(app.structural_animation.is_some());
+    }
+
+    #[test]
+    fn reviewed_oxygen_screening_is_visible_without_fabricating_frames() {
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![79], vec![8]]);
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+
+        assert_eq!(app.screen, Screen::OutcomeChoice);
+        assert!(app.pending_requests.is_empty());
+        assert!(app.oxygen_assessment.is_some());
+        assert!(app.structural_animation.is_none());
     }
 
     #[test]

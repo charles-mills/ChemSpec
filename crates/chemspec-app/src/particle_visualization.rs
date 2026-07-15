@@ -10,7 +10,7 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Theme, Vector};
 
-use crate::composition_catalogue::CompositionPreview;
+use crate::composition_catalogue::TrustedCompositionPreview;
 use crate::elements::ElementSpec;
 use crate::theme::{LAB_DARK, chemistry_color};
 
@@ -72,21 +72,22 @@ impl<Message> canvas::Program<Message> for AtomDiagram {
 
 #[derive(Debug, Clone)]
 pub struct CompoundAtomicDiagram {
-    preview: CompositionPreview,
+    preview: TrustedCompositionPreview,
     elements: Vec<ElementSpec>,
     phase: f32,
     reveal: f32,
 }
 
 impl CompoundAtomicDiagram {
-    pub fn new(
-        preview: CompositionPreview,
-        elements: impl IntoIterator<Item = ElementSpec>,
-        phase: f32,
-    ) -> Self {
+    pub fn new(preview: TrustedCompositionPreview, phase: f32) -> Self {
+        let elements = preview
+            .atoms
+            .iter()
+            .filter_map(|atom| crate::elements::by_atomic_number(atom.atomic_number).copied())
+            .collect();
         Self {
             preview,
-            elements: elements.into_iter().collect(),
+            elements,
             phase,
             reveal: 1.0,
         }
@@ -111,11 +112,22 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let atoms = arranged_atoms(self.preview.formula, &self.elements, bounds);
-        for bond in covalent_bonds(self.preview.formula) {
+        let atoms = arranged_atoms(&self.preview.formula, &self.elements, bounds);
+        for bond in self.preview.covalent_bonds() {
             if let (Some((_, start)), Some((_, end))) = (atoms.get(bond.start), atoms.get(bond.end))
             {
-                draw_shared_pairs(&mut frame, *start, *end, bond.pairs, self.reveal);
+                draw_shared_pairs(&mut frame, *start, *end, bond.order, self.reveal);
+            }
+        }
+        for link in self.preview.ionic_links() {
+            if let (Some((_, start)), Some((_, end))) = (atoms.get(link.start), atoms.get(link.end))
+            {
+                frame.stroke(
+                    &Path::line(*start, *end),
+                    Stroke::default()
+                        .with_color(chemistry_color::IONIC.scale_alpha(0.35 * self.reveal))
+                        .with_width(2.0),
+                );
             }
         }
         for (element, position) in atoms {
@@ -130,58 +142,6 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
         }
 
         vec![frame.into_geometry()]
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CovalentBond {
-    start: usize,
-    end: usize,
-    pairs: u8,
-}
-
-fn covalent_bonds(formula: &str) -> &'static [CovalentBond] {
-    match formula {
-        "H₂" => &[CovalentBond {
-            start: 0,
-            end: 1,
-            pairs: 1,
-        }],
-        "O₂" => &[CovalentBond {
-            start: 0,
-            end: 1,
-            pairs: 2,
-        }],
-        "H₂O" => &[
-            CovalentBond {
-                start: 0,
-                end: 1,
-                pairs: 1,
-            },
-            CovalentBond {
-                start: 1,
-                end: 2,
-                pairs: 1,
-            },
-        ],
-        "LiOH" => &[CovalentBond {
-            start: 1,
-            end: 2,
-            pairs: 1,
-        }],
-        "CO₂" => &[
-            CovalentBond {
-                start: 0,
-                end: 1,
-                pairs: 2,
-            },
-            CovalentBond {
-                start: 1,
-                end: 2,
-                pairs: 2,
-            },
-        ],
-        _ => &[],
     }
 }
 
@@ -268,17 +228,38 @@ fn arranged_atoms(
         .into_iter()
         .flatten()
         .collect(),
-        _ => {
-            let offsets: &[f32] = match elements.len() {
-                2 => &[-34.0, 34.0],
-                3 => &[-50.0, 0.0, 50.0],
-                _ => &[0.0],
-            };
+        _ if elements.len() <= 3 => {
+            let spacing = 50.0;
+            let element_count = u16::try_from(elements.len()).unwrap_or(u16::MAX);
+            let origin = -(f32::from(element_count.saturating_sub(1)) * spacing) / 2.0;
             elements
                 .iter()
                 .copied()
-                .zip(offsets.iter().copied())
-                .map(|(element, offset)| entry(element, Vector::new(offset, 0.0)))
+                .enumerate()
+                .map(|(index, element)| {
+                    let index = u16::try_from(index).unwrap_or(u16::MAX);
+                    entry(
+                        element,
+                        Vector::new(origin + f32::from(index) * spacing, 0.0),
+                    )
+                })
+                .collect()
+        }
+        _ => {
+            let radius = (bounds.width.min(bounds.height) * 0.30).max(34.0);
+            let element_count = u16::try_from(elements.len()).unwrap_or(u16::MAX);
+            elements
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(index, element)| {
+                    let index = u16::try_from(index).unwrap_or(u16::MAX);
+                    let angle = f32::from(index) * TAU / f32::from(element_count) - TAU / 4.0;
+                    entry(
+                        element,
+                        Vector::new(angle.cos() * radius, angle.sin() * radius),
+                    )
+                })
                 .collect()
         }
     }
@@ -403,14 +384,17 @@ mod tests {
 
     #[test]
     fn water_layout_places_oxygen_between_two_hydrogens() {
-        let preview = composition_catalogue::recognize([1, 8, 1]).expect("water preview");
-        let elements = [
-            *elements::by_atomic_number(1).expect("hydrogen"),
-            *elements::by_atomic_number(8).expect("oxygen"),
-            *elements::by_atomic_number(1).expect("hydrogen"),
-        ];
+        let preview =
+            composition_catalogue::trusted_preview([1, 8, 1]).expect("trusted water preview");
+        let elements = preview
+            .atoms
+            .iter()
+            .map(|atom| {
+                *elements::by_atomic_number(atom.atomic_number).expect("catalogued element")
+            })
+            .collect::<Vec<_>>();
         let atoms = arranged_atoms(
-            preview.formula,
+            &preview.formula,
             &elements,
             Rectangle::new(Point::ORIGIN, iced::Size::new(140.0, 80.0)),
         );
@@ -418,7 +402,7 @@ mod tests {
         assert_eq!(atoms.len(), 3);
         assert_eq!(atoms[1].0.atomic_number, 8);
         assert!(atoms[0].1.x < atoms[1].1.x && atoms[1].1.x < atoms[2].1.x);
-        assert_eq!(covalent_bonds(preview.formula).len(), 2);
-        assert_eq!(covalent_bonds("NaCl").len(), 0);
+        assert_eq!(preview.covalent_bonds().len(), 2);
+        assert!(preview.ionic_links().is_empty());
     }
 }

@@ -439,6 +439,11 @@ indexed_declared_id_kind!(AtomKind, AtomId, "AtomId");
 indexed_declared_id_kind!(AtomGroupKind, AtomGroupId, "AtomGroupId");
 indexed_declared_id_kind!(CovalentBondKind, CovalentBondId, "CovalentBondId");
 indexed_declared_id_kind!(
+    CovalentDelocalizationKind,
+    CovalentDelocalizationId,
+    "CovalentDelocalizationId"
+);
+indexed_declared_id_kind!(
     IonicAssociationKind,
     IonicAssociationId,
     "IonicAssociationId"

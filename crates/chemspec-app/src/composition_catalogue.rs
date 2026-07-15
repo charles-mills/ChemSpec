@@ -6,6 +6,11 @@
 
 use std::collections::BTreeMap;
 
+use chem_catalogue::TrustedCatalogue;
+use chem_domain::StructureDefinition;
+
+use crate::{chemistry, elements};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CompositionId {
     Hydrogen,
@@ -37,21 +42,6 @@ pub enum CompositionId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompositionKind {
-    ElementalSubstance,
-    Compound,
-}
-
-impl CompositionKind {
-    pub const fn recognition_label(self) -> &'static str {
-        match self {
-            Self::ElementalSubstance => "Recognised substance",
-            Self::Compound => "Recognised compound",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompositionPreview {
     pub id: CompositionId,
     pub formula: &'static str,
@@ -60,18 +50,6 @@ pub struct CompositionPreview {
 }
 
 impl CompositionPreview {
-    pub const fn kind(self) -> CompositionKind {
-        match self.id {
-            CompositionId::Hydrogen
-            | CompositionId::Oxygen
-            | CompositionId::Fluorine
-            | CompositionId::Chlorine
-            | CompositionId::Bromine
-            | CompositionId::Iodine => CompositionKind::ElementalSubstance,
-            _ => CompositionKind::Compound,
-        }
-    }
-
     pub fn matches(self, atomic_numbers: impl IntoIterator<Item = u8>) -> bool {
         let actual =
             atomic_numbers
@@ -258,6 +236,413 @@ pub fn recognize(atomic_numbers: impl IntoIterator<Item = u8>) -> Option<Composi
         .find(|preview| preview.matches(atomic_numbers.iter().copied()))
 }
 
+/// A preview projected from one unambiguous graph in the host-pinned catalogue.
+/// It is deliberately separate from the small curated naming table above.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustedCompositionPreview {
+    pub structure_id: String,
+    pub formula: String,
+    pub atoms: Vec<PreviewAtom>,
+    covalent_bonds: Vec<PreviewCovalentBond>,
+    ionic_links: Vec<PreviewIonicLink>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreviewAtom {
+    pub label: String,
+    pub atomic_number: u8,
+    pub formal_charge: i16,
+    pub non_bonding_electrons: u8,
+    pub unpaired_electrons: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreviewCovalentBond {
+    pub start: usize,
+    pub end: usize,
+    pub order: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreviewIonicLink {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl TrustedCompositionPreview {
+    pub fn covalent_bonds(&self) -> &[PreviewCovalentBond] {
+        &self.covalent_bonds
+    }
+
+    pub fn ionic_links(&self) -> &[PreviewIonicLink] {
+        &self.ionic_links
+    }
+}
+
+/// Resolves a draft only when the trusted catalogue contains one unambiguous
+/// structural graph for its exact atom inventory.
+pub fn trusted_preview(
+    atomic_numbers: impl IntoIterator<Item = u8>,
+) -> Option<TrustedCompositionPreview> {
+    let catalogue = chemistry::trusted_catalogue().ok()?;
+    resolve_with_catalogue(catalogue, atomic_numbers)
+}
+
+fn resolve_with_catalogue(
+    catalogue: &TrustedCatalogue,
+    atomic_numbers: impl IntoIterator<Item = u8>,
+) -> Option<TrustedCompositionPreview> {
+    let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
+    let atomic_numbers = chemistry::standardize_elemental_draft(&atomic_numbers);
+    let selected = atomic_numbers.into_iter().try_fold(
+        BTreeMap::<String, u64>::new(),
+        |mut counts, number| {
+            let element = elements::by_atomic_number(number)?;
+            *counts.entry(element.symbol.to_owned()).or_default() += 1;
+            Some(counts)
+        },
+    )?;
+    if selected.is_empty() {
+        return None;
+    }
+
+    let mut matches = Vec::<TrustedCompositionPreview>::new();
+    for record in &catalogue.document().structures {
+        add_matching_structure(
+            catalogue,
+            record.id(),
+            record.formula(),
+            &selected,
+            &mut matches,
+        );
+    }
+    for application in &catalogue.document().structure_applications {
+        add_matching_structure(
+            catalogue,
+            &application.id,
+            &application.formula,
+            &selected,
+            &mut matches,
+        );
+    }
+
+    let mut unique = Vec::<TrustedCompositionPreview>::new();
+    for candidate in matches {
+        if unique.iter().any(|existing| {
+            previews_are_isomorphic(existing, &candidate).is_some_and(|equivalent| equivalent)
+        }) {
+            continue;
+        }
+        unique.push(candidate);
+    }
+    let [preview] = unique.as_slice() else {
+        return None;
+    };
+    Some(preview.clone())
+}
+
+fn add_matching_structure(
+    catalogue: &TrustedCatalogue,
+    id: &chem_domain::StructureId,
+    formula: &str,
+    selected: &BTreeMap<String, u64>,
+    matches: &mut Vec<TrustedCompositionPreview>,
+) {
+    let Some(definition) = catalogue.structure(id) else {
+        return;
+    };
+    let inventory = definition
+        .formula()
+        .elements()
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+        .collect::<BTreeMap<_, _>>();
+    if &inventory == selected
+        && let Some(preview) = preview_from_definition(definition, formula)
+    {
+        matches.push(preview);
+    }
+}
+
+fn preview_from_definition(
+    definition: &StructureDefinition,
+    formula: &str,
+) -> Option<TrustedCompositionPreview> {
+    let graph = definition.graph();
+    let mut atom_indices = BTreeMap::new();
+    let atoms = graph
+        .atoms()
+        .values()
+        .enumerate()
+        .map(|(index, atom)| {
+            atom_indices.insert(atom.id().clone(), index);
+            let element = elements::SUPPORTED
+                .iter()
+                .find(|candidate| candidate.symbol == atom.element().as_str())?;
+            let electrons = atom.electrons();
+            Some(PreviewAtom {
+                label: atom.id().as_str().to_owned(),
+                atomic_number: element.atomic_number,
+                formal_charge: electrons.formal_charge(),
+                non_bonding_electrons: electrons.non_bonding_electrons(),
+                unpaired_electrons: electrons.unpaired_electrons(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let covalent_bonds = graph
+        .covalent_bonds()
+        .values()
+        .map(|bond| {
+            Some(PreviewCovalentBond {
+                start: *atom_indices.get(bond.left())?,
+                end: *atom_indices.get(bond.right())?,
+                order: bond.order().order(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+
+    let mut ionic_links = Vec::new();
+    for association in graph.ionic_associations().values() {
+        let mut positive = Vec::new();
+        let mut negative = Vec::new();
+        for group_id in association.components() {
+            let group = graph.groups().get(group_id)?;
+            let charge = group
+                .atoms()
+                .iter()
+                .map(|id| i64::from(graph.atoms()[id].electrons().formal_charge()))
+                .sum::<i64>();
+            let anchor = group
+                .atoms()
+                .iter()
+                .filter_map(|id| {
+                    let atom = &graph.atoms()[id];
+                    let atom_charge = i64::from(atom.electrons().formal_charge());
+                    (atom_charge.signum() == charge.signum())
+                        .then_some((atom_indices[id], atom_charge.unsigned_abs()))
+                })
+                .max_by_key(|(_, magnitude)| *magnitude)
+                .map(|(index, _)| index)?;
+            if charge > 0 {
+                positive.push(anchor);
+            } else if charge < 0 {
+                negative.push(anchor);
+            }
+        }
+        ionic_links.extend(charge_topology(&positive, &negative));
+    }
+
+    Some(TrustedCompositionPreview {
+        structure_id: definition.id().as_str().to_owned(),
+        formula: display_formula(formula),
+        atoms,
+        covalent_bonds,
+        ionic_links,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PreviewAtomSignature {
+    atomic_number: u8,
+    formal_charge: i16,
+    non_bonding_electrons: u8,
+    unpaired_electrons: u8,
+    covalent_orders: Vec<u8>,
+    ionic_degree: usize,
+}
+
+fn preview_atom_signature(
+    preview: &TrustedCompositionPreview,
+    index: usize,
+) -> PreviewAtomSignature {
+    let atom = &preview.atoms[index];
+    let mut covalent_orders = preview
+        .covalent_bonds
+        .iter()
+        .filter_map(|bond| (bond.start == index || bond.end == index).then_some(bond.order))
+        .collect::<Vec<_>>();
+    covalent_orders.sort_unstable();
+    let ionic_degree = preview
+        .ionic_links
+        .iter()
+        .filter(|link| link.start == index || link.end == index)
+        .count();
+    PreviewAtomSignature {
+        atomic_number: atom.atomic_number,
+        formal_charge: atom.formal_charge,
+        non_bonding_electrons: atom.non_bonding_electrons,
+        unpaired_electrons: atom.unpaired_electrons,
+        covalent_orders,
+        ionic_degree,
+    }
+}
+
+fn preview_edge_signature(
+    preview: &TrustedCompositionPreview,
+    left: usize,
+    right: usize,
+) -> (Option<u8>, bool) {
+    let covalent = preview.covalent_bonds.iter().find_map(|bond| {
+        ((bond.start == left && bond.end == right) || (bond.start == right && bond.end == left))
+            .then_some(bond.order)
+    });
+    let ionic = preview.ionic_links.iter().any(|link| {
+        (link.start == left && link.end == right) || (link.start == right && link.end == left)
+    });
+    (covalent, ionic)
+}
+
+#[allow(clippy::items_after_statements)]
+fn previews_are_isomorphic(
+    left: &TrustedCompositionPreview,
+    right: &TrustedCompositionPreview,
+) -> Option<bool> {
+    const MAX_PREVIEW_ISOMORPHISM_WORK: usize = 4_096;
+
+    if left.atoms.len() != right.atoms.len()
+        || left.covalent_bonds.len() != right.covalent_bonds.len()
+        || left.ionic_links.len() != right.ionic_links.len()
+    {
+        return Some(false);
+    }
+    let left_signatures = (0..left.atoms.len())
+        .map(|index| preview_atom_signature(left, index))
+        .collect::<Vec<_>>();
+    let right_signatures = (0..right.atoms.len())
+        .map(|index| preview_atom_signature(right, index))
+        .collect::<Vec<_>>();
+    let mut sources = (0..left.atoms.len()).collect::<Vec<_>>();
+    sources.sort_by_key(|source| {
+        (
+            right_signatures
+                .iter()
+                .filter(|candidate| *candidate == &left_signatures[*source])
+                .count(),
+            *source,
+        )
+    });
+
+    #[allow(clippy::too_many_arguments)]
+    fn search(
+        depth: usize,
+        sources: &[usize],
+        left: &TrustedCompositionPreview,
+        right: &TrustedCompositionPreview,
+        left_signatures: &[PreviewAtomSignature],
+        right_signatures: &[PreviewAtomSignature],
+        mapping: &mut [Option<usize>],
+        used: &mut [bool],
+        work: &mut usize,
+    ) -> Option<bool> {
+        *work += 1;
+        if *work > MAX_PREVIEW_ISOMORPHISM_WORK {
+            return None;
+        }
+        let Some(source) = sources.get(depth).copied() else {
+            return Some(true);
+        };
+        for target in 0..right.atoms.len() {
+            if used[target] || left_signatures[source] != right_signatures[target] {
+                continue;
+            }
+            let preserves_edges = mapping.iter().enumerate().all(|(other_source, mapped)| {
+                mapped.is_none_or(|other_target| {
+                    preview_edge_signature(left, source, other_source)
+                        == preview_edge_signature(right, target, other_target)
+                })
+            });
+            if !preserves_edges {
+                continue;
+            }
+            mapping[source] = Some(target);
+            used[target] = true;
+            match search(
+                depth + 1,
+                sources,
+                left,
+                right,
+                left_signatures,
+                right_signatures,
+                mapping,
+                used,
+                work,
+            ) {
+                Some(true) => return Some(true),
+                Some(false) => {}
+                None => return None,
+            }
+            mapping[source] = None;
+            used[target] = false;
+        }
+        Some(false)
+    }
+
+    let mut work = 0;
+    search(
+        0,
+        &sources,
+        left,
+        right,
+        &left_signatures,
+        &right_signatures,
+        &mut vec![None; left.atoms.len()],
+        &mut vec![false; right.atoms.len()],
+        &mut work,
+    )
+}
+
+fn display_formula(formula: &str) -> String {
+    formula
+        .chars()
+        .map(|character| match character {
+            '0' => '₀',
+            '1' => '₁',
+            '2' => '₂',
+            '3' => '₃',
+            '4' => '₄',
+            '5' => '₅',
+            '6' => '₆',
+            '7' => '₇',
+            '8' => '₈',
+            '9' => '₉',
+            _ => character,
+        })
+        .collect()
+}
+
+fn charge_topology(positive: &[usize], negative: &[usize]) -> Vec<PreviewIonicLink> {
+    let shared = positive.len().min(negative.len());
+    if shared == 0 {
+        return Vec::new();
+    }
+    let mut links = Vec::with_capacity(positive.len() + negative.len() - 1);
+    for index in 0..shared {
+        links.push(PreviewIonicLink {
+            start: positive[index],
+            end: negative[index],
+        });
+        if index + 1 < shared {
+            links.push(PreviewIonicLink {
+                start: negative[index],
+                end: positive[index + 1],
+            });
+        }
+    }
+    for (offset, start) in positive.iter().copied().skip(shared).enumerate() {
+        links.push(PreviewIonicLink {
+            start,
+            end: negative[offset % negative.len()],
+        });
+    }
+    for (offset, start) in negative.iter().copied().skip(shared).enumerate() {
+        links.push(PreviewIonicLink {
+            start,
+            end: positive[offset % positive.len()],
+        });
+    }
+    links
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,20 +659,6 @@ mod tests {
                 preview.formula
             );
         }
-    }
-
-    #[test]
-    fn elemental_halogen_previews_are_not_labelled_as_compounds() {
-        let bromine = recognize([35, 35]).expect("bromine is recognized");
-        assert_eq!(bromine.kind(), CompositionKind::ElementalSubstance);
-        assert_eq!(bromine.kind().recognition_label(), "Recognised substance");
-
-        let sodium_bromide = recognize([11, 35]).expect("sodium bromide is recognized");
-        assert_eq!(sodium_bromide.kind(), CompositionKind::Compound);
-        assert_eq!(
-            sodium_bromide.kind().recognition_label(),
-            "Recognised compound"
-        );
     }
 
     #[test]
@@ -312,5 +683,29 @@ mod tests {
         );
         assert!(recognize([6, 6]).is_none());
         assert!(recognize([1, 8]).is_none());
+    }
+
+    #[test]
+    fn trusted_previews_project_structure_instead_of_formula_switches() {
+        let oxygen = trusted_preview([8]).expect("single oxygen selection uses O2");
+        assert_eq!(oxygen.formula, "O₂");
+        assert_eq!(oxygen.atoms.len(), 2);
+        assert_eq!(oxygen.covalent_bonds().len(), 1);
+        assert_eq!(oxygen.covalent_bonds()[0].order, 2);
+
+        let carbon_dioxide = trusted_preview([8, 6, 8]).expect("catalogued CO2 graph");
+        assert_eq!(carbon_dioxide.formula, "CO₂");
+        assert_eq!(carbon_dioxide.covalent_bonds().len(), 2);
+        assert!(
+            carbon_dioxide
+                .covalent_bonds()
+                .iter()
+                .all(|bond| bond.order == 2)
+        );
+
+        let magnesium_fluoride = trusted_preview([9, 12, 9]).expect("catalogued MgF2 graph");
+        assert_eq!(magnesium_fluoride.formula, "MgF₂");
+        assert!(magnesium_fluoride.covalent_bonds().is_empty());
+        assert_eq!(magnesium_fluoride.ionic_links().len(), 2);
     }
 }

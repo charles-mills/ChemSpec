@@ -107,6 +107,27 @@ impl RolePatternMatchBinding {
 }
 
 impl ValidatedCatalogueBundle {
+    pub(super) fn role_pattern_matches_are_automorphism_related(
+        &self,
+        left: &RolePatternMatchBinding,
+        right: &RolePatternMatchBinding,
+    ) -> Result<bool, CatalogueError> {
+        if left.pattern != right.pattern || left.structure != right.structure {
+            return pattern_error(
+                "automorphism comparison has different pattern or structure identities",
+            );
+        }
+        let graph = self
+            .structure(&left.structure)
+            .ok_or_else(|| pattern_error_value("match structure no longer resolves"))?
+            .graph();
+        bindings_related_by_automorphism(graph, left, right).ok_or_else(|| {
+            pattern_error_value(format!(
+                "automorphism comparison exceeds the work limit of {MAX_RAW_PATTERN_MATCHES}"
+            ))
+        })
+    }
+
     #[must_use]
     pub fn graph_pattern(&self, id: &GraphPatternId) -> Option<&GraphPatternRecord> {
         self.graph_patterns
@@ -274,7 +295,7 @@ impl ValidatedCatalogueBundle {
                 pattern_error_value(format!("structure `{structure}` does not resolve"))
             })?
             .graph();
-        let sources = graph.atoms().keys().cloned().collect::<Vec<_>>();
+        let sources = automorphism_sources(graph, None);
         let mut atom_mappings = Vec::new();
         let mut work = 0_usize;
         let complete = enumerate_automorphisms(
@@ -332,7 +353,7 @@ fn enumerate_automorphisms(
     let source = &sources[index];
     for target in graph.atoms().keys() {
         if used.contains(target)
-            || atom_signature(&graph.atoms()[source]) != atom_signature(&graph.atoms()[target])
+            || atom_signature(graph, source) != atom_signature(graph, target)
             || !partial_bonds_preserved(graph, source, target, mapping)
         {
             continue;
@@ -540,17 +561,18 @@ fn validate_match_work(
 }
 
 fn match_work_is_bounded(pattern: &GraphPatternRecord, graph: &StructuralGraph) -> bool {
-    let atom_count = graph.atoms().len();
-    let variable_count = pattern.variables.len();
-    let mut work = 1_usize;
-    for remaining in (atom_count.saturating_sub(variable_count) + 1)..=atom_count {
-        let Some(next) = work.checked_mul(remaining) else {
-            return false;
-        };
-        work = next;
-        if work > MAX_RAW_PATTERN_MATCHES {
-            return false;
-        }
+    let variables = ordered_pattern_variables(pattern, graph);
+    let mut work = 0_usize;
+    if !bounded_atom_mapping_search(
+        0,
+        &variables,
+        graph,
+        pattern,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+        &mut work,
+    ) {
+        return false;
     }
     for (count, relationships) in [
         (
@@ -596,6 +618,48 @@ fn match_work_is_bounded(pattern: &GraphPatternRecord, graph: &StructuralGraph) 
                 return false;
             }
         }
+    }
+    true
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bounded_atom_mapping_search(
+    index: usize,
+    variables: &[(&String, &PatternVariableRecord)],
+    graph: &StructuralGraph,
+    pattern: &GraphPatternRecord,
+    bindings: &mut BTreeMap<String, AtomId>,
+    used: &mut BTreeSet<AtomId>,
+    work: &mut usize,
+) -> bool {
+    *work += 1;
+    if *work > MAX_RAW_PATTERN_MATCHES {
+        return false;
+    }
+    let Some((name, variable)) = variables.get(index) else {
+        return true;
+    };
+    for (atom_id, atom) in graph.atoms() {
+        if used.contains(atom_id) || !atom_matches_static(atom, variable, graph) {
+            continue;
+        }
+        used.insert(atom_id.clone());
+        bindings.insert((*name).clone(), atom_id.clone());
+        if partial_pattern_bonds_match(pattern, graph, bindings)
+            && !bounded_atom_mapping_search(
+                index + 1,
+                variables,
+                graph,
+                pattern,
+                bindings,
+                used,
+                work,
+            )
+        {
+            return false;
+        }
+        bindings.remove(*name);
+        used.remove(atom_id);
     }
     true
 }
@@ -795,7 +859,7 @@ fn enumerate_role_matches(
             ));
         }
     }
-    let variables = pattern.variables.iter().collect::<Vec<_>>();
+    let variables = ordered_pattern_variables(pattern, graph);
     let mut atom_bindings = BTreeMap::new();
     let mut used = BTreeSet::new();
     let mut result = Vec::new();
@@ -837,23 +901,111 @@ fn enumerate_atoms(
         if !used.contains(atom_id) && atom_matches(atom, variable, graph, element_parameters)? {
             used.insert(atom_id.clone());
             bindings.insert(name.clone(), atom_id.clone());
-            enumerate_atoms(
-                index + 1,
-                variables,
-                graph,
-                pattern,
-                structure_id,
-                catalogue,
-                element_parameters,
-                bindings,
-                used,
-                output,
-            )?;
+            if partial_pattern_bonds_match(pattern, graph, bindings) {
+                enumerate_atoms(
+                    index + 1,
+                    variables,
+                    graph,
+                    pattern,
+                    structure_id,
+                    catalogue,
+                    element_parameters,
+                    bindings,
+                    used,
+                    output,
+                )?;
+            }
             bindings.remove(name);
             used.remove(atom_id);
         }
     }
     Ok(())
+}
+
+fn ordered_pattern_variables<'a>(
+    pattern: &'a GraphPatternRecord,
+    graph: &StructuralGraph,
+) -> Vec<(&'a String, &'a PatternVariableRecord)> {
+    let mut variables = pattern.variables.iter().collect::<Vec<_>>();
+    variables.sort_by_key(|(name, variable)| {
+        let relationship_count = pattern
+            .relationships
+            .iter()
+            .filter(|relationship| match relationship {
+                GraphPatternRelationshipRecord::Covalent { left, right, .. } => {
+                    left == *name || right == *name
+                }
+                _ => false,
+            })
+            .count();
+        let candidate_count = graph
+            .atoms()
+            .values()
+            .filter(|atom| atom_matches_static(atom, variable, graph))
+            .count();
+        (usize::MAX - relationship_count, candidate_count, *name)
+    });
+    variables
+}
+
+fn atom_matches_static(
+    atom: &Atom,
+    variable: &PatternVariableRecord,
+    graph: &StructuralGraph,
+) -> bool {
+    let constraint = &variable.atom;
+    let element_matches = match &constraint.element {
+        Some(PatternElementRecord::Literal(value)) => value == atom.element(),
+        Some(PatternElementRecord::Parameter(_)) | None => true,
+    };
+    let electrons = atom.electrons();
+    element_matches
+        && constraint
+            .formal_charge
+            .is_none_or(|value| value == electrons.formal_charge())
+        && constraint
+            .non_bonding_electrons
+            .is_none_or(|value| value == electrons.non_bonding_electrons())
+        && constraint
+            .unpaired_electrons
+            .is_none_or(|value| value == electrons.unpaired_electrons())
+        && constraint.bond_order_sum.is_none_or(|value| {
+            graph
+                .covalent_bond_order_sum(atom.id())
+                .is_some_and(|sum| u64::from(value) == sum)
+        })
+}
+
+fn partial_pattern_bonds_match(
+    pattern: &GraphPatternRecord,
+    graph: &StructuralGraph,
+    atoms: &BTreeMap<String, AtomId>,
+) -> bool {
+    pattern.relationships.iter().all(|relationship| {
+        let GraphPatternRelationshipRecord::Covalent {
+            left,
+            right,
+            order,
+            electron_origin,
+            ..
+        } = relationship
+        else {
+            return true;
+        };
+        let (Some(left_atom), Some(right_atom)) = (atoms.get(left), atoms.get(right)) else {
+            return true;
+        };
+        find_matching_bond(
+            graph,
+            left,
+            right,
+            left_atom,
+            right_atom,
+            *order,
+            electron_origin,
+        )
+        .is_some()
+    })
 }
 
 fn atom_matches(
@@ -1202,7 +1354,7 @@ fn bindings_related_by_automorphism(
         .iter()
         .map(|(name, atom)| (atom.clone(), right.atoms[name].clone()))
         .collect::<BTreeMap<_, _>>();
-    let sources = graph.atoms().keys().cloned().collect::<Vec<_>>();
+    let sources = automorphism_sources(graph, Some(&required));
     let mut work = 0_usize;
     automorphism_search(
         0,
@@ -1247,7 +1399,7 @@ fn automorphism_search(
     };
     for target in candidates {
         if used.contains(target)
-            || atom_signature(&graph.atoms()[source]) != atom_signature(&graph.atoms()[target])
+            || atom_signature(graph, source) != atom_signature(graph, target)
             || !partial_bonds_preserved(graph, source, target, mapping)
         {
             continue;
@@ -1275,12 +1427,96 @@ fn automorphism_search(
     Some(false)
 }
 
-fn atom_signature(atom: &Atom) -> (&ElementSymbol, i16, u8, u8) {
+/// Orders the search so each next atom is as constrained as possible. The
+/// order changes only enumeration cost, never which complete automorphisms
+/// are accepted. This keeps symmetric but chemically ordinary structures such
+/// as P4O10 within the fixed fail-closed work budget.
+fn automorphism_sources(
+    graph: &StructuralGraph,
+    required: Option<&BTreeMap<AtomId, AtomId>>,
+) -> Vec<AtomId> {
+    let mut remaining = graph.atoms().keys().cloned().collect::<Vec<_>>();
+    let mut selected = BTreeSet::new();
+    let mut ordered = Vec::with_capacity(remaining.len());
+    while !remaining.is_empty() {
+        let next = remaining
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, source)| {
+                let required_rank =
+                    u8::from(required.is_none_or(|bindings| !bindings.contains_key(*source)));
+                let mapped_neighbours = graph
+                    .covalent_bonds()
+                    .values()
+                    .filter(|bond| {
+                        (bond.left() == *source && selected.contains(bond.right()))
+                            || (bond.right() == *source && selected.contains(bond.left()))
+                    })
+                    .count();
+                let signature_population = graph
+                    .atoms()
+                    .keys()
+                    .filter(|candidate| {
+                        atom_signature(graph, source) == atom_signature(graph, candidate)
+                    })
+                    .count();
+                (
+                    required_rank,
+                    usize::MAX - mapped_neighbours,
+                    signature_population,
+                    *source,
+                )
+            })
+            .map(|(index, _)| index)
+            .expect("remaining automorphism source");
+        let source = remaining.remove(next);
+        selected.insert(source.clone());
+        ordered.push(source);
+    }
+    ordered
+}
+
+fn atom_signature<'a>(
+    graph: &'a StructuralGraph,
+    atom_id: &AtomId,
+) -> (&'a ElementSymbol, i16, u8, u8, [u8; 5], usize, usize) {
+    let atom = &graph.atoms()[atom_id];
+    let mut bonds = [0_u8; 5];
+    for bond in graph.covalent_bonds().values() {
+        let position = if bond.left() == atom_id {
+            Some(0)
+        } else if bond.right() == atom_id {
+            Some(1)
+        } else {
+            None
+        };
+        let Some(position) = position else { continue };
+        let index = match bond.electron_origin() {
+            CovalentElectronOrigin::Shared => usize::from(bond.order().order() - 1),
+            CovalentElectronOrigin::Dative { donor, .. } if donor == atom_id => 3,
+            CovalentElectronOrigin::Dative { .. } => 4,
+        };
+        let _ = position;
+        bonds[index] = bonds[index].saturating_add(1);
+    }
+    let group_memberships = graph
+        .groups()
+        .values()
+        .filter(|group| group.atoms().contains(atom_id))
+        .count();
+    let metallic_memberships = graph
+        .metallic_domains()
+        .values()
+        .filter(|domain| domain.sites().contains(atom_id))
+        .count();
     (
         atom.element(),
         atom.electrons().formal_charge(),
         atom.electrons().non_bonding_electrons(),
         atom.electrons().unpaired_electrons(),
+        bonds,
+        group_memberships,
+        metallic_memberships,
     )
 }
 

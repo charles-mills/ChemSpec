@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction RhAndOxygenToTransitionG9Sesquioxide where
+  reactants
+    subject := 4 of RhTransitionG9SesquioxideMetalForOxygen
+    oxygen := 3 of Oxygen
+  products
+    oxide := 2 of RhTransitionG9SesquioxideOxide
+  equation
+    4 Rh[metallic] + 3 O2[molecular]
+    -> 2 Rh2O3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG9Sesquioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction MagnesiumAndOxygen where
+  reactants
+    subject := 2 of MgMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 2 of MgDivalentNormalOxide
+  equation
+    2 Mg[metallic] + 1 O2[molecular]
+    -> 2 MgO[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.DivalentNormalOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

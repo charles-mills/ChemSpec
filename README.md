@@ -116,12 +116,13 @@ Responses API access with an API key.
 ## Language status
 
 The structural `.chems 1` implementation is complete through the fixed seven
-slices. The bundled 118-element identity catalogue and five generalized
-reaction families are promoted together through an exact host-pinned AI review
-attestation. The aggregate contains 36 supported finite reaction bindings;
-the remaining element records do not imply reaction support. The attestation
-names its AI reviewer and limitations; it is an explicit product trust
-decision, not human expert certification.
+slices. The bundled 118-element identity catalogue and generalized reaction
+families are promoted together through an exact host-pinned AI review
+attestation. The aggregate contains 185 supported experiences: 36 established
+finite bindings, 68 oxygen outcomes, and 81 fixed-charge binary ion pairs. The
+remaining element records do not imply reaction support. The attestation names
+its AI reviewer and limitations; it is an explicit product trust decision, not
+human expert certification.
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
@@ -131,12 +132,12 @@ updates remain deliberate source-controlled host actions. Runtime agents and
 candidate packages still cannot promote themselves.
 
 The Iced application's typed request boundary can deterministically author and
-validate `.chems 1` source for all 36 supported finite bindings through the
-real catalogue, generalized expansion, kernel validation, and
-`SimulationFrames` APIs. The reactant composer currently exposes the Li, Na,
-and K with water subset; expanding draft recognition is a separate UI
-integration step. Local periodic-table and composition models remain draft
-presentation only and do not construct bonds or confer trust.
+validate `.chems 1` source for all 185 supported experiences through the real
+catalogue, generalized expansion, kernel validation, and `SimulationFrames`
+APIs. The reactant composer exposes the complete set, asks the learner to pick
+when a pair has several reviewed products, and keeps oxygen screening distinct
+from executable frames. Draft previews are projected only from unambiguous
+structures in the same host-pinned catalogue; they do not confer trust.
 
 ## Development commands
 
@@ -148,14 +149,16 @@ cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
   catalogue/candidates/precipitation-silver-halide \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
-  catalogue/candidates/single-displacement-halogen
+  catalogue/candidates/single-displacement-halogen \
+  catalogue/candidates/oxygen-reactions
 cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
   --attestation catalogue/reviews/core-chemistry.review.json \
   catalogue/candidates/periodic-table-and-alkali-water \
   catalogue/candidates/precipitation-silver-halide \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
-  catalogue/candidates/single-displacement-halogen
+  catalogue/candidates/single-displacement-halogen \
+  catalogue/candidates/oxygen-reactions
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check

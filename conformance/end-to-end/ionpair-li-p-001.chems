@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction LiAndPhosphide where
+  reactants
+    cation := 12 of LiFixedCation1Metal
+    anion := 1 of ElementalPhosphorus
+  products
+    salt := 4 of LiFixedCation1Phosphide
+  equation
+    12 Li[metallic] + 1 P4[molecular]
+    -> 4 Li3P[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1Phosphide
+      cation := cation
+      anion := anion
+      salt := salt

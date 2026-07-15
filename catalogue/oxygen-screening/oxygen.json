@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "evidence": [
+    { "id": "openstax.oxygen", "url": "https://openstax.org/books/chemistry-atoms-first-2e/pages/18-9-occurrence-preparation-and-compounds-of-oxygen", "claim": "Oxygen combines directly with most elements; representative products include normal oxides, peroxides and superoxides, with exceptions and product variation." },
+    { "id": "openstax.main-group", "url": "https://openstax.org/books/chemistry-2e/pages/18-summary", "claim": "Main-group trends admit exceptions and multiple oxidation states, so unique products require explicit cases." }
+  ],
+  "element_outcomes": [
+    { "atomic_number": 1, "outcome": { "kind": "representative", "reactant_formula": "H2", "product_formula": "H2O", "equation": "2H2 + O2 -> 2H2O", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 2, "outcome": { "kind": "no_direct_reaction", "reason": "Helium is a noble gas and has no standard direct reaction with oxygen." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 3, "outcome": { "kind": "representative", "reactant_formula": "Li", "product_formula": "Li2O", "equation": "4Li + O2 -> 2Li2O", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 4, "outcome": { "kind": "representative", "reactant_formula": "Be", "product_formula": "BeO", "equation": "2Be + O2 -> 2BeO", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.main-group"] },
+    { "atomic_number": 5, "outcome": { "kind": "representative", "reactant_formula": "B", "product_formula": "B2O3", "equation": "4B + 3O2 -> 2B2O3", "product_oxygen_atoms": 3, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.main-group"] },
+    { "atomic_number": 6, "outcome": { "kind": "representative", "reactant_formula": "C", "product_formula": "CO2", "equation": "C + O2 -> CO2", "product_oxygen_atoms": 2, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 7, "outcome": { "kind": "ambiguous", "reason": "Nitrogen oxides are not represented by one unconditional standard product." }, "evidence_ids": ["openstax.main-group"] },
+    { "atomic_number": 8, "outcome": { "kind": "no_direct_reaction", "reason": "Oxygen with oxygen is not a net oxidation reaction in this model." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 9, "outcome": { "kind": "ambiguous", "reason": "Oxygen fluorides do not follow the ordinary oxide rule because fluorine is more electronegative than oxygen." }, "evidence_ids": ["openstax.main-group"] },
+    { "atomic_number": 10, "outcome": { "kind": "no_direct_reaction", "reason": "Neon is a noble gas and has no standard direct reaction with oxygen." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 11, "outcome": { "kind": "representative", "reactant_formula": "Na", "product_formula": "Na2O2", "equation": "2Na + O2 -> Na2O2", "product_oxygen_atoms": 2, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 12, "outcome": { "kind": "representative", "reactant_formula": "Mg", "product_formula": "MgO", "equation": "2Mg + O2 -> 2MgO", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 13, "outcome": { "kind": "representative", "reactant_formula": "Al", "product_formula": "Al2O3", "equation": "4Al + 3O2 -> 2Al2O3", "product_oxygen_atoms": 3, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.main-group"] },
+    { "atomic_number": 14, "outcome": { "kind": "representative", "reactant_formula": "Si", "product_formula": "SiO2", "equation": "Si + O2 -> SiO2", "product_oxygen_atoms": 2, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.main-group"] },
+    { "atomic_number": 15, "outcome": { "kind": "representative", "reactant_formula": "P4", "product_formula": "P4O10", "equation": "P4 + 5O2 -> P4O10", "product_oxygen_atoms": 10, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 16, "outcome": { "kind": "representative", "reactant_formula": "S", "product_formula": "SO2", "equation": "S + O2 -> SO2", "product_oxygen_atoms": 2, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 17, "outcome": { "kind": "no_direct_reaction", "reason": "Chlorine has no standard direct oxidation by elemental oxygen in this model." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 18, "outcome": { "kind": "no_direct_reaction", "reason": "Argon is a noble gas and has no standard direct reaction with oxygen." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 19, "outcome": { "kind": "representative", "reactant_formula": "K", "product_formula": "KO2", "equation": "K + O2 -> KO2", "product_oxygen_atoms": 2, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 20, "outcome": { "kind": "representative", "reactant_formula": "Ca", "product_formula": "CaO", "equation": "2Ca + O2 -> 2CaO", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 35, "outcome": { "kind": "no_direct_reaction", "reason": "Bromine has no standard direct oxidation by elemental oxygen in this model." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 36, "outcome": { "kind": "no_direct_reaction", "reason": "Krypton is a noble gas and has no standard direct reaction with oxygen." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 37, "outcome": { "kind": "representative", "reactant_formula": "Rb", "product_formula": "RbO2", "equation": "Rb + O2 -> RbO2", "product_oxygen_atoms": 2, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 38, "outcome": { "kind": "representative", "reactant_formula": "Sr", "product_formula": "SrO", "equation": "2Sr + O2 -> 2SrO", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.main-group"] },
+    { "atomic_number": 47, "outcome": { "kind": "no_direct_reaction", "reason": "Silver is treated as having no standard direct reaction with oxygen." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 53, "outcome": { "kind": "no_direct_reaction", "reason": "Iodine has no standard direct oxidation by elemental oxygen in this model." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 54, "outcome": { "kind": "no_direct_reaction", "reason": "Xenon does not have a standard direct elemental-oxygen reaction in this model." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 55, "outcome": { "kind": "representative", "reactant_formula": "Cs", "product_formula": "CsO2", "equation": "Cs + O2 -> CsO2", "product_oxygen_atoms": 2, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 56, "outcome": { "kind": "representative", "reactant_formula": "Ba", "product_formula": "BaO", "equation": "2 Ba + O2 -> 2 BaO", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 78, "outcome": { "kind": "no_direct_reaction", "reason": "Platinum is treated as having no standard direct reaction with oxygen." }, "evidence_ids": ["openstax.oxygen"] },
+    { "atomic_number": 79, "outcome": { "kind": "no_direct_reaction", "reason": "Gold is treated as having no standard direct reaction with oxygen." }, "evidence_ids": ["openstax.oxygen"] }
+  ],
+  "default_element_outcome": { "kind": "unsupported", "reason": "No unique reviewed oxygen product is selected for this element; multiple oxides or insufficient evidence must not be collapsed into a guessed compound." },
+  "compound_outcomes": [
+    { "formula": "H2", "outcome": { "kind": "representative", "reactant_formula": "H2", "product_formula": "H2O", "equation": "2H2 + O2 -> 2H2O", "product_oxygen_atoms": 1, "structural_support": "pending_reviewed_model" }, "evidence_ids": ["openstax.oxygen"] },
+    { "formula": "H2O", "outcome": { "kind": "no_direct_reaction", "reason": "Water has no further representative oxidation by oxygen in this closed model." }, "evidence_ids": ["openstax.oxygen"] },
+    { "formula": "LiOH", "outcome": { "kind": "no_direct_reaction", "reason": "Lithium hydroxide has no representative direct oxidation by oxygen in this closed model." }, "evidence_ids": ["openstax.main-group"] },
+    { "formula": "NaOH", "outcome": { "kind": "no_direct_reaction", "reason": "Sodium hydroxide has no representative direct oxidation by oxygen in this closed model." }, "evidence_ids": ["openstax.main-group"] },
+    { "formula": "KOH", "outcome": { "kind": "no_direct_reaction", "reason": "Potassium hydroxide has no representative direct oxidation by oxygen in this closed model." }, "evidence_ids": ["openstax.main-group"] }
+  ]
+}

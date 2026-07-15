@@ -225,18 +225,18 @@ authorized by the reviewed scene plan.
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
 drafts, slow orbit progression, and exhaustive order-independent reachability
-for all 36 trusted request bindings. Recognised unsupported, recognised
+for all 185 trusted experiences. Recognised unsupported, recognised
 uncatalogued, and unrecognised pairs have separate regression coverage. The
 handoff tests prove every trusted family can open both the 2D sequence and its
-macroscopic profile. Profile tests compile all 36 supported bindings against
+macroscopic profile. Profile tests compile all 185 experiences against
 their active trusted observations, reject premature effects and mismatched
 values, and separately preserve the validated white, cream, and yellow
 silver-halide appearances through scene geometry. Effect-free profiles are
 checked for a single liquid volume without transparent overdraw. The complete
-application-path test injects an independently authored request-ID/atom-pair
-fixture for all 36 supported bindings, dispatches the composer start message, and requires the
-same trusted digest to reach frames, the 2D plan, and the 3D plan before the
-screen transition succeeds. Periodic-table tests require all 118 atomic
+application-path tests cover the original 36 independently authored request
+fixtures plus representative single- and multi-outcome registry routes. They
+require the same trusted digest to reach frames, the 2D plan, and the 3D plan
+before a simulation screen transition succeeds. Periodic-table tests require all 118 atomic
 numbers and long-form display positions to be unique, every tile to remain
 square, the 18-column grid to fit without horizontal scrolling, and the s/d
 and d/p block gaps to remain larger than within-block spacing.

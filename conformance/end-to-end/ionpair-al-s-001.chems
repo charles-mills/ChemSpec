@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AlAndSulfide where
+  reactants
+    cation := 16 of AlFixedCation3Metal
+    anion := 3 of ElementalSulfur
+  products
+    salt := 8 of AlFixedCation3Sulfide
+  equation
+    16 Al[metallic] + 3 S8[molecular]
+    -> 8 Al2S3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation3Sulfide
+      cation := cation
+      anion := anion
+      salt := salt

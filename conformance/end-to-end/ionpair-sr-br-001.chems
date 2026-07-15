@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction SrAndBromide where
+  reactants
+    cation := 1 of SrFixedCation2Metal
+    anion := 1 of ElementalBromine
+  products
+    salt := 1 of SrFixedCation2Bromide
+  equation
+    1 Sr[metallic] + 1 Br2[molecular]
+    -> 1 SrBr2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation2Bromide
+      cation := cation
+      anion := anion
+      salt := salt

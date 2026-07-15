@@ -6,7 +6,8 @@
 use std::{collections::BTreeMap, str::FromStr, sync::LazyLock};
 
 use chem_catalogue::{
-    GeneralizedCaseSelection, GeneralizedReactionCaseRecord, ObservationPredicate, TrustedCatalogue,
+    GeneralizedCaseSelection, GeneralizedReactionCaseRecord, ObservationPredicate, OxygenOutcome,
+    TrustedCatalogue, ValidatedOxygenScreening,
 };
 use chem_domain::ReactionRuleId;
 use chem_kernel::{
@@ -34,6 +35,7 @@ const GAS_EVOLUTION_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/acid-carbonate-gas-evolution/evidence.json");
 const HALOGEN_DISPLACEMENT_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/single-displacement-halogen/evidence.json");
+const OXYGEN_SCREENING: &[u8] = include_bytes!("../../../catalogue/oxygen-screening/oxygen.json");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlkaliMetal {
@@ -368,7 +370,29 @@ pub enum ReactionFamily {
     AcidBicarbonateGasEvolution,
     AcidCarbonateGasEvolution,
     HalogenDisplacement,
+    Oxygen,
+    FixedChargeIonPair,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+enum ExperienceParticipantDefinition {
+    Element(u8),
+    Composition(&'static str),
+}
+
+struct ExperienceDefinition {
+    id: &'static str,
+    family: ReactionFamily,
+    participants: [ExperienceParticipantDefinition; 2],
+    source_name: &'static str,
+    source: &'static str,
+    evidence: &'static str,
+    equation: &'static str,
+    subject_name: &'static str,
+}
+
+include!(concat!(env!("OUT_DIR"), "/experience_registry.rs"));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReactionKind {
@@ -393,6 +417,9 @@ enum ReactionKind {
     HalogenDisplacement {
         displacing: Halogen,
         displaced: Halogen,
+    },
+    Registry {
+        index: usize,
     },
 }
 
@@ -488,6 +515,19 @@ impl ReactionRequest {
         }
     }
 
+    const fn registry(index: usize) -> Self {
+        Self {
+            kind: ReactionKind::Registry { index },
+        }
+    }
+
+    fn definition(self) -> Option<&'static ExperienceDefinition> {
+        let ReactionKind::Registry { index } = self.kind else {
+            return None;
+        };
+        EXPERIENCE_DEFINITIONS.get(index)
+    }
+
     #[must_use]
     pub const fn family(self) -> ReactionFamily {
         match self.kind {
@@ -503,6 +543,7 @@ impl ReactionRequest {
                 ReactionFamily::AcidCarbonateGasEvolution
             }
             ReactionKind::HalogenDisplacement { .. } => ReactionFamily::HalogenDisplacement,
+            ReactionKind::Registry { index } => EXPERIENCE_DEFINITIONS[index].family,
         }
     }
 
@@ -539,17 +580,21 @@ impl ReactionRequest {
                 displacing.name().to_lowercase(),
                 displaced.halide_name().to_lowercase()
             ),
+            ReactionKind::Registry { index } => EXPERIENCE_DEFINITIONS[index].id.to_owned(),
         }
     }
 
     #[must_use]
     pub fn from_id(id: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|request| request.id() == id)
+        requests().find(|request| request.id() == id)
     }
 
     #[must_use]
     pub fn source_name(self) -> String {
-        format!("generated/{}.chems", self.id())
+        self.definition().map_or_else(
+            || format!("generated/{}.chems", self.id()),
+            |definition| definition.source_name.to_owned(),
+        )
     }
 
     #[must_use]
@@ -594,7 +639,21 @@ impl ReactionRequest {
                 displacing.symbol(),
                 displaced.symbol()
             ),
+            ReactionKind::Registry { index } => EXPERIENCE_DEFINITIONS[index].equation.to_owned(),
         }
+    }
+
+    #[must_use]
+    pub fn name(self) -> String {
+        run(self).map_or_else(
+            |_| {
+                self.definition().map_or_else(
+                    || "reaction products".to_owned(),
+                    |definition| format!("{} reaction product", definition.subject_name),
+                )
+            },
+            |run| crate::nomenclature::product_names(run.frames()),
+        )
     }
 
     fn evidence(self) -> &'static [u8] {
@@ -605,38 +664,44 @@ impl ReactionRequest {
             ReactionFamily::AcidBicarbonateGasEvolution
             | ReactionFamily::AcidCarbonateGasEvolution => GAS_EVOLUTION_EVIDENCE,
             ReactionFamily::HalogenDisplacement => HALOGEN_DISPLACEMENT_EVIDENCE,
+            ReactionFamily::Oxygen | ReactionFamily::FixedChargeIonPair => self
+                .definition()
+                .expect("registry family has a generated definition")
+                .evidence
+                .as_bytes(),
         }
     }
 
-    fn participants(self) -> [DraftParticipant; 2] {
+    fn legacy_participants(self) -> Option<[DraftParticipant; 2]> {
         match self.kind {
-            ReactionKind::AlkaliWater { metal } => [
+            ReactionKind::AlkaliWater { metal } => Some([
                 DraftParticipant::Atom(metal.atomic_number()),
                 DraftParticipant::Composition(CompositionId::Water),
-            ],
-            ReactionKind::SilverHalidePrecipitation { halogen } => [
+            ]),
+            ReactionKind::SilverHalidePrecipitation { halogen } => Some([
                 DraftParticipant::Composition(CompositionId::SilverNitrate),
                 DraftParticipant::Composition(halogen.sodium_halide()),
-            ],
-            ReactionKind::AcidBaseNeutralization { metal, halogen } => [
+            ]),
+            ReactionKind::AcidBaseNeutralization { metal, halogen } => Some([
                 DraftParticipant::Composition(halogen.hydrogen_halide()),
                 DraftParticipant::Composition(metal.hydroxide()),
-            ],
-            ReactionKind::AcidBicarbonateGasEvolution { metal, halogen } => [
+            ]),
+            ReactionKind::AcidBicarbonateGasEvolution { metal, halogen } => Some([
                 DraftParticipant::Composition(halogen.hydrogen_halide()),
                 DraftParticipant::Composition(metal.bicarbonate()),
-            ],
-            ReactionKind::AcidCarbonateGasEvolution { metal, halogen } => [
+            ]),
+            ReactionKind::AcidCarbonateGasEvolution { metal, halogen } => Some([
                 DraftParticipant::Composition(halogen.hydrogen_halide()),
                 DraftParticipant::Composition(metal.carbonate()),
-            ],
+            ]),
             ReactionKind::HalogenDisplacement {
                 displacing,
                 displaced,
-            } => [
+            } => Some([
                 DraftParticipant::Composition(displacing.molecule()),
                 DraftParticipant::Composition(displaced.sodium_halide()),
-            ],
+            ]),
+            ReactionKind::Registry { .. } => None,
         }
     }
 
@@ -658,8 +723,15 @@ impl ReactionRequest {
                 displacing,
                 displaced,
             } => halogen_displacement_source(displacing, displaced),
+            ReactionKind::Registry { index } => EXPERIENCE_DEFINITIONS[index].source.to_owned(),
         }
     }
+}
+
+pub fn requests() -> impl Iterator<Item = ReactionRequest> {
+    ReactionRequest::ALL
+        .into_iter()
+        .chain((0..EXPERIENCE_DEFINITIONS.len()).map(ReactionRequest::registry))
 }
 
 fn alkali_water_source(metal: AlkaliMetal) -> String {
@@ -746,6 +818,17 @@ impl TrustedRun {
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
     TrustedCatalogue::from_canonical_json(CATALOGUE, ATTESTATION).map_err(|error| error.to_string())
 });
+
+pub(crate) fn trusted_catalogue() -> Result<&'static TrustedCatalogue, &'static str> {
+    TRUSTED_CATALOGUE.as_ref().map_err(String::as_str)
+}
+
+static VALIDATED_OXYGEN_SCREENING: LazyLock<Result<ValidatedOxygenScreening, String>> =
+    LazyLock::new(|| {
+        let catalogue = TRUSTED_CATALOGUE.as_ref().map_err(Clone::clone)?;
+        ValidatedOxygenScreening::from_json(OXYGEN_SCREENING, catalogue)
+            .map_err(|error| error.to_string())
+    });
 /// Returns a host-pinned, AI-reviewed experience result.
 ///
 /// The returned frame type cannot be constructed by the application. Failure
@@ -794,6 +877,8 @@ pub enum DraftParticipant {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DraftResolution {
     Supported(ReactionRequest),
+    Multiple(Vec<ReactionRequest>),
+    Screened(OxygenAssessment),
     ExplicitlyUnsupported(UnsupportedCase),
     Uncatalogued,
     Unrecognized,
@@ -805,6 +890,15 @@ impl DraftResolution {
     pub fn message(&self) -> Option<&str> {
         match self {
             Self::Supported(_) => None,
+            Self::Multiple(_) => Some("Choose one reviewed product outcome."),
+            Self::Screened(assessment) => Some(match &assessment.outcome {
+                OxygenOutcome::Representative { .. } => {
+                    "A representative outcome exists, but no reviewed structural simulation is available."
+                }
+                OxygenOutcome::NoDirectReaction { reason }
+                | OxygenOutcome::Ambiguous { reason }
+                | OxygenOutcome::Unsupported { reason } => reason,
+            }),
             Self::ExplicitlyUnsupported(case) => Some(case.explanation.as_str()),
             Self::Uncatalogued => Some("No trusted local model for this pair yet."),
             Self::Unrecognized => Some("Build two recognized reactants to continue."),
@@ -826,10 +920,79 @@ pub fn request_for_participants(
     let mut actual = participants.into_iter().collect::<Vec<_>>();
     actual.sort_unstable();
     ReactionRequest::ALL.into_iter().find(|request| {
-        let mut expected = request.participants();
+        let mut expected = request
+            .legacy_participants()
+            .expect("legacy requests have typed participants");
         expected.sort_unstable();
         actual == expected
     })
+}
+
+fn standard_state_count(atomic_number: u8) -> usize {
+    match atomic_number {
+        1 | 7 | 8 | 9 | 17 | 35 | 53 => 2,
+        15 => 4,
+        16 => 8,
+        _ => 1,
+    }
+}
+
+/// A single periodic-table selection denotes the element in its catalogue
+/// standard state. Explicit multi-atom compounds are otherwise preserved.
+#[must_use]
+pub fn standardize_elemental_draft(atoms: &[u8]) -> Vec<u8> {
+    let [atomic_number] = atoms else {
+        return atoms.to_vec();
+    };
+    vec![*atomic_number; standard_state_count(*atomic_number)]
+}
+
+fn elemental_identity(atoms: &[u8]) -> Option<u8> {
+    let (&atomic_number, rest) = atoms.split_first()?;
+    (rest.iter().all(|candidate| *candidate == atomic_number)
+        && (atoms.len() == 1 || atoms.len() == standard_state_count(atomic_number)))
+    .then_some(atomic_number)
+}
+
+fn registry_participant_matches(expected: ExperienceParticipantDefinition, atoms: &[u8]) -> bool {
+    match expected {
+        ExperienceParticipantDefinition::Element(atomic_number) => {
+            elemental_identity(atoms) == Some(atomic_number)
+        }
+        ExperienceParticipantDefinition::Composition(formula) => {
+            composition_catalogue::recognize(atoms.iter().copied())
+                .is_some_and(|preview| preview.formula == formula)
+        }
+    }
+}
+
+#[must_use]
+pub fn requests_for_drafts(first: &[u8], second: &[u8]) -> Vec<ReactionRequest> {
+    let mut matches = Vec::new();
+    let participant = |atoms: &[u8]| {
+        if let [atomic_number] = atoms {
+            return Some(DraftParticipant::Atom(*atomic_number));
+        }
+        composition_catalogue::recognize(atoms.iter().copied())
+            .map(|preview| DraftParticipant::Composition(preview.id))
+    };
+    if let (Some(first), Some(second)) = (participant(first), participant(second))
+        && let Some(request) = request_for_participants([first, second])
+    {
+        matches.push(request);
+    }
+    matches.extend(
+        (0..EXPERIENCE_DEFINITIONS.len())
+            .filter(|index| {
+                let [expected_first, expected_second] = EXPERIENCE_DEFINITIONS[*index].participants;
+                (registry_participant_matches(expected_first, first)
+                    && registry_participant_matches(expected_second, second))
+                    || (registry_participant_matches(expected_first, second)
+                        && registry_participant_matches(expected_second, first))
+            })
+            .map(ReactionRequest::registry),
+    );
+    matches
 }
 
 #[cfg(test)]
@@ -837,7 +1000,9 @@ pub fn request_for_participants(
 pub fn request_for_drafts(first: &[u8], second: &[u8]) -> Option<ReactionRequest> {
     match resolve_drafts(first, second) {
         DraftResolution::Supported(request) => Some(request),
-        DraftResolution::ExplicitlyUnsupported(_)
+        DraftResolution::Multiple(_)
+        | DraftResolution::Screened(_)
+        | DraftResolution::ExplicitlyUnsupported(_)
         | DraftResolution::Uncatalogued
         | DraftResolution::Unrecognized
         | DraftResolution::SystemError(_) => None,
@@ -854,21 +1019,66 @@ pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
             .map(|preview| DraftParticipant::Composition(preview.id))
     }
 
-    let (Some(first), Some(second)) = (participant(first), participant(second)) else {
-        return DraftResolution::Unrecognized;
+    let requests = requests_for_drafts(first, second);
+    if let [request] = requests.as_slice() {
+        return DraftResolution::Supported(*request);
+    }
+    if !requests.is_empty() {
+        return DraftResolution::Multiple(requests);
+    }
+
+    if let (Some(first_participant), Some(second_participant)) =
+        (participant(first), participant(second))
+    {
+        if let Some(request) =
+            UnsupportedRequest::from_participants([first_participant, second_participant])
+        {
+            return match request.catalogue_case() {
+                Ok(case) => DraftResolution::ExplicitlyUnsupported(case),
+                Err(error) => DraftResolution::SystemError(error),
+            };
+        }
+        if let Some(assessment) = oxygen_assessment_for_drafts(first, second) {
+            return DraftResolution::Screened(assessment);
+        }
+        return DraftResolution::Uncatalogued;
+    }
+
+    DraftResolution::Unrecognized
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OxygenAssessment {
+    pub subject: String,
+    pub outcome: OxygenOutcome,
+}
+
+/// Screens a reviewed element or known catalogue composition against oxygen.
+/// Screening can report an outcome, but it cannot authorize simulation frames.
+#[must_use]
+pub fn oxygen_assessment_for_drafts(first: &[u8], second: &[u8]) -> Option<OxygenAssessment> {
+    let screening = VALIDATED_OXYGEN_SCREENING.as_ref().ok()?;
+    let first_element = elemental_identity(first);
+    let second_element = elemental_identity(second);
+    let (subject, subject_element) = match (first_element, second_element) {
+        (Some(8), Some(other)) if other != 8 => (second, Some(other)),
+        (Some(other), Some(8)) if other != 8 => (first, Some(other)),
+        (Some(8), None) => (second, None),
+        (None, Some(8)) => (first, None),
+        _ => return None,
     };
-    if let Some(request) = request_for_participants([first, second]) {
-        return DraftResolution::Supported(request);
+    if let Some(atomic_number) = subject_element {
+        let element = crate::elements::by_atomic_number(atomic_number)?;
+        return Some(OxygenAssessment {
+            subject: element.name.to_owned(),
+            outcome: screening.element(atomic_number)?.clone(),
+        });
     }
-
-    if let Some(request) = UnsupportedRequest::from_participants([first, second]) {
-        return match request.catalogue_case() {
-            Ok(case) => DraftResolution::ExplicitlyUnsupported(case),
-            Err(error) => DraftResolution::SystemError(error),
-        };
-    }
-
-    DraftResolution::Uncatalogued
+    let composition = composition_catalogue::recognize(subject.iter().copied())?;
+    Some(OxygenAssessment {
+        subject: composition.name.to_owned(),
+        outcome: screening.compound(composition.formula)?.clone(),
+    })
 }
 
 /// Host-selected macroscopic styling for an exact trusted experience. This
@@ -1110,6 +1320,56 @@ pub fn presentation_profile(
         ReactionKind::HalogenDisplacement { .. } => {
             (vec![vessel(AssetProfile::TestTube)], Vec::new())
         }
+        ReactionKind::Registry { index } => {
+            let definition = &EXPERIENCE_DEFINITIONS[index];
+            let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
+            let co_reactant = match definition.participants[1] {
+                ExperienceParticipantDefinition::Element(atomic_number) => {
+                    crate::elements::by_atomic_number(atomic_number)
+                        .map_or("co-reactant", |element| element.name)
+                }
+                ExperienceParticipantDefinition::Composition(formula) => formula,
+            };
+            (
+                vec![
+                    vessel(AssetProfile::Beaker),
+                    PresentationObject {
+                        id: "subject".to_owned(),
+                        asset: AssetProfile::PowderPile,
+                        semantic_identity: definition.subject_name.to_owned(),
+                        appearance: AppearanceProfile::LaboratoryNeutral,
+                        role: SceneRole::Reactant,
+                        transform: transform([-300, 250, 0], [650, 650, 650]),
+                        visible_from_ordinal: 0,
+                        observation: None,
+                    },
+                    PresentationObject {
+                        id: "co-reactant".to_owned(),
+                        asset: AssetProfile::GasCloud,
+                        semantic_identity: co_reactant.to_owned(),
+                        appearance: AppearanceProfile::LaboratoryNeutral,
+                        role: SceneRole::Reactant,
+                        transform: transform([300, 250, 0], [650, 650, 650]),
+                        visible_from_ordinal: 0,
+                        observation: None,
+                    },
+                    PresentationObject {
+                        id: "product".to_owned(),
+                        asset: AssetProfile::CrystalCluster,
+                        semantic_identity: crate::nomenclature::product_names(frames),
+                        appearance: AppearanceProfile::LaboratoryNeutral,
+                        role: SceneRole::Product,
+                        transform: transform([0, 250, 0], [750, 750, 750]),
+                        visible_from_ordinal: forms_ordinal,
+                        observation: Some(ObjectObservationBinding {
+                            predicate: ObservationPredicate::Forms,
+                            value: None,
+                        }),
+                    },
+                ],
+                Vec::new(),
+            )
+        }
     };
 
     Ok(PresentationProfile {
@@ -1171,11 +1431,29 @@ mod tests {
             .collect()
     }
 
+    fn registry_participant_atoms(participant: ExperienceParticipantDefinition) -> Vec<u8> {
+        match participant {
+            ExperienceParticipantDefinition::Element(atomic_number) => vec![atomic_number],
+            ExperienceParticipantDefinition::Composition(formula) => {
+                composition_catalogue::SUPPORTED
+                    .iter()
+                    .find(|preview| preview.formula == formula)
+                    .unwrap_or_else(|| panic!("registry composition `{formula}` is not recognized"))
+                    .atoms
+                    .iter()
+                    .flat_map(|(atomic_number, count)| {
+                        std::iter::repeat_n(*atomic_number, usize::from(*count))
+                    })
+                    .collect()
+            }
+        }
+    }
+
     #[test]
     fn every_supported_request_crosses_the_trusted_frame_boundary() {
         let mut ids = std::collections::BTreeSet::new();
         let mut families = std::collections::BTreeMap::new();
-        for request in ReactionRequest::ALL {
+        for request in requests() {
             let id = request.id();
             assert!(ids.insert(id.clone()), "request IDs must be unique");
             assert_eq!(ReactionRequest::from_id(&id), Some(request));
@@ -1186,7 +1464,9 @@ mod tests {
                 request.source(),
                 "source authoring must be deterministic"
             );
-            let run = run(request).expect("registered request should be trusted");
+            let run = run(request).unwrap_or_else(|error| {
+                panic!("registered request `{id}` should be trusted: {error}")
+            });
             assert!(!run.frames().frames().is_empty());
             assert_eq!(run.frames().trust(), chem_kernel::DerivationTrust::Trusted);
             assert_eq!(
@@ -1194,21 +1474,46 @@ mod tests {
                 chem_kernel::ValidationResult::ValidatedWithAssumptions
             );
         }
-        assert_eq!(ids.len(), 36);
+        assert_eq!(ids.len(), 185);
         assert_eq!(families[&ReactionFamily::AlkaliWater], 3);
         assert_eq!(families[&ReactionFamily::SilverHalidePrecipitation], 3);
         assert_eq!(families[&ReactionFamily::AcidBaseNeutralization], 9);
         assert_eq!(families[&ReactionFamily::AcidBicarbonateGasEvolution], 9);
         assert_eq!(families[&ReactionFamily::AcidCarbonateGasEvolution], 9);
         assert_eq!(families[&ReactionFamily::HalogenDisplacement], 3);
+        assert_eq!(families[&ReactionFamily::Oxygen], 68);
+        assert_eq!(families[&ReactionFamily::FixedChargeIonPair], 81);
     }
 
     #[test]
     fn every_supported_request_is_reachable_from_drafts_in_either_order() {
         for expected in ReactionRequest::ALL {
-            let [first, second] = expected.participants().map(participant_atoms);
+            let [first, second] = expected
+                .legacy_participants()
+                .expect("legacy request participants")
+                .map(participant_atoms);
             assert_eq!(request_for_drafts(&first, &second), Some(expected));
             assert_eq!(request_for_drafts(&second, &first), Some(expected));
+        }
+    }
+
+    #[test]
+    fn every_registry_experience_is_reachable_from_typed_participants() {
+        for (index, definition) in EXPERIENCE_DEFINITIONS.iter().enumerate() {
+            let expected = ReactionRequest::registry(index);
+            let [first, second] = definition.participants.map(registry_participant_atoms);
+            let forward = requests_for_drafts(&first, &second);
+            let reverse = requests_for_drafts(&second, &first);
+            assert!(
+                forward.contains(&expected),
+                "{} is unreachable in authored order",
+                definition.id
+            );
+            assert!(
+                reverse.contains(&expected),
+                "{} is unreachable in reverse order",
+                definition.id
+            );
         }
     }
 
@@ -1287,10 +1592,10 @@ mod tests {
 
     #[test]
     fn uncatalogued_and_unrecognized_pairs_are_distinct() {
-        assert_eq!(
-            resolve_drafts(&[1, 1], &[8, 8]),
-            DraftResolution::Uncatalogued
-        );
+        let DraftResolution::Supported(hydrogen_oxygen) = resolve_drafts(&[1, 1], &[8, 8]) else {
+            panic!("the reviewed hydrogen/oxygen experience must be reachable");
+        };
+        assert_eq!(hydrogen_oxygen.family(), ReactionFamily::Oxygen);
         assert_eq!(
             resolve_drafts(&[20], &[1, 1, 8]),
             DraftResolution::Uncatalogued
@@ -1300,7 +1605,7 @@ mod tests {
             DraftResolution::Unrecognized
         );
         assert_eq!(request_for_drafts(&[20], &[1, 1, 8]), None);
-        assert_eq!(request_for_drafts(&[1, 1], &[8, 8]), None);
+        assert_eq!(request_for_drafts(&[1, 1], &[8, 8]), Some(hydrogen_oxygen));
     }
 
     #[test]
@@ -1322,7 +1627,7 @@ mod tests {
     #[test]
     fn every_supported_request_compiles_a_macroscopic_plan() {
         let mut profile_ids = std::collections::BTreeSet::new();
-        for request in ReactionRequest::ALL {
+        for request in requests() {
             let run = run(request).expect("supported request validates");
             let profile = presentation_profile(request, run.frames())
                 .expect("trusted observations select a presentation profile");
@@ -1334,7 +1639,12 @@ mod tests {
                     .iter()
                     .any(|object| object.role == SceneRole::Vessel)
             );
-            if request.family() != ReactionFamily::HalogenDisplacement {
+            if !matches!(
+                request.family(),
+                ReactionFamily::HalogenDisplacement
+                    | ReactionFamily::Oxygen
+                    | ReactionFamily::FixedChargeIonPair
+            ) {
                 assert!(
                     profile
                         .objects
@@ -1361,7 +1671,29 @@ mod tests {
                 assert_eq!(binding.value, value);
             }
         }
-        assert_eq!(profile_ids.len(), ReactionRequest::ALL.len());
+        assert_eq!(profile_ids.len(), 185);
+    }
+
+    #[test]
+    fn registry_outcomes_are_selected_without_guessing_between_products() {
+        let magnesium_fluorine = requests_for_drafts(&[12], &[9]);
+        assert_eq!(magnesium_fluorine.len(), 1);
+        assert_eq!(
+            magnesium_fluorine[0].family(),
+            ReactionFamily::FixedChargeIonPair
+        );
+
+        let iron_oxygen = requests_for_drafts(&[26], &[8]);
+        assert_eq!(iron_oxygen.len(), 3);
+        assert!(
+            iron_oxygen
+                .iter()
+                .all(|request| request.family() == ReactionFamily::Oxygen)
+        );
+        assert!(matches!(
+            resolve_drafts(&[26], &[8]),
+            DraftResolution::Multiple(outcomes) if outcomes.len() == 3
+        ));
     }
 
     #[test]

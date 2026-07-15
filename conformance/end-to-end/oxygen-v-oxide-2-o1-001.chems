@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction VAndOxygenToTransitionG5Monoxide where
+  reactants
+    subject := 2 of VTransitionG5MonoxideMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 2 of VTransitionG5MonoxideOxide
+  equation
+    2 V[metallic] + 1 O2[molecular]
+    -> 2 VO[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG5Monoxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

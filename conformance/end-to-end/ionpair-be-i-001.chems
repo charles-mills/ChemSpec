@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction BeAndIodide where
+  reactants
+    cation := 1 of BeFixedCation2Metal
+    anion := 1 of ElementalIodine
+  products
+    salt := 1 of BeFixedCation2Iodide
+  equation
+    1 Be[metallic] + 1 I2[molecular]
+    -> 1 BeI2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation2Iodide
+      cation := cation
+      anion := anion
+      salt := salt

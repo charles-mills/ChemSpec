@@ -49,10 +49,11 @@ service, or runtime text generator.
 
 The renderer-independent `EducationalPlan` is a deterministic sequence of
 scenes and cues. Reusable scene roles include introduction, reactant setup,
-equation, conceptual setup, structural change, observation connection, product
-formation, and summary. Reusable cues include focus, highlight, electron-state
-display, typed structural-operation animation, observation display, equation
-emphasis, and transition.
+equation, conceptual setup, structural change, product formation, and summary.
+Reusable cues include focus, highlight, electron-state display, typed
+structural-operation animation, equation emphasis, and transition. Typed
+observations remain available to the macroscopic plan, but the guided
+structural timeline does not add separate observation-explanation scenes.
 
 The host-selected profile supplies the display equation for the current pinned
 experience. Neither planner nor renderer derives stoichiometry from drawn atoms,
@@ -98,11 +99,17 @@ Every structural-operation cue references the exact before/after frame digests
 and stable affected atom IDs. Stable atom identity is preserved visually.
 Interpolation never creates a semantic state.
 
-Each generated operation is one coherent `StructuralChange` learning beat. It
-carries `ApplyOperation`, `ShowContext`, and `ShowExplanation` cues together;
-the current compiler does not insert a separate pause scene after every change.
-The operation receives the first part of the beat, then the explanation fades
-in and remains available for the adaptive reading hold. The Canvas draws the
+Each generated action is one coherent `StructuralChange` learning beat. It
+carries `ApplyOperations`, `ShowContext`, and `ShowExplanation` cues together.
+Normally that cue contains one exact transition. Adjacent operations are
+grouped only when their typed operation signatures are equivalent, their atom
+sets are disjoint, and no active observation boundary would be crossed. Every
+original before/after digest remains in the cue, so the renderer can animate
+the independent changes concurrently under one explanation without rewriting
+the validated sequence. Callout cards target the first deterministic operation
+instance rather than averaging all repeated instances into a point between
+molecules. The action receives the first part of the beat, then
+the explanation fades in and remains available for the adaptive reading hold. The Canvas draws the
 explanation as a rounded glass card with a semantic eyebrow, accent rail, short
 connector, and target halo. Connector lines have no arrowhead unless direction
 itself carries scientific meaning. This merged beat keeps the change and its
@@ -117,7 +124,10 @@ playback. A tick preserves elapsed overshoot across scene boundaries instead of
 discarding it.
 
 Atoms are laid out as deterministic connected components using only trusted
-covalent bonds, ionic associations, and metallic-domain membership. Stable
+covalent bonds, full charged components of ionic associations, and
+metallic-domain membership. An ionic association is never collapsed to an
+arbitrary atom pair: its visual anchor is the formal-charge-bearing atom when
+one is present, with a component-centre fallback. Stable
 component slots prevent unrelated molecules from reshuffling when a local
 operation changes. Before/after relations are rendered together: new bonds and
 associations trace in, removed ones retract, and metallic domains morph without

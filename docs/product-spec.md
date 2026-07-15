@@ -69,6 +69,12 @@ The first complete reaction is lithium with water because it exercises
 covalent, ionic, metallic, electron-transfer, observation, and mapping
 boundaries in one educational example.
 
+Every registered element can be checked against elemental oxygen. The check
+may select a representative oxide-family product, report no direct reaction,
+or stop as ambiguous/unsupported. Compound oxidation is initially restricted
+to compounds already defined by the structural catalogue. These checks do not
+unlock animation until a reviewed structural transformation also exists.
+
 ## Canonical journey
 
 1. **Ask.** The learner asks what happens when lithium reacts with water.

@@ -199,7 +199,12 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
 }
 
 pub fn can_start_reaction(state: &State) -> bool {
-    matches!(resolution(state), chemistry::DraftResolution::Supported(_))
+    matches!(
+        resolution(state),
+        chemistry::DraftResolution::Supported(_)
+            | chemistry::DraftResolution::Multiple(_)
+            | chemistry::DraftResolution::Screened(_)
+    )
 }
 
 pub fn resolution(state: &State) -> chemistry::DraftResolution {
@@ -292,7 +297,13 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
 
 fn action_row(state: &State) -> Element<'static, Message> {
     let active_atoms = &state.drafts[state.active.index()].atoms;
-    let run = button(text("Run reaction  →").size(type_scale::BODY))
+    let resolution = resolution(state);
+    let run_label = match &resolution {
+        chemistry::DraftResolution::Multiple(_) => "Choose product  →",
+        chemistry::DraftResolution::Screened(_) => "View outcome  →",
+        _ => "Run reaction  →",
+    };
+    let run = button(text(run_label).size(type_scale::BODY))
         .on_press_maybe(can_start_reaction(state).then_some(Message::StartReactionRequested))
         .padding([spacing::XS, spacing::MD])
         .style(theme::primary_button);
@@ -313,15 +324,22 @@ fn action_row(state: &State) -> Element<'static, Message> {
     .spacing(spacing::XS)
     .align_y(Center);
     let both_present = state.drafts.iter().all(|draft| !draft.atoms.is_empty());
-    let resolution = resolution(state);
     let status_color = if resolution.is_system_error() {
         color::DANGER
     } else {
         color::WARNING
     };
     let status = both_present
-        .then(|| resolution.message())
-        .flatten()
+        .then_some(&resolution)
+        .filter(|resolution| {
+            !matches!(
+                resolution,
+                chemistry::DraftResolution::Supported(_)
+                    | chemistry::DraftResolution::Multiple(_)
+                    | chemistry::DraftResolution::Screened(_)
+            )
+        })
+        .and_then(|resolution| resolution.message())
         .map(|message| {
             text(message.to_owned())
                 .size(type_scale::CAPTION)
@@ -511,39 +529,45 @@ fn draft_body(state: &State, reactant: ActiveReactant, reveal: f32) -> Element<'
     let atoms = &state.drafts[reactant.index()].atoms;
     let phase = state.orbital_phase;
 
+    if let Some(preview) = composition_catalogue::trusted_preview(atoms.iter().copied()) {
+        let standardized = chemistry::standardize_elemental_draft(atoms);
+        let name = composition_catalogue::recognize(standardized)
+            .map_or_else(|| preview.formula.clone(), |known| known.name.to_owned());
+        let model = canvas(CompoundAtomicDiagram::new(preview, phase).with_reveal(reveal))
+            .width(Length::Fixed(200.0))
+            .height(Length::Fixed(110.0));
+        return column![
+            model,
+            text(name)
+                .size(type_scale::BODY_LARGE)
+                .font(FORMULA_FONT)
+                .color(color::TEXT.scale_alpha(reveal)),
+            text("Trusted structure")
+                .size(type_scale::MICRO)
+                .color(color::SUCCESS.scale_alpha(reveal)),
+        ]
+        .spacing(spacing::XXS)
+        .align_x(Center)
+        .into();
+    }
+
     if let [atomic_number] = atoms.as_slice()
         && let Some(element) = elements::by_atomic_number(*atomic_number)
     {
         return element_card(*element, phase, reveal);
     }
 
-    let members = atoms
-        .iter()
-        .filter_map(|number| elements::by_atomic_number(*number).copied());
-    let preview = composition_catalogue::recognize(atoms.iter().copied());
     let (model, name, status, status_color): (
         Element<'static, Message>,
-        Option<&'static str>,
+        Option<String>,
         &'static str,
         _,
-    ) = if let Some(preview) = preview {
-        (
-            canvas(CompoundAtomicDiagram::new(preview, members, phase).with_reveal(reveal))
-                .width(Length::Fixed(200.0))
-                .height(Length::Fixed(110.0))
-                .into(),
-            Some(preview.name),
-            preview.kind().recognition_label(),
-            color::SUCCESS,
-        )
-    } else {
-        (
-            draft_model_grid(atoms, phase, reveal),
-            None,
-            "Unrecognised draft",
-            color::WARNING,
-        )
-    };
+    ) = (
+        draft_model_grid(atoms, phase, reveal),
+        None,
+        "Unrecognised draft",
+        color::WARNING,
+    );
 
     let mut details = column![].spacing(spacing::XXS);
     if let Some(name) = name {
@@ -639,9 +663,10 @@ fn draft_model_grid(atoms: &[u8], phase: f32, reveal: f32) -> Element<'static, M
 }
 
 fn formula(atoms: &[u8]) -> String {
+    let atoms = chemistry::standardize_elemental_draft(atoms);
     let mut order = Vec::new();
     let mut counts = BTreeMap::<u8, usize>::new();
-    for atomic_number in atoms {
+    for atomic_number in &atoms {
         if !counts.contains_key(atomic_number) {
             order.push(*atomic_number);
         }

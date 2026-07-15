@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction BeAndPhosphide where
+  reactants
+    cation := 6 of BeFixedCation2Metal
+    anion := 1 of ElementalPhosphorus
+  products
+    salt := 2 of BeFixedCation2Phosphide
+  equation
+    6 Be[metallic] + 1 P4[molecular]
+    -> 2 Be3P2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation2Phosphide
+      cation := cation
+      anion := anion
+      salt := salt

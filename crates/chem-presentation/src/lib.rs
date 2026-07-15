@@ -53,15 +53,25 @@ pub struct ContextLabel {
     pub connector: bool,
 }
 
+/// One exact trusted transition included in an educational action beat.
+///
+/// A beat may contain several independent, equivalent transitions. Keeping
+/// every boundary digest lets renderers animate them together without
+/// merging or rewriting the validated frame sequence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EducationalOperation {
+    pub before: ContentDigest,
+    pub after: ContentDigest,
+    pub affected_atoms: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EducationalCue {
     EstablishFrame {
         frame: ContentDigest,
     },
-    ApplyOperation {
-        before: ContentDigest,
-        after: ContentDigest,
-        affected_atoms: Vec<String>,
+    ApplyOperations {
+        operations: Vec<EducationalOperation>,
     },
     ShowEquation {
         equation: String,
@@ -203,17 +213,80 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
         ),
     ];
 
-    for pair in sequence.windows(2) {
-        let before = &pair[0];
-        let after = &pair[1];
-        let operation = after
+    let mut transition_index = 1;
+    while transition_index < sequence.len() {
+        let group_start = transition_index;
+        let before = &sequence[group_start - 1];
+        let first_after = &sequence[group_start];
+        let first_operation = first_after
             .active_operation()
-            .ok_or(PlanError::MissingOperation(after.ordinal()))?;
-        let narration = operation_narration(before, after, operation.operation.view());
+            .ok_or(PlanError::MissingOperation(first_after.ordinal()))?;
+        let signature = operation_signature(before, first_after, first_operation.operation.view());
+        let first_narration =
+            operation_narration(before, first_after, first_operation.operation.view());
+        let mut affected = first_narration
+            .explanation
+            .target_atoms
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let mut group_end = group_start;
+
+        while group_end + 1 < sequence.len() && !has_active_observation(&sequence[group_end]) {
+            let candidate_before = &sequence[group_end];
+            let candidate_after = &sequence[group_end + 1];
+            let candidate_operation = candidate_after
+                .active_operation()
+                .ok_or(PlanError::MissingOperation(candidate_after.ordinal()))?;
+            let candidate_narration = operation_narration(
+                candidate_before,
+                candidate_after,
+                candidate_operation.operation.view(),
+            );
+            let candidate_atoms = candidate_narration
+                .explanation
+                .target_atoms
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if operation_signature(
+                candidate_before,
+                candidate_after,
+                candidate_operation.operation.view(),
+            ) != signature
+                || !affected.is_disjoint(&candidate_atoms)
+            {
+                break;
+            }
+            affected.extend(candidate_atoms);
+            group_end += 1;
+        }
+
+        let after = &sequence[group_end];
+        // One representative instance owns the callout target. The complete
+        // atom union remains available on the exact operation cues for
+        // simultaneous animation, but is not averaged into a marker between
+        // repeated reactant or product instances.
+        let narration = first_narration;
         let before_digest = before.trace().state_digest;
-        let after_digest = after.trace().state_digest;
         let duration_ms =
             3_200_u32.saturating_add(explanation_duration(&narration.explanation.text));
+        let operations = (group_start..=group_end)
+            .map(|index| {
+                let operation_before = &sequence[index - 1];
+                let operation_after = &sequence[index];
+                let active = operation_after
+                    .active_operation()
+                    .ok_or(PlanError::MissingOperation(operation_after.ordinal()))?;
+                let narration =
+                    operation_narration(operation_before, operation_after, active.operation.view());
+                Ok(EducationalOperation {
+                    before: operation_before.trace().state_digest,
+                    after: operation_after.trace().state_digest,
+                    affected_atoms: narration.explanation.target_atoms,
+                })
+            })
+            .collect::<Result<Vec<_>, PlanError>>()?;
         scenes.push(scene(
             EducationalSceneKind::StructuralChange,
             before,
@@ -223,11 +296,7 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
                 EducationalCue::EstablishFrame {
                     frame: before_digest,
                 },
-                EducationalCue::ApplyOperation {
-                    before: before_digest,
-                    after: after_digest,
-                    affected_atoms: narration.explanation.target_atoms.clone(),
-                },
+                EducationalCue::ApplyOperations { operations },
                 EducationalCue::ShowContext {
                     label: narration.context,
                 },
@@ -237,49 +306,7 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
             ],
         ));
 
-        for observation in after
-            .observations()
-            .iter()
-            .filter(|observation| observation.status == ObservationStatus::Active)
-        {
-            let text = observation_text(observation.predicate, observation.value.as_deref());
-            let context_text =
-                observation_context(observation.predicate, observation.value.as_deref());
-            let target_atoms = after
-                .product_membership()
-                .values()
-                .flatten()
-                .map(|atom| atom.as_str().to_owned())
-                .collect::<Vec<_>>();
-            let label = ExplanationLabel {
-                kind: ExplanationLabelKind::ObservationExplanation,
-                text: text.clone(),
-                target_atoms: target_atoms.clone(),
-                connector: !target_atoms.is_empty(),
-            };
-            scenes.push(scene(
-                EducationalSceneKind::ObservationConnection,
-                after,
-                after,
-                explanation_duration(&text),
-                vec![
-                    EducationalCue::ShowObservation {
-                        predicate: observation.predicate,
-                        frame: after_digest,
-                    },
-                    EducationalCue::ShowContext {
-                        label: ContextLabel {
-                            kind: ExplanationLabelKind::ObservationExplanation,
-                            title: observation_title(observation.predicate).to_owned(),
-                            text: context_text,
-                            target_atoms,
-                            connector: label.connector,
-                        },
-                    },
-                    EducationalCue::ShowExplanation { label },
-                ],
-            ));
-        }
+        transition_index = group_end + 1;
     }
 
     scenes.push(scene(
@@ -295,6 +322,196 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
         id: frames.digest().map_err(|_| PlanError::Digest)?,
         scenes,
     })
+}
+
+fn has_active_observation(frame: &SimulationFrame) -> bool {
+    frame
+        .observations()
+        .iter()
+        .any(|observation| observation.status == ObservationStatus::Active)
+}
+
+#[allow(clippy::too_many_lines)]
+fn operation_signature(
+    before: &SimulationFrame,
+    after: &SimulationFrame,
+    operation: StructuralOperationView<'_>,
+) -> String {
+    match operation {
+        StructuralOperationView::ReconfigureElectrons { transition } => format!(
+            "reconfigure:{}:{}",
+            atom_symbol(before, after, transition.atom()),
+            atom_delta_signature(before, after, [transition.atom()])
+        ),
+        StructuralOperationView::CleaveCovalent {
+            left,
+            right,
+            expected_order,
+            ..
+        } => format!(
+            "cleave:{}:{}:{}:{}",
+            atom_symbol(before, after, left),
+            atom_symbol(before, after, right),
+            expected_order.order(),
+            atom_delta_signature(before, after, [left, right])
+        ),
+        StructuralOperationView::FormCovalent {
+            left, right, order, ..
+        } => format!(
+            "form:{}:{}:{}:{}",
+            atom_symbol(before, after, left),
+            atom_symbol(before, after, right),
+            order.order(),
+            atom_delta_signature(before, after, [left, right])
+        ),
+        StructuralOperationView::CleaveDative {
+            donor, acceptor, ..
+        } => format!(
+            "cleave-dative:{}:{}:{}",
+            atom_symbol(before, after, donor),
+            atom_symbol(before, after, acceptor),
+            atom_delta_signature(before, after, [donor, acceptor])
+        ),
+        StructuralOperationView::FormDative {
+            donor, acceptor, ..
+        } => format!(
+            "form-dative:{}:{}:{}",
+            atom_symbol(before, after, donor),
+            atom_symbol(before, after, acceptor),
+            atom_delta_signature(before, after, [donor, acceptor])
+        ),
+        StructuralOperationView::ChangeCovalent {
+            left,
+            right,
+            old_order,
+            new_order,
+            ..
+        } => format!(
+            "change:{}:{}:{}:{}:{}",
+            atom_symbol(before, after, left),
+            atom_symbol(before, after, right),
+            old_order.order(),
+            new_order.order(),
+            atom_delta_signature(before, after, [left, right])
+        ),
+        StructuralOperationView::ChangeCovalentDelocalization {
+            left,
+            right,
+            expected,
+            replacement,
+        } => format!(
+            "delocalize:{}:{}:{}:{}",
+            atom_symbol(before, after, left),
+            atom_symbol(before, after, right),
+            delocalization_name(expected),
+            delocalization_name(replacement),
+        ),
+        StructuralOperationView::AssociateIonic { association } => {
+            let mut components = association
+                .components()
+                .iter()
+                .filter_map(|group| after.groups().get(group))
+                .map(|group| {
+                    let mut symbols = group
+                        .atoms
+                        .iter()
+                        .map(|atom| atom_symbol(before, after, atom))
+                        .collect::<Vec<_>>();
+                    symbols.sort();
+                    let charge = after
+                        .ionic_associations()
+                        .get(association.id())
+                        .and_then(|association| association.component_charges.get(&group.id))
+                        .copied()
+                        .unwrap_or(0);
+                    format!("{charge}:{}", symbols.join("."))
+                })
+                .collect::<Vec<_>>();
+            components.sort();
+            format!("associate:{}", components.join("+"))
+        }
+        StructuralOperationView::DissociateIonic { association } => {
+            let mut components = before
+                .ionic_associations()
+                .get(association)
+                .into_iter()
+                .flat_map(|association| association.components.values())
+                .map(|atoms| {
+                    let mut symbols = atoms
+                        .iter()
+                        .map(|atom| atom_symbol(before, after, atom))
+                        .collect::<Vec<_>>();
+                    symbols.sort();
+                    symbols.join(".")
+                })
+                .collect::<Vec<_>>();
+            components.sort();
+            format!("dissociate:{}", components.join("+"))
+        }
+        StructuralOperationView::ReleaseMetallic { site, .. } => {
+            format!(
+                "release:{}:{}",
+                atom_symbol(before, after, site),
+                atom_delta_signature(before, after, [site])
+            )
+        }
+        StructuralOperationView::JoinMetallic { site, .. } => {
+            format!(
+                "join:{}:{}",
+                atom_symbol(before, after, site),
+                atom_delta_signature(before, after, [site])
+            )
+        }
+        StructuralOperationView::TransferElectron {
+            donor,
+            acceptor,
+            count,
+            ..
+        } => format!(
+            "transfer:{}:{}:{count}:{}",
+            atom_symbol(before, after, donor),
+            atom_symbol(before, after, acceptor),
+            atom_delta_signature(before, after, [donor, acceptor])
+        ),
+        StructuralOperationView::AssignProduct { atoms, .. } => {
+            let mut symbols = atoms
+                .iter()
+                .map(|atom| atom_symbol(before, after, atom))
+                .collect::<Vec<_>>();
+            symbols.sort();
+            format!("assign:{}", symbols.join("."))
+        }
+    }
+}
+
+fn atom_delta_signature<'a>(
+    before_frame: &SimulationFrame,
+    after_frame: &SimulationFrame,
+    atoms: impl IntoIterator<Item = &'a AtomId>,
+) -> String {
+    atoms
+        .into_iter()
+        .map(|atom| {
+            let before = before_frame.atoms().get(atom).map(|atom| atom.electrons);
+            let after = after_frame.atoms().get(atom).map(|atom| atom.electrons);
+            format!(
+                "{}:{}>{}",
+                atom_symbol(before_frame, after_frame, atom),
+                before.map_or_else(|| "missing".to_owned(), electron_state_signature),
+                after.map_or_else(|| "missing".to_owned(), electron_state_signature)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
+fn electron_state_signature(state: chem_domain::ElectronState) -> String {
+    format!(
+        "{}/{}/{}",
+        state.formal_charge(),
+        state.non_bonding_electrons(),
+        state.unpaired_electrons()
+    )
 }
 
 fn scene(
@@ -328,6 +545,15 @@ fn operation_narration(
     operation: StructuralOperationView<'_>,
 ) -> OperationNarration {
     let (context, explanation, target_atoms) = match operation {
+        StructuralOperationView::ReconfigureElectrons { transition } => (
+            format!(
+                "{} electron occupancy reorganises",
+                atom_symbol(before, after, transition.atom())
+            ),
+            "Local electrons change pairing so the next reviewed bond change can occur."
+                .to_owned(),
+            atom_targets([transition.atom()]),
+        ),
         StructuralOperationView::CleaveCovalent {
             left,
             right,
@@ -393,6 +619,23 @@ fn operation_narration(
                 new_order.order()
             ),
             "The new order changes how many electron pairs are shared between these atoms."
+                .to_owned(),
+            atom_targets([left, right]),
+        ),
+        StructuralOperationView::ChangeCovalentDelocalization {
+            left,
+            right,
+            expected,
+            replacement,
+        } => (
+            format!(
+                "{}â€“{} effective bond order: {} â†’ {}",
+                atom_symbol(before, after, left),
+                atom_symbol(before, after, right),
+                delocalization_name(expected),
+                delocalization_name(replacement),
+            ),
+            "The localized Lewis edge is retained while resonance delocalisation changes its validated effective bond order."
                 .to_owned(),
             atom_targets([left, right]),
         ),
@@ -520,6 +763,16 @@ const fn bond_order_name(order: u8) -> &'static str {
     }
 }
 
+fn delocalization_name(value: Option<&chem_domain::CovalentDelocalization>) -> String {
+    value.map_or_else(
+        || "localized".to_owned(),
+        |value| {
+            let order = value.effective_order();
+            format!("{}/{} delocalised", order.numerator(), order.denominator())
+        },
+    )
+}
+
 fn count_phrase(count: usize, subject: &str, verb: &str) -> String {
     format!("{count} {} {verb}", plural(count, subject))
 }
@@ -534,11 +787,13 @@ fn plural(count: usize, singular: &str) -> String {
 
 const fn operation_title(operation: StructuralOperationView<'_>) -> &'static str {
     match operation {
+        StructuralOperationView::ReconfigureElectrons { .. } => "ELECTRON REORGANISATION",
         StructuralOperationView::CleaveCovalent { .. } => "BOND CLEAVAGE",
         StructuralOperationView::FormCovalent { .. } => "COVALENT BOND",
         StructuralOperationView::CleaveDative { .. } => "COORDINATE BOND CLEAVAGE",
         StructuralOperationView::FormDative { .. } => "COORDINATE BOND",
         StructuralOperationView::ChangeCovalent { .. } => "BOND ORDER",
+        StructuralOperationView::ChangeCovalentDelocalization { .. } => "DELOCALISATION",
         StructuralOperationView::AssociateIonic { .. } => "IONIC ASSOCIATION",
         StructuralOperationView::DissociateIonic { .. } => "IONIC DISSOCIATION",
         StructuralOperationView::ReleaseMetallic { .. } => "METALLIC ELECTRON RELEASE",
@@ -568,18 +823,6 @@ fn observation_text(predicate: ObservationPredicate, value: Option<&str>) -> Str
                     "The {colour} observation connects the trusted outcome to a macroscopic visual change."
                 )
             },
-        ),
-    }
-}
-
-fn observation_context(predicate: ObservationPredicate, value: Option<&str>) -> String {
-    match predicate {
-        ObservationPredicate::Evolves => "Gas appears".to_owned(),
-        ObservationPredicate::Disappears => "Reactant amount decreases".to_owned(),
-        ObservationPredicate::Forms => "Product structure established".to_owned(),
-        ObservationPredicate::Colour => value.map_or_else(
-            || "Colour change registered".to_owned(),
-            |colour| format!("Observed colour: {colour}"),
         ),
     }
 }

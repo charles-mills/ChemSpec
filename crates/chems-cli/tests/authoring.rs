@@ -342,6 +342,7 @@ fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
     fs::create_dir(&temporary).unwrap();
     let output = temporary.join("trusted");
     let packages = displacement_packages();
+    let oxygen = root().join("catalogue/candidates/oxygen-reactions");
     let attestation = root().join("catalogue/reviews/core-chemistry.review.json");
     let result = run(&[
         "catalogue",
@@ -355,6 +356,7 @@ fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
         packages[2].to_str().unwrap(),
         packages[3].to_str().unwrap(),
         packages[4].to_str().unwrap(),
+        oxygen.to_str().unwrap(),
     ]);
     assert!(
         result.status.success(),
@@ -399,6 +401,7 @@ fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
         packages[2].to_str().unwrap(),
         packages[3].to_str().unwrap(),
         packages[4].to_str().unwrap(),
+        oxygen.to_str().unwrap(),
     ]);
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A041"));
