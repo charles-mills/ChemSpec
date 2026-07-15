@@ -1,0 +1,26 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction HydrochloricAcidAndSodiumBicarbonate where
+  reactants
+    hydrochloricAcid := 1 of HydrogenChloride
+    sodiumBicarbonate := 1 of SodiumBicarbonate
+  products
+    carbonDioxide := 1 of CarbonDioxide
+    water := 1 of Water
+    sodiumChloride := 1 of SodiumChloride
+  equation
+    HCl[molecular] + NaHCO3[ionic]
+    -> NaCl[ionic] + H2O[molecular] + CO2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.AcidBicarbonateGasEvolution@1
+    gas carbonDioxide evolves claim R1
+    reactant hydrochloricAcid disappears claim R2
+  by
+    apply Rules.MonoproticAcidBicarbonateGasEvolution
+      acid := hydrochloricAcid
+      bicarbonateSource := sodiumBicarbonate
+      gasProduct := carbonDioxide
+      waterProduct := water
+      saltProduct := sodiumChloride

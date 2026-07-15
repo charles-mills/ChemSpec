@@ -1,0 +1,458 @@
+{
+  "schema_version": 1,
+  "id": "acid-bicarbonate-gas-evolution",
+  "evidence": [
+    {
+      "id": "evidence.openstax.chemistry-2e.gas-evolution",
+      "title": "Chemistry 2e",
+      "publisher": "OpenStax",
+      "locator": "Gas-Evolution Reactions; Reactions of Acids with Carbonates and Bicarbonates",
+      "reference": "https://openstax.org/details/books/chemistry-2e",
+      "publication_date": "2019-02-14",
+      "retrieved_on": "2026-07-15",
+      "usage": "Acid-bicarbonate carbon dioxide gas-evolution outcome and the bicarbonate Lewis structure"
+    }
+  ],
+  "premises": [
+    {
+      "id": "premise.structure.alkali-metal-bicarbonate",
+      "statement": "Each supported alkali-metal bicarbonate is an ionic association of an M+ cation and a hydrogen carbonate anion: carbon double-bonded to one carbonyl oxygen, singly bonded to a protonated hydroxyl oxygen, and singly bonded to one charged oxygen, one canonical Lewis structure with total charge -1.",
+      "evidence": ["evidence.openstax.chemistry-2e.gas-evolution"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.carbon-dioxide",
+      "statement": "Carbon dioxide is represented as neutral molecular CO2 with two C=O double bonds.",
+      "evidence": ["evidence.openstax.chemistry-2e.gas-evolution"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.rule.acid-bicarbonate-gas-evolution.standard-outcome",
+      "statement": "Mixing an aqueous strong monoprotic hydrogen halide acid with an aqueous alkali-metal bicarbonate has the reviewed representative outcome HX + MHCO3 -> MX + H2O + CO2: the acid protonates the bicarbonate's charged oxygen, an intramolecular proton transfer and bond reorganization releases carbon dioxide and water, and the conserved cation and halide associate into the salt.",
+      "evidence": ["evidence.openstax.chemistry-2e.gas-evolution"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.case.hydrofluoric-acid-unsupported.gas-evolution",
+      "statement": "Hydrofluoric acid is a weak acid that only partially dissociates in water, a different equilibrium reaction model from the full, one-step strong-acid dissociation this family represents; representing partial-dissociation equilibria is outside the current structural domain.",
+      "evidence": ["evidence.openstax.chemistry-2e.gas-evolution"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.valence.acid-bicarbonate.initial-domain",
+      "statement": "The listed C, O, H, Li, Na, K, Cl, Br, F, and I tuples, including the transient carbocation and odd-electron oxygen intermediates of the bond-reorganization rewrite, are the closed valence domain for acid-bicarbonate gas-evolution chemistry.",
+      "evidence": ["evidence.openstax.chemistry-2e.gas-evolution"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.carbon-dioxide-evolves",
+      "statement": "Carbon dioxide is compatible with the authored observation predicate evolves for this family outcome.",
+      "evidence": ["evidence.openstax.chemistry-2e.gas-evolution"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.acid-disappears.gas-evolution",
+      "statement": "The hydrogen halide acid is compatible with the authored observation predicate disappears for this family outcome.",
+      "evidence": ["evidence.openstax.chemistry-2e.gas-evolution"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    }
+  ],
+  "valence_premises": [
+    {
+      "premise_id": "premise.valence.acid-bicarbonate.initial-domain",
+      "neutral_valence": [
+        {"element": "C", "neutral_valence_electrons": 4},
+        {"element": "O", "neutral_valence_electrons": 6},
+        {"element": "H", "neutral_valence_electrons": 1},
+        {"element": "Li", "neutral_valence_electrons": 1},
+        {"element": "Na", "neutral_valence_electrons": 1},
+        {"element": "K", "neutral_valence_electrons": 1},
+        {"element": "Cl", "neutral_valence_electrons": 7},
+        {"element": "Br", "neutral_valence_electrons": 7},
+        {"element": "I", "neutral_valence_electrons": 7},
+        {"element": "F", "neutral_valence_electrons": 7}
+      ],
+      "supported_states": [
+        {"element": "C", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 4},
+        {"element": "C", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 3},
+        {"element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0, "covalent_bond_order_sum": 2},
+        {"element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
+        {"element": "O", "formal_charge": 0, "non_bonding_electrons": 5, "unpaired_electrons": 1, "covalent_bond_order_sum": 1},
+        {"element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
+        {"element": "H", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "H", "formal_charge": 0, "non_bonding_electrons": 1, "unpaired_electrons": 1, "covalent_bond_order_sum": 0},
+        {"element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "Na", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "K", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "Cl", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
+        {"element": "Br", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
+        {"element": "I", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
+        {"element": "F", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
+        {"element": "Cl", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "Br", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
+        {"element": "I", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0}
+      ],
+      "metallic_domain_states": []
+    }
+  ],
+  "structures": [
+    {
+      "representation": "molecular",
+      "id": "CarbonDioxide",
+      "premise_id": "premise.structure.carbon-dioxide",
+      "formula": "CO2",
+      "atoms": [
+        {"label": "c", "element": "C", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+        {"label": "o_a", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0},
+        {"label": "o_c", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0}
+      ],
+      "bonds": [
+        {"left": "c", "right": "o_a", "order": "double"},
+        {"left": "c", "right": "o_c", "order": "double"}
+      ],
+      "groups": []
+    }
+  ],
+  "element_categories": [],
+  "structure_templates": [
+    {
+      "representation": "ionic",
+      "id": "Templates.AlkaliMetalBicarbonate",
+      "parameters": {
+        "member": {"kind": "element", "category": "Categories.AlkaliMetal"}
+      },
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {"label": "cation", "element": {"parameter": "member"}, "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0}
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "bicarbonate",
+          "atoms": [
+            {"label": "c", "element": "C", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"label": "o_a", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0},
+            {"label": "o_b", "element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0},
+            {"label": "h_b", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0},
+            {"label": "o_c", "element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0}
+          ],
+          "bonds": [
+            {"left": "c", "right": "o_a", "order": "double"},
+            {"left": "c", "right": "o_b", "order": "single"},
+            {"left": "o_b", "right": "h_b", "order": "single"},
+            {"left": "c", "right": "o_c", "order": "single"}
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {"label": "ionic", "components": ["cation", "bicarbonate"]}
+      ],
+      "premise_ids": ["premise.structure.alkali-metal-bicarbonate"]
+    }
+  ],
+  "structure_applications": [
+    {
+      "id": "LithiumBicarbonate",
+      "template": "Templates.AlkaliMetalBicarbonate",
+      "arguments": {"member": "Li"},
+      "formula": "LiHCO3",
+      "premise_ids": ["premise.structure.alkali-metal-bicarbonate"]
+    },
+    {
+      "id": "SodiumBicarbonate",
+      "template": "Templates.AlkaliMetalBicarbonate",
+      "arguments": {"member": "Na"},
+      "formula": "NaHCO3",
+      "premise_ids": ["premise.structure.alkali-metal-bicarbonate"]
+    },
+    {
+      "id": "PotassiumBicarbonate",
+      "template": "Templates.AlkaliMetalBicarbonate",
+      "arguments": {"member": "K"},
+      "formula": "KHCO3",
+      "premise_ids": ["premise.structure.alkali-metal-bicarbonate"]
+    }
+  ],
+  "graph_patterns": [
+    {
+      "id": "Patterns.AlkaliMetalBicarbonateIonic",
+      "variables": {
+        "cation": {"atom": {"element": {"parameter": "member"}, "formal_charge": 1}},
+        "c": {"atom": {"element": "C"}},
+        "o_a": {"atom": {"element": "O", "formal_charge": 0}},
+        "o_b": {"atom": {"element": "O", "formal_charge": 0}},
+        "h_b": {"atom": {"element": "H"}},
+        "o_c": {"atom": {"element": "O", "formal_charge": -1}}
+      },
+      "relationships": [
+        {"kind": "covalent", "bond": "c_oa", "left": "c", "right": "o_a", "order": "double"},
+        {"kind": "covalent", "bond": "c_ob", "left": "c", "right": "o_b", "order": "single"},
+        {"kind": "covalent", "bond": "ob_hb", "left": "o_b", "right": "h_b", "order": "single"},
+        {"kind": "covalent", "bond": "c_oc", "left": "c", "right": "o_c", "order": "single"},
+        {"kind": "group_membership", "group": "cationGroup", "atoms": ["cation"]},
+        {"kind": "group_membership", "group": "bicarbonateGroup", "atoms": ["c", "o_a", "o_b", "h_b", "o_c"]},
+        {"kind": "ionic_association", "association": "salt", "groups": ["cationGroup", "bicarbonateGroup"]}
+      ],
+      "premise_ids": ["premise.structure.alkali-metal-bicarbonate"]
+    }
+  ],
+  "generalized_rules": [
+    {
+      "id": "Rules.MonoproticAcidBicarbonateGasEvolution",
+      "parameters": {
+        "member": {"kind": "element", "category": "Categories.AlkaliMetal"},
+        "halide": {"kind": "element", "category": "Categories.Halide"}
+      },
+      "roles": {
+        "acid": {"side": "reactant", "representation": "molecular", "coefficient": 1},
+        "bicarbonateSource": {"side": "reactant", "representation": "ionic", "coefficient": 1},
+        "gasProduct": {"side": "product", "representation": "molecular", "coefficient": 1},
+        "waterProduct": {"side": "product", "representation": "molecular", "coefficient": 1},
+        "saltProduct": {"side": "product", "representation": "ionic", "coefficient": 1}
+      },
+      "reactants": {
+        "acid": {
+          "kind": "template",
+          "template": "Templates.HydrogenHalide",
+          "arguments": {"halide": {"parameter": "halide"}}
+        },
+        "bicarbonateSource": {
+          "kind": "template",
+          "template": "Templates.AlkaliMetalBicarbonate",
+          "arguments": {"member": {"parameter": "member"}}
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "standard",
+          "when": {"kind": "parameter_in_set", "parameter": "halide", "values": ["Cl", "Br", "I"]},
+          "products": {
+            "gasProduct": {"kind": "exact", "structure": "CarbonDioxide"},
+            "waterProduct": {"kind": "exact", "structure": "Water"},
+            "saltProduct": {
+              "kind": "template",
+              "template": "Templates.AlkaliMetalHalide",
+              "arguments": {"member": {"parameter": "member"}, "halide": {"parameter": "halide"}}
+            }
+          },
+          "patterns": {
+            "acid": "Patterns.HydrogenHalide",
+            "bicarbonateSource": "Patterns.AlkaliMetalBicarbonateIonic"
+          },
+          "correspondence": [
+            {
+              "reactant": "bicarbonateSource[1].c",
+              "product": "gasProduct[1].c",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.carbon-dioxide"]
+            },
+            {
+              "reactant": "bicarbonateSource[1].o_a",
+              "product": "gasProduct[1].o_a",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.carbon-dioxide"]
+            },
+            {
+              "reactant": "bicarbonateSource[1].o_c",
+              "product": "gasProduct[1].o_c",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.carbon-dioxide"]
+            },
+            {
+              "reactant": "bicarbonateSource[1].o_b",
+              "product": "waterProduct[1].o",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.water"]
+            },
+            {
+              "reactant": "bicarbonateSource[1].h_b",
+              "product": "waterProduct[1].h1",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.water"]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "waterProduct[1].h2",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.hydrogen-halide", "premise.structure.water"]
+            },
+            {
+              "reactant": "bicarbonateSource[1].cation",
+              "product": "saltProduct[1].cation.cation",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.alkali-metal-halide"]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "saltProduct[1].anion.anion",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.hydrogen-halide", "premise.structure.alkali-metal-halide"]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate"],
+              "association": "bicarbonateSource[1].salt"
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.hydrogen-halide", "premise.valence.acid-bicarbonate.initial-domain"],
+              "edge": ["acid[1].h", "acid[1].x", "single"],
+              "allocation": {"heterolytic_to": "acid[1].x"},
+              "before": {"left": [0, 0, 0], "right": [0, 6, 0]},
+              "after": {"left": [1, 0, 0], "right": [-1, 8, 0]}
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.valence.acid-bicarbonate.initial-domain"],
+              "count": 1,
+              "donor": "bicarbonateSource[1].o_c",
+              "acceptor": "acid[1].h",
+              "before": {"donor": [-1, 6, 0], "acceptor": [1, 0, 0]},
+              "after": {"donor": [0, 5, 1], "acceptor": [0, 1, 1]}
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.valence.acid-bicarbonate.initial-domain"],
+              "edge": ["bicarbonateSource[1].o_c", "acid[1].h", "single"],
+              "electron_contribution": {"left": 1, "right": 1},
+              "before": {"left": [0, 5, 1], "right": [0, 1, 1]},
+              "after": {"left": [0, 4, 0], "right": [0, 0, 0]}
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.valence.acid-bicarbonate.initial-domain"],
+              "edge": ["bicarbonateSource[1].c", "bicarbonateSource[1].o_b", "single"],
+              "allocation": {"heterolytic_to": "bicarbonateSource[1].o_b"},
+              "before": {"left": [0, 0, 0], "right": [0, 4, 0]},
+              "after": {"left": [1, 0, 0], "right": [-1, 6, 0]}
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.hydrogen-halide", "premise.valence.acid-bicarbonate.initial-domain"],
+              "edge": ["bicarbonateSource[1].o_c", "acid[1].h", "single"],
+              "allocation": {"heterolytic_to": "bicarbonateSource[1].o_c"},
+              "before": {"left": [0, 4, 0], "right": [0, 0, 0]},
+              "after": {"left": [-1, 6, 0], "right": [1, 0, 0]}
+            },
+            {
+              "kind": "change_covalent",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.carbon-dioxide", "premise.valence.acid-bicarbonate.initial-domain"],
+              "edge": ["bicarbonateSource[1].c", "bicarbonateSource[1].o_c"],
+              "old_order": "single",
+              "new_order": "double",
+              "allocation": {"heterolytic_to": "bicarbonateSource[1].o_c"},
+              "before": {"left": [1, 0, 0], "right": [-1, 6, 0]},
+              "after": {"left": [0, 0, 0], "right": [0, 4, 0]}
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.valence.acid-bicarbonate.initial-domain"],
+              "count": 1,
+              "donor": "bicarbonateSource[1].o_b",
+              "acceptor": "acid[1].h",
+              "before": {"donor": [-1, 6, 0], "acceptor": [1, 0, 0]},
+              "after": {"donor": [0, 5, 1], "acceptor": [0, 1, 1]}
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-bicarbonate", "premise.structure.water", "premise.valence.acid-bicarbonate.initial-domain"],
+              "edge": ["bicarbonateSource[1].o_b", "acid[1].h", "single"],
+              "electron_contribution": {"left": 1, "right": 1},
+              "before": {"left": [0, 5, 1], "right": [0, 1, 1]},
+              "after": {"left": [0, 4, 0], "right": [0, 0, 0]}
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-halide", "premise.valence.acid-bicarbonate.initial-domain"],
+              "label": "ionic.salt",
+              "components": [["bicarbonateSource[1].cation"], ["acid[1].x"]],
+              "component_charges": [1, -1]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.carbon-dioxide"],
+              "atoms": ["bicarbonateSource[1].c", "bicarbonateSource[1].o_a", "bicarbonateSource[1].o_c"],
+              "product": "gasProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.water"],
+              "atoms": ["bicarbonateSource[1].o_b", "bicarbonateSource[1].h_b", "acid[1].h"],
+              "product": "waterProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome", "premise.structure.alkali-metal-halide"],
+              "atoms": ["bicarbonateSource[1].cation", "acid[1].x"],
+              "product": "saltProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "gasProduct",
+              "predicate": "evolves",
+              "evidence_subject": "carbon dioxide",
+              "premise_id": "premise.observation.carbon-dioxide-evolves"
+            },
+            {
+              "subject_role": "acid",
+              "predicate": "disappears",
+              "evidence_subject": "strong acid",
+              "premise_id": "premise.observation.acid-disappears.gas-evolution"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.acid-bicarbonate-gas-evolution.standard-outcome",
+            "premise.structure.hydrogen-halide",
+            "premise.structure.alkali-metal-bicarbonate",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.carbon-dioxide",
+            "premise.structure.water",
+            "premise.valence.acid-bicarbonate.initial-domain",
+            "premise.observation.carbon-dioxide-evolves",
+            "premise.observation.acid-disappears.gas-evolution"
+          ]
+        },
+        {
+          "status": "unsupported",
+          "id": "hydrofluoric-acid-weak",
+          "when": {"kind": "parameter_equals", "parameter": "halide", "value": "F"},
+          "required_feature": "Features.WeakAcidEquilibrium",
+          "explanation": "Hydrofluoric acid is a weak acid with a partial dissociation equilibrium, a different reaction model from the strong-acid full dissociation this family represents.",
+          "premise_ids": ["premise.case.hydrofluoric-acid-unsupported.gas-evolution"]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.acid-bicarbonate-gas-evolution.standard-outcome",
+        "request_relation": "contact",
+        "required_context": "representative educational outcome under the reviewed standard-outcome premise"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": ["premise.rule.acid-bicarbonate-gas-evolution.standard-outcome"]
+      },
+      "premise_ids": [
+        "premise.elements.iupac-periodic-table",
+        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.category.halide",
+        "premise.structure.hydrogen-halide",
+        "premise.structure.alkali-metal-bicarbonate",
+        "premise.structure.alkali-metal-halide",
+        "premise.structure.carbon-dioxide",
+        "premise.structure.water",
+        "premise.rule.acid-bicarbonate-gas-evolution.standard-outcome",
+        "premise.case.hydrofluoric-acid-unsupported.gas-evolution",
+        "premise.valence.acid-bicarbonate.initial-domain",
+        "premise.observation.carbon-dioxide-evolves",
+        "premise.observation.acid-disappears.gas-evolution"
+      ]
+    }
+  ]
+}
