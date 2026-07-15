@@ -152,6 +152,31 @@ cargo fmt --all -- --check
 cargo run -p chemspec-app
 ```
 
+### macOS visual smoke tests
+
+Computer Use must target a fresh, uniquely identified app bundle instead of a
+raw `cargo run` process or the release-named `ChemSpec.app`. Install the same
+packager version used by the release workflow, then launch the desired view:
+
+```sh
+cargo install cargo-packager --version 0.11.8 --locked
+just agent-smoke 2d
+just agent-smoke 3d
+just agent-smoke stop
+```
+
+The launch command rebuilds the application, recreates
+`target/agent-smoke/ChemSpec Agent Smoke.app`, verifies that its executable is
+byte-identical to the fresh debug binary, and launches that exact path as a new
+instance. Agents must use `ChemSpec Agent Smoke` as the Computer Use app name
+and verify the mode-specific window title before judging the rendered UI:
+
+- `ChemSpec Agent Smoke — Structural 2D`
+- `ChemSpec Agent Smoke — Structural 3D`
+
+Do not target `ChemSpec` for an automated visual smoke; Computer Use may resolve
+that name to an older registered development or release bundle.
+
 ## Releases
 
 Pushing a tag in the exact form `vMAJOR.MINOR.PATCH` builds a Windows MSI, a

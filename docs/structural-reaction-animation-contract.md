@@ -109,7 +109,21 @@ Future operation or presentation variants must be added vertically: catalogue
 schema, trusted transition validation, frames, planner primitives, renderers,
 conformance, and disclosures must remain aligned.
 
-For direct live smokes:
+For direct live smokes on macOS:
+
+```sh
+just agent-smoke 2d
+just agent-smoke 3d
+just agent-smoke stop
+```
+
+These commands recreate and byte-check the uniquely identified
+`ChemSpec Agent Smoke.app` bundle before launching it. Computer Use must target
+`ChemSpec Agent Smoke` and verify the mode-specific `Structural 2D` or
+`Structural 3D` window title. It must not target a release-named `ChemSpec`
+bundle.
+
+On other platforms, the direct binary flags remain available:
 
 ```sh
 cargo run -p chemspec-app -- --structural-2d-smoke

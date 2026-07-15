@@ -1,4 +1,4 @@
-set default-list := true
+set default-list
 
 alias b := build
 alias r := run
@@ -15,6 +15,10 @@ release:
 # Run the ChemSpec application
 run:
     cargo run -p chemspec-app
+
+# Launch a fresh macOS bundle for Computer Use, or stop it
+agent-smoke mode="2d":
+    ./packaging/scripts/agent-smoke-macos.sh '{{ mode }}'
 
 # Check the workspace without producing binaries
 check:

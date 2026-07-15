@@ -93,7 +93,7 @@ const fn educational_scene_title(kind: EducationalSceneKind) -> &'static str {
 
 fn main() -> iced::Result {
     iced::application(launch_state, App::update, App::view)
-        .title("ChemSpec — reaction builder")
+        .title(App::title)
         .subscription(App::subscription)
         .theme(App::theme)
         .window(iced::window::Settings {
@@ -122,19 +122,12 @@ const fn initial_provider(codex_available: bool) -> ProviderChoice {
 
 fn launch_state() -> App {
     let mut app = App::default();
-    let smoke = std::env::args().find(|argument| {
-        matches!(
-            argument.as_str(),
-            "--structural-2d-smoke"
-                | "--structural-3d-smoke"
-                | "--lithium-2d-smoke"
-                | "--lithium-3d-smoke"
-        )
-    });
-    if let Some(smoke) = smoke {
+    let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
+    if let Some(smoke_mode) = smoke_mode {
+        app.smoke_mode = Some(smoke_mode);
         app.open_structural_animation();
         if let Some(animation) = &mut app.structural_animation {
-            let three_dimensional = smoke.ends_with("3d-smoke");
+            let three_dimensional = smoke_mode == SmokeMode::Structural3d;
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
             if three_dimensional {
                 animation.real_world_playhead_ms = animation
@@ -190,6 +183,29 @@ enum Screen {
     ValidatedRecord,
     Structural2d,
     Structural3d,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SmokeMode {
+    Structural2d,
+    Structural3d,
+}
+
+impl SmokeMode {
+    fn from_argument(argument: &str) -> Option<Self> {
+        match argument {
+            "--structural-2d-smoke" | "--lithium-2d-smoke" => Some(Self::Structural2d),
+            "--structural-3d-smoke" | "--lithium-3d-smoke" => Some(Self::Structural3d),
+            _ => None,
+        }
+    }
+
+    const fn title(self) -> &'static str {
+        match self {
+            Self::Structural2d => "Structural 2D",
+            Self::Structural3d => "Structural 3D",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -300,6 +316,7 @@ struct StructuralAnimation {
 
 struct App {
     screen: Screen,
+    smoke_mode: Option<SmokeMode>,
     codex_available: bool,
     provider: Option<ProviderChoice>,
     api_key: String,
@@ -326,6 +343,7 @@ impl Default for App {
         };
         Self {
             screen: Screen::ProviderSetup,
+            smoke_mode: None,
             codex_available,
             provider: Some(initial_provider(codex_available)),
             api_key: String::new(),
@@ -356,6 +374,13 @@ fn api_key_format_is_valid(api_key: &str) -> bool {
 }
 
 impl App {
+    fn title(&self) -> String {
+        self.smoke_mode.map_or_else(
+            || "ChemSpec — reaction builder".to_owned(),
+            |mode| format!("ChemSpec Agent Smoke — {}", mode.title()),
+        )
+    }
+
     #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: Message) {
         match message {
@@ -2173,6 +2198,26 @@ mod tests {
     fn initial_provider_follows_codex_availability() {
         assert_eq!(initial_provider(true), ProviderChoice::CodexSubscription);
         assert_eq!(initial_provider(false), ProviderChoice::ApiKey);
+    }
+
+    #[test]
+    fn smoke_arguments_select_a_unique_mode_and_window_title() {
+        assert_eq!(
+            SmokeMode::from_argument("--structural-2d-smoke"),
+            Some(SmokeMode::Structural2d)
+        );
+        assert_eq!(
+            SmokeMode::from_argument("--structural-3d-smoke"),
+            Some(SmokeMode::Structural3d)
+        );
+        assert_eq!(SmokeMode::from_argument("--not-a-smoke"), None);
+
+        let mut app = App::default();
+        assert_eq!(app.title(), "ChemSpec — reaction builder");
+        app.smoke_mode = Some(SmokeMode::Structural2d);
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 2D");
+        app.smoke_mode = Some(SmokeMode::Structural3d);
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 3D");
     }
 
     #[test]
