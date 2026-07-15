@@ -53,6 +53,10 @@ if [[ "$mode" == "stop" ]]; then
 fi
 
 case "$mode" in
+    builder)
+        smoke_argument="--builder-smoke"
+        smoke_title="Builder"
+        ;;
     2d)
         smoke_argument="--structural-2d-smoke"
         smoke_title="Structural 2D"
@@ -62,7 +66,7 @@ case "$mode" in
         smoke_title="Structural 3D"
         ;;
     *)
-        echo "Usage: just agent-smoke [2d|3d|stop]" >&2
+        echo "Usage: just agent-smoke [builder|2d|3d|stop]" >&2
         exit 2
         ;;
 esac

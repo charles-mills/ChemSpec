@@ -15,8 +15,6 @@ use chem_presentation::{
     VIRTUAL_ONLY_DISCLOSURE,
 };
 
-pub const DISCLOSURE: &str = "Representative educational outcome. The structural sequence is explanatory, not a mechanism claim or laboratory procedure.";
-
 const CATALOGUE: &[u8] =
     include_bytes!("../../../catalogue/trusted/periodic-table-and-alkali-water/catalogue.json");
 const ATTESTATION: &[u8] =
@@ -81,24 +79,6 @@ impl Experience {
             Self::Potassium => {
                 include_bytes!("../../../conformance/observations/alkali-water-k-001.evidence.json")
             }
-        }
-    }
-
-    #[must_use]
-    pub const fn request(self) -> &'static str {
-        match self {
-            Self::Lithium => "What happens when lithium metal comes into contact with water?",
-            Self::Sodium => "What happens when sodium metal comes into contact with water?",
-            Self::Potassium => "What happens when potassium metal comes into contact with water?",
-        }
-    }
-
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Lithium => "Lithium and water",
-            Self::Sodium => "Sodium and water",
-            Self::Potassium => "Potassium and water",
         }
     }
 

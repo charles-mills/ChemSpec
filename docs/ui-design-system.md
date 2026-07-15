@@ -23,74 +23,75 @@ The reusable characteristics of `ChemistrySim` are:
 
 ChemSpec applies these principles to a validation-first product. During
 composition, the reaction builder is the dominant stage; after validation, the
-simulation becomes the dominant stage while workflow, source, validation, and
-evidence live in an explicit inspector. Source and provenance remain distinct,
-and presentation never changes validation meaning.
+guided structural simulation becomes the dominant stage. Source and provenance
+remain distinct, and presentation never changes validation meaning.
 
 ## Reaction-builder composition
 
-The builder uses a persistent five-step route—Elements, Workspace, Explain,
-Observe, Result—to communicate progression without implying that later stages
-are already available. Stage 1 combines three levels of hierarchy:
+Stage 1 is the learner's question. The screen carries exactly two regions and
+no chrome: the sentence "What happens when `X` reacts with `Y`?" whose
+reactant slots are interactive chips, and the full periodic table below it.
+There is no header, no route strip, no status footer, no input-history panel,
+and no separate model-preview panel. Compact widths swap the sentence for the
+denser `X + Y → ?` equation form.
 
-- a compact product context bar and route;
-- a concise task header without redundant filter or selection panels;
-- the two-reactant equation composer and periodic table as a connected working surface.
+Slot borders carry the draft's state as colour: green for a valid reactant (a
+recognised composition or a lone element), orange for an unrecognised draft,
+and grey when empty. An empty slot shows a muted "?" in the formula style.
+The selected slot adds a blue background tint and thicker border from the
+dedicated selection token, so selection reads independently of state. The
+words behind every colour live in the slot tooltip, never in a status strip.
+Under the sentence sit the primary "Run reaction" action — disabled until the
+pair is supported — followed by Undo and Clear at the same control height.
 
-The composer mirrors a conventional reaction equation: an atomic preview,
-Reactant 1, `+`, Reactant 2, and `→`, with a compact input history at the edge.
-One slot always has an explicit active-input treatment. Recognised composition
-previews use a named status; unknown or intermediate drafts preserve their
-formula and atoms with an unrecognised label. The active atomic preview uses the
-same deterministic shell canvas as the former workspace: electrons orbit
-slowly, curated covalent compositions show their shared pairs, and an explicit
-control pauses continuous motion.
+Hovering a non-empty slot opens a tooltip that never repeats the formula or
+symbol already visible in the slot: a single atom shows its full name, atomic
+number, and periodic family; a recognised composition shows the compound
+cluster with shared pairs and its chemical name; an unrecognised draft shows
+its member atoms with an explicit unrecognised label. Every
+tooltip ends with the direct gesture hint; empty slots carry no tooltip.
+Electrons orbit only while a tooltip is open, so moving the cursor away
+pauses motion without a dedicated control; the tooltip itself fades in over
+the standard interaction window.
 
-Element tiles preserve their group and period positions. The reaction box sits
-above the full-width periodic table, matching the direction in which elements
-are carried into the workspace. Dragging adds a window-level floating preview
-that remains visible over either panel and the reaction box provides the
-explicit drop target.
+Slots support direct gestures alongside the buttons: clicking an inactive
+slot selects it, clicking the active slot undoes its last element, and
+pressing and holding any filled slot clears it. The hold shows a radial
+progress wheel over the slot that must complete before anything is destroyed;
+releasing early falls back to a click, and leaving the slot cancels the hold.
+
+Element keys preserve their group and period positions. Dragging adds a
+window-level floating preview that remains visible over every surface, and
+the sentence slots are the explicit drop targets.
 
 The periodic grid contains all 118 elements in the standard seven-period
-arrangement with separate lanthanide and actinide rows. It measures its
-available width. Square cells expand until a readability cap, then the column
-rhythm distributes the remaining width across the s, d, and p blocks. Elements
-within a block stay close together; larger gaps after groups 2 and 12 preserve
-the periodic families as distinct visual clusters. Horizontal and vertical
-gaps are independent, allowing the table to fill its panel without making the
-nine-row arrangement too tall for the one-page composition. Cells
-switch to a symbol-first dense presentation at compact sizes. Populated desktop
-cells show atomic number, symbol, name, and atomic mass. The redundant table
-instruction strip is removed and bottom padding is zero, leaving maximum height
-for the grid. All 18 groups remain visible without horizontal scrolling. The
-workspace stores normalized atom positions, so its layout scales without
-changing the learner's composition.
+arrangement with separate lanthanide and actinide rows. The table renders as a
+quiet keyboard centred in its remaining space: keys are slightly wider than
+tall and expand until a readability cap bounded by both the available width
+and height. Elements within a block stay close together; slightly larger gaps
+after groups 2 and 12 preserve the periodic families as distinct visual
+clusters. Every key carries its atomic number, symbol, full element name, and
+a bottom colour tick in its periodic-family colour, so no separate legend,
+group-number strip, or instruction copy is required; keys switch to a
+symbol-first dense presentation at compact sizes. All 18 groups remain visible
+without horizontal scrolling.
 
-Placed atoms use direct manipulation: drag to reposition, move compatible atoms
-near one another to group, and remove the selected atom with an explicit
-control. Supported groups settle into a single compound card with a short-lived
-animation subscription; moving or removing that card affects every member
-atom. A visible reduced-motion control applies final positions immediately.
-Compound cards always remain composition previews pending validation.
-
-Stage 3 embeds deterministic Canvas diagrams inside the same draggable object
-surfaces. Loose atoms use concentric hairline shells, a high-contrast nucleus,
-and outer-shell electron markers. Recognised compositions retain those atomic
-models within one grouped surface alongside the formula and name. A 20 FPS
-subscription advances a deliberately slow orbit only while visualised atoms
-are present and motion is enabled; reduced motion freezes the orbit without
-hiding chemical labels. Covalent groupings add one or two explicit shared
+The atomic tooltips use deterministic Canvas diagrams: concentric hairline
+shells, a high-contrast nucleus, and outer-shell electron markers. Recognised
+compositions retain those atomic models within one cluster alongside the
+formula and chemical name. A tick subscription advances a deliberately slow
+orbit and the tooltip's reveal fade only while a slot tooltip is open; leaving
+the slot freezes the orbit. Covalent groupings add one or two explicit shared
 electron pairs between shell models; ionic associations do not reuse that cue.
 
-The consolidated composer and full periodic table occupy one fixed page. The
+The sentence composer and full periodic table occupy one fixed page. The
 builder itself has no scroll container. A supported pair receives the primary
 reaction action; unsupported combinations keep it disabled. Starting copies
 the exact draft identities into the internal request state and opens the 2D
 frame sequence only after the canonical language, catalogue, expansion, and
 kernel boundaries succeed.
 
-Stage 5 replaces the builder/table surface with a full-height guided renderer
+The animation stage replaces the builder/table surface with a full-height guided renderer
 of the trusted `SimulationFrames` sequence. Deterministic educational scenes
 group the exact validated states without inventing chemistry. Stable atom IDs
 persist across frames; covalent edges, dative provenance, ionic associations,
@@ -142,23 +143,23 @@ Motion must describe a state change, not run decoratively. Continuous ticks are
 allowed only while playback or a real loading state is active. Reduced-motion
 mode removes spatial movement while preserving opacity and status feedback.
 
-The composer subscribes to slow orbital ticks only while its model is visible
-and motion is enabled. The internal workspace subscribes only while a recognised
-group is settling or the trusted frame sequence is playing. Native hover, press, focus,
-selected, and disabled feedback requires no unconditional subscription. `U-104`
-should apply these motion tokens when playback becomes real.
+The motion cadence and step tokens live in `theme::motion`. The composer
+subscribes to ticks only while a slot tooltip is open: the same subscription
+advances the slow orbit and the tooltip's ease-out reveal, and ends when the
+cursor leaves. An activated element key does not stay highlighted; it flashes
+in its family colour and fades back over about a second with a quadratic
+tail, like a released key, ticking only while the fade runs. Playback ticks
+run only while the trusted frame sequence is playing. Native hover, press,
+focus, selected, and disabled feedback requires no unconditional
+subscription.
 
 ## Responsive composition
 
-- Desktop, 1120 pixels and wider: the reactant composer and periodic table form
-  one vertical working surface, with the complete table below the composer. Validated
-  views place simulation and inspector side by side, with simulation receiving
-  the larger share.
-- Tablet, 720–1119 pixels: builder controls and validated-view regions stack
-  vertically while navigation remains visible.
-- Compact, below 720 pixels: header metadata and navigation labels shorten,
-  controls stack, and the periodic table retains all 18 groups using dense,
-  symbol-first cells without horizontal scrolling.
+- Desktop, 720 pixels and wider: the question sentence sits above the
+  periodic table, which centres in the remaining space at its readability cap.
+- Compact, below 720 pixels: the sentence becomes the `X + Y → ?` equation
+  form, and the periodic table retains all 18 groups using dense,
+  symbol-first keys without horizontal scrolling.
 
 Responsive changes may alter composition but must not hide a product region
 without a visible navigation path to it.

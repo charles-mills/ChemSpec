@@ -42,8 +42,8 @@ pub struct ColorTokens {
     pub accent_hover: Color,
     pub accent_soft: Color,
     pub accent_faint: Color,
+    pub selection: Color,
     pub success: Color,
-    pub success_soft: Color,
     pub warning: Color,
     pub danger: Color,
 }
@@ -52,7 +52,6 @@ pub struct ColorTokens {
 pub struct ChemistryColorTokens {
     pub covalent: Color,
     pub ionic: Color,
-    pub metallic: Color,
     pub electron: Color,
     pub structural_canvas: Color,
     pub structural_panel: Color,
@@ -104,12 +103,12 @@ pub struct TypeScaleTokens {
     pub body_large: f32,
     pub title: f32,
     pub display: f32,
+    pub hero: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct BreakpointTokens {
     pub mobile: f32,
-    pub desktop: f32,
 }
 
 pub const LAB_DARK: ThemeTokens = ThemeTokens {
@@ -133,16 +132,17 @@ pub const LAB_DARK: ThemeTokens = ThemeTokens {
         accent_hover: Color::from_rgb8(0x8B, 0xE6, 0xA3),
         accent_soft: Color::from_rgb8(0x1D, 0x42, 0x2B),
         accent_faint: Color::from_rgb8(0x10, 0x27, 0x1A),
+        // Input-target blue: selection must read independently of the green
+        // "valid" state colour, so it never borrows the accent.
+        selection: Color::from_rgb8(0x7F, 0xB4, 0xFF),
         // Validation remains a distinct teal trust signal.
         success: Color::from_rgb8(0x4D, 0xC8, 0xB0),
-        success_soft: Color::from_rgb8(0x0F, 0x30, 0x2B),
         warning: Color::from_rgb8(0xF1, 0xB5, 0x5A),
         danger: Color::from_rgb8(0xFB, 0x71, 0x81),
     },
     chemistry: ChemistryColorTokens {
         covalent: Color::from_rgb8(0x8F, 0xC5, 0xFF),
         ionic: Color::from_rgb8(0x7A, 0xE3, 0xB0),
-        metallic: Color::from_rgb8(0xF2, 0xB8, 0x59),
         electron: Color::from_rgb8(0xB7, 0xDB, 0xFF),
         structural_canvas: Color::from_rgb8(0x07, 0x09, 0x0C),
         structural_panel: Color::from_rgb8(0x0E, 0x13, 0x19),
@@ -188,11 +188,9 @@ pub const LAB_DARK: ThemeTokens = ThemeTokens {
         body_large: 16.0,
         title: 22.0,
         display: 30.0,
+        hero: 38.0,
     },
-    breakpoint: BreakpointTokens {
-        mobile: 720.0,
-        desktop: 1_120.0,
-    },
+    breakpoint: BreakpointTokens { mobile: 720.0 },
 };
 
 pub mod color {
@@ -220,9 +218,9 @@ pub mod color {
     pub const ACCENT_HOVER: Color = LAB_DARK.colors.accent_hover;
     pub const ACCENT_SOFT: Color = LAB_DARK.colors.accent_soft;
     pub const ACCENT_FAINT: Color = LAB_DARK.colors.accent_faint;
+    pub const SELECTION: Color = LAB_DARK.colors.selection;
 
     pub const SUCCESS: Color = LAB_DARK.colors.success;
-    pub const SUCCESS_SOFT: Color = LAB_DARK.colors.success_soft;
     pub const WARNING: Color = LAB_DARK.colors.warning;
     pub const DANGER: Color = LAB_DARK.colors.danger;
 }
@@ -234,7 +232,6 @@ pub mod chemistry_color {
 
     pub const COVALENT: Color = LAB_DARK.chemistry.covalent;
     pub const IONIC: Color = LAB_DARK.chemistry.ionic;
-    pub const METALLIC: Color = LAB_DARK.chemistry.metallic;
     pub const ELECTRON: Color = LAB_DARK.chemistry.electron;
     pub const STRUCTURAL_CANVAS: Color = LAB_DARK.chemistry.structural_canvas;
     pub const STRUCTURAL_PANEL: Color = LAB_DARK.chemistry.structural_panel;
@@ -270,13 +267,49 @@ pub mod type_scale {
     pub const BODY_LARGE: f32 = LAB_DARK.type_scale.body_large;
     pub const TITLE: f32 = LAB_DARK.type_scale.title;
     pub const DISPLAY: f32 = LAB_DARK.type_scale.display;
+    pub const HERO: f32 = LAB_DARK.type_scale.hero;
+}
+
+/// Interface motion cadence shared by animated views.
+///
+/// One tick advances hover reveals and the slow orbital phase; subscriptions
+/// must only run while something on screen actually moves.
+pub mod motion {
+    /// Frame cadence for continuous interface motion.
+    pub const TICK: std::time::Duration = std::time::Duration::from_millis(33);
+    /// Per-tick progress of a hover reveal (~150 ms to complete).
+    pub const REVEAL_STEP: f32 = 0.22;
+    /// Per-tick orbital advance (one revolution ≈ 12.5 s).
+    pub const ORBIT_STEP: f32 = 0.002_6;
+    /// Per-tick progress of a hold-to-clear gesture (~650 ms to complete).
+    pub const HOLD_CLEAR_STEP: f32 = 0.051;
+    /// Per-tick progress of an element key's release fade (~1.1 s).
+    pub const KEY_RELEASE_STEP: f32 = 0.03;
+    /// Per-tick progress of a hover state's release fade (~180 ms).
+    pub const HOVER_RELEASE_STEP: f32 = 0.18;
+}
+
+/// Ease-out cubic for reveal progress: fast start, gentle settle.
+pub fn ease_out(progress: f32) -> f32 {
+    let inverse = 1.0 - progress.clamp(0.0, 1.0);
+    1.0 - inverse * inverse * inverse
+}
+
+/// Linear interpolation between two colours, used for fading emphasis.
+pub fn mix(from: Color, to: Color, amount: f32) -> Color {
+    let amount = amount.clamp(0.0, 1.0);
+    Color {
+        r: from.r + (to.r - from.r) * amount,
+        g: from.g + (to.g - from.g) * amount,
+        b: from.b + (to.b - from.b) * amount,
+        a: from.a + (to.a - from.a) * amount,
+    }
 }
 
 pub mod breakpoint {
     use super::LAB_DARK;
 
     pub const MOBILE: f32 = LAB_DARK.breakpoint.mobile;
-    pub const DESKTOP: f32 = LAB_DARK.breakpoint.desktop;
 }
 
 pub fn app_theme() -> Theme {
@@ -307,12 +340,6 @@ pub fn app_background(_: &Theme) -> container::Style {
         .color(color::TEXT)
 }
 
-pub fn chrome(_: &Theme) -> container::Style {
-    container::Style::default()
-        .background(color::CANVAS_RAISED)
-        .border(border_style(color::LINE, 1.0, radius::PANEL))
-}
-
 pub fn frame(_: &Theme) -> container::Style {
     container::Style::default()
         .background(color::PANEL)
@@ -324,22 +351,10 @@ pub fn frame(_: &Theme) -> container::Style {
         })
 }
 
-pub fn panel(_: &Theme) -> container::Style {
-    container::Style::default()
-        .background(color::CANVAS_RAISED)
-        .border(border_style(color::LINE, 1.0, radius::PANEL))
-}
-
 pub fn inset(_: &Theme) -> container::Style {
     container::Style::default()
         .background(color::CANVAS)
         .border(border_style(color::LINE_STRONG, 1.0, radius::CONTROL))
-}
-
-pub fn raised(_: &Theme) -> container::Style {
-    container::Style::default()
-        .background(color::SURFACE)
-        .border(border_style(color::LINE, 1.0, radius::CONTROL))
 }
 
 pub fn media_bar(_: &Theme) -> container::Style {
@@ -378,20 +393,71 @@ pub fn timeline_slider(_: &Theme, status: slider::Status) -> slider::Style {
     }
 }
 
-pub fn accent_tint(_: &Theme) -> container::Style {
+/// A reactant slot chip inside the question sentence.
+///
+/// The border colour carries the draft's state (green valid, orange
+/// unrecognised, grey empty); the selected slot adds a blue tint and thicker
+/// border so selection reads independently of state. The words behind each
+/// colour live in the slot tooltip.
+pub fn slot_chip(state_color: Color, selected: bool, hovered: bool) -> container::Style {
+    let background = if selected {
+        color::SELECTION.scale_alpha(0.12)
+    } else if hovered {
+        color::SURFACE_HOVER
+    } else {
+        color::PANEL
+    };
+
     container::Style::default()
-        .background(color::ACCENT_FAINT)
-        .border(border_style(color::ACCENT_SOFT, 1.0, radius::CONTROL))
+        .background(background)
+        .border(border_style(
+            state_color,
+            if selected { 1.5 } else { 1.0 },
+            radius::PANEL,
+        ))
 }
 
-pub fn success_tint(_: &Theme) -> container::Style {
+/// The hover tooltip that carries an atomic or compound model.
+///
+/// `reveal` fades the surface in over the motion tokens' reveal window; the
+/// diagrams inside fade with the same progress.
+pub fn tooltip_surface(reveal: f32) -> container::Style {
     container::Style::default()
-        .background(color::SUCCESS_SOFT)
+        .background(Color {
+            a: reveal,
+            ..color::SURFACE
+        })
+        .color(Color {
+            a: reveal,
+            ..color::TEXT
+        })
         .border(border_style(
-            color::SUCCESS.scale_alpha(0.42),
+            color::LINE_STRONG.scale_alpha(reveal),
             1.0,
-            radius::PILL,
+            radius::PANEL,
         ))
+        .shadow(Shadow {
+            color: color::SHADOW.scale_alpha(0.45 * reveal),
+            offset: Vector::new(0.0, 10.0),
+            blur_radius: 28.0,
+        })
+}
+
+/// Periodic-family colour shared by element keys, drags, and tooltips.
+pub const fn category_color(category: crate::elements::Category) -> Color {
+    use crate::elements::Category;
+    match category {
+        Category::AlkaliMetal => LAB_DARK.chemistry.alkali_metal,
+        Category::AlkalineEarth => LAB_DARK.chemistry.alkaline_earth,
+        Category::TransitionMetal => LAB_DARK.chemistry.transition_metal,
+        Category::PostTransitionMetal => LAB_DARK.chemistry.post_transition_metal,
+        Category::Metalloid => LAB_DARK.chemistry.metalloid,
+        Category::ReactiveNonmetal => LAB_DARK.chemistry.reactive_nonmetal,
+        Category::Halogen => LAB_DARK.chemistry.halogen,
+        Category::NobleGas => LAB_DARK.chemistry.noble_gas,
+        Category::Lanthanide => LAB_DARK.chemistry.lanthanide,
+        Category::Actinide => LAB_DARK.chemistry.actinide,
+    }
 }
 
 pub fn provider_button(selected: bool, status: button::Status) -> button::Style {
@@ -479,37 +545,12 @@ pub fn secondary_button(_: &Theme, status: button::Status) -> button::Style {
     }
 }
 
-pub fn navigation_button(selected: bool, status: button::Status) -> button::Style {
-    if selected {
-        let mut style = secondary_button(&Theme::Dark, status);
-        style.background = Some(Background::Color(color::ACCENT_SOFT));
-        style.text_color = color::TEXT;
-        style.border.color = color::ACCENT;
-        return style;
-    }
-
-    let mut style = secondary_button(&Theme::Dark, status);
-    if status == button::Status::Active {
-        style.background = Some(Background::Color(Color::TRANSPARENT));
-        style.border.color = Color::TRANSPARENT;
-        style.text_color = color::MUTED;
-    }
-    style
-}
-
-pub fn bare_button(_: &Theme, status: button::Status) -> button::Style {
+/// An invisible button wrapper: the content inside carries all the visual
+/// feedback (the element keys style their own hover, release, and drag).
+pub fn bare_button(_: &Theme, _: button::Status) -> button::Style {
     button::Style {
         background: Some(Background::Color(Color::TRANSPARENT)),
         text_color: color::TEXT,
-        border: border_style(
-            if matches!(status, button::Status::Hovered | button::Status::Pressed) {
-                color::ACCENT
-            } else {
-                Color::TRANSPARENT
-            },
-            1.0,
-            3.0,
-        ),
         ..button::Style::default()
     }
 }

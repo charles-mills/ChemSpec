@@ -199,9 +199,10 @@ For automated visual checks on macOS, never target the release-named `ChemSpec`
 app and do not rely on a raw `cargo run` process. Computer Use may resolve that
 name to an older registered bundle.
 
-Run `just agent-smoke 2d` or `just agent-smoke 3d`, then target the app named
-`ChemSpec Agent Smoke`. Before judging a screenshot, verify that its window
-title is respectively `ChemSpec Agent Smoke — Structural 2D` or
+Run `just agent-smoke builder`, `just agent-smoke 2d`, or `just agent-smoke 3d`,
+then target the app named `ChemSpec Agent Smoke`. Before judging a screenshot,
+verify that its window title is respectively `ChemSpec Agent Smoke — Builder`,
+`ChemSpec Agent Smoke — Structural 2D`, or
 `ChemSpec Agent Smoke — Structural 3D`. The recipe rebuilds and byte-checks the
 dedicated bundle before launching it. Run `just agent-smoke stop` when the live
 check is complete.
