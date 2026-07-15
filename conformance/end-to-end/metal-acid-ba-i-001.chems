@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction BariumWithHydrogenIodide where
+  reactants
+    metal := 1 of BaFixedCation2Metal
+    acid := 2 of HydrogenIodide
+  products
+    salt := 1 of BaFixedCation2Iodide
+    hydrogen := 1 of Hydrogen
+  equation
+    1 Ba[metallic] + 2 HI[molecular]
+    -> 1 BaI2[ionic] + 1 H2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.MetalAcidBariumIodide@1
+    gas hydrogen evolves claim R1
+  by
+    apply Rules.FixedCation2WithNonOxidisingAcid
+      metal := metal
+      acid := acid
+      salt := salt
+      hydrogen := hydrogen

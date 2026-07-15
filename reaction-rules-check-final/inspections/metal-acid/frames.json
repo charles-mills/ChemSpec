@@ -1,0 +1,2926 @@
+{
+  "artifact": "frames",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "frames": [
+      {
+        "active_operation": null,
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [],
+        "covalent_edges": {
+          "acid[1].bond.0": {
+            "id": "acid[1].bond.0",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[1].x"
+          },
+          "acid[2].bond.0": {
+            "id": "acid[2].bond.0",
+            "left": "acid[2].h",
+            "order": "single",
+            "right": "acid[2].x"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {
+          "metal[1].metallic": {
+            "delocalized_electrons": 1,
+            "id": "metal[1].metallic",
+            "sites": [
+              "metal[1].metal"
+            ]
+          },
+          "metal[2].metallic": {
+            "delocalized_electrons": 1,
+            "id": "metal[2].metallic",
+            "sites": [
+              "metal[2].metal"
+            ]
+          }
+        },
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 0,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "c8e8aff0d3570598a7d8a7aec4cf97885350b7b7dc094816d4b41cbaabf5b2e7"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "retain_electron",
+            "domain": "metal[1].metallic",
+            "domain_electrons_after": 0,
+            "domain_electrons_before": 1,
+            "id": "operation[1]",
+            "kind": "release_metallic",
+            "site": "metal[1].metal",
+            "transition": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "metal[1].metal",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "ordinal": 1
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "metal[1].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "domain": "metal[1].metallic",
+            "electrons_after": null,
+            "electrons_before": 1,
+            "kind": "metallic",
+            "sites_after": null,
+            "sites_before": [
+              "metal[1].metal"
+            ]
+          }
+        ],
+        "covalent_edges": {
+          "acid[1].bond.0": {
+            "id": "acid[1].bond.0",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[1].x"
+          },
+          "acid[2].bond.0": {
+            "id": "acid[2].bond.0",
+            "left": "acid[2].h",
+            "order": "single",
+            "right": "acid[2].x"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {
+          "metal[2].metallic": {
+            "delocalized_electrons": 1,
+            "id": "metal[2].metallic",
+            "sites": [
+              "metal[2].metal"
+            ]
+          }
+        },
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 1,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "b2427238dbee9f0633ae1135a565d577f431375c7d74b8e144d33b08ca467c9a"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "retain_electron",
+            "domain": "metal[2].metallic",
+            "domain_electrons_after": 0,
+            "domain_electrons_before": 1,
+            "id": "operation[2]",
+            "kind": "release_metallic",
+            "site": "metal[2].metal",
+            "transition": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "metal[2].metal",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "ordinal": 2
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "metal[2].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "domain": "metal[2].metallic",
+            "electrons_after": null,
+            "electrons_before": 1,
+            "kind": "metallic",
+            "sites_after": null,
+            "sites_before": [
+              "metal[2].metal"
+            ]
+          }
+        ],
+        "covalent_edges": {
+          "acid[1].bond.0": {
+            "id": "acid[1].bond.0",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[1].x"
+          },
+          "acid[2].bond.0": {
+            "id": "acid[2].bond.0",
+            "left": "acid[2].h",
+            "order": "single",
+            "right": "acid[2].x"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 2,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "1646b28a3fdc7cc3c0ae947419a82e651bb3686e1e29c9835a63c52c73f56f84"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": {
+              "heterolytic_to": "acid[1].x"
+            },
+            "expected_order": "single",
+            "id": "operation[3]",
+            "kind": "cleave_covalent",
+            "left": "acid[1].h",
+            "right": "acid[1].x",
+            "transitions": {
+              "acid[1].h": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "acid[1].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "acid[1].x": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "atom": "acid[1].x",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 3
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "acid[1].h",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "atom": "acid[1].x",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "acid[1].h",
+            "right": "acid[1].x"
+          }
+        ],
+        "covalent_edges": {
+          "acid[2].bond.0": {
+            "id": "acid[2].bond.0",
+            "left": "acid[2].h",
+            "order": "single",
+            "right": "acid[2].x"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 3,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "20fb3b448ae054f39ad67ed9941fd08a30c5531c4937533ff7e50624f287a680"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": {
+              "heterolytic_to": "acid[2].x"
+            },
+            "expected_order": "single",
+            "id": "operation[4]",
+            "kind": "cleave_covalent",
+            "left": "acid[2].h",
+            "right": "acid[2].x",
+            "transitions": {
+              "acid[2].h": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "acid[2].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "acid[2].x": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "atom": "acid[2].x",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 4
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "acid[2].h",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "atom": "acid[2].x",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "acid[2].h",
+            "right": "acid[2].x"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 4,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "b36a56724580beb2dbdcb87d653bf686d84e607d8b8e71bfb6f0f74f5895b284"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "acid[1].h",
+            "count": 1,
+            "donor": "metal[1].metal",
+            "id": "operation[5]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "acid[1].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "acid[1].h",
+                "before": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "metal[1].metal": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "metal[1].metal",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 5
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "acid[1].h",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "metal[1].metal",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 5,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "059bac36e337b1587a8e1c954c2b240e32786a0b09ec9bfcb216d7958a7914ed"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "acid[2].h",
+            "count": 1,
+            "donor": "metal[2].metal",
+            "id": "operation[6]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "acid[2].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "acid[2].h",
+                "before": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "metal[2].metal": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "metal[2].metal",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 6
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "acid[2].h",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "metal[2].metal",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 6,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "46c26d432e13c8190ea0e743de88a3f14814d38fc9c27f7f5e944c99f835a2bb"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "id": "operation[7]",
+            "kind": "form_covalent",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[2].h",
+            "transitions": {
+              "acid[1].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "acid[1].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              },
+              "acid[2].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "acid[2].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 7
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "acid[1].h",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "acid[2].h",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": "single",
+            "before": null,
+            "kind": "covalent",
+            "left": "acid[1].h",
+            "right": "acid[2].h"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[2].h"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 7,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "e108a0d48050c65f3bf5c0c74637edb5d1ed4fffbf65499633d288e2272dd7f6"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[8].component[1]",
+                "ionic[8].component[2]"
+              ],
+              "id": "ionic[8].ionic.metal-acid-1"
+            },
+            "id": "operation[8]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 8
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "acid[1].x"
+            ],
+            "before": null,
+            "group": "ionic[8].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "metal[1].metal"
+            ],
+            "before": null,
+            "group": "ionic[8].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[8].component[1]",
+              "ionic[8].component[2]"
+            ],
+            "association": "ionic[8].ionic.metal-acid-1",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[2].h"
+          }
+        },
+        "groups": {
+          "ionic[8].component[1]": {
+            "atoms": [
+              "acid[1].x"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "metal[1].metal"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[8].ionic.metal-acid-1": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "acid[1].x"
+              ],
+              "ionic[8].component[2]": [
+                "metal[1].metal"
+              ]
+            },
+            "id": "ionic[8].ionic.metal-acid-1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 8,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "cc86331612614be220e56eee7b328a70235a3a9d8e0805542e3e9ea7c2eb2604"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "acid[1].x",
+              "metal[1].metal"
+            ],
+            "id": "operation[9]",
+            "kind": "assign_product",
+            "product": "salt[1]"
+          },
+          "ordinal": 9
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "acid[1].x",
+              "metal[1].metal"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "salt[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[2].h"
+          }
+        },
+        "groups": {
+          "ionic[8].component[1]": {
+            "atoms": [
+              "acid[1].x"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "metal[1].metal"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[8].ionic.metal-acid-1": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "acid[1].x"
+              ],
+              "ionic[8].component[2]": [
+                "metal[1].metal"
+              ]
+            },
+            "id": "ionic[8].ionic.metal-acid-1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 9,
+        "product_membership": {
+          "salt[1]": [
+            "acid[1].x",
+            "metal[1].metal"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "ce433218d06af6cddcc5fe13d665c6582d3b2606238e95fb5ad9baaf13ee94d4"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[10].component[1]",
+                "ionic[10].component[2]"
+              ],
+              "id": "ionic[10].ionic.metal-acid-2"
+            },
+            "id": "operation[10]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 10
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "acid[2].x"
+            ],
+            "before": null,
+            "group": "ionic[10].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "metal[2].metal"
+            ],
+            "before": null,
+            "group": "ionic[10].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[10].component[1]",
+              "ionic[10].component[2]"
+            ],
+            "association": "ionic[10].ionic.metal-acid-2",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[2].h"
+          }
+        },
+        "groups": {
+          "ionic[10].component[1]": {
+            "atoms": [
+              "acid[2].x"
+            ],
+            "id": "ionic[10].component[1]"
+          },
+          "ionic[10].component[2]": {
+            "atoms": [
+              "metal[2].metal"
+            ],
+            "id": "ionic[10].component[2]"
+          },
+          "ionic[8].component[1]": {
+            "atoms": [
+              "acid[1].x"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "metal[1].metal"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[10].ionic.metal-acid-2": {
+            "component_charges": {
+              "ionic[10].component[1]": -1,
+              "ionic[10].component[2]": 1
+            },
+            "components": {
+              "ionic[10].component[1]": [
+                "acid[2].x"
+              ],
+              "ionic[10].component[2]": [
+                "metal[2].metal"
+              ]
+            },
+            "id": "ionic[10].ionic.metal-acid-2"
+          },
+          "ionic[8].ionic.metal-acid-1": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "acid[1].x"
+              ],
+              "ionic[8].component[2]": [
+                "metal[1].metal"
+              ]
+            },
+            "id": "ionic[8].ionic.metal-acid-1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 10,
+        "product_membership": {
+          "salt[1]": [
+            "acid[1].x",
+            "metal[1].metal"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "0881a3d4db377d878c851c6fc9fbbaeb31acb1a01dc96a036eda3cb1e78f831c"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "acid[2].x",
+              "metal[2].metal"
+            ],
+            "id": "operation[11]",
+            "kind": "assign_product",
+            "product": "salt[2]"
+          },
+          "ordinal": 11
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "acid[2].x",
+              "metal[2].metal"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "salt[2]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[2].h"
+          }
+        },
+        "groups": {
+          "ionic[10].component[1]": {
+            "atoms": [
+              "acid[2].x"
+            ],
+            "id": "ionic[10].component[1]"
+          },
+          "ionic[10].component[2]": {
+            "atoms": [
+              "metal[2].metal"
+            ],
+            "id": "ionic[10].component[2]"
+          },
+          "ionic[8].component[1]": {
+            "atoms": [
+              "acid[1].x"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "metal[1].metal"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[10].ionic.metal-acid-2": {
+            "component_charges": {
+              "ionic[10].component[1]": -1,
+              "ionic[10].component[2]": 1
+            },
+            "components": {
+              "ionic[10].component[1]": [
+                "acid[2].x"
+              ],
+              "ionic[10].component[2]": [
+                "metal[2].metal"
+              ]
+            },
+            "id": "ionic[10].ionic.metal-acid-2"
+          },
+          "ionic[8].ionic.metal-acid-1": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "acid[1].x"
+              ],
+              "ionic[8].component[2]": [
+                "metal[1].metal"
+              ]
+            },
+            "id": "ionic[8].ionic.metal-acid-1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 11,
+        "product_membership": {
+          "salt[1]": [
+            "acid[1].x",
+            "metal[1].metal"
+          ],
+          "salt[2]": [
+            "acid[2].x",
+            "metal[2].metal"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "a3482a551e327d3c53bddf2ed181815ab2e3a98f6eb1bc8756a93ec574007bb2"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "acid[1].h",
+              "acid[2].h"
+            ],
+            "id": "operation[12]",
+            "kind": "assign_product",
+            "product": "hydrogen[1]"
+          },
+          "ordinal": 12
+        },
+        "atoms": {
+          "acid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[1].h"
+          },
+          "acid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[1].x"
+          },
+          "acid[2].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "acid[2].h"
+          },
+          "acid[2].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "acid[2].x"
+          },
+          "metal[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[1].metal"
+          },
+          "metal[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "metal[2].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "acid[1].h",
+              "acid[2].h"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "hydrogen[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "acid[1].h",
+            "order": "single",
+            "right": "acid[2].h"
+          }
+        },
+        "groups": {
+          "ionic[10].component[1]": {
+            "atoms": [
+              "acid[2].x"
+            ],
+            "id": "ionic[10].component[1]"
+          },
+          "ionic[10].component[2]": {
+            "atoms": [
+              "metal[2].metal"
+            ],
+            "id": "ionic[10].component[2]"
+          },
+          "ionic[8].component[1]": {
+            "atoms": [
+              "acid[1].x"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "metal[1].metal"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[10].ionic.metal-acid-2": {
+            "component_charges": {
+              "ionic[10].component[1]": -1,
+              "ionic[10].component[2]": 1
+            },
+            "components": {
+              "ionic[10].component[1]": [
+                "acid[2].x"
+              ],
+              "ionic[10].component[2]": [
+                "metal[2].metal"
+              ]
+            },
+            "id": "ionic[10].ionic.metal-acid-2"
+          },
+          "ionic[8].ionic.metal-acid-1": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "acid[1].x"
+              ],
+              "ionic[8].component[2]": [
+                "metal[1].metal"
+              ]
+            },
+            "id": "ionic[8].ionic.metal-acid-1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "metal-acid/example.chems",
+                "span": {
+                  "end": 405,
+                  "start": 341
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "metal-acid/example.chems",
+                  "span": {
+                    "end": 488,
+                    "start": 458
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          }
+        ],
+        "ordinal": 12,
+        "product_membership": {
+          "hydrogen[1]": [
+            "acid[1].h",
+            "acid[2].h"
+          ],
+          "salt[1]": [
+            "acid[1].x",
+            "metal[1].metal"
+          ],
+          "salt[2]": [
+            "acid[2].x",
+            "metal[2].metal"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+          "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+          "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+          "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+          "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+          "state_digest": "4a64ec5ee42f77a447f42391c38ff6da60ae2ebf82430a8e2263d086536cb684"
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "explanatory_sequence_is_not_a_mechanism_claim": true,
+      "provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.rule.metal-acid.non-oxidising"
+            ],
+            "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "model disclosure",
+            "source": "metal-acid/example.chems",
+            "span": {
+              "end": 405,
+              "start": 341
+            }
+          }
+        ]
+      },
+      "representative_outcome": true,
+      "sequence": "explanatory"
+    },
+    "result": "validated_with_assumptions",
+    "schema_version": 1,
+    "trace": {
+      "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+      "derivation_digest": "b6b666da08f2f7ce1f3c5d619ca1ca8601622a9256356ef4a3c8208422acea78",
+      "evidence_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+      "expansion_semantic_digest": "0afa21f7ee648f8bc796e9c880e5543196621aa2cb4e9f095e3ca93539d4722c",
+      "source_bytes_digest": "d81ce09b1b024df4c5dea0af5389bfad64ffadfa8406832234f9c657a45af17c",
+      "source_semantic_digest": "9d6e15ea70e6435e6f7776f614d8f0df981d4113bbfc73cd997c7fb6892572d7",
+      "state_digest": "4a64ec5ee42f77a447f42391c38ff6da60ae2ebf82430a8e2263d086536cb684"
+    },
+    "trust": "review_candidate"
+  }
+}

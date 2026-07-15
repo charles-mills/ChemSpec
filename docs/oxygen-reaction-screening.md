@@ -44,10 +44,12 @@ rather than by building their Cartesian product, so equivalent M2O5 ions do
 not exhaust a certificate limit.
 
 The merged catalogue is promoted into the application trust root through an
-explicit AI review attestation; this is not represented as human chemist
-certification. All 68 oxygen registry entries are executable structural
-simulations. The promoted aggregate digest is
-`9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2`.
+explicit project-chemist approval and host-selected review attestation. All 68
+O2 registry entries and 68 separately authored O3 oxygen-transfer entries are
+executable structural simulations. O3 does not inherit an O2 result at runtime:
+each corresponding choice has an ozone-specific balanced equation, atom map
+and operation sequence. The promoted aggregate digest is
+`c97b2d675738490829086625f997152f1ce42698dcf445f5a6c035bcf96635d8`.
 
 The present molecular process vocabulary is sufficient for the authored
 stoichiometric formula-unit and finite-molecule models: metallic release,

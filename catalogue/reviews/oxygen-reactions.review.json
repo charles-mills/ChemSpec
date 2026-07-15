@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "review.chemist.oxygen-reactions",
+  "catalogue_digest": "f31deb95232609f0503365bd75b9f970fb793f183be18d41804157e7eca6d7be",
+  "reviewer": "ChemSpec project owner and chemist",
+  "reviewed_on": "2026-07-15",
+  "scope": "The exact merged ChemSpec catalogue containing the 118-element identity catalogue, the Li/Na/K water family, 68 dioxygen-reaction experiences, 68 separately authored ozone oxygen-transfer experiences for those explicit product choices, 81 fixed-charge main-group ion-pair experiences, and the resonance-aware O3 covalent reactant structure. Ozone outcomes are closed-world reviewed choices and are not inherited automatically from O2 at runtime.",
+  "method": "Human chemist verification asserted by the project owner for the exact digest, together with deterministic schema validation, generalized-rule expansion, charge-balance reduction, elemental F2/Cl2/Br2/I2/O2/N2/S8/P4 bond cleavage, resonance-aware O3 cleavage and internal charge neutralisation, electron conservation and occupancy checks, charge-aware ionic association, compact graph-automorphism reduction, structural kernel execution, and simulation-frame projection.",
+  "sources": [
+    "evidence.iupac.goldbook",
+    "evidence.iupac.periodic-table",
+    "evidence.openstax.chemistry-2e",
+    "evidence.openstax.ionic-compounds",
+    "evidence.openstax.oxygen-compounds"
+    ,"evidence.iupac.ozone-oxidant"
+  ],
+  "premises": [
+    "premise.elements.iupac-periodic-table",
+    "premise.observation.alkali-metal-disappears",
+    "premise.observation.element-oxygen",
+    "premise.observation.fixed-charge-ion-pairs",
+    "premise.observation.hydrogen-evolves",
+    "premise.observation.ozone.explicit-reviewed-outcomes",
+    "premise.rule.alkali-metal-water.standard-outcome",
+    "premise.rule.element-oxygen.representative-outcomes",
+    "premise.rule.fixed-charge-ion-pairs",
+    "premise.rule.ozone.explicit-reviewed-outcomes",
+    "premise.structure.alkali-metal",
+    "premise.structure.alkali-metal-hydroxide",
+    "premise.structure.covalent-reactant-catalogue",
+    "premise.structure.element-oxygen.structural-models",
+    "premise.structure.fixed-charge-ion-pairs",
+    "premise.structure.hydrogen",
+    "premise.structure.ozone.oxygen-transfer-model",
+    "premise.structure.water",
+    "premise.valence.alkali-h-o.initial-domain",
+    "premise.valence.element-oxygen.closed-domain",
+    "premise.valence.fixed-charge-ion-pairs"
+    ,"premise.valence.ozone.oxygen-transfer-model"
+  ],
+  "coverage_conclusion": "The exact catalogue digest is approved for its explicit representative O2 outcomes, its separately authored O3 oxygen-transfer outcomes, and fixed-charge main-group binary ionic outcomes, including their atom-level simulation operations.",
+  "limitation": "Approval covers the closed theoretical models encoded by this digest. It does not imply laboratory procedure, quantitative kinetics, safety guidance, or products not explicitly represented by a reviewed catalogue outcome."
+}

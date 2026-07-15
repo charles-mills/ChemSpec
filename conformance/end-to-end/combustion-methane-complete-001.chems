@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction MethaneCompleteCombustion where
+  reactants
+    fuel := 1 of Methane
+    oxygen := 2 of Oxygen
+  products
+    carbonDioxide := 1 of CarbonDioxide
+    water := 2 of Water
+  equation
+    1 CH4[molecular] + 2 O2[molecular]
+    -> 1 CO2[molecular] + 2 H2O[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.MethaneCombustion@1
+    product carbonDioxide forms claim R1
+  by
+    apply Rules.MethaneCompleteCombustion
+      fuel := fuel
+      oxygen := oxygen
+      carbonDioxide := carbonDioxide
+      water := water

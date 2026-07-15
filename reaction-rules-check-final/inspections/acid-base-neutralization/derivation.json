@@ -1,0 +1,3362 @@
+{
+  "artifact": "derivation",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+    "event_model": "representative",
+    "expanded": {
+      "atom_provenance": {
+        "hydrochloricAcid[1].h": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance hydrochloricAcid[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride expanded atom hydrochloricAcid[1].h"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Reactant binding hydrochloricAcid",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 151,
+                "start": 109
+              }
+            }
+          ]
+        },
+        "hydrochloricAcid[1].x": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance hydrochloricAcid[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride expanded atom hydrochloricAcid[1].x"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Reactant binding hydrochloricAcid",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 151,
+                "start": 109
+              }
+            }
+          ]
+        },
+        "sodiumChloride[1].anion.anion": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumChloride[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumChloride"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumChloride expanded atom sodiumChloride[1].anion.anion"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Product binding sodiumChloride",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 248,
+                "start": 210
+              }
+            }
+          ]
+        },
+        "sodiumChloride[1].cation.cation": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumChloride[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumChloride"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumChloride expanded atom sodiumChloride[1].cation.cation"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Product binding sodiumChloride",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 248,
+                "start": 210
+              }
+            }
+          ]
+        },
+        "sodiumHydroxide[1].hydroxide.h": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumHydroxide[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumHydroxide"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumHydroxide expanded atom sodiumHydroxide[1].hydroxide.h"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Reactant binding sodiumHydroxide",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 195,
+                "start": 155
+              }
+            }
+          ]
+        },
+        "sodiumHydroxide[1].hydroxide.o": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumHydroxide[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumHydroxide"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumHydroxide expanded atom sodiumHydroxide[1].hydroxide.o"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Reactant binding sodiumHydroxide",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 195,
+                "start": 155
+              }
+            }
+          ]
+        },
+        "sodiumHydroxide[1].metal.metal": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumHydroxide[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumHydroxide"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumHydroxide expanded atom sodiumHydroxide[1].metal.metal"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Reactant binding sodiumHydroxide",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 195,
+                "start": 155
+              }
+            }
+          ]
+        },
+        "water[1].h1": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "coefficient instance water[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water expanded atom water[1].h1"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Product binding water",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 272,
+                "start": 252
+              }
+            }
+          ]
+        },
+        "water[1].h2": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "coefficient instance water[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water expanded atom water[1].h2"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Product binding water",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 272,
+                "start": 252
+              }
+            }
+          ]
+        },
+        "water[1].o": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "coefficient instance water[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water expanded atom water[1].o"
+            }
+          ],
+          "evidence": [],
+          "source": [
+            {
+              "construct": "Product binding water",
+              "source": "acid-base-neutralization/example.chems",
+              "span": {
+                "end": 272,
+                "start": 252
+              }
+            }
+          ]
+        }
+      },
+      "claim": {
+        "catalogue": {
+          "digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "name": "ChemSpec.Theoretical",
+          "trust": "review_candidate",
+          "version": "1"
+        },
+        "equation": [
+          {
+            "binding": "hydrochloricAcid",
+            "coefficient": 1,
+            "formula": {
+              "Cl": 1,
+              "H": 1
+            },
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification"
+                  ],
+                  "record": "structure HydrogenChloride"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Reactant binding hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 151,
+                    "start": 109
+                  }
+                },
+                {
+                  "construct": "Reactant equation term",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 301,
+                    "start": 287
+                  }
+                }
+              ]
+            },
+            "representation": "molecular",
+            "side": "reactant"
+          },
+          {
+            "binding": "sodiumHydroxide",
+            "coefficient": 1,
+            "formula": {
+              "H": 1,
+              "Na": 1,
+              "O": 1
+            },
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.traits.reaction-family-classification"
+                  ],
+                  "record": "structure SodiumHydroxide"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Reactant binding sodiumHydroxide",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 195,
+                    "start": 155
+                  }
+                },
+                {
+                  "construct": "Reactant equation term",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 315,
+                    "start": 304
+                  }
+                }
+              ]
+            },
+            "representation": "ionic",
+            "side": "reactant"
+          },
+          {
+            "binding": "sodiumChloride",
+            "coefficient": 1,
+            "formula": {
+              "Cl": 1,
+              "Na": 1
+            },
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.traits.reaction-family-classification"
+                  ],
+                  "record": "structure SodiumChloride"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Product binding sodiumChloride",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 248,
+                    "start": 210
+                  }
+                },
+                {
+                  "construct": "Product equation term",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 334,
+                    "start": 323
+                  }
+                }
+              ]
+            },
+            "representation": "ionic",
+            "side": "product"
+          },
+          {
+            "binding": "water",
+            "coefficient": 1,
+            "formula": {
+              "H": 2,
+              "O": 1
+            },
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.structure.water"
+                  ],
+                  "record": "structure Water"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Product binding water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 272,
+                    "start": 252
+                  }
+                },
+                {
+                  "construct": "Product equation term",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 351,
+                    "start": 337
+                  }
+                }
+              ]
+            },
+            "representation": "molecular",
+            "side": "product"
+          }
+        ],
+        "evidence": {
+          "digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "observations": [
+            {
+              "claim": "R1",
+              "evidence_subject": "strong acid",
+              "predicate": "disappears",
+              "provenance": {
+                "catalogue": [
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.observation.acid-disappears"
+                    ],
+                    "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                  }
+                ],
+                "evidence": [
+                  {
+                    "claim": "R1",
+                    "packet": "Evidence.AcidBaseNeutralization@1",
+                    "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                    "sources": [
+                      "S1"
+                    ]
+                  }
+                ],
+                "source": [
+                  {
+                    "construct": "observation hydrochloricAcid",
+                    "source": "acid-base-neutralization/example.chems",
+                    "span": {
+                      "end": 515,
+                      "start": 469
+                    }
+                  }
+                ]
+              },
+              "subject_binding": "hydrochloricAcid",
+              "value": null
+            },
+            {
+              "claim": "R2",
+              "evidence_subject": "water",
+              "predicate": "forms",
+              "provenance": {
+                "catalogue": [
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.observation.water-forms"
+                    ],
+                    "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                  }
+                ],
+                "evidence": [
+                  {
+                    "claim": "R2",
+                    "packet": "Evidence.AcidBaseNeutralization@1",
+                    "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                    "sources": [
+                      "S1"
+                    ]
+                  }
+                ],
+                "source": [
+                  {
+                    "construct": "observation water",
+                    "source": "acid-base-neutralization/example.chems",
+                    "span": {
+                      "end": 548,
+                      "start": 519
+                    }
+                  }
+                ]
+              },
+              "subject_binding": "water",
+              "value": null
+            }
+          ],
+          "packet": {
+            "name": "Evidence.AcidBaseNeutralization",
+            "version": "1"
+          },
+          "trust": "external_untrusted"
+        },
+        "model": {
+          "event": "representative",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "sequence": "explanatory"
+        },
+        "products": {
+          "sodiumChloride": {
+            "coefficient": 1,
+            "formula": {
+              "Cl": 1,
+              "Na": 1
+            },
+            "name": "sodiumChloride",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.traits.reaction-family-classification"
+                  ],
+                  "record": "structure SodiumChloride"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Product binding sodiumChloride",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 248,
+                    "start": 210
+                  }
+                }
+              ]
+            },
+            "representation": "ionic",
+            "side": "product",
+            "structure": "SodiumChloride"
+          },
+          "water": {
+            "coefficient": 1,
+            "formula": {
+              "H": 2,
+              "O": 1
+            },
+            "name": "water",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.structure.water"
+                  ],
+                  "record": "structure Water"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Product binding water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 272,
+                    "start": 252
+                  }
+                }
+              ]
+            },
+            "representation": "molecular",
+            "side": "product",
+            "structure": "Water"
+          }
+        },
+        "reactants": {
+          "hydrochloricAcid": {
+            "coefficient": 1,
+            "formula": {
+              "Cl": 1,
+              "H": 1
+            },
+            "name": "hydrochloricAcid",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification"
+                  ],
+                  "record": "structure HydrogenChloride"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Reactant binding hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 151,
+                    "start": 109
+                  }
+                }
+              ]
+            },
+            "representation": "molecular",
+            "side": "reactant",
+            "structure": "HydrogenChloride"
+          },
+          "sodiumHydroxide": {
+            "coefficient": 1,
+            "formula": {
+              "H": 1,
+              "Na": 1,
+              "O": 1
+            },
+            "name": "sodiumHydroxide",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.traits.reaction-family-classification"
+                  ],
+                  "record": "structure SodiumHydroxide"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "Reactant binding sodiumHydroxide",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 195,
+                    "start": 155
+                  }
+                }
+              ]
+            },
+            "representation": "ionic",
+            "side": "reactant",
+            "structure": "SodiumHydroxide"
+          }
+        },
+        "reaction": "HydrochloricAcidAndSodiumHydroxide",
+        "rule": {
+          "applicability": {
+            "premise": "premise.rule.acid-base-neutralization.standard-outcome",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.case.hydrofluoric-acid-unsupported",
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.acid-disappears",
+                    "premise.observation.water-forms",
+                    "premise.rule.acid-base-neutralization.standard-outcome",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.structure.alkali-metal-hydroxide",
+                    "premise.structure.hydrogen-halide",
+                    "premise.structure.water",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.acid-base.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.MonoproticAcidHydroxideNeutralization selected applicability"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.acid-base-neutralization.standard-outcome"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization applicability"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "rule applicability request",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 732,
+                    "start": 557
+                  }
+                }
+              ]
+            },
+            "reactant_structures": [
+              "HydrogenChloride",
+              "SodiumHydroxide"
+            ],
+            "request_relation": "contact",
+            "required_context": "representative educational outcome under the reviewed standard-outcome premise"
+          },
+          "bindings": {
+            "acid": {
+              "binding": "hydrochloricAcid",
+              "provenance": {
+                "catalogue": [
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.case.hydrofluoric-acid-unsupported",
+                      "premise.category.halide",
+                      "premise.elements.iupac-periodic-table",
+                      "premise.observation.acid-disappears",
+                      "premise.observation.water-forms",
+                      "premise.rule.acid-base-neutralization.standard-outcome",
+                      "premise.rule.alkali-metal-water.standard-outcome",
+                      "premise.structure.alkali-metal-halide",
+                      "premise.structure.alkali-metal-hydroxide",
+                      "premise.structure.hydrogen-halide",
+                      "premise.structure.water",
+                      "premise.traits.reaction-family-classification",
+                      "premise.valence.acid-base.initial-domain"
+                    ],
+                    "record": "generalized rule Rules.MonoproticAcidHydroxideNeutralization role acid"
+                  },
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.rule.acid-base-neutralization.standard-outcome"
+                    ],
+                    "record": "rule Rules.MonoproticAcidHydroxideNeutralization role acid"
+                  }
+                ],
+                "evidence": [],
+                "source": [
+                  {
+                    "construct": "rule role acid",
+                    "source": "acid-base-neutralization/example.chems",
+                    "span": {
+                      "end": 638,
+                      "start": 613
+                    }
+                  }
+                ]
+              },
+              "role": "acid",
+              "side": "reactant"
+            },
+            "base": {
+              "binding": "sodiumHydroxide",
+              "provenance": {
+                "catalogue": [
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.case.hydrofluoric-acid-unsupported",
+                      "premise.category.halide",
+                      "premise.elements.iupac-periodic-table",
+                      "premise.observation.acid-disappears",
+                      "premise.observation.water-forms",
+                      "premise.rule.acid-base-neutralization.standard-outcome",
+                      "premise.rule.alkali-metal-water.standard-outcome",
+                      "premise.structure.alkali-metal-halide",
+                      "premise.structure.alkali-metal-hydroxide",
+                      "premise.structure.hydrogen-halide",
+                      "premise.structure.water",
+                      "premise.traits.reaction-family-classification",
+                      "premise.valence.acid-base.initial-domain"
+                    ],
+                    "record": "generalized rule Rules.MonoproticAcidHydroxideNeutralization role base"
+                  },
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.rule.acid-base-neutralization.standard-outcome"
+                    ],
+                    "record": "rule Rules.MonoproticAcidHydroxideNeutralization role base"
+                  }
+                ],
+                "evidence": [],
+                "source": [
+                  {
+                    "construct": "rule role base",
+                    "source": "acid-base-neutralization/example.chems",
+                    "span": {
+                      "end": 668,
+                      "start": 644
+                    }
+                  }
+                ]
+              },
+              "role": "base",
+              "side": "reactant"
+            },
+            "saltProduct": {
+              "binding": "sodiumChloride",
+              "provenance": {
+                "catalogue": [
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.case.hydrofluoric-acid-unsupported",
+                      "premise.category.halide",
+                      "premise.elements.iupac-periodic-table",
+                      "premise.observation.acid-disappears",
+                      "premise.observation.water-forms",
+                      "premise.rule.acid-base-neutralization.standard-outcome",
+                      "premise.rule.alkali-metal-water.standard-outcome",
+                      "premise.structure.alkali-metal-halide",
+                      "premise.structure.alkali-metal-hydroxide",
+                      "premise.structure.hydrogen-halide",
+                      "premise.structure.water",
+                      "premise.traits.reaction-family-classification",
+                      "premise.valence.acid-base.initial-domain"
+                    ],
+                    "record": "generalized rule Rules.MonoproticAcidHydroxideNeutralization role saltProduct"
+                  },
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.rule.acid-base-neutralization.standard-outcome"
+                    ],
+                    "record": "rule Rules.MonoproticAcidHydroxideNeutralization role saltProduct"
+                  }
+                ],
+                "evidence": [],
+                "source": [
+                  {
+                    "construct": "rule role saltProduct",
+                    "source": "acid-base-neutralization/example.chems",
+                    "span": {
+                      "end": 704,
+                      "start": 674
+                    }
+                  }
+                ]
+              },
+              "role": "saltProduct",
+              "side": "product"
+            },
+            "waterProduct": {
+              "binding": "water",
+              "provenance": {
+                "catalogue": [
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.case.hydrofluoric-acid-unsupported",
+                      "premise.category.halide",
+                      "premise.elements.iupac-periodic-table",
+                      "premise.observation.acid-disappears",
+                      "premise.observation.water-forms",
+                      "premise.rule.acid-base-neutralization.standard-outcome",
+                      "premise.rule.alkali-metal-water.standard-outcome",
+                      "premise.structure.alkali-metal-halide",
+                      "premise.structure.alkali-metal-hydroxide",
+                      "premise.structure.hydrogen-halide",
+                      "premise.structure.water",
+                      "premise.traits.reaction-family-classification",
+                      "premise.valence.acid-base.initial-domain"
+                    ],
+                    "record": "generalized rule Rules.MonoproticAcidHydroxideNeutralization role waterProduct"
+                  },
+                  {
+                    "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                    "premises": [
+                      "premise.rule.acid-base-neutralization.standard-outcome"
+                    ],
+                    "record": "rule Rules.MonoproticAcidHydroxideNeutralization role waterProduct"
+                  }
+                ],
+                "evidence": [],
+                "source": [
+                  {
+                    "construct": "rule role waterProduct",
+                    "source": "acid-base-neutralization/example.chems",
+                    "span": {
+                      "end": 732,
+                      "start": 710
+                    }
+                  }
+                ]
+              },
+              "role": "waterProduct",
+              "side": "product"
+            }
+          },
+          "generalized": {
+            "case_id": "standard",
+            "equivalent_match_count": 1,
+            "matched_sites": {
+              "acid[1]": {
+                "h": "h",
+                "hx": "bond.0",
+                "x": "x"
+              },
+              "base[1]": {
+                "cation": "metal.metal",
+                "cationGroup": "metal",
+                "h": "hydroxide.h",
+                "hydroxideGroup": "hydroxide",
+                "o": "hydroxide.o",
+                "oh": "bond.0",
+                "salt": "ionic"
+              }
+            },
+            "parameter_premises": {
+              "halide": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table"
+              ],
+              "member": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome"
+              ]
+            },
+            "parameters": {
+              "halide": "Cl",
+              "member": "Na"
+            },
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.case.hydrofluoric-acid-unsupported",
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.acid-disappears",
+                    "premise.observation.water-forms",
+                    "premise.rule.acid-base-neutralization.standard-outcome",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.structure.alkali-metal-hydroxide",
+                    "premise.structure.hydrogen-halide",
+                    "premise.structure.water",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.acid-base.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.MonoproticAcidHydroxideNeutralization case standard"
+                }
+              ],
+              "evidence": [],
+              "source": [
+                {
+                  "construct": "generalized rule parameter and case selection",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 732,
+                    "start": 557
+                  }
+                }
+              ]
+            },
+            "role_premises": {
+              "acid": [
+                "premise.case.hydrofluoric-acid-unsupported",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.acid-disappears",
+                "premise.observation.water-forms",
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen-halide",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain"
+              ],
+              "base": [
+                "premise.case.hydrofluoric-acid-unsupported",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.acid-disappears",
+                "premise.observation.water-forms",
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen-halide",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain"
+              ],
+              "saltProduct": [
+                "premise.case.hydrofluoric-acid-unsupported",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.acid-disappears",
+                "premise.observation.water-forms",
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen-halide",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain"
+              ],
+              "waterProduct": [
+                "premise.case.hydrofluoric-acid-unsupported",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.acid-disappears",
+                "premise.observation.water-forms",
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen-halide",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain"
+              ]
+            }
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "generalized rule Rules.MonoproticAcidHydroxideNeutralization selected certificate"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "rule application",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              }
+            ]
+          },
+          "rule": "Rules.MonoproticAcidHydroxideNeutralization"
+        },
+        "source": {
+          "bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "name": "acid-base-neutralization/example.chems",
+          "semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40"
+        }
+      },
+      "mapping": {
+        "entries": {
+          "hydrochloricAcid[1].h": "water[1].h2",
+          "hydrochloricAcid[1].x": "sodiumChloride[1].anion.anion",
+          "sodiumHydroxide[1].hydroxide.h": "water[1].h1",
+          "sodiumHydroxide[1].hydroxide.o": "water[1].o",
+          "sodiumHydroxide[1].metal.metal": "sodiumChloride[1].cation.cation"
+        },
+        "id": "mapping.HydrochloricAcidAndSodiumHydroxide"
+      },
+      "mapping_entry_provenance": {
+        "hydrochloricAcid[1].h": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.case.hydrofluoric-acid-unsupported",
+            "premise.category.halide",
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.acid-disappears",
+            "premise.observation.water-forms",
+            "premise.rule.acid-base-neutralization.standard-outcome",
+            "premise.rule.alkali-metal-water.standard-outcome",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.alkali-metal-hydroxide",
+            "premise.structure.hydrogen-halide",
+            "premise.structure.water",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.acid-base.initial-domain"
+          ],
+          "record": "rule Rules.MonoproticAcidHydroxideNeutralization mapping pair 1"
+        },
+        "hydrochloricAcid[1].x": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.case.hydrofluoric-acid-unsupported",
+            "premise.category.halide",
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.acid-disappears",
+            "premise.observation.water-forms",
+            "premise.rule.acid-base-neutralization.standard-outcome",
+            "premise.rule.alkali-metal-water.standard-outcome",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.alkali-metal-hydroxide",
+            "premise.structure.hydrogen-halide",
+            "premise.structure.water",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.acid-base.initial-domain"
+          ],
+          "record": "rule Rules.MonoproticAcidHydroxideNeutralization mapping pair 2"
+        },
+        "sodiumHydroxide[1].hydroxide.h": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.case.hydrofluoric-acid-unsupported",
+            "premise.category.halide",
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.acid-disappears",
+            "premise.observation.water-forms",
+            "premise.rule.acid-base-neutralization.standard-outcome",
+            "premise.rule.alkali-metal-water.standard-outcome",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.alkali-metal-hydroxide",
+            "premise.structure.hydrogen-halide",
+            "premise.structure.water",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.acid-base.initial-domain"
+          ],
+          "record": "rule Rules.MonoproticAcidHydroxideNeutralization mapping pair 4"
+        },
+        "sodiumHydroxide[1].hydroxide.o": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.case.hydrofluoric-acid-unsupported",
+            "premise.category.halide",
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.acid-disappears",
+            "premise.observation.water-forms",
+            "premise.rule.acid-base-neutralization.standard-outcome",
+            "premise.rule.alkali-metal-water.standard-outcome",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.alkali-metal-hydroxide",
+            "premise.structure.hydrogen-halide",
+            "premise.structure.water",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.acid-base.initial-domain"
+          ],
+          "record": "rule Rules.MonoproticAcidHydroxideNeutralization mapping pair 5"
+        },
+        "sodiumHydroxide[1].metal.metal": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.case.hydrofluoric-acid-unsupported",
+            "premise.category.halide",
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.acid-disappears",
+            "premise.observation.water-forms",
+            "premise.rule.acid-base-neutralization.standard-outcome",
+            "premise.rule.alkali-metal-water.standard-outcome",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.alkali-metal-hydroxide",
+            "premise.structure.hydrogen-halide",
+            "premise.structure.water",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.acid-base.initial-domain"
+          ],
+          "record": "rule Rules.MonoproticAcidHydroxideNeutralization mapping pair 3"
+        }
+      },
+      "mapping_provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.case.hydrofluoric-acid-unsupported",
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.acid-disappears",
+              "premise.observation.water-forms",
+              "premise.rule.acid-base-neutralization.standard-outcome",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.structure.alkali-metal-hydroxide",
+              "premise.structure.hydrogen-halide",
+              "premise.structure.water",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.acid-base.initial-domain"
+            ],
+            "record": "rule Rules.MonoproticAcidHydroxideNeutralization atom mapping template"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "rule role acid",
+            "source": "acid-base-neutralization/example.chems",
+            "span": {
+              "end": 638,
+              "start": 613
+            }
+          },
+          {
+            "construct": "rule role base",
+            "source": "acid-base-neutralization/example.chems",
+            "span": {
+              "end": 668,
+              "start": 644
+            }
+          },
+          {
+            "construct": "rule role saltProduct",
+            "source": "acid-base-neutralization/example.chems",
+            "span": {
+              "end": 704,
+              "start": 674
+            }
+          },
+          {
+            "construct": "rule role waterProduct",
+            "source": "acid-base-neutralization/example.chems",
+            "span": {
+              "end": 732,
+              "start": 710
+            }
+          }
+        ]
+      },
+      "operations": [
+        {
+          "electron_contribution": null,
+          "ionic_components": [],
+          "operation": {
+            "association": "sodiumHydroxide[1].ionic",
+            "id": "operation[1]",
+            "kind": "dissociate_ionic"
+          },
+          "ordinal": 1,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization operation template 1"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "operation template 1",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              },
+              {
+                "construct": "rule role acid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 638,
+                  "start": 613
+                }
+              },
+              {
+                "construct": "rule role base",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 668,
+                  "start": 644
+                }
+              },
+              {
+                "construct": "rule role saltProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 704,
+                  "start": 674
+                }
+              },
+              {
+                "construct": "rule role waterProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 710
+                }
+              }
+            ]
+          }
+        },
+        {
+          "electron_contribution": null,
+          "ionic_components": [],
+          "operation": {
+            "allocation": {
+              "heterolytic_to": "hydrochloricAcid[1].x"
+            },
+            "expected_order": "single",
+            "id": "operation[2]",
+            "kind": "cleave_covalent",
+            "left": "hydrochloricAcid[1].h",
+            "right": "hydrochloricAcid[1].x",
+            "transitions": {
+              "hydrochloricAcid[1].h": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrochloricAcid[1].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "hydrochloricAcid[1].x": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrochloricAcid[1].x",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 2,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization operation template 2"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "operation template 2",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              },
+              {
+                "construct": "rule role acid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 638,
+                  "start": 613
+                }
+              },
+              {
+                "construct": "rule role base",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 668,
+                  "start": 644
+                }
+              },
+              {
+                "construct": "rule role saltProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 704,
+                  "start": 674
+                }
+              },
+              {
+                "construct": "rule role waterProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 710
+                }
+              }
+            ]
+          }
+        },
+        {
+          "electron_contribution": null,
+          "ionic_components": [],
+          "operation": {
+            "acceptor": "hydrochloricAcid[1].h",
+            "count": 1,
+            "donor": "sodiumHydroxide[1].hydroxide.o",
+            "id": "operation[3]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "hydrochloricAcid[1].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "hydrochloricAcid[1].h",
+                "before": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "sodiumHydroxide[1].hydroxide.o": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                },
+                "atom": "sodiumHydroxide[1].hydroxide.o",
+                "before": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 3,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization operation template 3"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "operation template 3",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              },
+              {
+                "construct": "rule role acid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 638,
+                  "start": 613
+                }
+              },
+              {
+                "construct": "rule role base",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 668,
+                  "start": 644
+                }
+              },
+              {
+                "construct": "rule role saltProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 704,
+                  "start": 674
+                }
+              },
+              {
+                "construct": "rule role waterProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 710
+                }
+              }
+            ]
+          }
+        },
+        {
+          "electron_contribution": {
+            "left": 1,
+            "right": 1
+          },
+          "ionic_components": [],
+          "operation": {
+            "id": "operation[4]",
+            "kind": "form_covalent",
+            "left": "sodiumHydroxide[1].hydroxide.o",
+            "order": "single",
+            "right": "hydrochloricAcid[1].h",
+            "transitions": {
+              "hydrochloricAcid[1].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrochloricAcid[1].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              },
+              "sodiumHydroxide[1].hydroxide.o": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                },
+                "atom": "sodiumHydroxide[1].hydroxide.o",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 4,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization operation template 4"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "operation template 4",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              },
+              {
+                "construct": "rule role acid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 638,
+                  "start": 613
+                }
+              },
+              {
+                "construct": "rule role base",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 668,
+                  "start": 644
+                }
+              },
+              {
+                "construct": "rule role saltProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 704,
+                  "start": 674
+                }
+              },
+              {
+                "construct": "rule role waterProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 710
+                }
+              }
+            ]
+          }
+        },
+        {
+          "electron_contribution": null,
+          "ionic_components": [
+            {
+              "expected_charge": -1,
+              "group": {
+                "atoms": [
+                  "hydrochloricAcid[1].x"
+                ],
+                "id": "ionic[5].component[1]"
+              }
+            },
+            {
+              "expected_charge": 1,
+              "group": {
+                "atoms": [
+                  "sodiumHydroxide[1].metal.metal"
+                ],
+                "id": "ionic[5].component[2]"
+              }
+            }
+          ],
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[5].component[1]",
+                "ionic[5].component[2]"
+              ],
+              "id": "ionic[5].ionic.salt"
+            },
+            "id": "operation[5]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 5,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization operation template 5"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "operation template 5",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              },
+              {
+                "construct": "rule role acid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 638,
+                  "start": 613
+                }
+              },
+              {
+                "construct": "rule role base",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 668,
+                  "start": 644
+                }
+              },
+              {
+                "construct": "rule role saltProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 704,
+                  "start": 674
+                }
+              },
+              {
+                "construct": "rule role waterProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 710
+                }
+              }
+            ]
+          }
+        },
+        {
+          "electron_contribution": null,
+          "ionic_components": [],
+          "operation": {
+            "atoms": [
+              "hydrochloricAcid[1].x",
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "id": "operation[6]",
+            "kind": "assign_product",
+            "product": "sodiumChloride[1]"
+          },
+          "ordinal": 6,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization operation template 6"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "operation template 6",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              },
+              {
+                "construct": "rule role acid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 638,
+                  "start": 613
+                }
+              },
+              {
+                "construct": "rule role base",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 668,
+                  "start": 644
+                }
+              },
+              {
+                "construct": "rule role saltProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 704,
+                  "start": 674
+                }
+              },
+              {
+                "construct": "rule role waterProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 710
+                }
+              }
+            ]
+          }
+        },
+        {
+          "electron_contribution": null,
+          "ionic_components": [],
+          "operation": {
+            "atoms": [
+              "hydrochloricAcid[1].h",
+              "sodiumHydroxide[1].hydroxide.h",
+              "sodiumHydroxide[1].hydroxide.o"
+            ],
+            "id": "operation[7]",
+            "kind": "assign_product",
+            "product": "water[1]"
+          },
+          "ordinal": 7,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.hydrofluoric-acid-unsupported",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.acid-disappears",
+                  "premise.observation.water-forms",
+                  "premise.rule.acid-base-neutralization.standard-outcome",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen-halide",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization operation template 7"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "operation template 7",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 557
+                }
+              },
+              {
+                "construct": "rule role acid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 638,
+                  "start": 613
+                }
+              },
+              {
+                "construct": "rule role base",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 668,
+                  "start": 644
+                }
+              },
+              {
+                "construct": "rule role saltProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 704,
+                  "start": 674
+                }
+              },
+              {
+                "construct": "rule role waterProduct",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 732,
+                  "start": 710
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "premise_provenance": {
+        "premise.case.hydrofluoric-acid-unsupported": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.case.hydrofluoric-acid-unsupported"
+          ],
+          "record": "catalogue premise premise.case.hydrofluoric-acid-unsupported"
+        },
+        "premise.category.halide": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.category.halide"
+          ],
+          "record": "catalogue premise premise.category.halide"
+        },
+        "premise.elements.iupac-periodic-table": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.elements.iupac-periodic-table"
+          ],
+          "record": "catalogue premise premise.elements.iupac-periodic-table"
+        },
+        "premise.observation.acid-disappears": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.observation.acid-disappears"
+          ],
+          "record": "catalogue premise premise.observation.acid-disappears"
+        },
+        "premise.observation.water-forms": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.observation.water-forms"
+          ],
+          "record": "catalogue premise premise.observation.water-forms"
+        },
+        "premise.rule.acid-base-neutralization.standard-outcome": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.rule.acid-base-neutralization.standard-outcome"
+          ],
+          "record": "catalogue premise premise.rule.acid-base-neutralization.standard-outcome"
+        },
+        "premise.rule.alkali-metal-water.standard-outcome": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.rule.alkali-metal-water.standard-outcome"
+          ],
+          "record": "catalogue premise premise.rule.alkali-metal-water.standard-outcome"
+        },
+        "premise.structure.alkali-metal-halide": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.structure.alkali-metal-halide"
+          ],
+          "record": "catalogue premise premise.structure.alkali-metal-halide"
+        },
+        "premise.structure.alkali-metal-hydroxide": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.structure.alkali-metal-hydroxide"
+          ],
+          "record": "catalogue premise premise.structure.alkali-metal-hydroxide"
+        },
+        "premise.structure.hydrogen-halide": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.structure.hydrogen-halide"
+          ],
+          "record": "catalogue premise premise.structure.hydrogen-halide"
+        },
+        "premise.structure.water": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.structure.water"
+          ],
+          "record": "catalogue premise premise.structure.water"
+        },
+        "premise.traits.reaction-family-classification": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.traits.reaction-family-classification"
+          ],
+          "record": "catalogue premise premise.traits.reaction-family-classification"
+        },
+        "premise.valence.acid-base.initial-domain": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.valence.acid-base.initial-domain"
+          ],
+          "record": "catalogue premise premise.valence.acid-base.initial-domain"
+        }
+      },
+      "premises": [
+        "premise.case.hydrofluoric-acid-unsupported",
+        "premise.category.halide",
+        "premise.elements.iupac-periodic-table",
+        "premise.observation.acid-disappears",
+        "premise.observation.water-forms",
+        "premise.rule.acid-base-neutralization.standard-outcome",
+        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.structure.alkali-metal-halide",
+        "premise.structure.alkali-metal-hydroxide",
+        "premise.structure.hydrogen-halide",
+        "premise.structure.water",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.acid-base.initial-domain"
+      ],
+      "product_instances": {
+        "sodiumChloride[1]": {
+          "binding": "sodiumChloride",
+          "instance": {
+            "atom_relabeling": {
+              "anion.anion": "sodiumChloride[1].anion.anion",
+              "cation.cation": "sodiumChloride[1].cation.cation"
+            },
+            "graph": {
+              "atoms": {
+                "sodiumChloride[1].anion.anion": {
+                  "electrons": {
+                    "formal_charge": -1,
+                    "non_bonding_electrons": 8,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "Cl",
+                  "id": "sodiumChloride[1].anion.anion"
+                },
+                "sodiumChloride[1].cation.cation": {
+                  "electrons": {
+                    "formal_charge": 1,
+                    "non_bonding_electrons": 0,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "Na",
+                  "id": "sodiumChloride[1].cation.cation"
+                }
+              },
+              "covalent_bonds": {},
+              "groups": {
+                "sodiumChloride[1].anion": {
+                  "atoms": [
+                    "sodiumChloride[1].anion.anion"
+                  ],
+                  "id": "sodiumChloride[1].anion"
+                },
+                "sodiumChloride[1].cation": {
+                  "atoms": [
+                    "sodiumChloride[1].cation.cation"
+                  ],
+                  "id": "sodiumChloride[1].cation"
+                }
+              },
+              "ionic_associations": {
+                "sodiumChloride[1].ionic": {
+                  "components": [
+                    "sodiumChloride[1].anion",
+                    "sodiumChloride[1].cation"
+                  ],
+                  "id": "sodiumChloride[1].ionic"
+                }
+              },
+              "metallic_domains": {}
+            },
+            "id": "sodiumChloride[1]",
+            "structure": "SodiumChloride"
+          },
+          "ordinal": 1,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "coefficient instance sodiumChloride[1]"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure SodiumChloride"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "Product binding sodiumChloride",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 248,
+                  "start": 210
+                }
+              }
+            ]
+          }
+        },
+        "water[1]": {
+          "binding": "water",
+          "instance": {
+            "atom_relabeling": {
+              "h1": "water[1].h1",
+              "h2": "water[1].h2",
+              "o": "water[1].o"
+            },
+            "graph": {
+              "atoms": {
+                "water[1].h1": {
+                  "electrons": {
+                    "formal_charge": 0,
+                    "non_bonding_electrons": 0,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "H",
+                  "id": "water[1].h1"
+                },
+                "water[1].h2": {
+                  "electrons": {
+                    "formal_charge": 0,
+                    "non_bonding_electrons": 0,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "H",
+                  "id": "water[1].h2"
+                },
+                "water[1].o": {
+                  "electrons": {
+                    "formal_charge": 0,
+                    "non_bonding_electrons": 4,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "O",
+                  "id": "water[1].o"
+                }
+              },
+              "covalent_bonds": {
+                "water[1].bond.0": {
+                  "id": "water[1].bond.0",
+                  "left": "water[1].h1",
+                  "order": "single",
+                  "right": "water[1].o"
+                },
+                "water[1].bond.1": {
+                  "id": "water[1].bond.1",
+                  "left": "water[1].h2",
+                  "order": "single",
+                  "right": "water[1].o"
+                }
+              },
+              "groups": {},
+              "ionic_associations": {},
+              "metallic_domains": {}
+            },
+            "id": "water[1]",
+            "structure": "Water"
+          },
+          "ordinal": 1,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.water"
+                ],
+                "record": "coefficient instance water[1]"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.water"
+                ],
+                "record": "structure Water"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "Product binding water",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 272,
+                  "start": 252
+                }
+              }
+            ]
+          }
+        }
+      },
+      "reactant_instances": {
+        "hydrochloricAcid[1]": {
+          "binding": "hydrochloricAcid",
+          "instance": {
+            "atom_relabeling": {
+              "h": "hydrochloricAcid[1].h",
+              "x": "hydrochloricAcid[1].x"
+            },
+            "graph": {
+              "atoms": {
+                "hydrochloricAcid[1].h": {
+                  "electrons": {
+                    "formal_charge": 0,
+                    "non_bonding_electrons": 0,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "H",
+                  "id": "hydrochloricAcid[1].h"
+                },
+                "hydrochloricAcid[1].x": {
+                  "electrons": {
+                    "formal_charge": 0,
+                    "non_bonding_electrons": 6,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "Cl",
+                  "id": "hydrochloricAcid[1].x"
+                }
+              },
+              "covalent_bonds": {
+                "hydrochloricAcid[1].bond.0": {
+                  "id": "hydrochloricAcid[1].bond.0",
+                  "left": "hydrochloricAcid[1].h",
+                  "order": "single",
+                  "right": "hydrochloricAcid[1].x"
+                }
+              },
+              "groups": {},
+              "ionic_associations": {},
+              "metallic_domains": {}
+            },
+            "id": "hydrochloricAcid[1]",
+            "structure": "HydrogenChloride"
+          },
+          "ordinal": 1,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "coefficient instance hydrochloricAcid[1]"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure HydrogenChloride"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "Reactant binding hydrochloricAcid",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 151,
+                  "start": 109
+                }
+              }
+            ]
+          }
+        },
+        "sodiumHydroxide[1]": {
+          "binding": "sodiumHydroxide",
+          "instance": {
+            "atom_relabeling": {
+              "hydroxide.h": "sodiumHydroxide[1].hydroxide.h",
+              "hydroxide.o": "sodiumHydroxide[1].hydroxide.o",
+              "metal.metal": "sodiumHydroxide[1].metal.metal"
+            },
+            "graph": {
+              "atoms": {
+                "sodiumHydroxide[1].hydroxide.h": {
+                  "electrons": {
+                    "formal_charge": 0,
+                    "non_bonding_electrons": 0,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "H",
+                  "id": "sodiumHydroxide[1].hydroxide.h"
+                },
+                "sodiumHydroxide[1].hydroxide.o": {
+                  "electrons": {
+                    "formal_charge": -1,
+                    "non_bonding_electrons": 6,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "O",
+                  "id": "sodiumHydroxide[1].hydroxide.o"
+                },
+                "sodiumHydroxide[1].metal.metal": {
+                  "electrons": {
+                    "formal_charge": 1,
+                    "non_bonding_electrons": 0,
+                    "unpaired_electrons": 0
+                  },
+                  "element": "Na",
+                  "id": "sodiumHydroxide[1].metal.metal"
+                }
+              },
+              "covalent_bonds": {
+                "sodiumHydroxide[1].bond.0": {
+                  "id": "sodiumHydroxide[1].bond.0",
+                  "left": "sodiumHydroxide[1].hydroxide.h",
+                  "order": "single",
+                  "right": "sodiumHydroxide[1].hydroxide.o"
+                }
+              },
+              "groups": {
+                "sodiumHydroxide[1].hydroxide": {
+                  "atoms": [
+                    "sodiumHydroxide[1].hydroxide.h",
+                    "sodiumHydroxide[1].hydroxide.o"
+                  ],
+                  "id": "sodiumHydroxide[1].hydroxide"
+                },
+                "sodiumHydroxide[1].metal": {
+                  "atoms": [
+                    "sodiumHydroxide[1].metal.metal"
+                  ],
+                  "id": "sodiumHydroxide[1].metal"
+                }
+              },
+              "ionic_associations": {
+                "sodiumHydroxide[1].ionic": {
+                  "components": [
+                    "sodiumHydroxide[1].hydroxide",
+                    "sodiumHydroxide[1].metal"
+                  ],
+                  "id": "sodiumHydroxide[1].ionic"
+                }
+              },
+              "metallic_domains": {}
+            },
+            "id": "sodiumHydroxide[1]",
+            "structure": "SodiumHydroxide"
+          },
+          "ordinal": 1,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "coefficient instance sodiumHydroxide[1]"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure SodiumHydroxide"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "Reactant binding sodiumHydroxide",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 195,
+                  "start": 155
+                }
+              }
+            ]
+          }
+        }
+      },
+      "schema_version": 1
+    },
+    "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+    "mapping": {
+      "entries": {
+        "hydrochloricAcid[1].h": "water[1].h2",
+        "hydrochloricAcid[1].x": "sodiumChloride[1].anion.anion",
+        "sodiumHydroxide[1].hydroxide.h": "water[1].h1",
+        "sodiumHydroxide[1].hydroxide.o": "water[1].o",
+        "sodiumHydroxide[1].metal.metal": "sodiumChloride[1].cation.cation"
+      },
+      "id": "mapping.HydrochloricAcidAndSodiumHydroxide"
+    },
+    "result": "validated_with_assumptions",
+    "rule": "Rules.MonoproticAcidHydroxideNeutralization",
+    "schema_version": 1,
+    "sequence_model": "explanatory",
+    "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+    "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+    "states": [
+      {
+        "digest": "f80cccd5e9846a23b9ba45c18f50901973235cb9eedb95979e16be752486a58c",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "hydrochloricAcid[1].bond.0": {
+              "id": "hydrochloricAcid[1].bond.0",
+              "left": "hydrochloricAcid[1].h",
+              "order": "single",
+              "right": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {
+            "sodiumHydroxide[1].hydroxide": {
+              "atoms": [
+                "sodiumHydroxide[1].hydroxide.h",
+                "sodiumHydroxide[1].hydroxide.o"
+              ],
+              "id": "sodiumHydroxide[1].hydroxide"
+            },
+            "sodiumHydroxide[1].metal": {
+              "atoms": [
+                "sodiumHydroxide[1].metal.metal"
+              ],
+              "id": "sodiumHydroxide[1].metal"
+            }
+          },
+          "ionic_associations": {
+            "sodiumHydroxide[1].ionic": {
+              "components": [
+                "sodiumHydroxide[1].hydroxide",
+                "sodiumHydroxide[1].metal"
+              ],
+              "id": "sodiumHydroxide[1].ionic"
+            }
+          },
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 12,
+          "covalent_bond_electrons": 4,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": null,
+        "ordinal": 0,
+        "product_assignments": {}
+      },
+      {
+        "digest": "ba5cae6eeca796d44bd50ea6c8a77350650427aec06169dc041fe9553110e0d1",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "hydrochloricAcid[1].bond.0": {
+              "id": "hydrochloricAcid[1].bond.0",
+              "left": "hydrochloricAcid[1].h",
+              "order": "single",
+              "right": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 12,
+          "covalent_bond_electrons": 4,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": "operation[1]",
+        "ordinal": 1,
+        "product_assignments": {}
+      },
+      {
+        "digest": "f7dd8a1f26bf3ac34e7373bf20643d80134e75a865bab8ec21a4241411065320",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 14,
+          "covalent_bond_electrons": 2,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": "operation[2]",
+        "ordinal": 2,
+        "product_assignments": {}
+      },
+      {
+        "digest": "8b1bdf40102b4760a5ef2950036587a87f58eb5f5f83175c8388a1cab259afdd",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 5,
+                "unpaired_electrons": 1
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 14,
+          "covalent_bond_electrons": 2,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": "operation[3]",
+        "ordinal": 3,
+        "product_assignments": {}
+      },
+      {
+        "digest": "2fb322a646965680ad13505739ce3bdca9cad387c2a5c2ca2feb9b51d297a927",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "operation[4].bond": {
+              "id": "operation[4].bond",
+              "left": "hydrochloricAcid[1].h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {},
+          "ionic_associations": {},
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 12,
+          "covalent_bond_electrons": 4,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": "operation[4]",
+        "ordinal": 4,
+        "product_assignments": {}
+      },
+      {
+        "digest": "648ae452d718568f042df72dc26cf4f9297340427c34b4d4f0e191984be01646",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "operation[4].bond": {
+              "id": "operation[4].bond",
+              "left": "hydrochloricAcid[1].h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {
+            "ionic[5].component[1]": {
+              "atoms": [
+                "hydrochloricAcid[1].x"
+              ],
+              "id": "ionic[5].component[1]"
+            },
+            "ionic[5].component[2]": {
+              "atoms": [
+                "sodiumHydroxide[1].metal.metal"
+              ],
+              "id": "ionic[5].component[2]"
+            }
+          },
+          "ionic_associations": {
+            "ionic[5].ionic.salt": {
+              "components": [
+                "ionic[5].component[1]",
+                "ionic[5].component[2]"
+              ],
+              "id": "ionic[5].ionic.salt"
+            }
+          },
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 12,
+          "covalent_bond_electrons": 4,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": "operation[5]",
+        "ordinal": 5,
+        "product_assignments": {}
+      },
+      {
+        "digest": "4432e253af0eaeb0bb8f7507b82f7dbe550118205b7975cca3d1985a710f4e6c",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "operation[4].bond": {
+              "id": "operation[4].bond",
+              "left": "hydrochloricAcid[1].h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {
+            "ionic[5].component[1]": {
+              "atoms": [
+                "hydrochloricAcid[1].x"
+              ],
+              "id": "ionic[5].component[1]"
+            },
+            "ionic[5].component[2]": {
+              "atoms": [
+                "sodiumHydroxide[1].metal.metal"
+              ],
+              "id": "ionic[5].component[2]"
+            }
+          },
+          "ionic_associations": {
+            "ionic[5].ionic.salt": {
+              "components": [
+                "ionic[5].component[1]",
+                "ionic[5].component[2]"
+              ],
+              "id": "ionic[5].ionic.salt"
+            }
+          },
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 12,
+          "covalent_bond_electrons": 4,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": "operation[6]",
+        "ordinal": 6,
+        "product_assignments": {
+          "sodiumChloride[1]": [
+            "hydrochloricAcid[1].x",
+            "sodiumHydroxide[1].metal.metal"
+          ]
+        }
+      },
+      {
+        "digest": "1e4b887430ef7b919b3593fe99502be19e309002fecaf41e6ed06be5ffce7519",
+        "graph": {
+          "atoms": {
+            "hydrochloricAcid[1].h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "hydrochloricAcid[1].h"
+            },
+            "hydrochloricAcid[1].x": {
+              "electrons": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "element": "Cl",
+              "id": "hydrochloricAcid[1].x"
+            },
+            "sodiumHydroxide[1].hydroxide.h": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "H",
+              "id": "sodiumHydroxide[1].hydroxide.h"
+            },
+            "sodiumHydroxide[1].hydroxide.o": {
+              "electrons": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              },
+              "element": "O",
+              "id": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].metal.metal": {
+              "electrons": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "element": "Na",
+              "id": "sodiumHydroxide[1].metal.metal"
+            }
+          },
+          "covalent_bonds": {
+            "operation[4].bond": {
+              "id": "operation[4].bond",
+              "left": "hydrochloricAcid[1].h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            },
+            "sodiumHydroxide[1].bond.0": {
+              "id": "sodiumHydroxide[1].bond.0",
+              "left": "sodiumHydroxide[1].hydroxide.h",
+              "order": "single",
+              "right": "sodiumHydroxide[1].hydroxide.o"
+            }
+          },
+          "groups": {
+            "ionic[5].component[1]": {
+              "atoms": [
+                "hydrochloricAcid[1].x"
+              ],
+              "id": "ionic[5].component[1]"
+            },
+            "ionic[5].component[2]": {
+              "atoms": [
+                "sodiumHydroxide[1].metal.metal"
+              ],
+              "id": "ionic[5].component[2]"
+            }
+          },
+          "ionic_associations": {
+            "ionic[5].ionic.salt": {
+              "components": [
+                "ionic[5].component[1]",
+                "ionic[5].component[2]"
+              ],
+              "id": "ionic[5].ionic.salt"
+            }
+          },
+          "metallic_domains": {}
+        },
+        "ledger": {
+          "atom_count": 5,
+          "atom_formal_charge_sum": 0,
+          "atom_local_non_bonding": 12,
+          "covalent_bond_electrons": 4,
+          "metallic_domain_electrons": 0,
+          "system_net_charge": 0,
+          "total_explicit_valence_electrons": 16
+        },
+        "operation": "operation[7]",
+        "ordinal": 7,
+        "product_assignments": {
+          "sodiumChloride[1]": [
+            "hydrochloricAcid[1].x",
+            "sodiumHydroxide[1].metal.metal"
+          ],
+          "water[1]": [
+            "hydrochloricAcid[1].h",
+            "sodiumHydroxide[1].hydroxide.h",
+            "sodiumHydroxide[1].hydroxide.o"
+          ]
+        }
+      }
+    ],
+    "trust": "review_candidate"
+  }
+}

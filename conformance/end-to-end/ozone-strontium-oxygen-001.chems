@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction StrontiumAndOxygenWithOzone where
+  reactants
+    subject := 6 of SrMetalForOxygen
+    oxygen := 2 of Ozone
+  products
+    oxide := 6 of SrDivalentNormalOxide
+  equation
+    6 Sr[metallic] + 2 O3[molecular]
+    -> 6 SrO[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneDivalentNormalOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

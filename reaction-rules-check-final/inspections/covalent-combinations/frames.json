@@ -1,0 +1,1669 @@
+{
+  "artifact": "frames",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "frames": [
+      {
+        "active_operation": null,
+        "atoms": {
+          "halogen[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x1"
+          },
+          "halogen[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x2"
+          },
+          "hydrogen[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h1"
+          },
+          "hydrogen[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h2"
+          }
+        },
+        "changes": [],
+        "covalent_edges": {
+          "halogen[1].bond.0": {
+            "id": "halogen[1].bond.0",
+            "left": "halogen[1].x1",
+            "order": "single",
+            "right": "halogen[1].x2"
+          },
+          "hydrogen[1].bond.0": {
+            "id": "hydrogen[1].bond.0",
+            "left": "hydrogen[1].h1",
+            "order": "single",
+            "right": "hydrogen[1].h2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "covalent-combinations/example.chems",
+                "span": {
+                  "end": 334,
+                  "start": 270
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation compound",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 414,
+                    "start": 382
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "compound",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation halogen",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 455,
+                    "start": 418
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "halogen",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 0,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+          "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+          "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+          "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+          "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+          "state_digest": "308e9ec6f72bfc3504241aa5b23656d076ba7dd00ce7d97136b5e746f32ed1b0"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "homolytic",
+            "expected_order": "single",
+            "id": "operation[1]",
+            "kind": "cleave_covalent",
+            "left": "hydrogen[1].h1",
+            "right": "hydrogen[1].h2",
+            "transitions": {
+              "hydrogen[1].h1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "hydrogen[1].h1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "hydrogen[1].h2": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "hydrogen[1].h2",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 1
+        },
+        "atoms": {
+          "halogen[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x1"
+          },
+          "halogen[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x2"
+          },
+          "hydrogen[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "hydrogen[1].h1"
+          },
+          "hydrogen[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "hydrogen[1].h2"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "hydrogen[1].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "hydrogen[1].h2",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "hydrogen[1].h1",
+            "right": "hydrogen[1].h2"
+          }
+        ],
+        "covalent_edges": {
+          "halogen[1].bond.0": {
+            "id": "halogen[1].bond.0",
+            "left": "halogen[1].x1",
+            "order": "single",
+            "right": "halogen[1].x2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "covalent-combinations/example.chems",
+                "span": {
+                  "end": 334,
+                  "start": 270
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation compound",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 414,
+                    "start": 382
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "compound",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation halogen",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 455,
+                    "start": 418
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "halogen",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 1,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+          "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+          "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+          "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+          "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+          "state_digest": "5bf612a65d85a9ae62a0915440e827b52a8c326c70f68d258a25586cc8287f0a"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "homolytic",
+            "expected_order": "single",
+            "id": "operation[2]",
+            "kind": "cleave_covalent",
+            "left": "halogen[1].x1",
+            "right": "halogen[1].x2",
+            "transitions": {
+              "halogen[1].x1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                },
+                "atom": "halogen[1].x1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              },
+              "halogen[1].x2": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                },
+                "atom": "halogen[1].x2",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 2
+        },
+        "atoms": {
+          "halogen[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "halogen[1].x1"
+          },
+          "halogen[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "halogen[1].x2"
+          },
+          "hydrogen[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "hydrogen[1].h1"
+          },
+          "hydrogen[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "hydrogen[1].h2"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "atom": "halogen[1].x1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "atom": "halogen[1].x2",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "halogen[1].x1",
+            "right": "halogen[1].x2"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "covalent-combinations/example.chems",
+                "span": {
+                  "end": 334,
+                  "start": 270
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation compound",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 414,
+                    "start": 382
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "compound",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation halogen",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 455,
+                    "start": 418
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "halogen",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 2,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+          "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+          "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+          "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+          "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+          "state_digest": "414e29705bc364494545a8928d6337868df926c519aa5c31d5d09593e87ec63f"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "id": "operation[3]",
+            "kind": "form_covalent",
+            "left": "hydrogen[1].h1",
+            "order": "single",
+            "right": "halogen[1].x1",
+            "transitions": {
+              "halogen[1].x1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "atom": "halogen[1].x1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                }
+              },
+              "hydrogen[1].h1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrogen[1].h1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 3
+        },
+        "atoms": {
+          "halogen[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x1"
+          },
+          "halogen[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "halogen[1].x2"
+          },
+          "hydrogen[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h1"
+          },
+          "hydrogen[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "hydrogen[1].h2"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "atom": "halogen[1].x1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "hydrogen[1].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": "single",
+            "before": null,
+            "kind": "covalent",
+            "left": "halogen[1].x1",
+            "right": "hydrogen[1].h1"
+          }
+        ],
+        "covalent_edges": {
+          "operation[3].bond": {
+            "id": "operation[3].bond",
+            "left": "halogen[1].x1",
+            "order": "single",
+            "right": "hydrogen[1].h1"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "covalent-combinations/example.chems",
+                "span": {
+                  "end": 334,
+                  "start": 270
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation compound",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 414,
+                    "start": 382
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "compound",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation halogen",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 455,
+                    "start": 418
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "halogen",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 3,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+          "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+          "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+          "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+          "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+          "state_digest": "176db8c86836616e7f6d36a391268c489964d8de5cf759bc1977c75a140cda9a"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "halogen[1].x1",
+              "hydrogen[1].h1"
+            ],
+            "id": "operation[4]",
+            "kind": "assign_product",
+            "product": "compound[1]"
+          },
+          "ordinal": 4
+        },
+        "atoms": {
+          "halogen[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x1"
+          },
+          "halogen[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "halogen[1].x2"
+          },
+          "hydrogen[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h1"
+          },
+          "hydrogen[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "hydrogen[1].h2"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "halogen[1].x1",
+              "hydrogen[1].h1"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "compound[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[3].bond": {
+            "id": "operation[3].bond",
+            "left": "halogen[1].x1",
+            "order": "single",
+            "right": "hydrogen[1].h1"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "covalent-combinations/example.chems",
+                "span": {
+                  "end": 334,
+                  "start": 270
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation compound",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 414,
+                    "start": 382
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "compound",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation halogen",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 455,
+                    "start": 418
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "halogen",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 4,
+        "product_membership": {
+          "compound[1]": [
+            "halogen[1].x1",
+            "hydrogen[1].h1"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+          "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+          "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+          "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+          "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+          "state_digest": "aa3052ff91ff0d9059ff8e5b7534392136099cc3838b871a8bc27a6e4086de34"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "id": "operation[5]",
+            "kind": "form_covalent",
+            "left": "hydrogen[1].h2",
+            "order": "single",
+            "right": "halogen[1].x2",
+            "transitions": {
+              "halogen[1].x2": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "atom": "halogen[1].x2",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                }
+              },
+              "hydrogen[1].h2": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrogen[1].h2",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 5
+        },
+        "atoms": {
+          "halogen[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x1"
+          },
+          "halogen[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x2"
+          },
+          "hydrogen[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h1"
+          },
+          "hydrogen[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h2"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "atom": "halogen[1].x2",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "hydrogen[1].h2",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": "single",
+            "before": null,
+            "kind": "covalent",
+            "left": "halogen[1].x2",
+            "right": "hydrogen[1].h2"
+          }
+        ],
+        "covalent_edges": {
+          "operation[3].bond": {
+            "id": "operation[3].bond",
+            "left": "halogen[1].x1",
+            "order": "single",
+            "right": "hydrogen[1].h1"
+          },
+          "operation[5].bond": {
+            "id": "operation[5].bond",
+            "left": "halogen[1].x2",
+            "order": "single",
+            "right": "hydrogen[1].h2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "covalent-combinations/example.chems",
+                "span": {
+                  "end": 334,
+                  "start": 270
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation compound",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 414,
+                    "start": 382
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "compound",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation halogen",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 455,
+                    "start": 418
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "halogen",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 5,
+        "product_membership": {
+          "compound[1]": [
+            "halogen[1].x1",
+            "hydrogen[1].h1"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+          "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+          "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+          "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+          "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+          "state_digest": "70c6e9e269d2670074530b98ce8ca4a151a890bbadc52b7af5cfe8a23502b746"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "halogen[1].x2",
+              "hydrogen[1].h2"
+            ],
+            "id": "operation[6]",
+            "kind": "assign_product",
+            "product": "compound[2]"
+          },
+          "ordinal": 6
+        },
+        "atoms": {
+          "halogen[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x1"
+          },
+          "halogen[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "halogen[1].x2"
+          },
+          "hydrogen[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h1"
+          },
+          "hydrogen[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrogen[1].h2"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "halogen[1].x2",
+              "hydrogen[1].h2"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "compound[2]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[3].bond": {
+            "id": "operation[3].bond",
+            "left": "halogen[1].x1",
+            "order": "single",
+            "right": "hydrogen[1].h1"
+          },
+          "operation[5].bond": {
+            "id": "operation[5].bond",
+            "left": "halogen[1].x2",
+            "order": "single",
+            "right": "hydrogen[1].h2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "covalent-combinations/example.chems",
+                "span": {
+                  "end": 334,
+                  "start": 270
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation compound",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 414,
+                    "start": 382
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "compound",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation halogen",
+                  "source": "covalent-combinations/example.chems",
+                  "span": {
+                    "end": 455,
+                    "start": 418
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "halogen",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 6,
+        "product_membership": {
+          "compound[1]": [
+            "halogen[1].x1",
+            "hydrogen[1].h1"
+          ],
+          "compound[2]": [
+            "halogen[1].x2",
+            "hydrogen[1].h2"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+          "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+          "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+          "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+          "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+          "state_digest": "f130175ac8e90783eadb3dcff932a33e8ee8353df20cc9f1a09bdd5d8cbf8aef"
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "explanatory_sequence_is_not_a_mechanism_claim": true,
+      "provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.rule.covalent-combinations.reviewed-outcomes"
+            ],
+            "record": "rule Rules.HydrogenHalideCombination model assumptions"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "model disclosure",
+            "source": "covalent-combinations/example.chems",
+            "span": {
+              "end": 334,
+              "start": 270
+            }
+          }
+        ]
+      },
+      "representative_outcome": true,
+      "sequence": "explanatory"
+    },
+    "result": "validated_with_assumptions",
+    "schema_version": 1,
+    "trace": {
+      "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+      "derivation_digest": "28a97d25cbe7fe14de60000ad2f255dabb8d0a71ba8ba5b4d6b9f87cd0fca509",
+      "evidence_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+      "expansion_semantic_digest": "a79ee843ea6cd02dc73847b0f8b5b161e9dd3df0beeaa9ad1db911402e73bcf5",
+      "source_bytes_digest": "b5b1691e0acbc881a41e1b3680c9e9836e3b0c7aa29dfc9d590cb7c47ab29b63",
+      "source_semantic_digest": "d5c41a8796770777e4f17476186c5ee5eca4aaf531a899f8fe3340b1bcb9dc9b",
+      "state_digest": "f130175ac8e90783eadb3dcff932a33e8ee8353df20cc9f1a09bdd5d8cbf8aef"
+    },
+    "trust": "review_candidate"
+  }
+}

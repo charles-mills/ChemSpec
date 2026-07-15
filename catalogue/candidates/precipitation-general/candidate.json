@@ -1,0 +1,3545 @@
+{
+  "schema_version": 1,
+  "id": "precipitation-general",
+  "evidence": [
+    {
+      "id": "evidence.openstax.precipitation",
+      "title": "Chemistry 2e",
+      "publisher": "OpenStax",
+      "locator": "Precipitation Reactions and Solubility Guidelines",
+      "reference": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+      "publication_date": "2019-02-14",
+      "retrieved_on": "2026-07-15",
+      "usage": "Reviewed common insoluble ionic products"
+    }
+  ],
+  "premises": [
+    {
+      "id": "premise.rule.precipitation.solubility-table",
+      "statement": "The finite reviewed solubility table produces BaSO4, CaCO3, Cu(OH)2 and Fe(OH)3 by ionic reassociation.",
+      "evidence": [
+        "evidence.openstax.precipitation"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.precipitation-ions",
+      "statement": "Reactant salts and precipitates preserve explicit monatomic or covalently bonded polyatomic ion groups during ionic reassociation.",
+      "evidence": [
+        "evidence.openstax.precipitation"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.valence.general-precipitation",
+      "statement": "The listed monatomic and polyatomic ion states form the closed structural domain for these reassociations.",
+      "evidence": [
+        "evidence.openstax.precipitation"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.general-precipitate-forms",
+      "statement": "Formation of the selected insoluble ionic product is compatible with the theoretical precipitation outcome.",
+      "evidence": [
+        "evidence.openstax.precipitation"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    }
+  ],
+  "valence_premises": [
+    {
+      "premise_id": "premise.valence.general-precipitation",
+      "neutral_valence": [
+        {
+          "element": "H",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "C",
+          "neutral_valence_electrons": 4
+        },
+        {
+          "element": "O",
+          "neutral_valence_electrons": 6
+        },
+        {
+          "element": "S",
+          "neutral_valence_electrons": 6
+        },
+        {
+          "element": "Na",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "Cl",
+          "neutral_valence_electrons": 7
+        },
+        {
+          "element": "Ba",
+          "neutral_valence_electrons": 2
+        },
+        {
+          "element": "Ca",
+          "neutral_valence_electrons": 2
+        },
+        {
+          "element": "Cu",
+          "neutral_valence_electrons": 11
+        },
+        {
+          "element": "Fe",
+          "neutral_valence_electrons": 8
+        }
+      ],
+      "supported_states": [
+        {
+          "element": "Ba",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "C",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 4
+        },
+        {
+          "element": "Ca",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cl",
+          "formal_charge": -1,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cu",
+          "formal_charge": 2,
+          "non_bonding_electrons": 9,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Fe",
+          "formal_charge": 3,
+          "non_bonding_electrons": 5,
+          "unpaired_electrons": 5,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "Na",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "O",
+          "formal_charge": -1,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "O",
+          "formal_charge": 0,
+          "non_bonding_electrons": 4,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 2
+        },
+        {
+          "element": "S",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 6
+        }
+      ],
+      "metallic_domain_states": []
+    }
+  ],
+  "structures": [
+    {
+      "representation": "ionic",
+      "id": "PrecipitationSodiumChloride",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "NaCl",
+      "components": [
+        {
+          "label": "sodium",
+          "atoms": [
+            {
+              "label": "sodium",
+              "element": "Na",
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride",
+          "atoms": [
+            {
+              "label": "chloride",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "sodium",
+            "chloride"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "sodium.sodium"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationBariumChloride",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "BaCl2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Ba",
+              "formal_charge": 2,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride1",
+          "atoms": [
+            {
+              "label": "chloride1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride2",
+          "atoms": [
+            {
+              "label": "chloride2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "chloride1",
+            "chloride2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationCalciumChloride",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "CaCl2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Ca",
+              "formal_charge": 2,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride1",
+          "atoms": [
+            {
+              "label": "chloride1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride2",
+          "atoms": [
+            {
+              "label": "chloride2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "chloride1",
+            "chloride2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationCopperChloride",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "CuCl2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Cu",
+              "formal_charge": 2,
+              "non_bonding_electrons": 9,
+              "unpaired_electrons": 1
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride1",
+          "atoms": [
+            {
+              "label": "chloride1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride2",
+          "atoms": [
+            {
+              "label": "chloride2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "chloride1",
+            "chloride2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationIronChloride",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "FeCl3",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Fe",
+              "formal_charge": 3,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 5
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride1",
+          "atoms": [
+            {
+              "label": "chloride1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride2",
+          "atoms": [
+            {
+              "label": "chloride2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "chloride3",
+          "atoms": [
+            {
+              "label": "chloride3",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "chloride1",
+            "chloride2",
+            "chloride3"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationSodiumSulfate",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "Na2SO4",
+      "components": [
+        {
+          "label": "sodium1",
+          "atoms": [
+            {
+              "label": "sodium1",
+              "element": "Na",
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "sodium2",
+          "atoms": [
+            {
+              "label": "sodium2",
+              "element": "Na",
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "sulfate",
+          "atoms": [
+            {
+              "label": "s_sulfate",
+              "element": "S",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o1_sulfate",
+              "element": "O",
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o2_sulfate",
+              "element": "O",
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o3_sulfate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o4_sulfate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "s_sulfate",
+              "right": "o1_sulfate",
+              "order": "double"
+            },
+            {
+              "left": "s_sulfate",
+              "right": "o2_sulfate",
+              "order": "double"
+            },
+            {
+              "left": "s_sulfate",
+              "right": "o3_sulfate",
+              "order": "single"
+            },
+            {
+              "left": "s_sulfate",
+              "right": "o4_sulfate",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "sodium1",
+            "sodium2",
+            "sulfate"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "sodium1.sodium1"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationSodiumCarbonate",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "Na2CO3",
+      "components": [
+        {
+          "label": "sodiums",
+          "atoms": [
+            {
+              "label": "sodium1",
+              "element": "Na",
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "sodium2",
+              "element": "Na",
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "carbonate",
+          "atoms": [
+            {
+              "label": "c_carbonate",
+              "element": "C",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o1_carbonate",
+              "element": "O",
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o2_carbonate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o3_carbonate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "c_carbonate",
+              "right": "o1_carbonate",
+              "order": "double"
+            },
+            {
+              "left": "c_carbonate",
+              "right": "o2_carbonate",
+              "order": "single"
+            },
+            {
+              "left": "c_carbonate",
+              "right": "o3_carbonate",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "sodiums",
+            "carbonate"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "sodiums.sodium1"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationSodiumHydroxide",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "NaOH",
+      "components": [
+        {
+          "label": "sodium",
+          "atoms": [
+            {
+              "label": "sodium",
+              "element": "Na",
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "hydroxide",
+          "atoms": [
+            {
+              "label": "o_hydroxide",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h_hydroxide",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o_hydroxide",
+              "right": "h_hydroxide",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "sodium",
+            "hydroxide"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "sodium.sodium"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationBariumSulfate",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "BaSO4",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Ba",
+              "formal_charge": 2,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "sulfate",
+          "atoms": [
+            {
+              "label": "s_sulfate",
+              "element": "S",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o1_sulfate",
+              "element": "O",
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o2_sulfate",
+              "element": "O",
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o3_sulfate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o4_sulfate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "s_sulfate",
+              "right": "o1_sulfate",
+              "order": "double"
+            },
+            {
+              "left": "s_sulfate",
+              "right": "o2_sulfate",
+              "order": "double"
+            },
+            {
+              "left": "s_sulfate",
+              "right": "o3_sulfate",
+              "order": "single"
+            },
+            {
+              "left": "s_sulfate",
+              "right": "o4_sulfate",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "sulfate"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.InsolubleIonicProduct",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationCalciumCarbonate",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "CaCO3",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Ca",
+              "formal_charge": 2,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "carbonate",
+          "atoms": [
+            {
+              "label": "c_carbonate",
+              "element": "C",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o1_carbonate",
+              "element": "O",
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o2_carbonate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "o3_carbonate",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "c_carbonate",
+              "right": "o1_carbonate",
+              "order": "double"
+            },
+            {
+              "left": "c_carbonate",
+              "right": "o2_carbonate",
+              "order": "single"
+            },
+            {
+              "left": "c_carbonate",
+              "right": "o3_carbonate",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "carbonate"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.InsolubleIonicProduct",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationCopperHydroxide",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "CuO2H2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Cu",
+              "formal_charge": 2,
+              "non_bonding_electrons": 9,
+              "unpaired_electrons": 1
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "hydroxide1",
+          "atoms": [
+            {
+              "label": "o_hydroxide1",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h_hydroxide1",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o_hydroxide1",
+              "right": "h_hydroxide1",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        },
+        {
+          "label": "hydroxide2",
+          "atoms": [
+            {
+              "label": "o_hydroxide2",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h_hydroxide2",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o_hydroxide2",
+              "right": "h_hydroxide2",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "hydroxide1",
+            "hydroxide2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.InsolubleIonicProduct",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "PrecipitationIronHydroxide",
+      "premise_id": "premise.structure.precipitation-ions",
+      "formula": "FeO3H3",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "cation",
+              "element": "Fe",
+              "formal_charge": 3,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 5
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "hydroxide1",
+          "atoms": [
+            {
+              "label": "o_hydroxide1",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h_hydroxide1",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o_hydroxide1",
+              "right": "h_hydroxide1",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        },
+        {
+          "label": "hydroxide2",
+          "atoms": [
+            {
+              "label": "o_hydroxide2",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h_hydroxide2",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o_hydroxide2",
+              "right": "h_hydroxide2",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        },
+        {
+          "label": "hydroxide3",
+          "atoms": [
+            {
+              "label": "o_hydroxide3",
+              "element": "O",
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            {
+              "label": "h_hydroxide3",
+              "element": "H",
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [
+            {
+              "left": "o_hydroxide3",
+              "right": "h_hydroxide3",
+              "order": "single"
+            }
+          ],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "hydroxide1",
+            "hydroxide2",
+            "hydroxide3"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.InsolubleIonicProduct",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table"
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "elements": [],
+  "element_categories": [],
+  "structural_traits": [],
+  "structure_templates": [],
+  "structure_applications": [],
+  "graph_patterns": [
+    {
+      "id": "Patterns.PrecipitationSodiumChloride",
+      "variables": {
+        "sodium": {
+          "atom": {
+            "element": "Na"
+          }
+        },
+        "chloride": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "sodium"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "chloride"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationBariumChloride",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Ba"
+          }
+        },
+        "chloride1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "chloride2": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "chloride1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component3",
+          "atoms": [
+            "chloride2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2",
+            "component3"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationCalciumChloride",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Ca"
+          }
+        },
+        "chloride1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "chloride2": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "chloride1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component3",
+          "atoms": [
+            "chloride2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2",
+            "component3"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationCopperChloride",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Cu"
+          }
+        },
+        "chloride1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "chloride2": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "chloride1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component3",
+          "atoms": [
+            "chloride2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2",
+            "component3"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationIronChloride",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Fe"
+          }
+        },
+        "chloride1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "chloride2": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "chloride3": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "chloride1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component3",
+          "atoms": [
+            "chloride2"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component4",
+          "atoms": [
+            "chloride3"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2",
+            "component3",
+            "component4"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationSodiumSulfate",
+      "variables": {
+        "sodium1": {
+          "atom": {
+            "element": "Na"
+          }
+        },
+        "sodium2": {
+          "atom": {
+            "element": "Na"
+          }
+        },
+        "s_sulfate": {
+          "atom": {
+            "element": "S"
+          }
+        },
+        "o1_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o2_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o3_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o4_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "sodium1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "sodium2"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond1",
+          "left": "s_sulfate",
+          "right": "o1_sulfate",
+          "order": "double"
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond2",
+          "left": "s_sulfate",
+          "right": "o2_sulfate",
+          "order": "double"
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond3",
+          "left": "s_sulfate",
+          "right": "o3_sulfate",
+          "order": "single"
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond4",
+          "left": "s_sulfate",
+          "right": "o4_sulfate",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component3",
+          "atoms": [
+            "s_sulfate",
+            "o1_sulfate",
+            "o2_sulfate",
+            "o3_sulfate",
+            "o4_sulfate"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2",
+            "component3"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationSodiumCarbonate",
+      "variables": {
+        "sodium1": {
+          "atom": {
+            "element": "Na"
+          }
+        },
+        "sodium2": {
+          "atom": {
+            "element": "Na"
+          }
+        },
+        "c_carbonate": {
+          "atom": {
+            "element": "C"
+          }
+        },
+        "o1_carbonate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o2_carbonate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o3_carbonate": {
+          "atom": {
+            "element": "O"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "sodium1",
+            "sodium2"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "carbonateBond1",
+          "left": "c_carbonate",
+          "right": "o1_carbonate",
+          "order": "double"
+        },
+        {
+          "kind": "covalent",
+          "bond": "carbonateBond2",
+          "left": "c_carbonate",
+          "right": "o2_carbonate",
+          "order": "single"
+        },
+        {
+          "kind": "covalent",
+          "bond": "carbonateBond3",
+          "left": "c_carbonate",
+          "right": "o3_carbonate",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "c_carbonate",
+            "o1_carbonate",
+            "o2_carbonate",
+            "o3_carbonate"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationSodiumHydroxide",
+      "variables": {
+        "sodium": {
+          "atom": {
+            "element": "Na"
+          }
+        },
+        "o_hydroxide": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "h_hydroxide": {
+          "atom": {
+            "element": "H"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "sodium"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "hydroxideBond1",
+          "left": "o_hydroxide",
+          "right": "h_hydroxide",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "o_hydroxide",
+            "h_hydroxide"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationBariumSulfate",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Ba"
+          }
+        },
+        "s_sulfate": {
+          "atom": {
+            "element": "S"
+          }
+        },
+        "o1_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o2_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o3_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o4_sulfate": {
+          "atom": {
+            "element": "O"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond1",
+          "left": "s_sulfate",
+          "right": "o1_sulfate",
+          "order": "double"
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond2",
+          "left": "s_sulfate",
+          "right": "o2_sulfate",
+          "order": "double"
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond3",
+          "left": "s_sulfate",
+          "right": "o3_sulfate",
+          "order": "single"
+        },
+        {
+          "kind": "covalent",
+          "bond": "sulfateBond4",
+          "left": "s_sulfate",
+          "right": "o4_sulfate",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "s_sulfate",
+            "o1_sulfate",
+            "o2_sulfate",
+            "o3_sulfate",
+            "o4_sulfate"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationCalciumCarbonate",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Ca"
+          }
+        },
+        "c_carbonate": {
+          "atom": {
+            "element": "C"
+          }
+        },
+        "o1_carbonate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o2_carbonate": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "o3_carbonate": {
+          "atom": {
+            "element": "O"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "carbonateBond1",
+          "left": "c_carbonate",
+          "right": "o1_carbonate",
+          "order": "double"
+        },
+        {
+          "kind": "covalent",
+          "bond": "carbonateBond2",
+          "left": "c_carbonate",
+          "right": "o2_carbonate",
+          "order": "single"
+        },
+        {
+          "kind": "covalent",
+          "bond": "carbonateBond3",
+          "left": "c_carbonate",
+          "right": "o3_carbonate",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "c_carbonate",
+            "o1_carbonate",
+            "o2_carbonate",
+            "o3_carbonate"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationCopperHydroxide",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Cu"
+          }
+        },
+        "o_hydroxide1": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "h_hydroxide1": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "o_hydroxide2": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "h_hydroxide2": {
+          "atom": {
+            "element": "H"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "hydroxide1Bond1",
+          "left": "o_hydroxide1",
+          "right": "h_hydroxide1",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "o_hydroxide1",
+            "h_hydroxide1"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "hydroxide2Bond1",
+          "left": "o_hydroxide2",
+          "right": "h_hydroxide2",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component3",
+          "atoms": [
+            "o_hydroxide2",
+            "h_hydroxide2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2",
+            "component3"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    },
+    {
+      "id": "Patterns.PrecipitationIronHydroxide",
+      "variables": {
+        "cation": {
+          "atom": {
+            "element": "Fe"
+          }
+        },
+        "o_hydroxide1": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "h_hydroxide1": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "o_hydroxide2": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "h_hydroxide2": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "o_hydroxide3": {
+          "atom": {
+            "element": "O"
+          }
+        },
+        "h_hydroxide3": {
+          "atom": {
+            "element": "H"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "component1",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "hydroxide1Bond1",
+          "left": "o_hydroxide1",
+          "right": "h_hydroxide1",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component2",
+          "atoms": [
+            "o_hydroxide1",
+            "h_hydroxide1"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "hydroxide2Bond1",
+          "left": "o_hydroxide2",
+          "right": "h_hydroxide2",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component3",
+          "atoms": [
+            "o_hydroxide2",
+            "h_hydroxide2"
+          ]
+        },
+        {
+          "kind": "covalent",
+          "bond": "hydroxide3Bond1",
+          "left": "o_hydroxide3",
+          "right": "h_hydroxide3",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "component4",
+          "atoms": [
+            "o_hydroxide3",
+            "h_hydroxide3"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "component1",
+            "component2",
+            "component3",
+            "component4"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation"
+      ]
+    }
+  ],
+  "generalized_rules": [
+    {
+      "id": "Rules.BariumSulfatePrecipitation",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "precipitation"
+          ]
+        }
+      },
+      "roles": {
+        "metalSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "reagent": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "precipitate": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "spectator": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 2
+        }
+      },
+      "reactants": {
+        "metalSource": {
+          "kind": "exact",
+          "structure": "PrecipitationBariumChloride"
+        },
+        "reagent": {
+          "kind": "exact",
+          "structure": "PrecipitationSodiumSulfate"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "precipitation",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "precipitation"
+          },
+          "products": {
+            "precipitate": {
+              "kind": "exact",
+              "structure": "PrecipitationBariumSulfate"
+            },
+            "spectator": {
+              "kind": "exact",
+              "structure": "PrecipitationSodiumChloride"
+            }
+          },
+          "patterns": {
+            "metalSource": "Patterns.PrecipitationBariumChloride",
+            "reagent": "Patterns.PrecipitationSodiumSulfate"
+          },
+          "correspondence": [
+            {
+              "reactant": "metalSource[1].cation",
+              "product": "precipitate[1].cation.cation",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].s_sulfate",
+              "product": "precipitate[1].sulfate.s_sulfate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o1_sulfate",
+              "product": "precipitate[1].sulfate.o1_sulfate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o2_sulfate",
+              "product": "precipitate[1].sulfate.o2_sulfate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o3_sulfate",
+              "product": "precipitate[1].sulfate.o3_sulfate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o4_sulfate",
+              "product": "precipitate[1].sulfate.o4_sulfate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].sodium1",
+              "product": "spectator[1].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride1",
+              "product": "spectator[1].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].sodium2",
+              "product": "spectator[2].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride2",
+              "product": "spectator[2].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "metalSource[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "reagent[1].salt"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.precipitate",
+              "components": [
+                [
+                  "metalSource[1].cation"
+                ],
+                [
+                  "reagent[1].s_sulfate",
+                  "reagent[1].o1_sulfate",
+                  "reagent[1].o2_sulfate",
+                  "reagent[1].o3_sulfate",
+                  "reagent[1].o4_sulfate"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -2
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator1",
+              "components": [
+                [
+                  "reagent[1].sodium1"
+                ],
+                [
+                  "metalSource[1].chloride1"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator2",
+              "components": [
+                [
+                  "reagent[1].sodium2"
+                ],
+                [
+                  "metalSource[1].chloride2"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "metalSource[1].cation",
+                "reagent[1].s_sulfate",
+                "reagent[1].o1_sulfate",
+                "reagent[1].o2_sulfate",
+                "reagent[1].o3_sulfate",
+                "reagent[1].o4_sulfate"
+              ],
+              "product": "precipitate[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[1].sodium1",
+                "metalSource[1].chloride1"
+              ],
+              "product": "spectator[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[1].sodium2",
+                "metalSource[1].chloride2"
+              ],
+              "product": "spectator[2]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "precipitate",
+              "predicate": "forms",
+              "evidence_subject": "barium sulfate",
+              "premise_id": "premise.observation.general-precipitate-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table",
+            "premise.structure.precipitation-ions",
+            "premise.valence.general-precipitation",
+            "premise.observation.general-precipitate-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.precipitation.solubility-table",
+        "request_relation": "contact",
+        "required_context": "both ionic reactant graphs and an insoluble product are present in the reviewed solubility table"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.precipitation.solubility-table"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation",
+        "premise.observation.general-precipitate-forms"
+      ]
+    },
+    {
+      "id": "Rules.CalciumCarbonatePrecipitation",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "precipitation"
+          ]
+        }
+      },
+      "roles": {
+        "metalSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "reagent": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "precipitate": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "spectator": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 2
+        }
+      },
+      "reactants": {
+        "metalSource": {
+          "kind": "exact",
+          "structure": "PrecipitationCalciumChloride"
+        },
+        "reagent": {
+          "kind": "exact",
+          "structure": "PrecipitationSodiumCarbonate"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "precipitation",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "precipitation"
+          },
+          "products": {
+            "precipitate": {
+              "kind": "exact",
+              "structure": "PrecipitationCalciumCarbonate"
+            },
+            "spectator": {
+              "kind": "exact",
+              "structure": "PrecipitationSodiumChloride"
+            }
+          },
+          "patterns": {
+            "metalSource": "Patterns.PrecipitationCalciumChloride",
+            "reagent": "Patterns.PrecipitationSodiumCarbonate"
+          },
+          "correspondence": [
+            {
+              "reactant": "metalSource[1].cation",
+              "product": "precipitate[1].cation.cation",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].c_carbonate",
+              "product": "precipitate[1].carbonate.c_carbonate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o1_carbonate",
+              "product": "precipitate[1].carbonate.o1_carbonate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o2_carbonate",
+              "product": "precipitate[1].carbonate.o2_carbonate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o3_carbonate",
+              "product": "precipitate[1].carbonate.o3_carbonate",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].sodium1",
+              "product": "spectator[1].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride1",
+              "product": "spectator[1].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].sodium2",
+              "product": "spectator[2].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride2",
+              "product": "spectator[2].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "metalSource[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "reagent[1].salt"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.precipitate",
+              "components": [
+                [
+                  "metalSource[1].cation"
+                ],
+                [
+                  "reagent[1].c_carbonate",
+                  "reagent[1].o1_carbonate",
+                  "reagent[1].o2_carbonate",
+                  "reagent[1].o3_carbonate"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -2
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator1",
+              "components": [
+                [
+                  "reagent[1].sodium1"
+                ],
+                [
+                  "metalSource[1].chloride1"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator2",
+              "components": [
+                [
+                  "reagent[1].sodium2"
+                ],
+                [
+                  "metalSource[1].chloride2"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "metalSource[1].cation",
+                "reagent[1].c_carbonate",
+                "reagent[1].o1_carbonate",
+                "reagent[1].o2_carbonate",
+                "reagent[1].o3_carbonate"
+              ],
+              "product": "precipitate[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[1].sodium1",
+                "metalSource[1].chloride1"
+              ],
+              "product": "spectator[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[1].sodium2",
+                "metalSource[1].chloride2"
+              ],
+              "product": "spectator[2]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "precipitate",
+              "predicate": "forms",
+              "evidence_subject": "calcium carbonate",
+              "premise_id": "premise.observation.general-precipitate-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table",
+            "premise.structure.precipitation-ions",
+            "premise.valence.general-precipitation",
+            "premise.observation.general-precipitate-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.precipitation.solubility-table",
+        "request_relation": "contact",
+        "required_context": "both ionic reactant graphs and an insoluble product are present in the reviewed solubility table"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.precipitation.solubility-table"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation",
+        "premise.observation.general-precipitate-forms"
+      ]
+    },
+    {
+      "id": "Rules.CopperHydroxidePrecipitation",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "precipitation"
+          ]
+        }
+      },
+      "roles": {
+        "metalSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "reagent": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 2
+        },
+        "precipitate": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "spectator": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 2
+        }
+      },
+      "reactants": {
+        "metalSource": {
+          "kind": "exact",
+          "structure": "PrecipitationCopperChloride"
+        },
+        "reagent": {
+          "kind": "exact",
+          "structure": "PrecipitationSodiumHydroxide"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "precipitation",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "precipitation"
+          },
+          "products": {
+            "precipitate": {
+              "kind": "exact",
+              "structure": "PrecipitationCopperHydroxide"
+            },
+            "spectator": {
+              "kind": "exact",
+              "structure": "PrecipitationSodiumChloride"
+            }
+          },
+          "patterns": {
+            "metalSource": "Patterns.PrecipitationCopperChloride",
+            "reagent": "Patterns.PrecipitationSodiumHydroxide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metalSource[1].cation",
+              "product": "precipitate[1].cation.cation",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o_hydroxide",
+              "product": "precipitate[1].hydroxide1.o_hydroxide1",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].h_hydroxide",
+              "product": "precipitate[1].hydroxide1.h_hydroxide1",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[2].o_hydroxide",
+              "product": "precipitate[1].hydroxide2.o_hydroxide2",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[2].h_hydroxide",
+              "product": "precipitate[1].hydroxide2.h_hydroxide2",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].sodium",
+              "product": "spectator[1].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride1",
+              "product": "spectator[1].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[2].sodium",
+              "product": "spectator[2].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride2",
+              "product": "spectator[2].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "metalSource[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "reagent[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "reagent[2].salt"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.precipitate",
+              "components": [
+                [
+                  "metalSource[1].cation"
+                ],
+                [
+                  "reagent[1].o_hydroxide",
+                  "reagent[1].h_hydroxide"
+                ],
+                [
+                  "reagent[2].o_hydroxide",
+                  "reagent[2].h_hydroxide"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator1",
+              "components": [
+                [
+                  "reagent[1].sodium"
+                ],
+                [
+                  "metalSource[1].chloride1"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator2",
+              "components": [
+                [
+                  "reagent[2].sodium"
+                ],
+                [
+                  "metalSource[1].chloride2"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "metalSource[1].cation",
+                "reagent[1].o_hydroxide",
+                "reagent[1].h_hydroxide",
+                "reagent[2].o_hydroxide",
+                "reagent[2].h_hydroxide"
+              ],
+              "product": "precipitate[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[1].sodium",
+                "metalSource[1].chloride1"
+              ],
+              "product": "spectator[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[2].sodium",
+                "metalSource[1].chloride2"
+              ],
+              "product": "spectator[2]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "precipitate",
+              "predicate": "forms",
+              "evidence_subject": "copper hydroxide",
+              "premise_id": "premise.observation.general-precipitate-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table",
+            "premise.structure.precipitation-ions",
+            "premise.valence.general-precipitation",
+            "premise.observation.general-precipitate-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.precipitation.solubility-table",
+        "request_relation": "contact",
+        "required_context": "both ionic reactant graphs and an insoluble product are present in the reviewed solubility table"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.precipitation.solubility-table"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation",
+        "premise.observation.general-precipitate-forms"
+      ]
+    },
+    {
+      "id": "Rules.IronHydroxidePrecipitation",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "precipitation"
+          ]
+        }
+      },
+      "roles": {
+        "metalSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "reagent": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 3
+        },
+        "precipitate": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "spectator": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 3
+        }
+      },
+      "reactants": {
+        "metalSource": {
+          "kind": "exact",
+          "structure": "PrecipitationIronChloride"
+        },
+        "reagent": {
+          "kind": "exact",
+          "structure": "PrecipitationSodiumHydroxide"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "precipitation",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "precipitation"
+          },
+          "products": {
+            "precipitate": {
+              "kind": "exact",
+              "structure": "PrecipitationIronHydroxide"
+            },
+            "spectator": {
+              "kind": "exact",
+              "structure": "PrecipitationSodiumChloride"
+            }
+          },
+          "patterns": {
+            "metalSource": "Patterns.PrecipitationIronChloride",
+            "reagent": "Patterns.PrecipitationSodiumHydroxide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metalSource[1].cation",
+              "product": "precipitate[1].cation.cation",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].o_hydroxide",
+              "product": "precipitate[1].hydroxide1.o_hydroxide1",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].h_hydroxide",
+              "product": "precipitate[1].hydroxide1.h_hydroxide1",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[2].o_hydroxide",
+              "product": "precipitate[1].hydroxide2.o_hydroxide2",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[2].h_hydroxide",
+              "product": "precipitate[1].hydroxide2.h_hydroxide2",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[3].o_hydroxide",
+              "product": "precipitate[1].hydroxide3.o_hydroxide3",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[3].h_hydroxide",
+              "product": "precipitate[1].hydroxide3.h_hydroxide3",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[1].sodium",
+              "product": "spectator[1].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride1",
+              "product": "spectator[1].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[2].sodium",
+              "product": "spectator[2].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride2",
+              "product": "spectator[2].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "reagent[3].sodium",
+              "product": "spectator[3].sodium.sodium",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            },
+            {
+              "reactant": "metalSource[1].chloride3",
+              "product": "spectator[3].chloride.chloride",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "metalSource[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "reagent[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "reagent[2].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "association": "reagent[3].salt"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.precipitate",
+              "components": [
+                [
+                  "metalSource[1].cation"
+                ],
+                [
+                  "reagent[1].o_hydroxide",
+                  "reagent[1].h_hydroxide"
+                ],
+                [
+                  "reagent[2].o_hydroxide",
+                  "reagent[2].h_hydroxide"
+                ],
+                [
+                  "reagent[3].o_hydroxide",
+                  "reagent[3].h_hydroxide"
+                ]
+              ],
+              "component_charges": [
+                3,
+                -1,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator1",
+              "components": [
+                [
+                  "reagent[1].sodium"
+                ],
+                [
+                  "metalSource[1].chloride1"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator2",
+              "components": [
+                [
+                  "reagent[2].sodium"
+                ],
+                [
+                  "metalSource[1].chloride2"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "label": "ionic.spectator3",
+              "components": [
+                [
+                  "reagent[3].sodium"
+                ],
+                [
+                  "metalSource[1].chloride3"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "metalSource[1].cation",
+                "reagent[1].o_hydroxide",
+                "reagent[1].h_hydroxide",
+                "reagent[2].o_hydroxide",
+                "reagent[2].h_hydroxide",
+                "reagent[3].o_hydroxide",
+                "reagent[3].h_hydroxide"
+              ],
+              "product": "precipitate[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[1].sodium",
+                "metalSource[1].chloride1"
+              ],
+              "product": "spectator[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[2].sodium",
+                "metalSource[1].chloride2"
+              ],
+              "product": "spectator[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.precipitation.solubility-table",
+                "premise.structure.precipitation-ions",
+                "premise.valence.general-precipitation"
+              ],
+              "atoms": [
+                "reagent[3].sodium",
+                "metalSource[1].chloride3"
+              ],
+              "product": "spectator[3]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "precipitate",
+              "predicate": "forms",
+              "evidence_subject": "iron(III) hydroxide",
+              "premise_id": "premise.observation.general-precipitate-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.precipitation.solubility-table",
+            "premise.structure.precipitation-ions",
+            "premise.valence.general-precipitation",
+            "premise.observation.general-precipitate-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.precipitation.solubility-table",
+        "request_relation": "contact",
+        "required_context": "both ionic reactant graphs and an insoluble product are present in the reviewed solubility table"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.precipitation.solubility-table"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.precipitation.solubility-table",
+        "premise.structure.precipitation-ions",
+        "premise.valence.general-precipitation",
+        "premise.observation.general-precipitate-forms"
+      ]
+    }
+  ]
+}

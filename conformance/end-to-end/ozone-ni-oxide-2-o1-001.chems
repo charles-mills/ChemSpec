@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction NiAndOxygenToTransitionG10MonoxideWithOzone where
+  reactants
+    subject := 6 of NiTransitionG10MonoxideMetalForOxygen
+    oxygen := 2 of Ozone
+  products
+    oxide := 6 of NiTransitionG10MonoxideOxide
+  equation
+    6 Ni[metallic] + 2 O3[molecular]
+    -> 6 NiO[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG10Monoxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

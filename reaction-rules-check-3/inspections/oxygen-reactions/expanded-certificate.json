@@ -1,0 +1,1295 @@
+{
+  "artifact": "expanded-certificate",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "atom_provenance": {
+      "oxide[1].metal1.metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "coefficient instance oxide[1]"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KSuperoxide"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KSuperoxide expanded atom oxide[1].metal1.metal"
+          }
+        ],
+        "evidence": []
+      },
+      "oxide[1].superoxide.o1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "coefficient instance oxide[1]"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KSuperoxide"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KSuperoxide expanded atom oxide[1].superoxide.o1"
+          }
+        ],
+        "evidence": []
+      },
+      "oxide[1].superoxide.o2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "coefficient instance oxide[1]"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KSuperoxide"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KSuperoxide expanded atom oxide[1].superoxide.o2"
+          }
+        ],
+        "evidence": []
+      },
+      "oxygen[1].o1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.structure.element-oxygen.structural-models"
+            ],
+            "record": "coefficient instance oxygen[1]"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.structure.element-oxygen.structural-models"
+            ],
+            "record": "structure Oxygen"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.structure.element-oxygen.structural-models"
+            ],
+            "record": "structure Oxygen expanded atom oxygen[1].o1"
+          }
+        ],
+        "evidence": []
+      },
+      "oxygen[1].o2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.structure.element-oxygen.structural-models"
+            ],
+            "record": "coefficient instance oxygen[1]"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.structure.element-oxygen.structural-models"
+            ],
+            "record": "structure Oxygen"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.structure.element-oxygen.structural-models"
+            ],
+            "record": "structure Oxygen expanded atom oxygen[1].o2"
+          }
+        ],
+        "evidence": []
+      },
+      "subject[1].metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "coefficient instance subject[1]"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KMetalForOxygen"
+          },
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "record": "structure KMetalForOxygen expanded atom subject[1].metal"
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "claim": {
+      "catalogue": {
+        "digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "name": "ChemSpec.Theoretical",
+        "trust": "review_candidate",
+        "version": "1"
+      },
+      "equation": [
+        {
+          "binding": "oxygen",
+          "coefficient": 1,
+          "formula": {
+            "O": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.structure.element-oxygen.structural-models"
+                ],
+                "record": "structure Oxygen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant"
+        },
+        {
+          "binding": "subject",
+          "coefficient": 1,
+          "formula": {
+            "K": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.element-oxygen.representative-outcomes",
+                  "premise.structure.element-oxygen.structural-models",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.element-oxygen.closed-domain"
+                ],
+                "record": "structure KMetalForOxygen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "metallic",
+          "side": "reactant"
+        },
+        {
+          "binding": "oxide",
+          "coefficient": 1,
+          "formula": {
+            "K": 1,
+            "O": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.element-oxygen.representative-outcomes",
+                  "premise.structure.element-oxygen.structural-models",
+                  "premise.valence.element-oxygen.closed-domain"
+                ],
+                "record": "structure KSuperoxide"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product"
+        }
+      ],
+      "evidence": {
+        "digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_subject": "oxide",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "oxide",
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_subject": "element",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "subject",
+            "value": null
+          }
+        ],
+        "packet": {
+          "name": "Evidence.OxygenReaction",
+          "version": "1"
+        },
+        "trust": "external_untrusted"
+      },
+      "model": {
+        "event": "representative",
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.rule.element-oxygen.representative-outcomes"
+              ],
+              "record": "rule Rules.Superoxide model assumptions"
+            }
+          ],
+          "evidence": []
+        },
+        "sequence": "explanatory"
+      },
+      "products": {
+        "oxide": {
+          "coefficient": 1,
+          "formula": {
+            "K": 1,
+            "O": 2
+          },
+          "name": "oxide",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.element-oxygen.representative-outcomes",
+                  "premise.structure.element-oxygen.structural-models",
+                  "premise.valence.element-oxygen.closed-domain"
+                ],
+                "record": "structure KSuperoxide"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product",
+          "structure": "KSuperoxide"
+        }
+      },
+      "reactants": {
+        "oxygen": {
+          "coefficient": 1,
+          "formula": {
+            "O": 2
+          },
+          "name": "oxygen",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.structure.element-oxygen.structural-models"
+                ],
+                "record": "structure Oxygen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant",
+          "structure": "Oxygen"
+        },
+        "subject": {
+          "coefficient": 1,
+          "formula": {
+            "K": 1
+          },
+          "name": "subject",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.element-oxygen.representative-outcomes",
+                  "premise.structure.element-oxygen.structural-models",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.element-oxygen.closed-domain"
+                ],
+                "record": "structure KMetalForOxygen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "metallic",
+          "side": "reactant",
+          "structure": "KMetalForOxygen"
+        }
+      },
+      "reaction": "PotassiumAndOxygen",
+      "rule": {
+        "applicability": {
+          "premise": "premise.rule.element-oxygen.representative-outcomes",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.element-oxygen",
+                  "premise.rule.element-oxygen.representative-outcomes",
+                  "premise.structure.element-oxygen.structural-models",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.element-oxygen.closed-domain"
+                ],
+                "record": "generalized rule Rules.Superoxide selected applicability"
+              },
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide applicability"
+              }
+            ],
+            "evidence": []
+          },
+          "reactant_structures": [
+            "KMetalForOxygen",
+            "Oxygen"
+          ],
+          "request_relation": "contact",
+          "required_context": "representative theoretical oxidation outcome selected by the reviewed oxygen catalogue"
+        },
+        "bindings": {
+          "oxide": {
+            "binding": "oxide",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.element-oxygen",
+                    "premise.rule.element-oxygen.representative-outcomes",
+                    "premise.structure.element-oxygen.structural-models",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.element-oxygen.closed-domain"
+                  ],
+                  "record": "generalized rule Rules.Superoxide role oxide"
+                },
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.rule.element-oxygen.representative-outcomes"
+                  ],
+                  "record": "rule Rules.Superoxide role oxide"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "oxide",
+            "side": "product"
+          },
+          "oxygen": {
+            "binding": "oxygen",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.element-oxygen",
+                    "premise.rule.element-oxygen.representative-outcomes",
+                    "premise.structure.element-oxygen.structural-models",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.element-oxygen.closed-domain"
+                  ],
+                  "record": "generalized rule Rules.Superoxide role oxygen"
+                },
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.rule.element-oxygen.representative-outcomes"
+                  ],
+                  "record": "rule Rules.Superoxide role oxygen"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "oxygen",
+            "side": "reactant"
+          },
+          "subject": {
+            "binding": "subject",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.element-oxygen",
+                    "premise.rule.element-oxygen.representative-outcomes",
+                    "premise.structure.element-oxygen.structural-models",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.element-oxygen.closed-domain"
+                  ],
+                  "record": "generalized rule Rules.Superoxide role subject"
+                },
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.rule.element-oxygen.representative-outcomes"
+                  ],
+                  "record": "rule Rules.Superoxide role subject"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "subject",
+            "side": "reactant"
+          }
+        },
+        "generalized": {
+          "case_id": "standard",
+          "equivalent_match_count": 2,
+          "matched_sites": {
+            "oxygen[1]": {
+              "o1": "o1",
+              "o2": "o2",
+              "oo": "bond.0"
+            },
+            "subject[1]": {
+              "metal": "metal",
+              "metallic": "metallic"
+            }
+          },
+          "parameter_premises": {
+            "member": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.element-oxygen.representative-outcomes"
+            ]
+          },
+          "parameters": {
+            "member": "K"
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.element-oxygen",
+                  "premise.rule.element-oxygen.representative-outcomes",
+                  "premise.structure.element-oxygen.structural-models",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.element-oxygen.closed-domain"
+                ],
+                "record": "generalized rule Rules.Superoxide case standard"
+              }
+            ],
+            "evidence": []
+          },
+          "role_premises": {
+            "oxide": [
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.element-oxygen",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "oxygen": [
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.element-oxygen",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.element-oxygen.closed-domain"
+            ],
+            "subject": [
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.element-oxygen",
+              "premise.rule.element-oxygen.representative-outcomes",
+              "premise.structure.element-oxygen.structural-models",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.element-oxygen.closed-domain"
+            ]
+          }
+        },
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.element-oxygen",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "generalized rule Rules.Superoxide selected certificate"
+            },
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.rule.element-oxygen.representative-outcomes"
+              ],
+              "record": "rule Rules.Superoxide"
+            }
+          ],
+          "evidence": []
+        },
+        "rule": "Rules.Superoxide"
+      }
+    },
+    "mapping": {
+      "entries": {
+        "oxygen[1].o1": "oxide[1].superoxide.o1",
+        "oxygen[1].o2": "oxide[1].superoxide.o2",
+        "subject[1].metal": "oxide[1].metal1.metal"
+      },
+      "id": "mapping.PotassiumAndOxygen"
+    },
+    "mapping_entry_provenance": {
+      "oxygen[1].o1": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.element-oxygen",
+          "premise.rule.element-oxygen.representative-outcomes",
+          "premise.structure.element-oxygen.structural-models",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.element-oxygen.closed-domain"
+        ],
+        "record": "rule Rules.Superoxide mapping pair 1"
+      },
+      "oxygen[1].o2": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.element-oxygen",
+          "premise.rule.element-oxygen.representative-outcomes",
+          "premise.structure.element-oxygen.structural-models",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.element-oxygen.closed-domain"
+        ],
+        "record": "rule Rules.Superoxide mapping pair 2"
+      },
+      "subject[1].metal": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.element-oxygen",
+          "premise.rule.element-oxygen.representative-outcomes",
+          "premise.structure.element-oxygen.structural-models",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.element-oxygen.closed-domain"
+        ],
+        "record": "rule Rules.Superoxide mapping pair 3"
+      }
+    },
+    "mapping_provenance": {
+      "catalogue": [
+        {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "premises": [
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.element-oxygen",
+            "premise.rule.element-oxygen.representative-outcomes",
+            "premise.structure.element-oxygen.structural-models",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.element-oxygen.closed-domain"
+          ],
+          "record": "rule Rules.Superoxide atom mapping template"
+        }
+      ],
+      "evidence": []
+    },
+    "operations": [
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "retain_electron",
+          "domain": "subject[1].metallic",
+          "domain_electrons_after": 0,
+          "domain_electrons_before": 1,
+          "id": "operation[1]",
+          "kind": "release_metallic",
+          "site": "subject[1].metal",
+          "transition": {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "subject[1].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          }
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.element-oxygen",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "rule Rules.Superoxide operation template 1"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "homolytic",
+          "id": "operation[2]",
+          "kind": "change_covalent",
+          "left": "oxygen[1].o1",
+          "new_order": "single",
+          "old_order": "double",
+          "right": "oxygen[1].o2",
+          "transitions": {
+            "oxygen[1].o1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 5,
+                "unpaired_electrons": 1
+              },
+              "atom": "oxygen[1].o1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              }
+            },
+            "oxygen[1].o2": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 5,
+                "unpaired_electrons": 1
+              },
+              "atom": "oxygen[1].o2",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.element-oxygen",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "rule Rules.Superoxide operation template 2"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "acceptor": "oxygen[1].o1",
+          "count": 1,
+          "donor": "subject[1].metal",
+          "id": "operation[3]",
+          "kind": "transfer_electron",
+          "transitions": {
+            "oxygen[1].o1": {
+              "after": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "atom": "oxygen[1].o1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 5,
+                "unpaired_electrons": 1
+              }
+            },
+            "subject[1].metal": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "subject[1].metal",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 3,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.element-oxygen",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "rule Rules.Superoxide operation template 3"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "expected": null,
+          "id": "operation[4]",
+          "kind": "change_covalent_delocalization",
+          "left": "oxygen[1].o1",
+          "replacement": {
+            "domain": "oxygen.resonance",
+            "effective_order": {
+              "denominator": 2,
+              "numerator": 3
+            }
+          },
+          "right": "oxygen[1].o2"
+        },
+        "ordinal": 4,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.element-oxygen",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "rule Rules.Superoxide operation template 4"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [
+          {
+            "expected_charge": -1,
+            "group": {
+              "atoms": [
+                "oxygen[1].o1",
+                "oxygen[1].o2"
+              ],
+              "id": "ionic[5].component[1]"
+            }
+          },
+          {
+            "expected_charge": 1,
+            "group": {
+              "atoms": [
+                "subject[1].metal"
+              ],
+              "id": "ionic[5].component[2]"
+            }
+          }
+        ],
+        "operation": {
+          "association": {
+            "components": [
+              "ionic[5].component[1]",
+              "ionic[5].component[2]"
+            ],
+            "id": "ionic[5].ionic.product1"
+          },
+          "id": "operation[5]",
+          "kind": "associate_ionic"
+        },
+        "ordinal": 5,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.element-oxygen",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "rule Rules.Superoxide operation template 5"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "oxygen[1].o1",
+            "oxygen[1].o2",
+            "subject[1].metal"
+          ],
+          "id": "operation[6]",
+          "kind": "assign_product",
+          "product": "oxide[1]"
+        },
+        "ordinal": 6,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.element-oxygen",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "rule Rules.Superoxide operation template 6"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    ],
+    "premise_provenance": {
+      "premise.elements.iupac-periodic-table": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.elements.iupac-periodic-table"
+        ],
+        "record": "catalogue premise premise.elements.iupac-periodic-table"
+      },
+      "premise.observation.element-oxygen": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.observation.element-oxygen"
+        ],
+        "record": "catalogue premise premise.observation.element-oxygen"
+      },
+      "premise.rule.element-oxygen.representative-outcomes": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.rule.element-oxygen.representative-outcomes"
+        ],
+        "record": "catalogue premise premise.rule.element-oxygen.representative-outcomes"
+      },
+      "premise.structure.element-oxygen.structural-models": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.structure.element-oxygen.structural-models"
+        ],
+        "record": "catalogue premise premise.structure.element-oxygen.structural-models"
+      },
+      "premise.traits.reaction-family-classification": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.traits.reaction-family-classification"
+        ],
+        "record": "catalogue premise premise.traits.reaction-family-classification"
+      },
+      "premise.valence.element-oxygen.closed-domain": {
+        "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+        "premises": [
+          "premise.valence.element-oxygen.closed-domain"
+        ],
+        "record": "catalogue premise premise.valence.element-oxygen.closed-domain"
+      }
+    },
+    "premises": [
+      "premise.elements.iupac-periodic-table",
+      "premise.observation.element-oxygen",
+      "premise.rule.element-oxygen.representative-outcomes",
+      "premise.structure.element-oxygen.structural-models",
+      "premise.traits.reaction-family-classification",
+      "premise.valence.element-oxygen.closed-domain"
+    ],
+    "product_instances": {
+      "oxide[1]": {
+        "binding": "oxide",
+        "instance": {
+          "atom_relabeling": {
+            "metal1.metal": "oxide[1].metal1.metal",
+            "superoxide.o1": "oxide[1].superoxide.o1",
+            "superoxide.o2": "oxide[1].superoxide.o2"
+          },
+          "graph": {
+            "atoms": {
+              "oxide[1].metal1.metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "K",
+                "id": "oxide[1].metal1.metal"
+              },
+              "oxide[1].superoxide.o1": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "O",
+                "id": "oxide[1].superoxide.o1"
+              },
+              "oxide[1].superoxide.o2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                },
+                "element": "O",
+                "id": "oxide[1].superoxide.o2"
+              }
+            },
+            "covalent_bonds": {
+              "oxide[1].bond.0": {
+                "id": "oxide[1].bond.0",
+                "left": "oxide[1].superoxide.o1",
+                "order": "single",
+                "right": "oxide[1].superoxide.o2"
+              }
+            },
+            "groups": {
+              "oxide[1].metal1": {
+                "atoms": [
+                  "oxide[1].metal1.metal"
+                ],
+                "id": "oxide[1].metal1"
+              },
+              "oxide[1].superoxide": {
+                "atoms": [
+                  "oxide[1].superoxide.o1",
+                  "oxide[1].superoxide.o2"
+                ],
+                "id": "oxide[1].superoxide"
+              }
+            },
+            "ionic_associations": {
+              "oxide[1].ionic": {
+                "components": [
+                  "oxide[1].metal1",
+                  "oxide[1].superoxide"
+                ],
+                "id": "oxide[1].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "oxide[1]",
+          "structure": "KSuperoxide"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "coefficient instance oxide[1]"
+            },
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "structure KSuperoxide"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "reactant_instances": {
+      "oxygen[1]": {
+        "binding": "oxygen",
+        "instance": {
+          "atom_relabeling": {
+            "o1": "oxygen[1].o1",
+            "o2": "oxygen[1].o2"
+          },
+          "graph": {
+            "atoms": {
+              "oxygen[1].o1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                },
+                "element": "O",
+                "id": "oxygen[1].o1"
+              },
+              "oxygen[1].o2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                },
+                "element": "O",
+                "id": "oxygen[1].o2"
+              }
+            },
+            "covalent_bonds": {
+              "oxygen[1].bond.0": {
+                "id": "oxygen[1].bond.0",
+                "left": "oxygen[1].o1",
+                "order": "double",
+                "right": "oxygen[1].o2"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "oxygen[1]",
+          "structure": "Oxygen"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.structure.element-oxygen.structural-models"
+              ],
+              "record": "coefficient instance oxygen[1]"
+            },
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.structure.element-oxygen.structural-models"
+              ],
+              "record": "structure Oxygen"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "subject[1]": {
+        "binding": "subject",
+        "instance": {
+          "atom_relabeling": {
+            "metal": "subject[1].metal"
+          },
+          "graph": {
+            "atoms": {
+              "subject[1].metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "K",
+                "id": "subject[1].metal"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {
+              "subject[1].metallic": {
+                "delocalized_electrons": 1,
+                "id": "subject[1].metallic",
+                "sites": [
+                  "subject[1].metal"
+                ]
+              }
+            }
+          },
+          "id": "subject[1]",
+          "structure": "KMetalForOxygen"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "coefficient instance subject[1]"
+            },
+            {
+              "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.element-oxygen.representative-outcomes",
+                "premise.structure.element-oxygen.structural-models",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.element-oxygen.closed-domain"
+              ],
+              "record": "structure KMetalForOxygen"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "schema_version": 1
+  }
+}

@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction MagnesiumDisplacesZinc where
+  reactants
+    displacing := 1 of DisplacementMagnesiumMetal
+    saltSource := 1 of DisplacementZincChloride
+  products
+    saltProduct := 1 of DisplacementMagnesiumChloride
+    metalProduct := 1 of DisplacementZincMetal
+  equation
+    1 Mg[metallic] + 1 ZnCl2[ionic]
+    -> 1 MgCl2[ionic] + 1 Zn[metallic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.MagnesiumDisplacesZinc@1
+    product saltProduct forms claim R1
+  by
+    apply Rules.MagnesiumDisplacesZinc
+      displacing := displacing
+      saltSource := saltSource
+      saltProduct := saltProduct
+      metalProduct := metalProduct

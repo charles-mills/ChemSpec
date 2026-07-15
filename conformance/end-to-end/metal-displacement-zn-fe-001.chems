@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction ZincDisplacesIron where
+  reactants
+    displacing := 1 of DisplacementZincMetal
+    saltSource := 1 of DisplacementIronChloride
+  products
+    saltProduct := 1 of DisplacementZincChloride
+    metalProduct := 1 of DisplacementIronMetal
+  equation
+    1 Zn[metallic] + 1 FeCl2[ionic]
+    -> 1 ZnCl2[ionic] + 1 Fe[metallic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.ZincDisplacesIron@1
+    product saltProduct forms claim R1
+  by
+    apply Rules.ZincDisplacesIron
+      displacing := displacing
+      saltSource := saltSource
+      saltProduct := saltProduct
+      metalProduct := metalProduct

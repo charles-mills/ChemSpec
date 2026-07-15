@@ -87,9 +87,14 @@ fn main() {
             })
             .collect::<Vec<_>>();
         let family = match string("family") {
+            "alkali_water" => "ReactionFamily::AlkaliWater",
+            "metal_acid" => "ReactionFamily::MetalAcid",
             "oxygen" => "ReactionFamily::Oxygen",
             "fixed_charge_ion_pair" => "ReactionFamily::FixedChargeIonPair",
             "covalent_combination" => "ReactionFamily::CovalentCombination",
+            "combustion" => "ReactionFamily::Combustion",
+            "metal_displacement" => "ReactionFamily::MetalDisplacement",
+            "precipitation" => "ReactionFamily::Precipitation",
             family => panic!("unsupported experience family `{family}`"),
         };
         writeln!(

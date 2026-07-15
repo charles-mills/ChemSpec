@@ -1,0 +1,2770 @@
+{
+  "artifact": "frames",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "frames": [
+      {
+        "active_operation": null,
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [],
+        "covalent_edges": {
+          "chlorine[1].bond.0": {
+            "id": "chlorine[1].bond.0",
+            "left": "chlorine[1].x1",
+            "order": "single",
+            "right": "chlorine[1].x2"
+          }
+        },
+        "groups": {
+          "sodiumBromide[1].anion": {
+            "atoms": [
+              "sodiumBromide[1].anion.anion"
+            ],
+            "id": "sodiumBromide[1].anion"
+          },
+          "sodiumBromide[1].cation": {
+            "atoms": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "sodiumBromide[1].cation"
+          },
+          "sodiumBromide[2].anion": {
+            "atoms": [
+              "sodiumBromide[2].anion.anion"
+            ],
+            "id": "sodiumBromide[2].anion"
+          },
+          "sodiumBromide[2].cation": {
+            "atoms": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "sodiumBromide[2].cation"
+          }
+        },
+        "ionic_associations": {
+          "sodiumBromide[1].ionic": {
+            "component_charges": {
+              "sodiumBromide[1].anion": -1,
+              "sodiumBromide[1].cation": 1
+            },
+            "components": {
+              "sodiumBromide[1].anion": [
+                "sodiumBromide[1].anion.anion"
+              ],
+              "sodiumBromide[1].cation": [
+                "sodiumBromide[1].cation.cation"
+              ]
+            },
+            "id": "sodiumBromide[1].ionic"
+          },
+          "sodiumBromide[2].ionic": {
+            "component_charges": {
+              "sodiumBromide[2].anion": -1,
+              "sodiumBromide[2].cation": 1
+            },
+            "components": {
+              "sodiumBromide[2].anion": [
+                "sodiumBromide[2].anion.anion"
+              ],
+              "sodiumBromide[2].cation": [
+                "sodiumBromide[2].cation.cation"
+              ]
+            },
+            "id": "sodiumBromide[2].ionic"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 0,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "717f3d16d665661813426143c36a13cd49121f667368bbe2d3b9780d834cbbdd"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "homolytic",
+            "expected_order": "single",
+            "id": "operation[1]",
+            "kind": "cleave_covalent",
+            "left": "chlorine[1].x1",
+            "right": "chlorine[1].x2",
+            "transitions": {
+              "chlorine[1].x1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                },
+                "atom": "chlorine[1].x1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              },
+              "chlorine[1].x2": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                },
+                "atom": "chlorine[1].x2",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 1
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "atom": "chlorine[1].x1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "atom": "chlorine[1].x2",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "chlorine[1].x1",
+            "right": "chlorine[1].x2"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {
+          "sodiumBromide[1].anion": {
+            "atoms": [
+              "sodiumBromide[1].anion.anion"
+            ],
+            "id": "sodiumBromide[1].anion"
+          },
+          "sodiumBromide[1].cation": {
+            "atoms": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "sodiumBromide[1].cation"
+          },
+          "sodiumBromide[2].anion": {
+            "atoms": [
+              "sodiumBromide[2].anion.anion"
+            ],
+            "id": "sodiumBromide[2].anion"
+          },
+          "sodiumBromide[2].cation": {
+            "atoms": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "sodiumBromide[2].cation"
+          }
+        },
+        "ionic_associations": {
+          "sodiumBromide[1].ionic": {
+            "component_charges": {
+              "sodiumBromide[1].anion": -1,
+              "sodiumBromide[1].cation": 1
+            },
+            "components": {
+              "sodiumBromide[1].anion": [
+                "sodiumBromide[1].anion.anion"
+              ],
+              "sodiumBromide[1].cation": [
+                "sodiumBromide[1].cation.cation"
+              ]
+            },
+            "id": "sodiumBromide[1].ionic"
+          },
+          "sodiumBromide[2].ionic": {
+            "component_charges": {
+              "sodiumBromide[2].anion": -1,
+              "sodiumBromide[2].cation": 1
+            },
+            "components": {
+              "sodiumBromide[2].anion": [
+                "sodiumBromide[2].anion.anion"
+              ],
+              "sodiumBromide[2].cation": [
+                "sodiumBromide[2].cation.cation"
+              ]
+            },
+            "id": "sodiumBromide[2].ionic"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 1,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "72a1824f361cddc66719dde1438c798918dd439fa4a34a132db463978d496542"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": "sodiumBromide[1].ionic",
+            "id": "operation[2]",
+            "kind": "dissociate_ionic"
+          },
+          "ordinal": 2
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": null,
+            "before": [
+              "sodiumBromide[1].anion.anion"
+            ],
+            "group": "sodiumBromide[1].anion",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "before": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "group": "sodiumBromide[1].cation",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "association": "sodiumBromide[1].ionic",
+            "before": [
+              "sodiumBromide[1].anion",
+              "sodiumBromide[1].cation"
+            ],
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {
+          "sodiumBromide[2].anion": {
+            "atoms": [
+              "sodiumBromide[2].anion.anion"
+            ],
+            "id": "sodiumBromide[2].anion"
+          },
+          "sodiumBromide[2].cation": {
+            "atoms": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "sodiumBromide[2].cation"
+          }
+        },
+        "ionic_associations": {
+          "sodiumBromide[2].ionic": {
+            "component_charges": {
+              "sodiumBromide[2].anion": -1,
+              "sodiumBromide[2].cation": 1
+            },
+            "components": {
+              "sodiumBromide[2].anion": [
+                "sodiumBromide[2].anion.anion"
+              ],
+              "sodiumBromide[2].cation": [
+                "sodiumBromide[2].cation.cation"
+              ]
+            },
+            "id": "sodiumBromide[2].ionic"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 2,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "a156cddcc5099978cc1c438c0058fa8b56a7c687055b09df080a01448f13da53"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": "sodiumBromide[2].ionic",
+            "id": "operation[3]",
+            "kind": "dissociate_ionic"
+          },
+          "ordinal": 3
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": null,
+            "before": [
+              "sodiumBromide[2].anion.anion"
+            ],
+            "group": "sodiumBromide[2].anion",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "before": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "group": "sodiumBromide[2].cation",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "association": "sodiumBromide[2].ionic",
+            "before": [
+              "sodiumBromide[2].anion",
+              "sodiumBromide[2].cation"
+            ],
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 3,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "bbf59489aec09590d86dae5acd994799eaf7bfbf2bf1111464e429ef26bc5615"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "chlorine[1].x1",
+            "count": 1,
+            "donor": "sodiumBromide[1].anion.anion",
+            "id": "operation[4]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "chlorine[1].x1": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "atom": "chlorine[1].x1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                }
+              },
+              "sodiumBromide[1].anion.anion": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                },
+                "atom": "sodiumBromide[1].anion.anion",
+                "before": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 4
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "atom": "chlorine[1].x1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "atom": "sodiumBromide[1].anion.anion",
+            "before": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 4,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "dccb23618ca3cabcb971e4fe68f1a698b8c12e70f815bd7ec4bb64796df60e94"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "chlorine[1].x2",
+            "count": 1,
+            "donor": "sodiumBromide[2].anion.anion",
+            "id": "operation[5]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "chlorine[1].x2": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "atom": "chlorine[1].x2",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                }
+              },
+              "sodiumBromide[2].anion.anion": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                },
+                "atom": "sodiumBromide[2].anion.anion",
+                "before": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 5
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "atom": "chlorine[1].x2",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "atom": "sodiumBromide[2].anion.anion",
+            "before": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {},
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 5,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "6f344ff33222eaec725dc2bc7ed700a24c0f2cf97217b2ab1b6380f72ec3da19"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "id": "operation[6]",
+            "kind": "form_covalent",
+            "left": "sodiumBromide[1].anion.anion",
+            "order": "single",
+            "right": "sodiumBromide[2].anion.anion",
+            "transitions": {
+              "sodiumBromide[1].anion.anion": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "atom": "sodiumBromide[1].anion.anion",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                }
+              },
+              "sodiumBromide[2].anion.anion": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "atom": "sodiumBromide[2].anion.anion",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 7,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 6
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "atom": "sodiumBromide[1].anion.anion",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "atom": "sodiumBromide[2].anion.anion",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 7,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": "single",
+            "before": null,
+            "kind": "covalent",
+            "left": "sodiumBromide[1].anion.anion",
+            "right": "sodiumBromide[2].anion.anion"
+          }
+        ],
+        "covalent_edges": {
+          "operation[6].bond": {
+            "id": "operation[6].bond",
+            "left": "sodiumBromide[1].anion.anion",
+            "order": "single",
+            "right": "sodiumBromide[2].anion.anion"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 6,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "1de2b2810e9574330f007777edf1e81f60ad82d21f91992306596b7343174638"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[7].component[1]",
+                "ionic[7].component[2]"
+              ],
+              "id": "ionic[7].ionic.product-1"
+            },
+            "id": "operation[7]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 7
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "chlorine[1].x1"
+            ],
+            "before": null,
+            "group": "ionic[7].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "before": null,
+            "group": "ionic[7].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[7].component[1]",
+              "ionic[7].component[2]"
+            ],
+            "association": "ionic[7].ionic.product-1",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "operation[6].bond": {
+            "id": "operation[6].bond",
+            "left": "sodiumBromide[1].anion.anion",
+            "order": "single",
+            "right": "sodiumBromide[2].anion.anion"
+          }
+        },
+        "groups": {
+          "ionic[7].component[1]": {
+            "atoms": [
+              "chlorine[1].x1"
+            ],
+            "id": "ionic[7].component[1]"
+          },
+          "ionic[7].component[2]": {
+            "atoms": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "ionic[7].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[7].ionic.product-1": {
+            "component_charges": {
+              "ionic[7].component[1]": -1,
+              "ionic[7].component[2]": 1
+            },
+            "components": {
+              "ionic[7].component[1]": [
+                "chlorine[1].x1"
+              ],
+              "ionic[7].component[2]": [
+                "sodiumBromide[1].cation.cation"
+              ]
+            },
+            "id": "ionic[7].ionic.product-1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 7,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "ca089474749c61e13b08718ee6955aacc9e6cd5e03018c223efcf4566dbe2374"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[8].component[1]",
+                "ionic[8].component[2]"
+              ],
+              "id": "ionic[8].ionic.product-2"
+            },
+            "id": "operation[8]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 8
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "chlorine[1].x2"
+            ],
+            "before": null,
+            "group": "ionic[8].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "before": null,
+            "group": "ionic[8].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[8].component[1]",
+              "ionic[8].component[2]"
+            ],
+            "association": "ionic[8].ionic.product-2",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "operation[6].bond": {
+            "id": "operation[6].bond",
+            "left": "sodiumBromide[1].anion.anion",
+            "order": "single",
+            "right": "sodiumBromide[2].anion.anion"
+          }
+        },
+        "groups": {
+          "ionic[7].component[1]": {
+            "atoms": [
+              "chlorine[1].x1"
+            ],
+            "id": "ionic[7].component[1]"
+          },
+          "ionic[7].component[2]": {
+            "atoms": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "ionic[7].component[2]"
+          },
+          "ionic[8].component[1]": {
+            "atoms": [
+              "chlorine[1].x2"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[7].ionic.product-1": {
+            "component_charges": {
+              "ionic[7].component[1]": -1,
+              "ionic[7].component[2]": 1
+            },
+            "components": {
+              "ionic[7].component[1]": [
+                "chlorine[1].x1"
+              ],
+              "ionic[7].component[2]": [
+                "sodiumBromide[1].cation.cation"
+              ]
+            },
+            "id": "ionic[7].ionic.product-1"
+          },
+          "ionic[8].ionic.product-2": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "chlorine[1].x2"
+              ],
+              "ionic[8].component[2]": [
+                "sodiumBromide[2].cation.cation"
+              ]
+            },
+            "id": "ionic[8].ionic.product-2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 8,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "295f2a6e82b37f97172b99b1e502bfc91a42e2fe3204ab460721c192a536a0c9"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "chlorine[1].x1",
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "operation[9]",
+            "kind": "assign_product",
+            "product": "sodiumChloride[1]"
+          },
+          "ordinal": 9
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "chlorine[1].x1",
+              "sodiumBromide[1].cation.cation"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "sodiumChloride[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[6].bond": {
+            "id": "operation[6].bond",
+            "left": "sodiumBromide[1].anion.anion",
+            "order": "single",
+            "right": "sodiumBromide[2].anion.anion"
+          }
+        },
+        "groups": {
+          "ionic[7].component[1]": {
+            "atoms": [
+              "chlorine[1].x1"
+            ],
+            "id": "ionic[7].component[1]"
+          },
+          "ionic[7].component[2]": {
+            "atoms": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "ionic[7].component[2]"
+          },
+          "ionic[8].component[1]": {
+            "atoms": [
+              "chlorine[1].x2"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[7].ionic.product-1": {
+            "component_charges": {
+              "ionic[7].component[1]": -1,
+              "ionic[7].component[2]": 1
+            },
+            "components": {
+              "ionic[7].component[1]": [
+                "chlorine[1].x1"
+              ],
+              "ionic[7].component[2]": [
+                "sodiumBromide[1].cation.cation"
+              ]
+            },
+            "id": "ionic[7].ionic.product-1"
+          },
+          "ionic[8].ionic.product-2": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "chlorine[1].x2"
+              ],
+              "ionic[8].component[2]": [
+                "sodiumBromide[2].cation.cation"
+              ]
+            },
+            "id": "ionic[8].ionic.product-2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 9,
+        "product_membership": {
+          "sodiumChloride[1]": [
+            "chlorine[1].x1",
+            "sodiumBromide[1].cation.cation"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "b87705847ea1547783dfe1e753335942a9f1cabcf0e9c254cbdad56a8faeaf7c"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "chlorine[1].x2",
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "operation[10]",
+            "kind": "assign_product",
+            "product": "sodiumChloride[2]"
+          },
+          "ordinal": 10
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "chlorine[1].x2",
+              "sodiumBromide[2].cation.cation"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "sodiumChloride[2]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[6].bond": {
+            "id": "operation[6].bond",
+            "left": "sodiumBromide[1].anion.anion",
+            "order": "single",
+            "right": "sodiumBromide[2].anion.anion"
+          }
+        },
+        "groups": {
+          "ionic[7].component[1]": {
+            "atoms": [
+              "chlorine[1].x1"
+            ],
+            "id": "ionic[7].component[1]"
+          },
+          "ionic[7].component[2]": {
+            "atoms": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "ionic[7].component[2]"
+          },
+          "ionic[8].component[1]": {
+            "atoms": [
+              "chlorine[1].x2"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[7].ionic.product-1": {
+            "component_charges": {
+              "ionic[7].component[1]": -1,
+              "ionic[7].component[2]": 1
+            },
+            "components": {
+              "ionic[7].component[1]": [
+                "chlorine[1].x1"
+              ],
+              "ionic[7].component[2]": [
+                "sodiumBromide[1].cation.cation"
+              ]
+            },
+            "id": "ionic[7].ionic.product-1"
+          },
+          "ionic[8].ionic.product-2": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "chlorine[1].x2"
+              ],
+              "ionic[8].component[2]": [
+                "sodiumBromide[2].cation.cation"
+              ]
+            },
+            "id": "ionic[8].ionic.product-2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 10,
+        "product_membership": {
+          "sodiumChloride[1]": [
+            "chlorine[1].x1",
+            "sodiumBromide[1].cation.cation"
+          ],
+          "sodiumChloride[2]": [
+            "chlorine[1].x2",
+            "sodiumBromide[2].cation.cation"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "727942e6b5f1eb8adbeab7811cf8914bf1600ec658f528729b96877ff38d7d0a"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "sodiumBromide[1].anion.anion",
+              "sodiumBromide[2].anion.anion"
+            ],
+            "id": "operation[11]",
+            "kind": "assign_product",
+            "product": "bromine[1]"
+          },
+          "ordinal": 11
+        },
+        "atoms": {
+          "chlorine[1].x1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x1"
+          },
+          "chlorine[1].x2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "chlorine[1].x2"
+          },
+          "sodiumBromide[1].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[1].anion.anion"
+          },
+          "sodiumBromide[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[1].cation.cation"
+          },
+          "sodiumBromide[2].anion.anion": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Br",
+            "id": "sodiumBromide[2].anion.anion"
+          },
+          "sodiumBromide[2].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumBromide[2].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "sodiumBromide[1].anion.anion",
+              "sodiumBromide[2].anion.anion"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "bromine[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[6].bond": {
+            "id": "operation[6].bond",
+            "left": "sodiumBromide[1].anion.anion",
+            "order": "single",
+            "right": "sodiumBromide[2].anion.anion"
+          }
+        },
+        "groups": {
+          "ionic[7].component[1]": {
+            "atoms": [
+              "chlorine[1].x1"
+            ],
+            "id": "ionic[7].component[1]"
+          },
+          "ionic[7].component[2]": {
+            "atoms": [
+              "sodiumBromide[1].cation.cation"
+            ],
+            "id": "ionic[7].component[2]"
+          },
+          "ionic[8].component[1]": {
+            "atoms": [
+              "chlorine[1].x2"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "sodiumBromide[2].cation.cation"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[7].ionic.product-1": {
+            "component_charges": {
+              "ionic[7].component[1]": -1,
+              "ionic[7].component[2]": 1
+            },
+            "components": {
+              "ionic[7].component[1]": [
+                "chlorine[1].x1"
+              ],
+              "ionic[7].component[2]": [
+                "sodiumBromide[1].cation.cation"
+              ]
+            },
+            "id": "ionic[7].ionic.product-1"
+          },
+          "ionic[8].ionic.product-2": {
+            "component_charges": {
+              "ionic[8].component[1]": -1,
+              "ionic[8].component[2]": 1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "chlorine[1].x2"
+              ],
+              "ionic[8].component[2]": [
+                "sodiumBromide[2].cation.cation"
+              ]
+            },
+            "id": "ionic[8].ionic.product-2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "single-displacement-halogen/example.chems",
+                "span": {
+                  "end": 396,
+                  "start": 332
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation bromine",
+                  "source": "single-displacement-halogen/example.chems",
+                  "span": {
+                    "end": 475,
+                    "start": 444
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "bromine",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 11,
+        "product_membership": {
+          "bromine[1]": [
+            "sodiumBromide[1].anion.anion",
+            "sodiumBromide[2].anion.anion"
+          ],
+          "sodiumChloride[1]": [
+            "chlorine[1].x1",
+            "sodiumBromide[1].cation.cation"
+          ],
+          "sodiumChloride[2]": [
+            "chlorine[1].x2",
+            "sodiumBromide[2].cation.cation"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+          "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+          "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+          "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+          "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+          "state_digest": "8a04578b539e697bc76d506bf0f3a6c0ce6e6e11671b8e831c65220155df3406"
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "explanatory_sequence_is_not_a_mechanism_claim": true,
+      "provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.rule.halogen-displacement.standard-outcome"
+            ],
+            "record": "rule Rules.HalogenDisplacement model assumptions"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "model disclosure",
+            "source": "single-displacement-halogen/example.chems",
+            "span": {
+              "end": 396,
+              "start": 332
+            }
+          }
+        ]
+      },
+      "representative_outcome": true,
+      "sequence": "explanatory"
+    },
+    "result": "validated_with_assumptions",
+    "schema_version": 1,
+    "trace": {
+      "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+      "derivation_digest": "7edfc20d0d5543abf4e66a1ddfdfcc8b55e8118cda191eed8446bb16d1250904",
+      "evidence_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+      "expansion_semantic_digest": "10775c20b295e46ba653ff4cf6601734da78cc16fa39e93582cbd0f39bc4d3f0",
+      "source_bytes_digest": "ffba307f9a4e4810b18b75fe292d8dc90c7abc1643fd33a0beb51762129387f1",
+      "source_semantic_digest": "578b8b088890cc34a8f52981846d328b776a0d459248077522e8876fcd62fa6e",
+      "state_digest": "8a04578b539e697bc76d506bf0f3a6c0ce6e6e11671b8e831c65220155df3406"
+    },
+    "trust": "review_candidate"
+  }
+}

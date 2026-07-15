@@ -2302,15 +2302,16 @@
         ]
       },
       "premise_ids": [
+        "premise.category.halide",
         "premise.elements.iupac-periodic-table",
+        "premise.observation.covalent-combinations",
         "premise.rule.covalent-combinations.reviewed-outcomes",
         "premise.structure.covalent-combinations.explicit-graphs",
-        "premise.valence.covalent-combinations.closed-domain",
-        "premise.observation.covalent-combinations",
-        "premise.structure.hydrogen",
-        "premise.category.halide",
         "premise.structure.diatomic-halogen",
-        "premise.structure.hydrogen-halide"
+        "premise.structure.hydrogen",
+        "premise.structure.hydrogen-halide",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.covalent-combinations.closed-domain"
       ]
     },
     {
@@ -2921,11 +2922,12 @@
       },
       "premise_ids": [
         "premise.elements.iupac-periodic-table",
+        "premise.observation.covalent-combinations",
         "premise.rule.covalent-combinations.reviewed-outcomes",
         "premise.structure.covalent-combinations.explicit-graphs",
-        "premise.valence.covalent-combinations.closed-domain",
-        "premise.observation.covalent-combinations",
-        "premise.structure.hydrogen"
+        "premise.structure.hydrogen",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.covalent-combinations.closed-domain"
       ]
     },
     {
@@ -4644,11 +4646,12 @@
       },
       "premise_ids": [
         "premise.elements.iupac-periodic-table",
+        "premise.observation.covalent-combinations",
         "premise.rule.covalent-combinations.reviewed-outcomes",
         "premise.structure.covalent-combinations.explicit-graphs",
-        "premise.valence.covalent-combinations.closed-domain",
-        "premise.observation.covalent-combinations",
-        "premise.structure.hydrogen"
+        "premise.structure.hydrogen",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.covalent-combinations.closed-domain"
       ]
     },
     {
@@ -5078,13 +5081,14 @@
         ]
       },
       "premise_ids": [
+        "premise.category.halide",
         "premise.elements.iupac-periodic-table",
+        "premise.observation.covalent-combinations",
         "premise.rule.covalent-combinations.reviewed-outcomes",
         "premise.structure.covalent-combinations.explicit-graphs",
-        "premise.valence.covalent-combinations.closed-domain",
-        "premise.observation.covalent-combinations",
-        "premise.category.halide",
-        "premise.structure.diatomic-halogen"
+        "premise.structure.diatomic-halogen",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.covalent-combinations.closed-domain"
       ]
     },
     {
@@ -5806,13 +5810,14 @@
         ]
       },
       "premise_ids": [
+        "premise.category.halide",
         "premise.elements.iupac-periodic-table",
+        "premise.observation.covalent-combinations",
         "premise.rule.covalent-combinations.reviewed-outcomes",
         "premise.structure.covalent-combinations.explicit-graphs",
-        "premise.valence.covalent-combinations.closed-domain",
-        "premise.observation.covalent-combinations",
-        "premise.category.halide",
-        "premise.structure.diatomic-halogen"
+        "premise.structure.diatomic-halogen",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.covalent-combinations.closed-domain"
       ]
     },
     {
@@ -6803,13 +6808,14 @@
         ]
       },
       "premise_ids": [
+        "premise.category.halide",
         "premise.elements.iupac-periodic-table",
+        "premise.observation.covalent-combinations",
         "premise.rule.covalent-combinations.reviewed-outcomes",
         "premise.structure.covalent-combinations.explicit-graphs",
-        "premise.valence.covalent-combinations.closed-domain",
-        "premise.observation.covalent-combinations",
-        "premise.category.halide",
-        "premise.structure.diatomic-halogen"
+        "premise.structure.diatomic-halogen",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.covalent-combinations.closed-domain"
       ]
     },
     {
@@ -8049,13 +8055,14 @@
         ]
       },
       "premise_ids": [
+        "premise.category.halide",
         "premise.elements.iupac-periodic-table",
+        "premise.observation.covalent-combinations",
         "premise.rule.covalent-combinations.reviewed-outcomes",
         "premise.structure.covalent-combinations.explicit-graphs",
-        "premise.valence.covalent-combinations.closed-domain",
-        "premise.observation.covalent-combinations",
-        "premise.category.halide",
-        "premise.structure.diatomic-halogen"
+        "premise.structure.diatomic-halogen",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.covalent-combinations.closed-domain"
       ]
     }
   ]

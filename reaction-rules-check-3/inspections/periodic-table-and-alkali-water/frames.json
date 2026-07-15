@@ -1,0 +1,3903 @@
+{
+  "artifact": "frames",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "frames": [
+      {
+        "active_operation": null,
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [],
+        "covalent_edges": {
+          "water[1].bond.0": {
+            "id": "water[1].bond.0",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.0": {
+            "id": "water[2].bond.0",
+            "left": "water[2].h1",
+            "order": "single",
+            "right": "water[2].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {
+          "lithium[1].metallic": {
+            "delocalized_electrons": 1,
+            "id": "lithium[1].metallic",
+            "sites": [
+              "lithium[1].metal"
+            ]
+          },
+          "lithium[2].metallic": {
+            "delocalized_electrons": 1,
+            "id": "lithium[2].metallic",
+            "sites": [
+              "lithium[2].metal"
+            ]
+          }
+        },
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 0,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "2501ab26e6b4ac1eaa6f21e5d501cc78542ed28111d4c4152880ec800e528b6e"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "retain_electron",
+            "domain": "lithium[1].metallic",
+            "domain_electrons_after": 0,
+            "domain_electrons_before": 1,
+            "id": "operation[1]",
+            "kind": "release_metallic",
+            "site": "lithium[1].metal",
+            "transition": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "lithium[1].metal",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "ordinal": 1
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "lithium[1].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "domain": "lithium[1].metallic",
+            "electrons_after": null,
+            "electrons_before": 1,
+            "kind": "metallic",
+            "sites_after": null,
+            "sites_before": [
+              "lithium[1].metal"
+            ]
+          }
+        ],
+        "covalent_edges": {
+          "water[1].bond.0": {
+            "id": "water[1].bond.0",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.0": {
+            "id": "water[2].bond.0",
+            "left": "water[2].h1",
+            "order": "single",
+            "right": "water[2].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {
+          "lithium[2].metallic": {
+            "delocalized_electrons": 1,
+            "id": "lithium[2].metallic",
+            "sites": [
+              "lithium[2].metal"
+            ]
+          }
+        },
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 1,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "8b4a36d27f16bd0acdbc0c8c46839a8c25cf8a8c7a8cd6445583cbb7b1238768"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "retain_electron",
+            "domain": "lithium[2].metallic",
+            "domain_electrons_after": 0,
+            "domain_electrons_before": 1,
+            "id": "operation[2]",
+            "kind": "release_metallic",
+            "site": "lithium[2].metal",
+            "transition": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "lithium[2].metal",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "ordinal": 2
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "lithium[2].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "domain": "lithium[2].metallic",
+            "electrons_after": null,
+            "electrons_before": 1,
+            "kind": "metallic",
+            "sites_after": null,
+            "sites_before": [
+              "lithium[2].metal"
+            ]
+          }
+        ],
+        "covalent_edges": {
+          "water[1].bond.0": {
+            "id": "water[1].bond.0",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.0": {
+            "id": "water[2].bond.0",
+            "left": "water[2].h1",
+            "order": "single",
+            "right": "water[2].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 2,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "9a7296f0c792851ade0466fa3d33529f96e76d1f5925d04078a41e885329f4cb"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": {
+              "heterolytic_to": "water[1].o"
+            },
+            "expected_order": "single",
+            "id": "operation[3]",
+            "kind": "cleave_covalent",
+            "left": "water[1].o",
+            "right": "water[1].h1",
+            "transitions": {
+              "water[1].h1": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "water[1].h1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "water[1].o": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "atom": "water[1].o",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 3
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "water[1].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "atom": "water[1].o",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "water[1].h1",
+            "right": "water[1].o"
+          }
+        ],
+        "covalent_edges": {
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.0": {
+            "id": "water[2].bond.0",
+            "left": "water[2].h1",
+            "order": "single",
+            "right": "water[2].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 3,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "d1da6ff5b4338a3f310c9a4ae3b944a86ca5ba0366f4f5164e6216128ea3922a"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": {
+              "heterolytic_to": "water[2].o"
+            },
+            "expected_order": "single",
+            "id": "operation[4]",
+            "kind": "cleave_covalent",
+            "left": "water[2].o",
+            "right": "water[2].h1",
+            "transitions": {
+              "water[2].h1": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "water[2].h1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "water[2].o": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "atom": "water[2].o",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 4
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "water[2].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "atom": "water[2].o",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "water[2].h1",
+            "right": "water[2].o"
+          }
+        ],
+        "covalent_edges": {
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 4,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "ab3963926a4000e42f70186c8f80fc4af84c667c5a6181deff01511d20968b27"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "water[1].h1",
+            "count": 1,
+            "donor": "lithium[1].metal",
+            "id": "operation[5]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "lithium[1].metal": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "lithium[1].metal",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              },
+              "water[1].h1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "water[1].h1",
+                "before": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 5
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "lithium[1].metal",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "water[1].h1",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 5,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "5a445bafbed1d592f6d68664cbf19e883ec668d8856ee1c1cefbbdf1f7d8ed69"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "water[2].h1",
+            "count": 1,
+            "donor": "lithium[2].metal",
+            "id": "operation[6]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "lithium[2].metal": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "lithium[2].metal",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              },
+              "water[2].h1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "water[2].h1",
+                "before": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 6
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "lithium[2].metal",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "water[2].h1",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 6,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "e9dd90fb0bd77f9682f1bbc4de8e14c1f07fabf1a79c14074b4a5c7583c8ef4a"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "id": "operation[7]",
+            "kind": "form_covalent",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[2].h1",
+            "transitions": {
+              "water[1].h1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "water[1].h1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              },
+              "water[2].h1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "water[2].h1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 7
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "water[1].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "water[2].h1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": "single",
+            "before": null,
+            "kind": "covalent",
+            "left": "water[1].h1",
+            "right": "water[2].h1"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[2].h1"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 7,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "cf0e7cf0b89d105be1841a52205d16a0df61e5a75dd4f561275926a6ed93a7a8"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[8].component[1]",
+                "ionic[8].component[2]"
+              ],
+              "id": "ionic[8].ionic.product1"
+            },
+            "id": "operation[8]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 8
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "lithium[1].metal"
+            ],
+            "before": null,
+            "group": "ionic[8].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "before": null,
+            "group": "ionic[8].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[8].component[1]",
+              "ionic[8].component[2]"
+            ],
+            "association": "ionic[8].ionic.product1",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[2].h1"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {
+          "ionic[8].component[1]": {
+            "atoms": [
+              "lithium[1].metal"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "id": "ionic[8].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[8].ionic.product1": {
+            "component_charges": {
+              "ionic[8].component[1]": 1,
+              "ionic[8].component[2]": -1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "lithium[1].metal"
+              ],
+              "ionic[8].component[2]": [
+                "water[1].h2",
+                "water[1].o"
+              ]
+            },
+            "id": "ionic[8].ionic.product1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 8,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "a8c2eb25ef760968fd7fd60f33489ca1c7856a3d9a285b9336d08069906958d8"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[9].component[1]",
+                "ionic[9].component[2]"
+              ],
+              "id": "ionic[9].ionic.product2"
+            },
+            "id": "operation[9]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 9
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "lithium[2].metal"
+            ],
+            "before": null,
+            "group": "ionic[9].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "water[2].h2",
+              "water[2].o"
+            ],
+            "before": null,
+            "group": "ionic[9].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[9].component[1]",
+              "ionic[9].component[2]"
+            ],
+            "association": "ionic[9].ionic.product2",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[2].h1"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {
+          "ionic[8].component[1]": {
+            "atoms": [
+              "lithium[1].metal"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "id": "ionic[8].component[2]"
+          },
+          "ionic[9].component[1]": {
+            "atoms": [
+              "lithium[2].metal"
+            ],
+            "id": "ionic[9].component[1]"
+          },
+          "ionic[9].component[2]": {
+            "atoms": [
+              "water[2].h2",
+              "water[2].o"
+            ],
+            "id": "ionic[9].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[8].ionic.product1": {
+            "component_charges": {
+              "ionic[8].component[1]": 1,
+              "ionic[8].component[2]": -1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "lithium[1].metal"
+              ],
+              "ionic[8].component[2]": [
+                "water[1].h2",
+                "water[1].o"
+              ]
+            },
+            "id": "ionic[8].ionic.product1"
+          },
+          "ionic[9].ionic.product2": {
+            "component_charges": {
+              "ionic[9].component[1]": 1,
+              "ionic[9].component[2]": -1
+            },
+            "components": {
+              "ionic[9].component[1]": [
+                "lithium[2].metal"
+              ],
+              "ionic[9].component[2]": [
+                "water[2].h2",
+                "water[2].o"
+              ]
+            },
+            "id": "ionic[9].ionic.product2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 9,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "46d31c6fbdc295c6404de1e15beb9d0e64975c56262d14ff53285f7f365e7ae3"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "lithium[1].metal",
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "id": "operation[10]",
+            "kind": "assign_product",
+            "product": "lithiumHydroxide[1]"
+          },
+          "ordinal": 10
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "lithium[1].metal",
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "lithiumHydroxide[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[2].h1"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {
+          "ionic[8].component[1]": {
+            "atoms": [
+              "lithium[1].metal"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "id": "ionic[8].component[2]"
+          },
+          "ionic[9].component[1]": {
+            "atoms": [
+              "lithium[2].metal"
+            ],
+            "id": "ionic[9].component[1]"
+          },
+          "ionic[9].component[2]": {
+            "atoms": [
+              "water[2].h2",
+              "water[2].o"
+            ],
+            "id": "ionic[9].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[8].ionic.product1": {
+            "component_charges": {
+              "ionic[8].component[1]": 1,
+              "ionic[8].component[2]": -1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "lithium[1].metal"
+              ],
+              "ionic[8].component[2]": [
+                "water[1].h2",
+                "water[1].o"
+              ]
+            },
+            "id": "ionic[8].ionic.product1"
+          },
+          "ionic[9].ionic.product2": {
+            "component_charges": {
+              "ionic[9].component[1]": 1,
+              "ionic[9].component[2]": -1
+            },
+            "components": {
+              "ionic[9].component[1]": [
+                "lithium[2].metal"
+              ],
+              "ionic[9].component[2]": [
+                "water[2].h2",
+                "water[2].o"
+              ]
+            },
+            "id": "ionic[9].ionic.product2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 10,
+        "product_membership": {
+          "lithiumHydroxide[1]": [
+            "lithium[1].metal",
+            "water[1].h2",
+            "water[1].o"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "8fcfff92dc8966f080d32f9a9b13890d1a35cb28f2216e71e884bfcb2d2a5a13"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "lithium[2].metal",
+              "water[2].h2",
+              "water[2].o"
+            ],
+            "id": "operation[11]",
+            "kind": "assign_product",
+            "product": "lithiumHydroxide[2]"
+          },
+          "ordinal": 11
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "lithium[2].metal",
+              "water[2].h2",
+              "water[2].o"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "lithiumHydroxide[2]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[2].h1"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {
+          "ionic[8].component[1]": {
+            "atoms": [
+              "lithium[1].metal"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "id": "ionic[8].component[2]"
+          },
+          "ionic[9].component[1]": {
+            "atoms": [
+              "lithium[2].metal"
+            ],
+            "id": "ionic[9].component[1]"
+          },
+          "ionic[9].component[2]": {
+            "atoms": [
+              "water[2].h2",
+              "water[2].o"
+            ],
+            "id": "ionic[9].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[8].ionic.product1": {
+            "component_charges": {
+              "ionic[8].component[1]": 1,
+              "ionic[8].component[2]": -1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "lithium[1].metal"
+              ],
+              "ionic[8].component[2]": [
+                "water[1].h2",
+                "water[1].o"
+              ]
+            },
+            "id": "ionic[8].ionic.product1"
+          },
+          "ionic[9].ionic.product2": {
+            "component_charges": {
+              "ionic[9].component[1]": 1,
+              "ionic[9].component[2]": -1
+            },
+            "components": {
+              "ionic[9].component[1]": [
+                "lithium[2].metal"
+              ],
+              "ionic[9].component[2]": [
+                "water[2].h2",
+                "water[2].o"
+              ]
+            },
+            "id": "ionic[9].ionic.product2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 11,
+        "product_membership": {
+          "lithiumHydroxide[1]": [
+            "lithium[1].metal",
+            "water[1].h2",
+            "water[1].o"
+          ],
+          "lithiumHydroxide[2]": [
+            "lithium[2].metal",
+            "water[2].h2",
+            "water[2].o"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "c86ea32b92208d833b03b18630dd8bd241121c89ca9d9dd450e5519cdc32b533"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "water[1].h1",
+              "water[2].h1"
+            ],
+            "id": "operation[12]",
+            "kind": "assign_product",
+            "product": "hydrogen[1]"
+          },
+          "ordinal": 12
+        },
+        "atoms": {
+          "lithium[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[1].metal"
+          },
+          "lithium[2].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Li",
+            "id": "lithium[2].metal"
+          },
+          "water[1].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h1"
+          },
+          "water[1].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[1].h2"
+          },
+          "water[1].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[1].o"
+          },
+          "water[2].h1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h1"
+          },
+          "water[2].h2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "water[2].h2"
+          },
+          "water[2].o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "water[2].o"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "water[1].h1",
+              "water[2].h1"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "hydrogen[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[7].bond": {
+            "id": "operation[7].bond",
+            "left": "water[1].h1",
+            "order": "single",
+            "right": "water[2].h1"
+          },
+          "water[1].bond.1": {
+            "id": "water[1].bond.1",
+            "left": "water[1].h2",
+            "order": "single",
+            "right": "water[1].o"
+          },
+          "water[2].bond.1": {
+            "id": "water[2].bond.1",
+            "left": "water[2].h2",
+            "order": "single",
+            "right": "water[2].o"
+          }
+        },
+        "groups": {
+          "ionic[8].component[1]": {
+            "atoms": [
+              "lithium[1].metal"
+            ],
+            "id": "ionic[8].component[1]"
+          },
+          "ionic[8].component[2]": {
+            "atoms": [
+              "water[1].h2",
+              "water[1].o"
+            ],
+            "id": "ionic[8].component[2]"
+          },
+          "ionic[9].component[1]": {
+            "atoms": [
+              "lithium[2].metal"
+            ],
+            "id": "ionic[9].component[1]"
+          },
+          "ionic[9].component[2]": {
+            "atoms": [
+              "water[2].h2",
+              "water[2].o"
+            ],
+            "id": "ionic[9].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[8].ionic.product1": {
+            "component_charges": {
+              "ionic[8].component[1]": 1,
+              "ionic[8].component[2]": -1
+            },
+            "components": {
+              "ionic[8].component[1]": [
+                "lithium[1].metal"
+              ],
+              "ionic[8].component[2]": [
+                "water[1].h2",
+                "water[1].o"
+              ]
+            },
+            "id": "ionic[8].ionic.product1"
+          },
+          "ionic[9].ionic.product2": {
+            "component_charges": {
+              "ionic[9].component[1]": 1,
+              "ionic[9].component[2]": -1
+            },
+            "components": {
+              "ionic[9].component[1]": [
+                "lithium[2].metal"
+              ],
+              "ionic[9].component[2]": [
+                "water[2].h2",
+                "water[2].o"
+              ]
+            },
+            "id": "ionic[9].ionic.product2"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "periodic-table-and-alkali-water/example.chems",
+                "span": {
+                  "end": 382,
+                  "start": 318
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrogen",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 452,
+                    "start": 422
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "hydrogen",
+            "trigger_operation": 12,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation lithium",
+                  "source": "periodic-table-and-alkali-water/example.chems",
+                  "span": {
+                    "end": 493,
+                    "start": 456
+                  }
+                }
+              ]
+            },
+            "status": "established",
+            "subject_binding": "lithium",
+            "trigger_operation": 11,
+            "value": null
+          }
+        ],
+        "ordinal": 12,
+        "product_membership": {
+          "hydrogen[1]": [
+            "water[1].h1",
+            "water[2].h1"
+          ],
+          "lithiumHydroxide[1]": [
+            "lithium[1].metal",
+            "water[1].h2",
+            "water[1].o"
+          ],
+          "lithiumHydroxide[2]": [
+            "lithium[2].metal",
+            "water[2].h2",
+            "water[2].o"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+          "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+          "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+          "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+          "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+          "state_digest": "7aaf3d90daca920974fa3144307bb1b2ae5e12ef51c1eec1de2736cbf390a140"
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "explanatory_sequence_is_not_a_mechanism_claim": true,
+      "provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.rule.alkali-metal-water.standard-outcome"
+            ],
+            "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "model disclosure",
+            "source": "periodic-table-and-alkali-water/example.chems",
+            "span": {
+              "end": 382,
+              "start": 318
+            }
+          }
+        ]
+      },
+      "representative_outcome": true,
+      "sequence": "explanatory"
+    },
+    "result": "validated_with_assumptions",
+    "schema_version": 1,
+    "trace": {
+      "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+      "derivation_digest": "cc31f74caef2d860eb32653eae7499679b96ce99db110d4174080016aa863ec8",
+      "evidence_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+      "expansion_semantic_digest": "7a3db484faa9ed0c5a5bfd96a0167275c72dad652cd0ecc24486fcc02d64ff02",
+      "source_bytes_digest": "689cd3e82103373be7bdd9f81818e2d734038d7e79d74e7e4a0939ce140f0356",
+      "source_semantic_digest": "3ab39b7878182e7429748957a35caa114a14ec3f67be1b16855140d44fe90300",
+      "state_digest": "7aaf3d90daca920974fa3144307bb1b2ae5e12ef51c1eec1de2736cbf390a140"
+    },
+    "trust": "review_candidate"
+  }
+}

@@ -1,0 +1,2916 @@
+{
+  "schema_version": 1,
+  "id": "metal-displacement",
+  "evidence": [
+    {
+      "id": "evidence.openstax.metal-displacement",
+      "title": "Chemistry 2e",
+      "publisher": "OpenStax",
+      "locator": "Single-Displacement Reactions",
+      "reference": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+      "publication_date": "2019-02-14",
+      "retrieved_on": "2026-07-15",
+      "usage": "Metal activity series displacement outcomes"
+    }
+  ],
+  "premises": [
+    {
+      "id": "premise.rule.metal-displacement.activity-series",
+      "statement": "Within the reviewed Mg > Zn > Fe > Cu activity series, a higher-ranked metal displaces a lower-ranked divalent metal from its chloride.",
+      "evidence": [
+        "evidence.openstax.metal-displacement"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.structure.metal-displacement-chlorides",
+      "statement": "Divalent chlorides use one 2+ metal component and two chloride components; elemental metals use explicit delocalised metallic domains.",
+      "evidence": [
+        "evidence.openstax.metal-displacement"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.valence.metal-displacement",
+      "statement": "The listed states form the closed electron domain for the reviewed metal-displacement rewrites.",
+      "evidence": [
+        "evidence.openstax.metal-displacement"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.displacement-product-forms",
+      "statement": "Formation of the higher-ranked metal chloride is compatible with the theoretical displacement outcome.",
+      "evidence": [
+        "evidence.openstax.metal-displacement"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    }
+  ],
+  "valence_premises": [
+    {
+      "premise_id": "premise.valence.metal-displacement",
+      "neutral_valence": [
+        {
+          "element": "Mg",
+          "neutral_valence_electrons": 2
+        },
+        {
+          "element": "Zn",
+          "neutral_valence_electrons": 12
+        },
+        {
+          "element": "Fe",
+          "neutral_valence_electrons": 8
+        },
+        {
+          "element": "Cu",
+          "neutral_valence_electrons": 11
+        },
+        {
+          "element": "Cl",
+          "neutral_valence_electrons": 7
+        }
+      ],
+      "supported_states": [
+        {
+          "element": "Cl",
+          "formal_charge": -1,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cu",
+          "formal_charge": 0,
+          "non_bonding_electrons": 11,
+          "unpaired_electrons": 3,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cu",
+          "formal_charge": 0,
+          "non_bonding_electrons": 11,
+          "unpaired_electrons": 11,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cu",
+          "formal_charge": 2,
+          "non_bonding_electrons": 9,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cu",
+          "formal_charge": 2,
+          "non_bonding_electrons": 9,
+          "unpaired_electrons": 9,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cu",
+          "formal_charge": 11,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Fe",
+          "formal_charge": 0,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 6,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Fe",
+          "formal_charge": 0,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 8,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Fe",
+          "formal_charge": 2,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 4,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Fe",
+          "formal_charge": 2,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 6,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Fe",
+          "formal_charge": 8,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Mg",
+          "formal_charge": 0,
+          "non_bonding_electrons": 2,
+          "unpaired_electrons": 2,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Mg",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Zn",
+          "formal_charge": 0,
+          "non_bonding_electrons": 12,
+          "unpaired_electrons": 2,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Zn",
+          "formal_charge": 0,
+          "non_bonding_electrons": 12,
+          "unpaired_electrons": 12,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Zn",
+          "formal_charge": 2,
+          "non_bonding_electrons": 10,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Zn",
+          "formal_charge": 2,
+          "non_bonding_electrons": 10,
+          "unpaired_electrons": 10,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Zn",
+          "formal_charge": 12,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        }
+      ],
+      "metallic_domain_states": [
+        {
+          "element": "Mg",
+          "site_formal_charge": 2,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 2
+        },
+        {
+          "element": "Zn",
+          "site_formal_charge": 12,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 12
+        },
+        {
+          "element": "Fe",
+          "site_formal_charge": 8,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 8
+        },
+        {
+          "element": "Cu",
+          "site_formal_charge": 11,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 11
+        }
+      ]
+    }
+  ],
+  "structures": [
+    {
+      "representation": "metallic",
+      "id": "DisplacementMagnesiumMetal",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "Mg",
+      "sites": [
+        {
+          "label": "metal",
+          "element": "Mg",
+          "formal_charge": 2,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 2
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.ElementalMetalReactant",
+          "sites": {
+            "reactive_site": "metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "DisplacementMagnesiumChloride",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "MgCl2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "metal",
+              "element": "Mg",
+              "formal_charge": 2,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion1",
+          "atoms": [
+            {
+              "label": "cl1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion2",
+          "atoms": [
+            {
+              "label": "cl2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "metallic",
+      "id": "DisplacementZincMetal",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "Zn",
+      "sites": [
+        {
+          "label": "metal",
+          "element": "Zn",
+          "formal_charge": 12,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 12
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.ElementalMetalReactant",
+          "sites": {
+            "reactive_site": "metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "DisplacementZincChloride",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "ZnCl2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "metal",
+              "element": "Zn",
+              "formal_charge": 2,
+              "non_bonding_electrons": 10,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion1",
+          "atoms": [
+            {
+              "label": "cl1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion2",
+          "atoms": [
+            {
+              "label": "cl2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "metallic",
+      "id": "DisplacementIronMetal",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "Fe",
+      "sites": [
+        {
+          "label": "metal",
+          "element": "Fe",
+          "formal_charge": 8,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 8
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.ElementalMetalReactant",
+          "sites": {
+            "reactive_site": "metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "DisplacementIronChloride",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "FeCl2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "metal",
+              "element": "Fe",
+              "formal_charge": 2,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 4
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion1",
+          "atoms": [
+            {
+              "label": "cl1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion2",
+          "atoms": [
+            {
+              "label": "cl2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "metallic",
+      "id": "DisplacementCopperMetal",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "Cu",
+      "sites": [
+        {
+          "label": "metal",
+          "element": "Cu",
+          "formal_charge": 11,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        }
+      ],
+      "domains": [
+        {
+          "label": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 11
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.ElementalMetalReactant",
+          "sites": {
+            "reactive_site": "metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    },
+    {
+      "representation": "ionic",
+      "id": "DisplacementCopperChloride",
+      "premise_id": "premise.structure.metal-displacement-chlorides",
+      "formula": "CuCl2",
+      "components": [
+        {
+          "label": "cation",
+          "atoms": [
+            {
+              "label": "metal",
+              "element": "Cu",
+              "formal_charge": 2,
+              "non_bonding_electrons": 9,
+              "unpaired_electrons": 1
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion1",
+          "atoms": [
+            {
+              "label": "cl1",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        },
+        {
+          "label": "anion2",
+          "atoms": [
+            {
+              "label": "cl2",
+              "element": "Cl",
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            }
+          ],
+          "bonds": [],
+          "groups": []
+        }
+      ],
+      "associations": [
+        {
+          "label": "salt",
+          "components": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "traits": [
+        {
+          "trait": "Traits.SolubleIonicReactant",
+          "sites": {
+            "reactive_site": "cation.metal"
+          },
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series"
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "elements": [],
+  "element_categories": [],
+  "structural_traits": [],
+  "structure_templates": [],
+  "structure_applications": [],
+  "graph_patterns": [
+    {
+      "id": "Patterns.DisplacementMagnesiumMetal",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Mg"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "metallic_domain",
+          "domain": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 2
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    },
+    {
+      "id": "Patterns.DisplacementMagnesiumChloride",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Mg"
+          }
+        },
+        "cl1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "cl2": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "cation",
+          "atoms": [
+            "metal"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion1",
+          "atoms": [
+            "cl1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion2",
+          "atoms": [
+            "cl2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    },
+    {
+      "id": "Patterns.DisplacementZincMetal",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Zn"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "metallic_domain",
+          "domain": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 12
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    },
+    {
+      "id": "Patterns.DisplacementZincChloride",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Zn"
+          }
+        },
+        "cl1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "cl2": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "cation",
+          "atoms": [
+            "metal"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion1",
+          "atoms": [
+            "cl1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion2",
+          "atoms": [
+            "cl2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    },
+    {
+      "id": "Patterns.DisplacementIronMetal",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Fe"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "metallic_domain",
+          "domain": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 8
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    },
+    {
+      "id": "Patterns.DisplacementIronChloride",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Fe"
+          }
+        },
+        "cl1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "cl2": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "cation",
+          "atoms": [
+            "metal"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion1",
+          "atoms": [
+            "cl1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion2",
+          "atoms": [
+            "cl2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    },
+    {
+      "id": "Patterns.DisplacementCopperMetal",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Cu"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "metallic_domain",
+          "domain": "metallic",
+          "sites": [
+            "metal"
+          ],
+          "delocalized_electrons": 11
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    },
+    {
+      "id": "Patterns.DisplacementCopperChloride",
+      "variables": {
+        "metal": {
+          "atom": {
+            "element": "Cu"
+          }
+        },
+        "cl1": {
+          "atom": {
+            "element": "Cl"
+          }
+        },
+        "cl2": {
+          "atom": {
+            "element": "Cl"
+          }
+        }
+      },
+      "relationships": [
+        {
+          "kind": "group_membership",
+          "group": "cation",
+          "atoms": [
+            "metal"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion1",
+          "atoms": [
+            "cl1"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "anion2",
+          "atoms": [
+            "cl2"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "cation",
+            "anion1",
+            "anion2"
+          ]
+        }
+      ],
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement"
+      ]
+    }
+  ],
+  "generalized_rules": [
+    {
+      "id": "Rules.MagnesiumDisplacesZinc",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "displacement"
+          ]
+        }
+      },
+      "roles": {
+        "displacing": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "saltSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "saltProduct": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metalProduct": {
+          "side": "product",
+          "representation": "metallic",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "displacing": {
+          "kind": "exact",
+          "structure": "DisplacementMagnesiumMetal"
+        },
+        "saltSource": {
+          "kind": "exact",
+          "structure": "DisplacementZincChloride"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "displacement",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "displacement"
+          },
+          "products": {
+            "saltProduct": {
+              "kind": "exact",
+              "structure": "DisplacementMagnesiumChloride"
+            },
+            "metalProduct": {
+              "kind": "exact",
+              "structure": "DisplacementZincMetal"
+            }
+          },
+          "patterns": {
+            "displacing": "Patterns.DisplacementMagnesiumMetal",
+            "saltSource": "Patterns.DisplacementZincChloride"
+          },
+          "correspondence": [
+            {
+              "reactant": "displacing[1].metal",
+              "product": "saltProduct[1].cation.metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl1",
+              "product": "saltProduct[1].anion1.cl1",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl2",
+              "product": "saltProduct[1].anion2.cl2",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].metal",
+              "product": "metalProduct[1].metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "association": "saltSource[1].salt"
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "displacing[1].metal",
+              "domain": "displacing[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "count": 2,
+              "donor": "displacing[1].metal",
+              "acceptor": "saltSource[1].metal",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  2,
+                  10,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  12,
+                  2
+                ]
+              }
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "saltSource[1].metal",
+              "before": [
+                0,
+                12,
+                2
+              ],
+              "after": [
+                0,
+                12,
+                12
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "label": "ionic.displacement-product",
+              "components": [
+                [
+                  "displacing[1].metal"
+                ],
+                [
+                  "saltSource[1].cl1"
+                ],
+                [
+                  "saltSource[1].cl2"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "join_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "saltSource[1].metal",
+              "domain": "saltSource[1].metallicProduct",
+              "allocation": "donate_electron",
+              "before": {
+                "site": [
+                  0,
+                  12,
+                  12
+                ],
+                "domain_electrons": 0
+              },
+              "after": {
+                "site": [
+                  12,
+                  0,
+                  0
+                ],
+                "domain_electrons": 12
+              }
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "displacing[1].metal",
+                "saltSource[1].cl1",
+                "saltSource[1].cl2"
+              ],
+              "product": "saltProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "saltSource[1].metal"
+              ],
+              "product": "metalProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "saltProduct",
+              "predicate": "forms",
+              "evidence_subject": "more reactive metal salt",
+              "premise_id": "premise.observation.displacement-product-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series",
+            "premise.structure.metal-displacement-chlorides",
+            "premise.valence.metal-displacement",
+            "premise.observation.displacement-product-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-displacement.activity-series",
+        "request_relation": "contact",
+        "required_context": "the displacing metal has a higher reviewed metal-displacement activity rank"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-displacement.activity-series"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement",
+        "premise.observation.displacement-product-forms"
+      ]
+    },
+    {
+      "id": "Rules.MagnesiumDisplacesIron",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "displacement"
+          ]
+        }
+      },
+      "roles": {
+        "displacing": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "saltSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "saltProduct": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metalProduct": {
+          "side": "product",
+          "representation": "metallic",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "displacing": {
+          "kind": "exact",
+          "structure": "DisplacementMagnesiumMetal"
+        },
+        "saltSource": {
+          "kind": "exact",
+          "structure": "DisplacementIronChloride"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "displacement",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "displacement"
+          },
+          "products": {
+            "saltProduct": {
+              "kind": "exact",
+              "structure": "DisplacementMagnesiumChloride"
+            },
+            "metalProduct": {
+              "kind": "exact",
+              "structure": "DisplacementIronMetal"
+            }
+          },
+          "patterns": {
+            "displacing": "Patterns.DisplacementMagnesiumMetal",
+            "saltSource": "Patterns.DisplacementIronChloride"
+          },
+          "correspondence": [
+            {
+              "reactant": "displacing[1].metal",
+              "product": "saltProduct[1].cation.metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl1",
+              "product": "saltProduct[1].anion1.cl1",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl2",
+              "product": "saltProduct[1].anion2.cl2",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].metal",
+              "product": "metalProduct[1].metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "association": "saltSource[1].salt"
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "displacing[1].metal",
+              "domain": "displacing[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "count": 2,
+              "donor": "displacing[1].metal",
+              "acceptor": "saltSource[1].metal",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  2,
+                  6,
+                  4
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  8,
+                  6
+                ]
+              }
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "saltSource[1].metal",
+              "before": [
+                0,
+                8,
+                6
+              ],
+              "after": [
+                0,
+                8,
+                8
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "label": "ionic.displacement-product",
+              "components": [
+                [
+                  "displacing[1].metal"
+                ],
+                [
+                  "saltSource[1].cl1"
+                ],
+                [
+                  "saltSource[1].cl2"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "join_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "saltSource[1].metal",
+              "domain": "saltSource[1].metallicProduct",
+              "allocation": "donate_electron",
+              "before": {
+                "site": [
+                  0,
+                  8,
+                  8
+                ],
+                "domain_electrons": 0
+              },
+              "after": {
+                "site": [
+                  8,
+                  0,
+                  0
+                ],
+                "domain_electrons": 8
+              }
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "displacing[1].metal",
+                "saltSource[1].cl1",
+                "saltSource[1].cl2"
+              ],
+              "product": "saltProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "saltSource[1].metal"
+              ],
+              "product": "metalProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "saltProduct",
+              "predicate": "forms",
+              "evidence_subject": "more reactive metal salt",
+              "premise_id": "premise.observation.displacement-product-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series",
+            "premise.structure.metal-displacement-chlorides",
+            "premise.valence.metal-displacement",
+            "premise.observation.displacement-product-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-displacement.activity-series",
+        "request_relation": "contact",
+        "required_context": "the displacing metal has a higher reviewed metal-displacement activity rank"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-displacement.activity-series"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement",
+        "premise.observation.displacement-product-forms"
+      ]
+    },
+    {
+      "id": "Rules.MagnesiumDisplacesCopper",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "displacement"
+          ]
+        }
+      },
+      "roles": {
+        "displacing": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "saltSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "saltProduct": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metalProduct": {
+          "side": "product",
+          "representation": "metallic",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "displacing": {
+          "kind": "exact",
+          "structure": "DisplacementMagnesiumMetal"
+        },
+        "saltSource": {
+          "kind": "exact",
+          "structure": "DisplacementCopperChloride"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "displacement",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "displacement"
+          },
+          "products": {
+            "saltProduct": {
+              "kind": "exact",
+              "structure": "DisplacementMagnesiumChloride"
+            },
+            "metalProduct": {
+              "kind": "exact",
+              "structure": "DisplacementCopperMetal"
+            }
+          },
+          "patterns": {
+            "displacing": "Patterns.DisplacementMagnesiumMetal",
+            "saltSource": "Patterns.DisplacementCopperChloride"
+          },
+          "correspondence": [
+            {
+              "reactant": "displacing[1].metal",
+              "product": "saltProduct[1].cation.metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl1",
+              "product": "saltProduct[1].anion1.cl1",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl2",
+              "product": "saltProduct[1].anion2.cl2",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].metal",
+              "product": "metalProduct[1].metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "association": "saltSource[1].salt"
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "displacing[1].metal",
+              "domain": "displacing[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "count": 2,
+              "donor": "displacing[1].metal",
+              "acceptor": "saltSource[1].metal",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  2,
+                  9,
+                  1
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  11,
+                  3
+                ]
+              }
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "saltSource[1].metal",
+              "before": [
+                0,
+                11,
+                3
+              ],
+              "after": [
+                0,
+                11,
+                11
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "label": "ionic.displacement-product",
+              "components": [
+                [
+                  "displacing[1].metal"
+                ],
+                [
+                  "saltSource[1].cl1"
+                ],
+                [
+                  "saltSource[1].cl2"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "join_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "saltSource[1].metal",
+              "domain": "saltSource[1].metallicProduct",
+              "allocation": "donate_electron",
+              "before": {
+                "site": [
+                  0,
+                  11,
+                  11
+                ],
+                "domain_electrons": 0
+              },
+              "after": {
+                "site": [
+                  11,
+                  0,
+                  0
+                ],
+                "domain_electrons": 11
+              }
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "displacing[1].metal",
+                "saltSource[1].cl1",
+                "saltSource[1].cl2"
+              ],
+              "product": "saltProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "saltSource[1].metal"
+              ],
+              "product": "metalProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "saltProduct",
+              "predicate": "forms",
+              "evidence_subject": "more reactive metal salt",
+              "premise_id": "premise.observation.displacement-product-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series",
+            "premise.structure.metal-displacement-chlorides",
+            "premise.valence.metal-displacement",
+            "premise.observation.displacement-product-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-displacement.activity-series",
+        "request_relation": "contact",
+        "required_context": "the displacing metal has a higher reviewed metal-displacement activity rank"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-displacement.activity-series"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement",
+        "premise.observation.displacement-product-forms"
+      ]
+    },
+    {
+      "id": "Rules.ZincDisplacesIron",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "displacement"
+          ]
+        }
+      },
+      "roles": {
+        "displacing": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "saltSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "saltProduct": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metalProduct": {
+          "side": "product",
+          "representation": "metallic",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "displacing": {
+          "kind": "exact",
+          "structure": "DisplacementZincMetal"
+        },
+        "saltSource": {
+          "kind": "exact",
+          "structure": "DisplacementIronChloride"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "displacement",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "displacement"
+          },
+          "products": {
+            "saltProduct": {
+              "kind": "exact",
+              "structure": "DisplacementZincChloride"
+            },
+            "metalProduct": {
+              "kind": "exact",
+              "structure": "DisplacementIronMetal"
+            }
+          },
+          "patterns": {
+            "displacing": "Patterns.DisplacementZincMetal",
+            "saltSource": "Patterns.DisplacementIronChloride"
+          },
+          "correspondence": [
+            {
+              "reactant": "displacing[1].metal",
+              "product": "saltProduct[1].cation.metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl1",
+              "product": "saltProduct[1].anion1.cl1",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl2",
+              "product": "saltProduct[1].anion2.cl2",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].metal",
+              "product": "metalProduct[1].metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "association": "saltSource[1].salt"
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "displacing[1].metal",
+              "domain": "displacing[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  12,
+                  0,
+                  0
+                ],
+                "domain_electrons": 12
+              },
+              "after": {
+                "site": [
+                  0,
+                  12,
+                  12
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "count": 2,
+              "donor": "displacing[1].metal",
+              "acceptor": "saltSource[1].metal",
+              "before": {
+                "donor": [
+                  0,
+                  12,
+                  12
+                ],
+                "acceptor": [
+                  2,
+                  6,
+                  4
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  10,
+                  10
+                ],
+                "acceptor": [
+                  0,
+                  8,
+                  6
+                ]
+              }
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "displacing[1].metal",
+              "before": [
+                2,
+                10,
+                10
+              ],
+              "after": [
+                2,
+                10,
+                0
+              ]
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "saltSource[1].metal",
+              "before": [
+                0,
+                8,
+                6
+              ],
+              "after": [
+                0,
+                8,
+                8
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "label": "ionic.displacement-product",
+              "components": [
+                [
+                  "displacing[1].metal"
+                ],
+                [
+                  "saltSource[1].cl1"
+                ],
+                [
+                  "saltSource[1].cl2"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "join_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "saltSource[1].metal",
+              "domain": "saltSource[1].metallicProduct",
+              "allocation": "donate_electron",
+              "before": {
+                "site": [
+                  0,
+                  8,
+                  8
+                ],
+                "domain_electrons": 0
+              },
+              "after": {
+                "site": [
+                  8,
+                  0,
+                  0
+                ],
+                "domain_electrons": 8
+              }
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "displacing[1].metal",
+                "saltSource[1].cl1",
+                "saltSource[1].cl2"
+              ],
+              "product": "saltProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "saltSource[1].metal"
+              ],
+              "product": "metalProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "saltProduct",
+              "predicate": "forms",
+              "evidence_subject": "more reactive metal salt",
+              "premise_id": "premise.observation.displacement-product-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series",
+            "premise.structure.metal-displacement-chlorides",
+            "premise.valence.metal-displacement",
+            "premise.observation.displacement-product-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-displacement.activity-series",
+        "request_relation": "contact",
+        "required_context": "the displacing metal has a higher reviewed metal-displacement activity rank"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-displacement.activity-series"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement",
+        "premise.observation.displacement-product-forms"
+      ]
+    },
+    {
+      "id": "Rules.ZincDisplacesCopper",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "displacement"
+          ]
+        }
+      },
+      "roles": {
+        "displacing": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "saltSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "saltProduct": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metalProduct": {
+          "side": "product",
+          "representation": "metallic",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "displacing": {
+          "kind": "exact",
+          "structure": "DisplacementZincMetal"
+        },
+        "saltSource": {
+          "kind": "exact",
+          "structure": "DisplacementCopperChloride"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "displacement",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "displacement"
+          },
+          "products": {
+            "saltProduct": {
+              "kind": "exact",
+              "structure": "DisplacementZincChloride"
+            },
+            "metalProduct": {
+              "kind": "exact",
+              "structure": "DisplacementCopperMetal"
+            }
+          },
+          "patterns": {
+            "displacing": "Patterns.DisplacementZincMetal",
+            "saltSource": "Patterns.DisplacementCopperChloride"
+          },
+          "correspondence": [
+            {
+              "reactant": "displacing[1].metal",
+              "product": "saltProduct[1].cation.metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl1",
+              "product": "saltProduct[1].anion1.cl1",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl2",
+              "product": "saltProduct[1].anion2.cl2",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].metal",
+              "product": "metalProduct[1].metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "association": "saltSource[1].salt"
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "displacing[1].metal",
+              "domain": "displacing[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  12,
+                  0,
+                  0
+                ],
+                "domain_electrons": 12
+              },
+              "after": {
+                "site": [
+                  0,
+                  12,
+                  12
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "count": 2,
+              "donor": "displacing[1].metal",
+              "acceptor": "saltSource[1].metal",
+              "before": {
+                "donor": [
+                  0,
+                  12,
+                  12
+                ],
+                "acceptor": [
+                  2,
+                  9,
+                  1
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  10,
+                  10
+                ],
+                "acceptor": [
+                  0,
+                  11,
+                  3
+                ]
+              }
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "displacing[1].metal",
+              "before": [
+                2,
+                10,
+                10
+              ],
+              "after": [
+                2,
+                10,
+                0
+              ]
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "saltSource[1].metal",
+              "before": [
+                0,
+                11,
+                3
+              ],
+              "after": [
+                0,
+                11,
+                11
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "label": "ionic.displacement-product",
+              "components": [
+                [
+                  "displacing[1].metal"
+                ],
+                [
+                  "saltSource[1].cl1"
+                ],
+                [
+                  "saltSource[1].cl2"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "join_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "saltSource[1].metal",
+              "domain": "saltSource[1].metallicProduct",
+              "allocation": "donate_electron",
+              "before": {
+                "site": [
+                  0,
+                  11,
+                  11
+                ],
+                "domain_electrons": 0
+              },
+              "after": {
+                "site": [
+                  11,
+                  0,
+                  0
+                ],
+                "domain_electrons": 11
+              }
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "displacing[1].metal",
+                "saltSource[1].cl1",
+                "saltSource[1].cl2"
+              ],
+              "product": "saltProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "saltSource[1].metal"
+              ],
+              "product": "metalProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "saltProduct",
+              "predicate": "forms",
+              "evidence_subject": "more reactive metal salt",
+              "premise_id": "premise.observation.displacement-product-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series",
+            "premise.structure.metal-displacement-chlorides",
+            "premise.valence.metal-displacement",
+            "premise.observation.displacement-product-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-displacement.activity-series",
+        "request_relation": "contact",
+        "required_context": "the displacing metal has a higher reviewed metal-displacement activity rank"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-displacement.activity-series"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement",
+        "premise.observation.displacement-product-forms"
+      ]
+    },
+    {
+      "id": "Rules.IronDisplacesCopper",
+      "parameters": {
+        "outcome": {
+          "kind": "enum",
+          "values": [
+            "displacement"
+          ]
+        }
+      },
+      "roles": {
+        "displacing": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "saltSource": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "saltProduct": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "metalProduct": {
+          "side": "product",
+          "representation": "metallic",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "displacing": {
+          "kind": "exact",
+          "structure": "DisplacementIronMetal"
+        },
+        "saltSource": {
+          "kind": "exact",
+          "structure": "DisplacementCopperChloride"
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "displacement",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "outcome",
+            "value": "displacement"
+          },
+          "products": {
+            "saltProduct": {
+              "kind": "exact",
+              "structure": "DisplacementIronChloride"
+            },
+            "metalProduct": {
+              "kind": "exact",
+              "structure": "DisplacementCopperMetal"
+            }
+          },
+          "patterns": {
+            "displacing": "Patterns.DisplacementIronMetal",
+            "saltSource": "Patterns.DisplacementCopperChloride"
+          },
+          "correspondence": [
+            {
+              "reactant": "displacing[1].metal",
+              "product": "saltProduct[1].cation.metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl1",
+              "product": "saltProduct[1].anion1.cl1",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].cl2",
+              "product": "saltProduct[1].anion2.cl2",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            },
+            {
+              "reactant": "saltSource[1].metal",
+              "product": "metalProduct[1].metal",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "association": "saltSource[1].salt"
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "displacing[1].metal",
+              "domain": "displacing[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  8,
+                  0,
+                  0
+                ],
+                "domain_electrons": 8
+              },
+              "after": {
+                "site": [
+                  0,
+                  8,
+                  8
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "count": 2,
+              "donor": "displacing[1].metal",
+              "acceptor": "saltSource[1].metal",
+              "before": {
+                "donor": [
+                  0,
+                  8,
+                  8
+                ],
+                "acceptor": [
+                  2,
+                  9,
+                  1
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  6,
+                  6
+                ],
+                "acceptor": [
+                  0,
+                  11,
+                  3
+                ]
+              }
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "displacing[1].metal",
+              "before": [
+                2,
+                6,
+                6
+              ],
+              "after": [
+                2,
+                6,
+                4
+              ]
+            },
+            {
+              "kind": "reconfigure_electrons",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atom": "saltSource[1].metal",
+              "before": [
+                0,
+                11,
+                3
+              ],
+              "after": [
+                0,
+                11,
+                11
+              ]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "label": "ionic.displacement-product",
+              "components": [
+                [
+                  "displacing[1].metal"
+                ],
+                [
+                  "saltSource[1].cl1"
+                ],
+                [
+                  "saltSource[1].cl2"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "join_metallic",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "site": "saltSource[1].metal",
+              "domain": "saltSource[1].metallicProduct",
+              "allocation": "donate_electron",
+              "before": {
+                "site": [
+                  0,
+                  11,
+                  11
+                ],
+                "domain_electrons": 0
+              },
+              "after": {
+                "site": [
+                  11,
+                  0,
+                  0
+                ],
+                "domain_electrons": 11
+              }
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "displacing[1].metal",
+                "saltSource[1].cl1",
+                "saltSource[1].cl2"
+              ],
+              "product": "saltProduct[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-displacement.activity-series",
+                "premise.structure.metal-displacement-chlorides",
+                "premise.valence.metal-displacement"
+              ],
+              "atoms": [
+                "saltSource[1].metal"
+              ],
+              "product": "metalProduct[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "saltProduct",
+              "predicate": "forms",
+              "evidence_subject": "more reactive metal salt",
+              "premise_id": "premise.observation.displacement-product-forms"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-displacement.activity-series",
+            "premise.structure.metal-displacement-chlorides",
+            "premise.valence.metal-displacement",
+            "premise.observation.displacement-product-forms"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-displacement.activity-series",
+        "request_relation": "contact",
+        "required_context": "the displacing metal has a higher reviewed metal-displacement activity rank"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-displacement.activity-series"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-displacement.activity-series",
+        "premise.structure.metal-displacement-chlorides",
+        "premise.valence.metal-displacement",
+        "premise.observation.displacement-product-forms"
+      ]
+    }
+  ]
+}

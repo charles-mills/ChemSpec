@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction IronDisplacesCopper where
+  reactants
+    displacing := 1 of DisplacementIronMetal
+    saltSource := 1 of DisplacementCopperChloride
+  products
+    saltProduct := 1 of DisplacementIronChloride
+    metalProduct := 1 of DisplacementCopperMetal
+  equation
+    1 Fe[metallic] + 1 CuCl2[ionic]
+    -> 1 FeCl2[ionic] + 1 Cu[metallic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IronDisplacesCopper@1
+    product saltProduct forms claim R1
+  by
+    apply Rules.IronDisplacesCopper
+      displacing := displacing
+      saltSource := saltSource
+      saltProduct := saltProduct
+      metalProduct := metalProduct

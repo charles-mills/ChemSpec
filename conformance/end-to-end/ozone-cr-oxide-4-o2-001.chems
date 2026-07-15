@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CrAndOxygenToTransitionG6DioxideWithOzone where
+  reactants
+    subject := 3 of CrTransitionG6DioxideMetalForOxygen
+    oxygen := 2 of Ozone
+  products
+    oxide := 3 of CrTransitionG6DioxideOxide
+  equation
+    3 Cr[metallic] + 2 O3[molecular]
+    -> 3 CrO2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG6Dioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

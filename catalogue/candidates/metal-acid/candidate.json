@@ -1,0 +1,5183 @@
+{
+  "schema_version": 1,
+  "id": "metal-acid",
+  "premises": [
+    {
+      "id": "premise.rule.metal-acid.non-oxidising",
+      "statement": "A fixed-charge metal above hydrogen in the reviewed hydrogen-displacement series reacts in this theoretical model with HCl, HBr, or HI to form the corresponding ionic halide and H2. Oxidising acids, passivation, and HF equilibrium are separate models.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e.acid-base"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    }
+  ],
+  "element_categories": [
+    {
+      "id": "Categories.MetalAcidCation1",
+      "subject": "element",
+      "membership": {
+        "kind": "explicit",
+        "members": [
+          "Li",
+          "Na",
+          "K",
+          "Rb",
+          "Cs"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-acid.non-oxidising"
+      ]
+    },
+    {
+      "id": "Categories.MetalAcidCation2",
+      "subject": "element",
+      "membership": {
+        "kind": "explicit",
+        "members": [
+          "Mg",
+          "Ca",
+          "Sr",
+          "Ba"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-acid.non-oxidising"
+      ]
+    },
+    {
+      "id": "Categories.MetalAcidCation3",
+      "subject": "element",
+      "membership": {
+        "kind": "explicit",
+        "members": [
+          "Al"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-acid.non-oxidising"
+      ]
+    }
+  ],
+  "generalized_rules": [
+    {
+      "id": "Rules.FixedCation1WithNonOxidisingAcid",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.MetalAcidCation1"
+        },
+        "halide": {
+          "kind": "element",
+          "category": "Categories.Halide"
+        }
+      },
+      "roles": {
+        "metal": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 2
+        },
+        "acid": {
+          "side": "reactant",
+          "representation": "molecular",
+          "coefficient": 2
+        },
+        "salt": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 2
+        },
+        "hydrogen": {
+          "side": "product",
+          "representation": "molecular",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "metal": {
+          "kind": "template",
+          "template": "Templates.FixedCation1Metal",
+          "arguments": {
+            "member": {
+              "parameter": "member"
+            }
+          }
+        },
+        "acid": {
+          "kind": "template",
+          "template": "Templates.HydrogenHalide",
+          "arguments": {
+            "halide": {
+              "parameter": "halide"
+            }
+          }
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "cl",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "Cl"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation1ChlorideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation1Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "metal[2].metal",
+              "product": "salt[2].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[2].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[2].metal",
+              "domain": "metal[2].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-2",
+              "components": [
+                [
+                  "metal[2].metal"
+                ],
+                [
+                  "acid[2].x"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[2].metal",
+                "acid[2].x"
+              ],
+              "product": "salt[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "br",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "Br"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation1BromideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation1Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "metal[2].metal",
+              "product": "salt[2].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[2].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[2].metal",
+              "domain": "metal[2].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-2",
+              "components": [
+                [
+                  "metal[2].metal"
+                ],
+                [
+                  "acid[2].x"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[2].metal",
+                "acid[2].x"
+              ],
+              "product": "salt[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "i",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "I"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation1IodideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation1Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "metal[2].metal",
+              "product": "salt[2].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[2].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[2].metal",
+              "domain": "metal[2].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  1,
+                  0,
+                  0
+                ],
+                "domain_electrons": 1
+              },
+              "after": {
+                "site": [
+                  0,
+                  1,
+                  1
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  0,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-2",
+              "components": [
+                [
+                  "metal[2].metal"
+                ],
+                [
+                  "acid[2].x"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[2].metal",
+                "acid[2].x"
+              ],
+              "product": "salt[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "unsupported",
+          "id": "weak-hf",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "F"
+          },
+          "required_feature": "Features.WeakAcidEquilibrium",
+          "explanation": "HF requires an equilibrium model; this family is limited to reviewed non-oxidising strong monoprotic acids.",
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-acid.non-oxidising",
+        "request_relation": "contact",
+        "required_context": "theoretical contact with a reviewed non-oxidising strong monoprotic acid; passivation and oxidising-acid pathways are outside this family"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-acid.non-oxidising"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-acid.non-oxidising",
+        "premise.traits.reaction-family-classification",
+        "premise.elements.iupac-periodic-table",
+        "premise.elements.context-specific-reaction-facts",
+        "premise.category.halide",
+        "premise.rule.fixed-charge-ion-pairs",
+        "premise.structure.fixed-charge-ion-pairs",
+        "premise.valence.fixed-charge-ion-pairs",
+        "premise.structure.hydrogen-halide",
+        "premise.structure.hydrogen",
+        "premise.valence.acid-base.initial-domain"
+      ]
+    },
+    {
+      "id": "Rules.FixedCation2WithNonOxidisingAcid",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.MetalAcidCation2"
+        },
+        "halide": {
+          "kind": "element",
+          "category": "Categories.Halide"
+        }
+      },
+      "roles": {
+        "metal": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 1
+        },
+        "acid": {
+          "side": "reactant",
+          "representation": "molecular",
+          "coefficient": 2
+        },
+        "salt": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "hydrogen": {
+          "side": "product",
+          "representation": "molecular",
+          "coefficient": 1
+        }
+      },
+      "reactants": {
+        "metal": {
+          "kind": "template",
+          "template": "Templates.FixedCation2Metal",
+          "arguments": {
+            "member": {
+              "parameter": "member"
+            }
+          }
+        },
+        "acid": {
+          "kind": "template",
+          "template": "Templates.HydrogenHalide",
+          "arguments": {
+            "halide": {
+              "parameter": "halide"
+            }
+          }
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "cl",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "Cl"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation2ChlorideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation2Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[1].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ],
+                [
+                  "acid[2].x"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x",
+                "acid[2].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "br",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "Br"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation2BromideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation2Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[1].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ],
+                [
+                  "acid[2].x"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x",
+                "acid[2].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "i",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "I"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation2IodideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation2Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[1].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  2,
+                  0,
+                  0
+                ],
+                "domain_electrons": 2
+              },
+              "after": {
+                "site": [
+                  0,
+                  2,
+                  2
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  1,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ],
+                [
+                  "acid[2].x"
+                ]
+              ],
+              "component_charges": [
+                2,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x",
+                "acid[2].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "unsupported",
+          "id": "weak-hf",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "F"
+          },
+          "required_feature": "Features.WeakAcidEquilibrium",
+          "explanation": "HF requires an equilibrium model; this family is limited to reviewed non-oxidising strong monoprotic acids.",
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-acid.non-oxidising",
+        "request_relation": "contact",
+        "required_context": "theoretical contact with a reviewed non-oxidising strong monoprotic acid; passivation and oxidising-acid pathways are outside this family"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-acid.non-oxidising"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-acid.non-oxidising",
+        "premise.traits.reaction-family-classification",
+        "premise.elements.iupac-periodic-table",
+        "premise.elements.context-specific-reaction-facts",
+        "premise.category.halide",
+        "premise.rule.fixed-charge-ion-pairs",
+        "premise.structure.fixed-charge-ion-pairs",
+        "premise.valence.fixed-charge-ion-pairs",
+        "premise.structure.hydrogen-halide",
+        "premise.structure.hydrogen",
+        "premise.valence.acid-base.initial-domain"
+      ]
+    },
+    {
+      "id": "Rules.FixedCation3WithNonOxidisingAcid",
+      "parameters": {
+        "member": {
+          "kind": "element",
+          "category": "Categories.MetalAcidCation3"
+        },
+        "halide": {
+          "kind": "element",
+          "category": "Categories.Halide"
+        }
+      },
+      "roles": {
+        "metal": {
+          "side": "reactant",
+          "representation": "metallic",
+          "coefficient": 2
+        },
+        "acid": {
+          "side": "reactant",
+          "representation": "molecular",
+          "coefficient": 6
+        },
+        "salt": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 2
+        },
+        "hydrogen": {
+          "side": "product",
+          "representation": "molecular",
+          "coefficient": 3
+        }
+      },
+      "reactants": {
+        "metal": {
+          "kind": "template",
+          "template": "Templates.FixedCation3Metal",
+          "arguments": {
+            "member": {
+              "parameter": "member"
+            }
+          }
+        },
+        "acid": {
+          "kind": "template",
+          "template": "Templates.HydrogenHalide",
+          "arguments": {
+            "halide": {
+              "parameter": "halide"
+            }
+          }
+        }
+      },
+      "cases": [
+        {
+          "status": "supported",
+          "id": "cl",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "Cl"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation3ChlorideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation3Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "metal[2].metal",
+              "product": "salt[2].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[1].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[3].x",
+              "product": "salt[1].anion3.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[3].h",
+              "product": "hydrogen[2].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[4].x",
+              "product": "salt[2].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[4].h",
+              "product": "hydrogen[2].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[5].x",
+              "product": "salt[2].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[5].h",
+              "product": "hydrogen[3].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[6].x",
+              "product": "salt[2].anion3.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[6].h",
+              "product": "hydrogen[3].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  3,
+                  0,
+                  0
+                ],
+                "domain_electrons": 3
+              },
+              "after": {
+                "site": [
+                  0,
+                  3,
+                  3
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[2].metal",
+              "domain": "metal[2].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  3,
+                  0,
+                  0
+                ],
+                "domain_electrons": 3
+              },
+              "after": {
+                "site": [
+                  0,
+                  3,
+                  3
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[3].h",
+                "acid[3].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[3].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[4].h",
+                "acid[4].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[4].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[5].h",
+                "acid[5].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[5].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[6].h",
+                "acid[6].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[6].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  3,
+                  3
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[3].h",
+              "before": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  3,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[4].h",
+              "before": {
+                "donor": [
+                  0,
+                  3,
+                  3
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[5].h",
+              "before": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[6].h",
+              "before": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  3,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[3].h",
+                "acid[4].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[5].h",
+                "acid[6].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ],
+                [
+                  "acid[2].x"
+                ],
+                [
+                  "acid[3].x"
+                ]
+              ],
+              "component_charges": [
+                3,
+                -1,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x",
+                "acid[2].x",
+                "acid[3].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-2",
+              "components": [
+                [
+                  "metal[2].metal"
+                ],
+                [
+                  "acid[4].x"
+                ],
+                [
+                  "acid[5].x"
+                ],
+                [
+                  "acid[6].x"
+                ]
+              ],
+              "component_charges": [
+                3,
+                -1,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[2].metal",
+                "acid[4].x",
+                "acid[5].x",
+                "acid[6].x"
+              ],
+              "product": "salt[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[3].h",
+                "acid[4].h"
+              ],
+              "product": "hydrogen[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[5].h",
+                "acid[6].h"
+              ],
+              "product": "hydrogen[3]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "br",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "Br"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation3BromideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation3Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "metal[2].metal",
+              "product": "salt[2].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[1].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[3].x",
+              "product": "salt[1].anion3.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[3].h",
+              "product": "hydrogen[2].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[4].x",
+              "product": "salt[2].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[4].h",
+              "product": "hydrogen[2].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[5].x",
+              "product": "salt[2].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[5].h",
+              "product": "hydrogen[3].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[6].x",
+              "product": "salt[2].anion3.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[6].h",
+              "product": "hydrogen[3].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  3,
+                  0,
+                  0
+                ],
+                "domain_electrons": 3
+              },
+              "after": {
+                "site": [
+                  0,
+                  3,
+                  3
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[2].metal",
+              "domain": "metal[2].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  3,
+                  0,
+                  0
+                ],
+                "domain_electrons": 3
+              },
+              "after": {
+                "site": [
+                  0,
+                  3,
+                  3
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[3].h",
+                "acid[3].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[3].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[4].h",
+                "acid[4].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[4].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[5].h",
+                "acid[5].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[5].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[6].h",
+                "acid[6].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[6].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  3,
+                  3
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[3].h",
+              "before": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  3,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[4].h",
+              "before": {
+                "donor": [
+                  0,
+                  3,
+                  3
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[5].h",
+              "before": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[6].h",
+              "before": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  3,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[3].h",
+                "acid[4].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[5].h",
+                "acid[6].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ],
+                [
+                  "acid[2].x"
+                ],
+                [
+                  "acid[3].x"
+                ]
+              ],
+              "component_charges": [
+                3,
+                -1,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x",
+                "acid[2].x",
+                "acid[3].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-2",
+              "components": [
+                [
+                  "metal[2].metal"
+                ],
+                [
+                  "acid[4].x"
+                ],
+                [
+                  "acid[5].x"
+                ],
+                [
+                  "acid[6].x"
+                ]
+              ],
+              "component_charges": [
+                3,
+                -1,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[2].metal",
+                "acid[4].x",
+                "acid[5].x",
+                "acid[6].x"
+              ],
+              "product": "salt[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[3].h",
+                "acid[4].h"
+              ],
+              "product": "hydrogen[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[5].h",
+                "acid[6].h"
+              ],
+              "product": "hydrogen[3]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "i",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "I"
+          },
+          "products": {
+            "salt": {
+              "kind": "template",
+              "template": "Templates.FixedCation3IodideProduct",
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                }
+              }
+            },
+            "hydrogen": {
+              "kind": "exact",
+              "structure": "Hydrogen"
+            }
+          },
+          "patterns": {
+            "metal": "Patterns.FixedCation3Metal",
+            "acid": "Patterns.HydrogenHalide"
+          },
+          "correspondence": [
+            {
+              "reactant": "metal[1].metal",
+              "product": "salt[1].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "metal[2].metal",
+              "product": "salt[2].cation1.metal",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].x",
+              "product": "salt[1].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[1].h",
+              "product": "hydrogen[1].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].x",
+              "product": "salt[1].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[2].h",
+              "product": "hydrogen[1].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[3].x",
+              "product": "salt[1].anion3.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[3].h",
+              "product": "hydrogen[2].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[4].x",
+              "product": "salt[2].anion1.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[4].h",
+              "product": "hydrogen[2].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[5].x",
+              "product": "salt[2].anion2.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[5].h",
+              "product": "hydrogen[3].h1",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[6].x",
+              "product": "salt[2].anion3.anion",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            },
+            {
+              "reactant": "acid[6].h",
+              "product": "hydrogen[3].h2",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising"
+              ]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[1].metal",
+              "domain": "metal[1].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  3,
+                  0,
+                  0
+                ],
+                "domain_electrons": 3
+              },
+              "after": {
+                "site": [
+                  0,
+                  3,
+                  3
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "release_metallic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "site": "metal[2].metal",
+              "domain": "metal[2].metallic",
+              "allocation": "retain_electron",
+              "before": {
+                "site": [
+                  3,
+                  0,
+                  0
+                ],
+                "domain_electrons": 3
+              },
+              "after": {
+                "site": [
+                  0,
+                  3,
+                  3
+                ],
+                "domain_electrons": 0
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[2].h",
+                "acid[2].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[2].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[3].h",
+                "acid[3].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[3].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[4].h",
+                "acid[4].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[4].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[5].h",
+                "acid[5].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[5].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "cleave_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[6].h",
+                "acid[6].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[6].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[1].h",
+              "before": {
+                "donor": [
+                  0,
+                  3,
+                  3
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[2].h",
+              "before": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[1].metal",
+              "acceptor": "acid[3].h",
+              "before": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  3,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[4].h",
+              "before": {
+                "donor": [
+                  0,
+                  3,
+                  3
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[5].h",
+              "before": {
+                "donor": [
+                  1,
+                  2,
+                  2
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "transfer_electron",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "count": 1,
+              "donor": "metal[2].metal",
+              "acceptor": "acid[6].h",
+              "before": {
+                "donor": [
+                  2,
+                  1,
+                  1
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  3,
+                  0,
+                  0
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[2].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[3].h",
+                "acid[4].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "form_covalent",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "edge": [
+                "acid[5].h",
+                "acid[6].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  1,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-1",
+              "components": [
+                [
+                  "metal[1].metal"
+                ],
+                [
+                  "acid[1].x"
+                ],
+                [
+                  "acid[2].x"
+                ],
+                [
+                  "acid[3].x"
+                ]
+              ],
+              "component_charges": [
+                3,
+                -1,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[1].metal",
+                "acid[1].x",
+                "acid[2].x",
+                "acid[3].x"
+              ],
+              "product": "salt[1]"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "label": "ionic.metal-acid-2",
+              "components": [
+                [
+                  "metal[2].metal"
+                ],
+                [
+                  "acid[4].x"
+                ],
+                [
+                  "acid[5].x"
+                ],
+                [
+                  "acid[6].x"
+                ]
+              ],
+              "component_charges": [
+                3,
+                -1,
+                -1,
+                -1
+              ]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "metal[2].metal",
+                "acid[4].x",
+                "acid[5].x",
+                "acid[6].x"
+              ],
+              "product": "salt[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[1].h",
+                "acid[2].h"
+              ],
+              "product": "hydrogen[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[3].h",
+                "acid[4].h"
+              ],
+              "product": "hydrogen[2]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "atoms": [
+                "acid[5].h",
+                "acid[6].h"
+              ],
+              "product": "hydrogen[3]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "hydrogen",
+              "predicate": "evolves",
+              "evidence_subject": "hydrogen",
+              "premise_id": "premise.rule.metal-acid.non-oxidising"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        },
+        {
+          "status": "unsupported",
+          "id": "weak-hf",
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "F"
+          },
+          "required_feature": "Features.WeakAcidEquilibrium",
+          "explanation": "HF requires an equilibrium model; this family is limited to reviewed non-oxidising strong monoprotic acids.",
+          "premise_ids": [
+            "premise.rule.metal-acid.non-oxidising"
+          ]
+        }
+      ],
+      "applicability": {
+        "premise_id": "premise.rule.metal-acid.non-oxidising",
+        "request_relation": "contact",
+        "required_context": "theoretical contact with a reviewed non-oxidising strong monoprotic acid; passivation and oxidising-acid pathways are outside this family"
+      },
+      "model_assumptions": {
+        "event": "representative",
+        "sequence": "explanatory",
+        "premise_ids": [
+          "premise.rule.metal-acid.non-oxidising"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.metal-acid.non-oxidising",
+        "premise.traits.reaction-family-classification",
+        "premise.elements.iupac-periodic-table",
+        "premise.elements.context-specific-reaction-facts",
+        "premise.category.halide",
+        "premise.rule.fixed-charge-ion-pairs",
+        "premise.structure.fixed-charge-ion-pairs",
+        "premise.valence.fixed-charge-ion-pairs",
+        "premise.structure.hydrogen-halide",
+        "premise.structure.hydrogen",
+        "premise.valence.acid-base.initial-domain"
+      ]
+    }
+  ]
+}

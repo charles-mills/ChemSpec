@@ -1,0 +1,25 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+
+reaction CaesiumAndWater where
+  reactants
+    metal := 2 of CaesiumMetal
+    water := 2 of Water
+  products
+    hydroxide := 2 of CaesiumHydroxide
+    hydrogen := 1 of Hydrogen
+  equation
+    2 Cs[metallic] + 2 H2O[molecular]
+    -> 2 CsOH[ionic] + H2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.AlkaliWaterCaesium@1
+    gas hydrogen evolves claim R1
+    reactant metal disappears claim R2
+  by
+    apply Rules.AlkaliMetalWithWater
+      metal := metal
+      water := water
+      hydroxide := hydroxide
+      gasProduct := hydrogen

@@ -17,43 +17,86 @@
     {
       "id": "premise.structure.hydrogen-halide",
       "statement": "ChemSpec represents each supported hydrogen halide as a neutral molecular H-X single covalent bond.",
-      "evidence": ["evidence.chemspec.explanatory-structural-model"],
-      "review": {"status": "provisional", "reviewers": []},
+      "evidence": [
+        "evidence.chemspec.explanatory-structural-model"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
       "rule_version": "1"
     },
     {
       "id": "premise.rule.acid-base-neutralization.standard-outcome",
       "statement": "Mixing an aqueous strong monoprotic hydrogen halide acid with an aqueous alkali-metal hydroxide has the reviewed representative outcome HX + MOH -> MX + H2O, a proton transfer from the acid to the hydroxide oxygen followed by ionic association of the conserved cation and halide.",
-      "evidence": ["evidence.chemspec.explanatory-structural-model", "evidence.openstax.chemistry-2e.acid-base"],
-      "review": {"status": "provisional", "reviewers": []},
+      "evidence": [
+        "evidence.chemspec.explanatory-structural-model",
+        "evidence.openstax.chemistry-2e.acid-base"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
       "rule_version": "1"
     },
     {
       "id": "premise.case.hydrofluoric-acid-unsupported",
       "statement": "Hydrofluoric acid is a weak acid that only partially dissociates in water, which is a different equilibrium reaction model from the full, one-step strong-acid dissociation this family represents; representing partial-dissociation equilibria is outside the current structural domain.",
-      "evidence": ["evidence.openstax.chemistry-2e.acid-base"],
-      "review": {"status": "provisional", "reviewers": []},
+      "evidence": [
+        "evidence.openstax.chemistry-2e.acid-base"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
       "rule_version": "1"
     },
     {
       "id": "premise.valence.acid-base.initial-domain",
       "statement": "The listed H, O, Li, Na, K, Cl, Br, F, and I tuples are ChemSpec's closed explanatory execution domain for monoprotic acid / alkali-metal hydroxide neutralization; transient states are not claims of physical mechanism.",
-      "evidence": ["evidence.chemspec.explanatory-structural-model"],
-      "review": {"status": "provisional", "reviewers": []},
+      "evidence": [
+        "evidence.chemspec.explanatory-structural-model"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
       "rule_version": "1"
     },
     {
       "id": "premise.observation.acid-disappears",
       "statement": "The hydrogen halide acid is compatible with the authored observation predicate disappears for this family outcome.",
-      "evidence": ["evidence.openstax.chemistry-2e.acid-base"],
-      "review": {"status": "provisional", "reviewers": []},
+      "evidence": [
+        "evidence.openstax.chemistry-2e.acid-base"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
       "rule_version": "1"
     },
     {
       "id": "premise.observation.water-forms",
       "statement": "Water is compatible with the authored observation predicate forms for this family outcome.",
-      "evidence": ["evidence.openstax.chemistry-2e.acid-base"],
-      "review": {"status": "provisional", "reviewers": []},
+      "evidence": [
+        "evidence.openstax.chemistry-2e.acid-base"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.traits.reaction-family-classification",
+      "statement": "Reaction-family traits are reviewed semantic assertions attached to exact structural sites. They classify a graph for screening without inferring that every member has identical strength, solubility, kinetics, or reaction conditions.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e.acid-base"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
       "rule_version": "1"
     }
   ],
@@ -61,33 +104,156 @@
     {
       "premise_id": "premise.valence.acid-base.initial-domain",
       "neutral_valence": [
-        {"element": "H", "neutral_valence_electrons": 1},
-        {"element": "O", "neutral_valence_electrons": 6},
-        {"element": "Li", "neutral_valence_electrons": 1},
-        {"element": "Na", "neutral_valence_electrons": 1},
-        {"element": "K", "neutral_valence_electrons": 1},
-        {"element": "Cl", "neutral_valence_electrons": 7},
-        {"element": "Br", "neutral_valence_electrons": 7},
-        {"element": "I", "neutral_valence_electrons": 7},
-        {"element": "F", "neutral_valence_electrons": 7}
+        {
+          "element": "H",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "O",
+          "neutral_valence_electrons": 6
+        },
+        {
+          "element": "Li",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "Na",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "K",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "Cl",
+          "neutral_valence_electrons": 7
+        },
+        {
+          "element": "Br",
+          "neutral_valence_electrons": 7
+        },
+        {
+          "element": "I",
+          "neutral_valence_electrons": 7
+        },
+        {
+          "element": "F",
+          "neutral_valence_electrons": 7
+        }
       ],
       "supported_states": [
-        {"element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
-        {"element": "H", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
-        {"element": "H", "formal_charge": 0, "non_bonding_electrons": 1, "unpaired_electrons": 1, "covalent_bond_order_sum": 0},
-        {"element": "O", "formal_charge": 0, "non_bonding_electrons": 4, "unpaired_electrons": 0, "covalent_bond_order_sum": 2},
-        {"element": "O", "formal_charge": -1, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
-        {"element": "O", "formal_charge": 0, "non_bonding_electrons": 5, "unpaired_electrons": 1, "covalent_bond_order_sum": 1},
-        {"element": "Li", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
-        {"element": "Na", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
-        {"element": "K", "formal_charge": 1, "non_bonding_electrons": 0, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
-        {"element": "Cl", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
-        {"element": "Br", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
-        {"element": "I", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
-        {"element": "F", "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0, "covalent_bond_order_sum": 1},
-        {"element": "Cl", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
-        {"element": "Br", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0},
-        {"element": "I", "formal_charge": -1, "non_bonding_electrons": 8, "unpaired_electrons": 0, "covalent_bond_order_sum": 0}
+        {
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "H",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "O",
+          "formal_charge": 0,
+          "non_bonding_electrons": 4,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 2
+        },
+        {
+          "element": "O",
+          "formal_charge": -1,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "O",
+          "formal_charge": 0,
+          "non_bonding_electrons": 5,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "Li",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Na",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "K",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cl",
+          "formal_charge": 0,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "Br",
+          "formal_charge": 0,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "I",
+          "formal_charge": 0,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "F",
+          "formal_charge": 0,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 1
+        },
+        {
+          "element": "Cl",
+          "formal_charge": -1,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Br",
+          "formal_charge": -1,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "I",
+          "formal_charge": -1,
+          "non_bonding_electrons": 8,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        }
       ],
       "metallic_domain_states": []
     }
@@ -99,156 +265,346 @@
       "representation": "molecular",
       "id": "Templates.HydrogenHalide",
       "parameters": {
-        "halide": {"kind": "element", "category": "Categories.Halide"}
+        "halide": {
+          "kind": "element",
+          "category": "Categories.Halide"
+        }
       },
       "atoms": [
-        {"label": "h", "element": "H", "formal_charge": 0, "non_bonding_electrons": 0, "unpaired_electrons": 0},
-        {"label": "x", "element": {"parameter": "halide"}, "formal_charge": 0, "non_bonding_electrons": 6, "unpaired_electrons": 0}
+        {
+          "label": "h",
+          "element": "H",
+          "formal_charge": 0,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0
+        },
+        {
+          "label": "x",
+          "element": {
+            "parameter": "halide"
+          },
+          "formal_charge": 0,
+          "non_bonding_electrons": 6,
+          "unpaired_electrons": 0
+        }
       ],
       "bonds": [
-        {"left": "h", "right": "x", "order": "single"}
+        {
+          "left": "h",
+          "right": "x",
+          "order": "single"
+        }
       ],
       "groups": [],
-      "premise_ids": ["premise.structure.hydrogen-halide"]
+      "premise_ids": [
+        "premise.structure.hydrogen-halide"
+      ],
+      "traits": [
+        {
+          "trait": "Traits.BronstedAcidProtonDonor",
+          "sites": {
+            "reactive_site": "h"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
+      ]
     }
   ],
   "structure_applications": [
     {
       "id": "HydrogenChloride",
       "template": "Templates.HydrogenHalide",
-      "arguments": {"halide": "Cl"},
+      "arguments": {
+        "halide": "Cl"
+      },
       "formula": "HCl",
-      "premise_ids": ["premise.structure.hydrogen-halide"]
+      "premise_ids": [
+        "premise.structure.hydrogen-halide"
+      ]
     },
     {
       "id": "HydrogenBromide",
       "template": "Templates.HydrogenHalide",
-      "arguments": {"halide": "Br"},
+      "arguments": {
+        "halide": "Br"
+      },
       "formula": "HBr",
-      "premise_ids": ["premise.structure.hydrogen-halide"]
+      "premise_ids": [
+        "premise.structure.hydrogen-halide"
+      ]
     },
     {
       "id": "HydrogenIodide",
       "template": "Templates.HydrogenHalide",
-      "arguments": {"halide": "I"},
+      "arguments": {
+        "halide": "I"
+      },
       "formula": "HI",
-      "premise_ids": ["premise.structure.hydrogen-halide"]
+      "premise_ids": [
+        "premise.structure.hydrogen-halide"
+      ]
     },
     {
       "id": "HydrogenFluoride",
       "template": "Templates.HydrogenHalide",
-      "arguments": {"halide": "F"},
+      "arguments": {
+        "halide": "F"
+      },
       "formula": "HF",
-      "premise_ids": ["premise.structure.hydrogen-halide"]
+      "premise_ids": [
+        "premise.structure.hydrogen-halide"
+      ]
     },
     {
       "id": "LithiumChloride",
       "template": "Templates.AlkaliMetalHalide",
-      "arguments": {"member": "Li", "halide": "Cl"},
+      "arguments": {
+        "member": "Li",
+        "halide": "Cl"
+      },
       "formula": "LiCl",
-      "premise_ids": ["premise.structure.alkali-metal-halide"]
+      "premise_ids": [
+        "premise.structure.alkali-metal-halide"
+      ]
     },
     {
       "id": "LithiumBromide",
       "template": "Templates.AlkaliMetalHalide",
-      "arguments": {"member": "Li", "halide": "Br"},
+      "arguments": {
+        "member": "Li",
+        "halide": "Br"
+      },
       "formula": "LiBr",
-      "premise_ids": ["premise.structure.alkali-metal-halide"]
+      "premise_ids": [
+        "premise.structure.alkali-metal-halide"
+      ]
     },
     {
       "id": "LithiumIodide",
       "template": "Templates.AlkaliMetalHalide",
-      "arguments": {"member": "Li", "halide": "I"},
+      "arguments": {
+        "member": "Li",
+        "halide": "I"
+      },
       "formula": "LiI",
-      "premise_ids": ["premise.structure.alkali-metal-halide"]
+      "premise_ids": [
+        "premise.structure.alkali-metal-halide"
+      ]
     },
     {
       "id": "PotassiumChloride",
       "template": "Templates.AlkaliMetalHalide",
-      "arguments": {"member": "K", "halide": "Cl"},
+      "arguments": {
+        "member": "K",
+        "halide": "Cl"
+      },
       "formula": "KCl",
-      "premise_ids": ["premise.structure.alkali-metal-halide"]
+      "premise_ids": [
+        "premise.structure.alkali-metal-halide"
+      ]
     },
     {
       "id": "PotassiumBromide",
       "template": "Templates.AlkaliMetalHalide",
-      "arguments": {"member": "K", "halide": "Br"},
+      "arguments": {
+        "member": "K",
+        "halide": "Br"
+      },
       "formula": "KBr",
-      "premise_ids": ["premise.structure.alkali-metal-halide"]
+      "premise_ids": [
+        "premise.structure.alkali-metal-halide"
+      ]
     },
     {
       "id": "PotassiumIodide",
       "template": "Templates.AlkaliMetalHalide",
-      "arguments": {"member": "K", "halide": "I"},
+      "arguments": {
+        "member": "K",
+        "halide": "I"
+      },
       "formula": "KI",
-      "premise_ids": ["premise.structure.alkali-metal-halide"]
+      "premise_ids": [
+        "premise.structure.alkali-metal-halide"
+      ]
     }
   ],
   "graph_patterns": [
     {
       "id": "Patterns.HydrogenHalide",
       "variables": {
-        "h": {"atom": {"element": "H"}},
-        "x": {"atom": {"element": {"parameter": "halide"}}}
+        "h": {
+          "atom": {
+            "element": "H"
+          }
+        },
+        "x": {
+          "atom": {
+            "element": {
+              "parameter": "halide"
+            }
+          }
+        }
       },
       "relationships": [
-        {"kind": "covalent", "bond": "hx", "left": "h", "right": "x", "order": "single"}
+        {
+          "kind": "covalent",
+          "bond": "hx",
+          "left": "h",
+          "right": "x",
+          "order": "single"
+        }
       ],
-      "premise_ids": ["premise.structure.hydrogen-halide"]
+      "premise_ids": [
+        "premise.structure.hydrogen-halide"
+      ]
     },
     {
       "id": "Patterns.AlkaliMetalHydroxideIonic",
       "variables": {
-        "cation": {"atom": {"element": {"parameter": "member"}, "formal_charge": 1}},
-        "o": {"atom": {"element": "O", "formal_charge": -1}},
-        "h": {"atom": {"element": "H"}}
+        "cation": {
+          "atom": {
+            "element": {
+              "parameter": "member"
+            },
+            "formal_charge": 1
+          }
+        },
+        "o": {
+          "atom": {
+            "element": "O",
+            "formal_charge": -1
+          }
+        },
+        "h": {
+          "atom": {
+            "element": "H"
+          }
+        }
       },
       "relationships": [
-        {"kind": "covalent", "bond": "oh", "left": "o", "right": "h", "order": "single"},
-        {"kind": "group_membership", "group": "cationGroup", "atoms": ["cation"]},
-        {"kind": "group_membership", "group": "hydroxideGroup", "atoms": ["o", "h"]},
-        {"kind": "ionic_association", "association": "salt", "groups": ["cationGroup", "hydroxideGroup"]}
+        {
+          "kind": "covalent",
+          "bond": "oh",
+          "left": "o",
+          "right": "h",
+          "order": "single"
+        },
+        {
+          "kind": "group_membership",
+          "group": "cationGroup",
+          "atoms": [
+            "cation"
+          ]
+        },
+        {
+          "kind": "group_membership",
+          "group": "hydroxideGroup",
+          "atoms": [
+            "o",
+            "h"
+          ]
+        },
+        {
+          "kind": "ionic_association",
+          "association": "salt",
+          "groups": [
+            "cationGroup",
+            "hydroxideGroup"
+          ]
+        }
       ],
-      "premise_ids": ["premise.structure.alkali-metal-hydroxide"]
+      "premise_ids": [
+        "premise.structure.alkali-metal-hydroxide"
+      ]
     }
   ],
   "generalized_rules": [
     {
       "id": "Rules.MonoproticAcidHydroxideNeutralization",
       "parameters": {
-        "member": {"kind": "element", "category": "Categories.AlkaliMetal"},
-        "halide": {"kind": "element", "category": "Categories.Halide"}
+        "member": {
+          "kind": "element",
+          "category": "Categories.AlkaliMetal"
+        },
+        "halide": {
+          "kind": "element",
+          "category": "Categories.Halide"
+        }
       },
       "roles": {
-        "acid": {"side": "reactant", "representation": "molecular", "coefficient": 1},
-        "base": {"side": "reactant", "representation": "ionic", "coefficient": 1},
-        "saltProduct": {"side": "product", "representation": "ionic", "coefficient": 1},
-        "waterProduct": {"side": "product", "representation": "molecular", "coefficient": 1}
+        "acid": {
+          "side": "reactant",
+          "representation": "molecular",
+          "coefficient": 1
+        },
+        "base": {
+          "side": "reactant",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "saltProduct": {
+          "side": "product",
+          "representation": "ionic",
+          "coefficient": 1
+        },
+        "waterProduct": {
+          "side": "product",
+          "representation": "molecular",
+          "coefficient": 1
+        }
       },
       "reactants": {
         "acid": {
           "kind": "template",
           "template": "Templates.HydrogenHalide",
-          "arguments": {"halide": {"parameter": "halide"}}
+          "arguments": {
+            "halide": {
+              "parameter": "halide"
+            }
+          }
         },
         "base": {
           "kind": "template",
           "template": "Templates.AlkaliMetalHydroxide",
-          "arguments": {"member": {"parameter": "member"}}
+          "arguments": {
+            "member": {
+              "parameter": "member"
+            }
+          }
         }
       },
       "cases": [
         {
           "status": "supported",
           "id": "standard",
-          "when": {"kind": "parameter_in_set", "parameter": "halide", "values": ["Cl", "Br", "I"]},
+          "when": {
+            "kind": "parameter_in_set",
+            "parameter": "halide",
+            "values": [
+              "Cl",
+              "Br",
+              "I"
+            ]
+          },
           "products": {
             "saltProduct": {
               "kind": "template",
               "template": "Templates.AlkaliMetalHalide",
-              "arguments": {"member": {"parameter": "member"}, "halide": {"parameter": "halide"}}
+              "arguments": {
+                "member": {
+                  "parameter": "member"
+                },
+                "halide": {
+                  "parameter": "halide"
+                }
+              }
             },
-            "waterProduct": {"kind": "exact", "structure": "Water"}
+            "waterProduct": {
+              "kind": "exact",
+              "structure": "Water"
+            }
           },
           "patterns": {
             "acid": "Patterns.HydrogenHalide",
@@ -258,77 +614,218 @@
             {
               "reactant": "acid[1].h",
               "product": "waterProduct[1].h2",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.hydrogen-halide", "premise.structure.water"]
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.hydrogen-halide",
+                "premise.structure.water"
+              ]
             },
             {
               "reactant": "acid[1].x",
               "product": "saltProduct[1].anion.anion",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.hydrogen-halide", "premise.structure.alkali-metal-halide"]
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.hydrogen-halide",
+                "premise.structure.alkali-metal-halide"
+              ]
             },
             {
               "reactant": "base[1].cation",
               "product": "saltProduct[1].cation.cation",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.alkali-metal-hydroxide", "premise.structure.alkali-metal-halide"]
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.alkali-metal-halide"
+              ]
             },
             {
               "reactant": "base[1].o",
               "product": "waterProduct[1].o",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.alkali-metal-hydroxide", "premise.structure.water"]
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water"
+              ]
             },
             {
               "reactant": "base[1].h",
               "product": "waterProduct[1].h1",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.alkali-metal-hydroxide", "premise.structure.water"]
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.water"
+              ]
             }
           ],
           "rewrite": [
             {
               "kind": "dissociate_ionic",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.alkali-metal-hydroxide"],
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide"
+              ],
               "association": "base[1].salt"
             },
             {
               "kind": "cleave_covalent",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.hydrogen-halide", "premise.valence.acid-base.initial-domain"],
-              "edge": ["acid[1].h", "acid[1].x", "single"],
-              "allocation": {"heterolytic_to": "acid[1].x"},
-              "before": {"left": [0, 0, 0], "right": [0, 6, 0]},
-              "after": {"left": [1, 0, 0], "right": [-1, 8, 0]}
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.hydrogen-halide",
+                "premise.valence.acid-base.initial-domain"
+              ],
+              "edge": [
+                "acid[1].h",
+                "acid[1].x",
+                "single"
+              ],
+              "allocation": {
+                "heterolytic_to": "acid[1].x"
+              },
+              "before": {
+                "left": [
+                  0,
+                  0,
+                  0
+                ],
+                "right": [
+                  0,
+                  6,
+                  0
+                ]
+              },
+              "after": {
+                "left": [
+                  1,
+                  0,
+                  0
+                ],
+                "right": [
+                  -1,
+                  8,
+                  0
+                ]
+              }
             },
             {
               "kind": "transfer_electron",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.alkali-metal-hydroxide", "premise.valence.acid-base.initial-domain"],
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.valence.acid-base.initial-domain"
+              ],
               "count": 1,
               "donor": "base[1].o",
               "acceptor": "acid[1].h",
-              "before": {"donor": [-1, 6, 0], "acceptor": [1, 0, 0]},
-              "after": {"donor": [0, 5, 1], "acceptor": [0, 1, 1]}
+              "before": {
+                "donor": [
+                  -1,
+                  6,
+                  0
+                ],
+                "acceptor": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "after": {
+                "donor": [
+                  0,
+                  5,
+                  1
+                ],
+                "acceptor": [
+                  0,
+                  1,
+                  1
+                ]
+              }
             },
             {
               "kind": "form_covalent",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.water", "premise.valence.acid-base.initial-domain"],
-              "edge": ["base[1].o", "acid[1].h", "single"],
-              "electron_contribution": {"left": 1, "right": 1},
-              "before": {"left": [0, 5, 1], "right": [0, 1, 1]},
-              "after": {"left": [0, 4, 0], "right": [0, 0, 0]}
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.water",
+                "premise.valence.acid-base.initial-domain"
+              ],
+              "edge": [
+                "base[1].o",
+                "acid[1].h",
+                "single"
+              ],
+              "electron_contribution": {
+                "left": 1,
+                "right": 1
+              },
+              "before": {
+                "left": [
+                  0,
+                  5,
+                  1
+                ],
+                "right": [
+                  0,
+                  1,
+                  1
+                ]
+              },
+              "after": {
+                "left": [
+                  0,
+                  4,
+                  0
+                ],
+                "right": [
+                  0,
+                  0,
+                  0
+                ]
+              }
             },
             {
               "kind": "associate_ionic",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.alkali-metal-halide", "premise.valence.acid-base.initial-domain"],
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.valence.acid-base.initial-domain"
+              ],
               "label": "ionic.salt",
-              "components": [["base[1].cation"], ["acid[1].x"]],
-              "component_charges": [1, -1]
+              "components": [
+                [
+                  "base[1].cation"
+                ],
+                [
+                  "acid[1].x"
+                ]
+              ],
+              "component_charges": [
+                1,
+                -1
+              ]
             },
             {
               "kind": "assign_product",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.alkali-metal-halide"],
-              "atoms": ["base[1].cation", "acid[1].x"],
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.alkali-metal-halide"
+              ],
+              "atoms": [
+                "base[1].cation",
+                "acid[1].x"
+              ],
               "product": "saltProduct[1]"
             },
             {
               "kind": "assign_product",
-              "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome", "premise.structure.water"],
-              "atoms": ["base[1].o", "base[1].h", "acid[1].h"],
+              "premise_ids": [
+                "premise.rule.acid-base-neutralization.standard-outcome",
+                "premise.structure.water"
+              ],
+              "atoms": [
+                "base[1].o",
+                "base[1].h",
+                "acid[1].h"
+              ],
               "product": "waterProduct[1]"
             }
           ],
@@ -360,10 +857,16 @@
         {
           "status": "unsupported",
           "id": "hydrofluoric-acid-weak",
-          "when": {"kind": "parameter_equals", "parameter": "halide", "value": "F"},
+          "when": {
+            "kind": "parameter_equals",
+            "parameter": "halide",
+            "value": "F"
+          },
           "required_feature": "Features.WeakAcidEquilibrium",
           "explanation": "Hydrofluoric acid is a weak acid with a partial dissociation equilibrium, a different reaction model from the strong-acid full dissociation this family represents.",
-          "premise_ids": ["premise.case.hydrofluoric-acid-unsupported"]
+          "premise_ids": [
+            "premise.case.hydrofluoric-acid-unsupported"
+          ]
         }
       ],
       "applicability": {
@@ -374,21 +877,116 @@
       "model_assumptions": {
         "event": "representative",
         "sequence": "explanatory",
-        "premise_ids": ["premise.rule.acid-base-neutralization.standard-outcome"]
+        "premise_ids": [
+          "premise.rule.acid-base-neutralization.standard-outcome"
+        ]
       },
       "premise_ids": [
-        "premise.elements.iupac-periodic-table",
-        "premise.rule.alkali-metal-water.standard-outcome",
-        "premise.category.halide",
-        "premise.structure.hydrogen-halide",
-        "premise.structure.alkali-metal-hydroxide",
-        "premise.structure.alkali-metal-halide",
-        "premise.structure.water",
-        "premise.rule.acid-base-neutralization.standard-outcome",
         "premise.case.hydrofluoric-acid-unsupported",
-        "premise.valence.acid-base.initial-domain",
+        "premise.category.halide",
+        "premise.elements.iupac-periodic-table",
         "premise.observation.acid-disappears",
-        "premise.observation.water-forms"
+        "premise.observation.water-forms",
+        "premise.rule.acid-base-neutralization.standard-outcome",
+        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.structure.alkali-metal-halide",
+        "premise.structure.alkali-metal-hydroxide",
+        "premise.structure.hydrogen-halide",
+        "premise.structure.water",
+        "premise.traits.reaction-family-classification",
+        "premise.valence.acid-base.initial-domain"
+      ]
+    }
+  ],
+  "structural_traits": [
+    {
+      "id": "Traits.BronstedAcidProtonDonor",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.HydroxideBase",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.CarbonateBase",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.SolubleIonicReactant",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.InsolubleIonicProduct",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.ElementalMetalReactant",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.HalogenOxidant",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.OxygenOxidant",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.CombustibleFuel",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
+      ]
+    },
+    {
+      "id": "Traits.WaterReactant",
+      "sites": {
+        "reactive_site": "atom"
+      },
+      "premise_ids": [
+        "premise.traits.reaction-family-classification"
       ]
     }
   ]

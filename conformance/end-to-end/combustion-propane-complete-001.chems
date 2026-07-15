@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction PropaneCompleteCombustion where
+  reactants
+    fuel := 1 of Propane
+    oxygen := 5 of Oxygen
+  products
+    carbonDioxide := 3 of CarbonDioxide
+    water := 4 of Water
+  equation
+    1 C3H8[molecular] + 5 O2[molecular]
+    -> 3 CO2[molecular] + 4 H2O[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.PropaneCombustion@1
+    product carbonDioxide forms claim R1
+  by
+    apply Rules.PropaneCompleteCombustion
+      fuel := fuel
+      oxygen := oxygen
+      carbonDioxide := carbonDioxide
+      water := water

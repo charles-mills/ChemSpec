@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction PentaneCompleteCombustion where
+  reactants
+    fuel := 1 of Pentane
+    oxygen := 8 of Oxygen
+  products
+    carbonDioxide := 5 of CarbonDioxide
+    water := 6 of Water
+  equation
+    1 C5H12[molecular] + 8 O2[molecular]
+    -> 5 CO2[molecular] + 6 H2O[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.PentaneCombustion@1
+    product carbonDioxide forms claim R1
+  by
+    apply Rules.PentaneCompleteCombustion
+      fuel := fuel
+      oxygen := oxygen
+      carbonDioxide := carbonDioxide
+      water := water

@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction OsAndOxygenToTransitionG8TetroxideWithOzone where
+  reactants
+    subject := 3 of OsTransitionG8TetroxideMetalForOxygen
+    oxygen := 4 of Ozone
+  products
+    oxide := 3 of OsTransitionG8TetroxideOxide
+  equation
+    3 Os[metallic] + 4 O3[molecular]
+    -> 3 OsO4[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG8Tetroxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

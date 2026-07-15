@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction MagnesiumDisplacesIron where
+  reactants
+    displacing := 1 of DisplacementMagnesiumMetal
+    saltSource := 1 of DisplacementIronChloride
+  products
+    saltProduct := 1 of DisplacementMagnesiumChloride
+    metalProduct := 1 of DisplacementIronMetal
+  equation
+    1 Mg[metallic] + 1 FeCl2[ionic]
+    -> 1 MgCl2[ionic] + 1 Fe[metallic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.MagnesiumDisplacesIron@1
+    product saltProduct forms claim R1
+  by
+    apply Rules.MagnesiumDisplacesIron
+      displacing := displacing
+      saltSource := saltSource
+      saltProduct := saltProduct
+      metalProduct := metalProduct

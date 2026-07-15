@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CoAndOxygenToTransitionG9MonoxideWithOzone where
+  reactants
+    subject := 6 of CoTransitionG9MonoxideMetalForOxygen
+    oxygen := 2 of Ozone
+  products
+    oxide := 6 of CoTransitionG9MonoxideOxide
+  equation
+    6 Co[metallic] + 2 O3[molecular]
+    -> 6 CoO[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG9Monoxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

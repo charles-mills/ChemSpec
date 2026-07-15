@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction BariumSulfatePrecipitation where
+  reactants
+    metalSource := 1 of PrecipitationBariumChloride
+    reagent := 1 of PrecipitationSodiumSulfate
+  products
+    precipitate := 1 of PrecipitationBariumSulfate
+    spectator := 2 of PrecipitationSodiumChloride
+  equation
+    1 BaCl2[ionic] + 1 Na2SO4[ionic]
+    -> 1 BaSO4[ionic] + 2 NaCl[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.BariumSulfatePrecipitation@1
+    product precipitate forms claim R1
+  by
+    apply Rules.BariumSulfatePrecipitation
+      metalSource := metalSource
+      reagent := reagent
+      precipitate := precipitate
+      spectator := spectator

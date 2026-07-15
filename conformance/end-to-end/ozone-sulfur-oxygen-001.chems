@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction SulfurAndOxygenWithOzone where
+  reactants
+    subject := 3 of SForOxygen
+    oxygen := 2 of Ozone
+  products
+    oxide := 3 of SSulfurDioxide
+  equation
+    3 S[molecular] + 2 O3[molecular]
+    -> 3 SO2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneSulfurDioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

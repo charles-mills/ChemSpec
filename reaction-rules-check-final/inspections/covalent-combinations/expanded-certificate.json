@@ -1,0 +1,1550 @@
+{
+  "artifact": "expanded-certificate",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "atom_provenance": {
+      "compound[1].h": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance compound[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom compound[1].h"
+          }
+        ],
+        "evidence": []
+      },
+      "compound[1].x": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance compound[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom compound[1].x"
+          }
+        ],
+        "evidence": []
+      },
+      "compound[2].h": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance compound[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom compound[2].h"
+          }
+        ],
+        "evidence": []
+      },
+      "compound[2].x": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance compound[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom compound[2].x"
+          }
+        ],
+        "evidence": []
+      },
+      "halogen[1].x1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance halogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine expanded atom halogen[1].x1"
+          }
+        ],
+        "evidence": []
+      },
+      "halogen[1].x2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance halogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine expanded atom halogen[1].x2"
+          }
+        ],
+        "evidence": []
+      },
+      "hydrogen[1].h1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "coefficient instance hydrogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen expanded atom hydrogen[1].h1"
+          }
+        ],
+        "evidence": []
+      },
+      "hydrogen[1].h2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "coefficient instance hydrogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen expanded atom hydrogen[1].h2"
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "claim": {
+      "catalogue": {
+        "digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "name": "ChemSpec.Theoretical",
+        "trust": "review_candidate",
+        "version": "1"
+      },
+      "equation": [
+        {
+          "binding": "halogen",
+          "coefficient": 1,
+          "formula": {
+            "Cl": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure Chlorine"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant"
+        },
+        {
+          "binding": "hydrogen",
+          "coefficient": 1,
+          "formula": {
+            "H": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.hydrogen"
+                ],
+                "record": "structure Hydrogen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant"
+        },
+        {
+          "binding": "compound",
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "H": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure HydrogenChloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product"
+        }
+      ],
+      "evidence": {
+        "digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_subject": "product",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "compound",
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_subject": "element",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.covalent-combinations"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.CovalentCombination@1",
+                  "packet_digest": "001a10d14f4023a2b42ba7a07ee3e8c9e4173af22c384e8e9ddcc6ba908ecfd7",
+                  "sources": [
+                    "S1",
+                    "S2"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "halogen",
+            "value": null
+          }
+        ],
+        "packet": {
+          "name": "Evidence.CovalentCombination",
+          "version": "1"
+        },
+        "trust": "external_untrusted"
+      },
+      "model": {
+        "event": "representative",
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.covalent-combinations.reviewed-outcomes"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination model assumptions"
+            }
+          ],
+          "evidence": []
+        },
+        "sequence": "explanatory"
+      },
+      "products": {
+        "compound": {
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "H": 1
+          },
+          "name": "compound",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure HydrogenChloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product",
+          "structure": "HydrogenChloride"
+        }
+      },
+      "reactants": {
+        "halogen": {
+          "coefficient": 1,
+          "formula": {
+            "Cl": 2
+          },
+          "name": "halogen",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure Chlorine"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant",
+          "structure": "Chlorine"
+        },
+        "hydrogen": {
+          "coefficient": 1,
+          "formula": {
+            "H": 2
+          },
+          "name": "hydrogen",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.hydrogen"
+                ],
+                "record": "structure Hydrogen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant",
+          "structure": "Hydrogen"
+        }
+      },
+      "reaction": "HClFromElements",
+      "rule": {
+        "applicability": {
+          "premise": "premise.rule.covalent-combinations.reviewed-outcomes",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.covalent-combinations",
+                  "premise.rule.covalent-combinations.reviewed-outcomes",
+                  "premise.structure.covalent-combinations.explicit-graphs",
+                  "premise.structure.diatomic-halogen",
+                  "premise.structure.hydrogen",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.covalent-combinations.closed-domain"
+                ],
+                "record": "generalized rule Rules.HydrogenHalideCombination selected applicability"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.covalent-combinations.reviewed-outcomes"
+                ],
+                "record": "rule Rules.HydrogenHalideCombination applicability"
+              }
+            ],
+            "evidence": []
+          },
+          "reactant_structures": [
+            "Chlorine",
+            "Hydrogen"
+          ],
+          "request_relation": "contact",
+          "required_context": "selected theoretical covalent-combination outcome from the reviewed finite catalogue"
+        },
+        "bindings": {
+          "compound": {
+            "binding": "compound",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.covalent-combinations",
+                    "premise.rule.covalent-combinations.reviewed-outcomes",
+                    "premise.structure.covalent-combinations.explicit-graphs",
+                    "premise.structure.diatomic-halogen",
+                    "premise.structure.hydrogen",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.covalent-combinations.closed-domain"
+                  ],
+                  "record": "generalized rule Rules.HydrogenHalideCombination role compound"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.covalent-combinations.reviewed-outcomes"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination role compound"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "compound",
+            "side": "product"
+          },
+          "halogen": {
+            "binding": "halogen",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.covalent-combinations",
+                    "premise.rule.covalent-combinations.reviewed-outcomes",
+                    "premise.structure.covalent-combinations.explicit-graphs",
+                    "premise.structure.diatomic-halogen",
+                    "premise.structure.hydrogen",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.covalent-combinations.closed-domain"
+                  ],
+                  "record": "generalized rule Rules.HydrogenHalideCombination role halogen"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.covalent-combinations.reviewed-outcomes"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination role halogen"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "halogen",
+            "side": "reactant"
+          },
+          "hydrogen": {
+            "binding": "hydrogen",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.covalent-combinations",
+                    "premise.rule.covalent-combinations.reviewed-outcomes",
+                    "premise.structure.covalent-combinations.explicit-graphs",
+                    "premise.structure.diatomic-halogen",
+                    "premise.structure.hydrogen",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.covalent-combinations.closed-domain"
+                  ],
+                  "record": "generalized rule Rules.HydrogenHalideCombination role hydrogen"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.covalent-combinations.reviewed-outcomes"
+                  ],
+                  "record": "rule Rules.HydrogenHalideCombination role hydrogen"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "hydrogen",
+            "side": "reactant"
+          }
+        },
+        "generalized": {
+          "case_id": "reviewed-outcome",
+          "equivalent_match_count": 4,
+          "matched_sites": {
+            "halogen[1]": {
+              "bond1": "bond.0",
+              "x1": "x1",
+              "x2": "x2"
+            },
+            "hydrogen[1]": {
+              "bond1": "bond.0",
+              "h1": "h1",
+              "h2": "h2"
+            }
+          },
+          "parameter_premises": {
+            "halide": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table"
+            ]
+          },
+          "parameters": {
+            "halide": "Cl"
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.covalent-combinations",
+                  "premise.rule.covalent-combinations.reviewed-outcomes",
+                  "premise.structure.covalent-combinations.explicit-graphs",
+                  "premise.structure.diatomic-halogen",
+                  "premise.structure.hydrogen",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.covalent-combinations.closed-domain"
+                ],
+                "record": "generalized rule Rules.HydrogenHalideCombination case reviewed-outcome"
+              }
+            ],
+            "evidence": []
+          },
+          "role_premises": {
+            "compound": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.covalent-combinations",
+              "premise.rule.covalent-combinations.reviewed-outcomes",
+              "premise.structure.covalent-combinations.explicit-graphs",
+              "premise.structure.diatomic-halogen",
+              "premise.structure.hydrogen",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.covalent-combinations.closed-domain"
+            ],
+            "halogen": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.covalent-combinations",
+              "premise.rule.covalent-combinations.reviewed-outcomes",
+              "premise.structure.covalent-combinations.explicit-graphs",
+              "premise.structure.diatomic-halogen",
+              "premise.structure.hydrogen",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.covalent-combinations.closed-domain"
+            ],
+            "hydrogen": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.covalent-combinations",
+              "premise.rule.covalent-combinations.reviewed-outcomes",
+              "premise.structure.covalent-combinations.explicit-graphs",
+              "premise.structure.diatomic-halogen",
+              "premise.structure.hydrogen",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.covalent-combinations.closed-domain"
+            ]
+          }
+        },
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.covalent-combinations",
+                "premise.rule.covalent-combinations.reviewed-outcomes",
+                "premise.structure.covalent-combinations.explicit-graphs",
+                "premise.structure.diatomic-halogen",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.covalent-combinations.closed-domain"
+              ],
+              "record": "generalized rule Rules.HydrogenHalideCombination selected certificate"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.covalent-combinations.reviewed-outcomes"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination"
+            }
+          ],
+          "evidence": []
+        },
+        "rule": "Rules.HydrogenHalideCombination"
+      }
+    },
+    "mapping": {
+      "entries": {
+        "halogen[1].x1": "compound[1].x",
+        "halogen[1].x2": "compound[2].x",
+        "hydrogen[1].h1": "compound[1].h",
+        "hydrogen[1].h2": "compound[2].h"
+      },
+      "id": "mapping.HClFromElements"
+    },
+    "mapping_entry_provenance": {
+      "halogen[1].x1": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.covalent-combinations",
+          "premise.rule.covalent-combinations.reviewed-outcomes",
+          "premise.structure.covalent-combinations.explicit-graphs",
+          "premise.structure.diatomic-halogen",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.covalent-combinations.closed-domain"
+        ],
+        "record": "rule Rules.HydrogenHalideCombination mapping pair 1"
+      },
+      "halogen[1].x2": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.covalent-combinations",
+          "premise.rule.covalent-combinations.reviewed-outcomes",
+          "premise.structure.covalent-combinations.explicit-graphs",
+          "premise.structure.diatomic-halogen",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.covalent-combinations.closed-domain"
+        ],
+        "record": "rule Rules.HydrogenHalideCombination mapping pair 2"
+      },
+      "hydrogen[1].h1": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.covalent-combinations",
+          "premise.rule.covalent-combinations.reviewed-outcomes",
+          "premise.structure.covalent-combinations.explicit-graphs",
+          "premise.structure.diatomic-halogen",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.covalent-combinations.closed-domain"
+        ],
+        "record": "rule Rules.HydrogenHalideCombination mapping pair 3"
+      },
+      "hydrogen[1].h2": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.covalent-combinations",
+          "premise.rule.covalent-combinations.reviewed-outcomes",
+          "premise.structure.covalent-combinations.explicit-graphs",
+          "premise.structure.diatomic-halogen",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.covalent-combinations.closed-domain"
+        ],
+        "record": "rule Rules.HydrogenHalideCombination mapping pair 4"
+      }
+    },
+    "mapping_provenance": {
+      "catalogue": [
+        {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.category.halide",
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.covalent-combinations",
+            "premise.rule.covalent-combinations.reviewed-outcomes",
+            "premise.structure.covalent-combinations.explicit-graphs",
+            "premise.structure.diatomic-halogen",
+            "premise.structure.hydrogen",
+            "premise.structure.hydrogen-halide",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.covalent-combinations.closed-domain"
+          ],
+          "record": "rule Rules.HydrogenHalideCombination atom mapping template"
+        }
+      ],
+      "evidence": []
+    },
+    "operations": [
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "homolytic",
+          "expected_order": "single",
+          "id": "operation[1]",
+          "kind": "cleave_covalent",
+          "left": "hydrogen[1].h1",
+          "right": "hydrogen[1].h2",
+          "transitions": {
+            "hydrogen[1].h1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "hydrogen[1].h1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "hydrogen[1].h2": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "hydrogen[1].h2",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.covalent-combinations",
+                "premise.rule.covalent-combinations.reviewed-outcomes",
+                "premise.structure.covalent-combinations.explicit-graphs",
+                "premise.structure.diatomic-halogen",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.covalent-combinations.closed-domain"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination operation template 1"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "homolytic",
+          "expected_order": "single",
+          "id": "operation[2]",
+          "kind": "cleave_covalent",
+          "left": "halogen[1].x1",
+          "right": "halogen[1].x2",
+          "transitions": {
+            "halogen[1].x1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              },
+              "atom": "halogen[1].x1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            },
+            "halogen[1].x2": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              },
+              "atom": "halogen[1].x2",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.covalent-combinations",
+                "premise.rule.covalent-combinations.reviewed-outcomes",
+                "premise.structure.covalent-combinations.explicit-graphs",
+                "premise.structure.diatomic-halogen",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.covalent-combinations.closed-domain"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination operation template 2"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": {
+          "left": 1,
+          "right": 1
+        },
+        "ionic_components": [],
+        "operation": {
+          "id": "operation[3]",
+          "kind": "form_covalent",
+          "left": "hydrogen[1].h1",
+          "order": "single",
+          "right": "halogen[1].x1",
+          "transitions": {
+            "halogen[1].x1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "atom": "halogen[1].x1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              }
+            },
+            "hydrogen[1].h1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "hydrogen[1].h1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 3,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.covalent-combinations",
+                "premise.rule.covalent-combinations.reviewed-outcomes",
+                "premise.structure.covalent-combinations.explicit-graphs",
+                "premise.structure.diatomic-halogen",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.covalent-combinations.closed-domain"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination operation template 3"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "halogen[1].x1",
+            "hydrogen[1].h1"
+          ],
+          "id": "operation[4]",
+          "kind": "assign_product",
+          "product": "compound[1]"
+        },
+        "ordinal": 4,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.covalent-combinations",
+                "premise.rule.covalent-combinations.reviewed-outcomes",
+                "premise.structure.covalent-combinations.explicit-graphs",
+                "premise.structure.diatomic-halogen",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.covalent-combinations.closed-domain"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination operation template 4"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": {
+          "left": 1,
+          "right": 1
+        },
+        "ionic_components": [],
+        "operation": {
+          "id": "operation[5]",
+          "kind": "form_covalent",
+          "left": "hydrogen[1].h2",
+          "order": "single",
+          "right": "halogen[1].x2",
+          "transitions": {
+            "halogen[1].x2": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "atom": "halogen[1].x2",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              }
+            },
+            "hydrogen[1].h2": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "hydrogen[1].h2",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 5,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.covalent-combinations",
+                "premise.rule.covalent-combinations.reviewed-outcomes",
+                "premise.structure.covalent-combinations.explicit-graphs",
+                "premise.structure.diatomic-halogen",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.covalent-combinations.closed-domain"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination operation template 5"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "halogen[1].x2",
+            "hydrogen[1].h2"
+          ],
+          "id": "operation[6]",
+          "kind": "assign_product",
+          "product": "compound[2]"
+        },
+        "ordinal": 6,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.covalent-combinations",
+                "premise.rule.covalent-combinations.reviewed-outcomes",
+                "premise.structure.covalent-combinations.explicit-graphs",
+                "premise.structure.diatomic-halogen",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.covalent-combinations.closed-domain"
+              ],
+              "record": "rule Rules.HydrogenHalideCombination operation template 6"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    ],
+    "premise_provenance": {
+      "premise.category.halide": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide"
+        ],
+        "record": "catalogue premise premise.category.halide"
+      },
+      "premise.elements.iupac-periodic-table": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table"
+        ],
+        "record": "catalogue premise premise.elements.iupac-periodic-table"
+      },
+      "premise.observation.covalent-combinations": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.observation.covalent-combinations"
+        ],
+        "record": "catalogue premise premise.observation.covalent-combinations"
+      },
+      "premise.rule.covalent-combinations.reviewed-outcomes": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.rule.covalent-combinations.reviewed-outcomes"
+        ],
+        "record": "catalogue premise premise.rule.covalent-combinations.reviewed-outcomes"
+      },
+      "premise.structure.covalent-combinations.explicit-graphs": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.covalent-combinations.explicit-graphs"
+        ],
+        "record": "catalogue premise premise.structure.covalent-combinations.explicit-graphs"
+      },
+      "premise.structure.diatomic-halogen": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.diatomic-halogen"
+        ],
+        "record": "catalogue premise premise.structure.diatomic-halogen"
+      },
+      "premise.structure.hydrogen": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.hydrogen"
+        ],
+        "record": "catalogue premise premise.structure.hydrogen"
+      },
+      "premise.structure.hydrogen-halide": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.hydrogen-halide"
+        ],
+        "record": "catalogue premise premise.structure.hydrogen-halide"
+      },
+      "premise.traits.reaction-family-classification": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.traits.reaction-family-classification"
+        ],
+        "record": "catalogue premise premise.traits.reaction-family-classification"
+      },
+      "premise.valence.covalent-combinations.closed-domain": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.valence.covalent-combinations.closed-domain"
+        ],
+        "record": "catalogue premise premise.valence.covalent-combinations.closed-domain"
+      }
+    },
+    "premises": [
+      "premise.category.halide",
+      "premise.elements.iupac-periodic-table",
+      "premise.observation.covalent-combinations",
+      "premise.rule.covalent-combinations.reviewed-outcomes",
+      "premise.structure.covalent-combinations.explicit-graphs",
+      "premise.structure.diatomic-halogen",
+      "premise.structure.hydrogen",
+      "premise.structure.hydrogen-halide",
+      "premise.traits.reaction-family-classification",
+      "premise.valence.covalent-combinations.closed-domain"
+    ],
+    "product_instances": {
+      "compound[1]": {
+        "binding": "compound",
+        "instance": {
+          "atom_relabeling": {
+            "h": "compound[1].h",
+            "x": "compound[1].x"
+          },
+          "graph": {
+            "atoms": {
+              "compound[1].h": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "compound[1].h"
+              },
+              "compound[1].x": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "compound[1].x"
+              }
+            },
+            "covalent_bonds": {
+              "compound[1].bond.0": {
+                "id": "compound[1].bond.0",
+                "left": "compound[1].h",
+                "order": "single",
+                "right": "compound[1].x"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "compound[1]",
+          "structure": "HydrogenChloride"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance compound[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "compound[2]": {
+        "binding": "compound",
+        "instance": {
+          "atom_relabeling": {
+            "h": "compound[2].h",
+            "x": "compound[2].x"
+          },
+          "graph": {
+            "atoms": {
+              "compound[2].h": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "compound[2].h"
+              },
+              "compound[2].x": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "compound[2].x"
+              }
+            },
+            "covalent_bonds": {
+              "compound[2].bond.0": {
+                "id": "compound[2].bond.0",
+                "left": "compound[2].h",
+                "order": "single",
+                "right": "compound[2].x"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "compound[2]",
+          "structure": "HydrogenChloride"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance compound[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "reactant_instances": {
+      "halogen[1]": {
+        "binding": "halogen",
+        "instance": {
+          "atom_relabeling": {
+            "x1": "halogen[1].x1",
+            "x2": "halogen[1].x2"
+          },
+          "graph": {
+            "atoms": {
+              "halogen[1].x1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "halogen[1].x1"
+              },
+              "halogen[1].x2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "halogen[1].x2"
+              }
+            },
+            "covalent_bonds": {
+              "halogen[1].bond.0": {
+                "id": "halogen[1].bond.0",
+                "left": "halogen[1].x1",
+                "order": "single",
+                "right": "halogen[1].x2"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "halogen[1]",
+          "structure": "Chlorine"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance halogen[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure Chlorine"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "hydrogen[1]": {
+        "binding": "hydrogen",
+        "instance": {
+          "atom_relabeling": {
+            "h1": "hydrogen[1].h1",
+            "h2": "hydrogen[1].h2"
+          },
+          "graph": {
+            "atoms": {
+              "hydrogen[1].h1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "hydrogen[1].h1"
+              },
+              "hydrogen[1].h2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "hydrogen[1].h2"
+              }
+            },
+            "covalent_bonds": {
+              "hydrogen[1].bond.0": {
+                "id": "hydrogen[1].bond.0",
+                "left": "hydrogen[1].h1",
+                "order": "single",
+                "right": "hydrogen[1].h2"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "hydrogen[1]",
+          "structure": "Hydrogen"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.hydrogen"
+              ],
+              "record": "coefficient instance hydrogen[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.hydrogen"
+              ],
+              "record": "structure Hydrogen"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "schema_version": 1
+  }
+}

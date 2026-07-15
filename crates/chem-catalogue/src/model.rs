@@ -62,8 +62,62 @@ pub struct ElementRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<u8>,
     pub block: ElementBlockRecord,
+    #[serde(default, skip_serializing_if = "ElementReactionFactsRecord::is_empty")]
+    pub reaction_facts: ElementReactionFactsRecord,
     #[serde(deserialize_with = "deserialize_unique_set")]
     pub premise_ids: BTreeSet<PremiseId>,
+}
+
+/// Reviewed, context-specific facts used when screening reaction families.
+///
+/// These are deliberately not collapsed into a single "reactivity" value:
+/// displacement against hydrogen, metal displacement, halogen displacement,
+/// and reaction with water are different chemical comparisons.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ElementReactionFactsRecord {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub common_ionic_charges: Vec<i16>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub activity_ranks: Vec<ActivityRankRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub water_reactivity: Option<WaterReactivityRecord>,
+}
+
+impl ElementReactionFactsRecord {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.common_ionic_charges.is_empty()
+            && self.activity_ranks.is_empty()
+            && self.water_reactivity.is_none()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActivityRankRecord {
+    pub series: ActivitySeriesRecord,
+    /// Larger values mean the element is the stronger displacing reactant in
+    /// this series. Values are meaningful only within the named series.
+    pub rank: i16,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActivitySeriesRecord {
+    MetalDisplacement,
+    HydrogenDisplacement,
+    HalogenDisplacement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WaterReactivityRecord {
+    ColdWater,
+    SteamOnly,
+    NoModelledReaction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

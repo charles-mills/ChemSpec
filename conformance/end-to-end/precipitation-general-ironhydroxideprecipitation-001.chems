@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction IronHydroxidePrecipitation where
+  reactants
+    metalSource := 1 of PrecipitationIronChloride
+    reagent := 3 of PrecipitationSodiumHydroxide
+  products
+    precipitate := 1 of PrecipitationIronHydroxide
+    spectator := 3 of PrecipitationSodiumChloride
+  equation
+    1 FeCl3[ionic] + 3 NaOH[ionic]
+    -> 1 FeO3H3[ionic] + 3 NaCl[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IronHydroxidePrecipitation@1
+    product precipitate forms claim R1
+  by
+    apply Rules.IronHydroxidePrecipitation
+      metalSource := metalSource
+      reagent := reagent
+      precipitate := precipitate
+      spectator := spectator

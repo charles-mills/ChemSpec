@@ -15,6 +15,7 @@ use crate::{chemistry, elements};
 pub enum CompositionId {
     Hydrogen,
     Oxygen,
+    Ozone,
     Water,
     LithiumHydroxide,
     SodiumHydroxide,
@@ -80,6 +81,12 @@ pub const SUPPORTED: &[CompositionPreview] = &[
         formula: "O₂",
         name: "Oxygen",
         atoms: &[(8, 2)],
+    },
+    CompositionPreview {
+        id: CompositionId::Ozone,
+        formula: "O3",
+        name: "Ozone",
+        atoms: &[(8, 3)],
     },
     CompositionPreview {
         id: CompositionId::Water,
@@ -308,6 +315,43 @@ pub fn trusted_preview_by_structure_id(id: &str) -> Option<TrustedCompositionPre
                 .map(|application| (&application.id, application.formula.as_str()))
         })?;
     preview_from_definition(catalogue.structure(structure.0)?, structure.1)
+}
+
+/// Matches a registry formula through the trusted structural catalogue rather
+/// than the legacy UI preview table. The atom inventory must resolve to one
+/// unambiguous topology, and that topology must be isomorphic to a catalogue
+/// structure carrying the requested formula.
+pub fn trusted_formula_matches(
+    formula: &str,
+    atomic_numbers: impl IntoIterator<Item = u8>,
+) -> bool {
+    let Some(preview) = trusted_preview(atomic_numbers) else {
+        return false;
+    };
+    let Ok(catalogue) = chemistry::trusted_catalogue() else {
+        return false;
+    };
+    let definitions = catalogue
+        .document()
+        .structures
+        .iter()
+        .filter(|record| record.formula() == formula)
+        .map(|record| record.id())
+        .chain(
+            catalogue
+                .document()
+                .structure_applications
+                .iter()
+                .filter(|application| application.formula == formula)
+                .map(|application| &application.id),
+        );
+    definitions
+        .filter_map(|id| catalogue.structure(id))
+        .any(|definition| {
+            preview_from_definition(definition, formula).is_some_and(|candidate| {
+                previews_are_isomorphic(&preview, &candidate).is_some_and(|value| value)
+            })
+        })
 }
 
 fn resolve_with_catalogue(

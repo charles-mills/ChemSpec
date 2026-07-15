@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction BoronAndOxygenWithOzone where
+  reactants
+    subject := 12 of BForOxygen
+    oxygen := 6 of Ozone
+  products
+    oxide := 6 of BBoronOxide
+  equation
+    12 B[molecular] + 6 O3[molecular]
+    -> 6 B2O3[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneBoronOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction StrontiumWithHydrogenChloride where
+  reactants
+    metal := 1 of SrFixedCation2Metal
+    acid := 2 of HydrogenChloride
+  products
+    salt := 1 of SrFixedCation2Chloride
+    hydrogen := 1 of Hydrogen
+  equation
+    1 Sr[metallic] + 2 HCl[molecular]
+    -> 1 SrCl2[ionic] + 1 H2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.MetalAcidStrontiumChloride@1
+    gas hydrogen evolves claim R1
+  by
+    apply Rules.FixedCation2WithNonOxidisingAcid
+      metal := metal
+      acid := acid
+      salt := salt
+      hydrogen := hydrogen

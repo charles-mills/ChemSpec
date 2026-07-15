@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction MoAndOxygenToTransitionG6TrioxideWithOzone where
+  reactants
+    subject := 6 of MoTransitionG6TrioxideMetalForOxygen
+    oxygen := 6 of Ozone
+  products
+    oxide := 6 of MoTransitionG6TrioxideOxide
+  equation
+    6 Mo[metallic] + 6 O3[molecular]
+    -> 6 MoO3[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG6Trioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

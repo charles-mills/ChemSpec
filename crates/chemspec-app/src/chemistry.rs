@@ -373,6 +373,10 @@ pub enum ReactionFamily {
     Oxygen,
     FixedChargeIonPair,
     CovalentCombination,
+    MetalAcid,
+    Combustion,
+    MetalDisplacement,
+    Precipitation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -666,6 +670,9 @@ impl ReactionRequest {
     }
 
     fn evidence(self) -> &'static [u8] {
+        if let Some(definition) = self.definition() {
+            return definition.evidence.as_bytes();
+        }
         match self.family() {
             ReactionFamily::AlkaliWater => ALKALI_WATER_EVIDENCE,
             ReactionFamily::SilverHalidePrecipitation => PRECIPITATION_EVIDENCE,
@@ -675,7 +682,11 @@ impl ReactionRequest {
             ReactionFamily::HalogenDisplacement => HALOGEN_DISPLACEMENT_EVIDENCE,
             ReactionFamily::Oxygen
             | ReactionFamily::FixedChargeIonPair
-            | ReactionFamily::CovalentCombination => self
+            | ReactionFamily::CovalentCombination
+            | ReactionFamily::MetalAcid
+            | ReactionFamily::Combustion
+            | ReactionFamily::MetalDisplacement
+            | ReactionFamily::Precipitation => self
                 .definition()
                 .expect("registry family has a generated definition")
                 .evidence
@@ -980,8 +991,7 @@ fn registry_participant_matches(expected: ExperienceParticipantDefinition, atoms
             elemental_identity(atoms) == Some(atomic_number)
         }
         ExperienceParticipantDefinition::Composition(formula) => {
-            composition_catalogue::recognize(atoms.iter().copied())
-                .is_some_and(|preview| preview.formula == formula)
+            composition_catalogue::trusted_formula_matches(formula, atoms.iter().copied())
         }
     }
 }
@@ -1375,7 +1385,10 @@ pub fn presentation_profile(
                     },
                     PresentationObject {
                         id: "product".to_owned(),
-                        asset: if definition.family == ReactionFamily::CovalentCombination {
+                        asset: if matches!(
+                            definition.family,
+                            ReactionFamily::CovalentCombination | ReactionFamily::Combustion
+                        ) {
                             AssetProfile::GasCloud
                         } else {
                             AssetProfile::CrystalCluster
@@ -1462,14 +1475,34 @@ mod tests {
         match participant {
             ExperienceParticipantDefinition::Element(atomic_number) => vec![atomic_number],
             ExperienceParticipantDefinition::Composition(formula) => {
-                composition_catalogue::SUPPORTED
+                let catalogue = trusted_catalogue().expect("trusted catalogue");
+                let definition = catalogue
+                    .document()
+                    .structures
                     .iter()
-                    .find(|preview| preview.formula == formula)
-                    .unwrap_or_else(|| panic!("registry composition `{formula}` is not recognized"))
-                    .atoms
+                    .find(|record| record.formula() == formula)
+                    .map(|record| record.id())
+                    .or_else(|| {
+                        catalogue
+                            .document()
+                            .structure_applications
+                            .iter()
+                            .find(|application| application.formula == formula)
+                            .map(|application| &application.id)
+                    })
+                    .and_then(|id| catalogue.structure(id))
+                    .unwrap_or_else(|| panic!("registry formula `{formula}` is not catalogued"));
+                definition
+                    .formula()
+                    .elements()
                     .iter()
-                    .flat_map(|(atomic_number, count)| {
-                        std::iter::repeat_n(*atomic_number, usize::from(*count))
+                    .flat_map(|(symbol, count)| {
+                        let atomic_number = crate::elements::SUPPORTED
+                            .iter()
+                            .find(|element| element.symbol == symbol.as_str())
+                            .expect("catalogue element is supported")
+                            .atomic_number;
+                        std::iter::repeat_n(atomic_number, usize::try_from(*count).unwrap())
                     })
                     .collect()
             }
@@ -1501,16 +1534,20 @@ mod tests {
                 chem_kernel::ValidationResult::ValidatedWithAssumptions
             );
         }
-        assert_eq!(ids.len(), 205);
-        assert_eq!(families[&ReactionFamily::AlkaliWater], 3);
+        assert_eq!(ids.len(), 325);
+        assert_eq!(families[&ReactionFamily::AlkaliWater], 5);
         assert_eq!(families[&ReactionFamily::SilverHalidePrecipitation], 3);
         assert_eq!(families[&ReactionFamily::AcidBaseNeutralization], 9);
         assert_eq!(families[&ReactionFamily::AcidBicarbonateGasEvolution], 9);
         assert_eq!(families[&ReactionFamily::AcidCarbonateGasEvolution], 9);
         assert_eq!(families[&ReactionFamily::HalogenDisplacement], 3);
-        assert_eq!(families[&ReactionFamily::Oxygen], 68);
+        assert_eq!(families[&ReactionFamily::Oxygen], 136);
         assert_eq!(families[&ReactionFamily::FixedChargeIonPair], 81);
         assert_eq!(families[&ReactionFamily::CovalentCombination], 20);
+        assert_eq!(families[&ReactionFamily::MetalAcid], 30);
+        assert_eq!(families[&ReactionFamily::Combustion], 10);
+        assert_eq!(families[&ReactionFamily::MetalDisplacement], 6);
+        assert_eq!(families[&ReactionFamily::Precipitation], 4);
     }
 
     #[test]
@@ -1673,6 +1710,7 @@ mod tests {
                     | ReactionFamily::Oxygen
                     | ReactionFamily::FixedChargeIonPair
                     | ReactionFamily::CovalentCombination
+                    | ReactionFamily::MetalAcid
             ) {
                 assert!(
                     profile
@@ -1700,7 +1738,7 @@ mod tests {
                 assert_eq!(binding.value, value);
             }
         }
-        assert_eq!(profile_ids.len(), 205);
+        assert_eq!(profile_ids.len(), 273);
     }
 
     #[test]
@@ -1721,6 +1759,16 @@ mod tests {
         );
         assert!(matches!(
             resolve_drafts(&[26], &[8]),
+            DraftResolution::Multiple(outcomes) if outcomes.len() == 3
+        ));
+
+        let magnesium_ozone = requests_for_drafts(&[12], &[8, 8, 8]);
+        assert_eq!(magnesium_ozone.len(), 1);
+        assert_eq!(magnesium_ozone[0].equation(), "6 Mg + 2 O3 -> 6 MgO");
+        let iron_ozone = requests_for_drafts(&[26], &[8, 8, 8]);
+        assert_eq!(iron_ozone.len(), 3);
+        assert!(matches!(
+            resolve_drafts(&[26], &[8, 8, 8]),
             DraftResolution::Multiple(outcomes) if outcomes.len() == 3
         ));
 

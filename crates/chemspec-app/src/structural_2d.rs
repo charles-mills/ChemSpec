@@ -1463,7 +1463,7 @@ fn draw_electrons(
 fn electron_positions(center: Point, atom: &AtomState, phase: f32, scale: f32) -> Vec<Point> {
     let radius = 31.0 * scale;
     let drift = (phase * std::f32::consts::TAU * 0.45).sin() * 0.055;
-    let mut positions = Vec::with_capacity(usize::from(atom.non_bonding_electrons.min(8)));
+    let mut positions = Vec::with_capacity(usize::from(atom.non_bonding_electrons));
     for (domain, occupancy) in
         electron_domain_occupancies(atom.non_bonding_electrons, atom.unpaired_electrons)
             .into_iter()
@@ -1480,6 +1480,20 @@ fn electron_positions(center: Point, atom: &AtomState, phase: f32, scale: f32) -
             let angle = base_angle + offset;
             positions.push(center + Vector::new(angle.cos() * radius, angle.sin() * radius));
         }
+    }
+    // Main-group Lewis layouts use four domains (up to eight electrons). A
+    // transition-metal state can legitimately carry additional non-bonding d
+    // electrons. Keep the Lewis-domain positions first so persistent electron
+    // indexing stays stable, then place d electrons on a distinct inner ring.
+    // This preserves every catalogue electron and gives transfer animations a
+    // real destination instead of silently truncating at an octet.
+    let overflow = atom.non_bonding_electrons.saturating_sub(8);
+    let d_radius = 38.0 * scale;
+    for electron in 0..overflow {
+        let angle = -std::f32::consts::FRAC_PI_2
+            + f32::from(electron) * std::f32::consts::TAU / 10.0
+            - drift * 0.7;
+        positions.push(center + Vector::new(angle.cos() * d_radius, angle.sin() * d_radius));
     }
     positions
 }
@@ -2646,6 +2660,22 @@ mod tests {
         assert_eq!(electron_domain_occupancies(5, 1), vec![2, 2, 1]);
         assert_eq!(electron_domain_occupancies(6, 0), vec![2, 2, 2]);
         assert_eq!(electron_domain_occupancies(4, 4), vec![1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn transition_metal_shell_keeps_two_entering_electron_destinations() {
+        let center = Point::new(0.0, 0.0);
+        let before = atom_state("copper", 9, 1);
+        let after = atom_state("copper", 11, 3);
+        let delta = electron_state_delta(Some(&before), Some(&after));
+        let targets = electron_positions(center, &after, 0.0, 1.0)
+            .into_iter()
+            .skip(usize::from(delta.persistent))
+            .take(usize::from(delta.enters_shell))
+            .collect::<Vec<_>>();
+        assert_eq!(delta.enters_shell, 2);
+        assert_eq!(targets.len(), 2);
+        assert_eq!(electron_positions(center, &after, 0.0, 1.0).len(), 11);
     }
 
     #[test]

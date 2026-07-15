@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CopperHydroxidePrecipitation where
+  reactants
+    metalSource := 1 of PrecipitationCopperChloride
+    reagent := 2 of PrecipitationSodiumHydroxide
+  products
+    precipitate := 1 of PrecipitationCopperHydroxide
+    spectator := 2 of PrecipitationSodiumChloride
+  equation
+    1 CuCl2[ionic] + 2 NaOH[ionic]
+    -> 1 CuO2H2[ionic] + 2 NaCl[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.CopperHydroxidePrecipitation@1
+    product precipitate forms claim R1
+  by
+    apply Rules.CopperHydroxidePrecipitation
+      metalSource := metalSource
+      reagent := reagent
+      precipitate := precipitate
+      spectator := spectator

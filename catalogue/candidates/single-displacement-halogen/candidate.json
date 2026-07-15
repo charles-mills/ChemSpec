@@ -261,6 +261,17 @@
       "groups": [],
       "premise_ids": [
         "premise.structure.diatomic-halogen"
+      ],
+      "traits": [
+        {
+          "trait": "Traits.HalogenOxidant",
+          "sites": {
+            "reactive_site": "x1"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
       ]
     }
   ],
@@ -974,16 +985,17 @@
         ]
       },
       "premise_ids": [
-        "premise.elements.iupac-periodic-table",
-        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.case.fluorine-displacement-unsupported",
+        "premise.case.halogen-displacement-no-reaction",
         "premise.category.halide",
+        "premise.elements.iupac-periodic-table",
+        "premise.observation.displaced-halogen-forms",
+        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.rule.halogen-displacement.standard-outcome",
         "premise.structure.alkali-metal-halide",
         "premise.structure.diatomic-halogen",
-        "premise.rule.halogen-displacement.standard-outcome",
-        "premise.valence.halogen-displacement.initial-domain",
-        "premise.observation.displaced-halogen-forms",
-        "premise.case.fluorine-displacement-unsupported",
-        "premise.case.halogen-displacement-no-reaction"
+        "premise.traits.reaction-family-classification",
+        "premise.valence.halogen-displacement.initial-domain"
       ]
     }
   ]

@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction DecaneCompleteCombustion where
+  reactants
+    fuel := 2 of Decane
+    oxygen := 31 of Oxygen
+  products
+    carbonDioxide := 20 of CarbonDioxide
+    water := 22 of Water
+  equation
+    2 C10H22[molecular] + 31 O2[molecular]
+    -> 20 CO2[molecular] + 22 H2O[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.DecaneCombustion@1
+    product carbonDioxide forms claim R1
+  by
+    apply Rules.DecaneCompleteCombustion
+      fuel := fuel
+      oxygen := oxygen
+      carbonDioxide := carbonDioxide
+      water := water

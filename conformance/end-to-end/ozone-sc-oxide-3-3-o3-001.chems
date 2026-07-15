@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction ScAndOxygenToTransitionG3SesquioxideWithOzone where
+  reactants
+    subject := 12 of ScTransitionG3SesquioxideMetalForOxygen
+    oxygen := 6 of Ozone
+  products
+    oxide := 6 of ScTransitionG3SesquioxideOxide
+  equation
+    12 Sc[metallic] + 6 O3[molecular]
+    -> 6 Sc2O3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG3Sesquioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

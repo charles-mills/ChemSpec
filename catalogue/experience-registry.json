@@ -3420,6 +3420,2476 @@
       "subject_name": "hydrogen",
       "product_name": "hydrogen sulfide",
       "product_structure": "HydrogenSulfide"
+    },
+    {
+      "id": "ozone-hydrogen-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-hydrogen-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-hydrogen-oxygen-001.evidence.json",
+      "request": "What happens when hydrogen reacts with ozone?",
+      "equation": "6 H2 + 2 O3 -> 6 H2O",
+      "subject_name": "hydrogen",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 1
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-lithium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-lithium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-lithium-oxygen-001.evidence.json",
+      "request": "What happens when lithium reacts with ozone?",
+      "equation": "12 Li + 2 O3 -> 6 Li2O",
+      "subject_name": "lithium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 3
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-beryllium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-beryllium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-beryllium-oxygen-001.evidence.json",
+      "request": "What happens when beryllium reacts with ozone?",
+      "equation": "6 Be + 2 O3 -> 6 BeO",
+      "subject_name": "beryllium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 4
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-boron-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-boron-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-boron-oxygen-001.evidence.json",
+      "request": "What happens when boron reacts with ozone?",
+      "equation": "12 B + 6 O3 -> 6 B2O3",
+      "subject_name": "boron",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 5
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-carbon-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-carbon-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-carbon-oxygen-001.evidence.json",
+      "request": "What happens when carbon reacts with ozone?",
+      "equation": "3 C + 2 O3 -> 3 CO2",
+      "subject_name": "carbon",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 6
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-sodium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-sodium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-sodium-oxygen-001.evidence.json",
+      "request": "What happens when sodium reacts with ozone?",
+      "equation": "6 Na + 2 O3 -> 3 Na2O2",
+      "subject_name": "sodium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 11
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-magnesium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-magnesium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-magnesium-oxygen-001.evidence.json",
+      "request": "What happens when magnesium reacts with ozone?",
+      "equation": "6 Mg + 2 O3 -> 6 MgO",
+      "subject_name": "magnesium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 12
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-aluminium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-aluminium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-aluminium-oxygen-001.evidence.json",
+      "request": "What happens when aluminium reacts with ozone?",
+      "equation": "12 Al + 6 O3 -> 6 Al2O3",
+      "subject_name": "aluminium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 13
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-silicon-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-silicon-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-silicon-oxygen-001.evidence.json",
+      "request": "What happens when silicon reacts with ozone?",
+      "equation": "3 Si + 2 O3 -> 3 SiO2",
+      "subject_name": "silicon",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 14
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-phosphorus-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-phosphorus-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-phosphorus-oxygen-001.evidence.json",
+      "request": "What happens when phosphorus reacts with ozone?",
+      "equation": "3 P4 + 10 O3 -> 3 P4O10",
+      "subject_name": "phosphorus",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 15
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-sulfur-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-sulfur-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-sulfur-oxygen-001.evidence.json",
+      "request": "What happens when sulfur reacts with ozone?",
+      "equation": "3 S + 2 O3 -> 3 SO2",
+      "subject_name": "sulfur",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 16
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-potassium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-potassium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-potassium-oxygen-001.evidence.json",
+      "request": "What happens when potassium reacts with ozone?",
+      "equation": "3 K + 2 O3 -> 3 KO2",
+      "subject_name": "potassium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 19
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-calcium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-calcium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-calcium-oxygen-001.evidence.json",
+      "request": "What happens when calcium reacts with ozone?",
+      "equation": "6 Ca + 2 O3 -> 6 CaO",
+      "subject_name": "calcium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 20
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-rubidium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-rubidium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-rubidium-oxygen-001.evidence.json",
+      "request": "What happens when rubidium reacts with ozone?",
+      "equation": "3 Rb + 2 O3 -> 3 RbO2",
+      "subject_name": "rubidium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 37
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-strontium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-strontium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-strontium-oxygen-001.evidence.json",
+      "request": "What happens when strontium reacts with ozone?",
+      "equation": "6 Sr + 2 O3 -> 6 SrO",
+      "subject_name": "strontium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 38
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-caesium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-caesium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-caesium-oxygen-001.evidence.json",
+      "request": "What happens when caesium reacts with ozone?",
+      "equation": "3 Cs + 2 O3 -> 3 CsO2",
+      "subject_name": "caesium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 55
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-barium-oxygen",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-barium-oxygen-001.chems",
+      "evidence_path": "conformance/observations/ozone-barium-oxygen-001.evidence.json",
+      "request": "What happens when barium reacts with ozone?",
+      "equation": "6 Ba + 2 O3 -> 6 BaO",
+      "subject_name": "barium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 56
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-sc-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-sc-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-sc-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when scandium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Sc + 6 O3 -> 6 Sc2O3",
+      "subject_name": "scandium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 21
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-y-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-y-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-y-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when yttrium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Y + 6 O3 -> 6 Y2O3",
+      "subject_name": "yttrium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 39
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ti-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ti-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-ti-oxide-2-o1-001.evidence.json",
+      "request": "What happens when titanium reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Ti + 2 O3 -> 6 TiO",
+      "subject_name": "titanium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 22
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ti-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ti-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-ti-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when titanium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Ti + 6 O3 -> 6 Ti2O3",
+      "subject_name": "titanium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 22
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ti-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ti-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-ti-oxide-4-o2-001.evidence.json",
+      "request": "What happens when titanium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Ti + 2 O3 -> 3 TiO2",
+      "subject_name": "titanium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 22
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-zr-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-zr-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-zr-oxide-4-o2-001.evidence.json",
+      "request": "What happens when zirconium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Zr + 2 O3 -> 3 ZrO2",
+      "subject_name": "zirconium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 40
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-hf-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-hf-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-hf-oxide-4-o2-001.evidence.json",
+      "request": "What happens when hafnium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Hf + 2 O3 -> 3 HfO2",
+      "subject_name": "hafnium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 72
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-v-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-v-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-v-oxide-2-o1-001.evidence.json",
+      "request": "What happens when vanadium reacts with ozone for this reviewed product outcome?",
+      "equation": "6 V + 2 O3 -> 6 VO",
+      "subject_name": "vanadium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 23
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-v-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-v-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-v-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when vanadium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 V + 6 O3 -> 6 V2O3",
+      "subject_name": "vanadium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 23
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-v-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-v-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-v-oxide-4-o2-001.evidence.json",
+      "request": "What happens when vanadium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 V + 2 O3 -> 3 VO2",
+      "subject_name": "vanadium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 23
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-nb-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-nb-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-nb-oxide-4-o2-001.evidence.json",
+      "request": "What happens when niobium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Nb + 2 O3 -> 3 NbO2",
+      "subject_name": "niobium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 41
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-v-oxide-5-5-o5",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-v-oxide-5-5-o5-001.chems",
+      "evidence_path": "conformance/observations/ozone-v-oxide-5-5-o5-001.evidence.json",
+      "request": "What happens when vanadium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 V + 10 O3 -> 6 V2O5",
+      "subject_name": "vanadium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 23
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-nb-oxide-5-5-o5",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-nb-oxide-5-5-o5-001.chems",
+      "evidence_path": "conformance/observations/ozone-nb-oxide-5-5-o5-001.evidence.json",
+      "request": "What happens when niobium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Nb + 10 O3 -> 6 Nb2O5",
+      "subject_name": "niobium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 41
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ta-oxide-5-5-o5",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ta-oxide-5-5-o5-001.chems",
+      "evidence_path": "conformance/observations/ozone-ta-oxide-5-5-o5-001.evidence.json",
+      "request": "What happens when tantalum reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Ta + 10 O3 -> 6 Ta2O5",
+      "subject_name": "tantalum",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 73
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-cr-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-cr-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-cr-oxide-2-o1-001.evidence.json",
+      "request": "What happens when chromium reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Cr + 2 O3 -> 6 CrO",
+      "subject_name": "chromium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 24
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-cr-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-cr-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-cr-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when chromium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Cr + 6 O3 -> 6 Cr2O3",
+      "subject_name": "chromium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 24
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-cr-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-cr-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-cr-oxide-4-o2-001.evidence.json",
+      "request": "What happens when chromium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Cr + 2 O3 -> 3 CrO2",
+      "subject_name": "chromium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 24
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-mo-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-mo-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-mo-oxide-4-o2-001.evidence.json",
+      "request": "What happens when molybdenum reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Mo + 2 O3 -> 3 MoO2",
+      "subject_name": "molybdenum",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 42
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-w-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-w-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-w-oxide-4-o2-001.evidence.json",
+      "request": "What happens when tungsten reacts with ozone for this reviewed product outcome?",
+      "equation": "3 W + 2 O3 -> 3 WO2",
+      "subject_name": "tungsten",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 74
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-mn-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-mn-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-mn-oxide-2-o1-001.evidence.json",
+      "request": "What happens when manganese reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Mn + 2 O3 -> 6 MnO",
+      "subject_name": "manganese",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 25
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-mn-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-mn-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-mn-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when manganese reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Mn + 6 O3 -> 6 Mn2O3",
+      "subject_name": "manganese",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 25
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-mn-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-mn-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-mn-oxide-4-o2-001.evidence.json",
+      "request": "What happens when manganese reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Mn + 2 O3 -> 3 MnO2",
+      "subject_name": "manganese",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 25
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-tc-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-tc-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-tc-oxide-4-o2-001.evidence.json",
+      "request": "What happens when technetium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Tc + 2 O3 -> 3 TcO2",
+      "subject_name": "technetium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 43
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-re-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-re-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-re-oxide-4-o2-001.evidence.json",
+      "request": "What happens when rhenium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Re + 2 O3 -> 3 ReO2",
+      "subject_name": "rhenium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 75
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-mn-oxide-2-3-3-o4",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-mn-oxide-2-3-3-o4-001.chems",
+      "evidence_path": "conformance/observations/ozone-mn-oxide-2-3-3-o4-001.evidence.json",
+      "request": "What happens when manganese reacts with ozone for this reviewed product outcome?",
+      "equation": "9 Mn + 4 O3 -> 3 Mn3O4",
+      "subject_name": "manganese",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 25
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-fe-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-fe-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-fe-oxide-2-o1-001.evidence.json",
+      "request": "What happens when iron reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Fe + 2 O3 -> 6 FeO",
+      "subject_name": "iron",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 26
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-fe-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-fe-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-fe-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when iron reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Fe + 6 O3 -> 6 Fe2O3",
+      "subject_name": "iron",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 26
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-fe-oxide-2-3-3-o4",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-fe-oxide-2-3-3-o4-001.chems",
+      "evidence_path": "conformance/observations/ozone-fe-oxide-2-3-3-o4-001.evidence.json",
+      "request": "What happens when iron reacts with ozone for this reviewed product outcome?",
+      "equation": "9 Fe + 4 O3 -> 3 Fe3O4",
+      "subject_name": "iron",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 26
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ru-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ru-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-ru-oxide-4-o2-001.evidence.json",
+      "request": "What happens when ruthenium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Ru + 2 O3 -> 3 RuO2",
+      "subject_name": "ruthenium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 44
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-os-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-os-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-os-oxide-4-o2-001.evidence.json",
+      "request": "What happens when osmium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Os + 2 O3 -> 3 OsO2",
+      "subject_name": "osmium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 76
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-co-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-co-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-co-oxide-2-o1-001.evidence.json",
+      "request": "What happens when cobalt reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Co + 2 O3 -> 6 CoO",
+      "subject_name": "cobalt",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 27
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-co-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-co-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-co-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when cobalt reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Co + 6 O3 -> 6 Co2O3",
+      "subject_name": "cobalt",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 27
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-rh-oxide-3-3-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-rh-oxide-3-3-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-rh-oxide-3-3-o3-001.evidence.json",
+      "request": "What happens when rhodium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Rh + 6 O3 -> 6 Rh2O3",
+      "subject_name": "rhodium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 45
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-co-oxide-2-3-3-o4",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-co-oxide-2-3-3-o4-001.chems",
+      "evidence_path": "conformance/observations/ozone-co-oxide-2-3-3-o4-001.evidence.json",
+      "request": "What happens when cobalt reacts with ozone for this reviewed product outcome?",
+      "equation": "9 Co + 4 O3 -> 3 Co3O4",
+      "subject_name": "cobalt",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 27
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-rh-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-rh-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-rh-oxide-4-o2-001.evidence.json",
+      "request": "What happens when rhodium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Rh + 2 O3 -> 3 RhO2",
+      "subject_name": "rhodium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 45
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ir-oxide-4-o2",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ir-oxide-4-o2-001.chems",
+      "evidence_path": "conformance/observations/ozone-ir-oxide-4-o2-001.evidence.json",
+      "request": "What happens when iridium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Ir + 2 O3 -> 3 IrO2",
+      "subject_name": "iridium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 77
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ni-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ni-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-ni-oxide-2-o1-001.evidence.json",
+      "request": "What happens when nickel reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Ni + 2 O3 -> 6 NiO",
+      "subject_name": "nickel",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 28
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-pd-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-pd-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-pd-oxide-2-o1-001.evidence.json",
+      "request": "What happens when palladium reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Pd + 2 O3 -> 6 PdO",
+      "subject_name": "palladium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 46
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-cu-oxide-1-1-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-cu-oxide-1-1-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-cu-oxide-1-1-o1-001.evidence.json",
+      "request": "What happens when copper reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Cu + 2 O3 -> 6 Cu2O",
+      "subject_name": "copper",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 29
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-cu-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-cu-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-cu-oxide-2-o1-001.evidence.json",
+      "request": "What happens when copper reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Cu + 2 O3 -> 6 CuO",
+      "subject_name": "copper",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 29
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-zn-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-zn-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-zn-oxide-2-o1-001.evidence.json",
+      "request": "What happens when zinc reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Zn + 2 O3 -> 6 ZnO",
+      "subject_name": "zinc",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 30
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-cd-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-cd-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-cd-oxide-2-o1-001.evidence.json",
+      "request": "What happens when cadmium reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Cd + 2 O3 -> 6 CdO",
+      "subject_name": "cadmium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 48
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-hg-oxide-2-o1",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-hg-oxide-2-o1-001.chems",
+      "evidence_path": "conformance/observations/ozone-hg-oxide-2-o1-001.evidence.json",
+      "request": "What happens when mercury reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Hg + 2 O3 -> 6 HgO",
+      "subject_name": "mercury",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 80
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-cr-oxide-6-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-cr-oxide-6-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-cr-oxide-6-o3-001.evidence.json",
+      "request": "What happens when chromium reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Cr + 6 O3 -> 6 CrO3",
+      "subject_name": "chromium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 24
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-mo-oxide-6-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-mo-oxide-6-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-mo-oxide-6-o3-001.evidence.json",
+      "request": "What happens when molybdenum reacts with ozone for this reviewed product outcome?",
+      "equation": "6 Mo + 6 O3 -> 6 MoO3",
+      "subject_name": "molybdenum",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 42
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-w-oxide-6-o3",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-w-oxide-6-o3-001.chems",
+      "evidence_path": "conformance/observations/ozone-w-oxide-6-o3-001.evidence.json",
+      "request": "What happens when tungsten reacts with ozone for this reviewed product outcome?",
+      "equation": "6 W + 6 O3 -> 6 WO3",
+      "subject_name": "tungsten",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 74
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-mn-oxide-7-7-o7",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-mn-oxide-7-7-o7-001.chems",
+      "evidence_path": "conformance/observations/ozone-mn-oxide-7-7-o7-001.evidence.json",
+      "request": "What happens when manganese reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Mn + 14 O3 -> 6 Mn2O7",
+      "subject_name": "manganese",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 25
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-tc-oxide-7-7-o7",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-tc-oxide-7-7-o7-001.chems",
+      "evidence_path": "conformance/observations/ozone-tc-oxide-7-7-o7-001.evidence.json",
+      "request": "What happens when technetium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Tc + 14 O3 -> 6 Tc2O7",
+      "subject_name": "technetium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 43
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-re-oxide-7-7-o7",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-re-oxide-7-7-o7-001.chems",
+      "evidence_path": "conformance/observations/ozone-re-oxide-7-7-o7-001.evidence.json",
+      "request": "What happens when rhenium reacts with ozone for this reviewed product outcome?",
+      "equation": "12 Re + 14 O3 -> 6 Re2O7",
+      "subject_name": "rhenium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 75
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-ru-oxide-8-o4",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-ru-oxide-8-o4-001.chems",
+      "evidence_path": "conformance/observations/ozone-ru-oxide-8-o4-001.evidence.json",
+      "request": "What happens when ruthenium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Ru + 4 O3 -> 3 RuO4",
+      "subject_name": "ruthenium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 44
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "ozone-os-oxide-8-o4",
+      "status": "trusted",
+      "source_path": "conformance/end-to-end/ozone-os-oxide-8-o4-001.chems",
+      "evidence_path": "conformance/observations/ozone-os-oxide-8-o4-001.evidence.json",
+      "request": "What happens when osmium reacts with ozone for this reviewed product outcome?",
+      "equation": "3 Os + 4 O3 -> 3 OsO4",
+      "subject_name": "osmium",
+      "family": "oxygen",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 76
+        },
+        {
+          "kind": "composition",
+          "formula": "O3"
+        }
+      ]
+    },
+    {
+      "id": "alkali-water-rubidium",
+      "status": "trusted",
+      "family": "alkali_water",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 37
+        },
+        {
+          "kind": "composition",
+          "formula": "H2O"
+        }
+      ],
+      "source_path": "conformance/end-to-end/alkali-water-rubidium-001.chems",
+      "evidence_path": "conformance/observations/alkali-water-rubidium-001.evidence.json",
+      "request": "What happens when rubidium reacts with water?",
+      "equation": "2Rb + 2H2O -> 2RbOH + H2",
+      "subject_name": "rubidium"
+    },
+    {
+      "id": "alkali-water-caesium",
+      "status": "trusted",
+      "family": "alkali_water",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 55
+        },
+        {
+          "kind": "composition",
+          "formula": "H2O"
+        }
+      ],
+      "source_path": "conformance/end-to-end/alkali-water-caesium-001.chems",
+      "evidence_path": "conformance/observations/alkali-water-caesium-001.evidence.json",
+      "request": "What happens when caesium reacts with water?",
+      "equation": "2Cs + 2H2O -> 2CsOH + H2",
+      "subject_name": "caesium"
+    },
+    {
+      "id": "metal-acid-li-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 3
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-li-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-li-cl-001.evidence.json",
+      "request": "What happens when lithium reacts with hydrogen chloride?",
+      "equation": "2Li + 2HCl -> 2LiCl + H2",
+      "subject_name": "lithium",
+      "product_structure": "LiFixedCation1Chloride"
+    },
+    {
+      "id": "metal-acid-li-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 3
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-li-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-li-br-001.evidence.json",
+      "request": "What happens when lithium reacts with hydrogen bromide?",
+      "equation": "2Li + 2HBr -> 2LiBr + H2",
+      "subject_name": "lithium",
+      "product_structure": "LiFixedCation1Bromide"
+    },
+    {
+      "id": "metal-acid-li-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 3
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-li-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-li-i-001.evidence.json",
+      "request": "What happens when lithium reacts with hydrogen iodide?",
+      "equation": "2Li + 2HI -> 2LiI + H2",
+      "subject_name": "lithium",
+      "product_structure": "LiFixedCation1Iodide"
+    },
+    {
+      "id": "metal-acid-na-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 11
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-na-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-na-cl-001.evidence.json",
+      "request": "What happens when sodium reacts with hydrogen chloride?",
+      "equation": "2Na + 2HCl -> 2NaCl + H2",
+      "subject_name": "sodium",
+      "product_structure": "NaFixedCation1Chloride"
+    },
+    {
+      "id": "metal-acid-na-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 11
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-na-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-na-br-001.evidence.json",
+      "request": "What happens when sodium reacts with hydrogen bromide?",
+      "equation": "2Na + 2HBr -> 2NaBr + H2",
+      "subject_name": "sodium",
+      "product_structure": "NaFixedCation1Bromide"
+    },
+    {
+      "id": "metal-acid-na-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 11
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-na-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-na-i-001.evidence.json",
+      "request": "What happens when sodium reacts with hydrogen iodide?",
+      "equation": "2Na + 2HI -> 2NaI + H2",
+      "subject_name": "sodium",
+      "product_structure": "NaFixedCation1Iodide"
+    },
+    {
+      "id": "metal-acid-k-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 19
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-k-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-k-cl-001.evidence.json",
+      "request": "What happens when potassium reacts with hydrogen chloride?",
+      "equation": "2K + 2HCl -> 2KCl + H2",
+      "subject_name": "potassium",
+      "product_structure": "KFixedCation1Chloride"
+    },
+    {
+      "id": "metal-acid-k-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 19
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-k-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-k-br-001.evidence.json",
+      "request": "What happens when potassium reacts with hydrogen bromide?",
+      "equation": "2K + 2HBr -> 2KBr + H2",
+      "subject_name": "potassium",
+      "product_structure": "KFixedCation1Bromide"
+    },
+    {
+      "id": "metal-acid-k-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 19
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-k-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-k-i-001.evidence.json",
+      "request": "What happens when potassium reacts with hydrogen iodide?",
+      "equation": "2K + 2HI -> 2KI + H2",
+      "subject_name": "potassium",
+      "product_structure": "KFixedCation1Iodide"
+    },
+    {
+      "id": "metal-acid-rb-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 37
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-rb-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-rb-cl-001.evidence.json",
+      "request": "What happens when rubidium reacts with hydrogen chloride?",
+      "equation": "2Rb + 2HCl -> 2RbCl + H2",
+      "subject_name": "rubidium",
+      "product_structure": "RbFixedCation1Chloride"
+    },
+    {
+      "id": "metal-acid-rb-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 37
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-rb-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-rb-br-001.evidence.json",
+      "request": "What happens when rubidium reacts with hydrogen bromide?",
+      "equation": "2Rb + 2HBr -> 2RbBr + H2",
+      "subject_name": "rubidium",
+      "product_structure": "RbFixedCation1Bromide"
+    },
+    {
+      "id": "metal-acid-rb-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 37
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-rb-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-rb-i-001.evidence.json",
+      "request": "What happens when rubidium reacts with hydrogen iodide?",
+      "equation": "2Rb + 2HI -> 2RbI + H2",
+      "subject_name": "rubidium",
+      "product_structure": "RbFixedCation1Iodide"
+    },
+    {
+      "id": "metal-acid-cs-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 55
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-cs-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-cs-cl-001.evidence.json",
+      "request": "What happens when caesium reacts with hydrogen chloride?",
+      "equation": "2Cs + 2HCl -> 2CsCl + H2",
+      "subject_name": "caesium",
+      "product_structure": "CsFixedCation1Chloride"
+    },
+    {
+      "id": "metal-acid-cs-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 55
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-cs-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-cs-br-001.evidence.json",
+      "request": "What happens when caesium reacts with hydrogen bromide?",
+      "equation": "2Cs + 2HBr -> 2CsBr + H2",
+      "subject_name": "caesium",
+      "product_structure": "CsFixedCation1Bromide"
+    },
+    {
+      "id": "metal-acid-cs-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 55
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-cs-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-cs-i-001.evidence.json",
+      "request": "What happens when caesium reacts with hydrogen iodide?",
+      "equation": "2Cs + 2HI -> 2CsI + H2",
+      "subject_name": "caesium",
+      "product_structure": "CsFixedCation1Iodide"
+    },
+    {
+      "id": "metal-acid-mg-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 12
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-mg-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-mg-cl-001.evidence.json",
+      "request": "What happens when magnesium reacts with hydrogen chloride?",
+      "equation": "Mg + 2HCl -> MgCl2 + H2",
+      "subject_name": "magnesium",
+      "product_structure": "MgFixedCation2Chloride"
+    },
+    {
+      "id": "metal-acid-mg-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 12
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-mg-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-mg-br-001.evidence.json",
+      "request": "What happens when magnesium reacts with hydrogen bromide?",
+      "equation": "Mg + 2HBr -> MgBr2 + H2",
+      "subject_name": "magnesium",
+      "product_structure": "MgFixedCation2Bromide"
+    },
+    {
+      "id": "metal-acid-mg-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 12
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-mg-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-mg-i-001.evidence.json",
+      "request": "What happens when magnesium reacts with hydrogen iodide?",
+      "equation": "Mg + 2HI -> MgI2 + H2",
+      "subject_name": "magnesium",
+      "product_structure": "MgFixedCation2Iodide"
+    },
+    {
+      "id": "metal-acid-ca-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 20
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-ca-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-ca-cl-001.evidence.json",
+      "request": "What happens when calcium reacts with hydrogen chloride?",
+      "equation": "Ca + 2HCl -> CaCl2 + H2",
+      "subject_name": "calcium",
+      "product_structure": "CaFixedCation2Chloride"
+    },
+    {
+      "id": "metal-acid-ca-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 20
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-ca-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-ca-br-001.evidence.json",
+      "request": "What happens when calcium reacts with hydrogen bromide?",
+      "equation": "Ca + 2HBr -> CaBr2 + H2",
+      "subject_name": "calcium",
+      "product_structure": "CaFixedCation2Bromide"
+    },
+    {
+      "id": "metal-acid-ca-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 20
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-ca-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-ca-i-001.evidence.json",
+      "request": "What happens when calcium reacts with hydrogen iodide?",
+      "equation": "Ca + 2HI -> CaI2 + H2",
+      "subject_name": "calcium",
+      "product_structure": "CaFixedCation2Iodide"
+    },
+    {
+      "id": "metal-acid-sr-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 38
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-sr-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-sr-cl-001.evidence.json",
+      "request": "What happens when strontium reacts with hydrogen chloride?",
+      "equation": "Sr + 2HCl -> SrCl2 + H2",
+      "subject_name": "strontium",
+      "product_structure": "SrFixedCation2Chloride"
+    },
+    {
+      "id": "metal-acid-sr-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 38
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-sr-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-sr-br-001.evidence.json",
+      "request": "What happens when strontium reacts with hydrogen bromide?",
+      "equation": "Sr + 2HBr -> SrBr2 + H2",
+      "subject_name": "strontium",
+      "product_structure": "SrFixedCation2Bromide"
+    },
+    {
+      "id": "metal-acid-sr-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 38
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-sr-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-sr-i-001.evidence.json",
+      "request": "What happens when strontium reacts with hydrogen iodide?",
+      "equation": "Sr + 2HI -> SrI2 + H2",
+      "subject_name": "strontium",
+      "product_structure": "SrFixedCation2Iodide"
+    },
+    {
+      "id": "metal-acid-ba-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 56
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-ba-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-ba-cl-001.evidence.json",
+      "request": "What happens when barium reacts with hydrogen chloride?",
+      "equation": "Ba + 2HCl -> BaCl2 + H2",
+      "subject_name": "barium",
+      "product_structure": "BaFixedCation2Chloride"
+    },
+    {
+      "id": "metal-acid-ba-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 56
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-ba-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-ba-br-001.evidence.json",
+      "request": "What happens when barium reacts with hydrogen bromide?",
+      "equation": "Ba + 2HBr -> BaBr2 + H2",
+      "subject_name": "barium",
+      "product_structure": "BaFixedCation2Bromide"
+    },
+    {
+      "id": "metal-acid-ba-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 56
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-ba-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-ba-i-001.evidence.json",
+      "request": "What happens when barium reacts with hydrogen iodide?",
+      "equation": "Ba + 2HI -> BaI2 + H2",
+      "subject_name": "barium",
+      "product_structure": "BaFixedCation2Iodide"
+    },
+    {
+      "id": "metal-acid-al-cl",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 13
+        },
+        {
+          "kind": "composition",
+          "formula": "HCl"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-al-cl-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-al-cl-001.evidence.json",
+      "request": "What happens when aluminium reacts with hydrogen chloride?",
+      "equation": "2Al + 6HCl -> 2AlCl3 + 3H2",
+      "subject_name": "aluminium",
+      "product_structure": "AlFixedCation3Chloride"
+    },
+    {
+      "id": "metal-acid-al-br",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 13
+        },
+        {
+          "kind": "composition",
+          "formula": "HBr"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-al-br-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-al-br-001.evidence.json",
+      "request": "What happens when aluminium reacts with hydrogen bromide?",
+      "equation": "2Al + 6HBr -> 2AlBr3 + 3H2",
+      "subject_name": "aluminium",
+      "product_structure": "AlFixedCation3Bromide"
+    },
+    {
+      "id": "metal-acid-al-i",
+      "status": "trusted",
+      "family": "metal_acid",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 13
+        },
+        {
+          "kind": "composition",
+          "formula": "HI"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-acid-al-i-001.chems",
+      "evidence_path": "conformance/observations/metal-acid-al-i-001.evidence.json",
+      "request": "What happens when aluminium reacts with hydrogen iodide?",
+      "equation": "2Al + 6HI -> 2AlI3 + 3H2",
+      "subject_name": "aluminium",
+      "product_structure": "AlFixedCation3Iodide"
+    },
+    {
+      "id": "combustion-methane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "CH4"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-methane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-methane-complete-001.evidence.json",
+      "request": "What happens when methane undergoes complete combustion?",
+      "equation": "CH4 + 2O2 -> CO2 + 2H2O",
+      "subject_name": "methane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-ethane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C2H6"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-ethane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-ethane-complete-001.evidence.json",
+      "request": "What happens when ethane undergoes complete combustion?",
+      "equation": "2C2H6 + 7O2 -> 4CO2 + 6H2O",
+      "subject_name": "ethane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-propane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C3H8"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-propane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-propane-complete-001.evidence.json",
+      "request": "What happens when propane undergoes complete combustion?",
+      "equation": "C3H8 + 5O2 -> 3CO2 + 4H2O",
+      "subject_name": "propane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-butane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C4H10"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-butane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-butane-complete-001.evidence.json",
+      "request": "What happens when butane undergoes complete combustion?",
+      "equation": "2C4H10 + 13O2 -> 8CO2 + 10H2O",
+      "subject_name": "butane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-pentane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C5H12"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-pentane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-pentane-complete-001.evidence.json",
+      "request": "What happens when pentane undergoes complete combustion?",
+      "equation": "C5H12 + 8O2 -> 5CO2 + 6H2O",
+      "subject_name": "pentane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-hexane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C6H14"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-hexane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-hexane-complete-001.evidence.json",
+      "request": "What happens when hexane undergoes complete combustion?",
+      "equation": "2C6H14 + 19O2 -> 12CO2 + 14H2O",
+      "subject_name": "hexane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-heptane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C7H16"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-heptane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-heptane-complete-001.evidence.json",
+      "request": "What happens when heptane undergoes complete combustion?",
+      "equation": "C7H16 + 11O2 -> 7CO2 + 8H2O",
+      "subject_name": "heptane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-octane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C8H18"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-octane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-octane-complete-001.evidence.json",
+      "request": "What happens when octane undergoes complete combustion?",
+      "equation": "2C8H18 + 25O2 -> 16CO2 + 18H2O",
+      "subject_name": "octane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-nonane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C9H20"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-nonane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-nonane-complete-001.evidence.json",
+      "request": "What happens when nonane undergoes complete combustion?",
+      "equation": "C9H20 + 14O2 -> 9CO2 + 10H2O",
+      "subject_name": "nonane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "combustion-decane-complete",
+      "status": "trusted",
+      "family": "combustion",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "C10H22"
+        },
+        {
+          "kind": "element",
+          "atomic_number": 8
+        }
+      ],
+      "source_path": "conformance/end-to-end/combustion-decane-complete-001.chems",
+      "evidence_path": "conformance/observations/combustion-decane-complete-001.evidence.json",
+      "request": "What happens when decane undergoes complete combustion?",
+      "equation": "2C10H22 + 31O2 -> 20CO2 + 22H2O",
+      "subject_name": "decane",
+      "product_name": "carbon dioxide and water",
+      "product_structure": "CarbonDioxide"
+    },
+    {
+      "id": "metal-displacement-mg-zn",
+      "status": "trusted",
+      "family": "metal_displacement",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 12
+        },
+        {
+          "kind": "composition",
+          "formula": "ZnCl2"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-displacement-mg-zn-001.chems",
+      "evidence_path": "conformance/observations/metal-displacement-mg-zn-001.evidence.json",
+      "request": "Can magnesium displace zinc from its chloride?",
+      "equation": "Mg + ZnCl2 -> MgCl2 + Zn",
+      "subject_name": "magnesium",
+      "product_name": "magnesium chloride and zinc",
+      "product_structure": "DisplacementMagnesiumChloride"
+    },
+    {
+      "id": "metal-displacement-mg-fe",
+      "status": "trusted",
+      "family": "metal_displacement",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 12
+        },
+        {
+          "kind": "composition",
+          "formula": "FeCl2"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-displacement-mg-fe-001.chems",
+      "evidence_path": "conformance/observations/metal-displacement-mg-fe-001.evidence.json",
+      "request": "Can magnesium displace iron from its chloride?",
+      "equation": "Mg + FeCl2 -> MgCl2 + Fe",
+      "subject_name": "magnesium",
+      "product_name": "magnesium chloride and iron",
+      "product_structure": "DisplacementMagnesiumChloride"
+    },
+    {
+      "id": "metal-displacement-mg-cu",
+      "status": "trusted",
+      "family": "metal_displacement",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 12
+        },
+        {
+          "kind": "composition",
+          "formula": "CuCl2"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-displacement-mg-cu-001.chems",
+      "evidence_path": "conformance/observations/metal-displacement-mg-cu-001.evidence.json",
+      "request": "Can magnesium displace copper from its chloride?",
+      "equation": "Mg + CuCl2 -> MgCl2 + Cu",
+      "subject_name": "magnesium",
+      "product_name": "magnesium chloride and copper",
+      "product_structure": "DisplacementMagnesiumChloride"
+    },
+    {
+      "id": "metal-displacement-zn-fe",
+      "status": "trusted",
+      "family": "metal_displacement",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 30
+        },
+        {
+          "kind": "composition",
+          "formula": "FeCl2"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-displacement-zn-fe-001.chems",
+      "evidence_path": "conformance/observations/metal-displacement-zn-fe-001.evidence.json",
+      "request": "Can zinc displace iron from its chloride?",
+      "equation": "Zn + FeCl2 -> ZnCl2 + Fe",
+      "subject_name": "zinc",
+      "product_name": "zinc chloride and iron",
+      "product_structure": "DisplacementZincChloride"
+    },
+    {
+      "id": "metal-displacement-zn-cu",
+      "status": "trusted",
+      "family": "metal_displacement",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 30
+        },
+        {
+          "kind": "composition",
+          "formula": "CuCl2"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-displacement-zn-cu-001.chems",
+      "evidence_path": "conformance/observations/metal-displacement-zn-cu-001.evidence.json",
+      "request": "Can zinc displace copper from its chloride?",
+      "equation": "Zn + CuCl2 -> ZnCl2 + Cu",
+      "subject_name": "zinc",
+      "product_name": "zinc chloride and copper",
+      "product_structure": "DisplacementZincChloride"
+    },
+    {
+      "id": "metal-displacement-fe-cu",
+      "status": "trusted",
+      "family": "metal_displacement",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 26
+        },
+        {
+          "kind": "composition",
+          "formula": "CuCl2"
+        }
+      ],
+      "source_path": "conformance/end-to-end/metal-displacement-fe-cu-001.chems",
+      "evidence_path": "conformance/observations/metal-displacement-fe-cu-001.evidence.json",
+      "request": "Can iron displace copper from its chloride?",
+      "equation": "Fe + CuCl2 -> FeCl2 + Cu",
+      "subject_name": "iron",
+      "product_name": "iron chloride and copper",
+      "product_structure": "DisplacementIronChloride"
+    },
+    {
+      "id": "precipitation-general-bariumsulfateprecipitation",
+      "status": "trusted",
+      "family": "precipitation",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "BaCl2"
+        },
+        {
+          "kind": "composition",
+          "formula": "Na2SO4"
+        }
+      ],
+      "source_path": "conformance/end-to-end/precipitation-general-bariumsulfateprecipitation-001.chems",
+      "evidence_path": "conformance/observations/precipitation-general-bariumsulfateprecipitation-001.evidence.json",
+      "request": "What precipitate forms from BaCl2 and Na2SO4?",
+      "equation": "BaCl2 + Na2SO4 -> BaSO4 + 2NaCl",
+      "subject_name": "BaCl2",
+      "product_name": "barium sulfate",
+      "product_structure": "PrecipitationBariumSulfate"
+    },
+    {
+      "id": "precipitation-general-calciumcarbonateprecipitation",
+      "status": "trusted",
+      "family": "precipitation",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "CaCl2"
+        },
+        {
+          "kind": "composition",
+          "formula": "Na2CO3"
+        }
+      ],
+      "source_path": "conformance/end-to-end/precipitation-general-calciumcarbonateprecipitation-001.chems",
+      "evidence_path": "conformance/observations/precipitation-general-calciumcarbonateprecipitation-001.evidence.json",
+      "request": "What precipitate forms from CaCl2 and Na2CO3?",
+      "equation": "CaCl2 + Na2CO3 -> CaCO3 + 2NaCl",
+      "subject_name": "CaCl2",
+      "product_name": "calcium carbonate",
+      "product_structure": "PrecipitationCalciumCarbonate"
+    },
+    {
+      "id": "precipitation-general-copperhydroxideprecipitation",
+      "status": "trusted",
+      "family": "precipitation",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "CuCl2"
+        },
+        {
+          "kind": "composition",
+          "formula": "NaOH"
+        }
+      ],
+      "source_path": "conformance/end-to-end/precipitation-general-copperhydroxideprecipitation-001.chems",
+      "evidence_path": "conformance/observations/precipitation-general-copperhydroxideprecipitation-001.evidence.json",
+      "request": "What precipitate forms from CuCl2 and NaOH?",
+      "equation": "CuCl2 + 2NaOH -> CuO2H2 + 2NaCl",
+      "subject_name": "CuCl2",
+      "product_name": "copper hydroxide",
+      "product_structure": "PrecipitationCopperHydroxide"
+    },
+    {
+      "id": "precipitation-general-ironhydroxideprecipitation",
+      "status": "trusted",
+      "family": "precipitation",
+      "participants": [
+        {
+          "kind": "composition",
+          "formula": "FeCl3"
+        },
+        {
+          "kind": "composition",
+          "formula": "NaOH"
+        }
+      ],
+      "source_path": "conformance/end-to-end/precipitation-general-ironhydroxideprecipitation-001.chems",
+      "evidence_path": "conformance/observations/precipitation-general-ironhydroxideprecipitation-001.evidence.json",
+      "request": "What precipitate forms from FeCl3 and NaOH?",
+      "equation": "FeCl3 + 3NaOH -> FeO3H3 + 3NaCl",
+      "subject_name": "FeCl3",
+      "product_name": "iron(III) hydroxide",
+      "product_structure": "PrecipitationIronHydroxide"
     }
   ]
 }

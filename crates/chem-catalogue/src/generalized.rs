@@ -21,8 +21,10 @@ const MAX_GENERALIZED_PARAMETER_BINDINGS: usize = 4_096;
 const MAX_GENERALIZED_PARAMETERS: usize = 64;
 // Large elemental formula units such as S8 and P4 can require more than eight
 // metal atoms even after reduction (for example 12 M + P4 -> 4 M3P).
-const MAX_GENERALIZED_ROLE_COEFFICIENT: u32 = 32;
-const MAX_GENERALIZED_TOTAL_INSTANCES: u32 = 32;
+// Balanced molecular families can legitimately exceed the earlier inorganic
+// formula-unit ceiling (2 C10H22 + 31 O2 -> 20 CO2 + 22 H2O is 75 instances).
+const MAX_GENERALIZED_ROLE_COEFFICIENT: u32 = 128;
+const MAX_GENERALIZED_TOTAL_INSTANCES: u32 = 128;
 
 #[derive(Debug, Clone)]
 pub struct ValidatedGeneralizedRule {
@@ -1007,9 +1009,33 @@ fn validate_rewrite_references(
                 association,
                 super::StructuralTraitSiteKindRecord::IonicAssociation,
             ),
-            OperationTemplateRecord::ReleaseMetallic { site, domain, .. }
-            | OperationTemplateRecord::JoinMetallic { site, domain, .. } => {
+            OperationTemplateRecord::ReleaseMetallic { site, domain, .. } => {
                 atom(site) && kind(domain, super::StructuralTraitSiteKindRecord::MetallicDomain)
+            }
+            OperationTemplateRecord::JoinMetallic {
+                site,
+                domain,
+                before,
+                after,
+                ..
+            } => {
+                let synthetic_empty_domain = before.domain_electrons == 0
+                    && after.domain_electrons > 0
+                    && site.split_once("].").is_some_and(|(site_instance, _)| {
+                        domain
+                            .split_once("].")
+                            .is_some_and(|(domain_instance, local)| {
+                                site_instance == domain_instance
+                                    && validate_label(
+                                        local,
+                                        CatalogueErrorCode::InvalidGeneralizedCase,
+                                    )
+                                    .is_ok()
+                            })
+                    });
+                atom(site)
+                    && (kind(domain, super::StructuralTraitSiteKindRecord::MetallicDomain)
+                        || synthetic_empty_domain)
             }
             OperationTemplateRecord::AssignProduct { atoms, product, .. } => {
                 assigned_atoms.extend(atoms.iter().cloned());

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.MetalAcidStrontiumBromide@1",
+  "claims": [
+    {
+      "id": "R1",
+      "subject_role": "gas",
+      "subject": "hydrogen",
+      "predicate": "evolves",
+      "sources": [
+        "S1"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Single-displacement reactions",
+      "publisher": "OpenStax",
+      "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+      "supports": [
+        "R1"
+      ]
+    }
+  ]
+}

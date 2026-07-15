@@ -92,7 +92,7 @@
     },
     {
       "id": "premise.rule.alkali-metal-water.standard-outcome",
-      "statement": "Contact between Li, Na, or K metal and water has the reviewed representative outcome 2 M + 2 H2O -> 2 MOH + H2.",
+      "statement": "Contact between Li, Na, K, Rb, or Cs metal and water has the reviewed representative outcome 2 M + 2 H2O -> 2 MOH + H2.",
       "evidence": [
         "evidence.openstax.chemistry-2e"
       ],
@@ -149,6 +149,18 @@
         "reviewers": []
       },
       "rule_version": "1"
+    },
+    {
+      "id": "premise.elements.context-specific-reaction-facts",
+      "statement": "The recorded ionic charges, water-reaction classes, and separate metal, hydrogen, and halogen displacement ranks are reviewed closed-world screening facts; a rank is comparable only within its named activity series.",
+      "evidence": [
+        "evidence.openstax.chemistry-2e"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
     }
   ],
   "valence_premises": [
@@ -178,6 +190,14 @@
         {
           "element": "Ca",
           "neutral_valence_electrons": 2
+        },
+        {
+          "element": "Rb",
+          "neutral_valence_electrons": 1
+        },
+        {
+          "element": "Cs",
+          "neutral_valence_electrons": 1
         }
       ],
       "supported_states": [
@@ -264,6 +284,34 @@
           "non_bonding_electrons": 0,
           "unpaired_electrons": 0,
           "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Rb",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Rb",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cs",
+          "formal_charge": 1,
+          "non_bonding_electrons": 0,
+          "unpaired_electrons": 0,
+          "covalent_bond_order_sum": 0
+        },
+        {
+          "element": "Cs",
+          "formal_charge": 0,
+          "non_bonding_electrons": 1,
+          "unpaired_electrons": 1,
+          "covalent_bond_order_sum": 0
         }
       ],
       "metallic_domain_states": [
@@ -290,6 +338,18 @@
           "site_formal_charge": 2,
           "site_local_electrons": 0,
           "delocalized_electrons_per_site": 2
+        },
+        {
+          "element": "Rb",
+          "site_formal_charge": 1,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 1
+        },
+        {
+          "element": "Cs",
+          "site_formal_charge": 1,
+          "site_local_electrons": 0,
+          "delocalized_electrons_per_site": 1
         }
       ]
     }
@@ -335,7 +395,18 @@
           "order": "single"
         }
       ],
-      "groups": []
+      "groups": [],
+      "traits": [
+        {
+          "trait": "Traits.WaterReactant",
+          "sites": {
+            "reactive_site": "o"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
+      ]
     },
     {
       "representation": "molecular",
@@ -365,7 +436,18 @@
           "order": "single"
         }
       ],
-      "groups": []
+      "groups": [],
+      "traits": [
+        {
+          "trait": "Traits.CombustibleFuel",
+          "sites": {
+            "reactive_site": "h1"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
+      ]
     },
     {
       "representation": "metallic",
@@ -403,7 +485,25 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 0,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 0,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "He",
@@ -425,7 +525,13 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          1
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "Be",
@@ -436,7 +542,13 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          2
+        ],
+        "water_reactivity": "no_modelled_reaction"
+      }
     },
     {
       "symbol": "B",
@@ -469,7 +581,12 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -3
+        ]
+      }
     },
     {
       "symbol": "O",
@@ -480,7 +597,12 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -2
+        ]
+      }
     },
     {
       "symbol": "F",
@@ -491,7 +613,21 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -1
+        ],
+        "activity_ranks": [
+          {
+            "series": "halogen_displacement",
+            "rank": 40,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Ne",
@@ -513,7 +649,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          1
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 120,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 120,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "Mg",
@@ -524,7 +682,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          2
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 110,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 110,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "steam_only"
+      }
     },
     {
       "symbol": "Al",
@@ -535,7 +715,28 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          3
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 100,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 100,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Si",
@@ -557,7 +758,12 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -3
+        ]
+      }
     },
     {
       "symbol": "S",
@@ -568,7 +774,12 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -2
+        ]
+      }
     },
     {
       "symbol": "Cl",
@@ -579,7 +790,21 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -1
+        ],
+        "activity_ranks": [
+          {
+            "series": "halogen_displacement",
+            "rank": 30,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Ar",
@@ -601,7 +826,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          1
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 140,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 140,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "Ca",
@@ -612,7 +859,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          2
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 125,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 125,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "Sc",
@@ -656,7 +925,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 75,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 75,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Mn",
@@ -667,7 +954,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 90,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 90,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Fe",
@@ -678,7 +983,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 70,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 70,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Co",
@@ -689,7 +1012,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 65,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 65,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Ni",
@@ -700,7 +1041,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 60,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 60,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Cu",
@@ -711,7 +1070,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": -10,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": -10,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Zn",
@@ -722,7 +1099,28 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          2
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 80,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 80,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Ga",
@@ -777,7 +1175,21 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -1
+        ],
+        "activity_ranks": [
+          {
+            "series": "halogen_displacement",
+            "rank": 20,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Kr",
@@ -799,7 +1211,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          1
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 145,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 145,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "Sr",
@@ -810,7 +1244,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          2
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 130,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 130,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "Y",
@@ -909,7 +1365,28 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          1
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": -30,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": -30,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Cd",
@@ -942,7 +1419,25 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 50,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 50,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Sb",
@@ -975,7 +1470,21 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          -1
+        ],
+        "activity_ranks": [
+          {
+            "series": "halogen_displacement",
+            "rank": 10,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Xe",
@@ -997,7 +1506,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          1
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 150,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 150,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "Ba",
@@ -1008,7 +1539,29 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "common_ionic_charges": [
+          2
+        ],
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 135,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 135,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ],
+        "water_reactivity": "cold_water"
+      }
     },
     {
       "symbol": "La",
@@ -1235,7 +1788,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": -40,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": -40,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Au",
@@ -1246,7 +1817,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": -50,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": -50,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Hg",
@@ -1257,7 +1846,25 @@
       "block": "d",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": -20,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": -20,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Tl",
@@ -1279,7 +1886,25 @@
       "block": "p",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "activity_ranks": [
+          {
+            "series": "hydrogen_displacement",
+            "rank": 40,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          },
+          {
+            "series": "metal_displacement",
+            "rank": 40,
+            "premise_ids": [
+              "premise.elements.context-specific-reaction-facts"
+            ]
+          }
+        ]
+      }
     },
     {
       "symbol": "Bi",
@@ -1334,7 +1959,10 @@
       "block": "s",
       "premise_ids": [
         "premise.elements.iupac-periodic-table"
-      ]
+      ],
+      "reaction_facts": {
+        "water_reactivity": "no_modelled_reaction"
+      }
     },
     {
       "symbol": "Ra",
@@ -1678,6 +2306,23 @@
       "premise_ids": [
         "premise.rule.alkali-metal-water.standard-outcome"
       ]
+    },
+    {
+      "id": "Categories.WaterReactiveAlkaliMetal",
+      "subject": "element",
+      "membership": {
+        "kind": "explicit",
+        "members": [
+          "Cs",
+          "K",
+          "Li",
+          "Na",
+          "Rb"
+        ]
+      },
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
     }
   ],
   "structural_traits": [],
@@ -1688,7 +2333,7 @@
       "parameters": {
         "member": {
           "kind": "element",
-          "category": "Categories.AlkaliMetal"
+          "category": "Categories.WaterReactiveAlkaliMetal"
         }
       },
       "sites": [
@@ -1713,6 +2358,17 @@
       ],
       "premise_ids": [
         "premise.rule.alkali-metal-water.standard-outcome"
+      ],
+      "traits": [
+        {
+          "trait": "Traits.ElementalMetalReactant",
+          "sites": {
+            "reactive_site": "metal"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
       ]
     },
     {
@@ -1721,7 +2377,7 @@
       "parameters": {
         "member": {
           "kind": "element",
-          "category": "Categories.AlkaliMetal"
+          "category": "Categories.WaterReactiveAlkaliMetal"
         }
       },
       "components": [
@@ -1780,6 +2436,17 @@
       ],
       "premise_ids": [
         "premise.rule.alkali-metal-water.standard-outcome"
+      ],
+      "traits": [
+        {
+          "trait": "Traits.HydroxideBase",
+          "sites": {
+            "reactive_site": "metal.metal"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
       ]
     }
   ],
@@ -1846,6 +2513,62 @@
         "member": "K"
       },
       "formula": "KOH",
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "RubidiumMetal",
+      "template": "Templates.AlkaliMetal",
+      "arguments": {
+        "member": "Rb"
+      },
+      "formula": "Rb",
+      "aliases": [
+        "rubidium"
+      ],
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "RubidiumHydroxide",
+      "template": "Templates.AlkaliMetalHydroxide",
+      "arguments": {
+        "member": "Rb"
+      },
+      "formula": "RbOH",
+      "aliases": [
+        "rubidium-hydroxide"
+      ],
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "CaesiumMetal",
+      "template": "Templates.AlkaliMetal",
+      "arguments": {
+        "member": "Cs"
+      },
+      "formula": "Cs",
+      "aliases": [
+        "caesium"
+      ],
+      "premise_ids": [
+        "premise.rule.alkali-metal-water.standard-outcome"
+      ]
+    },
+    {
+      "id": "CaesiumHydroxide",
+      "template": "Templates.AlkaliMetalHydroxide",
+      "arguments": {
+        "member": "Cs"
+      },
+      "formula": "CsOH",
+      "aliases": [
+        "caesium-hydroxide"
+      ],
       "premise_ids": [
         "premise.rule.alkali-metal-water.standard-outcome"
       ]
@@ -1923,7 +2646,7 @@
       "parameters": {
         "member": {
           "kind": "element",
-          "category": "Categories.AlkaliMetal"
+          "category": "Categories.WaterReactiveAlkaliMetal"
         }
       },
       "roles": {
@@ -2439,6 +3162,7 @@
         "premise.structure.alkali-metal-hydroxide",
         "premise.structure.hydrogen",
         "premise.structure.water",
+        "premise.traits.reaction-family-classification",
         "premise.valence.alkali-h-o.initial-domain"
       ]
     }

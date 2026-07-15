@@ -1,0 +1,2495 @@
+{
+  "artifact": "expanded-certificate",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "atom_provenance": {
+      "hydrogen[1].h1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "coefficient instance hydrogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen expanded atom hydrogen[1].h1"
+          }
+        ],
+        "evidence": []
+      },
+      "hydrogen[1].h2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "coefficient instance hydrogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen expanded atom hydrogen[1].h2"
+          }
+        ],
+        "evidence": []
+      },
+      "lithiumHydroxide[1].hydroxide.h": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithiumHydroxide[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[1].hydroxide.h"
+          }
+        ],
+        "evidence": []
+      },
+      "lithiumHydroxide[1].hydroxide.o": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithiumHydroxide[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[1].hydroxide.o"
+          }
+        ],
+        "evidence": []
+      },
+      "lithiumHydroxide[1].metal.metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithiumHydroxide[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[1].metal.metal"
+          }
+        ],
+        "evidence": []
+      },
+      "lithiumHydroxide[2].hydroxide.h": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithiumHydroxide[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[2].hydroxide.h"
+          }
+        ],
+        "evidence": []
+      },
+      "lithiumHydroxide[2].hydroxide.o": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithiumHydroxide[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[2].hydroxide.o"
+          }
+        ],
+        "evidence": []
+      },
+      "lithiumHydroxide[2].metal.metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithiumHydroxide[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumHydroxide expanded atom lithiumHydroxide[2].metal.metal"
+          }
+        ],
+        "evidence": []
+      },
+      "lithium[1].metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithium[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumMetal"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumMetal expanded atom lithium[1].metal"
+          }
+        ],
+        "evidence": []
+      },
+      "lithium[2].metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance lithium[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumMetal"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure LithiumMetal expanded atom lithium[2].metal"
+          }
+        ],
+        "evidence": []
+      },
+      "water[1].h1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "coefficient instance water[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water expanded atom water[1].h1"
+          }
+        ],
+        "evidence": []
+      },
+      "water[1].h2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "coefficient instance water[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water expanded atom water[1].h2"
+          }
+        ],
+        "evidence": []
+      },
+      "water[1].o": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "coefficient instance water[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water expanded atom water[1].o"
+          }
+        ],
+        "evidence": []
+      },
+      "water[2].h1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "coefficient instance water[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water expanded atom water[2].h1"
+          }
+        ],
+        "evidence": []
+      },
+      "water[2].h2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "coefficient instance water[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water expanded atom water[2].h2"
+          }
+        ],
+        "evidence": []
+      },
+      "water[2].o": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "coefficient instance water[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.water"
+            ],
+            "record": "structure Water expanded atom water[2].o"
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "claim": {
+      "catalogue": {
+        "digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "name": "ChemSpec.Theoretical",
+        "trust": "review_candidate",
+        "version": "1"
+      },
+      "equation": [
+        {
+          "binding": "lithium",
+          "coefficient": 2,
+          "formula": {
+            "Li": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure LithiumMetal"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "metallic",
+          "side": "reactant"
+        },
+        {
+          "binding": "water",
+          "coefficient": 2,
+          "formula": {
+            "H": 2,
+            "O": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.water"
+                ],
+                "record": "structure Water"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant"
+        },
+        {
+          "binding": "hydrogen",
+          "coefficient": 1,
+          "formula": {
+            "H": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.hydrogen"
+                ],
+                "record": "structure Hydrogen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product"
+        },
+        {
+          "binding": "lithiumHydroxide",
+          "coefficient": 2,
+          "formula": {
+            "H": 1,
+            "Li": 1,
+            "O": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure LithiumHydroxide"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product"
+        }
+      ],
+      "evidence": {
+        "digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_subject": "hydrogen",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.hydrogen-evolves"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "hydrogen",
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_subject": "alkali metal",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.alkali-metal-disappears"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AlkaliWater@1",
+                  "packet_digest": "dc7e1cff7018649203434f2aa464f38add84749990caddd6cf047921b7a95dc4",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "lithium",
+            "value": null
+          }
+        ],
+        "packet": {
+          "name": "Evidence.AlkaliWater",
+          "version": "1"
+        },
+        "trust": "external_untrusted"
+      },
+      "model": {
+        "event": "representative",
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.alkali-metal-water.standard-outcome"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater model assumptions"
+            }
+          ],
+          "evidence": []
+        },
+        "sequence": "explanatory"
+      },
+      "products": {
+        "hydrogen": {
+          "coefficient": 1,
+          "formula": {
+            "H": 2
+          },
+          "name": "hydrogen",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.hydrogen"
+                ],
+                "record": "structure Hydrogen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product",
+          "structure": "Hydrogen"
+        },
+        "lithiumHydroxide": {
+          "coefficient": 2,
+          "formula": {
+            "H": 1,
+            "Li": 1,
+            "O": 1
+          },
+          "name": "lithiumHydroxide",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure LithiumHydroxide"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product",
+          "structure": "LithiumHydroxide"
+        }
+      },
+      "reactants": {
+        "lithium": {
+          "coefficient": 2,
+          "formula": {
+            "Li": 1
+          },
+          "name": "lithium",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure LithiumMetal"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "metallic",
+          "side": "reactant",
+          "structure": "LithiumMetal"
+        },
+        "water": {
+          "coefficient": 2,
+          "formula": {
+            "H": 2,
+            "O": 1
+          },
+          "name": "water",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.water"
+                ],
+                "record": "structure Water"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant",
+          "structure": "Water"
+        }
+      },
+      "reaction": "LithiumAndWater",
+      "rule": {
+        "applicability": {
+          "premise": "premise.rule.alkali-metal-water.standard-outcome",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.alkali-metal-disappears",
+                  "premise.observation.hydrogen-evolves",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "record": "generalized rule Rules.AlkaliMetalWithWater selected applicability"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.alkali-metal-water.standard-outcome"
+                ],
+                "record": "rule Rules.AlkaliMetalWithWater applicability"
+              }
+            ],
+            "evidence": []
+          },
+          "reactant_structures": [
+            "LithiumMetal",
+            "Water"
+          ],
+          "request_relation": "contact",
+          "required_context": "representative educational outcome under the reviewed standard-outcome premise"
+        },
+        "bindings": {
+          "gasProduct": {
+            "binding": "hydrogen",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.alkali-metal-disappears",
+                    "premise.observation.hydrogen-evolves",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal",
+                    "premise.structure.alkali-metal-hydroxide",
+                    "premise.structure.hydrogen",
+                    "premise.structure.water",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.alkali-h-o.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.AlkaliMetalWithWater role gasProduct"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.alkali-metal-water.standard-outcome"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater role gasProduct"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "gasProduct",
+            "side": "product"
+          },
+          "hydroxide": {
+            "binding": "lithiumHydroxide",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.alkali-metal-disappears",
+                    "premise.observation.hydrogen-evolves",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal",
+                    "premise.structure.alkali-metal-hydroxide",
+                    "premise.structure.hydrogen",
+                    "premise.structure.water",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.alkali-h-o.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.AlkaliMetalWithWater role hydroxide"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.alkali-metal-water.standard-outcome"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater role hydroxide"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "hydroxide",
+            "side": "product"
+          },
+          "metal": {
+            "binding": "lithium",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.alkali-metal-disappears",
+                    "premise.observation.hydrogen-evolves",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal",
+                    "premise.structure.alkali-metal-hydroxide",
+                    "premise.structure.hydrogen",
+                    "premise.structure.water",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.alkali-h-o.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.AlkaliMetalWithWater role metal"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.alkali-metal-water.standard-outcome"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater role metal"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "metal",
+            "side": "reactant"
+          },
+          "water": {
+            "binding": "water",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.alkali-metal-disappears",
+                    "premise.observation.hydrogen-evolves",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.structure.alkali-metal",
+                    "premise.structure.alkali-metal-hydroxide",
+                    "premise.structure.hydrogen",
+                    "premise.structure.water",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.alkali-h-o.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.AlkaliMetalWithWater role water"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.alkali-metal-water.standard-outcome"
+                  ],
+                  "record": "rule Rules.AlkaliMetalWithWater role water"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "water",
+            "side": "reactant"
+          }
+        },
+        "generalized": {
+          "case_id": "standard",
+          "equivalent_match_count": 4,
+          "matched_sites": {
+            "metal[1]": {
+              "metal": "metal",
+              "metallic": "metallic"
+            },
+            "metal[2]": {
+              "metal": "metal",
+              "metallic": "metallic"
+            },
+            "water[1]": {
+              "h1": "h1",
+              "h2": "h2",
+              "o": "o",
+              "oh1": "bond.0",
+              "oh2": "bond.1"
+            },
+            "water[2]": {
+              "h1": "h1",
+              "h2": "h2",
+              "o": "o",
+              "oh1": "bond.0",
+              "oh2": "bond.1"
+            }
+          },
+          "parameter_premises": {
+            "member": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome"
+            ]
+          },
+          "parameters": {
+            "member": "Li"
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.alkali-metal-disappears",
+                  "premise.observation.hydrogen-evolves",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal",
+                  "premise.structure.alkali-metal-hydroxide",
+                  "premise.structure.hydrogen",
+                  "premise.structure.water",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.alkali-h-o.initial-domain"
+                ],
+                "record": "generalized rule Rules.AlkaliMetalWithWater case standard"
+              }
+            ],
+            "evidence": []
+          },
+          "role_premises": {
+            "gasProduct": [
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.alkali-metal-disappears",
+              "premise.observation.hydrogen-evolves",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal",
+              "premise.structure.alkali-metal-hydroxide",
+              "premise.structure.hydrogen",
+              "premise.structure.water",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.alkali-h-o.initial-domain"
+            ],
+            "hydroxide": [
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.alkali-metal-disappears",
+              "premise.observation.hydrogen-evolves",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal",
+              "premise.structure.alkali-metal-hydroxide",
+              "premise.structure.hydrogen",
+              "premise.structure.water",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.alkali-h-o.initial-domain"
+            ],
+            "metal": [
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.alkali-metal-disappears",
+              "premise.observation.hydrogen-evolves",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal",
+              "premise.structure.alkali-metal-hydroxide",
+              "premise.structure.hydrogen",
+              "premise.structure.water",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.alkali-h-o.initial-domain"
+            ],
+            "water": [
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.alkali-metal-disappears",
+              "premise.observation.hydrogen-evolves",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal",
+              "premise.structure.alkali-metal-hydroxide",
+              "premise.structure.hydrogen",
+              "premise.structure.water",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.alkali-h-o.initial-domain"
+            ]
+          }
+        },
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "generalized rule Rules.AlkaliMetalWithWater selected certificate"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.alkali-metal-water.standard-outcome"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater"
+            }
+          ],
+          "evidence": []
+        },
+        "rule": "Rules.AlkaliMetalWithWater"
+      }
+    },
+    "mapping": {
+      "entries": {
+        "lithium[1].metal": "lithiumHydroxide[1].metal.metal",
+        "lithium[2].metal": "lithiumHydroxide[2].metal.metal",
+        "water[1].h1": "hydrogen[1].h1",
+        "water[1].h2": "lithiumHydroxide[1].hydroxide.h",
+        "water[1].o": "lithiumHydroxide[1].hydroxide.o",
+        "water[2].h1": "hydrogen[1].h2",
+        "water[2].h2": "lithiumHydroxide[2].hydroxide.h",
+        "water[2].o": "lithiumHydroxide[2].hydroxide.o"
+      },
+      "id": "mapping.LithiumAndWater"
+    },
+    "mapping_entry_provenance": {
+      "lithium[1].metal": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 1"
+      },
+      "lithium[2].metal": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 2"
+      },
+      "water[1].h1": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 3"
+      },
+      "water[1].h2": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 4"
+      },
+      "water[1].o": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 5"
+      },
+      "water[2].h1": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 6"
+      },
+      "water[2].h2": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 7"
+      },
+      "water[2].o": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.alkali-metal-disappears",
+          "premise.observation.hydrogen-evolves",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.structure.alkali-metal",
+          "premise.structure.alkali-metal-hydroxide",
+          "premise.structure.hydrogen",
+          "premise.structure.water",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "rule Rules.AlkaliMetalWithWater mapping pair 8"
+      }
+    },
+    "mapping_provenance": {
+      "catalogue": [
+        {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.alkali-metal-disappears",
+            "premise.observation.hydrogen-evolves",
+            "premise.rule.alkali-metal-water.standard-outcome",
+            "premise.structure.alkali-metal",
+            "premise.structure.alkali-metal-hydroxide",
+            "premise.structure.hydrogen",
+            "premise.structure.water",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.alkali-h-o.initial-domain"
+          ],
+          "record": "rule Rules.AlkaliMetalWithWater atom mapping template"
+        }
+      ],
+      "evidence": []
+    },
+    "operations": [
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "retain_electron",
+          "domain": "lithium[1].metallic",
+          "domain_electrons_after": 0,
+          "domain_electrons_before": 1,
+          "id": "operation[1]",
+          "kind": "release_metallic",
+          "site": "lithium[1].metal",
+          "transition": {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "lithium[1].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          }
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 1"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "retain_electron",
+          "domain": "lithium[2].metallic",
+          "domain_electrons_after": 0,
+          "domain_electrons_before": 1,
+          "id": "operation[2]",
+          "kind": "release_metallic",
+          "site": "lithium[2].metal",
+          "transition": {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "lithium[2].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          }
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 2"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": {
+            "heterolytic_to": "water[1].o"
+          },
+          "expected_order": "single",
+          "id": "operation[3]",
+          "kind": "cleave_covalent",
+          "left": "water[1].o",
+          "right": "water[1].h1",
+          "transitions": {
+            "water[1].h1": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "water[1].h1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "water[1].o": {
+              "after": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "atom": "water[1].o",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 3,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 3"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": {
+            "heterolytic_to": "water[2].o"
+          },
+          "expected_order": "single",
+          "id": "operation[4]",
+          "kind": "cleave_covalent",
+          "left": "water[2].o",
+          "right": "water[2].h1",
+          "transitions": {
+            "water[2].h1": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "water[2].h1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "water[2].o": {
+              "after": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "atom": "water[2].o",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 4,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 4,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 4"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "acceptor": "water[1].h1",
+          "count": 1,
+          "donor": "lithium[1].metal",
+          "id": "operation[5]",
+          "kind": "transfer_electron",
+          "transitions": {
+            "lithium[1].metal": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "lithium[1].metal",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            },
+            "water[1].h1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "water[1].h1",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 5,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 5"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "acceptor": "water[2].h1",
+          "count": 1,
+          "donor": "lithium[2].metal",
+          "id": "operation[6]",
+          "kind": "transfer_electron",
+          "transitions": {
+            "lithium[2].metal": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "lithium[2].metal",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            },
+            "water[2].h1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "water[2].h1",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 6,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 6"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": {
+          "left": 1,
+          "right": 1
+        },
+        "ionic_components": [],
+        "operation": {
+          "id": "operation[7]",
+          "kind": "form_covalent",
+          "left": "water[1].h1",
+          "order": "single",
+          "right": "water[2].h1",
+          "transitions": {
+            "water[1].h1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "water[1].h1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            },
+            "water[2].h1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "water[2].h1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 7,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 7"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [
+          {
+            "expected_charge": 1,
+            "group": {
+              "atoms": [
+                "lithium[1].metal"
+              ],
+              "id": "ionic[8].component[1]"
+            }
+          },
+          {
+            "expected_charge": -1,
+            "group": {
+              "atoms": [
+                "water[1].h2",
+                "water[1].o"
+              ],
+              "id": "ionic[8].component[2]"
+            }
+          }
+        ],
+        "operation": {
+          "association": {
+            "components": [
+              "ionic[8].component[1]",
+              "ionic[8].component[2]"
+            ],
+            "id": "ionic[8].ionic.product1"
+          },
+          "id": "operation[8]",
+          "kind": "associate_ionic"
+        },
+        "ordinal": 8,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 8"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [
+          {
+            "expected_charge": 1,
+            "group": {
+              "atoms": [
+                "lithium[2].metal"
+              ],
+              "id": "ionic[9].component[1]"
+            }
+          },
+          {
+            "expected_charge": -1,
+            "group": {
+              "atoms": [
+                "water[2].h2",
+                "water[2].o"
+              ],
+              "id": "ionic[9].component[2]"
+            }
+          }
+        ],
+        "operation": {
+          "association": {
+            "components": [
+              "ionic[9].component[1]",
+              "ionic[9].component[2]"
+            ],
+            "id": "ionic[9].ionic.product2"
+          },
+          "id": "operation[9]",
+          "kind": "associate_ionic"
+        },
+        "ordinal": 9,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 9"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "lithium[1].metal",
+            "water[1].h2",
+            "water[1].o"
+          ],
+          "id": "operation[10]",
+          "kind": "assign_product",
+          "product": "lithiumHydroxide[1]"
+        },
+        "ordinal": 10,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 10"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "lithium[2].metal",
+            "water[2].h2",
+            "water[2].o"
+          ],
+          "id": "operation[11]",
+          "kind": "assign_product",
+          "product": "lithiumHydroxide[2]"
+        },
+        "ordinal": 11,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 11"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "water[1].h1",
+            "water[2].h1"
+          ],
+          "id": "operation[12]",
+          "kind": "assign_product",
+          "product": "hydrogen[1]"
+        },
+        "ordinal": 12,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.alkali-metal-disappears",
+                "premise.observation.hydrogen-evolves",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal",
+                "premise.structure.alkali-metal-hydroxide",
+                "premise.structure.hydrogen",
+                "premise.structure.water",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.alkali-h-o.initial-domain"
+              ],
+              "record": "rule Rules.AlkaliMetalWithWater operation template 12"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    ],
+    "premise_provenance": {
+      "premise.elements.iupac-periodic-table": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table"
+        ],
+        "record": "catalogue premise premise.elements.iupac-periodic-table"
+      },
+      "premise.observation.alkali-metal-disappears": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.observation.alkali-metal-disappears"
+        ],
+        "record": "catalogue premise premise.observation.alkali-metal-disappears"
+      },
+      "premise.observation.hydrogen-evolves": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.observation.hydrogen-evolves"
+        ],
+        "record": "catalogue premise premise.observation.hydrogen-evolves"
+      },
+      "premise.rule.alkali-metal-water.standard-outcome": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ],
+        "record": "catalogue premise premise.rule.alkali-metal-water.standard-outcome"
+      },
+      "premise.structure.alkali-metal": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.alkali-metal"
+        ],
+        "record": "catalogue premise premise.structure.alkali-metal"
+      },
+      "premise.structure.alkali-metal-hydroxide": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.alkali-metal-hydroxide"
+        ],
+        "record": "catalogue premise premise.structure.alkali-metal-hydroxide"
+      },
+      "premise.structure.hydrogen": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.hydrogen"
+        ],
+        "record": "catalogue premise premise.structure.hydrogen"
+      },
+      "premise.structure.water": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.water"
+        ],
+        "record": "catalogue premise premise.structure.water"
+      },
+      "premise.traits.reaction-family-classification": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.traits.reaction-family-classification"
+        ],
+        "record": "catalogue premise premise.traits.reaction-family-classification"
+      },
+      "premise.valence.alkali-h-o.initial-domain": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.valence.alkali-h-o.initial-domain"
+        ],
+        "record": "catalogue premise premise.valence.alkali-h-o.initial-domain"
+      }
+    },
+    "premises": [
+      "premise.elements.iupac-periodic-table",
+      "premise.observation.alkali-metal-disappears",
+      "premise.observation.hydrogen-evolves",
+      "premise.rule.alkali-metal-water.standard-outcome",
+      "premise.structure.alkali-metal",
+      "premise.structure.alkali-metal-hydroxide",
+      "premise.structure.hydrogen",
+      "premise.structure.water",
+      "premise.traits.reaction-family-classification",
+      "premise.valence.alkali-h-o.initial-domain"
+    ],
+    "product_instances": {
+      "hydrogen[1]": {
+        "binding": "hydrogen",
+        "instance": {
+          "atom_relabeling": {
+            "h1": "hydrogen[1].h1",
+            "h2": "hydrogen[1].h2"
+          },
+          "graph": {
+            "atoms": {
+              "hydrogen[1].h1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "hydrogen[1].h1"
+              },
+              "hydrogen[1].h2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "hydrogen[1].h2"
+              }
+            },
+            "covalent_bonds": {
+              "hydrogen[1].bond.0": {
+                "id": "hydrogen[1].bond.0",
+                "left": "hydrogen[1].h1",
+                "order": "single",
+                "right": "hydrogen[1].h2"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "hydrogen[1]",
+          "structure": "Hydrogen"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.hydrogen"
+              ],
+              "record": "coefficient instance hydrogen[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.hydrogen"
+              ],
+              "record": "structure Hydrogen"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "lithiumHydroxide[1]": {
+        "binding": "lithiumHydroxide",
+        "instance": {
+          "atom_relabeling": {
+            "hydroxide.h": "lithiumHydroxide[1].hydroxide.h",
+            "hydroxide.o": "lithiumHydroxide[1].hydroxide.o",
+            "metal.metal": "lithiumHydroxide[1].metal.metal"
+          },
+          "graph": {
+            "atoms": {
+              "lithiumHydroxide[1].hydroxide.h": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "lithiumHydroxide[1].hydroxide.h"
+              },
+              "lithiumHydroxide[1].hydroxide.o": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "O",
+                "id": "lithiumHydroxide[1].hydroxide.o"
+              },
+              "lithiumHydroxide[1].metal.metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "lithiumHydroxide[1].metal.metal"
+              }
+            },
+            "covalent_bonds": {
+              "lithiumHydroxide[1].bond.0": {
+                "id": "lithiumHydroxide[1].bond.0",
+                "left": "lithiumHydroxide[1].hydroxide.h",
+                "order": "single",
+                "right": "lithiumHydroxide[1].hydroxide.o"
+              }
+            },
+            "groups": {
+              "lithiumHydroxide[1].hydroxide": {
+                "atoms": [
+                  "lithiumHydroxide[1].hydroxide.h",
+                  "lithiumHydroxide[1].hydroxide.o"
+                ],
+                "id": "lithiumHydroxide[1].hydroxide"
+              },
+              "lithiumHydroxide[1].metal": {
+                "atoms": [
+                  "lithiumHydroxide[1].metal.metal"
+                ],
+                "id": "lithiumHydroxide[1].metal"
+              }
+            },
+            "ionic_associations": {
+              "lithiumHydroxide[1].ionic": {
+                "components": [
+                  "lithiumHydroxide[1].hydroxide",
+                  "lithiumHydroxide[1].metal"
+                ],
+                "id": "lithiumHydroxide[1].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "lithiumHydroxide[1]",
+          "structure": "LithiumHydroxide"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance lithiumHydroxide[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure LithiumHydroxide"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "lithiumHydroxide[2]": {
+        "binding": "lithiumHydroxide",
+        "instance": {
+          "atom_relabeling": {
+            "hydroxide.h": "lithiumHydroxide[2].hydroxide.h",
+            "hydroxide.o": "lithiumHydroxide[2].hydroxide.o",
+            "metal.metal": "lithiumHydroxide[2].metal.metal"
+          },
+          "graph": {
+            "atoms": {
+              "lithiumHydroxide[2].hydroxide.h": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "lithiumHydroxide[2].hydroxide.h"
+              },
+              "lithiumHydroxide[2].hydroxide.o": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "O",
+                "id": "lithiumHydroxide[2].hydroxide.o"
+              },
+              "lithiumHydroxide[2].metal.metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "lithiumHydroxide[2].metal.metal"
+              }
+            },
+            "covalent_bonds": {
+              "lithiumHydroxide[2].bond.0": {
+                "id": "lithiumHydroxide[2].bond.0",
+                "left": "lithiumHydroxide[2].hydroxide.h",
+                "order": "single",
+                "right": "lithiumHydroxide[2].hydroxide.o"
+              }
+            },
+            "groups": {
+              "lithiumHydroxide[2].hydroxide": {
+                "atoms": [
+                  "lithiumHydroxide[2].hydroxide.h",
+                  "lithiumHydroxide[2].hydroxide.o"
+                ],
+                "id": "lithiumHydroxide[2].hydroxide"
+              },
+              "lithiumHydroxide[2].metal": {
+                "atoms": [
+                  "lithiumHydroxide[2].metal.metal"
+                ],
+                "id": "lithiumHydroxide[2].metal"
+              }
+            },
+            "ionic_associations": {
+              "lithiumHydroxide[2].ionic": {
+                "components": [
+                  "lithiumHydroxide[2].hydroxide",
+                  "lithiumHydroxide[2].metal"
+                ],
+                "id": "lithiumHydroxide[2].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "lithiumHydroxide[2]",
+          "structure": "LithiumHydroxide"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance lithiumHydroxide[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure LithiumHydroxide"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "reactant_instances": {
+      "lithium[1]": {
+        "binding": "lithium",
+        "instance": {
+          "atom_relabeling": {
+            "metal": "lithium[1].metal"
+          },
+          "graph": {
+            "atoms": {
+              "lithium[1].metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "lithium[1].metal"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {
+              "lithium[1].metallic": {
+                "delocalized_electrons": 1,
+                "id": "lithium[1].metallic",
+                "sites": [
+                  "lithium[1].metal"
+                ]
+              }
+            }
+          },
+          "id": "lithium[1]",
+          "structure": "LithiumMetal"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance lithium[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure LithiumMetal"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "lithium[2]": {
+        "binding": "lithium",
+        "instance": {
+          "atom_relabeling": {
+            "metal": "lithium[2].metal"
+          },
+          "graph": {
+            "atoms": {
+              "lithium[2].metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "lithium[2].metal"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {
+              "lithium[2].metallic": {
+                "delocalized_electrons": 1,
+                "id": "lithium[2].metallic",
+                "sites": [
+                  "lithium[2].metal"
+                ]
+              }
+            }
+          },
+          "id": "lithium[2]",
+          "structure": "LithiumMetal"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance lithium[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure LithiumMetal"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "water[1]": {
+        "binding": "water",
+        "instance": {
+          "atom_relabeling": {
+            "h1": "water[1].h1",
+            "h2": "water[1].h2",
+            "o": "water[1].o"
+          },
+          "graph": {
+            "atoms": {
+              "water[1].h1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "water[1].h1"
+              },
+              "water[1].h2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "water[1].h2"
+              },
+              "water[1].o": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                },
+                "element": "O",
+                "id": "water[1].o"
+              }
+            },
+            "covalent_bonds": {
+              "water[1].bond.0": {
+                "id": "water[1].bond.0",
+                "left": "water[1].h1",
+                "order": "single",
+                "right": "water[1].o"
+              },
+              "water[1].bond.1": {
+                "id": "water[1].bond.1",
+                "left": "water[1].h2",
+                "order": "single",
+                "right": "water[1].o"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "water[1]",
+          "structure": "Water"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "coefficient instance water[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "water[2]": {
+        "binding": "water",
+        "instance": {
+          "atom_relabeling": {
+            "h1": "water[2].h1",
+            "h2": "water[2].h2",
+            "o": "water[2].o"
+          },
+          "graph": {
+            "atoms": {
+              "water[2].h1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "water[2].h1"
+              },
+              "water[2].h2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "water[2].h2"
+              },
+              "water[2].o": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                },
+                "element": "O",
+                "id": "water[2].o"
+              }
+            },
+            "covalent_bonds": {
+              "water[2].bond.0": {
+                "id": "water[2].bond.0",
+                "left": "water[2].h1",
+                "order": "single",
+                "right": "water[2].o"
+              },
+              "water[2].bond.1": {
+                "id": "water[2].bond.1",
+                "left": "water[2].h2",
+                "order": "single",
+                "right": "water[2].o"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "water[2]",
+          "structure": "Water"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "coefficient instance water[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.water"
+              ],
+              "record": "structure Water"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "schema_version": 1
+  }
+}

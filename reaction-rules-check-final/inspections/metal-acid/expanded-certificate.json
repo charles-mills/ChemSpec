@@ -1,0 +1,2378 @@
+{
+  "artifact": "expanded-certificate",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "atom_provenance": {
+      "acid[1].h": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance acid[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom acid[1].h"
+          }
+        ],
+        "evidence": []
+      },
+      "acid[1].x": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance acid[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom acid[1].x"
+          }
+        ],
+        "evidence": []
+      },
+      "acid[2].h": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance acid[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom acid[2].h"
+          }
+        ],
+        "evidence": []
+      },
+      "acid[2].x": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance acid[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure HydrogenChloride expanded atom acid[2].x"
+          }
+        ],
+        "evidence": []
+      },
+      "hydrogen[1].h1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "coefficient instance hydrogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen expanded atom hydrogen[1].h1"
+          }
+        ],
+        "evidence": []
+      },
+      "hydrogen[1].h2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "coefficient instance hydrogen[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.structure.hydrogen"
+            ],
+            "record": "structure Hydrogen expanded atom hydrogen[1].h2"
+          }
+        ],
+        "evidence": []
+      },
+      "metal[1].metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "coefficient instance metal[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Metal"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Metal expanded atom metal[1].metal"
+          }
+        ],
+        "evidence": []
+      },
+      "metal[2].metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "coefficient instance metal[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Metal"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Metal expanded atom metal[2].metal"
+          }
+        ],
+        "evidence": []
+      },
+      "salt[1].anion1.anion": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "coefficient instance salt[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride expanded atom salt[1].anion1.anion"
+          }
+        ],
+        "evidence": []
+      },
+      "salt[1].cation1.metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "coefficient instance salt[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride expanded atom salt[1].cation1.metal"
+          }
+        ],
+        "evidence": []
+      },
+      "salt[2].anion1.anion": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "coefficient instance salt[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride expanded atom salt[2].anion1.anion"
+          }
+        ],
+        "evidence": []
+      },
+      "salt[2].cation1.metal": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "coefficient instance salt[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "record": "structure LiFixedCation1Chloride expanded atom salt[2].cation1.metal"
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "claim": {
+      "catalogue": {
+        "digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "name": "ChemSpec.Theoretical",
+        "trust": "review_candidate",
+        "version": "1"
+      },
+      "equation": [
+        {
+          "binding": "acid",
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "H": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure HydrogenChloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant"
+        },
+        {
+          "binding": "metal",
+          "coefficient": 2,
+          "formula": {
+            "Li": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.fixed-charge-ion-pairs",
+                  "premise.structure.fixed-charge-ion-pairs",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.fixed-charge-ion-pairs"
+                ],
+                "record": "structure LiFixedCation1Metal"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "metallic",
+          "side": "reactant"
+        },
+        {
+          "binding": "hydrogen",
+          "coefficient": 1,
+          "formula": {
+            "H": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.hydrogen"
+                ],
+                "record": "structure Hydrogen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product"
+        },
+        {
+          "binding": "salt",
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "Li": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.fixed-charge-ion-pairs",
+                  "premise.structure.fixed-charge-ion-pairs",
+                  "premise.valence.fixed-charge-ion-pairs"
+                ],
+                "record": "structure LiFixedCation1Chloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product"
+        }
+      ],
+      "evidence": {
+        "digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_subject": "hydrogen",
+            "predicate": "evolves",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.MetalAcidLithiumChloride@1",
+                  "packet_digest": "616e132e9838c3eb8e9fdc57619da40b65f2baff9cc974874f3720216d7b2719",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "hydrogen",
+            "value": null
+          }
+        ],
+        "packet": {
+          "name": "Evidence.MetalAcidLithiumChloride",
+          "version": "1"
+        },
+        "trust": "external_untrusted"
+      },
+      "model": {
+        "event": "representative",
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.metal-acid.non-oxidising"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid model assumptions"
+            }
+          ],
+          "evidence": []
+        },
+        "sequence": "explanatory"
+      },
+      "products": {
+        "hydrogen": {
+          "coefficient": 1,
+          "formula": {
+            "H": 2
+          },
+          "name": "hydrogen",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.structure.hydrogen"
+                ],
+                "record": "structure Hydrogen"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product",
+          "structure": "Hydrogen"
+        },
+        "salt": {
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "Li": 1
+          },
+          "name": "salt",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.fixed-charge-ion-pairs",
+                  "premise.structure.fixed-charge-ion-pairs",
+                  "premise.valence.fixed-charge-ion-pairs"
+                ],
+                "record": "structure LiFixedCation1Chloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product",
+          "structure": "LiFixedCation1Chloride"
+        }
+      },
+      "reactants": {
+        "acid": {
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "H": 1
+          },
+          "name": "acid",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure HydrogenChloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant",
+          "structure": "HydrogenChloride"
+        },
+        "metal": {
+          "coefficient": 2,
+          "formula": {
+            "Li": 1
+          },
+          "name": "metal",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.fixed-charge-ion-pairs",
+                  "premise.structure.fixed-charge-ion-pairs",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.fixed-charge-ion-pairs"
+                ],
+                "record": "structure LiFixedCation1Metal"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "metallic",
+          "side": "reactant",
+          "structure": "LiFixedCation1Metal"
+        }
+      },
+      "reaction": "LithiumWithHydrogenChloride",
+      "rule": {
+        "applicability": {
+          "premise": "premise.rule.metal-acid.non-oxidising",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.context-specific-reaction-facts",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.fixed-charge-ion-pairs",
+                  "premise.rule.metal-acid.non-oxidising",
+                  "premise.structure.fixed-charge-ion-pairs",
+                  "premise.structure.hydrogen",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain",
+                  "premise.valence.fixed-charge-ion-pairs"
+                ],
+                "record": "generalized rule Rules.FixedCation1WithNonOxidisingAcid selected applicability"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.metal-acid.non-oxidising"
+                ],
+                "record": "rule Rules.FixedCation1WithNonOxidisingAcid applicability"
+              }
+            ],
+            "evidence": []
+          },
+          "reactant_structures": [
+            "HydrogenChloride",
+            "LiFixedCation1Metal"
+          ],
+          "request_relation": "contact",
+          "required_context": "theoretical contact with a reviewed non-oxidising strong monoprotic acid; passivation and oxidising-acid pathways are outside this family"
+        },
+        "bindings": {
+          "acid": {
+            "binding": "acid",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.context-specific-reaction-facts",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.fixed-charge-ion-pairs",
+                    "premise.rule.metal-acid.non-oxidising",
+                    "premise.structure.fixed-charge-ion-pairs",
+                    "premise.structure.hydrogen",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.acid-base.initial-domain",
+                    "premise.valence.fixed-charge-ion-pairs"
+                  ],
+                  "record": "generalized rule Rules.FixedCation1WithNonOxidisingAcid role acid"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid role acid"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "acid",
+            "side": "reactant"
+          },
+          "hydrogen": {
+            "binding": "hydrogen",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.context-specific-reaction-facts",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.fixed-charge-ion-pairs",
+                    "premise.rule.metal-acid.non-oxidising",
+                    "premise.structure.fixed-charge-ion-pairs",
+                    "premise.structure.hydrogen",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.acid-base.initial-domain",
+                    "premise.valence.fixed-charge-ion-pairs"
+                  ],
+                  "record": "generalized rule Rules.FixedCation1WithNonOxidisingAcid role hydrogen"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid role hydrogen"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "hydrogen",
+            "side": "product"
+          },
+          "metal": {
+            "binding": "metal",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.context-specific-reaction-facts",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.fixed-charge-ion-pairs",
+                    "premise.rule.metal-acid.non-oxidising",
+                    "premise.structure.fixed-charge-ion-pairs",
+                    "premise.structure.hydrogen",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.acid-base.initial-domain",
+                    "premise.valence.fixed-charge-ion-pairs"
+                  ],
+                  "record": "generalized rule Rules.FixedCation1WithNonOxidisingAcid role metal"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid role metal"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "metal",
+            "side": "reactant"
+          },
+          "salt": {
+            "binding": "salt",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.category.halide",
+                    "premise.elements.context-specific-reaction-facts",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.rule.fixed-charge-ion-pairs",
+                    "premise.rule.metal-acid.non-oxidising",
+                    "premise.structure.fixed-charge-ion-pairs",
+                    "premise.structure.hydrogen",
+                    "premise.structure.hydrogen-halide",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.acid-base.initial-domain",
+                    "premise.valence.fixed-charge-ion-pairs"
+                  ],
+                  "record": "generalized rule Rules.FixedCation1WithNonOxidisingAcid role salt"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.metal-acid.non-oxidising"
+                  ],
+                  "record": "rule Rules.FixedCation1WithNonOxidisingAcid role salt"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "salt",
+            "side": "product"
+          }
+        },
+        "generalized": {
+          "case_id": "cl",
+          "equivalent_match_count": 1,
+          "matched_sites": {
+            "acid[1]": {
+              "h": "h",
+              "hx": "bond.0",
+              "x": "x"
+            },
+            "acid[2]": {
+              "h": "h",
+              "hx": "bond.0",
+              "x": "x"
+            },
+            "metal[1]": {
+              "metal": "metal",
+              "metallic": "metallic"
+            },
+            "metal[2]": {
+              "metal": "metal",
+              "metallic": "metallic"
+            }
+          },
+          "parameter_premises": {
+            "halide": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table"
+            ],
+            "member": [
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.metal-acid.non-oxidising"
+            ]
+          },
+          "parameters": {
+            "halide": "Cl",
+            "member": "Li"
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.context-specific-reaction-facts",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.fixed-charge-ion-pairs",
+                  "premise.rule.metal-acid.non-oxidising",
+                  "premise.structure.fixed-charge-ion-pairs",
+                  "premise.structure.hydrogen",
+                  "premise.structure.hydrogen-halide",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.acid-base.initial-domain",
+                  "premise.valence.fixed-charge-ion-pairs"
+                ],
+                "record": "generalized rule Rules.FixedCation1WithNonOxidisingAcid case cl"
+              }
+            ],
+            "evidence": []
+          },
+          "role_premises": {
+            "acid": [
+              "premise.category.halide",
+              "premise.elements.context-specific-reaction-facts",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.rule.metal-acid.non-oxidising",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.structure.hydrogen",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.acid-base.initial-domain",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "hydrogen": [
+              "premise.category.halide",
+              "premise.elements.context-specific-reaction-facts",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.rule.metal-acid.non-oxidising",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.structure.hydrogen",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.acid-base.initial-domain",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "metal": [
+              "premise.category.halide",
+              "premise.elements.context-specific-reaction-facts",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.rule.metal-acid.non-oxidising",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.structure.hydrogen",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.acid-base.initial-domain",
+              "premise.valence.fixed-charge-ion-pairs"
+            ],
+            "salt": [
+              "premise.category.halide",
+              "premise.elements.context-specific-reaction-facts",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.fixed-charge-ion-pairs",
+              "premise.rule.metal-acid.non-oxidising",
+              "premise.structure.fixed-charge-ion-pairs",
+              "premise.structure.hydrogen",
+              "premise.structure.hydrogen-halide",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.acid-base.initial-domain",
+              "premise.valence.fixed-charge-ion-pairs"
+            ]
+          }
+        },
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "generalized rule Rules.FixedCation1WithNonOxidisingAcid selected certificate"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.metal-acid.non-oxidising"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid"
+            }
+          ],
+          "evidence": []
+        },
+        "rule": "Rules.FixedCation1WithNonOxidisingAcid"
+      }
+    },
+    "mapping": {
+      "entries": {
+        "acid[1].h": "hydrogen[1].h1",
+        "acid[1].x": "salt[1].anion1.anion",
+        "acid[2].h": "hydrogen[1].h2",
+        "acid[2].x": "salt[2].anion1.anion",
+        "metal[1].metal": "salt[1].cation1.metal",
+        "metal[2].metal": "salt[2].cation1.metal"
+      },
+      "id": "mapping.LithiumWithHydrogenChloride"
+    },
+    "mapping_entry_provenance": {
+      "acid[1].h": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.context-specific-reaction-facts",
+          "premise.elements.iupac-periodic-table",
+          "premise.rule.fixed-charge-ion-pairs",
+          "premise.rule.metal-acid.non-oxidising",
+          "premise.structure.fixed-charge-ion-pairs",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.acid-base.initial-domain",
+          "premise.valence.fixed-charge-ion-pairs"
+        ],
+        "record": "rule Rules.FixedCation1WithNonOxidisingAcid mapping pair 1"
+      },
+      "acid[1].x": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.context-specific-reaction-facts",
+          "premise.elements.iupac-periodic-table",
+          "premise.rule.fixed-charge-ion-pairs",
+          "premise.rule.metal-acid.non-oxidising",
+          "premise.structure.fixed-charge-ion-pairs",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.acid-base.initial-domain",
+          "premise.valence.fixed-charge-ion-pairs"
+        ],
+        "record": "rule Rules.FixedCation1WithNonOxidisingAcid mapping pair 2"
+      },
+      "acid[2].h": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.context-specific-reaction-facts",
+          "premise.elements.iupac-periodic-table",
+          "premise.rule.fixed-charge-ion-pairs",
+          "premise.rule.metal-acid.non-oxidising",
+          "premise.structure.fixed-charge-ion-pairs",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.acid-base.initial-domain",
+          "premise.valence.fixed-charge-ion-pairs"
+        ],
+        "record": "rule Rules.FixedCation1WithNonOxidisingAcid mapping pair 3"
+      },
+      "acid[2].x": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.context-specific-reaction-facts",
+          "premise.elements.iupac-periodic-table",
+          "premise.rule.fixed-charge-ion-pairs",
+          "premise.rule.metal-acid.non-oxidising",
+          "premise.structure.fixed-charge-ion-pairs",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.acid-base.initial-domain",
+          "premise.valence.fixed-charge-ion-pairs"
+        ],
+        "record": "rule Rules.FixedCation1WithNonOxidisingAcid mapping pair 4"
+      },
+      "metal[1].metal": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.context-specific-reaction-facts",
+          "premise.elements.iupac-periodic-table",
+          "premise.rule.fixed-charge-ion-pairs",
+          "premise.rule.metal-acid.non-oxidising",
+          "premise.structure.fixed-charge-ion-pairs",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.acid-base.initial-domain",
+          "premise.valence.fixed-charge-ion-pairs"
+        ],
+        "record": "rule Rules.FixedCation1WithNonOxidisingAcid mapping pair 5"
+      },
+      "metal[2].metal": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide",
+          "premise.elements.context-specific-reaction-facts",
+          "premise.elements.iupac-periodic-table",
+          "premise.rule.fixed-charge-ion-pairs",
+          "premise.rule.metal-acid.non-oxidising",
+          "premise.structure.fixed-charge-ion-pairs",
+          "premise.structure.hydrogen",
+          "premise.structure.hydrogen-halide",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.acid-base.initial-domain",
+          "premise.valence.fixed-charge-ion-pairs"
+        ],
+        "record": "rule Rules.FixedCation1WithNonOxidisingAcid mapping pair 6"
+      }
+    },
+    "mapping_provenance": {
+      "catalogue": [
+        {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.category.halide",
+            "premise.elements.context-specific-reaction-facts",
+            "premise.elements.iupac-periodic-table",
+            "premise.rule.fixed-charge-ion-pairs",
+            "premise.rule.metal-acid.non-oxidising",
+            "premise.structure.fixed-charge-ion-pairs",
+            "premise.structure.hydrogen",
+            "premise.structure.hydrogen-halide",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.acid-base.initial-domain",
+            "premise.valence.fixed-charge-ion-pairs"
+          ],
+          "record": "rule Rules.FixedCation1WithNonOxidisingAcid atom mapping template"
+        }
+      ],
+      "evidence": []
+    },
+    "operations": [
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "retain_electron",
+          "domain": "metal[1].metallic",
+          "domain_electrons_after": 0,
+          "domain_electrons_before": 1,
+          "id": "operation[1]",
+          "kind": "release_metallic",
+          "site": "metal[1].metal",
+          "transition": {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "metal[1].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          }
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 1"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "retain_electron",
+          "domain": "metal[2].metallic",
+          "domain_electrons_after": 0,
+          "domain_electrons_before": 1,
+          "id": "operation[2]",
+          "kind": "release_metallic",
+          "site": "metal[2].metal",
+          "transition": {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "metal[2].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            }
+          }
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 2"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": {
+            "heterolytic_to": "acid[1].x"
+          },
+          "expected_order": "single",
+          "id": "operation[3]",
+          "kind": "cleave_covalent",
+          "left": "acid[1].h",
+          "right": "acid[1].x",
+          "transitions": {
+            "acid[1].h": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "acid[1].h",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "acid[1].x": {
+              "after": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "atom": "acid[1].x",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 3,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 3"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": {
+            "heterolytic_to": "acid[2].x"
+          },
+          "expected_order": "single",
+          "id": "operation[4]",
+          "kind": "cleave_covalent",
+          "left": "acid[2].h",
+          "right": "acid[2].x",
+          "transitions": {
+            "acid[2].h": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "acid[2].h",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "acid[2].x": {
+              "after": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "atom": "acid[2].x",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 4,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 4"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "acceptor": "acid[1].h",
+          "count": 1,
+          "donor": "metal[1].metal",
+          "id": "operation[5]",
+          "kind": "transfer_electron",
+          "transitions": {
+            "acid[1].h": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "acid[1].h",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "metal[1].metal": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "metal[1].metal",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 5,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 5"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "acceptor": "acid[2].h",
+          "count": 1,
+          "donor": "metal[2].metal",
+          "id": "operation[6]",
+          "kind": "transfer_electron",
+          "transitions": {
+            "acid[2].h": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "acid[2].h",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            },
+            "metal[2].metal": {
+              "after": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "metal[2].metal",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 6,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 6"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": {
+          "left": 1,
+          "right": 1
+        },
+        "ionic_components": [],
+        "operation": {
+          "id": "operation[7]",
+          "kind": "form_covalent",
+          "left": "acid[1].h",
+          "order": "single",
+          "right": "acid[2].h",
+          "transitions": {
+            "acid[1].h": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "acid[1].h",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            },
+            "acid[2].h": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              },
+              "atom": "acid[2].h",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 7,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 7"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [
+          {
+            "expected_charge": -1,
+            "group": {
+              "atoms": [
+                "acid[1].x"
+              ],
+              "id": "ionic[8].component[1]"
+            }
+          },
+          {
+            "expected_charge": 1,
+            "group": {
+              "atoms": [
+                "metal[1].metal"
+              ],
+              "id": "ionic[8].component[2]"
+            }
+          }
+        ],
+        "operation": {
+          "association": {
+            "components": [
+              "ionic[8].component[1]",
+              "ionic[8].component[2]"
+            ],
+            "id": "ionic[8].ionic.metal-acid-1"
+          },
+          "id": "operation[8]",
+          "kind": "associate_ionic"
+        },
+        "ordinal": 8,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 8"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "acid[1].x",
+            "metal[1].metal"
+          ],
+          "id": "operation[9]",
+          "kind": "assign_product",
+          "product": "salt[1]"
+        },
+        "ordinal": 9,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 9"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [
+          {
+            "expected_charge": -1,
+            "group": {
+              "atoms": [
+                "acid[2].x"
+              ],
+              "id": "ionic[10].component[1]"
+            }
+          },
+          {
+            "expected_charge": 1,
+            "group": {
+              "atoms": [
+                "metal[2].metal"
+              ],
+              "id": "ionic[10].component[2]"
+            }
+          }
+        ],
+        "operation": {
+          "association": {
+            "components": [
+              "ionic[10].component[1]",
+              "ionic[10].component[2]"
+            ],
+            "id": "ionic[10].ionic.metal-acid-2"
+          },
+          "id": "operation[10]",
+          "kind": "associate_ionic"
+        },
+        "ordinal": 10,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 10"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "acid[2].x",
+            "metal[2].metal"
+          ],
+          "id": "operation[11]",
+          "kind": "assign_product",
+          "product": "salt[2]"
+        },
+        "ordinal": 11,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 11"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "acid[1].h",
+            "acid[2].h"
+          ],
+          "id": "operation[12]",
+          "kind": "assign_product",
+          "product": "hydrogen[1]"
+        },
+        "ordinal": 12,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.context-specific-reaction-facts",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.rule.metal-acid.non-oxidising",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.structure.hydrogen",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.acid-base.initial-domain",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "rule Rules.FixedCation1WithNonOxidisingAcid operation template 12"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    ],
+    "premise_provenance": {
+      "premise.category.halide": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide"
+        ],
+        "record": "catalogue premise premise.category.halide"
+      },
+      "premise.elements.context-specific-reaction-facts": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.context-specific-reaction-facts"
+        ],
+        "record": "catalogue premise premise.elements.context-specific-reaction-facts"
+      },
+      "premise.elements.iupac-periodic-table": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table"
+        ],
+        "record": "catalogue premise premise.elements.iupac-periodic-table"
+      },
+      "premise.rule.fixed-charge-ion-pairs": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.rule.fixed-charge-ion-pairs"
+        ],
+        "record": "catalogue premise premise.rule.fixed-charge-ion-pairs"
+      },
+      "premise.rule.metal-acid.non-oxidising": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.rule.metal-acid.non-oxidising"
+        ],
+        "record": "catalogue premise premise.rule.metal-acid.non-oxidising"
+      },
+      "premise.structure.fixed-charge-ion-pairs": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.fixed-charge-ion-pairs"
+        ],
+        "record": "catalogue premise premise.structure.fixed-charge-ion-pairs"
+      },
+      "premise.structure.hydrogen": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.hydrogen"
+        ],
+        "record": "catalogue premise premise.structure.hydrogen"
+      },
+      "premise.structure.hydrogen-halide": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.hydrogen-halide"
+        ],
+        "record": "catalogue premise premise.structure.hydrogen-halide"
+      },
+      "premise.traits.reaction-family-classification": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.traits.reaction-family-classification"
+        ],
+        "record": "catalogue premise premise.traits.reaction-family-classification"
+      },
+      "premise.valence.acid-base.initial-domain": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.valence.acid-base.initial-domain"
+        ],
+        "record": "catalogue premise premise.valence.acid-base.initial-domain"
+      },
+      "premise.valence.fixed-charge-ion-pairs": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.valence.fixed-charge-ion-pairs"
+        ],
+        "record": "catalogue premise premise.valence.fixed-charge-ion-pairs"
+      }
+    },
+    "premises": [
+      "premise.category.halide",
+      "premise.elements.context-specific-reaction-facts",
+      "premise.elements.iupac-periodic-table",
+      "premise.rule.fixed-charge-ion-pairs",
+      "premise.rule.metal-acid.non-oxidising",
+      "premise.structure.fixed-charge-ion-pairs",
+      "premise.structure.hydrogen",
+      "premise.structure.hydrogen-halide",
+      "premise.traits.reaction-family-classification",
+      "premise.valence.acid-base.initial-domain",
+      "premise.valence.fixed-charge-ion-pairs"
+    ],
+    "product_instances": {
+      "hydrogen[1]": {
+        "binding": "hydrogen",
+        "instance": {
+          "atom_relabeling": {
+            "h1": "hydrogen[1].h1",
+            "h2": "hydrogen[1].h2"
+          },
+          "graph": {
+            "atoms": {
+              "hydrogen[1].h1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "hydrogen[1].h1"
+              },
+              "hydrogen[1].h2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "hydrogen[1].h2"
+              }
+            },
+            "covalent_bonds": {
+              "hydrogen[1].bond.0": {
+                "id": "hydrogen[1].bond.0",
+                "left": "hydrogen[1].h1",
+                "order": "single",
+                "right": "hydrogen[1].h2"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "hydrogen[1]",
+          "structure": "Hydrogen"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.hydrogen"
+              ],
+              "record": "coefficient instance hydrogen[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.structure.hydrogen"
+              ],
+              "record": "structure Hydrogen"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "salt[1]": {
+        "binding": "salt",
+        "instance": {
+          "atom_relabeling": {
+            "anion1.anion": "salt[1].anion1.anion",
+            "cation1.metal": "salt[1].cation1.metal"
+          },
+          "graph": {
+            "atoms": {
+              "salt[1].anion1.anion": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "salt[1].anion1.anion"
+              },
+              "salt[1].cation1.metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "salt[1].cation1.metal"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {
+              "salt[1].anion1": {
+                "atoms": [
+                  "salt[1].anion1.anion"
+                ],
+                "id": "salt[1].anion1"
+              },
+              "salt[1].cation1": {
+                "atoms": [
+                  "salt[1].cation1.metal"
+                ],
+                "id": "salt[1].cation1"
+              }
+            },
+            "ionic_associations": {
+              "salt[1].ionic": {
+                "components": [
+                  "salt[1].anion1",
+                  "salt[1].cation1"
+                ],
+                "id": "salt[1].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "salt[1]",
+          "structure": "LiFixedCation1Chloride"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "coefficient instance salt[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "structure LiFixedCation1Chloride"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "salt[2]": {
+        "binding": "salt",
+        "instance": {
+          "atom_relabeling": {
+            "anion1.anion": "salt[2].anion1.anion",
+            "cation1.metal": "salt[2].cation1.metal"
+          },
+          "graph": {
+            "atoms": {
+              "salt[2].anion1.anion": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "salt[2].anion1.anion"
+              },
+              "salt[2].cation1.metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "salt[2].cation1.metal"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {
+              "salt[2].anion1": {
+                "atoms": [
+                  "salt[2].anion1.anion"
+                ],
+                "id": "salt[2].anion1"
+              },
+              "salt[2].cation1": {
+                "atoms": [
+                  "salt[2].cation1.metal"
+                ],
+                "id": "salt[2].cation1"
+              }
+            },
+            "ionic_associations": {
+              "salt[2].ionic": {
+                "components": [
+                  "salt[2].anion1",
+                  "salt[2].cation1"
+                ],
+                "id": "salt[2].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "salt[2]",
+          "structure": "LiFixedCation1Chloride"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "coefficient instance salt[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "structure LiFixedCation1Chloride"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "reactant_instances": {
+      "acid[1]": {
+        "binding": "acid",
+        "instance": {
+          "atom_relabeling": {
+            "h": "acid[1].h",
+            "x": "acid[1].x"
+          },
+          "graph": {
+            "atoms": {
+              "acid[1].h": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "acid[1].h"
+              },
+              "acid[1].x": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "acid[1].x"
+              }
+            },
+            "covalent_bonds": {
+              "acid[1].bond.0": {
+                "id": "acid[1].bond.0",
+                "left": "acid[1].h",
+                "order": "single",
+                "right": "acid[1].x"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "acid[1]",
+          "structure": "HydrogenChloride"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance acid[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "acid[2]": {
+        "binding": "acid",
+        "instance": {
+          "atom_relabeling": {
+            "h": "acid[2].h",
+            "x": "acid[2].x"
+          },
+          "graph": {
+            "atoms": {
+              "acid[2].h": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "H",
+                "id": "acid[2].h"
+              },
+              "acid[2].x": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "acid[2].x"
+              }
+            },
+            "covalent_bonds": {
+              "acid[2].bond.0": {
+                "id": "acid[2].bond.0",
+                "left": "acid[2].h",
+                "order": "single",
+                "right": "acid[2].x"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "acid[2]",
+          "structure": "HydrogenChloride"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance acid[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.hydrogen-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure HydrogenChloride"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "metal[1]": {
+        "binding": "metal",
+        "instance": {
+          "atom_relabeling": {
+            "metal": "metal[1].metal"
+          },
+          "graph": {
+            "atoms": {
+              "metal[1].metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "metal[1].metal"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {
+              "metal[1].metallic": {
+                "delocalized_electrons": 1,
+                "id": "metal[1].metallic",
+                "sites": [
+                  "metal[1].metal"
+                ]
+              }
+            }
+          },
+          "id": "metal[1]",
+          "structure": "LiFixedCation1Metal"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "coefficient instance metal[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "structure LiFixedCation1Metal"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "metal[2]": {
+        "binding": "metal",
+        "instance": {
+          "atom_relabeling": {
+            "metal": "metal[2].metal"
+          },
+          "graph": {
+            "atoms": {
+              "metal[2].metal": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Li",
+                "id": "metal[2].metal"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {
+              "metal[2].metallic": {
+                "delocalized_electrons": 1,
+                "id": "metal[2].metallic",
+                "sites": [
+                  "metal[2].metal"
+                ]
+              }
+            }
+          },
+          "id": "metal[2]",
+          "structure": "LiFixedCation1Metal"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "coefficient instance metal[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
+              "record": "structure LiFixedCation1Metal"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "schema_version": 1
+  }
+}

@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CalciumWithHydrogenChloride where
+  reactants
+    metal := 1 of CaFixedCation2Metal
+    acid := 2 of HydrogenChloride
+  products
+    salt := 1 of CaFixedCation2Chloride
+    hydrogen := 1 of Hydrogen
+  equation
+    1 Ca[metallic] + 2 HCl[molecular]
+    -> 1 CaCl2[ionic] + 1 H2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.MetalAcidCalciumChloride@1
+    gas hydrogen evolves claim R1
+  by
+    apply Rules.FixedCation2WithNonOxidisingAcid
+      metal := metal
+      acid := acid
+      salt := salt
+      hydrogen := hydrogen

@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction TiAndOxygenToTransitionG4MonoxideWithOzone where
+  reactants
+    subject := 6 of TiTransitionG4MonoxideMetalForOxygen
+    oxygen := 2 of Ozone
+  products
+    oxide := 6 of TiTransitionG4MonoxideOxide
+  equation
+    6 Ti[metallic] + 2 O3[molecular]
+    -> 6 TiO[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG4Monoxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

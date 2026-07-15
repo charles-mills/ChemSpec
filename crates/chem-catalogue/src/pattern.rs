@@ -112,6 +112,55 @@ impl RolePatternMatchBinding {
 }
 
 impl ValidatedCatalogueBundle {
+    /// Resolves a full-graph pattern directly when its atom variables use the
+    /// exact reviewed structure labels. This is the canonical fast path for
+    /// generated molecular families: it avoids factorial enumeration of
+    /// chemically equivalent hydrogens while preserving exact constraints and
+    /// relationship validation.
+    pub(super) fn canonical_label_pattern_match(
+        &self,
+        pattern_id: &GraphPatternId,
+        structure_id: &StructureId,
+        element_parameters: &BTreeMap<String, ElementSymbol>,
+    ) -> Result<Option<RolePatternMatchBinding>, CatalogueError> {
+        let pattern = self.graph_pattern(pattern_id).ok_or_else(|| {
+            pattern_error_value(format!("graph pattern `{pattern_id}` does not resolve"))
+        })?;
+        let graph = self
+            .structure(structure_id)
+            .ok_or_else(|| {
+                pattern_error_value(format!("match structure `{structure_id}` does not resolve"))
+            })?
+            .graph();
+        if pattern.variables.len() != graph.atoms().len() {
+            return Ok(None);
+        }
+        let mut atoms = BTreeMap::new();
+        for (name, variable) in &pattern.variables {
+            let candidates = graph
+                .atoms()
+                .iter()
+                .filter(|(atom_id, _)| {
+                    atom_id.as_str() == name
+                        || atom_id.as_str().rsplit('.').next() == Some(name.as_str())
+                })
+                .collect::<Vec<_>>();
+            let [(atom_id, atom)] = candidates.as_slice() else {
+                return Ok(None);
+            };
+            if !atom_matches(atom, variable, graph, element_parameters)? {
+                return Ok(None);
+            }
+            atoms.insert(name.clone(), (*atom_id).clone());
+        }
+        let mut matches = Vec::new();
+        enumerate_relationships(pattern, structure_id, graph, self, &atoms, &mut matches);
+        let [matched] = matches.as_slice() else {
+            return Ok(None);
+        };
+        Ok(Some(matched.clone()))
+    }
+
     pub(super) fn role_pattern_matches_are_automorphism_related(
         &self,
         left: &RolePatternMatchBinding,

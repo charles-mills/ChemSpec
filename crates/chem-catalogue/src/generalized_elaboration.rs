@@ -348,7 +348,13 @@ fn elaborate_supported(
             "selected generalized case has no graph match",
         )));
     }
-    let role_symmetries = match certificate_role_symmetries(catalogue, generalized, by_role)? {
+    let role_symmetries = match certificate_role_symmetries(
+        catalogue,
+        generalized,
+        patterns,
+        by_role,
+        &element_parameters,
+    )? {
         Ok(symmetries) => symmetries,
         Err(result) => return Ok(Err(result)),
     };
@@ -635,6 +641,18 @@ fn enumerate_instance_matches(
     let mut combined = vec![BTreeMap::new()];
     let mut equivalent_match_count = 1_usize;
     for (role, pattern) in patterns {
+        if let Some(identity) = catalogue.canonical_label_pattern_match(
+            pattern,
+            &by_role[role].structure,
+            element_parameters,
+        )? {
+            let coefficient = generalized.roles[role].coefficient as usize;
+            let instances = vec![identity; coefficient];
+            for prefix in &mut combined {
+                prefix.insert(role.clone(), instances.clone());
+            }
+            continue;
+        }
         if !catalogue.pattern_match_work_is_bounded(pattern, &by_role[role].structure)? {
             return Ok(Err(failure(
                 GeneralizedElaborationFailureClass::Ambiguous,
@@ -735,10 +753,27 @@ type RoleSymmetries = Vec<(String, u32, Vec<StructureAutomorphism>)>;
 fn certificate_role_symmetries(
     catalogue: &ValidatedCatalogueBundle,
     generalized: &GeneralizedReactionRuleRecord,
+    patterns: &BTreeMap<String, super::GraphPatternId>,
     by_role: &BTreeMap<String, &GeneralizedRoleInput>,
+    element_parameters: &BTreeMap<String, ElementSymbol>,
 ) -> Result<Result<RoleSymmetries, GeneralizedElaborationFailure>, CatalogueError> {
     let mut result = Vec::new();
     for (role, schema) in &generalized.roles {
+        // A full-graph, exact-label match has already selected the catalogue's
+        // canonical identity binding. Enumerating every permutation of
+        // equivalent H atoms would add no certificate information and grows
+        // factorially for otherwise routine hydrocarbons.
+        if let Some(pattern) = patterns.get(role)
+            && catalogue
+                .canonical_label_pattern_match(
+                    pattern,
+                    &by_role[role].structure,
+                    element_parameters,
+                )?
+                .is_some()
+        {
+            continue;
+        }
         let Some(automorphisms) = catalogue.structure_automorphisms(&by_role[role].structure)?
         else {
             return Ok(Err(failure(
@@ -1145,7 +1180,15 @@ fn instantiate_operation(
         } => OperationTemplateRecord::JoinMetallic {
             premise_ids: premise_ids.clone(),
             site: reference(site)?,
-            domain: reference(domain)?,
+            // A zero-electron pre-state intentionally names a new domain;
+            // there is no reactant relationship for the pattern matcher to
+            // resolve. The generalized validator has already checked that it
+            // is a well-formed label on the same source instance.
+            domain: if before.domain_electrons == 0 {
+                domain.clone()
+            } else {
+                reference(domain)?
+            },
             allocation: *allocation,
             before: before.clone(),
             after: after.clone(),

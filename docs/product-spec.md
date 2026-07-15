@@ -75,6 +75,12 @@ or stop as ambiguous/unsupported. Compound oxidation is initially restricted
 to compounds already defined by the structural catalogue. These checks do not
 unlock animation until a reviewed structural transformation also exists.
 
+Ozone is resolved as its own `-1/+1/0`, resonance-delocalised molecular graph.
+It never inherits an O2 outcome at runtime. The catalogue contains 68 separate
+O3 oxygen-transfer experiences for its explicitly reviewed product choices;
+each has its own balanced coefficients, atom mapping, structural operations and
+trusted frames. Product alternatives remain explicit learner choices.
+
 ## Canonical journey
 
 1. **Ask.** The learner asks what happens when lithium reacts with water.

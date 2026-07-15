@@ -1,5 +1,12 @@
 # ChemSpec
 
+Reaction-family breadth and its explicit chemistry boundaries are documented in
+[`docs/general-reaction-families.md`](docs/general-reaction-families.md). The
+catalogue now stores context-specific activity facts and graph-backed acid,
+base, carbonate, solubility, metal, halogen, oxygen, fuel, and water traits.
+The new catalogue screening API is compound-ID independent; migrating the
+remaining legacy desktop request enumeration is tracked as an explicit boundary.
+
 ChemSpec is an AI-assisted theoretical chemistry explorer. A learner proposes a
 reaction; reviewed catalogue rules identify a supported outcome; an agent
 researches qualitative observations and writes concise `.chems 1`; and a
@@ -118,8 +125,9 @@ Responses API access with an API key.
 The structural `.chems 1` implementation is complete through the fixed seven
 slices. The bundled 118-element identity catalogue and generalized reaction
 families are promoted together through an exact host-pinned AI review
-attestation. The aggregate contains 205 supported experiences: 36 established
-finite bindings, 68 oxygen outcomes, 81 fixed-charge binary ion pairs, and 20
+attestation. The aggregate contains 273 supported experiences: 36 established
+finite bindings, 68 O2 outcomes, 68 separately authored O3 oxygen-transfer
+outcomes, 81 fixed-charge binary ion pairs, and 20
 finite covalent-combination outcomes. The
 remaining element records do not imply reaction support. The attestation names
 its AI reviewer and limitations; it is an explicit product trust decision, not
@@ -136,12 +144,18 @@ updates remain deliberate source-controlled host actions. Runtime agents and
 candidate packages still cannot promote themselves.
 
 The Iced application's typed request boundary can deterministically author and
-validate `.chems 1` source for all 205 supported experiences through the real
+validate `.chems 1` source for all 273 supported experiences through the real
 catalogue, generalized expansion, kernel validation, and `SimulationFrames`
 APIs. The reactant composer exposes the complete set, asks the learner to pick
 when a pair has several reviewed products, and keeps oxygen screening distinct
 from executable frames. Draft previews are projected only from unambiguous
 structures in the same host-pinned catalogue; they do not confer trust.
+
+O3 is a distinct resonance-aware reactant, not an alias for O2. Its 68
+experiences have independently balanced equations, ozone-specific bond
+cleavage and electron-transfer operations, complete atom maps, and approved
+trusted frames. Multiple product choices, including the three iron oxides,
+remain selectable with either oxidant.
 
 ## Development commands
 
@@ -151,20 +165,28 @@ cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansi
 cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
   catalogue/candidates/periodic-table-and-alkali-water \
   catalogue/candidates/precipitation-silver-halide \
+  catalogue/candidates/precipitation-general \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
   catalogue/candidates/single-displacement-halogen \
   catalogue/candidates/oxygen-reactions \
-  catalogue/candidates/covalent-combinations
+  catalogue/candidates/covalent-combinations \
+  catalogue/candidates/metal-acid \
+  catalogue/candidates/combustion \
+  catalogue/candidates/metal-displacement
 cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
   --attestation catalogue/reviews/core-chemistry.review.json \
   catalogue/candidates/periodic-table-and-alkali-water \
   catalogue/candidates/precipitation-silver-halide \
+  catalogue/candidates/precipitation-general \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
   catalogue/candidates/single-displacement-halogen \
   catalogue/candidates/oxygen-reactions \
-  catalogue/candidates/covalent-combinations
+  catalogue/candidates/covalent-combinations \
+  catalogue/candidates/metal-acid \
+  catalogue/candidates/combustion \
+  catalogue/candidates/metal-displacement
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check

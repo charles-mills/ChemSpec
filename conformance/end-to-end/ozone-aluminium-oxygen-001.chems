@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AluminiumAndOxygenWithOzone where
+  reactants
+    subject := 12 of AlMetalForOxygen
+    oxygen := 6 of Ozone
+  products
+    oxide := 6 of AlTrivalentNormalOxide
+  equation
+    12 Al[metallic] + 6 O3[molecular]
+    -> 6 Al2O3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTrivalentNormalOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

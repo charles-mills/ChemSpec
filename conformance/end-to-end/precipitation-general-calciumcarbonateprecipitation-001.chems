@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CalciumCarbonatePrecipitation where
+  reactants
+    metalSource := 1 of PrecipitationCalciumChloride
+    reagent := 1 of PrecipitationSodiumCarbonate
+  products
+    precipitate := 1 of PrecipitationCalciumCarbonate
+    spectator := 2 of PrecipitationSodiumChloride
+  equation
+    1 CaCl2[ionic] + 1 Na2CO3[ionic]
+    -> 1 CaCO3[ionic] + 2 NaCl[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.CalciumCarbonatePrecipitation@1
+    product precipitate forms claim R1
+  by
+    apply Rules.CalciumCarbonatePrecipitation
+      metalSource := metalSource
+      reagent := reagent
+      precipitate := precipitate
+      spectator := spectator

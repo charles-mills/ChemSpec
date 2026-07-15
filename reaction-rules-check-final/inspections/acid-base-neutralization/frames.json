@@ -1,0 +1,2039 @@
+{
+  "artifact": "frames",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "frames": [
+      {
+        "active_operation": null,
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [],
+        "covalent_edges": {
+          "hydrochloricAcid[1].bond.0": {
+            "id": "hydrochloricAcid[1].bond.0",
+            "left": "hydrochloricAcid[1].h",
+            "order": "single",
+            "right": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {
+          "sodiumHydroxide[1].hydroxide": {
+            "atoms": [
+              "sodiumHydroxide[1].hydroxide.h",
+              "sodiumHydroxide[1].hydroxide.o"
+            ],
+            "id": "sodiumHydroxide[1].hydroxide"
+          },
+          "sodiumHydroxide[1].metal": {
+            "atoms": [
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "id": "sodiumHydroxide[1].metal"
+          }
+        },
+        "ionic_associations": {
+          "sodiumHydroxide[1].ionic": {
+            "component_charges": {
+              "sodiumHydroxide[1].hydroxide": -1,
+              "sodiumHydroxide[1].metal": 1
+            },
+            "components": {
+              "sodiumHydroxide[1].hydroxide": [
+                "sodiumHydroxide[1].hydroxide.h",
+                "sodiumHydroxide[1].hydroxide.o"
+              ],
+              "sodiumHydroxide[1].metal": [
+                "sodiumHydroxide[1].metal.metal"
+              ]
+            },
+            "id": "sodiumHydroxide[1].ionic"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 0,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "f80cccd5e9846a23b9ba45c18f50901973235cb9eedb95979e16be752486a58c"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": "sodiumHydroxide[1].ionic",
+            "id": "operation[1]",
+            "kind": "dissociate_ionic"
+          },
+          "ordinal": 1
+        },
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [
+          {
+            "after": null,
+            "before": [
+              "sodiumHydroxide[1].hydroxide.h",
+              "sodiumHydroxide[1].hydroxide.o"
+            ],
+            "group": "sodiumHydroxide[1].hydroxide",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "before": [
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "group": "sodiumHydroxide[1].metal",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "association": "sodiumHydroxide[1].ionic",
+            "before": [
+              "sodiumHydroxide[1].hydroxide",
+              "sodiumHydroxide[1].metal"
+            ],
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "hydrochloricAcid[1].bond.0": {
+            "id": "hydrochloricAcid[1].bond.0",
+            "left": "hydrochloricAcid[1].h",
+            "order": "single",
+            "right": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 1,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "ba5cae6eeca796d44bd50ea6c8a77350650427aec06169dc041fe9553110e0d1"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": {
+              "heterolytic_to": "hydrochloricAcid[1].x"
+            },
+            "expected_order": "single",
+            "id": "operation[2]",
+            "kind": "cleave_covalent",
+            "left": "hydrochloricAcid[1].h",
+            "right": "hydrochloricAcid[1].x",
+            "transitions": {
+              "hydrochloricAcid[1].h": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrochloricAcid[1].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "hydrochloricAcid[1].x": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrochloricAcid[1].x",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 2
+        },
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "hydrochloricAcid[1].h",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "atom": "hydrochloricAcid[1].x",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": null,
+            "before": "single",
+            "kind": "covalent",
+            "left": "hydrochloricAcid[1].h",
+            "right": "hydrochloricAcid[1].x"
+          }
+        ],
+        "covalent_edges": {
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 2,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "f7dd8a1f26bf3ac34e7373bf20643d80134e75a865bab8ec21a4241411065320"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "hydrochloricAcid[1].h",
+            "count": 1,
+            "donor": "sodiumHydroxide[1].hydroxide.o",
+            "id": "operation[3]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "hydrochloricAcid[1].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                },
+                "atom": "hydrochloricAcid[1].h",
+                "before": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                }
+              },
+              "sodiumHydroxide[1].hydroxide.o": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                },
+                "atom": "sodiumHydroxide[1].hydroxide.o",
+                "before": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 3
+        },
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "hydrochloricAcid[1].h",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "atom": "sodiumHydroxide[1].hydroxide.o",
+            "before": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 3,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "8b1bdf40102b4760a5ef2950036587a87f58eb5f5f83175c8388a1cab259afdd"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "id": "operation[4]",
+            "kind": "form_covalent",
+            "left": "sodiumHydroxide[1].hydroxide.o",
+            "order": "single",
+            "right": "hydrochloricAcid[1].h",
+            "transitions": {
+              "hydrochloricAcid[1].h": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "hydrochloricAcid[1].h",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              },
+              "sodiumHydroxide[1].hydroxide.o": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                },
+                "atom": "sodiumHydroxide[1].hydroxide.o",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 4
+        },
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "hydrochloricAcid[1].h",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "atom": "sodiumHydroxide[1].hydroxide.o",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": "single",
+            "before": null,
+            "kind": "covalent",
+            "left": "hydrochloricAcid[1].h",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        ],
+        "covalent_edges": {
+          "operation[4].bond": {
+            "id": "operation[4].bond",
+            "left": "hydrochloricAcid[1].h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 4,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "2fb322a646965680ad13505739ce3bdca9cad387c2a5c2ca2feb9b51d297a927"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[5].component[1]",
+                "ionic[5].component[2]"
+              ],
+              "id": "ionic[5].ionic.salt"
+            },
+            "id": "operation[5]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 5
+        },
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "hydrochloricAcid[1].x"
+            ],
+            "before": null,
+            "group": "ionic[5].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "before": null,
+            "group": "ionic[5].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[5].component[1]",
+              "ionic[5].component[2]"
+            ],
+            "association": "ionic[5].ionic.salt",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "operation[4].bond": {
+            "id": "operation[4].bond",
+            "left": "hydrochloricAcid[1].h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {
+          "ionic[5].component[1]": {
+            "atoms": [
+              "hydrochloricAcid[1].x"
+            ],
+            "id": "ionic[5].component[1]"
+          },
+          "ionic[5].component[2]": {
+            "atoms": [
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "id": "ionic[5].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[5].ionic.salt": {
+            "component_charges": {
+              "ionic[5].component[1]": -1,
+              "ionic[5].component[2]": 1
+            },
+            "components": {
+              "ionic[5].component[1]": [
+                "hydrochloricAcid[1].x"
+              ],
+              "ionic[5].component[2]": [
+                "sodiumHydroxide[1].metal.metal"
+              ]
+            },
+            "id": "ionic[5].ionic.salt"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 5,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "648ae452d718568f042df72dc26cf4f9297340427c34b4d4f0e191984be01646"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "hydrochloricAcid[1].x",
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "id": "operation[6]",
+            "kind": "assign_product",
+            "product": "sodiumChloride[1]"
+          },
+          "ordinal": 6
+        },
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "hydrochloricAcid[1].x",
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "sodiumChloride[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[4].bond": {
+            "id": "operation[4].bond",
+            "left": "hydrochloricAcid[1].h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {
+          "ionic[5].component[1]": {
+            "atoms": [
+              "hydrochloricAcid[1].x"
+            ],
+            "id": "ionic[5].component[1]"
+          },
+          "ionic[5].component[2]": {
+            "atoms": [
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "id": "ionic[5].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[5].ionic.salt": {
+            "component_charges": {
+              "ionic[5].component[1]": -1,
+              "ionic[5].component[2]": 1
+            },
+            "components": {
+              "ionic[5].component[1]": [
+                "hydrochloricAcid[1].x"
+              ],
+              "ionic[5].component[2]": [
+                "sodiumHydroxide[1].metal.metal"
+              ]
+            },
+            "id": "ionic[5].ionic.salt"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 6,
+        "product_membership": {
+          "sodiumChloride[1]": [
+            "hydrochloricAcid[1].x",
+            "sodiumHydroxide[1].metal.metal"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "4432e253af0eaeb0bb8f7507b82f7dbe550118205b7975cca3d1985a710f4e6c"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "hydrochloricAcid[1].h",
+              "sodiumHydroxide[1].hydroxide.h",
+              "sodiumHydroxide[1].hydroxide.o"
+            ],
+            "id": "operation[7]",
+            "kind": "assign_product",
+            "product": "water[1]"
+          },
+          "ordinal": 7
+        },
+        "atoms": {
+          "hydrochloricAcid[1].h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "hydrochloricAcid[1].h"
+          },
+          "hydrochloricAcid[1].x": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "hydrochloricAcid[1].x"
+          },
+          "sodiumHydroxide[1].hydroxide.h": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "H",
+            "id": "sodiumHydroxide[1].hydroxide.h"
+          },
+          "sodiumHydroxide[1].hydroxide.o": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].metal.metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumHydroxide[1].metal.metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "hydrochloricAcid[1].h",
+              "sodiumHydroxide[1].hydroxide.h",
+              "sodiumHydroxide[1].hydroxide.o"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "water[1]"
+          }
+        ],
+        "covalent_edges": {
+          "operation[4].bond": {
+            "id": "operation[4].bond",
+            "left": "hydrochloricAcid[1].h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          },
+          "sodiumHydroxide[1].bond.0": {
+            "id": "sodiumHydroxide[1].bond.0",
+            "left": "sodiumHydroxide[1].hydroxide.h",
+            "order": "single",
+            "right": "sodiumHydroxide[1].hydroxide.o"
+          }
+        },
+        "groups": {
+          "ionic[5].component[1]": {
+            "atoms": [
+              "hydrochloricAcid[1].x"
+            ],
+            "id": "ionic[5].component[1]"
+          },
+          "ionic[5].component[2]": {
+            "atoms": [
+              "sodiumHydroxide[1].metal.metal"
+            ],
+            "id": "ionic[5].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[5].ionic.salt": {
+            "component_charges": {
+              "ionic[5].component[1]": -1,
+              "ionic[5].component[2]": 1
+            },
+            "components": {
+              "ionic[5].component[1]": [
+                "hydrochloricAcid[1].x"
+              ],
+              "ionic[5].component[2]": [
+                "sodiumHydroxide[1].metal.metal"
+              ]
+            },
+            "id": "ionic[5].ionic.salt"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.acid-base-neutralization.standard-outcome"
+                ],
+                "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "acid-base-neutralization/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.acid-disappears"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation hydrochloricAcid",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 515,
+                    "start": 469
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "hydrochloricAcid",
+            "trigger_operation": 7,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.water-forms"
+                  ],
+                  "record": "rule Rules.MonoproticAcidHydroxideNeutralization observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.AcidBaseNeutralization@1",
+                  "packet_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation water",
+                  "source": "acid-base-neutralization/example.chems",
+                  "span": {
+                    "end": 548,
+                    "start": 519
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "water",
+            "trigger_operation": 7,
+            "value": null
+          }
+        ],
+        "ordinal": 7,
+        "product_membership": {
+          "sodiumChloride[1]": [
+            "hydrochloricAcid[1].x",
+            "sodiumHydroxide[1].metal.metal"
+          ],
+          "water[1]": [
+            "hydrochloricAcid[1].h",
+            "sodiumHydroxide[1].hydroxide.h",
+            "sodiumHydroxide[1].hydroxide.o"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+          "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+          "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+          "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+          "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+          "state_digest": "1e4b887430ef7b919b3593fe99502be19e309002fecaf41e6ed06be5ffce7519"
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "explanatory_sequence_is_not_a_mechanism_claim": true,
+      "provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.rule.acid-base-neutralization.standard-outcome"
+            ],
+            "record": "rule Rules.MonoproticAcidHydroxideNeutralization model assumptions"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "model disclosure",
+            "source": "acid-base-neutralization/example.chems",
+            "span": {
+              "end": 418,
+              "start": 354
+            }
+          }
+        ]
+      },
+      "representative_outcome": true,
+      "sequence": "explanatory"
+    },
+    "result": "validated_with_assumptions",
+    "schema_version": 1,
+    "trace": {
+      "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+      "derivation_digest": "67ef9407c85fbe8744cb3002a0f7e00ebcbc25a74f416b6598f3df886aea1349",
+      "evidence_digest": "9b006012369ad80a4465653431f61d99a32d36a9e17b40680e0e52a49532b752",
+      "expansion_semantic_digest": "792ce3637b7d2d1ed799964667ee7a67e977eef7638bf325f76273370bf2ca9f",
+      "source_bytes_digest": "429d335a4b9f2218970735f46bae71600800b77007707e17071b7caa4a5160da",
+      "source_semantic_digest": "704ccd433b26635f38d24ae9373abb31fbe4994eef6b2598431f45b17f005e40",
+      "state_digest": "1e4b887430ef7b919b3593fe99502be19e309002fecaf41e6ed06be5ffce7519"
+    },
+    "trust": "review_candidate"
+  }
+}

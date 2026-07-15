@@ -1,0 +1,1607 @@
+{
+  "artifact": "frames",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "frames": [
+      {
+        "active_operation": null,
+        "atoms": {
+          "oxygen[1].o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o1"
+          },
+          "oxygen[1].o2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o2"
+          },
+          "subject[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "K",
+            "id": "subject[1].metal"
+          }
+        },
+        "changes": [],
+        "covalent_edges": {
+          "oxygen[1].bond.0": {
+            "id": "oxygen[1].bond.0",
+            "left": "oxygen[1].o1",
+            "order": "double",
+            "right": "oxygen[1].o2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {
+          "subject[1].metallic": {
+            "delocalized_electrons": 1,
+            "id": "subject[1].metallic",
+            "sites": [
+              "subject[1].metal"
+            ]
+          }
+        },
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "oxygen-reactions/example.chems",
+                "span": {
+                  "end": 325,
+                  "start": 261
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation oxide",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 397,
+                    "start": 368
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "oxide",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation subject",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 438,
+                    "start": 401
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "subject",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 0,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+          "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+          "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+          "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+          "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+          "state_digest": "aafbdba0bec15b29b6b822ac75d90ebc001070b0663a3b8319e248c4d659d155"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "retain_electron",
+            "domain": "subject[1].metallic",
+            "domain_electrons_after": 0,
+            "domain_electrons_before": 1,
+            "id": "operation[1]",
+            "kind": "release_metallic",
+            "site": "subject[1].metal",
+            "transition": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 1,
+                "unpaired_electrons": 1
+              },
+              "atom": "subject[1].metal",
+              "before": {
+                "formal_charge": 1,
+                "non_bonding_electrons": 0,
+                "unpaired_electrons": 0
+              }
+            }
+          },
+          "ordinal": 1
+        },
+        "atoms": {
+          "oxygen[1].o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o1"
+          },
+          "oxygen[1].o2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o2"
+          },
+          "subject[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "K",
+            "id": "subject[1].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "atom": "subject[1].metal",
+            "before": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "domain": "subject[1].metallic",
+            "electrons_after": null,
+            "electrons_before": 1,
+            "kind": "metallic",
+            "sites_after": null,
+            "sites_before": [
+              "subject[1].metal"
+            ]
+          }
+        ],
+        "covalent_edges": {
+          "oxygen[1].bond.0": {
+            "id": "oxygen[1].bond.0",
+            "left": "oxygen[1].o1",
+            "order": "double",
+            "right": "oxygen[1].o2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "oxygen-reactions/example.chems",
+                "span": {
+                  "end": 325,
+                  "start": 261
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation oxide",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 397,
+                    "start": 368
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "oxide",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation subject",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 438,
+                    "start": 401
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "subject",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 1,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+          "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+          "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+          "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+          "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+          "state_digest": "c5d8e39d7ed091d7504478e6e0a6675e426257ce4c33564b96b18be6c2986afb"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "allocation": "homolytic",
+            "id": "operation[2]",
+            "kind": "change_covalent",
+            "left": "oxygen[1].o1",
+            "new_order": "single",
+            "old_order": "double",
+            "right": "oxygen[1].o2",
+            "transitions": {
+              "oxygen[1].o1": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                },
+                "atom": "oxygen[1].o1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                }
+              },
+              "oxygen[1].o2": {
+                "after": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                },
+                "atom": "oxygen[1].o2",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 4,
+                  "unpaired_electrons": 0
+                }
+              }
+            }
+          },
+          "ordinal": 2
+        },
+        "atoms": {
+          "oxygen[1].o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "element": "O",
+            "id": "oxygen[1].o1"
+          },
+          "oxygen[1].o2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "element": "O",
+            "id": "oxygen[1].o2"
+          },
+          "subject[1].metal": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "element": "K",
+            "id": "subject[1].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "atom": "oxygen[1].o1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "atom": "oxygen[1].o2",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": "single",
+            "before": "double",
+            "kind": "covalent",
+            "left": "oxygen[1].o1",
+            "right": "oxygen[1].o2"
+          }
+        ],
+        "covalent_edges": {
+          "oxygen[1].bond.0": {
+            "id": "oxygen[1].bond.0",
+            "left": "oxygen[1].o1",
+            "order": "single",
+            "right": "oxygen[1].o2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "oxygen-reactions/example.chems",
+                "span": {
+                  "end": 325,
+                  "start": 261
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation oxide",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 397,
+                    "start": 368
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "oxide",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation subject",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 438,
+                    "start": 401
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "subject",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 2,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+          "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+          "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+          "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+          "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+          "state_digest": "60b970433487fe9507181c9e3da89361e73d4b93990e8e6bcfce610725065829"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "acceptor": "oxygen[1].o1",
+            "count": 1,
+            "donor": "subject[1].metal",
+            "id": "operation[3]",
+            "kind": "transfer_electron",
+            "transitions": {
+              "oxygen[1].o1": {
+                "after": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "atom": "oxygen[1].o1",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 5,
+                  "unpaired_electrons": 1
+                }
+              },
+              "subject[1].metal": {
+                "after": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "atom": "subject[1].metal",
+                "before": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 1,
+                  "unpaired_electrons": 1
+                }
+              }
+            }
+          },
+          "ordinal": 3
+        },
+        "atoms": {
+          "oxygen[1].o1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o1"
+          },
+          "oxygen[1].o2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "element": "O",
+            "id": "oxygen[1].o2"
+          },
+          "subject[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "K",
+            "id": "subject[1].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "atom": "oxygen[1].o1",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          },
+          {
+            "after": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "atom": "subject[1].metal",
+            "before": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 1,
+              "unpaired_electrons": 1
+            },
+            "kind": "electron_state"
+          }
+        ],
+        "covalent_edges": {
+          "oxygen[1].bond.0": {
+            "id": "oxygen[1].bond.0",
+            "left": "oxygen[1].o1",
+            "order": "single",
+            "right": "oxygen[1].o2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "oxygen-reactions/example.chems",
+                "span": {
+                  "end": 325,
+                  "start": 261
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation oxide",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 397,
+                    "start": 368
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "oxide",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation subject",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 438,
+                    "start": 401
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "subject",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 3,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+          "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+          "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+          "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+          "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+          "state_digest": "b7d873868c312367796b71b9f90d187b0894f2e735ce117b982f7a5a1683a61e"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "expected": null,
+            "id": "operation[4]",
+            "kind": "change_covalent_delocalization",
+            "left": "oxygen[1].o1",
+            "replacement": {
+              "domain": "oxygen.resonance",
+              "effective_order": {
+                "denominator": 2,
+                "numerator": 3
+              }
+            },
+            "right": "oxygen[1].o2"
+          },
+          "ordinal": 4
+        },
+        "atoms": {
+          "oxygen[1].o1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o1"
+          },
+          "oxygen[1].o2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "element": "O",
+            "id": "oxygen[1].o2"
+          },
+          "subject[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "K",
+            "id": "subject[1].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": "single",
+            "after_delocalization": {
+              "domain": "oxygen.resonance",
+              "effective_order": {
+                "denominator": 2,
+                "numerator": 3
+              }
+            },
+            "before": "single",
+            "kind": "covalent",
+            "left": "oxygen[1].o1",
+            "right": "oxygen[1].o2"
+          }
+        ],
+        "covalent_edges": {
+          "oxygen[1].bond.0": {
+            "delocalization": {
+              "domain": "oxygen.resonance",
+              "effective_order": {
+                "denominator": 2,
+                "numerator": 3
+              }
+            },
+            "id": "oxygen[1].bond.0",
+            "left": "oxygen[1].o1",
+            "order": "single",
+            "right": "oxygen[1].o2"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "oxygen-reactions/example.chems",
+                "span": {
+                  "end": 325,
+                  "start": 261
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation oxide",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 397,
+                    "start": 368
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "oxide",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation subject",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 438,
+                    "start": 401
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "subject",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 4,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+          "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+          "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+          "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+          "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+          "state_digest": "ce21edc953de8110542c49678e17eac4a65ad04d6e68c9f05812a90670e07258"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[5].component[1]",
+                "ionic[5].component[2]"
+              ],
+              "id": "ionic[5].ionic.product1"
+            },
+            "id": "operation[5]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 5
+        },
+        "atoms": {
+          "oxygen[1].o1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o1"
+          },
+          "oxygen[1].o2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "element": "O",
+            "id": "oxygen[1].o2"
+          },
+          "subject[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "K",
+            "id": "subject[1].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "oxygen[1].o1",
+              "oxygen[1].o2"
+            ],
+            "before": null,
+            "group": "ionic[5].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "subject[1].metal"
+            ],
+            "before": null,
+            "group": "ionic[5].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[5].component[1]",
+              "ionic[5].component[2]"
+            ],
+            "association": "ionic[5].ionic.product1",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "oxygen[1].bond.0": {
+            "delocalization": {
+              "domain": "oxygen.resonance",
+              "effective_order": {
+                "denominator": 2,
+                "numerator": 3
+              }
+            },
+            "id": "oxygen[1].bond.0",
+            "left": "oxygen[1].o1",
+            "order": "single",
+            "right": "oxygen[1].o2"
+          }
+        },
+        "groups": {
+          "ionic[5].component[1]": {
+            "atoms": [
+              "oxygen[1].o1",
+              "oxygen[1].o2"
+            ],
+            "id": "ionic[5].component[1]"
+          },
+          "ionic[5].component[2]": {
+            "atoms": [
+              "subject[1].metal"
+            ],
+            "id": "ionic[5].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[5].ionic.product1": {
+            "component_charges": {
+              "ionic[5].component[1]": -1,
+              "ionic[5].component[2]": 1
+            },
+            "components": {
+              "ionic[5].component[1]": [
+                "oxygen[1].o1",
+                "oxygen[1].o2"
+              ],
+              "ionic[5].component[2]": [
+                "subject[1].metal"
+              ]
+            },
+            "id": "ionic[5].ionic.product1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "oxygen-reactions/example.chems",
+                "span": {
+                  "end": 325,
+                  "start": 261
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation oxide",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 397,
+                    "start": 368
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "oxide",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation subject",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 438,
+                    "start": 401
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "subject",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 5,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+          "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+          "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+          "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+          "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+          "state_digest": "d42d504184ea5154c33e81e6ba049570b572c3eb8d222624f219d3b06906e415"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "oxygen[1].o1",
+              "oxygen[1].o2",
+              "subject[1].metal"
+            ],
+            "id": "operation[6]",
+            "kind": "assign_product",
+            "product": "oxide[1]"
+          },
+          "ordinal": 6
+        },
+        "atoms": {
+          "oxygen[1].o1": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "oxygen[1].o1"
+          },
+          "oxygen[1].o2": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 5,
+              "unpaired_electrons": 1
+            },
+            "element": "O",
+            "id": "oxygen[1].o2"
+          },
+          "subject[1].metal": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "K",
+            "id": "subject[1].metal"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "oxygen[1].o1",
+              "oxygen[1].o2",
+              "subject[1].metal"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "oxide[1]"
+          }
+        ],
+        "covalent_edges": {
+          "oxygen[1].bond.0": {
+            "delocalization": {
+              "domain": "oxygen.resonance",
+              "effective_order": {
+                "denominator": 2,
+                "numerator": 3
+              }
+            },
+            "id": "oxygen[1].bond.0",
+            "left": "oxygen[1].o1",
+            "order": "single",
+            "right": "oxygen[1].o2"
+          }
+        },
+        "groups": {
+          "ionic[5].component[1]": {
+            "atoms": [
+              "oxygen[1].o1",
+              "oxygen[1].o2"
+            ],
+            "id": "ionic[5].component[1]"
+          },
+          "ionic[5].component[2]": {
+            "atoms": [
+              "subject[1].metal"
+            ],
+            "id": "ionic[5].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[5].ionic.product1": {
+            "component_charges": {
+              "ionic[5].component[1]": -1,
+              "ionic[5].component[2]": 1
+            },
+            "components": {
+              "ionic[5].component[1]": [
+                "oxygen[1].o1",
+                "oxygen[1].o2"
+              ],
+              "ionic[5].component[2]": [
+                "subject[1].metal"
+              ]
+            },
+            "id": "ionic[5].ionic.product1"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.element-oxygen.representative-outcomes"
+                ],
+                "record": "rule Rules.Superoxide model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "oxygen-reactions/example.chems",
+                "span": {
+                  "end": 325,
+                  "start": 261
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation oxide",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 397,
+                    "start": 368
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "oxide",
+            "trigger_operation": 6,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+            "evidence_trust": "external_untrusted",
+            "predicate": "disappears",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.element-oxygen"
+                  ],
+                  "record": "rule Rules.Superoxide observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.OxygenReaction@1",
+                  "packet_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation subject",
+                  "source": "oxygen-reactions/example.chems",
+                  "span": {
+                    "end": 438,
+                    "start": 401
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "subject",
+            "trigger_operation": 6,
+            "value": null
+          }
+        ],
+        "ordinal": 6,
+        "product_membership": {
+          "oxide[1]": [
+            "oxygen[1].o1",
+            "oxygen[1].o2",
+            "subject[1].metal"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+          "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+          "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+          "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+          "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+          "state_digest": "9a8af58d19ed5e4b1b833f1bf430cb5fbb34067553397f5f6f1511a25a9aa1f3"
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "explanatory_sequence_is_not_a_mechanism_claim": true,
+      "provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.rule.element-oxygen.representative-outcomes"
+            ],
+            "record": "rule Rules.Superoxide model assumptions"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "model disclosure",
+            "source": "oxygen-reactions/example.chems",
+            "span": {
+              "end": 325,
+              "start": 261
+            }
+          }
+        ]
+      },
+      "representative_outcome": true,
+      "sequence": "explanatory"
+    },
+    "result": "validated_with_assumptions",
+    "schema_version": 1,
+    "trace": {
+      "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+      "derivation_digest": "cf4ce7fce781a93fe0370ae1cef908265d3346edbd6e4032dcd11dffd051309e",
+      "evidence_digest": "f169b452b0fef239b007c249c590199de31c70ab4f6a8cd6af9c9e19518be4fd",
+      "expansion_semantic_digest": "5c0c0bc0e00ed0e6eb297771be15f154c83959366bcdc203edb1dd4373bfec78",
+      "source_bytes_digest": "31d0af90995ffbc925e22ae8c19e832689e1c10f141a8bc0b665e47742c5ffec",
+      "source_semantic_digest": "f0cf2932ade97d7f1b933c31abad7eb93e1ff12be3e1f5db485096d714a35016",
+      "state_digest": "9a8af58d19ed5e4b1b833f1bf430cb5fbb34067553397f5f6f1511a25a9aa1f3"
+    },
+    "trust": "review_candidate"
+  }
+}

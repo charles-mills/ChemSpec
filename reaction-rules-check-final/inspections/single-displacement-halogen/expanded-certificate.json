@@ -1,0 +1,2308 @@
+{
+  "artifact": "expanded-certificate",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "atom_provenance": {
+      "bromine[1].x1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance bromine[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Bromine"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Bromine expanded atom bromine[1].x1"
+          }
+        ],
+        "evidence": []
+      },
+      "bromine[1].x2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance bromine[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Bromine"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Bromine expanded atom bromine[1].x2"
+          }
+        ],
+        "evidence": []
+      },
+      "chlorine[1].x1": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance chlorine[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine expanded atom chlorine[1].x1"
+          }
+        ],
+        "evidence": []
+      },
+      "chlorine[1].x2": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance chlorine[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure Chlorine expanded atom chlorine[1].x2"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumBromide[1].anion.anion": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumBromide[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide expanded atom sodiumBromide[1].anion.anion"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumBromide[1].cation.cation": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumBromide[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide expanded atom sodiumBromide[1].cation.cation"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumBromide[2].anion.anion": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumBromide[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide expanded atom sodiumBromide[2].anion.anion"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumBromide[2].cation.cation": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumBromide[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumBromide expanded atom sodiumBromide[2].cation.cation"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumChloride[1].anion.anion": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumChloride[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride expanded atom sodiumChloride[1].anion.anion"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumChloride[1].cation.cation": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumChloride[1]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride expanded atom sodiumChloride[1].cation.cation"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumChloride[2].anion.anion": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumChloride[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride expanded atom sodiumChloride[2].anion.anion"
+          }
+        ],
+        "evidence": []
+      },
+      "sodiumChloride[2].cation.cation": {
+        "catalogue": [
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "coefficient instance sodiumChloride[2]"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride"
+          },
+          {
+            "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+            "premises": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.traits.reaction-family-classification"
+            ],
+            "record": "structure SodiumChloride expanded atom sodiumChloride[2].cation.cation"
+          }
+        ],
+        "evidence": []
+      }
+    },
+    "claim": {
+      "catalogue": {
+        "digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "name": "ChemSpec.Theoretical",
+        "trust": "review_candidate",
+        "version": "1"
+      },
+      "equation": [
+        {
+          "binding": "chlorine",
+          "coefficient": 1,
+          "formula": {
+            "Cl": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure Chlorine"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant"
+        },
+        {
+          "binding": "sodiumBromide",
+          "coefficient": 2,
+          "formula": {
+            "Br": 1,
+            "Na": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure SodiumBromide"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "reactant"
+        },
+        {
+          "binding": "bromine",
+          "coefficient": 1,
+          "formula": {
+            "Br": 2
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure Bromine"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product"
+        },
+        {
+          "binding": "sodiumChloride",
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "Na": 1
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure SodiumChloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product"
+        }
+      ],
+      "evidence": {
+        "digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_subject": "displaced halogen",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.observation.displaced-halogen-forms"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.HalogenDisplacement@1",
+                  "packet_digest": "693ce3c2d69fc2c5e9adff9eaa40570a9b86a18a6998f5db41b46128a3a2ab73",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ]
+            },
+            "subject_binding": "bromine",
+            "value": null
+          }
+        ],
+        "packet": {
+          "name": "Evidence.HalogenDisplacement",
+          "version": "1"
+        },
+        "trust": "external_untrusted"
+      },
+      "model": {
+        "event": "representative",
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.halogen-displacement.standard-outcome"
+              ],
+              "record": "rule Rules.HalogenDisplacement model assumptions"
+            }
+          ],
+          "evidence": []
+        },
+        "sequence": "explanatory"
+      },
+      "products": {
+        "bromine": {
+          "coefficient": 1,
+          "formula": {
+            "Br": 2
+          },
+          "name": "bromine",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure Bromine"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "product",
+          "structure": "Bromine"
+        },
+        "sodiumChloride": {
+          "coefficient": 2,
+          "formula": {
+            "Cl": 1,
+            "Na": 1
+          },
+          "name": "sodiumChloride",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure SodiumChloride"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "product",
+          "structure": "SodiumChloride"
+        }
+      },
+      "reactants": {
+        "chlorine": {
+          "coefficient": 1,
+          "formula": {
+            "Cl": 2
+          },
+          "name": "chlorine",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure Chlorine"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "molecular",
+          "side": "reactant",
+          "structure": "Chlorine"
+        },
+        "sodiumBromide": {
+          "coefficient": 2,
+          "formula": {
+            "Br": 1,
+            "Na": 1
+          },
+          "name": "sodiumBromide",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.traits.reaction-family-classification"
+                ],
+                "record": "structure SodiumBromide"
+              }
+            ],
+            "evidence": []
+          },
+          "representation": "ionic",
+          "side": "reactant",
+          "structure": "SodiumBromide"
+        }
+      },
+      "reaction": "ChlorineAndSodiumBromide",
+      "rule": {
+        "applicability": {
+          "premise": "premise.rule.halogen-displacement.standard-outcome",
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.fluorine-displacement-unsupported",
+                  "premise.case.halogen-displacement-no-reaction",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.displaced-halogen-forms",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.rule.halogen-displacement.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.halogen-displacement.initial-domain"
+                ],
+                "record": "generalized rule Rules.HalogenDisplacement selected applicability"
+              },
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.rule.halogen-displacement.standard-outcome"
+                ],
+                "record": "rule Rules.HalogenDisplacement applicability"
+              }
+            ],
+            "evidence": []
+          },
+          "reactant_structures": [
+            "Chlorine",
+            "SodiumBromide"
+          ],
+          "request_relation": "contact",
+          "required_context": "aqueous sodium halide contacted by chlorine, bromine, or iodine under the reviewed bounded activity series"
+        },
+        "bindings": {
+          "displacedHalogen": {
+            "binding": "bromine",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.case.fluorine-displacement-unsupported",
+                    "premise.case.halogen-displacement-no-reaction",
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.displaced-halogen-forms",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.rule.halogen-displacement.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.structure.diatomic-halogen",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.halogen-displacement.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.HalogenDisplacement role displacedHalogen"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.halogen-displacement.standard-outcome"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement role displacedHalogen"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "displacedHalogen",
+            "side": "product"
+          },
+          "displacingHalogen": {
+            "binding": "chlorine",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.case.fluorine-displacement-unsupported",
+                    "premise.case.halogen-displacement-no-reaction",
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.displaced-halogen-forms",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.rule.halogen-displacement.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.structure.diatomic-halogen",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.halogen-displacement.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.HalogenDisplacement role displacingHalogen"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.halogen-displacement.standard-outcome"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement role displacingHalogen"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "displacingHalogen",
+            "side": "reactant"
+          },
+          "newSalt": {
+            "binding": "sodiumChloride",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.case.fluorine-displacement-unsupported",
+                    "premise.case.halogen-displacement-no-reaction",
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.displaced-halogen-forms",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.rule.halogen-displacement.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.structure.diatomic-halogen",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.halogen-displacement.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.HalogenDisplacement role newSalt"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.halogen-displacement.standard-outcome"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement role newSalt"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "newSalt",
+            "side": "product"
+          },
+          "saltSource": {
+            "binding": "sodiumBromide",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.case.fluorine-displacement-unsupported",
+                    "premise.case.halogen-displacement-no-reaction",
+                    "premise.category.halide",
+                    "premise.elements.iupac-periodic-table",
+                    "premise.observation.displaced-halogen-forms",
+                    "premise.rule.alkali-metal-water.standard-outcome",
+                    "premise.rule.halogen-displacement.standard-outcome",
+                    "premise.structure.alkali-metal-halide",
+                    "premise.structure.diatomic-halogen",
+                    "premise.traits.reaction-family-classification",
+                    "premise.valence.halogen-displacement.initial-domain"
+                  ],
+                  "record": "generalized rule Rules.HalogenDisplacement role saltSource"
+                },
+                {
+                  "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                  "premises": [
+                    "premise.rule.halogen-displacement.standard-outcome"
+                  ],
+                  "record": "rule Rules.HalogenDisplacement role saltSource"
+                }
+              ],
+              "evidence": []
+            },
+            "role": "saltSource",
+            "side": "reactant"
+          }
+        },
+        "generalized": {
+          "case_id": "more-reactive-halogen-displaces-halide",
+          "equivalent_match_count": 2,
+          "matched_sites": {
+            "displacingHalogen[1]": {
+              "x1": "x1",
+              "x2": "x2",
+              "x_x": "bond.0"
+            },
+            "saltSource[1]": {
+              "anion": "anion.anion",
+              "anionGroup": "anion",
+              "cation": "cation.cation",
+              "cationGroup": "cation",
+              "salt": "ionic"
+            },
+            "saltSource[2]": {
+              "anion": "anion.anion",
+              "anionGroup": "anion",
+              "cation": "cation.cation",
+              "cationGroup": "cation",
+              "salt": "ionic"
+            }
+          },
+          "parameter_premises": {
+            "displaced": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table"
+            ],
+            "displacing": [
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table"
+            ]
+          },
+          "parameters": {
+            "displaced": "Br",
+            "displacing": "Cl"
+          },
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+                "premises": [
+                  "premise.case.fluorine-displacement-unsupported",
+                  "premise.case.halogen-displacement-no-reaction",
+                  "premise.category.halide",
+                  "premise.elements.iupac-periodic-table",
+                  "premise.observation.displaced-halogen-forms",
+                  "premise.rule.alkali-metal-water.standard-outcome",
+                  "premise.rule.halogen-displacement.standard-outcome",
+                  "premise.structure.alkali-metal-halide",
+                  "premise.structure.diatomic-halogen",
+                  "premise.traits.reaction-family-classification",
+                  "premise.valence.halogen-displacement.initial-domain"
+                ],
+                "record": "generalized rule Rules.HalogenDisplacement case more-reactive-halogen-displaces-halide"
+              }
+            ],
+            "evidence": []
+          },
+          "role_premises": {
+            "displacedHalogen": [
+              "premise.case.fluorine-displacement-unsupported",
+              "premise.case.halogen-displacement-no-reaction",
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.displaced-halogen-forms",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.rule.halogen-displacement.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.halogen-displacement.initial-domain"
+            ],
+            "displacingHalogen": [
+              "premise.case.fluorine-displacement-unsupported",
+              "premise.case.halogen-displacement-no-reaction",
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.displaced-halogen-forms",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.rule.halogen-displacement.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.halogen-displacement.initial-domain"
+            ],
+            "newSalt": [
+              "premise.case.fluorine-displacement-unsupported",
+              "premise.case.halogen-displacement-no-reaction",
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.displaced-halogen-forms",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.rule.halogen-displacement.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.halogen-displacement.initial-domain"
+            ],
+            "saltSource": [
+              "premise.case.fluorine-displacement-unsupported",
+              "premise.case.halogen-displacement-no-reaction",
+              "premise.category.halide",
+              "premise.elements.iupac-periodic-table",
+              "premise.observation.displaced-halogen-forms",
+              "premise.rule.alkali-metal-water.standard-outcome",
+              "premise.rule.halogen-displacement.standard-outcome",
+              "premise.structure.alkali-metal-halide",
+              "premise.structure.diatomic-halogen",
+              "premise.traits.reaction-family-classification",
+              "premise.valence.halogen-displacement.initial-domain"
+            ]
+          }
+        },
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "generalized rule Rules.HalogenDisplacement selected certificate"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.rule.halogen-displacement.standard-outcome"
+              ],
+              "record": "rule Rules.HalogenDisplacement"
+            }
+          ],
+          "evidence": []
+        },
+        "rule": "Rules.HalogenDisplacement"
+      }
+    },
+    "mapping": {
+      "entries": {
+        "chlorine[1].x1": "sodiumChloride[1].anion.anion",
+        "chlorine[1].x2": "sodiumChloride[2].anion.anion",
+        "sodiumBromide[1].anion.anion": "bromine[1].x1",
+        "sodiumBromide[1].cation.cation": "sodiumChloride[1].cation.cation",
+        "sodiumBromide[2].anion.anion": "bromine[1].x2",
+        "sodiumBromide[2].cation.cation": "sodiumChloride[2].cation.cation"
+      },
+      "id": "mapping.ChlorineAndSodiumBromide"
+    },
+    "mapping_entry_provenance": {
+      "chlorine[1].x1": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.fluorine-displacement-unsupported",
+          "premise.case.halogen-displacement-no-reaction",
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.displaced-halogen-forms",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.rule.halogen-displacement.standard-outcome",
+          "premise.structure.alkali-metal-halide",
+          "premise.structure.diatomic-halogen",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.halogen-displacement.initial-domain"
+        ],
+        "record": "rule Rules.HalogenDisplacement mapping pair 1"
+      },
+      "chlorine[1].x2": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.fluorine-displacement-unsupported",
+          "premise.case.halogen-displacement-no-reaction",
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.displaced-halogen-forms",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.rule.halogen-displacement.standard-outcome",
+          "premise.structure.alkali-metal-halide",
+          "premise.structure.diatomic-halogen",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.halogen-displacement.initial-domain"
+        ],
+        "record": "rule Rules.HalogenDisplacement mapping pair 2"
+      },
+      "sodiumBromide[1].anion.anion": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.fluorine-displacement-unsupported",
+          "premise.case.halogen-displacement-no-reaction",
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.displaced-halogen-forms",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.rule.halogen-displacement.standard-outcome",
+          "premise.structure.alkali-metal-halide",
+          "premise.structure.diatomic-halogen",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.halogen-displacement.initial-domain"
+        ],
+        "record": "rule Rules.HalogenDisplacement mapping pair 3"
+      },
+      "sodiumBromide[1].cation.cation": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.fluorine-displacement-unsupported",
+          "premise.case.halogen-displacement-no-reaction",
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.displaced-halogen-forms",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.rule.halogen-displacement.standard-outcome",
+          "premise.structure.alkali-metal-halide",
+          "premise.structure.diatomic-halogen",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.halogen-displacement.initial-domain"
+        ],
+        "record": "rule Rules.HalogenDisplacement mapping pair 4"
+      },
+      "sodiumBromide[2].anion.anion": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.fluorine-displacement-unsupported",
+          "premise.case.halogen-displacement-no-reaction",
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.displaced-halogen-forms",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.rule.halogen-displacement.standard-outcome",
+          "premise.structure.alkali-metal-halide",
+          "premise.structure.diatomic-halogen",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.halogen-displacement.initial-domain"
+        ],
+        "record": "rule Rules.HalogenDisplacement mapping pair 5"
+      },
+      "sodiumBromide[2].cation.cation": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.fluorine-displacement-unsupported",
+          "premise.case.halogen-displacement-no-reaction",
+          "premise.category.halide",
+          "premise.elements.iupac-periodic-table",
+          "premise.observation.displaced-halogen-forms",
+          "premise.rule.alkali-metal-water.standard-outcome",
+          "premise.rule.halogen-displacement.standard-outcome",
+          "premise.structure.alkali-metal-halide",
+          "premise.structure.diatomic-halogen",
+          "premise.traits.reaction-family-classification",
+          "premise.valence.halogen-displacement.initial-domain"
+        ],
+        "record": "rule Rules.HalogenDisplacement mapping pair 6"
+      }
+    },
+    "mapping_provenance": {
+      "catalogue": [
+        {
+          "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+          "premises": [
+            "premise.case.fluorine-displacement-unsupported",
+            "premise.case.halogen-displacement-no-reaction",
+            "premise.category.halide",
+            "premise.elements.iupac-periodic-table",
+            "premise.observation.displaced-halogen-forms",
+            "premise.rule.alkali-metal-water.standard-outcome",
+            "premise.rule.halogen-displacement.standard-outcome",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.diatomic-halogen",
+            "premise.traits.reaction-family-classification",
+            "premise.valence.halogen-displacement.initial-domain"
+          ],
+          "record": "rule Rules.HalogenDisplacement atom mapping template"
+        }
+      ],
+      "evidence": []
+    },
+    "operations": [
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "allocation": "homolytic",
+          "expected_order": "single",
+          "id": "operation[1]",
+          "kind": "cleave_covalent",
+          "left": "chlorine[1].x1",
+          "right": "chlorine[1].x2",
+          "transitions": {
+            "chlorine[1].x1": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              },
+              "atom": "chlorine[1].x1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            },
+            "chlorine[1].x2": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              },
+              "atom": "chlorine[1].x2",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 1"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "association": "sodiumBromide[1].ionic",
+          "id": "operation[2]",
+          "kind": "dissociate_ionic"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 2"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "association": "sodiumBromide[2].ionic",
+          "id": "operation[3]",
+          "kind": "dissociate_ionic"
+        },
+        "ordinal": 3,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 3"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "acceptor": "chlorine[1].x1",
+          "count": 1,
+          "donor": "sodiumBromide[1].anion.anion",
+          "id": "operation[4]",
+          "kind": "transfer_electron",
+          "transitions": {
+            "chlorine[1].x1": {
+              "after": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "atom": "chlorine[1].x1",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              }
+            },
+            "sodiumBromide[1].anion.anion": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              },
+              "atom": "sodiumBromide[1].anion.anion",
+              "before": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 4,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 4"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "acceptor": "chlorine[1].x2",
+          "count": 1,
+          "donor": "sodiumBromide[2].anion.anion",
+          "id": "operation[5]",
+          "kind": "transfer_electron",
+          "transitions": {
+            "chlorine[1].x2": {
+              "after": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              },
+              "atom": "chlorine[1].x2",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              }
+            },
+            "sodiumBromide[2].anion.anion": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              },
+              "atom": "sodiumBromide[2].anion.anion",
+              "before": {
+                "formal_charge": -1,
+                "non_bonding_electrons": 8,
+                "unpaired_electrons": 0
+              }
+            }
+          }
+        },
+        "ordinal": 5,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 5"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": {
+          "left": 1,
+          "right": 1
+        },
+        "ionic_components": [],
+        "operation": {
+          "id": "operation[6]",
+          "kind": "form_covalent",
+          "left": "sodiumBromide[1].anion.anion",
+          "order": "single",
+          "right": "sodiumBromide[2].anion.anion",
+          "transitions": {
+            "sodiumBromide[1].anion.anion": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "atom": "sodiumBromide[1].anion.anion",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              }
+            },
+            "sodiumBromide[2].anion.anion": {
+              "after": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 6,
+                "unpaired_electrons": 0
+              },
+              "atom": "sodiumBromide[2].anion.anion",
+              "before": {
+                "formal_charge": 0,
+                "non_bonding_electrons": 7,
+                "unpaired_electrons": 1
+              }
+            }
+          }
+        },
+        "ordinal": 6,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 6"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [
+          {
+            "expected_charge": -1,
+            "group": {
+              "atoms": [
+                "chlorine[1].x1"
+              ],
+              "id": "ionic[7].component[1]"
+            }
+          },
+          {
+            "expected_charge": 1,
+            "group": {
+              "atoms": [
+                "sodiumBromide[1].cation.cation"
+              ],
+              "id": "ionic[7].component[2]"
+            }
+          }
+        ],
+        "operation": {
+          "association": {
+            "components": [
+              "ionic[7].component[1]",
+              "ionic[7].component[2]"
+            ],
+            "id": "ionic[7].ionic.product-1"
+          },
+          "id": "operation[7]",
+          "kind": "associate_ionic"
+        },
+        "ordinal": 7,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 7"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [
+          {
+            "expected_charge": -1,
+            "group": {
+              "atoms": [
+                "chlorine[1].x2"
+              ],
+              "id": "ionic[8].component[1]"
+            }
+          },
+          {
+            "expected_charge": 1,
+            "group": {
+              "atoms": [
+                "sodiumBromide[2].cation.cation"
+              ],
+              "id": "ionic[8].component[2]"
+            }
+          }
+        ],
+        "operation": {
+          "association": {
+            "components": [
+              "ionic[8].component[1]",
+              "ionic[8].component[2]"
+            ],
+            "id": "ionic[8].ionic.product-2"
+          },
+          "id": "operation[8]",
+          "kind": "associate_ionic"
+        },
+        "ordinal": 8,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 8"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "chlorine[1].x1",
+            "sodiumBromide[1].cation.cation"
+          ],
+          "id": "operation[9]",
+          "kind": "assign_product",
+          "product": "sodiumChloride[1]"
+        },
+        "ordinal": 9,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 9"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "chlorine[1].x2",
+            "sodiumBromide[2].cation.cation"
+          ],
+          "id": "operation[10]",
+          "kind": "assign_product",
+          "product": "sodiumChloride[2]"
+        },
+        "ordinal": 10,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 10"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      {
+        "electron_contribution": null,
+        "ionic_components": [],
+        "operation": {
+          "atoms": [
+            "sodiumBromide[1].anion.anion",
+            "sodiumBromide[2].anion.anion"
+          ],
+          "id": "operation[11]",
+          "kind": "assign_product",
+          "product": "bromine[1]"
+        },
+        "ordinal": 11,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.case.fluorine-displacement-unsupported",
+                "premise.case.halogen-displacement-no-reaction",
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.observation.displaced-halogen-forms",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.rule.halogen-displacement.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification",
+                "premise.valence.halogen-displacement.initial-domain"
+              ],
+              "record": "rule Rules.HalogenDisplacement operation template 11"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    ],
+    "premise_provenance": {
+      "premise.case.fluorine-displacement-unsupported": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.fluorine-displacement-unsupported"
+        ],
+        "record": "catalogue premise premise.case.fluorine-displacement-unsupported"
+      },
+      "premise.case.halogen-displacement-no-reaction": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.case.halogen-displacement-no-reaction"
+        ],
+        "record": "catalogue premise premise.case.halogen-displacement-no-reaction"
+      },
+      "premise.category.halide": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.category.halide"
+        ],
+        "record": "catalogue premise premise.category.halide"
+      },
+      "premise.elements.iupac-periodic-table": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.elements.iupac-periodic-table"
+        ],
+        "record": "catalogue premise premise.elements.iupac-periodic-table"
+      },
+      "premise.observation.displaced-halogen-forms": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.observation.displaced-halogen-forms"
+        ],
+        "record": "catalogue premise premise.observation.displaced-halogen-forms"
+      },
+      "premise.rule.alkali-metal-water.standard-outcome": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ],
+        "record": "catalogue premise premise.rule.alkali-metal-water.standard-outcome"
+      },
+      "premise.rule.halogen-displacement.standard-outcome": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.rule.halogen-displacement.standard-outcome"
+        ],
+        "record": "catalogue premise premise.rule.halogen-displacement.standard-outcome"
+      },
+      "premise.structure.alkali-metal-halide": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.alkali-metal-halide"
+        ],
+        "record": "catalogue premise premise.structure.alkali-metal-halide"
+      },
+      "premise.structure.diatomic-halogen": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.structure.diatomic-halogen"
+        ],
+        "record": "catalogue premise premise.structure.diatomic-halogen"
+      },
+      "premise.traits.reaction-family-classification": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.traits.reaction-family-classification"
+        ],
+        "record": "catalogue premise premise.traits.reaction-family-classification"
+      },
+      "premise.valence.halogen-displacement.initial-domain": {
+        "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+        "premises": [
+          "premise.valence.halogen-displacement.initial-domain"
+        ],
+        "record": "catalogue premise premise.valence.halogen-displacement.initial-domain"
+      }
+    },
+    "premises": [
+      "premise.case.fluorine-displacement-unsupported",
+      "premise.case.halogen-displacement-no-reaction",
+      "premise.category.halide",
+      "premise.elements.iupac-periodic-table",
+      "premise.observation.displaced-halogen-forms",
+      "premise.rule.alkali-metal-water.standard-outcome",
+      "premise.rule.halogen-displacement.standard-outcome",
+      "premise.structure.alkali-metal-halide",
+      "premise.structure.diatomic-halogen",
+      "premise.traits.reaction-family-classification",
+      "premise.valence.halogen-displacement.initial-domain"
+    ],
+    "product_instances": {
+      "bromine[1]": {
+        "binding": "bromine",
+        "instance": {
+          "atom_relabeling": {
+            "x1": "bromine[1].x1",
+            "x2": "bromine[1].x2"
+          },
+          "graph": {
+            "atoms": {
+              "bromine[1].x1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Br",
+                "id": "bromine[1].x1"
+              },
+              "bromine[1].x2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Br",
+                "id": "bromine[1].x2"
+              }
+            },
+            "covalent_bonds": {
+              "bromine[1].bond.0": {
+                "id": "bromine[1].bond.0",
+                "left": "bromine[1].x1",
+                "order": "single",
+                "right": "bromine[1].x2"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "bromine[1]",
+          "structure": "Bromine"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance bromine[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure Bromine"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "sodiumChloride[1]": {
+        "binding": "sodiumChloride",
+        "instance": {
+          "atom_relabeling": {
+            "anion.anion": "sodiumChloride[1].anion.anion",
+            "cation.cation": "sodiumChloride[1].cation.cation"
+          },
+          "graph": {
+            "atoms": {
+              "sodiumChloride[1].anion.anion": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "sodiumChloride[1].anion.anion"
+              },
+              "sodiumChloride[1].cation.cation": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Na",
+                "id": "sodiumChloride[1].cation.cation"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {
+              "sodiumChloride[1].anion": {
+                "atoms": [
+                  "sodiumChloride[1].anion.anion"
+                ],
+                "id": "sodiumChloride[1].anion"
+              },
+              "sodiumChloride[1].cation": {
+                "atoms": [
+                  "sodiumChloride[1].cation.cation"
+                ],
+                "id": "sodiumChloride[1].cation"
+              }
+            },
+            "ionic_associations": {
+              "sodiumChloride[1].ionic": {
+                "components": [
+                  "sodiumChloride[1].anion",
+                  "sodiumChloride[1].cation"
+                ],
+                "id": "sodiumChloride[1].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "sodiumChloride[1]",
+          "structure": "SodiumChloride"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumChloride[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumChloride"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "sodiumChloride[2]": {
+        "binding": "sodiumChloride",
+        "instance": {
+          "atom_relabeling": {
+            "anion.anion": "sodiumChloride[2].anion.anion",
+            "cation.cation": "sodiumChloride[2].cation.cation"
+          },
+          "graph": {
+            "atoms": {
+              "sodiumChloride[2].anion.anion": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "sodiumChloride[2].anion.anion"
+              },
+              "sodiumChloride[2].cation.cation": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Na",
+                "id": "sodiumChloride[2].cation.cation"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {
+              "sodiumChloride[2].anion": {
+                "atoms": [
+                  "sodiumChloride[2].anion.anion"
+                ],
+                "id": "sodiumChloride[2].anion"
+              },
+              "sodiumChloride[2].cation": {
+                "atoms": [
+                  "sodiumChloride[2].cation.cation"
+                ],
+                "id": "sodiumChloride[2].cation"
+              }
+            },
+            "ionic_associations": {
+              "sodiumChloride[2].ionic": {
+                "components": [
+                  "sodiumChloride[2].anion",
+                  "sodiumChloride[2].cation"
+                ],
+                "id": "sodiumChloride[2].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "sodiumChloride[2]",
+          "structure": "SodiumChloride"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumChloride[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumChloride"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "reactant_instances": {
+      "chlorine[1]": {
+        "binding": "chlorine",
+        "instance": {
+          "atom_relabeling": {
+            "x1": "chlorine[1].x1",
+            "x2": "chlorine[1].x2"
+          },
+          "graph": {
+            "atoms": {
+              "chlorine[1].x1": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "chlorine[1].x1"
+              },
+              "chlorine[1].x2": {
+                "electrons": {
+                  "formal_charge": 0,
+                  "non_bonding_electrons": 6,
+                  "unpaired_electrons": 0
+                },
+                "element": "Cl",
+                "id": "chlorine[1].x2"
+              }
+            },
+            "covalent_bonds": {
+              "chlorine[1].bond.0": {
+                "id": "chlorine[1].bond.0",
+                "left": "chlorine[1].x1",
+                "order": "single",
+                "right": "chlorine[1].x2"
+              }
+            },
+            "groups": {},
+            "ionic_associations": {},
+            "metallic_domains": {}
+          },
+          "id": "chlorine[1]",
+          "structure": "Chlorine"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance chlorine[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.structure.diatomic-halogen",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure Chlorine"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "sodiumBromide[1]": {
+        "binding": "sodiumBromide",
+        "instance": {
+          "atom_relabeling": {
+            "anion.anion": "sodiumBromide[1].anion.anion",
+            "cation.cation": "sodiumBromide[1].cation.cation"
+          },
+          "graph": {
+            "atoms": {
+              "sodiumBromide[1].anion.anion": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "element": "Br",
+                "id": "sodiumBromide[1].anion.anion"
+              },
+              "sodiumBromide[1].cation.cation": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Na",
+                "id": "sodiumBromide[1].cation.cation"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {
+              "sodiumBromide[1].anion": {
+                "atoms": [
+                  "sodiumBromide[1].anion.anion"
+                ],
+                "id": "sodiumBromide[1].anion"
+              },
+              "sodiumBromide[1].cation": {
+                "atoms": [
+                  "sodiumBromide[1].cation.cation"
+                ],
+                "id": "sodiumBromide[1].cation"
+              }
+            },
+            "ionic_associations": {
+              "sodiumBromide[1].ionic": {
+                "components": [
+                  "sodiumBromide[1].anion",
+                  "sodiumBromide[1].cation"
+                ],
+                "id": "sodiumBromide[1].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "sodiumBromide[1]",
+          "structure": "SodiumBromide"
+        },
+        "ordinal": 1,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumBromide[1]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumBromide"
+            }
+          ],
+          "evidence": []
+        }
+      },
+      "sodiumBromide[2]": {
+        "binding": "sodiumBromide",
+        "instance": {
+          "atom_relabeling": {
+            "anion.anion": "sodiumBromide[2].anion.anion",
+            "cation.cation": "sodiumBromide[2].cation.cation"
+          },
+          "graph": {
+            "atoms": {
+              "sodiumBromide[2].anion.anion": {
+                "electrons": {
+                  "formal_charge": -1,
+                  "non_bonding_electrons": 8,
+                  "unpaired_electrons": 0
+                },
+                "element": "Br",
+                "id": "sodiumBromide[2].anion.anion"
+              },
+              "sodiumBromide[2].cation.cation": {
+                "electrons": {
+                  "formal_charge": 1,
+                  "non_bonding_electrons": 0,
+                  "unpaired_electrons": 0
+                },
+                "element": "Na",
+                "id": "sodiumBromide[2].cation.cation"
+              }
+            },
+            "covalent_bonds": {},
+            "groups": {
+              "sodiumBromide[2].anion": {
+                "atoms": [
+                  "sodiumBromide[2].anion.anion"
+                ],
+                "id": "sodiumBromide[2].anion"
+              },
+              "sodiumBromide[2].cation": {
+                "atoms": [
+                  "sodiumBromide[2].cation.cation"
+                ],
+                "id": "sodiumBromide[2].cation"
+              }
+            },
+            "ionic_associations": {
+              "sodiumBromide[2].ionic": {
+                "components": [
+                  "sodiumBromide[2].anion",
+                  "sodiumBromide[2].cation"
+                ],
+                "id": "sodiumBromide[2].ionic"
+              }
+            },
+            "metallic_domains": {}
+          },
+          "id": "sodiumBromide[2]",
+          "structure": "SodiumBromide"
+        },
+        "ordinal": 2,
+        "provenance": {
+          "catalogue": [
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "coefficient instance sodiumBromide[2]"
+            },
+            {
+              "catalogue_digest": "7077db004d757898fc9d624c3ec42baeede6f6335ee966957fb9051ce5a5c1ab",
+              "premises": [
+                "premise.category.halide",
+                "premise.elements.iupac-periodic-table",
+                "premise.rule.alkali-metal-water.standard-outcome",
+                "premise.structure.alkali-metal-halide",
+                "premise.traits.reaction-family-classification"
+              ],
+              "record": "structure SodiumBromide"
+            }
+          ],
+          "evidence": []
+        }
+      }
+    },
+    "schema_version": 1
+  }
+}

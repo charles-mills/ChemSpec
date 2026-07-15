@@ -53,6 +53,7 @@ Regenerate the package, fixtures, evidence files, and registry records with:
 python3 tools/generate-covalent-catalogue.py
 ```
 
-The trusted aggregate contains 205 experiences after promotion: 36 established
-finite bindings, 68 oxygen outcomes, 81 fixed-charge ionic pairs, and these 20
+The trusted aggregate contains 273 experiences after promotion: 36 established
+finite bindings, 68 O2 outcomes, 68 separately authored O3 oxygen-transfer
+outcomes, 81 fixed-charge ionic pairs, and these 20
 covalent combinations.

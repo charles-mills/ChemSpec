@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction HexaneCompleteCombustion where
+  reactants
+    fuel := 2 of Hexane
+    oxygen := 19 of Oxygen
+  products
+    carbonDioxide := 12 of CarbonDioxide
+    water := 14 of Water
+  equation
+    2 C6H14[molecular] + 19 O2[molecular]
+    -> 12 CO2[molecular] + 14 H2O[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.HexaneCombustion@1
+    product carbonDioxide forms claim R1
+  by
+    apply Rules.HexaneCompleteCombustion
+      fuel := fuel
+      oxygen := oxygen
+      carbonDioxide := carbonDioxide
+      water := water

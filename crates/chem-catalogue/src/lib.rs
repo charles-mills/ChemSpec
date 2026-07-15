@@ -10,6 +10,7 @@ mod generalized_elaboration;
 mod model;
 mod oxygen;
 mod pattern;
+mod reaction_screening;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -30,6 +31,7 @@ pub use generalized_elaboration::*;
 pub use model::*;
 pub use oxygen::*;
 pub use pattern::*;
+pub use reaction_screening::*;
 
 /// Host-controlled trust root for the one closed production catalogue.
 ///
@@ -37,7 +39,7 @@ pub use pattern::*;
 /// can validate newly generated JSON, but cannot promote its digest into the
 /// trusted catalogue type.
 pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
-    "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
+    "71bf5f9885153ab9ab02b48e4efd677685ee5b07d36f4ed7fade52ddfc484450";
 
 /// Host-controlled digest of the exact chemist review attestation selected for the
 /// canonical educational catalogue.
@@ -45,7 +47,7 @@ pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
 /// The attestation is explicit about its scope and limitations. Runtime
 /// data cannot populate or override this compiled trust decision.
 pub const PINNED_CANONICAL_REVIEW_DIGEST: &str =
-    "224c84ccc7651c056d7b41ffbea23dbb5150002cece40d5d071316d402ff28ec";
+    "c678cfad7c86b68489e3bda3f4131032e623ff11679928838f2565f771d4eaa9";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogueErrorCode {
@@ -440,6 +442,51 @@ impl ValidatedCatalogueBundle {
         self.elements
             .get(symbol)
             .map(|index| &self.document.elements[*index])
+    }
+
+    /// Returns a reviewed ordinal for one named reaction context.
+    /// Ranks from different series must never be compared.
+    #[must_use]
+    pub fn element_activity_rank(
+        &self,
+        symbol: &ElementSymbol,
+        series: ActivitySeriesRecord,
+    ) -> Option<i16> {
+        self.element(symbol)?
+            .reaction_facts
+            .activity_ranks
+            .iter()
+            .find(|fact| fact.series == series)
+            .map(|fact| fact.rank)
+    }
+
+    /// Answers a displacement comparison only when both reviewed ranks exist.
+    /// `None` means unsupported knowledge, not "no reaction".
+    #[must_use]
+    pub fn element_can_displace(
+        &self,
+        challenger: &ElementSymbol,
+        incumbent: &ElementSymbol,
+        series: ActivitySeriesRecord,
+    ) -> Option<bool> {
+        Some(
+            self.element_activity_rank(challenger, series)?
+                > self.element_activity_rank(incumbent, series)?,
+        )
+    }
+
+    #[must_use]
+    pub fn element_supports_ionic_charge(
+        &self,
+        symbol: &ElementSymbol,
+        charge: i16,
+    ) -> Option<bool> {
+        Some(
+            self.element(symbol)?
+                .reaction_facts
+                .common_ionic_charges
+                .contains(&charge),
+        )
     }
 
     #[must_use]
@@ -983,6 +1030,30 @@ fn validate_elements_and_categories(
         }
         for premise in &record.premise_ids {
             require_premise(premise, premises)?;
+        }
+        let mut charges = BTreeSet::new();
+        if record
+            .reaction_facts
+            .common_ionic_charges
+            .iter()
+            .any(|charge| *charge == 0 || !(-8..=8).contains(charge) || !charges.insert(*charge))
+        {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidElement,
+                format!("invalid or duplicate ionic charge for `{}`", record.symbol),
+            ));
+        }
+        let mut activity_series = BTreeSet::new();
+        for activity in &record.reaction_facts.activity_ranks {
+            if !activity_series.insert(activity.series) || activity.premise_ids.is_empty() {
+                return Err(CatalogueError::new(
+                    CatalogueErrorCode::InvalidElement,
+                    format!("invalid or duplicate activity rank for `{}`", record.symbol),
+                ));
+            }
+            for premise in &activity.premise_ids {
+                require_premise(premise, premises)?;
+            }
         }
         let id = ElementId::new(record.atomic_number).map_err(|error| {
             CatalogueError::new(CatalogueErrorCode::InvalidElement, error.to_string())
@@ -3376,11 +3447,16 @@ fn validate_operations(
                 validate_electron_state(after.site)?;
                 validate_supported_state(site, before.site, reactants, valence_records)?;
                 validate_supported_state(site, after.site, reactants, valence_records)?;
-                let retain_is_valid = before.domain_electrons != 0
-                    && before.domain_electrons == after.domain_electrons.saturating_add(1)
-                    && before.site.1.checked_add(1) == Some(after.site.1)
-                    && before.site.2.checked_add(1) == Some(after.site.2)
-                    && before.site.0.checked_sub(1) == Some(after.site.0);
+                let released = before
+                    .domain_electrons
+                    .checked_sub(after.domain_electrons)
+                    .and_then(|value| u8::try_from(value).ok());
+                let retain_is_valid = released.is_some_and(|released| {
+                    released > 0
+                        && before.site.1.checked_add(released) == Some(after.site.1)
+                        && before.site.2.checked_add(released) == Some(after.site.2)
+                        && before.site.0.checked_sub(i16::from(released)) == Some(after.site.0)
+                });
                 let leave_is_valid = before == after;
                 let valid = match operation {
                     OperationTemplateRecord::ReleaseMetallic {
@@ -3405,16 +3481,25 @@ fn validate_operations(
                 ..
             } => {
                 require_atom(rule, reactants, site)?;
-                require_metallic_membership(rule, site, domain, structures)?;
+                if before.domain_electrons == 0 {
+                    require_synthetic_metallic_domain(rule, site, domain)?;
+                } else {
+                    require_metallic_membership(rule, site, domain, structures)?;
+                }
                 validate_electron_state(before.site)?;
                 validate_electron_state(after.site)?;
                 validate_supported_state(site, before.site, reactants, valence_records)?;
                 validate_supported_state(site, after.site, reactants, valence_records)?;
-                if after.domain_electrons != before.domain_electrons.saturating_add(1)
-                    || before.site.1.checked_sub(1) != Some(after.site.1)
-                    || before.site.2.checked_sub(1) != Some(after.site.2)
-                    || before.site.0.checked_add(1) != Some(after.site.0)
-                {
+                let joined = after
+                    .domain_electrons
+                    .checked_sub(before.domain_electrons)
+                    .and_then(|value| u8::try_from(value).ok());
+                if joined.is_none_or(|joined| {
+                    joined == 0
+                        || before.site.1.checked_sub(joined) != Some(after.site.1)
+                        || before.site.2.checked_sub(joined) != Some(after.site.2)
+                        || before.site.0.checked_add(i16::from(joined)) != Some(after.site.0)
+                }) {
                     return operation_error(&rule.id, "invalid metallic join ledger");
                 }
             }
@@ -3802,6 +3887,29 @@ fn require_metallic_membership(
             "site is not owned by the referenced metallic domain",
         )
     }
+}
+
+fn require_synthetic_metallic_domain(
+    rule: &ReactionRuleRecord,
+    site: &str,
+    domain: &str,
+) -> Result<(), CatalogueError> {
+    let (site_instance, _) = split_template_reference(site).ok_or_else(|| {
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidOperationTemplate,
+            "malformed metallic site",
+        )
+    })?;
+    let (domain_instance, domain_local) = split_template_reference(domain).ok_or_else(|| {
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidOperationTemplate,
+            "malformed metallic domain",
+        )
+    })?;
+    if site_instance != domain_instance {
+        return operation_error(&rule.id, "metallic site and domain use different instances");
+    }
+    validate_label(domain_local, CatalogueErrorCode::InvalidOperationTemplate)
 }
 
 fn resolve_template_atom<'a>(

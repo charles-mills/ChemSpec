@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction RhAndOxygenToTransitionG9DioxideWithOzone where
+  reactants
+    subject := 3 of RhTransitionG9DioxideMetalForOxygen
+    oxygen := 2 of Ozone
+  products
+    oxide := 3 of RhTransitionG9DioxideOxide
+  equation
+    3 Rh[metallic] + 2 O3[molecular]
+    -> 3 RhO2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.OzoneTransitionG9Dioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

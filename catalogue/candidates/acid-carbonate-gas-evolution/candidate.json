@@ -448,6 +448,17 @@
       ],
       "premise_ids": [
         "premise.structure.alkali-metal-bicarbonate"
+      ],
+      "traits": [
+        {
+          "trait": "Traits.CarbonateBase",
+          "sites": {
+            "reactive_site": "cation.cation"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
       ]
     },
     {
@@ -548,6 +559,17 @@
       ],
       "premise_ids": [
         "premise.structure.alkali-metal-carbonate"
+      ],
+      "traits": [
+        {
+          "trait": "Traits.CarbonateBase",
+          "sites": {
+            "reactive_site": "cations.cation_a"
+          },
+          "premise_ids": [
+            "premise.traits.reaction-family-classification"
+          ]
+        }
       ]
     }
   ],
@@ -1430,19 +1452,20 @@
         ]
       },
       "premise_ids": [
-        "premise.elements.iupac-periodic-table",
-        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.case.hydrofluoric-acid-unsupported.gas-evolution",
         "premise.category.halide",
-        "premise.structure.hydrogen-halide",
+        "premise.elements.iupac-periodic-table",
+        "premise.observation.acid-disappears.gas-evolution",
+        "premise.observation.carbon-dioxide-evolves",
+        "premise.rule.acid-bicarbonate-gas-evolution.standard-outcome",
+        "premise.rule.alkali-metal-water.standard-outcome",
         "premise.structure.alkali-metal-bicarbonate",
         "premise.structure.alkali-metal-halide",
         "premise.structure.carbon-dioxide",
+        "premise.structure.hydrogen-halide",
         "premise.structure.water",
-        "premise.rule.acid-bicarbonate-gas-evolution.standard-outcome",
-        "premise.case.hydrofluoric-acid-unsupported.gas-evolution",
-        "premise.valence.acid-carbonate-family.initial-domain",
-        "premise.observation.carbon-dioxide-evolves",
-        "premise.observation.acid-disappears.gas-evolution"
+        "premise.traits.reaction-family-classification",
+        "premise.valence.acid-carbonate-family.initial-domain"
       ]
     },
     {
@@ -2223,19 +2246,20 @@
         ]
       },
       "premise_ids": [
-        "premise.elements.iupac-periodic-table",
-        "premise.rule.alkali-metal-water.standard-outcome",
+        "premise.case.hydrofluoric-acid-unsupported.gas-evolution",
         "premise.category.halide",
-        "premise.structure.hydrogen-halide",
+        "premise.elements.iupac-periodic-table",
+        "premise.observation.acid-disappears.gas-evolution",
+        "premise.observation.carbon-dioxide-evolves",
+        "premise.rule.acid-carbonate-gas-evolution.standard-outcome",
+        "premise.rule.alkali-metal-water.standard-outcome",
         "premise.structure.alkali-metal-carbonate",
         "premise.structure.alkali-metal-halide",
         "premise.structure.carbon-dioxide",
+        "premise.structure.hydrogen-halide",
         "premise.structure.water",
-        "premise.rule.acid-carbonate-gas-evolution.standard-outcome",
-        "premise.case.hydrofluoric-acid-unsupported.gas-evolution",
-        "premise.valence.acid-carbonate-family.initial-domain",
-        "premise.observation.carbon-dioxide-evolves",
-        "premise.observation.acid-disappears.gas-evolution"
+        "premise.traits.reaction-family-classification",
+        "premise.valence.acid-carbonate-family.initial-domain"
       ]
     }
   ]

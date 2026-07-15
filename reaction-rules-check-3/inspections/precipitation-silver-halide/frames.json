@@ -1,0 +1,2083 @@
+{
+  "artifact": "frames",
+  "promotable": false,
+  "schema_version": 1,
+  "status": "candidate-inspection-only",
+  "value": {
+    "frames": [
+      {
+        "active_operation": null,
+        "atoms": {
+          "silverNitrate[1].cation.ag": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Ag",
+            "id": "silverNitrate[1].cation.ag"
+          },
+          "silverNitrate[1].nitrate.n": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "N",
+            "id": "silverNitrate[1].nitrate.n"
+          },
+          "silverNitrate[1].nitrate.o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].nitrate.o2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].nitrate.o3": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o3"
+          },
+          "sodiumChloride[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "sodiumChloride[1].anion.anion"
+          },
+          "sodiumChloride[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumChloride[1].cation.cation"
+          }
+        },
+        "changes": [],
+        "covalent_edges": {
+          "silverNitrate[1].bond.0": {
+            "id": "silverNitrate[1].bond.0",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "double",
+            "right": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].bond.1": {
+            "id": "silverNitrate[1].bond.1",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].bond.2": {
+            "id": "silverNitrate[1].bond.2",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o3"
+          }
+        },
+        "groups": {
+          "silverNitrate[1].cation": {
+            "atoms": [
+              "silverNitrate[1].cation.ag"
+            ],
+            "id": "silverNitrate[1].cation"
+          },
+          "silverNitrate[1].nitrate": {
+            "atoms": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3"
+            ],
+            "id": "silverNitrate[1].nitrate"
+          },
+          "sodiumChloride[1].anion": {
+            "atoms": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "id": "sodiumChloride[1].anion"
+          },
+          "sodiumChloride[1].cation": {
+            "atoms": [
+              "sodiumChloride[1].cation.cation"
+            ],
+            "id": "sodiumChloride[1].cation"
+          }
+        },
+        "ionic_associations": {
+          "silverNitrate[1].ionic": {
+            "component_charges": {
+              "silverNitrate[1].cation": 1,
+              "silverNitrate[1].nitrate": -1
+            },
+            "components": {
+              "silverNitrate[1].cation": [
+                "silverNitrate[1].cation.ag"
+              ],
+              "silverNitrate[1].nitrate": [
+                "silverNitrate[1].nitrate.n",
+                "silverNitrate[1].nitrate.o1",
+                "silverNitrate[1].nitrate.o2",
+                "silverNitrate[1].nitrate.o3"
+              ]
+            },
+            "id": "silverNitrate[1].ionic"
+          },
+          "sodiumChloride[1].ionic": {
+            "component_charges": {
+              "sodiumChloride[1].anion": -1,
+              "sodiumChloride[1].cation": 1
+            },
+            "components": {
+              "sodiumChloride[1].anion": [
+                "sodiumChloride[1].anion.anion"
+              ],
+              "sodiumChloride[1].cation": [
+                "sodiumChloride[1].cation.cation"
+              ]
+            },
+            "id": "sodiumChloride[1].ionic"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.silver-halide-precipitation.standard-outcome"
+                ],
+                "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "precipitation-silver-halide/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.precipitate-forms"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 510,
+                    "start": 472
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "colour",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.silver-chloride-colour"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 563,
+                    "start": 514
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": "White"
+          }
+        ],
+        "ordinal": 0,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+          "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+          "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+          "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+          "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+          "state_digest": "adc3a96d863d4d0aa8f4c7a95eaa4e61dd7b92c0aa2e2342231e02dbae81c0b5"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": "silverNitrate[1].ionic",
+            "id": "operation[1]",
+            "kind": "dissociate_ionic"
+          },
+          "ordinal": 1
+        },
+        "atoms": {
+          "silverNitrate[1].cation.ag": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Ag",
+            "id": "silverNitrate[1].cation.ag"
+          },
+          "silverNitrate[1].nitrate.n": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "N",
+            "id": "silverNitrate[1].nitrate.n"
+          },
+          "silverNitrate[1].nitrate.o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].nitrate.o2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].nitrate.o3": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o3"
+          },
+          "sodiumChloride[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "sodiumChloride[1].anion.anion"
+          },
+          "sodiumChloride[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumChloride[1].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": null,
+            "before": [
+              "silverNitrate[1].cation.ag"
+            ],
+            "group": "silverNitrate[1].cation",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "before": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3"
+            ],
+            "group": "silverNitrate[1].nitrate",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "association": "silverNitrate[1].ionic",
+            "before": [
+              "silverNitrate[1].cation",
+              "silverNitrate[1].nitrate"
+            ],
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "silverNitrate[1].bond.0": {
+            "id": "silverNitrate[1].bond.0",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "double",
+            "right": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].bond.1": {
+            "id": "silverNitrate[1].bond.1",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].bond.2": {
+            "id": "silverNitrate[1].bond.2",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o3"
+          }
+        },
+        "groups": {
+          "sodiumChloride[1].anion": {
+            "atoms": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "id": "sodiumChloride[1].anion"
+          },
+          "sodiumChloride[1].cation": {
+            "atoms": [
+              "sodiumChloride[1].cation.cation"
+            ],
+            "id": "sodiumChloride[1].cation"
+          }
+        },
+        "ionic_associations": {
+          "sodiumChloride[1].ionic": {
+            "component_charges": {
+              "sodiumChloride[1].anion": -1,
+              "sodiumChloride[1].cation": 1
+            },
+            "components": {
+              "sodiumChloride[1].anion": [
+                "sodiumChloride[1].anion.anion"
+              ],
+              "sodiumChloride[1].cation": [
+                "sodiumChloride[1].cation.cation"
+              ]
+            },
+            "id": "sodiumChloride[1].ionic"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.silver-halide-precipitation.standard-outcome"
+                ],
+                "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "precipitation-silver-halide/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.precipitate-forms"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 510,
+                    "start": 472
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "colour",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.silver-chloride-colour"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 563,
+                    "start": 514
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": "White"
+          }
+        ],
+        "ordinal": 1,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+          "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+          "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+          "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+          "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+          "state_digest": "44d532327c4ec91b41428c5823a5608be7f12e23e15fa4660e0e874972972af4"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": "sodiumChloride[1].ionic",
+            "id": "operation[2]",
+            "kind": "dissociate_ionic"
+          },
+          "ordinal": 2
+        },
+        "atoms": {
+          "silverNitrate[1].cation.ag": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Ag",
+            "id": "silverNitrate[1].cation.ag"
+          },
+          "silverNitrate[1].nitrate.n": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "N",
+            "id": "silverNitrate[1].nitrate.n"
+          },
+          "silverNitrate[1].nitrate.o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].nitrate.o2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].nitrate.o3": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o3"
+          },
+          "sodiumChloride[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "sodiumChloride[1].anion.anion"
+          },
+          "sodiumChloride[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumChloride[1].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": null,
+            "before": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "group": "sodiumChloride[1].anion",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "before": [
+              "sodiumChloride[1].cation.cation"
+            ],
+            "group": "sodiumChloride[1].cation",
+            "kind": "group"
+          },
+          {
+            "after": null,
+            "association": "sodiumChloride[1].ionic",
+            "before": [
+              "sodiumChloride[1].anion",
+              "sodiumChloride[1].cation"
+            ],
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "silverNitrate[1].bond.0": {
+            "id": "silverNitrate[1].bond.0",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "double",
+            "right": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].bond.1": {
+            "id": "silverNitrate[1].bond.1",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].bond.2": {
+            "id": "silverNitrate[1].bond.2",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o3"
+          }
+        },
+        "groups": {},
+        "ionic_associations": {},
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.silver-halide-precipitation.standard-outcome"
+                ],
+                "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "precipitation-silver-halide/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.precipitate-forms"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 510,
+                    "start": 472
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "colour",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.silver-chloride-colour"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 563,
+                    "start": 514
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": "White"
+          }
+        ],
+        "ordinal": 2,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+          "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+          "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+          "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+          "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+          "state_digest": "5a5a47e5c106b512ccbc52427be6cd4a2da32a14c163cd7dd7cddfdc165879c2"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[3].component[1]",
+                "ionic[3].component[2]"
+              ],
+              "id": "ionic[3].ionic.precipitate"
+            },
+            "id": "operation[3]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 3
+        },
+        "atoms": {
+          "silverNitrate[1].cation.ag": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Ag",
+            "id": "silverNitrate[1].cation.ag"
+          },
+          "silverNitrate[1].nitrate.n": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "N",
+            "id": "silverNitrate[1].nitrate.n"
+          },
+          "silverNitrate[1].nitrate.o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].nitrate.o2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].nitrate.o3": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o3"
+          },
+          "sodiumChloride[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "sodiumChloride[1].anion.anion"
+          },
+          "sodiumChloride[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumChloride[1].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "before": null,
+            "group": "ionic[3].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "silverNitrate[1].cation.ag"
+            ],
+            "before": null,
+            "group": "ionic[3].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[3].component[1]",
+              "ionic[3].component[2]"
+            ],
+            "association": "ionic[3].ionic.precipitate",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "silverNitrate[1].bond.0": {
+            "id": "silverNitrate[1].bond.0",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "double",
+            "right": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].bond.1": {
+            "id": "silverNitrate[1].bond.1",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].bond.2": {
+            "id": "silverNitrate[1].bond.2",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o3"
+          }
+        },
+        "groups": {
+          "ionic[3].component[1]": {
+            "atoms": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "id": "ionic[3].component[1]"
+          },
+          "ionic[3].component[2]": {
+            "atoms": [
+              "silverNitrate[1].cation.ag"
+            ],
+            "id": "ionic[3].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[3].ionic.precipitate": {
+            "component_charges": {
+              "ionic[3].component[1]": -1,
+              "ionic[3].component[2]": 1
+            },
+            "components": {
+              "ionic[3].component[1]": [
+                "sodiumChloride[1].anion.anion"
+              ],
+              "ionic[3].component[2]": [
+                "silverNitrate[1].cation.ag"
+              ]
+            },
+            "id": "ionic[3].ionic.precipitate"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.silver-halide-precipitation.standard-outcome"
+                ],
+                "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "precipitation-silver-halide/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.precipitate-forms"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 510,
+                    "start": 472
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "colour",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.silver-chloride-colour"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 563,
+                    "start": 514
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": "White"
+          }
+        ],
+        "ordinal": 3,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+          "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+          "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+          "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+          "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+          "state_digest": "574c063cfbada01598c826bbde3b1966e17631d366091da287e280cdc56953be"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "association": {
+              "components": [
+                "ionic[4].component[1]",
+                "ionic[4].component[2]"
+              ],
+              "id": "ionic[4].ionic.spectator"
+            },
+            "id": "operation[4]",
+            "kind": "associate_ionic"
+          },
+          "ordinal": 4
+        },
+        "atoms": {
+          "silverNitrate[1].cation.ag": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Ag",
+            "id": "silverNitrate[1].cation.ag"
+          },
+          "silverNitrate[1].nitrate.n": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "N",
+            "id": "silverNitrate[1].nitrate.n"
+          },
+          "silverNitrate[1].nitrate.o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].nitrate.o2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].nitrate.o3": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o3"
+          },
+          "sodiumChloride[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "sodiumChloride[1].anion.anion"
+          },
+          "sodiumChloride[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumChloride[1].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "sodiumChloride[1].cation.cation"
+            ],
+            "before": null,
+            "group": "ionic[4].component[1]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3"
+            ],
+            "before": null,
+            "group": "ionic[4].component[2]",
+            "kind": "group"
+          },
+          {
+            "after": [
+              "ionic[4].component[1]",
+              "ionic[4].component[2]"
+            ],
+            "association": "ionic[4].ionic.spectator",
+            "before": null,
+            "kind": "ionic"
+          }
+        ],
+        "covalent_edges": {
+          "silverNitrate[1].bond.0": {
+            "id": "silverNitrate[1].bond.0",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "double",
+            "right": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].bond.1": {
+            "id": "silverNitrate[1].bond.1",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].bond.2": {
+            "id": "silverNitrate[1].bond.2",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o3"
+          }
+        },
+        "groups": {
+          "ionic[3].component[1]": {
+            "atoms": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "id": "ionic[3].component[1]"
+          },
+          "ionic[3].component[2]": {
+            "atoms": [
+              "silverNitrate[1].cation.ag"
+            ],
+            "id": "ionic[3].component[2]"
+          },
+          "ionic[4].component[1]": {
+            "atoms": [
+              "sodiumChloride[1].cation.cation"
+            ],
+            "id": "ionic[4].component[1]"
+          },
+          "ionic[4].component[2]": {
+            "atoms": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3"
+            ],
+            "id": "ionic[4].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[3].ionic.precipitate": {
+            "component_charges": {
+              "ionic[3].component[1]": -1,
+              "ionic[3].component[2]": 1
+            },
+            "components": {
+              "ionic[3].component[1]": [
+                "sodiumChloride[1].anion.anion"
+              ],
+              "ionic[3].component[2]": [
+                "silverNitrate[1].cation.ag"
+              ]
+            },
+            "id": "ionic[3].ionic.precipitate"
+          },
+          "ionic[4].ionic.spectator": {
+            "component_charges": {
+              "ionic[4].component[1]": 1,
+              "ionic[4].component[2]": -1
+            },
+            "components": {
+              "ionic[4].component[1]": [
+                "sodiumChloride[1].cation.cation"
+              ],
+              "ionic[4].component[2]": [
+                "silverNitrate[1].nitrate.n",
+                "silverNitrate[1].nitrate.o1",
+                "silverNitrate[1].nitrate.o2",
+                "silverNitrate[1].nitrate.o3"
+              ]
+            },
+            "id": "ionic[4].ionic.spectator"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.silver-halide-precipitation.standard-outcome"
+                ],
+                "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "precipitation-silver-halide/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.precipitate-forms"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 510,
+                    "start": 472
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "colour",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.silver-chloride-colour"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 563,
+                    "start": 514
+                  }
+                }
+              ]
+            },
+            "status": "pending",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": "White"
+          }
+        ],
+        "ordinal": 4,
+        "product_membership": {},
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+          "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+          "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+          "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+          "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+          "state_digest": "2ed04abf7714416e21723ae173d211ac924a1fbe4ce1d2959ff3ab3983735392"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "silverNitrate[1].cation.ag",
+              "sodiumChloride[1].anion.anion"
+            ],
+            "id": "operation[5]",
+            "kind": "assign_product",
+            "product": "silverChloride[1]"
+          },
+          "ordinal": 5
+        },
+        "atoms": {
+          "silverNitrate[1].cation.ag": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Ag",
+            "id": "silverNitrate[1].cation.ag"
+          },
+          "silverNitrate[1].nitrate.n": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "N",
+            "id": "silverNitrate[1].nitrate.n"
+          },
+          "silverNitrate[1].nitrate.o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].nitrate.o2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].nitrate.o3": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o3"
+          },
+          "sodiumChloride[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "sodiumChloride[1].anion.anion"
+          },
+          "sodiumChloride[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumChloride[1].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "silverNitrate[1].cation.ag",
+              "sodiumChloride[1].anion.anion"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "silverChloride[1]"
+          }
+        ],
+        "covalent_edges": {
+          "silverNitrate[1].bond.0": {
+            "id": "silverNitrate[1].bond.0",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "double",
+            "right": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].bond.1": {
+            "id": "silverNitrate[1].bond.1",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].bond.2": {
+            "id": "silverNitrate[1].bond.2",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o3"
+          }
+        },
+        "groups": {
+          "ionic[3].component[1]": {
+            "atoms": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "id": "ionic[3].component[1]"
+          },
+          "ionic[3].component[2]": {
+            "atoms": [
+              "silverNitrate[1].cation.ag"
+            ],
+            "id": "ionic[3].component[2]"
+          },
+          "ionic[4].component[1]": {
+            "atoms": [
+              "sodiumChloride[1].cation.cation"
+            ],
+            "id": "ionic[4].component[1]"
+          },
+          "ionic[4].component[2]": {
+            "atoms": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3"
+            ],
+            "id": "ionic[4].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[3].ionic.precipitate": {
+            "component_charges": {
+              "ionic[3].component[1]": -1,
+              "ionic[3].component[2]": 1
+            },
+            "components": {
+              "ionic[3].component[1]": [
+                "sodiumChloride[1].anion.anion"
+              ],
+              "ionic[3].component[2]": [
+                "silverNitrate[1].cation.ag"
+              ]
+            },
+            "id": "ionic[3].ionic.precipitate"
+          },
+          "ionic[4].ionic.spectator": {
+            "component_charges": {
+              "ionic[4].component[1]": 1,
+              "ionic[4].component[2]": -1
+            },
+            "components": {
+              "ionic[4].component[1]": [
+                "sodiumChloride[1].cation.cation"
+              ],
+              "ionic[4].component[2]": [
+                "silverNitrate[1].nitrate.n",
+                "silverNitrate[1].nitrate.o1",
+                "silverNitrate[1].nitrate.o2",
+                "silverNitrate[1].nitrate.o3"
+              ]
+            },
+            "id": "ionic[4].ionic.spectator"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.silver-halide-precipitation.standard-outcome"
+                ],
+                "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "precipitation-silver-halide/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.precipitate-forms"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 510,
+                    "start": 472
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "colour",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.silver-chloride-colour"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 563,
+                    "start": 514
+                  }
+                }
+              ]
+            },
+            "status": "active",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": "White"
+          }
+        ],
+        "ordinal": 5,
+        "product_membership": {
+          "silverChloride[1]": [
+            "silverNitrate[1].cation.ag",
+            "sodiumChloride[1].anion.anion"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+          "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+          "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+          "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+          "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+          "state_digest": "3c34d1d4a80a7a987a24ac046dd0c6b953fb748fe80d95f84d5312bb2cf104c9"
+        }
+      },
+      {
+        "active_operation": {
+          "operation": {
+            "atoms": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3",
+              "sodiumChloride[1].cation.cation"
+            ],
+            "id": "operation[6]",
+            "kind": "assign_product",
+            "product": "sodiumNitrate[1]"
+          },
+          "ordinal": 6
+        },
+        "atoms": {
+          "silverNitrate[1].cation.ag": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Ag",
+            "id": "silverNitrate[1].cation.ag"
+          },
+          "silverNitrate[1].nitrate.n": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "N",
+            "id": "silverNitrate[1].nitrate.n"
+          },
+          "silverNitrate[1].nitrate.o1": {
+            "electrons": {
+              "formal_charge": 0,
+              "non_bonding_electrons": 4,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].nitrate.o2": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].nitrate.o3": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 6,
+              "unpaired_electrons": 0
+            },
+            "element": "O",
+            "id": "silverNitrate[1].nitrate.o3"
+          },
+          "sodiumChloride[1].anion.anion": {
+            "electrons": {
+              "formal_charge": -1,
+              "non_bonding_electrons": 8,
+              "unpaired_electrons": 0
+            },
+            "element": "Cl",
+            "id": "sodiumChloride[1].anion.anion"
+          },
+          "sodiumChloride[1].cation.cation": {
+            "electrons": {
+              "formal_charge": 1,
+              "non_bonding_electrons": 0,
+              "unpaired_electrons": 0
+            },
+            "element": "Na",
+            "id": "sodiumChloride[1].cation.cation"
+          }
+        },
+        "changes": [
+          {
+            "after": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3",
+              "sodiumChloride[1].cation.cation"
+            ],
+            "before": null,
+            "kind": "product_assignment",
+            "product": "sodiumNitrate[1]"
+          }
+        ],
+        "covalent_edges": {
+          "silverNitrate[1].bond.0": {
+            "id": "silverNitrate[1].bond.0",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "double",
+            "right": "silverNitrate[1].nitrate.o1"
+          },
+          "silverNitrate[1].bond.1": {
+            "id": "silverNitrate[1].bond.1",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o2"
+          },
+          "silverNitrate[1].bond.2": {
+            "id": "silverNitrate[1].bond.2",
+            "left": "silverNitrate[1].nitrate.n",
+            "order": "single",
+            "right": "silverNitrate[1].nitrate.o3"
+          }
+        },
+        "groups": {
+          "ionic[3].component[1]": {
+            "atoms": [
+              "sodiumChloride[1].anion.anion"
+            ],
+            "id": "ionic[3].component[1]"
+          },
+          "ionic[3].component[2]": {
+            "atoms": [
+              "silverNitrate[1].cation.ag"
+            ],
+            "id": "ionic[3].component[2]"
+          },
+          "ionic[4].component[1]": {
+            "atoms": [
+              "sodiumChloride[1].cation.cation"
+            ],
+            "id": "ionic[4].component[1]"
+          },
+          "ionic[4].component[2]": {
+            "atoms": [
+              "silverNitrate[1].nitrate.n",
+              "silverNitrate[1].nitrate.o1",
+              "silverNitrate[1].nitrate.o2",
+              "silverNitrate[1].nitrate.o3"
+            ],
+            "id": "ionic[4].component[2]"
+          }
+        },
+        "ionic_associations": {
+          "ionic[3].ionic.precipitate": {
+            "component_charges": {
+              "ionic[3].component[1]": -1,
+              "ionic[3].component[2]": 1
+            },
+            "components": {
+              "ionic[3].component[1]": [
+                "sodiumChloride[1].anion.anion"
+              ],
+              "ionic[3].component[2]": [
+                "silverNitrate[1].cation.ag"
+              ]
+            },
+            "id": "ionic[3].ionic.precipitate"
+          },
+          "ionic[4].ionic.spectator": {
+            "component_charges": {
+              "ionic[4].component[1]": 1,
+              "ionic[4].component[2]": -1
+            },
+            "components": {
+              "ionic[4].component[1]": [
+                "sodiumChloride[1].cation.cation"
+              ],
+              "ionic[4].component[2]": [
+                "silverNitrate[1].nitrate.n",
+                "silverNitrate[1].nitrate.o1",
+                "silverNitrate[1].nitrate.o2",
+                "silverNitrate[1].nitrate.o3"
+              ]
+            },
+            "id": "ionic[4].ionic.spectator"
+          }
+        },
+        "metallic_domains": {},
+        "model": {
+          "event": "representative",
+          "explanatory_sequence_is_not_a_mechanism_claim": true,
+          "provenance": {
+            "catalogue": [
+              {
+                "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                "premises": [
+                  "premise.rule.silver-halide-precipitation.standard-outcome"
+                ],
+                "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+              }
+            ],
+            "evidence": [],
+            "source": [
+              {
+                "construct": "model disclosure",
+                "source": "precipitation-silver-halide/example.chems",
+                "span": {
+                  "end": 418,
+                  "start": 354
+                }
+              }
+            ]
+          },
+          "representative_outcome": true,
+          "sequence": "explanatory"
+        },
+        "observations": [
+          {
+            "claim": "R1",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "forms",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.precipitate-forms"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R1",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 510,
+                    "start": 472
+                  }
+                }
+              ]
+            },
+            "status": "established",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": null
+          },
+          {
+            "claim": "R2",
+            "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+            "evidence_trust": "external_untrusted",
+            "predicate": "colour",
+            "provenance": {
+              "catalogue": [
+                {
+                  "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+                  "premises": [
+                    "premise.observation.silver-chloride-colour"
+                  ],
+                  "record": "rule Rules.SilverHalidePrecipitation observation compatibility"
+                }
+              ],
+              "evidence": [
+                {
+                  "claim": "R2",
+                  "packet": "Evidence.SilverHalidePrecipitation@1",
+                  "packet_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+                  "sources": [
+                    "S1"
+                  ]
+                }
+              ],
+              "source": [
+                {
+                  "construct": "observation silverChloride",
+                  "source": "precipitation-silver-halide/example.chems",
+                  "span": {
+                    "end": 563,
+                    "start": 514
+                  }
+                }
+              ]
+            },
+            "status": "established",
+            "subject_binding": "silverChloride",
+            "trigger_operation": 5,
+            "value": "White"
+          }
+        ],
+        "ordinal": 6,
+        "product_membership": {
+          "silverChloride[1]": [
+            "silverNitrate[1].cation.ag",
+            "sodiumChloride[1].anion.anion"
+          ],
+          "sodiumNitrate[1]": [
+            "silverNitrate[1].nitrate.n",
+            "silverNitrate[1].nitrate.o1",
+            "silverNitrate[1].nitrate.o2",
+            "silverNitrate[1].nitrate.o3",
+            "sodiumChloride[1].cation.cation"
+          ]
+        },
+        "schema_version": 1,
+        "trace": {
+          "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+          "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+          "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+          "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+          "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+          "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+          "state_digest": "9db7f6a5a903ea08e2fbee817cdc0228905adabb766e98cce4cffc64836ce468"
+        }
+      }
+    ],
+    "model": {
+      "event": "representative",
+      "explanatory_sequence_is_not_a_mechanism_claim": true,
+      "provenance": {
+        "catalogue": [
+          {
+            "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+            "premises": [
+              "premise.rule.silver-halide-precipitation.standard-outcome"
+            ],
+            "record": "rule Rules.SilverHalidePrecipitation model assumptions"
+          }
+        ],
+        "evidence": [],
+        "source": [
+          {
+            "construct": "model disclosure",
+            "source": "precipitation-silver-halide/example.chems",
+            "span": {
+              "end": 418,
+              "start": 354
+            }
+          }
+        ]
+      },
+      "representative_outcome": true,
+      "sequence": "explanatory"
+    },
+    "result": "validated_with_assumptions",
+    "schema_version": 1,
+    "trace": {
+      "catalogue_digest": "88d11a2c607be609e0b7bfc0c5c5db5124a606eb48ac89b968361ada97fd0542",
+      "derivation_digest": "b4ac6d0c35aad9aa8fce229c860c57b3d8d80717cc2c281d3fade7fe84d245be",
+      "evidence_digest": "d2533900116bfb0a1f8968d7531d7568844a174c914c59123513fed303e93490",
+      "expansion_semantic_digest": "ead66a239e177c1449edfae970bf5d0f168f7899abb3316b644410ea895e4f6f",
+      "source_bytes_digest": "a17a7452f351410873663f1fe9fb89072493bd88d2ec5bedefb441de10f64db8",
+      "source_semantic_digest": "dea8e63d2d72971b393eb71a67ea034a97255fc2a121be9f5318be1bd59e6b5e",
+      "state_digest": "9db7f6a5a903ea08e2fbee817cdc0228905adabb766e98cce4cffc64836ce468"
+    },
+    "trust": "review_candidate"
+  }
+}

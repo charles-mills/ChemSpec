@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AluminiumWithHydrogenChloride where
+  reactants
+    metal := 2 of AlFixedCation3Metal
+    acid := 6 of HydrogenChloride
+  products
+    salt := 2 of AlFixedCation3Chloride
+    hydrogen := 3 of Hydrogen
+  equation
+    2 Al[metallic] + 6 HCl[molecular]
+    -> 2 AlCl3[ionic] + 3 H2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.MetalAcidAluminiumChloride@1
+    gas hydrogen evolves claim R1
+  by
+    apply Rules.FixedCation3WithNonOxidisingAcid
+      metal := metal
+      acid := acid
+      salt := salt
+      hydrogen := hydrogen
