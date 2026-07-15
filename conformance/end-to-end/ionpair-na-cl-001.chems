@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction NaAndChloride where
+  reactants
+    cation := 2 of NaFixedCation1Metal
+    anion := 1 of ElementalChlorine
+  products
+    salt := 2 of NaFixedCation1Chloride
+  equation
+    2 Na[metallic] + 1 Cl2[molecular]
+    -> 2 NaCl[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1Chloride
+      cation := cation
+      anion := anion
+      salt := salt

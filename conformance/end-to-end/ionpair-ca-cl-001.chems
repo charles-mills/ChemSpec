@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CaAndChloride where
+  reactants
+    cation := 1 of CaFixedCation2Metal
+    anion := 1 of ElementalChlorine
+  products
+    salt := 1 of CaFixedCation2Chloride
+  equation
+    1 Ca[metallic] + 1 Cl2[molecular]
+    -> 1 CaCl2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation2Chloride
+      cation := cation
+      anion := anion
+      salt := salt

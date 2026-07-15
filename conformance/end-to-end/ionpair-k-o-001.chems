@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction KAndNormalOxide where
+  reactants
+    cation := 4 of KFixedCation1Metal
+    anion := 1 of Oxygen
+  products
+    salt := 2 of KFixedCation1NormalOxide
+  equation
+    4 K[metallic] + 1 O2[molecular]
+    -> 2 K2O[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1NormalOxide
+      cation := cation
+      anion := anion
+      salt := salt

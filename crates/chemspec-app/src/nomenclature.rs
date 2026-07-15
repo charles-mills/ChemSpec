@@ -94,8 +94,14 @@ fn ionic_name(
                 && product_atoms.contains(&edge.right)
                 && endpoint_symbols(frame, &edge.left, &edge.right) == Some(("H", "O"))
         });
+    let monatomic_anions = product_atoms
+        .iter()
+        .filter_map(|id| frame.atoms().get(id))
+        .filter(|atom| atom.electrons.formal_charge() < 0)
+        .map(|atom| atom.element.as_str())
+        .collect::<BTreeSet<_>>();
     let anion = if has_hydroxide {
-        "hydroxide"
+        "hydroxide".to_owned()
     } else if oxygen_pair_bonded(frame, product_atoms) {
         let oxygen_charge = product_atoms
             .iter()
@@ -104,14 +110,41 @@ fn ionic_name(
             .map(|atom| i32::from(atom.electrons.formal_charge()))
             .sum::<i32>();
         if oxygen_charge == -1 {
-            "superoxide"
+            "superoxide".to_owned()
         } else {
-            "peroxide"
+            "peroxide".to_owned()
         }
+    } else if monatomic_anions.len() == 1 {
+        monatomic_anion_name(
+            monatomic_anions
+                .iter()
+                .next()
+                .expect("one monatomic anion"),
+        )
     } else {
-        "oxide"
+        "ionic compound".to_owned()
     };
     format!("{cation} {anion}")
+}
+
+fn monatomic_anion_name(symbol: &str) -> String {
+    let name = element_name(symbol);
+    if name == "oxygen" {
+        return "oxide".to_owned();
+    }
+    if let Some(stem) = name.strip_suffix("ine") {
+        return format!("{stem}ide");
+    }
+    if let Some(stem) = name.strip_suffix("ogen") {
+        return format!("{stem}ide");
+    }
+    if let Some(stem) = name.strip_suffix("orus") {
+        return format!("{stem}ide");
+    }
+    if let Some(stem) = name.strip_suffix("ur") {
+        return format!("{stem}ide");
+    }
+    format!("{name}ide")
 }
 
 fn oxygen_pair_bonded(

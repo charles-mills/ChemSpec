@@ -135,7 +135,7 @@ fn canonical_chemist_attestation_is_digest_bound() {
     let trusted = TrustedCatalogue::from_canonical_json(&trusted_catalogue_bytes(), &review_bytes)
         .expect("the exact host-selected chemist attestation should promote the catalogue");
     assert_eq!(trusted.document().elements.len(), 118);
-    assert_eq!(trusted.document().generalized_rules.len(), 41);
+    assert_eq!(trusted.document().generalized_rules.len(), 63);
 }
 
 #[test]

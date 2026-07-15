@@ -2639,4 +2639,24 @@ mod tests {
         app.update(Message::ScreenSelected(Screen::Builder));
         assert_eq!(app.screen, Screen::Builder);
     }
+
+    #[test]
+    fn magnesium_and_fluorine_opens_its_guided_animation_from_the_builder() {
+        let mut app = App::default();
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(12)));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::Activate(reactant_composer::ActiveReactant::Second),
+        ));
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(9)));
+        assert!(!reactant_composer::can_start_reaction(&app.reactant_composer));
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(9)));
+        assert!(reactant_composer::can_start_reaction(&app.reactant_composer));
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+        assert_eq!(app.screen, Screen::Structural2d);
+        assert_eq!(app.active_experience.equation(), "Mg + F2 -> MgF2");
+        assert!(app.structural_animation.is_some());
+    }
 }

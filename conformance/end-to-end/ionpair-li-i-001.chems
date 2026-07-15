@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction LiAndIodide where
+  reactants
+    cation := 2 of LiFixedCation1Metal
+    anion := 1 of ElementalIodine
+  products
+    salt := 2 of LiFixedCation1Iodide
+  equation
+    2 Li[metallic] + 1 I2[molecular]
+    -> 2 LiI[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1Iodide
+      cation := cation
+      anion := anion
+      salt := salt

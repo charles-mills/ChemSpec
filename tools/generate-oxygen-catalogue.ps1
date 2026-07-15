@@ -14,6 +14,11 @@ $structurePremise = 'premise.structure.element-oxygen.structural-models'
 $valencePremise = 'premise.valence.element-oxygen.closed-domain'
 $observationPremise = 'premise.observation.element-oxygen'
 $allPremises = @($rulePremise, $structurePremise, $valencePremise)
+$ionRulePremise = 'premise.rule.fixed-charge-ion-pairs'
+$ionStructurePremise = 'premise.structure.fixed-charge-ion-pairs'
+$ionValencePremise = 'premise.valence.fixed-charge-ion-pairs'
+$ionObservationPremise = 'premise.observation.fixed-charge-ion-pairs'
+$ionPremises = @($ionRulePremise, $ionStructurePremise, $ionValencePremise)
 
 function Atom($label, $element, [int]$charge, [int]$nonBonding, [int]$unpaired) {
     [ordered]@{ label=$label; element=$element; formal_charge=$charge; non_bonding_electrons=$nonBonding; unpaired_electrons=$unpaired }
@@ -47,7 +52,7 @@ function Add-State($element, [int]$charge, [int]$nonBonding, [int]$unpaired, [in
     $states[$key] = [ordered]@{element=$element;formal_charge=$charge;non_bonding_electrons=$nonBonding;unpaired_electrons=$unpaired;covalent_bond_order_sum=$bondSum}
 }
 
-$elements = [ordered]@{H=1;O=6;Li=1;Be=2;B=3;C=4;Na=1;Mg=2;Al=3;Si=4;P=5;S=6;K=1;Ca=2;Sc=3;Ti=4;V=5;Cr=6;Mn=7;Fe=8;Co=9;Ni=10;Cu=11;Zn=12;Rb=1;Sr=2;Y=3;Zr=4;Nb=5;Mo=6;Tc=7;Ru=8;Rh=9;Pd=10;Ag=11;Cd=12;Cs=1;Ba=2;Hf=4;Ta=5;W=6;Re=7;Os=8;Ir=9;Pt=10;Au=11;Hg=12}
+$elements = [ordered]@{H=1;Li=1;Be=2;B=3;C=4;N=5;O=6;F=7;Na=1;Mg=2;Al=3;Si=4;P=5;S=6;Cl=7;K=1;Ca=2;Sc=3;Ti=4;V=5;Cr=6;Mn=7;Fe=8;Co=9;Ni=10;Cu=11;Zn=12;Br=7;Rb=1;Sr=2;Y=3;Zr=4;Nb=5;Mo=6;Tc=7;Ru=8;Rh=9;Pd=10;Ag=11;Cd=12;I=7;Cs=1;Ba=2;Hf=4;Ta=5;W=6;Re=7;Os=8;Ir=9;Pt=10;Au=11;Hg=12}
 $elements.GetEnumerator() | ForEach-Object { }
 Add-State O 0 4 0 2; Add-State O 0 5 1 1; Add-State O -1 6 0 1
 Add-State O 0 6 2 0; Add-State O -1 7 1 0; Add-State O -2 8 0 0
@@ -392,11 +397,118 @@ for($p=1;$p -le 4;$p++){$o=$p+6;$rewrite += [ordered]@{kind='reconfigure_electro
 $rewrite += Assignment (@('subject[1].p1','subject[1].p2','subject[1].p3','subject[1].p4') + $oxygenAtoms) 'oxide[1]'
 $rules += New-BaseRule 'Rules.Phosphorus5Oxide' 'Categories.PhosphorusOxideElement' ([ordered]@{subject=(Role 'reactant' 'molecular' 1);oxygen=(Role 'reactant' 'molecular' 5);oxide=(Role 'product' 'molecular' 1)}) ([ordered]@{subject=(TemplateRef 'Templates.Phosphorus4');oxygen=(Exact 'Oxygen')}) ([ordered]@{oxide=(TemplateRef 'Templates.Phosphorus5Oxide')}) ([ordered]@{subject='Patterns.Phosphorus4';oxygen='Patterns.Oxygen'}) $mapping $rewrite
 
+# Fixed-charge main-group ion pairs are generated from charge families.  The
+# code below is deliberately independent of oxide identity: elemental source
+# topology, charge balancing, electron transfer and ionic association are data.
+$ionPairExperiences = @()
+$fixedCations = [ordered]@{
+    '1' = @('Li','Na','K','Rb','Cs')
+    '2' = @('Be','Mg','Ca','Sr','Ba')
+    '3' = @('Al')
+}
+$atomicNumbers = [ordered]@{Li=3;Be=4;N=7;F=9;Na=11;Mg=12;Al=13;P=15;S=16;Cl=17;K=19;Ca=20;Br=35;Rb=37;Sr=38;I=53;Cs=55;Ba=56}
+
+function Get-Gcd([int]$a,[int]$b){while($b -ne 0){$t=$b;$b=$a%$b;$a=$t};$a}
+function Get-Formula($cation,[int]$cationCount,$anion,[int]$anionCount){
+    $c=if($cationCount -eq 1){''}else{"$cationCount"};$a=if($anionCount -eq 1){''}else{"$anionCount"}
+    "$cation$c$anion$a"
+}
+function Add-FixedCationScaffold([int]$charge,$members){
+    $category="Categories.FixedCation$charge";$template="Templates.FixedCation$charge`Metal";$pattern="Patterns.FixedCation$charge`Metal"
+    $script:categories += [ordered]@{id=$category;subject='element';membership=[ordered]@{kind='explicit';members=$members};premise_ids=@($ionRulePremise)}
+    $script:templates += [ordered]@{representation='metallic';id=$template;parameters=[ordered]@{member=(Parameter $category)};sites=@((Atom 'metal' (ParameterValue) $charge 0 0));domains=@([ordered]@{label='metallic';sites=@('metal');delocalized_electrons=$charge});premise_ids=$ionPremises}
+    $script:patterns += [ordered]@{id=$pattern;variables=[ordered]@{metal=[ordered]@{atom=[ordered]@{element=(ParameterValue)}}};relationships=@([ordered]@{kind='metallic_domain';domain='metallic';sites=@('metal');delocalized_electrons=$charge});premise_ids=$ionPremises}
+    foreach($member in $members){
+        for($remaining=$charge;$remaining -ge 0;$remaining--){Add-State $member ($charge-$remaining) $remaining $remaining 0}
+        $script:applications += [ordered]@{id="$member`FixedCation$charge`Metal";template=$template;arguments=[ordered]@{member=$member};formula=$member;premise_ids=$ionPremises}
+    }
+}
+foreach($charge in 1..3){Add-FixedCationScaffold $charge $fixedCations["$charge"]}
+
+function Add-ElementalAnion($id,$symbol,[int]$count,[int]$neutralNb,$bonds){
+    $atoms=@();for($i=1;$i -le $count;$i++){$atoms+=Atom "a$i" $symbol 0 $neutralNb 0}
+    $bondRecords=@();$relationships=@();$index=0;$bondSums=@{};for($i=1;$i -le $count;$i++){$bondSums[$i]=0}
+    foreach($bond in $bonds){$index++;$delta=if($bond[2]-eq 'triple'){3}elseif($bond[2]-eq 'double'){2}else{1};$bondSums[[int]$bond[0]]+=$delta;$bondSums[[int]$bond[1]]+=$delta;$bondRecords+=Bond "a$($bond[0])" "a$($bond[1])" $bond[2];$relationships += [ordered]@{kind='covalent';bond="bond$index";left="a$($bond[0])";right="a$($bond[1])";order=$bond[2]}}
+    for($i=1;$i -le $count;$i++){Add-State $symbol 0 $neutralNb 0 $bondSums[$i]}
+    $script:structures += [ordered]@{representation='molecular';id=$id;premise_id=$ionStructurePremise;formula=if($count -eq 1){$symbol}else{"$symbol$count"};atoms=$atoms;bonds=$bondRecords;groups=@()}
+    $variables=[ordered]@{};for($i=1;$i -le $count;$i++){$variables["a$i"]=[ordered]@{atom=[ordered]@{element=$symbol}}}
+    $script:patterns += [ordered]@{id="Patterns.$id";variables=$variables;relationships=$relationships;premise_ids=$ionPremises}
+}
+$single=,@(1,2,'single')
+$triple=,@(1,2,'triple')
+$double=,@(1,2,'double')
+Add-ElementalAnion 'ElementalFluorine' 'F' 2 6 $single
+Add-ElementalAnion 'ElementalChlorine' 'Cl' 2 6 $single
+Add-ElementalAnion 'ElementalBromine' 'Br' 2 6 $single
+Add-ElementalAnion 'ElementalIodine' 'I' 2 6 $single
+Add-ElementalAnion 'ElementalNitrogen' 'N' 2 2 $triple
+$sulfurEdges=@();for($i=1;$i -le 8;$i++){$sulfurEdges+=,@($i,(($i%8)+1),'single')}
+Add-ElementalAnion 'ElementalSulfur' 'S' 8 4 $sulfurEdges
+$phosphorusEdges=@(@(1,2,'single'),@(1,3,'single'),@(1,4,'single'),@(2,3,'single'),@(2,4,'single'),@(3,4,'single'))
+Add-ElementalAnion 'ElementalPhosphorus' 'P' 4 2 $phosphorusEdges
+
+function New-IonRule($id,[int]$charge,$roles,$reactants,$products,$casePatterns,$mapping,$rewrite){
+    [ordered]@{
+        id=$id;parameters=[ordered]@{member=(Parameter "Categories.FixedCation$charge")};roles=$roles;reactants=$reactants
+        cases=@([ordered]@{status='supported';id='charge-balanced';when=[ordered]@{kind='always'};products=$products;patterns=$casePatterns;correspondence=$mapping;rewrite=$rewrite;observation_compatibility=@([ordered]@{subject_role='salt';predicate='forms';evidence_subject='salt';premise_id=$ionObservationPremise},[ordered]@{subject_role='cation';predicate='disappears';evidence_subject='metal';premise_id=$ionObservationPremise});premise_ids=@($ionRulePremise)})
+        applicability=[ordered]@{premise_id=$ionRulePremise;request_relation='contact';required_context='selected theoretical fixed-charge binary ionic outcome'}
+        model_assumptions=[ordered]@{event='representative';sequence='explanatory';premise_ids=@($ionRulePremise)}
+        premise_ids=@('premise.elements.iupac-periodic-table',$ionRulePremise,$ionStructurePremise,$ionValencePremise,$ionObservationPremise)+$allPremises
+    }
+}
+
+function Add-IonPairFamily($name,$anionSymbol,[int]$anionCharge,$sourceId,[int]$sourceCount,[int]$neutralNb,$sourceBonds,$charges=$null){
+    if($null -eq $charges){$charges=1..3}
+    $anionAtomicNumber=[int]$atomicNumbers[$anionSymbol]
+    foreach($charge in $charges){
+        $members=$fixedCations["$charge"];$g=Get-Gcd $charge $anionCharge
+        $cationPerProduct=[int]($anionCharge/$g);$anionPerProduct=[int]($charge/$g)
+        $productCoefficient=[int]($sourceCount/(Get-Gcd $sourceCount $anionPerProduct))
+        $sourceCoefficient=[int](($productCoefficient*$anionPerProduct)/$sourceCount)
+        $metalCoefficient=$productCoefficient*$cationPerProduct
+        $category="Categories.FixedCation$charge";$metalTemplate="Templates.FixedCation$charge`Metal";$metalPattern="Patterns.FixedCation$charge`Metal"
+        $productTemplate="Templates.FixedCation$charge$name`Product";$ruleId="Rules.FixedCation$charge$name"
+        $components=@();for($m=1;$m -le $cationPerProduct;$m++){$components += [ordered]@{label="cation$m";atoms=@((Atom 'metal' (ParameterValue) $charge 0 0));bonds=@();groups=@()}}
+        for($a=1;$a -le $anionPerProduct;$a++){$components += [ordered]@{label="anion$a";atoms=@((Atom 'anion' $anionSymbol (-1*$anionCharge) 8 0));bonds=@();groups=@()}}
+        $script:templates += [ordered]@{representation='ionic';id=$productTemplate;parameters=[ordered]@{member=(Parameter $category)};components=$components;associations=@([ordered]@{label='ionic';components=@($components|ForEach-Object{$_.label})});premise_ids=$ionPremises}
+        foreach($member in $members){
+            $formula=Get-Formula $member $cationPerProduct $anionSymbol $anionPerProduct
+            $productId="$member`FixedCation$charge$name"
+            $script:applications += [ordered]@{id=$productId;template=$productTemplate;arguments=[ordered]@{member=$member};formula=$formula;premise_ids=$ionPremises}
+            $sourceFormula=if($sourceCount -eq 1){$anionSymbol}else{"$anionSymbol$sourceCount"}
+            $equation="$(if($metalCoefficient -eq 1){''}else{"$metalCoefficient "})$member + $(if($sourceCoefficient -eq 1){''}else{"$sourceCoefficient "})$sourceFormula -> $(if($productCoefficient -eq 1){''}else{"$productCoefficient "})$formula"
+            $script:ionPairExperiences += [ordered]@{slug="$($member.ToLowerInvariant())-$($anionSymbol.ToLowerInvariant())";reaction="$member`And$name";atomic_number=[int]$atomicNumbers[$member];co_atoms=@(1..$sourceCount|ForEach-Object{$anionAtomicNumber});subject_coefficient=$metalCoefficient;subject_structure="$member`FixedCation$charge`Metal";subject_formula=$member;anion_coefficient=$sourceCoefficient;anion_structure=$sourceId;anion_formula=$sourceFormula;product_coefficient=$productCoefficient;product_structure=$productId;product_formula=$formula;equation=$equation;rule=$ruleId}
+        }
+        $mapping=@();$rewrite=@();for($m=1;$m -le $metalCoefficient;$m++){$unit=[math]::Floor(($m-1)/$cationPerProduct)+1;$slot=(($m-1)%$cationPerProduct)+1;$mapping += [ordered]@{reactant="cation[$m].metal";product="salt[$unit].cation$slot.metal";premise_ids=$ionPremises};$rewrite += [ordered]@{kind='release_metallic';premise_ids=$ionPremises;site="cation[$m].metal";domain="cation[$m].metallic";allocation='retain_electron';before=[ordered]@{site=@($charge,0,0);domain_electrons=$charge};after=[ordered]@{site=@(0,$charge,$charge);domain_electrons=0}}}
+        $anionAtoms=@();for($s=1;$s -le $sourceCoefficient;$s++){for($a=1;$a -le $sourceCount;$a++){$label=if($sourceId-eq 'Oxygen'){"o$a"}else{"a$a"};$anionAtoms+="anion[$s].$label"}}
+        foreach($s in 1..$sourceCoefficient){
+            $nb=@{};$u=@{};$bondSum=@{};for($a=1;$a -le $sourceCount;$a++){$nb[$a]=$neutralNb;$u[$a]=0;$bondSum[$a]=0};foreach($bond in $sourceBonds){$delta=if($bond[2]-eq 'triple'){3}elseif($bond[2]-eq 'double'){2}else{1};$bondSum[[int]$bond[0]]+=$delta;$bondSum[[int]$bond[1]]+=$delta}
+            foreach($bond in $sourceBonds){$l=[int]$bond[0];$r=[int]$bond[1];$leftLabel=if($sourceId-eq 'Oxygen'){"o$l"}else{"a$l"};$rightLabel=if($sourceId-eq 'Oxygen'){"o$r"}else{"a$r"};$order=$bond[2];$delta=if($order -eq 'triple'){3}elseif($order -eq 'double'){2}else{1};Add-State $anionSymbol 0 $nb[$l] $u[$l] $bondSum[$l];Add-State $anionSymbol 0 $nb[$r] $u[$r] $bondSum[$r];$rewrite += [ordered]@{kind='cleave_covalent';premise_ids=$ionPremises;edge=@("anion[$s].$leftLabel","anion[$s].$rightLabel",$order);allocation='homolytic';before=(BinaryState @(0,$nb[$l],$u[$l]) @(0,$nb[$r],$u[$r]));after=(BinaryState @(0,($nb[$l]+$delta),($u[$l]+$delta)) @(0,($nb[$r]+$delta),($u[$r]+$delta)))};$nb[$l]+=$delta;$nb[$r]+=$delta;$u[$l]+=$delta;$u[$r]+=$delta;$bondSum[$l]-=$delta;$bondSum[$r]-=$delta;Add-State $anionSymbol 0 $nb[$l] $u[$l] $bondSum[$l];Add-State $anionSymbol 0 $nb[$r] $u[$r] $bondSum[$r]}
+        }
+        for($accepted=0;$accepted -le $anionCharge;$accepted++){Add-State $anionSymbol (-1*$accepted) (8-$anionCharge+$accepted) ($anionCharge-$accepted) 0}
+        for($i=0;$i -lt $anionAtoms.Count;$i++){$unit=[math]::Floor($i/$anionPerProduct)+1;$slot=($i%$anionPerProduct)+1;$mapping += [ordered]@{reactant=$anionAtoms[$i];product="salt[$unit].anion$slot.anion";premise_ids=$ionPremises}}
+        $donorRemaining=@();for($m=1;$m -le $metalCoefficient;$m++){$donorRemaining+=$charge};$acceptRemaining=@();for($a=0;$a -lt $anionAtoms.Count;$a++){$acceptRemaining+=$anionCharge};$di=0;$ai=0
+        while($di -lt $donorRemaining.Count -and $ai -lt $acceptRemaining.Count){$count=[math]::Min($donorRemaining[$di],$acceptRemaining[$ai]);$db=$donorRemaining[$di];$ab=$anionCharge-$acceptRemaining[$ai];$da=$db-$count;$aa=$ab+$count;$rewrite += [ordered]@{kind='transfer_electron';premise_ids=$ionPremises;count=$count;donor="cation[$($di+1)].metal";acceptor=$anionAtoms[$ai];before=[ordered]@{donor=@(($charge-$db),$db,$db);acceptor=@((-1*$ab),(8-$anionCharge+$ab),($anionCharge-$ab))};after=[ordered]@{donor=@(($charge-$da),$da,$da);acceptor=@((-1*$aa),(8-$anionCharge+$aa),($anionCharge-$aa))}};$donorRemaining[$di]-=$count;$acceptRemaining[$ai]-=$count;if($donorRemaining[$di]-eq 0){$di++};if($acceptRemaining[$ai]-eq 0){$ai++}}
+        for($unit=1;$unit -le $productCoefficient;$unit++){$atoms=@();$groups=@();$componentCharges=@();for($m=1;$m -le $cationPerProduct;$m++){$idx=(($unit-1)*$cationPerProduct)+$m;$atoms+="cation[$idx].metal";$groups+=,@("cation[$idx].metal");$componentCharges+=$charge};for($a=1;$a -le $anionPerProduct;$a++){$idx=(($unit-1)*$anionPerProduct)+$a;$atoms+=$anionAtoms[$idx-1];$groups+=,@($anionAtoms[$idx-1]);$componentCharges+=(-1*$anionCharge)};$rewrite += [ordered]@{kind='associate_ionic';premise_ids=$ionPremises;label="ionic.product$unit";components=$groups;component_charges=$componentCharges};$rewrite+=@{kind='assign_product';premise_ids=$ionPremises;atoms=$atoms;product="salt[$unit]"}}
+        $roles=[ordered]@{cation=(Role 'reactant' 'metallic' $metalCoefficient);anion=(Role 'reactant' 'molecular' $sourceCoefficient);salt=(Role 'product' 'ionic' $productCoefficient)}
+        $script:rules += New-IonRule $ruleId $charge $roles ([ordered]@{cation=(TemplateRef $metalTemplate);anion=(Exact $sourceId)}) ([ordered]@{salt=(TemplateRef $productTemplate)}) ([ordered]@{cation=$metalPattern;anion="Patterns.$sourceId"}) $mapping $rewrite
+    }
+}
+
+foreach($anion in @(@('Fluoride','F','ElementalFluorine',2,6,$single),@('Chloride','Cl','ElementalChlorine',2,6,$single),@('Bromide','Br','ElementalBromine',2,6,$single),@('Iodide','I','ElementalIodine',2,6,$single))){Add-IonPairFamily $anion[0] $anion[1] 1 $anion[2] $anion[3] $anion[4] $anion[5]}
+Add-IonPairFamily 'Sulfide' 'S' 2 'ElementalSulfur' 8 4 $sulfurEdges
+Add-IonPairFamily 'Nitride' 'N' 3 'ElementalNitrogen' 2 2 $triple
+Add-IonPairFamily 'Phosphide' 'P' 3 'ElementalPhosphorus' 4 2 $phosphorusEdges
+# Normal oxides already exist for Li, all +2 metals and Al.  This adds the
+# missing +1 normal-oxide alternatives without duplicating those experiences.
+Add-IonPairFamily 'NormalOxide' 'O' 2 'Oxygen' 2 4 $double @(1)
+$ionPairExperiences = @($ionPairExperiences | Where-Object { !($_.product_formula -eq 'Li2O') })
+
 $candidate=[ordered]@{
     schema_version=1;id='oxygen-reactions'
-    evidence=@([ordered]@{id='evidence.openstax.oxygen-compounds';title='Chemistry: Atoms First 2e';publisher='OpenStax';locator='Occurrence, Preparation, and Compounds of Oxygen';reference='https://openstax.org/books/chemistry-atoms-first-2e/pages/18-9-occurrence-preparation-and-compounds-of-oxygen';retrieved_on='2026-07-15';usage='Representative normal oxide, peroxide, superoxide, and covalent oxide outcomes'})
-    premises=@((Premise $rulePremise 'The listed element families have the representative balanced oxygen outcomes encoded by their supported cases.'),(Premise $structurePremise 'Oxygen and oxide products use explicit localized or delocalized bonds, formal charges, ionic components, and representative network fragments.'),(Premise $valencePremise 'The listed electron states are the closed valence domain used by the oxygen reaction operations.'),(Premise $observationPremise 'Formation of the oxide product and disappearance of the reactant are compatible generic observations for these representative theoretical experiences.'))
-    valence_premises=@([ordered]@{premise_id=$valencePremise;neutral_valence=@($elements.GetEnumerator()|ForEach-Object{[ordered]@{element=$_.Key;neutral_valence_electrons=$_.Value}});supported_states=@($states.Values);metallic_domain_states=@(@('Li','Be','Na','Mg','Al','K','Ca','Rb','Sr','Cs','Ba'|ForEach-Object{$e=$_;$q=if($e -in @('Li','Na','K','Rb','Cs')){1}elseif($e -eq 'Al'){3}else{2};[ordered]@{element=$e;site_formal_charge=$q;site_local_electrons=0;delocalized_electrons_per_site=$q}}) + @($transitionMetallicStates))})
+    evidence=@([ordered]@{id='evidence.openstax.oxygen-compounds';title='Chemistry: Atoms First 2e';publisher='OpenStax';locator='Occurrence, Preparation, and Compounds of Oxygen';reference='https://openstax.org/books/chemistry-atoms-first-2e/pages/18-9-occurrence-preparation-and-compounds-of-oxygen';retrieved_on='2026-07-15';usage='Representative normal oxide, peroxide, superoxide, and covalent oxide outcomes'},[ordered]@{id='evidence.openstax.ionic-compounds';title='Chemistry 2e';publisher='OpenStax';locator='Ionic Bonding';reference='https://openstax.org/books/chemistry-2e/pages/7-1-ionic-bonding';retrieved_on='2026-07-15';usage='Charge neutrality, electron transfer, fixed-charge monatomic ions, and binary ionic formula units'})
+    premises=@((Premise $rulePremise 'The listed element families have the representative balanced oxygen outcomes encoded by their supported cases.'),(Premise $structurePremise 'Oxygen and oxide products use explicit localized or delocalized bonds, formal charges, ionic components, and representative network fragments.'),(Premise $valencePremise 'The listed electron states are the closed valence domain used by the oxygen reaction operations.'),(Premise $observationPremise 'Formation of the oxide product and disappearance of the reactant are compatible generic observations for these representative theoretical experiences.'),[ordered]@{id=$ionRulePremise;statement='Fixed-charge binary ionic formula units use the smallest whole-number cation-to-anion ratio whose component charges sum to zero.';evidence=@('evidence.openstax.ionic-compounds');review=[ordered]@{status='provisional';reviewers=@()};rule_version='1'},[ordered]@{id=$ionStructurePremise;statement='A binary ionic formula unit is represented by explicitly charged monatomic components in a charge-aware ionic association.';evidence=@('evidence.openstax.ionic-compounds');review=[ordered]@{status='provisional';reviewers=@()};rule_version='1'},[ordered]@{id=$ionValencePremise;statement='The fixed-charge ion-pair domain transfers the cation charge to anion valence vacancies after explanatory elemental-bond cleavage.';evidence=@('evidence.openstax.ionic-compounds');review=[ordered]@{status='provisional';reviewers=@()};rule_version='1'},[ordered]@{id=$ionObservationPremise;statement='Formation of the binary salt and disappearance of the selected elemental reactants are compatible generic theoretical observations.';evidence=@('evidence.openstax.ionic-compounds');review=[ordered]@{status='provisional';reviewers=@()};rule_version='1'})
+    valence_premises=@([ordered]@{premise_id=$valencePremise;neutral_valence=@($elements.GetEnumerator()|ForEach-Object{[ordered]@{element=$_.Key;neutral_valence_electrons=$_.Value}});supported_states=@($states.Values);metallic_domain_states=@(@('Li','Be','Na','Mg','Al','K','Ca','Rb','Sr','Cs','Ba'|ForEach-Object{$e=$_;$q=if($e -in @('Li','Na','K','Rb','Cs')){1}elseif($e -eq 'Al'){3}else{2};[ordered]@{element=$e;site_formal_charge=$q;site_local_electrons=0;delocalized_electrons_per_site=$q}}) + @($transitionMetallicStates))},[ordered]@{premise_id=$ionValencePremise;neutral_valence=@($elements.GetEnumerator()|Where-Object{$_.Key -in @('Li','Na','K','Rb','Cs','Be','Mg','Ca','Sr','Ba','Al','F','Cl','Br','I','O','S','N','P')}|ForEach-Object{[ordered]@{element=$_.Key;neutral_valence_electrons=$_.Value}});supported_states=@($states.Values|Where-Object{$_.element -in @('Li','Na','K','Rb','Cs','Be','Mg','Ca','Sr','Ba','Al','F','Cl','Br','I','O','S','N','P')});metallic_domain_states=@('Li','Na','K','Rb','Cs','Be','Mg','Ca','Sr','Ba','Al'|ForEach-Object{$e=$_;$q=if($e -in @('Li','Na','K','Rb','Cs')){1}elseif($e -eq 'Al'){3}else{2};[ordered]@{element=$e;site_formal_charge=$q;site_local_electrons=0;delocalized_electrons_per_site=$q}})})
     structures=$structures;rules=@();elements=@();element_categories=$categories;structural_traits=@();structure_templates=$templates;structure_applications=$applications;graph_patterns=$patterns;generalized_rules=$rules
 }
 
@@ -455,12 +567,45 @@ reaction $reaction where
     Write-Utf8 (Join-Path $observationDir "oxygen-$id-001.evidence.json") ($evidence | ConvertTo-Json -Depth 20)
 }
 
+$ionEvidence=[ordered]@{schema_version=1;id='Evidence.IonPairReaction@1';claims=@([ordered]@{id='R1';subject_role='product';subject='salt';predicate='forms';sources=@('S1')},[ordered]@{id='R2';subject_role='reactant';subject='metal';predicate='disappears';sources=@('S1')});sources=@([ordered]@{id='S1';title='Ionic Bonding';publisher='OpenStax';url='https://openstax.org/books/chemistry-2e/pages/7-1-ionic-bonding';supports=@('R1','R2')})}
+foreach($x in $ionPairExperiences){
+    $source=@"
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction $($x.reaction) where
+  reactants
+    cation := $($x.subject_coefficient) of $($x.subject_structure)
+    anion := $($x.anion_coefficient) of $($x.anion_structure)
+  products
+    salt := $($x.product_coefficient) of $($x.product_structure)
+  equation
+    $($x.subject_coefficient) $($x.subject_formula)[metallic] + $($x.anion_coefficient) $($x.anion_formula)[molecular]
+    -> $($x.product_coefficient) $($x.product_formula)[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply $($x.rule)
+      cation := cation
+      anion := anion
+      salt := salt
+"@.TrimStart()
+    Write-Utf8 (Join-Path $experienceDir "ionpair-$($x.slug)-001.chems") ($source.TrimEnd()+"`n")
+    Write-Utf8 (Join-Path $observationDir "ionpair-$($x.slug)-001.evidence.json") ($ionEvidence|ConvertTo-Json -Depth 20)
+}
+
 # Register candidate experiences beside trusted ones without compiling them
 # into the application before independent catalogue promotion.
 $registryPath = Join-Path $Root 'catalogue/experience-registry.json'
 $registry = Get-Content -Raw -Encoding utf8 $registryPath | ConvertFrom-Json
 $oxygenStatus = if($registry.experiences | Where-Object { $_.id -like 'oxygen-*' -and $_.status -eq 'trusted' }){'trusted'}else{'candidate'}
-$baseExperiences = @($registry.experiences | Where-Object { $_.id -notlike 'oxygen-*' })
+$trustedCataloguePath=Join-Path $Root 'catalogue/trusted/periodic-table-and-alkali-water/catalogue.json'
+$trustedHasIonPairs=(Test-Path $trustedCataloguePath) -and ((Get-Content -Raw -Encoding utf8 $trustedCataloguePath) -match 'Rules.FixedCation1Fluoride')
+$ionStatus = if($trustedHasIonPairs -or ($registry.experiences | Where-Object { $_.id -like 'ionpair-*' -and $_.status -eq 'trusted' })){'trusted'}else{'candidate'}
+$baseExperiences = @($registry.experiences | Where-Object { $_.id -notlike 'oxygen-*' -and $_.id -notlike 'ionpair-*' })
 foreach($record in $baseExperiences){if($null -eq $record.status){$record | Add-Member -NotePropertyName status -NotePropertyValue trusted};$record.PSObject.Properties.Remove('name')}
 $slugs = [ordered]@{'1'='hydrogen-oxygen';'3'='lithium-oxygen';'4'='beryllium-oxygen';'5'='boron-oxygen';'6'='carbon-oxygen';'11'='sodium-oxygen';'12'='magnesium-oxygen';'13'='aluminium-oxygen';'14'='silicon-oxygen';'15'='phosphorus-oxygen';'16'='sulfur-oxygen';'19'='potassium-oxygen';'20'='calcium-oxygen';'37'='rubidium-oxygen';'38'='strontium-oxygen';'55'='caesium-oxygen';'56'='barium-oxygen'}
 $elementCatalogue = Get-Content -Raw -Encoding utf8 (Join-Path $Root 'catalogue/candidates/periodic-table-and-alkali-water/candidate.json') | ConvertFrom-Json
@@ -484,8 +629,13 @@ foreach($transition in $transitionExperiences){
     $element=$elementCatalogue.elements|Where-Object atomic_number -eq $atomicNumber|Select-Object -First 1
     $candidateExperiences += [ordered]@{id="oxygen-$slug";status=$oxygenStatus;atomic_number=$atomicNumber;co_reactant_atoms=@(8,8);source_path="conformance/end-to-end/oxygen-$slug-001.chems";evidence_path="conformance/observations/oxygen-$slug-001.evidence.json";request="What happens when $($element.name.ToLowerInvariant()) reacts with oxygen for this reviewed product outcome?";equation=$equation;subject_name=$element.name.ToLowerInvariant()}
 }
-$registry.experiences = @($baseExperiences) + $candidateExperiences
+$ionExperiences=@()
+foreach($x in $ionPairExperiences){
+    $member=$elementCatalogue.elements|Where-Object atomic_number -eq $x.atomic_number|Select-Object -First 1
+    $ionExperiences += [ordered]@{id="ionpair-$($x.slug)";status=$ionStatus;atomic_number=$x.atomic_number;co_reactant_atoms=$x.co_atoms;source_path="conformance/end-to-end/ionpair-$($x.slug)-001.chems";evidence_path="conformance/observations/ionpair-$($x.slug)-001.evidence.json";request="What fixed-charge ionic compound forms when $($member.name.ToLowerInvariant()) reacts with $($x.anion_formula)?";equation=$x.equation;subject_name=$member.name.ToLowerInvariant()}
+}
+$registry.experiences = @($baseExperiences) + $candidateExperiences + $ionExperiences
 Write-Utf8 $registryPath ($registry | ConvertTo-Json -Depth 20)
 Copy-Item (Join-Path $experienceDir 'oxygen-potassium-oxygen-001.chems') (Join-Path $candidateDir 'example.chems') -Force
 
-Write-Host "Generated $($rules.Count) reusable oxygen rules and $($experiences.Count) experiences."
+Write-Host "Generated $($rules.Count) reusable oxygen/ion-pair rules, $($experiences.Count) oxygen experiences, and $($ionPairExperiences.Count) ion-pair experiences."

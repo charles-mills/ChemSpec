@@ -407,6 +407,23 @@ mod tests {
     }
 
     #[test]
+    fn fixed_charge_pairs_balance_repeated_atoms_and_run_trusted_frames() {
+        let magnesium_fluoride = experiences_for_drafts(&[12], &[9, 9]);
+        assert_eq!(magnesium_fluoride.len(), 1);
+        assert_eq!(magnesium_fluoride[0].equation(), "Mg + F2 -> MgF2");
+        assert_eq!(magnesium_fluoride[0].name(), "magnesium fluoride");
+        run(magnesium_fluoride[0]).expect("MgF2 should produce trusted frames");
+
+        let aluminium_sulfide = experiences_for_drafts(&[13], &[16; 8]);
+        assert_eq!(aluminium_sulfide.len(), 1);
+        assert_eq!(
+            aluminium_sulfide[0].equation(),
+            "16 Al + 3 S8 -> 8 Al2S3"
+        );
+        assert_eq!(aluminium_sulfide[0].name(), "aluminium sulfide");
+    }
+
+    #[test]
     fn every_element_can_be_screened_with_oxygen_but_unknown_compounds_cannot() {
         for atomic_number in 1..=118 {
             assert!(oxygen_assessment_for_drafts(&[atomic_number], &[8, 8]).is_some());

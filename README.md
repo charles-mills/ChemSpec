@@ -93,6 +93,7 @@ remain non-animatable until reviewed structural rules and frames are added.
 - [Generalized rules implementation plan](docs/generalized-rules-implementation-plan.md)
 - [Catalogue candidate and Luna handoff](docs/luna-catalogue-handoff.md)
 - [Chemistry engine](docs/chemistry-engine.md)
+- [Fixed-charge main-group ion pairs](docs/fixed-charge-ion-pairs.md)
 - [System architecture](docs/system-architecture.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
 - [Verification strategy](docs/verification.md)

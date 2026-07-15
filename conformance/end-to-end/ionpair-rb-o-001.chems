@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction RbAndNormalOxide where
+  reactants
+    cation := 4 of RbFixedCation1Metal
+    anion := 1 of Oxygen
+  products
+    salt := 2 of RbFixedCation1NormalOxide
+  equation
+    4 Rb[metallic] + 1 O2[molecular]
+    -> 2 Rb2O[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1NormalOxide
+      cation := cation
+      anion := anion
+      salt := salt

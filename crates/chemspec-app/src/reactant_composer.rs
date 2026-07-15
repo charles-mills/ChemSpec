@@ -175,6 +175,36 @@ pub fn can_start_reaction(state: &State) -> bool {
     chemistry::supports_drafts(&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
 
+fn elemental_molecule_guidance(state: &State) -> Option<String> {
+    let partial = state
+        .drafts
+        .iter()
+        .find(|draft| {
+            !draft.atoms.is_empty()
+                && matches!(draft.atoms[0], 7 | 8 | 9 | 15 | 16 | 17 | 35 | 53)
+                && draft.atoms.iter().all(|atom| *atom == draft.atoms[0])
+        })?;
+    let (required, name, formula) = match partial.atoms[0] {
+        7 => (2, "nitrogen", "N₂"),
+        8 => (2, "oxygen", "O₂"),
+        9 => (2, "fluorine", "F₂"),
+        15 => (4, "phosphorus", "P₄"),
+        16 => (8, "sulfur", "S₈"),
+        17 => (2, "chlorine", "Cl₂"),
+        35 => (2, "bromine", "Br₂"),
+        53 => (2, "iodine", "I₂"),
+        _ => return None,
+    };
+    (partial.atoms.len() < required).then(|| {
+        format!(
+            "Elemental {name} is {formula} — add {} more {} atom{}",
+            required - partial.atoms.len(),
+            name,
+            if required - partial.atoms.len() == 1 { "" } else { "s" }
+        )
+    })
+}
+
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
@@ -414,7 +444,9 @@ fn equation_panel(
                 .size(type_scale::MICRO)
                 .color(color::FAINT),
             equation,
-            text("Select a slot, then click or drag elements from the table")
+            text(elemental_molecule_guidance(state).unwrap_or_else(||
+                "Select a slot, then click or drag elements from the table".to_owned()
+            ))
                 .size(type_scale::CAPTION)
                 .color(color::MUTED),
             row![undo, clear, swap, space().width(Fill), continue_button].spacing(spacing::XS),

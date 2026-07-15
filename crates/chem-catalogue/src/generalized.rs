@@ -19,7 +19,9 @@ use super::{
 
 const MAX_GENERALIZED_PARAMETER_BINDINGS: usize = 4_096;
 const MAX_GENERALIZED_PARAMETERS: usize = 64;
-const MAX_GENERALIZED_ROLE_COEFFICIENT: u32 = 8;
+// Large elemental formula units such as S8 and P4 can require more than eight
+// metal atoms even after reduction (for example 12 M + P4 -> 4 M3P).
+const MAX_GENERALIZED_ROLE_COEFFICIENT: u32 = 32;
 const MAX_GENERALIZED_TOTAL_INSTANCES: u32 = 32;
 
 #[derive(Debug, Clone)]

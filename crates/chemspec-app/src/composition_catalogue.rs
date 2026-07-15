@@ -273,6 +273,11 @@ mod tests {
         assert_eq!(lithium_hydroxide.covalent_bonds.len(), 1);
         assert_eq!(lithium_hydroxide.ionic_links.len(), 1);
 
+        let magnesium_fluoride = recognize([9, 12, 9]).expect("MgF2 structure");
+        assert_eq!(magnesium_fluoride.formula, "MgF₂");
+        assert_eq!(magnesium_fluoride.atoms.len(), 3);
+        assert_eq!(magnesium_fluoride.ionic_links.len(), 2);
+
         let carbon_dioxide = recognize([8, 6, 8]).expect("CO2 structure");
         assert_eq!(carbon_dioxide.formula, "CO₂");
         assert_eq!(
@@ -292,6 +297,6 @@ mod tests {
     fn unresolved_multisets_are_not_given_invented_structures() {
         assert!(recognize([6, 6]).is_none());
         assert!(recognize([1, 8]).is_none());
-        assert!(recognize([11, 17]).is_none());
+        assert!(recognize([3, 6]).is_none());
     }
 }

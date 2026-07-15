@@ -997,6 +997,1228 @@
                             "request":  "What happens when osmium reacts with oxygen for this reviewed product outcome?",
                             "equation":  "Os + 2 O2 -\u003e OsO4",
                             "subject_name":  "osmium"
+                        },
+                        {
+                            "id":  "ionpair-li-f",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-li-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-li-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when lithium reacts with F2?",
+                            "equation":  "2 Li + F2 -\u003e 2 LiF",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "ionpair-na-f",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with F2?",
+                            "equation":  "2 Na + F2 -\u003e 2 NaF",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-f",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with F2?",
+                            "equation":  "2 K + F2 -\u003e 2 KF",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-f",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with F2?",
+                            "equation":  "2 Rb + F2 -\u003e 2 RbF",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-f",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with F2?",
+                            "equation":  "2 Cs + F2 -\u003e 2 CsF",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "ionpair-be-f",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-be-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-be-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when beryllium reacts with F2?",
+                            "equation":  "Be + F2 -\u003e BeF2",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "ionpair-mg-f",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-mg-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-mg-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when magnesium reacts with F2?",
+                            "equation":  "Mg + F2 -\u003e MgF2",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "ionpair-ca-f",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ca-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ca-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when calcium reacts with F2?",
+                            "equation":  "Ca + F2 -\u003e CaF2",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "ionpair-sr-f",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-sr-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-sr-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when strontium reacts with F2?",
+                            "equation":  "Sr + F2 -\u003e SrF2",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "ionpair-ba-f",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ba-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ba-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when barium reacts with F2?",
+                            "equation":  "Ba + F2 -\u003e BaF2",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "ionpair-al-f",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      9,
+                                                      9
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-al-f-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-al-f-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when aluminium reacts with F2?",
+                            "equation":  "2 Al + 3 F2 -\u003e 2 AlF3",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "ionpair-li-cl",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-li-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-li-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when lithium reacts with Cl2?",
+                            "equation":  "2 Li + Cl2 -\u003e 2 LiCl",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "ionpair-na-cl",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with Cl2?",
+                            "equation":  "2 Na + Cl2 -\u003e 2 NaCl",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-cl",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with Cl2?",
+                            "equation":  "2 K + Cl2 -\u003e 2 KCl",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-cl",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with Cl2?",
+                            "equation":  "2 Rb + Cl2 -\u003e 2 RbCl",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-cl",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with Cl2?",
+                            "equation":  "2 Cs + Cl2 -\u003e 2 CsCl",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "ionpair-be-cl",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-be-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-be-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when beryllium reacts with Cl2?",
+                            "equation":  "Be + Cl2 -\u003e BeCl2",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "ionpair-mg-cl",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-mg-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-mg-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when magnesium reacts with Cl2?",
+                            "equation":  "Mg + Cl2 -\u003e MgCl2",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "ionpair-ca-cl",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ca-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ca-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when calcium reacts with Cl2?",
+                            "equation":  "Ca + Cl2 -\u003e CaCl2",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "ionpair-sr-cl",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-sr-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-sr-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when strontium reacts with Cl2?",
+                            "equation":  "Sr + Cl2 -\u003e SrCl2",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "ionpair-ba-cl",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ba-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ba-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when barium reacts with Cl2?",
+                            "equation":  "Ba + Cl2 -\u003e BaCl2",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "ionpair-al-cl",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      17,
+                                                      17
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-al-cl-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-al-cl-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when aluminium reacts with Cl2?",
+                            "equation":  "2 Al + 3 Cl2 -\u003e 2 AlCl3",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "ionpair-li-br",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-li-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-li-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when lithium reacts with Br2?",
+                            "equation":  "2 Li + Br2 -\u003e 2 LiBr",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "ionpair-na-br",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with Br2?",
+                            "equation":  "2 Na + Br2 -\u003e 2 NaBr",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-br",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with Br2?",
+                            "equation":  "2 K + Br2 -\u003e 2 KBr",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-br",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with Br2?",
+                            "equation":  "2 Rb + Br2 -\u003e 2 RbBr",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-br",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with Br2?",
+                            "equation":  "2 Cs + Br2 -\u003e 2 CsBr",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "ionpair-be-br",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-be-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-be-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when beryllium reacts with Br2?",
+                            "equation":  "Be + Br2 -\u003e BeBr2",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "ionpair-mg-br",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-mg-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-mg-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when magnesium reacts with Br2?",
+                            "equation":  "Mg + Br2 -\u003e MgBr2",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "ionpair-ca-br",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ca-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ca-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when calcium reacts with Br2?",
+                            "equation":  "Ca + Br2 -\u003e CaBr2",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "ionpair-sr-br",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-sr-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-sr-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when strontium reacts with Br2?",
+                            "equation":  "Sr + Br2 -\u003e SrBr2",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "ionpair-ba-br",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ba-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ba-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when barium reacts with Br2?",
+                            "equation":  "Ba + Br2 -\u003e BaBr2",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "ionpair-al-br",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      35,
+                                                      35
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-al-br-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-al-br-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when aluminium reacts with Br2?",
+                            "equation":  "2 Al + 3 Br2 -\u003e 2 AlBr3",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "ionpair-li-i",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-li-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-li-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when lithium reacts with I2?",
+                            "equation":  "2 Li + I2 -\u003e 2 LiI",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "ionpair-na-i",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with I2?",
+                            "equation":  "2 Na + I2 -\u003e 2 NaI",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-i",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with I2?",
+                            "equation":  "2 K + I2 -\u003e 2 KI",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-i",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with I2?",
+                            "equation":  "2 Rb + I2 -\u003e 2 RbI",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-i",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with I2?",
+                            "equation":  "2 Cs + I2 -\u003e 2 CsI",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "ionpair-be-i",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-be-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-be-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when beryllium reacts with I2?",
+                            "equation":  "Be + I2 -\u003e BeI2",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "ionpair-mg-i",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-mg-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-mg-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when magnesium reacts with I2?",
+                            "equation":  "Mg + I2 -\u003e MgI2",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "ionpair-ca-i",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ca-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ca-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when calcium reacts with I2?",
+                            "equation":  "Ca + I2 -\u003e CaI2",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "ionpair-sr-i",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-sr-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-sr-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when strontium reacts with I2?",
+                            "equation":  "Sr + I2 -\u003e SrI2",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "ionpair-ba-i",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ba-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ba-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when barium reacts with I2?",
+                            "equation":  "Ba + I2 -\u003e BaI2",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "ionpair-al-i",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      53,
+                                                      53
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-al-i-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-al-i-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when aluminium reacts with I2?",
+                            "equation":  "2 Al + 3 I2 -\u003e 2 AlI3",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "ionpair-li-s",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-li-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-li-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when lithium reacts with S8?",
+                            "equation":  "16 Li + S8 -\u003e 8 Li2S",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "ionpair-na-s",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with S8?",
+                            "equation":  "16 Na + S8 -\u003e 8 Na2S",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-s",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with S8?",
+                            "equation":  "16 K + S8 -\u003e 8 K2S",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-s",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with S8?",
+                            "equation":  "16 Rb + S8 -\u003e 8 Rb2S",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-s",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with S8?",
+                            "equation":  "16 Cs + S8 -\u003e 8 Cs2S",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "ionpair-be-s",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-be-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-be-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when beryllium reacts with S8?",
+                            "equation":  "8 Be + S8 -\u003e 8 BeS",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "ionpair-mg-s",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-mg-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-mg-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when magnesium reacts with S8?",
+                            "equation":  "8 Mg + S8 -\u003e 8 MgS",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "ionpair-ca-s",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ca-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ca-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when calcium reacts with S8?",
+                            "equation":  "8 Ca + S8 -\u003e 8 CaS",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "ionpair-sr-s",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-sr-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-sr-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when strontium reacts with S8?",
+                            "equation":  "8 Sr + S8 -\u003e 8 SrS",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "ionpair-ba-s",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ba-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ba-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when barium reacts with S8?",
+                            "equation":  "8 Ba + S8 -\u003e 8 BaS",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "ionpair-al-s",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16,
+                                                      16
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-al-s-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-al-s-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when aluminium reacts with S8?",
+                            "equation":  "16 Al + 3 S8 -\u003e 8 Al2S3",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "ionpair-li-n",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-li-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-li-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when lithium reacts with N2?",
+                            "equation":  "6 Li + N2 -\u003e 2 Li3N",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "ionpair-na-n",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with N2?",
+                            "equation":  "6 Na + N2 -\u003e 2 Na3N",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-n",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with N2?",
+                            "equation":  "6 K + N2 -\u003e 2 K3N",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-n",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with N2?",
+                            "equation":  "6 Rb + N2 -\u003e 2 Rb3N",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-n",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with N2?",
+                            "equation":  "6 Cs + N2 -\u003e 2 Cs3N",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "ionpair-be-n",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-be-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-be-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when beryllium reacts with N2?",
+                            "equation":  "3 Be + N2 -\u003e Be3N2",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "ionpair-mg-n",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-mg-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-mg-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when magnesium reacts with N2?",
+                            "equation":  "3 Mg + N2 -\u003e Mg3N2",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "ionpair-ca-n",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ca-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ca-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when calcium reacts with N2?",
+                            "equation":  "3 Ca + N2 -\u003e Ca3N2",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "ionpair-sr-n",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-sr-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-sr-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when strontium reacts with N2?",
+                            "equation":  "3 Sr + N2 -\u003e Sr3N2",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "ionpair-ba-n",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ba-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ba-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when barium reacts with N2?",
+                            "equation":  "3 Ba + N2 -\u003e Ba3N2",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "ionpair-al-n",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      7,
+                                                      7
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-al-n-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-al-n-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when aluminium reacts with N2?",
+                            "equation":  "2 Al + N2 -\u003e 2 AlN",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "ionpair-li-p",
+                            "status":  "trusted",
+                            "atomic_number":  3,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-li-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-li-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when lithium reacts with P4?",
+                            "equation":  "12 Li + P4 -\u003e 4 Li3P",
+                            "subject_name":  "lithium"
+                        },
+                        {
+                            "id":  "ionpair-na-p",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with P4?",
+                            "equation":  "12 Na + P4 -\u003e 4 Na3P",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-p",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with P4?",
+                            "equation":  "12 K + P4 -\u003e 4 K3P",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-p",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with P4?",
+                            "equation":  "12 Rb + P4 -\u003e 4 Rb3P",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-p",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with P4?",
+                            "equation":  "12 Cs + P4 -\u003e 4 Cs3P",
+                            "subject_name":  "caesium"
+                        },
+                        {
+                            "id":  "ionpair-be-p",
+                            "status":  "trusted",
+                            "atomic_number":  4,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-be-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-be-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when beryllium reacts with P4?",
+                            "equation":  "6 Be + P4 -\u003e 2 Be3P2",
+                            "subject_name":  "beryllium"
+                        },
+                        {
+                            "id":  "ionpair-mg-p",
+                            "status":  "trusted",
+                            "atomic_number":  12,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-mg-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-mg-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when magnesium reacts with P4?",
+                            "equation":  "6 Mg + P4 -\u003e 2 Mg3P2",
+                            "subject_name":  "magnesium"
+                        },
+                        {
+                            "id":  "ionpair-ca-p",
+                            "status":  "trusted",
+                            "atomic_number":  20,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ca-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ca-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when calcium reacts with P4?",
+                            "equation":  "6 Ca + P4 -\u003e 2 Ca3P2",
+                            "subject_name":  "calcium"
+                        },
+                        {
+                            "id":  "ionpair-sr-p",
+                            "status":  "trusted",
+                            "atomic_number":  38,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-sr-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-sr-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when strontium reacts with P4?",
+                            "equation":  "6 Sr + P4 -\u003e 2 Sr3P2",
+                            "subject_name":  "strontium"
+                        },
+                        {
+                            "id":  "ionpair-ba-p",
+                            "status":  "trusted",
+                            "atomic_number":  56,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-ba-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-ba-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when barium reacts with P4?",
+                            "equation":  "6 Ba + P4 -\u003e 2 Ba3P2",
+                            "subject_name":  "barium"
+                        },
+                        {
+                            "id":  "ionpair-al-p",
+                            "status":  "trusted",
+                            "atomic_number":  13,
+                            "co_reactant_atoms":  [
+                                                      15,
+                                                      15,
+                                                      15,
+                                                      15
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-al-p-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-al-p-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when aluminium reacts with P4?",
+                            "equation":  "4 Al + P4 -\u003e 4 AlP",
+                            "subject_name":  "aluminium"
+                        },
+                        {
+                            "id":  "ionpair-na-o",
+                            "status":  "trusted",
+                            "atomic_number":  11,
+                            "co_reactant_atoms":  [
+                                                      0,
+                                                      0
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-na-o-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-na-o-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when sodium reacts with O2?",
+                            "equation":  "4 Na + O2 -\u003e 2 Na2O",
+                            "subject_name":  "sodium"
+                        },
+                        {
+                            "id":  "ionpair-k-o",
+                            "status":  "trusted",
+                            "atomic_number":  19,
+                            "co_reactant_atoms":  [
+                                                      0,
+                                                      0
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-k-o-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-k-o-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when potassium reacts with O2?",
+                            "equation":  "4 K + O2 -\u003e 2 K2O",
+                            "subject_name":  "potassium"
+                        },
+                        {
+                            "id":  "ionpair-rb-o",
+                            "status":  "trusted",
+                            "atomic_number":  37,
+                            "co_reactant_atoms":  [
+                                                      0,
+                                                      0
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-rb-o-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-rb-o-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when rubidium reacts with O2?",
+                            "equation":  "4 Rb + O2 -\u003e 2 Rb2O",
+                            "subject_name":  "rubidium"
+                        },
+                        {
+                            "id":  "ionpair-cs-o",
+                            "status":  "trusted",
+                            "atomic_number":  55,
+                            "co_reactant_atoms":  [
+                                                      0,
+                                                      0
+                                                  ],
+                            "source_path":  "conformance/end-to-end/ionpair-cs-o-001.chems",
+                            "evidence_path":  "conformance/observations/ionpair-cs-o-001.evidence.json",
+                            "request":  "What fixed-charge ionic compound forms when caesium reacts with O2?",
+                            "equation":  "4 Cs + O2 -\u003e 2 Cs2O",
+                            "subject_name":  "caesium"
                         }
                     ]
 }

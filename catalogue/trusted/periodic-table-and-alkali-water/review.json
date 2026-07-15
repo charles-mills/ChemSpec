@@ -1,32 +1,37 @@
 {
   "schema_version": 1,
   "id": "review.chemist.oxygen-reactions",
-  "catalogue_digest": "4ea76115c5b003aa36f4cec504aa64ba8c2232b436c85d474c9d72d4a118be02",
+  "catalogue_digest": "663f6614da6c2bfa937c70d94d274a3c4edeb6219c422a0bcadf2d44887d4f5d",
   "reviewer": "ChemSpec project owner and chemist",
   "reviewed_on": "2026-07-15",
-  "scope": "The exact merged ChemSpec catalogue containing the 118-element identity catalogue, the Li/Na/K water family, and 68 oxygen-reaction experiences. These include the existing main-group outcomes plus 51 transition-metal oxide outcomes generated from 27 periodic-group members, shared metallic-source families, normal-oxide stoichiometry families, selectable mixed-valence products, and covalent MO3, M2O7, and MO4 families.",
-  "method": "Human chemist verification asserted by the project owner for the exact digest, together with deterministic schema validation, all 68 oxygen generalized-rule expansions, compact graph-automorphism reduction, transition-metal d-electron retention and Hund-state reconfiguration, structural kernel execution, electron conservation and electron-occupancy checks, and simulation-frame projection.",
+  "scope": "The exact merged ChemSpec catalogue containing the 118-element identity catalogue, the Li/Na/K water family, 68 oxygen-reaction experiences, and 81 fixed-charge main-group ion-pair experiences. The ion-pair domain covers +1 alkali metals, +2 alkaline-earth metals, and Al(III) with fluoride, chloride, bromide, iodide, oxide, sulfide, nitride, and phosphide formula units generated from charge-neutral whole-number ratios.",
+  "method": "Human chemist verification asserted by the project owner for the exact digest, together with deterministic schema validation, generalized-rule expansion, charge-balance reduction, elemental F2/Cl2/Br2/I2/O2/N2/S8/P4 bond cleavage, electron conservation and occupancy checks, charge-aware ionic association, compact graph-automorphism reduction, structural kernel execution, and simulation-frame projection.",
   "sources": [
     "evidence.iupac.goldbook",
     "evidence.iupac.periodic-table",
     "evidence.openstax.chemistry-2e",
+    "evidence.openstax.ionic-compounds",
     "evidence.openstax.oxygen-compounds"
   ],
   "premises": [
     "premise.elements.iupac-periodic-table",
     "premise.observation.alkali-metal-disappears",
     "premise.observation.element-oxygen",
+    "premise.observation.fixed-charge-ion-pairs",
     "premise.observation.hydrogen-evolves",
     "premise.rule.alkali-metal-water.standard-outcome",
     "premise.rule.element-oxygen.representative-outcomes",
+    "premise.rule.fixed-charge-ion-pairs",
     "premise.structure.alkali-metal",
     "premise.structure.alkali-metal-hydroxide",
     "premise.structure.element-oxygen.structural-models",
+    "premise.structure.fixed-charge-ion-pairs",
     "premise.structure.hydrogen",
     "premise.structure.water",
     "premise.valence.alkali-h-o.initial-domain",
-    "premise.valence.element-oxygen.closed-domain"
+    "premise.valence.element-oxygen.closed-domain",
+    "premise.valence.fixed-charge-ion-pairs"
   ],
-  "coverage_conclusion": "The exact catalogue digest is approved for the representative theoretical oxygen outcomes and atom-level simulation operations it contains, including the transition-metal family cases and their selectable product alternatives.",
+  "coverage_conclusion": "The exact catalogue digest is approved for the representative theoretical oxygen outcomes and fixed-charge main-group binary ionic outcomes it contains, including charge-balanced repeated-atom formula units and their atom-level simulation operations.",
   "limitation": "Approval covers the closed theoretical models encoded by this digest. It does not imply laboratory procedure, quantitative kinetics, safety guidance, or products not explicitly represented by a reviewed catalogue outcome."
 }

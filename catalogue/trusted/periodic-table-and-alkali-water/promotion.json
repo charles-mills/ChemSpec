@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "status": "host-selected-ai-reviewed",
-  "catalogue_digest": "4ea76115c5b003aa36f4cec504aa64ba8c2232b436c85d474c9d72d4a118be02",
-  "review_digest": "de159d643469314bf4f8d5c385c9f75971df80ebdab3ea201ceb120c95a8b8f7",
+  "catalogue_digest": "663f6614da6c2bfa937c70d94d274a3c4edeb6219c422a0bcadf2d44887d4f5d",
+  "review_digest": "27b590bf2dc4b96d77a94fee40d616fafdb3035089244d837fbe97fe51fcc1c0",
   "packages": [
     "oxygen-reactions",
     "periodic-table-and-alkali-water"
