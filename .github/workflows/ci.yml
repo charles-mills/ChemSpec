@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   validate:
+    name: Linux quality gate
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -25,3 +26,17 @@ jobs:
 
       - name: Validate executable specification
         run: cargo run -p chems-conformance -- validate
+
+  native-tests:
+    name: Native tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Run tests
+        run: cargo test --workspace --all-targets
