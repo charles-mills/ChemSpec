@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AlAndIodide where
+  reactants
+    cation := 2 of AlFixedCation3Metal
+    anion := 3 of ElementalIodine
+  products
+    salt := 2 of AlFixedCation3Iodide
+  equation
+    2 Al[metallic] + 3 I2[molecular]
+    -> 2 AlI3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation3Iodide
+      cation := cation
+      anion := anion
+      salt := salt

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "host-selected-ai-reviewed",
+  "catalogue_digest": "877f0dfe4f1140c89d315c3e11fb6e257ea417a19614259910bbfd346d09aeeb",
+  "review_digest": "89d9c0c78f32a662cbfd976923f4863eb50ee3261bf758579b646ba52aec449f",
+  "packages": [
+    "acid-base-neutralization",
+    "acid-carbonate-gas-evolution",
+    "oxygen-reactions",
+    "periodic-table-and-alkali-water",
+    "precipitation-silver-halide",
+    "single-displacement-halogen"
+  ],
+  "trust_boundary": "Runtime trust begins only when both digests are compiled into TrustedCatalogue."
+}

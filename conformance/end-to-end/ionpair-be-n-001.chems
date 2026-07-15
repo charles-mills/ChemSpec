@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction BeAndNitride where
+  reactants
+    cation := 3 of BeFixedCation2Metal
+    anion := 1 of ElementalNitrogen
+  products
+    salt := 1 of BeFixedCation2Nitride
+  equation
+    3 Be[metallic] + 1 N2[molecular]
+    -> 1 Be3N2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation2Nitride
+      cation := cation
+      anion := anion
+      salt := salt

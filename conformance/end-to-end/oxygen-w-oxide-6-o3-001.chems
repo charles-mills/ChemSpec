@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction WAndOxygenToTransitionG6Trioxide where
+  reactants
+    subject := 2 of WTransitionG6TrioxideMetalForOxygen
+    oxygen := 3 of Oxygen
+  products
+    oxide := 2 of WTransitionG6TrioxideOxide
+  equation
+    2 W[metallic] + 3 O2[molecular]
+    -> 2 WO3[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG6Trioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

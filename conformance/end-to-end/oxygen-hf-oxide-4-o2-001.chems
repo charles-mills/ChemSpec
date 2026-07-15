@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction HfAndOxygenToTransitionG4Dioxide where
+  reactants
+    subject := 1 of HfTransitionG4DioxideMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 1 of HfTransitionG4DioxideOxide
+  equation
+    1 Hf[metallic] + 1 O2[molecular]
+    -> 1 HfO2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG4Dioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

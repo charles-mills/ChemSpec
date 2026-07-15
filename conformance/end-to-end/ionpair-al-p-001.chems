@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AlAndPhosphide where
+  reactants
+    cation := 4 of AlFixedCation3Metal
+    anion := 1 of ElementalPhosphorus
+  products
+    salt := 4 of AlFixedCation3Phosphide
+  equation
+    4 Al[metallic] + 1 P4[molecular]
+    -> 4 AlP[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation3Phosphide
+      cation := cation
+      anion := anion
+      salt := salt

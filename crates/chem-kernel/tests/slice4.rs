@@ -160,11 +160,15 @@ fn independent_oracle_agrees_on_instances_atoms_mapping_and_operation_order() {
         .operations
         .iter()
         .map(|operation| match operation.operation.view() {
+            StructuralOperationView::ReconfigureElectrons { .. } => "reconfigure_electrons",
             StructuralOperationView::CleaveCovalent { .. } => "cleave_covalent",
             StructuralOperationView::FormCovalent { .. } => "form_covalent",
             StructuralOperationView::CleaveDative { .. } => "cleave_dative",
             StructuralOperationView::FormDative { .. } => "form_dative",
             StructuralOperationView::ChangeCovalent { .. } => "change_covalent",
+            StructuralOperationView::ChangeCovalentDelocalization { .. } => {
+                "change_covalent_delocalization"
+            }
             StructuralOperationView::AssociateIonic { .. } => "associate_ionic",
             StructuralOperationView::DissociateIonic { .. } => "dissociate_ionic",
             StructuralOperationView::ReleaseMetallic { .. } => "release_metallic",

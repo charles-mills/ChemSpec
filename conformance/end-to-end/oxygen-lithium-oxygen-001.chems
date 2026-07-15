@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction LithiumAndOxygen where
+  reactants
+    subject := 4 of LiMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 2 of LiMonovalentNormalOxide
+  equation
+    4 Li[metallic] + 1 O2[molecular]
+    -> 2 Li2O[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.MonovalentNormalOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

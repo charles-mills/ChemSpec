@@ -580,7 +580,7 @@ fn raw_matching_rejects_factorial_work_before_materializing_candidates() {
 }
 
 #[test]
-fn public_automorphism_comparison_reports_exhaustion_instead_of_false() {
+fn public_automorphism_comparison_uses_structural_signatures_to_prove_non_equivalence() {
     let mut value = with_g2(fixture());
     let groups = (1..=8)
         .flat_map(|atom| {
@@ -620,11 +620,11 @@ fn public_automorphism_comparison_reports_exhaustion_instead_of_false() {
         .iter()
         .find(|matched| matched.roles()["probe"].atoms()["hydrogen"].to_string() == "h2")
         .unwrap();
-    let error = catalogue
-        .pattern_matches_are_automorphism_related(h1, h2)
-        .unwrap_err();
-    assert_eq!(error.code(), CatalogueErrorCode::InvalidGraphPattern);
-    assert!(error.to_string().contains("work limit"));
+    assert!(
+        !catalogue
+            .pattern_matches_are_automorphism_related(h1, h2)
+            .unwrap()
+    );
 }
 
 #[test]

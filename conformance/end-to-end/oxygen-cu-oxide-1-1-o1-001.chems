@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CuAndOxygenToTransitionG11Hemioxide where
+  reactants
+    subject := 4 of CuTransitionG11HemioxideMetalForOxygen
+    oxygen := 1 of Oxygen
+  products
+    oxide := 2 of CuTransitionG11HemioxideOxide
+  equation
+    4 Cu[metallic] + 1 O2[molecular]
+    -> 2 Cu2O[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG11Hemioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

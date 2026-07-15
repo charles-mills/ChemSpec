@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction NaAndFluoride where
+  reactants
+    cation := 2 of NaFixedCation1Metal
+    anion := 1 of ElementalFluorine
+  products
+    salt := 2 of NaFixedCation1Fluoride
+  equation
+    2 Na[metallic] + 1 F2[molecular]
+    -> 2 NaF[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1Fluoride
+      cation := cation
+      anion := anion
+      salt := salt

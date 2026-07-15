@@ -10,7 +10,7 @@
       "reference": "https://openstax.org/details/books/chemistry-2e",
       "publication_date": "2019-02-14",
       "retrieved_on": "2026-07-13",
-      "usage": "Lithium valence, water and hydrogen bonding, balancing, and alkali-metal reaction outcome"
+      "usage": "Balancing and the representative alkali-metal reaction outcome and observations"
     },
     {
       "id": "evidence.iupac.goldbook",
@@ -19,7 +19,7 @@
       "locator": "ionic bond, metallic bond, formal charge, radical",
       "reference": "https://goldbook.iupac.org/",
       "retrieved_on": "2026-07-13",
-      "usage": "Structural terminology and electron-accounting review"
+      "usage": "Definitions of structural terminology; not evidence for ChemSpec's executable tuple domain"
     },
     {
       "id": "evidence.iupac.periodic-table",
@@ -30,15 +30,23 @@
       "publication_date": "2022-05-04",
       "retrieved_on": "2026-07-14",
       "usage": "Element symbols, names, atomic numbers, and conventional table placement; candidate group and block fields are covered by the host-selected AI review"
+    },
+    {
+      "id": "evidence.chemspec.explanatory-structural-model",
+      "title": "ChemSpec generalized structural chemistry model",
+      "publisher": "ChemSpec",
+      "locator": "Structural representations, closed valence domains, and explanatory rewrite semantics",
+      "reference": "docs/generalized-chemistry-rules.md",
+      "retrieved_on": "2026-07-15",
+      "usage": "Internal design authority for executable representations and intermediate states; these are AI-reviewed explanatory modeling assumptions, not empirical evidence or claims of physical mechanism"
     }
   ],
   "premises": [
     {
       "id": "premise.structure.alkali-metal",
-      "statement": "The representative alkali-metal fragment is an M+ site core with one domain-owned delocalized valence electron.",
+      "statement": "ChemSpec represents the alkali-metal fragment as an M+ site core with one domain-owned delocalized valence electron for explanatory execution.",
       "evidence": [
-        "evidence.iupac.goldbook",
-        "evidence.openstax.chemistry-2e"
+        "evidence.chemspec.explanatory-structural-model"
       ],
       "review": {
         "status": "provisional",
@@ -48,9 +56,9 @@
     },
     {
       "id": "premise.structure.water",
-      "statement": "Water is represented as neutral molecular H2O with two localized O-H single bonds.",
+      "statement": "ChemSpec represents water as neutral molecular H2O with two localized O-H single bonds.",
       "evidence": [
-        "evidence.openstax.chemistry-2e"
+        "evidence.chemspec.explanatory-structural-model"
       ],
       "review": {
         "status": "provisional",
@@ -60,10 +68,9 @@
     },
     {
       "id": "premise.structure.alkali-metal-hydroxide",
-      "statement": "Each supported alkali-metal hydroxide is an ionic association of M+ and covalently bonded OH- components.",
+      "statement": "ChemSpec represents each supported alkali-metal hydroxide as an ionic association of M+ and covalently bonded OH- components.",
       "evidence": [
-        "evidence.iupac.goldbook",
-        "evidence.openstax.chemistry-2e"
+        "evidence.chemspec.explanatory-structural-model"
       ],
       "review": {
         "status": "provisional",
@@ -73,9 +80,9 @@
     },
     {
       "id": "premise.structure.hydrogen",
-      "statement": "Hydrogen gas is represented as neutral molecular H2 with one localized H-H single bond.",
+      "statement": "ChemSpec represents hydrogen gas as neutral molecular H2 with one localized H-H single bond.",
       "evidence": [
-        "evidence.openstax.chemistry-2e"
+        "evidence.chemspec.explanatory-structural-model"
       ],
       "review": {
         "status": "provisional",
@@ -97,10 +104,9 @@
     },
     {
       "id": "premise.valence.alkali-h-o.initial-domain",
-      "statement": "The listed Li, Na, K, Ca, H, and O tuples are the closed migration and unsupported-probe valence domain.",
+      "statement": "The listed Li, Na, K, Ca, H, and O tuples are ChemSpec's closed explanatory execution domain for this family and its unsupported probe; they are not a claim of physical mechanism.",
       "evidence": [
-        "evidence.iupac.goldbook",
-        "evidence.openstax.chemistry-2e"
+        "evidence.chemspec.explanatory-structural-model"
       ],
       "review": {
         "status": "provisional",

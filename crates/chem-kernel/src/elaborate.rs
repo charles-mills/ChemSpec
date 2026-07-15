@@ -5,7 +5,7 @@ use std::{
 };
 
 use chem_catalogue::{
-    BinaryElectronStateRecord, BondOrderRecord, CleavageAllocationRecord,
+    BinaryElectronStateRecord, BondDelocalizationRecord, BondOrderRecord, CleavageAllocationRecord,
     ElaboratedGeneralizedRule, ElectronStateRecord, EventModel, GeneralizedElaborationFailureClass,
     GeneralizedRoleInput, MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord,
     ObservationPredicate, OperationTemplateRecord, ReactionRuleRecord, RepresentationRecord,
@@ -14,11 +14,12 @@ use chem_catalogue::{
 };
 use chem_domain::{
     AtomGroup, AtomGroupId, AtomId, AtomMapping, AtomMappingId, BondOrder, ClaimId, ContentDigest,
-    ElectronAllocation, ElectronState, ElectronTransition, ElementSymbol, IonicAssociation,
-    IonicAssociationId, MetallicDomainId, MetallicJoinAllocation, MetallicReleaseAllocation,
-    PremiseId, ReactionRuleId, ReactionSide, RepresentationKind, StructuralOperation,
-    StructuralOperationId, StructuralOperationInput, StructureDefinition, StructureId,
-    StructureInstance, StructureInstanceId,
+    CovalentDelocalization, CovalentDelocalizationId, EffectiveBondOrder, ElectronAllocation,
+    ElectronState, ElectronTransition, ElementSymbol, IonicAssociation, IonicAssociationId,
+    MetallicDomainId, MetallicJoinAllocation, MetallicReleaseAllocation, PremiseId, ReactionRuleId,
+    ReactionSide, RepresentationKind, StructuralOperation, StructuralOperationId,
+    StructuralOperationInput, StructureDefinition, StructureId, StructureInstance,
+    StructureInstanceId,
 };
 use chems_lang::{
     ByteSpan, SourceAst, SourceEquationTerm, SourceObservation, SourceReaction,
@@ -1161,6 +1162,24 @@ fn expand_operation_input(
 ) -> Result<(StructuralOperationInput, Vec<ExpandedIonicComponent>), ExpansionError> {
     let none = Vec::new();
     match template {
+        OperationTemplateRecord::ReconfigureElectrons {
+            atom,
+            before,
+            after,
+            ..
+        } => {
+            let atom = atom_ref(atom, bindings)?;
+            Ok((
+                StructuralOperationInput::ReconfigureElectrons {
+                    transition: ElectronTransition::new(
+                        atom,
+                        electron_state(*before)?,
+                        electron_state(*after)?,
+                    ),
+                },
+                none,
+            ))
+        }
         OperationTemplateRecord::CleaveCovalent {
             edge,
             allocation,
@@ -1256,6 +1275,24 @@ fn expand_operation_input(
                     new_order: bond_order(*new_order),
                     allocation: electron_allocation(allocation, bindings)?,
                     transitions: binary_transitions(&left, &right, before, after)?,
+                },
+                none,
+            ))
+        }
+        OperationTemplateRecord::ChangeCovalentDelocalization {
+            edge,
+            expected,
+            replacement,
+            ..
+        } => {
+            let left = atom_ref(&edge.0, bindings)?;
+            let right = atom_ref(&edge.1, bindings)?;
+            Ok((
+                StructuralOperationInput::ChangeCovalentDelocalization {
+                    left,
+                    right,
+                    expected: expected.as_ref().map(delocalization).transpose()?,
+                    replacement: replacement.as_ref().map(delocalization).transpose()?,
                 },
                 none,
             ))
@@ -1799,6 +1836,18 @@ fn bond_order(value: BondOrderRecord) -> BondOrder {
         BondOrderRecord::Double => BondOrder::Double,
         BondOrderRecord::Triple => BondOrder::Triple,
     }
+}
+
+fn delocalization(
+    value: &BondDelocalizationRecord,
+) -> Result<CovalentDelocalization, ExpansionError> {
+    let domain = CovalentDelocalizationId::from_str(&value.domain).map_err(system_id)?;
+    let effective_order = EffectiveBondOrder::new(
+        value.effective_order.numerator,
+        value.effective_order.denominator,
+    )
+    .map_err(system_structural)?;
+    Ok(CovalentDelocalization::new(domain, effective_order))
 }
 
 fn pattern_for_role<'a>(

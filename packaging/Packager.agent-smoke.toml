@@ -1,0 +1,9 @@
+name = "chemspec-agent-smoke"
+product-name = "ChemSpec Agent Smoke"
+identifier = "dev.charlesmills.chemspec.agent-smoke"
+version = "0.0.0"
+description = "Disposable local bundle for deterministic ChemSpec visual smoke tests"
+category = "Education"
+out-dir = "../target/agent-smoke"
+binaries-dir = "../target/agent-smoke-bin"
+binaries = [{ path = "chemspec-agent-smoke", main = true }]

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.SilverHalidePrecipitation@1",
+  "claims": [
+    {"id": "R1", "subject_role": "product", "subject": "silver chloride precipitate", "predicate": "forms", "sources": ["S1"]},
+    {"id": "R2", "subject_role": "product", "subject": "silver chloride precipitate", "predicate": "colour", "sources": ["S1"]},
+    {"id": "R3", "subject_role": "product", "subject": "silver bromide precipitate", "predicate": "forms", "sources": ["S1"]},
+    {"id": "R4", "subject_role": "product", "subject": "silver bromide precipitate", "predicate": "colour", "sources": ["S1"]},
+    {"id": "R5", "subject_role": "product", "subject": "silver iodide precipitate", "predicate": "forms", "sources": ["S1"]},
+    {"id": "R6", "subject_role": "product", "subject": "silver iodide precipitate", "predicate": "colour", "sources": ["S1"]}
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "The chemistry of silver",
+      "publisher": "Royal Society of Chemistry",
+      "url": "https://edu.rsc.org/experiments/the-chemistry-of-silver/516.article",
+      "supports": ["R1", "R2", "R3", "R4", "R5", "R6"]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AluminiumAndOxygen where
+  reactants
+    subject := 4 of AlMetalForOxygen
+    oxygen := 3 of Oxygen
+  products
+    oxide := 2 of AlTrivalentNormalOxide
+  equation
+    4 Al[metallic] + 3 O2[molecular]
+    -> 2 Al2O3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TrivalentNormalOxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

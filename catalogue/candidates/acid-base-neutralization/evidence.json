@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.AcidBaseNeutralization@1",
+  "claims": [
+    {"id": "R1", "subject_role": "reactant", "subject": "strong acid", "predicate": "disappears", "sources": ["S1"]},
+    {"id": "R2", "subject_role": "product", "subject": "water", "predicate": "forms", "sources": ["S1"]}
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "4.2 Classifying Chemical Reactions",
+      "publisher": "OpenStax Chemistry 2e",
+      "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+      "supports": ["R1", "R2"]
+    }
+  ]
+}

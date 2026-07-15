@@ -704,6 +704,9 @@ impl WorkingState {
     fn apply(&mut self, expanded: &ExpandedOperation) -> Result<(), KernelError> {
         let ordinal = expanded.ordinal;
         match expanded.operation.view() {
+            StructuralOperationView::ReconfigureElectrons { transition } => {
+                self.apply_transition(transition, ordinal)?;
+            }
             StructuralOperationView::CleaveCovalent {
                 left,
                 right,
@@ -839,6 +842,35 @@ impl WorkingState {
                         })?;
                 self.bonds.insert(old.id().clone(), changed);
             }
+            StructuralOperationView::ChangeCovalentDelocalization {
+                left,
+                right,
+                expected,
+                replacement,
+            } => {
+                let old = self.require_bond(left, right, ordinal)?.clone();
+                if !old.electron_origin().is_shared() || old.delocalization() != expected {
+                    return Err(precondition(
+                        ordinal,
+                        "shared covalent delocalisation precondition mismatch",
+                    ));
+                }
+                let changed = if let Some(replacement) = replacement {
+                    CovalentBond::new_delocalized(
+                        old.id().clone(),
+                        left.clone(),
+                        right.clone(),
+                        old.order(),
+                        replacement.clone(),
+                    )
+                } else {
+                    CovalentBond::new(old.id().clone(), left.clone(), right.clone(), old.order())
+                }
+                .map_err(|error| {
+                    KernelError::invalid("CHEMS-K021", error.to_string(), Some(ordinal))
+                })?;
+                self.bonds.insert(old.id().clone(), changed);
+            }
             StructuralOperationView::AssociateIonic { association } => {
                 if self.associations.contains_key(association.id()) {
                     return Err(precondition(ordinal, "ionic association already exists"));
@@ -915,14 +947,23 @@ impl WorkingState {
                 ..
             } => {
                 self.require_transition_before(transition, ordinal)?;
-                if matches!(allocation, MetallicReleaseAllocation::RetainElectron)
-                    && transition.before().unpaired_electrons().checked_add(1)
-                        != Some(transition.after().unpaired_electrons())
-                {
-                    return Err(precondition(
-                        ordinal,
-                        "retained metallic electron is not locally unpaired",
-                    ));
+                if matches!(allocation, MetallicReleaseAllocation::RetainElectron) {
+                    let released = domain_electrons_before
+                        .checked_sub(domain_electrons_after)
+                        .and_then(|value| u8::try_from(value).ok());
+                    if released.is_none_or(|released| {
+                        released == 0
+                            || transition
+                                .before()
+                                .unpaired_electrons()
+                                .checked_add(released)
+                                != Some(transition.after().unpaired_electrons())
+                    }) {
+                        return Err(precondition(
+                            ordinal,
+                            "retained metallic electrons are not locally unpaired",
+                        ));
+                    }
                 }
                 let current = self.domains.get(domain).ok_or_else(|| {
                     precondition(
@@ -964,18 +1005,24 @@ impl WorkingState {
                 ..
             } => {
                 self.require_transition_before(transition, ordinal)?;
-                if transition.before().unpaired_electrons() == 0 {
+                let joined = domain_electrons_after
+                    .checked_sub(domain_electrons_before)
+                    .and_then(|value| u8::try_from(value).ok());
+                if joined.is_none_or(|joined| joined == 0) {
                     return Err(precondition(
                         ordinal,
-                        "joining site has no unpaired electron",
+                        "metallic join has no donated electrons",
                     ));
                 }
-                if transition.before().unpaired_electrons().checked_sub(1)
+                if transition
+                    .before()
+                    .unpaired_electrons()
+                    .checked_sub(joined.expect("checked above"))
                     != Some(transition.after().unpaired_electrons())
                 {
                     return Err(precondition(
                         ordinal,
-                        "metallic donation does not consume one unpaired electron",
+                        "metallic donation does not consume its unpaired electrons",
                     ));
                 }
                 let mut sites = BTreeSet::new();

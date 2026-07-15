@@ -14,16 +14,17 @@ pub use formula::{
 pub use identity::{
     AssumptionKindId, AssumptionKindKind, AssumptionPremiseId, AssumptionPremiseKind, AtomGroupId,
     AtomGroupKind, AtomId, AtomKind, AtomMappingId, AtomMappingKind, ClaimId, ClaimKind,
-    ContentDigest, CovalentBondId, CovalentBondKind, CoverageId, CoverageKind, DeclaredId,
-    DerivationNodeId, DerivationNodeKind, DigestId, EvidencePacketId, EvidencePacketKind,
-    EvidenceSourceId, EvidenceSourceKind, ExperimentId, ExperimentKind, FactId, FactKind, GoalId,
-    GoalKind, HoleId, HoleKind, IdError, IdKind, InventoryPortionId, InventoryPortionKind,
-    IonicAssociationId, IonicAssociationKind, MaterialId, MaterialKind, MediumId, MediumKind,
-    MetallicDomainId, MetallicDomainKind, OperationId, OperationKind, PremiseId, PremiseKind,
-    ReactionEventId, ReactionEventKind, ReactionOpportunityId, ReactionOpportunityKind,
-    ReactionRuleId, ReactionRuleKind, SpeciesId, SpeciesKind, StageId, StageKind,
-    StructuralOperationId, StructuralOperationIdKind, StructureId, StructureInstanceId,
-    StructureInstanceKind, StructureKind, SubstanceId, SubstanceKind, VesselId, VesselKind,
+    ContentDigest, CovalentBondId, CovalentBondKind, CovalentDelocalizationId,
+    CovalentDelocalizationKind, CoverageId, CoverageKind, DeclaredId, DerivationNodeId,
+    DerivationNodeKind, DigestId, EvidencePacketId, EvidencePacketKind, EvidenceSourceId,
+    EvidenceSourceKind, ExperimentId, ExperimentKind, FactId, FactKind, GoalId, GoalKind, HoleId,
+    HoleKind, IdError, IdKind, InventoryPortionId, InventoryPortionKind, IonicAssociationId,
+    IonicAssociationKind, MaterialId, MaterialKind, MediumId, MediumKind, MetallicDomainId,
+    MetallicDomainKind, OperationId, OperationKind, PremiseId, PremiseKind, ReactionEventId,
+    ReactionEventKind, ReactionOpportunityId, ReactionOpportunityKind, ReactionRuleId,
+    ReactionRuleKind, SpeciesId, SpeciesKind, StageId, StageKind, StructuralOperationId,
+    StructuralOperationIdKind, StructureId, StructureInstanceId, StructureInstanceKind,
+    StructureKind, SubstanceId, SubstanceKind, VesselId, VesselKind,
 };
 pub use material::{
     AnalyticalComponent, DerivedInput, DerivedQuantity, DerivedQuantityRule, Material,
@@ -37,12 +38,12 @@ pub use state::{
     SeparatedProduct, SourceRange, Stage, StageEnvironment, StageTimeline, VesselState,
 };
 pub use structural::{
-    Atom, AtomGroup, AtomMapping, BondOrder, CovalentBond, CovalentElectronOrigin,
-    ElectronAllocation, ElectronState, ElectronTransition, ElementInventory, IonicAssociation,
-    MetallicDomain, MetallicJoinAllocation, MetallicReleaseAllocation, ReactionSide,
-    RepresentationKind, StructuralError, StructuralGraph, StructuralOperation,
-    StructuralOperationInput, StructuralOperationView, StructureDefinition, StructureInstance,
-    canonical_structural_json, structural_digest,
+    Atom, AtomGroup, AtomMapping, BondOrder, CovalentBond, CovalentDelocalization,
+    CovalentElectronOrigin, EffectiveBondOrder, ElectronAllocation, ElectronState,
+    ElectronTransition, ElementInventory, IonicAssociation, MetallicDomain, MetallicJoinAllocation,
+    MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError, StructuralGraph,
+    StructuralOperation, StructuralOperationInput, StructuralOperationView, StructureDefinition,
+    StructureInstance, canonical_structural_json, structural_digest,
 };
 pub use unit::{
     Dimension, DimensionError, Quantity, QuantityConversion, QuantityError, ResolvedUnit,

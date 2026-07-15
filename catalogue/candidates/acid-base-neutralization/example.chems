@@ -1,0 +1,24 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction HydrochloricAcidAndSodiumHydroxide where
+  reactants
+    hydrochloricAcid := 1 of HydrogenChloride
+    sodiumHydroxide := 1 of SodiumHydroxide
+  products
+    sodiumChloride := 1 of SodiumChloride
+    water := 1 of Water
+  equation
+    HCl[molecular] + NaOH[ionic]
+    -> NaCl[ionic] + H2O[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.AcidBaseNeutralization@1
+    reactant hydrochloricAcid disappears claim R1
+    product water forms claim R2
+  by
+    apply Rules.MonoproticAcidHydroxideNeutralization
+      acid := hydrochloricAcid
+      base := sodiumHydroxide
+      saltProduct := sodiumChloride
+      waterProduct := water

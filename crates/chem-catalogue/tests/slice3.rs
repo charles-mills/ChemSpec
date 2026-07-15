@@ -18,10 +18,8 @@ fn fixture_bytes() -> Vec<u8> {
 }
 
 fn trusted_catalogue_bytes() -> Vec<u8> {
-    fs::read(
-        workspace_root().join("catalogue/trusted/periodic-table-and-alkali-water/catalogue.json"),
-    )
-    .expect("trusted generalized catalogue should be readable")
+    fs::read(workspace_root().join("catalogue/trusted/core-chemistry/catalogue.json"))
+        .expect("trusted generalized catalogue should be readable")
 }
 
 fn envelope() -> CatalogueEnvelope {
@@ -123,9 +121,7 @@ fn canonical_fixture_matches_schema_digest_and_closed_domain() {
 #[test]
 fn canonical_ai_attestation_is_digest_bound() {
     let root = workspace_root();
-    let review_bytes =
-        fs::read(root.join("catalogue/trusted/periodic-table-and-alkali-water/review.json"))
-            .unwrap();
+    let review_bytes = fs::read(root.join("catalogue/trusted/core-chemistry/review.json")).unwrap();
     let attestation: CatalogueReviewAttestation = serde_json::from_slice(&review_bytes).unwrap();
     assert_eq!(attestation.reviewer, "OpenAI Codex (AI)");
     assert_eq!(
@@ -135,7 +131,7 @@ fn canonical_ai_attestation_is_digest_bound() {
     let trusted = TrustedCatalogue::from_canonical_json(&trusted_catalogue_bytes(), &review_bytes)
         .expect("the exact host-selected AI attestation should promote the canonical catalogue");
     assert_eq!(trusted.document().elements.len(), 118);
-    assert_eq!(trusted.document().generalized_rules.len(), 1);
+    assert_eq!(trusted.document().generalized_rules.len(), 68);
 }
 
 #[test]

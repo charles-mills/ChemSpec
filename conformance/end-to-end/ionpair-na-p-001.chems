@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction NaAndPhosphide where
+  reactants
+    cation := 12 of NaFixedCation1Metal
+    anion := 1 of ElementalPhosphorus
+  products
+    salt := 4 of NaFixedCation1Phosphide
+  equation
+    12 Na[metallic] + 1 P4[molecular]
+    -> 4 Na3P[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1Phosphide
+      cation := cation
+      anion := anion
+      salt := salt

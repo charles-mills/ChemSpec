@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction FeAndOxygenToTransitionG8Sesquioxide where
+  reactants
+    subject := 4 of FeTransitionG8SesquioxideMetalForOxygen
+    oxygen := 3 of Oxygen
+  products
+    oxide := 2 of FeTransitionG8SesquioxideOxide
+  equation
+    4 Fe[metallic] + 3 O2[molecular]
+    -> 2 Fe2O3[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.OxygenReaction@1
+    product oxide forms claim R1
+    reactant subject disappears claim R2
+  by
+    apply Rules.TransitionG8Sesquioxide
+      subject := subject
+      oxygen := oxygen
+      oxide := oxide

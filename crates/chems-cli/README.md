@@ -12,8 +12,12 @@ cargo run -p chems-cli -- inspect expanded reaction.chems \
 cargo run -p chems-cli -- catalogue check --out review-output \
   catalogue/candidates/periodic-table-and-alkali-water
 cargo run -p chems-cli -- catalogue promote --out trusted-output \
-  --attestation catalogue/reviews/periodic-table-and-alkali-water.review.json \
-  catalogue/candidates/periodic-table-and-alkali-water
+  --attestation catalogue/reviews/core-chemistry.review.json \
+  catalogue/candidates/periodic-table-and-alkali-water \
+  catalogue/candidates/precipitation-silver-halide \
+  catalogue/candidates/acid-base-neutralization \
+  catalogue/candidates/acid-carbonate-gas-evolution \
+  catalogue/candidates/single-displacement-halogen
 ```
 
 Expanded inspection defaults to the human-readable unexecuted certificate.

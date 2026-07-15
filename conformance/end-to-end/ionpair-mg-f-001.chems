@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction MgAndFluoride where
+  reactants
+    cation := 1 of MgFixedCation2Metal
+    anion := 1 of ElementalFluorine
+  products
+    salt := 1 of MgFixedCation2Fluoride
+  equation
+    1 Mg[metallic] + 1 F2[molecular]
+    -> 1 MgF2[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation2Fluoride
+      cation := cation
+      anion := anion
+      salt := salt

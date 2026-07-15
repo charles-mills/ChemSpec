@@ -1213,6 +1213,8 @@ fn appearance_color(profile: AppearanceProfile) -> [f32; 4] {
         AppearanceProfile::ClearGlass => [0.46, 0.70, 0.82, 0.09],
         AppearanceProfile::Water | AppearanceProfile::AqueousColourless => [0.36, 0.62, 0.74, 0.28],
         AppearanceProfile::WhitePrecipitate => [0.94, 0.96, 1.0, 0.92],
+        AppearanceProfile::CreamPrecipitate => [0.94, 0.88, 0.68, 0.92],
+        AppearanceProfile::YellowPrecipitate => [0.94, 0.82, 0.28, 0.92],
         AppearanceProfile::AlkaliMetal => [0.72, 0.76, 0.78, 1.0],
         AppearanceProfile::MetalSilver => [0.72, 0.80, 0.88, 1.0],
     }
@@ -1503,21 +1505,15 @@ mod tests {
 
     use crate::chemistry;
 
+    fn plan_for(request: chemistry::ReactionRequest) -> ScenePlan {
+        let run = chemistry::run(request).expect("request validates");
+        let profile = chemistry::presentation_profile(request, run.frames())
+            .expect("trusted observations select a presentation profile");
+        compile_real_world_plan(run.frames(), &profile).expect("plan compiles from trusted frames")
+    }
+
     fn canonical_plan() -> ScenePlan {
-        let run = chemistry::run(chemistry::Experience::DEFAULT).expect("canonical run validates");
-        let last = u16::try_from(
-            run.frames()
-                .frames()
-                .last()
-                .expect("frames exist")
-                .ordinal(),
-        )
-        .expect("ordinal fits presentation range");
-        compile_real_world_plan(
-            run.frames(),
-            &chemistry::presentation_profile(chemistry::Experience::DEFAULT, last),
-        )
-        .expect("plan compiles from trusted frames")
+        plan_for(chemistry::ReactionRequest::DEFAULT)
     }
 
     #[test]
@@ -1589,7 +1585,13 @@ mod tests {
     fn lithium_scene_adds_visible_surface_and_reaction_effect_geometry() {
         let plan = canonical_plan();
         let before = build_scene(&plan, 0, 0.5);
-        let reacting = build_scene(&plan, 6, 0.5);
+        let reacting_ordinal = plan
+            .effects
+            .iter()
+            .map(|effect| effect.start_ordinal)
+            .min()
+            .expect("alkali-water profile has observation-backed effects");
+        let reacting = build_scene(&plan, reacting_ordinal, 0.5);
         assert!(reacting.0.len() > before.0.len());
         assert!(plan.effects.iter().any(|effect| {
             effect.effect == EffectProfile::SurfaceDisturbance
@@ -1598,6 +1600,87 @@ mod tests {
         let moment = plan.timeline.locate(0).expect("timeline begins");
         let (_, pitch, _) = camera_pose(&plan, moment);
         assert!(pitch < -0.5);
+    }
+
+    #[test]
+    fn bromide_and_iodide_precipitates_render_only_at_their_trusted_colours() {
+        for (halogen, appearance) in [
+            (
+                chemistry::Halogen::Bromine,
+                AppearanceProfile::CreamPrecipitate,
+            ),
+            (
+                chemistry::Halogen::Iodine,
+                AppearanceProfile::YellowPrecipitate,
+            ),
+        ] {
+            let plan = plan_for(chemistry::ReactionRequest::silver_halide_precipitation(
+                halogen,
+            ));
+            let product = plan
+                .objects
+                .iter()
+                .find(|object| object.role == SceneRole::Product)
+                .expect("precipitate product exists");
+            let expected = appearance_color(appearance);
+            let before = build_scene(&plan, product.visible_from_ordinal.saturating_sub(1), 0.5);
+            let visible = build_scene(&plan, product.visible_from_ordinal, 0.5);
+
+            let has_expected_colour = |vertex: &Vertex| {
+                vertex
+                    .color
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
+            };
+            assert!(!before.0.iter().any(has_expected_colour));
+            assert!(visible.0.iter().any(has_expected_colour));
+        }
+    }
+
+    #[test]
+    fn effect_free_families_render_one_liquid_volume() {
+        for (request, expected_liquids) in [
+            (
+                chemistry::ReactionRequest::acid_base_neutralization(
+                    chemistry::AlkaliMetal::Sodium,
+                    chemistry::Halogen::Chlorine,
+                ),
+                1,
+            ),
+            (
+                chemistry::ReactionRequest::ALL
+                    .iter()
+                    .copied()
+                    .find(|request| {
+                        request.family() == chemistry::ReactionFamily::HalogenDisplacement
+                    })
+                    .expect("a supported halogen displacement exists"),
+                0,
+            ),
+        ] {
+            let plan = plan_for(request);
+            assert_eq!(
+                plan.objects
+                    .iter()
+                    .filter(|object| object.asset == AssetProfile::LiquidVolume)
+                    .count(),
+                expected_liquids
+            );
+            assert!(plan.effects.is_empty());
+            let start = build_scene(&plan, 0, 0.5);
+            let end = build_scene(
+                &plan,
+                plan.timeline
+                    .beats
+                    .last()
+                    .expect("timeline has a final beat")
+                    .end_ordinal,
+                0.5,
+            );
+            assert_eq!(start.0.len(), end.0.len());
+            assert_eq!(start.1.len(), end.1.len());
+        }
     }
 
     #[test]

@@ -1,0 +1,23 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction ChlorineAndSodiumBromide where
+  reactants
+    chlorine := 1 of Chlorine
+    sodiumBromide := 2 of SodiumBromide
+  products
+    sodiumChloride := 2 of SodiumChloride
+    bromine := 1 of Bromine
+  equation
+    Cl2[molecular] + 2 NaBr[ionic]
+    -> 2 NaCl[ionic] + Br2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.HalogenDisplacement@1
+    product bromine forms claim R1
+  by
+    apply Rules.HalogenDisplacement
+      displacingHalogen := chlorine
+      saltSource := sodiumBromide
+      newSalt := sodiumChloride
+      displacedHalogen := bromine

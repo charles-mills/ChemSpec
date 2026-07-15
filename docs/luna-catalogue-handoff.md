@@ -55,7 +55,7 @@ self-review, self-attestation, production publication, trust-root edit, or
 generated artifact edit.
 
 Focused verification commands
-cargo run -p chems-cli -- catalogue check --out <new-empty-output-directory> \
+cargo run -p chems-cli -- catalogue check --out <output-path-that-does-not-exist> \
   <all-assigned-candidate-package-directories>
 cargo test -p chems-cli --test authoring
 

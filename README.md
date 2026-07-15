@@ -116,12 +116,13 @@ Responses API access with an API key.
 ## Language status
 
 The structural `.chems 1` implementation is complete through the fixed seven
-slices. The bundled 118-element identity catalogue and generalized
-alkali-metal-with-water family are promoted through an exact host-pinned AI
-review attestation. Runnable family members are Li, Na, and K; the other 115
-element records do not imply reaction support. The attestation names its AI
-reviewer and limitations; it is an explicit product trust decision, not human
-expert certification.
+slices. The bundled 118-element identity catalogue and generalized reaction
+families are promoted together through an exact host-pinned AI review
+attestation. The aggregate contains 185 supported experiences: 36 established
+finite bindings, 68 oxygen outcomes, and 81 fixed-charge binary ion pairs. The
+remaining element records do not imply reaction support. The attestation names
+its AI reviewer and limitations; it is an explicit product trust decision, not
+human expert certification.
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
@@ -130,11 +131,13 @@ but it cannot promote its own output; chemistry review and host trust-root
 updates remain deliberate source-controlled host actions. Runtime agents and
 candidate packages still cannot promote themselves.
 
-The Iced application now selects Li, Na, or K with water and consumes the
-corresponding `.chems 1` source through the real catalogue, generalized
-expansion, kernel-validation, and `SimulationFrames` APIs. Its
-local periodic-table and composition models are draft presentation only; they
-do not choose products or construct bonds for simulation.
+The Iced application's typed request boundary can deterministically author and
+validate `.chems 1` source for all 185 supported experiences through the real
+catalogue, generalized expansion, kernel validation, and `SimulationFrames`
+APIs. The reactant composer exposes the complete set, asks the learner to pick
+when a pair has several reviewed products, and keeps oxygen screening distinct
+from executable frames. Draft previews are projected only from unambiguous
+structures in the same host-pinned catalogue; they do not confer trust.
 
 ## Development commands
 
@@ -142,15 +145,50 @@ do not choose products or construct bonds for simulation.
 cargo run -p chems-conformance -- validate
 cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansion-001.chems
 cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
-  catalogue/candidates/periodic-table-and-alkali-water
+  catalogue/candidates/periodic-table-and-alkali-water \
+  catalogue/candidates/precipitation-silver-halide \
+  catalogue/candidates/acid-base-neutralization \
+  catalogue/candidates/acid-carbonate-gas-evolution \
+  catalogue/candidates/single-displacement-halogen \
+  catalogue/candidates/oxygen-reactions
 cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
-  --attestation catalogue/reviews/periodic-table-and-alkali-water.review.json \
-  catalogue/candidates/periodic-table-and-alkali-water
+  --attestation catalogue/reviews/core-chemistry.review.json \
+  catalogue/candidates/periodic-table-and-alkali-water \
+  catalogue/candidates/precipitation-silver-halide \
+  catalogue/candidates/acid-base-neutralization \
+  catalogue/candidates/acid-carbonate-gas-evolution \
+  catalogue/candidates/single-displacement-halogen \
+  catalogue/candidates/oxygen-reactions
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo run -p chemspec-app
 ```
+
+### macOS visual smoke tests
+
+Computer Use must target a fresh, uniquely identified app bundle instead of a
+raw `cargo run` process or the release-named `ChemSpec.app`. Install the same
+packager version used by the release workflow, then launch the desired view:
+
+```sh
+cargo install cargo-packager --version 0.11.8 --locked
+just agent-smoke 2d
+just agent-smoke 3d
+just agent-smoke stop
+```
+
+The launch command rebuilds the application, recreates
+`target/agent-smoke/ChemSpec Agent Smoke.app`, verifies that its executable is
+byte-identical to the fresh debug binary, and launches that exact path as a new
+instance. Agents must use `ChemSpec Agent Smoke` as the Computer Use app name
+and verify the mode-specific window title before judging the rendered UI:
+
+- `ChemSpec Agent Smoke — Structural 2D`
+- `ChemSpec Agent Smoke — Structural 3D`
+
+Do not target `ChemSpec` for an automated visual smoke; Computer Use may resolve
+that name to an older registered development or release bundle.
 
 ## Releases
 

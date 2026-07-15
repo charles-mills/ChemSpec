@@ -277,6 +277,11 @@ fn operation_oracle(operation: &ExpandedOperation) -> Value {
     let after = format!("state[{}]", operation.ordinal);
     let id = operation.operation.id();
     match operation.operation.view() {
+        StructuralOperationView::ReconfigureElectrons { transition } => json!({
+            "id": id, "kind": "reconfigure_electrons", "before_state": before,
+            "after_state": after, "atom": transition.atom(),
+            "endpoint_after": electron_tuple(transition.after())
+        }),
         StructuralOperationView::CleaveCovalent {
             left,
             right,
@@ -347,6 +352,16 @@ fn operation_oracle(operation: &ExpandedOperation) -> Value {
                 "left": electron_tuple(transitions[left].after()),
                 "right": electron_tuple(transitions[right].after())
             }
+        }),
+        StructuralOperationView::ChangeCovalentDelocalization {
+            left,
+            right,
+            expected,
+            replacement,
+        } => json!({
+            "id": id, "kind": "change_covalent_delocalization",
+            "before_state": before, "after_state": after,
+            "edge": [left, right], "expected": expected, "replacement": replacement
         }),
         StructuralOperationView::AssociateIonic { .. } => {
             let components = &operation.ionic_components;
@@ -706,6 +721,11 @@ fn expanded_operation(ordinal: u32, input: StructuralOperationInput) -> Expanded
 #[allow(clippy::too_many_lines)]
 fn reidentify(template: &ExpandedOperation, ordinal: u32) -> ExpandedOperation {
     let input = match template.operation.view() {
+        StructuralOperationView::ReconfigureElectrons { transition } => {
+            StructuralOperationInput::ReconfigureElectrons {
+                transition: transition.clone(),
+            }
+        }
         StructuralOperationView::CleaveCovalent {
             left,
             right,
@@ -764,6 +784,17 @@ fn reidentify(template: &ExpandedOperation, ordinal: u32) -> ExpandedOperation {
             new_order,
             allocation: allocation.clone(),
             transitions: transitions.values().cloned().collect(),
+        },
+        StructuralOperationView::ChangeCovalentDelocalization {
+            left,
+            right,
+            expected,
+            replacement,
+        } => StructuralOperationInput::ChangeCovalentDelocalization {
+            left: left.clone(),
+            right: right.clone(),
+            expected: expected.cloned(),
+            replacement: replacement.cloned(),
         },
         StructuralOperationView::AssociateIonic { association } => {
             StructuralOperationInput::AssociateIonic {

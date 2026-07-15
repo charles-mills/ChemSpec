@@ -105,6 +105,14 @@ expanded-certificate inspection, diagnostics, derivations, paired playback,
 guided 2D and macroscopic 3D views, and overview. Only the application depends
 on Iced and GPU presentation.
 
+### Oxygen screening boundary
+
+Oxygen screening is a closed-world catalogue layer. It maps all 118 registered
+elements to representative, no-direct-reaction, ambiguous, or unsupported
+outcomes and admits only compounds already present in the structural
+catalogue. A screening result cannot construct frames or bypass the reviewed
+structural-rule and kernel boundary.
+
 ## Shared contracts
 
 ### `ResolvedReactionClaim`

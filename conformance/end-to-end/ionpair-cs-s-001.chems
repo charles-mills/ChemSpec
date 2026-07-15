@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction CsAndSulfide where
+  reactants
+    cation := 16 of CsFixedCation1Metal
+    anion := 1 of ElementalSulfur
+  products
+    salt := 8 of CsFixedCation1Sulfide
+  equation
+    16 Cs[metallic] + 1 S8[molecular]
+    -> 8 Cs2S[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation1Sulfide
+      cation := cation
+      anion := anion
+      salt := salt

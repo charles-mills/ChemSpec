@@ -94,26 +94,56 @@ invalid, unsupported, system-error, and stale states are non-animatable.
 
 ## Implemented vertical slice
 
-The promoted catalogue lives at
-`catalogue/trusted/periodic-table-and-alkali-water/`. One generalized
-`Rules.AlkaliMetalWithWater` family supports the lithium, sodium, and potassium
-experiences. The three `.chems` sources live under `conformance/end-to-end/` and
-their observation evidence packets live under `conformance/observations/`.
+The promoted catalogue lives at `catalogue/trusted/core-chemistry/`. It
+contains the generalized alkali-water, silver-halide precipitation,
+neutralization, carbonate/bicarbonate gas-evolution, and halogen-displacement
+families plus the promoted oxygen and fixed-charge ion-pair families. The
+application has a typed request and deterministic source-authoring path for all
+185 supported experiences. The reactant composer recognises and routes every
+experience in either reactant order, requiring an explicit learner choice when
+one pair has multiple reviewed products.
+Recognised but deliberately unsupported pairs explain the missing model;
+recognised uncatalogued pairs and unrecognised drafts remain distinct states.
 
 The kernel verifies exact structural transitions, electron bookkeeping,
 represented-electron and charge conservation, bond changes, stable atoms,
-observation activation, and complete product assignment. The host then selects
-the same reusable presentation machinery for all three trusted outcomes.
+observation activation, and complete product assignment. Every trusted binding
+opens the structural 2D explanation and a family-selected macroscopic scene.
+The macroscopic profiles cover alkali-water, silver-halide precipitation,
+acid-base neutralization, carbonate/bicarbonate gas evolution, and aqueous
+halogen displacement. Effects remain gated by observations in the trusted
+frames and cannot begin before the matching observation becomes active.
+Value-bearing visuals such as precipitate colour are selected from and bound
+to the exact trusted value. A family with no supported visible effect is
+presented without inventing one.
 
 Future operation or presentation variants must be added vertically: catalogue
 schema, trusted transition validation, frames, planner primitives, renderers,
 conformance, and disclosures must remain aligned.
 
-For direct live smokes:
+For direct live smokes on macOS:
+
+```sh
+just agent-smoke 2d
+just agent-smoke 3d
+just agent-smoke 3d silver-halide-precipitation-bromide
+just agent-smoke stop
+```
+
+These commands recreate and byte-check the uniquely identified
+`ChemSpec Agent Smoke.app` bundle before launching it. Computer Use must target
+`ChemSpec Agent Smoke` and verify the mode-specific `Structural 2D` or
+`Structural 3D` window title. It must not target a release-named `ChemSpec`
+bundle. The optional second argument is an exact supported reaction ID; an
+unknown ID fails a non-GUI validation handshake before the bundle is opened,
+instead of silently opening the default reaction.
+
+On other platforms, the direct binary flags remain available:
 
 ```sh
 cargo run -p chemspec-app -- --structural-2d-smoke
-cargo run -p chemspec-app -- --structural-3d-smoke
+cargo run -p chemspec-app -- --structural-3d-smoke \
+  --smoke-reaction=acid-carbonate-sodium-chloride
 ```
 
 These launch options still cross the complete bundled source, trusted

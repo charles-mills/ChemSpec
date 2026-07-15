@@ -5,9 +5,9 @@ use std::{
 
 use chem_catalogue::{EventModel, ObservationPredicate, SequenceModel};
 use chem_domain::{
-    AtomGroupId, AtomId, BondOrder, ContentDigest, CovalentBondId, CovalentElectronOrigin,
-    ElectronState, ElementSymbol, IonicAssociationId, MetallicDomainId, StructuralOperation,
-    StructuralOperationView, StructureInstanceId, canonical_json,
+    AtomGroupId, AtomId, BondOrder, ContentDigest, CovalentBondId, CovalentDelocalization,
+    CovalentElectronOrigin, ElectronState, ElementSymbol, IonicAssociationId, MetallicDomainId,
+    StructuralOperation, StructuralOperationView, StructureInstanceId, canonical_json,
 };
 use serde::Serialize;
 
@@ -132,6 +132,8 @@ pub struct FrameCovalentEdge {
     pub order: BondOrder,
     #[serde(flatten, skip_serializing_if = "CovalentElectronOrigin::is_shared")]
     pub electron_origin: CovalentElectronOrigin,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delocalization: Option<CovalentDelocalization>,
 }
 
 /// Exact named atom membership retained for ionic and educational grouping.
@@ -182,6 +184,10 @@ pub enum FrameChange {
         before_electron_origin: Option<CovalentElectronOrigin>,
         #[serde(skip_serializing_if = "Option::is_none")]
         after_electron_origin: Option<CovalentElectronOrigin>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        before_delocalization: Option<CovalentDelocalization>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        after_delocalization: Option<CovalentDelocalization>,
     },
     Group {
         group: AtomGroupId,
@@ -597,6 +603,7 @@ fn frame_bonds(state: &StructuralState) -> BTreeMap<CovalentBondId, FrameCovalen
                     right: bond.right().clone(),
                     order: bond.order(),
                     electron_origin: bond.electron_origin().clone(),
+                    delocalization: bond.delocalization().cloned(),
                 },
             )
         })
@@ -677,7 +684,11 @@ fn frame_metallic(state: &StructuralState) -> BTreeMap<MetallicDomainId, FrameMe
 
 type EdgeKey = (AtomId, AtomId);
 
-type EdgeSemantics = (BondOrder, Option<CovalentElectronOrigin>);
+type EdgeSemantics = (
+    BondOrder,
+    Option<CovalentElectronOrigin>,
+    Option<CovalentDelocalization>,
+);
 
 fn edge_semantics(state: &StructuralState) -> BTreeMap<EdgeKey, EdgeSemantics> {
     state
@@ -691,7 +702,7 @@ fn edge_semantics(state: &StructuralState) -> BTreeMap<EdgeKey, EdgeSemantics> {
             };
             (
                 (bond.left().clone(), bond.right().clone()),
-                (bond.order(), origin),
+                (bond.order(), origin, bond.delocalization().cloned()),
             )
         })
         .collect()
@@ -727,8 +738,10 @@ fn frame_changes(previous: &StructuralState, current: &StructuralState) -> Vec<F
                 right: edge.1,
                 before: before.as_ref().map(|value| value.0),
                 after: after.as_ref().map(|value| value.0),
-                before_electron_origin: before.and_then(|value| value.1),
-                after_electron_origin: after.and_then(|value| value.1),
+                before_electron_origin: before.as_ref().and_then(|value| value.1.clone()),
+                after_electron_origin: after.as_ref().and_then(|value| value.1.clone()),
+                before_delocalization: before.and_then(|value| value.2),
+                after_delocalization: after.and_then(|value| value.2),
             });
         }
     }
@@ -1033,7 +1046,7 @@ mod tests {
             .map(|edge| {
                 let mut pair = [edge.left.to_string(), edge.right.to_string()];
                 pair.sort();
-                serde_json::json!([pair[0], pair[1], edge.order])
+                serde_json::json!([pair[0], pair[1], edge.order, edge.delocalization])
             })
             .collect::<Vec<_>>();
         covalent_edges.sort_by_key(serde_json::Value::to_string);
@@ -1077,7 +1090,8 @@ mod tests {
         let mut covalent_edges = state["covalent_edges"].as_array().unwrap().clone();
         for edge in &mut covalent_edges {
             let pair = normalized_pair(&edge[0], &edge[1]);
-            *edge = serde_json::json!([pair[0], pair[1], edge[2]]);
+            let delocalization = edge.get(3).cloned().unwrap_or(serde_json::Value::Null);
+            *edge = serde_json::json!([pair[0], pair[1], edge[2], delocalization]);
         }
         covalent_edges.sort_by_key(serde_json::Value::to_string);
         let mut ionic_associations = state["ionic_associations"].as_array().unwrap().clone();
@@ -1468,6 +1482,7 @@ mod tests {
                 assert_eq!(edge.left, *bond.left());
                 assert_eq!(edge.right, *bond.right());
                 assert_eq!(edge.order, bond.order());
+                assert_eq!(edge.delocalization.as_ref(), bond.delocalization());
             }
             assert_eq!(state.graph().groups().len(), frame.groups.len());
             for (id, group) in state.graph().groups() {
@@ -1744,9 +1759,9 @@ mod tests {
                 }
             }
             let mut covalent_edges = vec![
-                serde_json::json!(["water[1].h1", "water[2].h1", "single"]),
-                serde_json::json!(["water[1].h2", "water[1].o", "single"]),
-                serde_json::json!(["water[2].h2", "water[2].o", "single"]),
+                serde_json::json!(["water[1].h1", "water[2].h1", "single", null]),
+                serde_json::json!(["water[1].h2", "water[1].o", "single", null]),
+                serde_json::json!(["water[2].h2", "water[2].o", "single", null]),
             ];
             covalent_edges.sort_by_key(serde_json::Value::to_string);
             let mut ionic_associations = vec![

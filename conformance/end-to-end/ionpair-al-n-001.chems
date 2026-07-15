@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AlAndNitride where
+  reactants
+    cation := 2 of AlFixedCation3Metal
+    anion := 1 of ElementalNitrogen
+  products
+    salt := 2 of AlFixedCation3Nitride
+  equation
+    2 Al[metallic] + 1 N2[molecular]
+    -> 2 AlN[ionic]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.IonPairReaction@1
+    product salt forms claim R1
+    reactant cation disappears claim R2
+  by
+    apply Rules.FixedCation3Nitride
+      cation := cation
+      anion := anion
+      salt := salt
