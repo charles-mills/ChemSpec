@@ -6,53 +6,62 @@
       "id": "evidence.openstax.chemistry-2e.solubility",
       "title": "Chemistry 2e",
       "publisher": "OpenStax",
-      "locator": "Precipitation Reactions; Solubility Rules; Lewis Structures and Formal Charges",
-      "reference": "https://openstax.org/details/books/chemistry-2e",
+      "locator": "Section 4.2 Precipitation Reactions and Solubility Rules",
+      "reference": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
       "publication_date": "2019-02-14",
       "retrieved_on": "2026-07-15",
-      "usage": "Solubility-rules coverage for silver halide precipitation and the canonical nitrate Lewis structure"
+      "usage": "Aqueous silver-halide precipitation and the soluble silver-fluoride exception"
+    },
+    {
+      "id": "evidence.rsc.silver-halide-colours",
+      "title": "The chemistry of silver",
+      "publisher": "Royal Society of Chemistry",
+      "locator": "Observations: chloride, bromide and iodide precipitate colours",
+      "reference": "https://edu.rsc.org/experiments/the-chemistry-of-silver/516.article",
+      "retrieved_on": "2026-07-15",
+      "usage": "Exact white, cream, and yellow observations for AgCl, AgBr, and AgI"
     }
   ],
   "premises": [
     {
       "id": "premise.category.halide",
-      "statement": "F, Cl, Br, and I are the reviewed halide elements admitted to this queue; At and Ts are excluded as having no meaningful simple aqueous-salt chemistry at this educational level.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "statement": "ChemSpec explicitly bounds this educational halide parameter to F, Cl, Br, and I; At and Ts are outside the modeled domain and no chemistry is inferred for them.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
     {
       "id": "premise.structure.silver-nitrate",
-      "statement": "Silver nitrate is represented as an ionic assembly of an Ag+ cation and a covalently bonded NO3- anion using one canonical Lewis structure: one N=O double bond and two N-O single bonds carrying the -1 formal charges.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "statement": "ChemSpec represents silver nitrate as an ionic assembly of an Ag+ cation and a covalently bonded NO3- anion using one canonical Lewis structure: one N=O double bond and two N-O single bonds carrying the -1 formal charges.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
     {
       "id": "premise.structure.alkali-metal-halide",
-      "statement": "Each supported alkali-metal halide is an ionic association of an M+ cation and a monatomic X- anion.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "statement": "ChemSpec represents each supported alkali-metal halide as an ionic association of an M+ cation and a monatomic X- anion.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
     {
       "id": "premise.structure.alkali-metal-nitrate",
-      "statement": "Each supported alkali-metal nitrate is an ionic association of an M+ cation and the same NO3- anion structure as silver nitrate.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "statement": "ChemSpec represents each supported alkali-metal nitrate as an ionic association of an M+ cation and the same NO3- anion structure as silver nitrate.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
     {
       "id": "premise.structure.silver-halide",
-      "statement": "Each supported silver halide precipitate is an ionic association of an Ag+ cation and a monatomic X- anion.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "statement": "ChemSpec represents each supported silver halide precipitate as an ionic association of an Ag+ cation and a monatomic X- anion.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
     {
       "id": "premise.rule.silver-halide-precipitation.standard-outcome",
       "statement": "Mixing aqueous silver nitrate with an aqueous sodium chloride, bromide, or iodide has the reviewed representative outcome AgNO3 + NaX -> AgX (precipitate) + NaNO3, a pure ionic re-association with no covalent bond or electron change.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "evidence": ["evidence.chemspec.explanatory-structural-model", "evidence.openstax.chemistry-2e.solubility"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
@@ -65,8 +74,8 @@
     },
     {
       "id": "premise.valence.precipitation.initial-domain",
-      "statement": "The listed Ag, N, O, Na, Cl, Br, and I tuples are the closed valence domain for silver-halide precipitation chemistry.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "statement": "The listed Ag, N, O, Na, Cl, Br, and I tuples are ChemSpec's closed explanatory execution domain for silver-halide precipitation; they are not a claim of physical mechanism.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
@@ -78,9 +87,23 @@
       "rule_version": "1"
     },
     {
-      "id": "premise.observation.precipitate-colour",
-      "statement": "Silver chloride forms a white precipitate, compatible with the authored observation predicate colour for this family outcome.",
-      "evidence": ["evidence.openstax.chemistry-2e.solubility"],
+      "id": "premise.observation.silver-chloride-colour",
+      "statement": "Silver chloride forms a white precipitate, compatible with the authored observation predicate colour for this member-specific outcome.",
+      "evidence": ["evidence.rsc.silver-halide-colours"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.silver-bromide-colour",
+      "statement": "Silver bromide forms a cream precipitate, compatible with the authored observation predicate colour for this member-specific outcome.",
+      "evidence": ["evidence.rsc.silver-halide-colours"],
+      "review": {"status": "provisional", "reviewers": []},
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.silver-iodide-colour",
+      "statement": "Silver iodide forms a yellow precipitate, compatible with the authored observation predicate colour for this member-specific outcome.",
+      "evidence": ["evidence.rsc.silver-halide-colours"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     }
@@ -371,8 +394,8 @@
       "cases": [
         {
           "status": "supported",
-          "id": "silver-halide-precipitate",
-          "when": {"kind": "parameter_in_set", "parameter": "halide", "values": ["Cl", "Br", "I"]},
+          "id": "silver-chloride-precipitate",
+          "when": {"kind": "parameter_equals", "parameter": "halide", "value": "Cl"},
           "products": {
             "precipitate": {
               "kind": "template",
@@ -468,15 +491,15 @@
             {
               "subject_role": "precipitate",
               "predicate": "forms",
-              "evidence_subject": "silver halide precipitate",
+              "evidence_subject": "silver chloride precipitate",
               "premise_id": "premise.observation.precipitate-forms"
             },
             {
               "subject_role": "precipitate",
               "predicate": "colour",
-              "evidence_subject": "silver halide precipitate",
+              "evidence_subject": "silver chloride precipitate",
               "value": "White",
-              "premise_id": "premise.observation.precipitate-colour"
+              "premise_id": "premise.observation.silver-chloride-colour"
             }
           ],
           "premise_ids": [
@@ -487,7 +510,249 @@
             "premise.structure.silver-halide",
             "premise.valence.precipitation.initial-domain",
             "premise.observation.precipitate-forms",
-            "premise.observation.precipitate-colour"
+            "premise.observation.silver-chloride-colour"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "silver-bromide-precipitate",
+          "when": {"kind": "parameter_equals", "parameter": "halide", "value": "Br"},
+          "products": {
+            "precipitate": {
+              "kind": "template",
+              "template": "Templates.SilverHalide",
+              "arguments": {"halide": {"parameter": "halide"}}
+            },
+            "spectatorSalt": {
+              "kind": "template",
+              "template": "Templates.AlkaliMetalNitrate",
+              "arguments": {"member": "Na"}
+            }
+          },
+          "patterns": {
+            "silverSource": "Patterns.SilverNitrateIonic",
+            "halideSource": "Patterns.SodiumHalideIonic"
+          },
+          "correspondence": [
+            {
+              "reactant": "silverSource[1].ag",
+              "product": "precipitate[1].cation.cation",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.silver-halide"]
+            },
+            {
+              "reactant": "halideSource[1].anion",
+              "product": "precipitate[1].anion.anion",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-halide", "premise.structure.silver-halide"]
+            },
+            {
+              "reactant": "halideSource[1].cation",
+              "product": "spectatorSalt[1].cation.cation",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-halide", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].n",
+              "product": "spectatorSalt[1].nitrate.n",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].o1",
+              "product": "spectatorSalt[1].nitrate.o1",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].o2",
+              "product": "spectatorSalt[1].nitrate.o2",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].o3",
+              "product": "spectatorSalt[1].nitrate.o3",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate"],
+              "association": "silverSource[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-halide"],
+              "association": "halideSource[1].salt"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-halide", "premise.valence.precipitation.initial-domain"],
+              "label": "ionic.precipitate",
+              "components": [["silverSource[1].ag"], ["halideSource[1].anion"]],
+              "component_charges": [1, -1]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-nitrate", "premise.valence.precipitation.initial-domain"],
+              "label": "ionic.spectator",
+              "components": [["halideSource[1].cation"], ["silverSource[1].n", "silverSource[1].o1", "silverSource[1].o2", "silverSource[1].o3"]],
+              "component_charges": [1, -1]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-halide"],
+              "atoms": ["silverSource[1].ag", "halideSource[1].anion"],
+              "product": "precipitate[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-nitrate"],
+              "atoms": ["halideSource[1].cation", "silverSource[1].n", "silverSource[1].o1", "silverSource[1].o2", "silverSource[1].o3"],
+              "product": "spectatorSalt[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "precipitate",
+              "predicate": "forms",
+              "evidence_subject": "silver bromide precipitate",
+              "premise_id": "premise.observation.precipitate-forms"
+            },
+            {
+              "subject_role": "precipitate",
+              "predicate": "colour",
+              "evidence_subject": "silver bromide precipitate",
+              "value": "Cream",
+              "premise_id": "premise.observation.silver-bromide-colour"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.silver-halide-precipitation.standard-outcome",
+            "premise.structure.silver-nitrate",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.alkali-metal-nitrate",
+            "premise.structure.silver-halide",
+            "premise.valence.precipitation.initial-domain",
+            "premise.observation.precipitate-forms",
+            "premise.observation.silver-bromide-colour"
+          ]
+        },
+        {
+          "status": "supported",
+          "id": "silver-iodide-precipitate",
+          "when": {"kind": "parameter_equals", "parameter": "halide", "value": "I"},
+          "products": {
+            "precipitate": {
+              "kind": "template",
+              "template": "Templates.SilverHalide",
+              "arguments": {"halide": {"parameter": "halide"}}
+            },
+            "spectatorSalt": {
+              "kind": "template",
+              "template": "Templates.AlkaliMetalNitrate",
+              "arguments": {"member": "Na"}
+            }
+          },
+          "patterns": {
+            "silverSource": "Patterns.SilverNitrateIonic",
+            "halideSource": "Patterns.SodiumHalideIonic"
+          },
+          "correspondence": [
+            {
+              "reactant": "silverSource[1].ag",
+              "product": "precipitate[1].cation.cation",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.silver-halide"]
+            },
+            {
+              "reactant": "halideSource[1].anion",
+              "product": "precipitate[1].anion.anion",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-halide", "premise.structure.silver-halide"]
+            },
+            {
+              "reactant": "halideSource[1].cation",
+              "product": "spectatorSalt[1].cation.cation",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-halide", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].n",
+              "product": "spectatorSalt[1].nitrate.n",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].o1",
+              "product": "spectatorSalt[1].nitrate.o1",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].o2",
+              "product": "spectatorSalt[1].nitrate.o2",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            },
+            {
+              "reactant": "silverSource[1].o3",
+              "product": "spectatorSalt[1].nitrate.o3",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate", "premise.structure.alkali-metal-nitrate"]
+            }
+          ],
+          "rewrite": [
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-nitrate"],
+              "association": "silverSource[1].salt"
+            },
+            {
+              "kind": "dissociate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-halide"],
+              "association": "halideSource[1].salt"
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-halide", "premise.valence.precipitation.initial-domain"],
+              "label": "ionic.precipitate",
+              "components": [["silverSource[1].ag"], ["halideSource[1].anion"]],
+              "component_charges": [1, -1]
+            },
+            {
+              "kind": "associate_ionic",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-nitrate", "premise.valence.precipitation.initial-domain"],
+              "label": "ionic.spectator",
+              "components": [["halideSource[1].cation"], ["silverSource[1].n", "silverSource[1].o1", "silverSource[1].o2", "silverSource[1].o3"]],
+              "component_charges": [1, -1]
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.silver-halide"],
+              "atoms": ["silverSource[1].ag", "halideSource[1].anion"],
+              "product": "precipitate[1]"
+            },
+            {
+              "kind": "assign_product",
+              "premise_ids": ["premise.rule.silver-halide-precipitation.standard-outcome", "premise.structure.alkali-metal-nitrate"],
+              "atoms": ["halideSource[1].cation", "silverSource[1].n", "silverSource[1].o1", "silverSource[1].o2", "silverSource[1].o3"],
+              "product": "spectatorSalt[1]"
+            }
+          ],
+          "observation_compatibility": [
+            {
+              "subject_role": "precipitate",
+              "predicate": "forms",
+              "evidence_subject": "silver iodide precipitate",
+              "premise_id": "premise.observation.precipitate-forms"
+            },
+            {
+              "subject_role": "precipitate",
+              "predicate": "colour",
+              "evidence_subject": "silver iodide precipitate",
+              "value": "Yellow",
+              "premise_id": "premise.observation.silver-iodide-colour"
+            }
+          ],
+          "premise_ids": [
+            "premise.rule.silver-halide-precipitation.standard-outcome",
+            "premise.structure.silver-nitrate",
+            "premise.structure.alkali-metal-halide",
+            "premise.structure.alkali-metal-nitrate",
+            "premise.structure.silver-halide",
+            "premise.valence.precipitation.initial-domain",
+            "premise.observation.precipitate-forms",
+            "premise.observation.silver-iodide-colour"
           ]
         },
         {
@@ -521,7 +786,9 @@
         "premise.case.silver-fluoride-unsupported",
         "premise.valence.precipitation.initial-domain",
         "premise.observation.precipitate-forms",
-        "premise.observation.precipitate-colour"
+        "premise.observation.silver-chloride-colour",
+        "premise.observation.silver-bromide-colour",
+        "premise.observation.silver-iodide-colour"
       ]
     }
   ]

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.HalogenDisplacement@1",
+  "claims": [
+    {"id": "R1", "subject_role": "product", "subject": "displaced halogen", "predicate": "forms", "sources": ["S1"]}
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Halogens in aqueous solution and their displacement reactions",
+      "publisher": "Royal Society of Chemistry",
+      "url": "https://edu.rsc.org/experiments/halogens-in-aqueous-solution-and-their-displacement-reactions/733.article",
+      "supports": ["R1"]
+    }
+  ]
+}

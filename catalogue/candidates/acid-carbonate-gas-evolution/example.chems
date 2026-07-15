@@ -1,0 +1,26 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction HydrochloricAcidAndSodiumCarbonate where
+  reactants
+    hydrochloricAcid := 2 of HydrogenChloride
+    sodiumCarbonate := 1 of SodiumCarbonate
+  products
+    carbonDioxide := 1 of CarbonDioxide
+    water := 1 of Water
+    sodiumChloride := 2 of SodiumChloride
+  equation
+    2 HCl[molecular] + Na2CO3[ionic]
+    -> 2 NaCl[ionic] + H2O[molecular] + CO2[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.AcidCarbonateGasEvolution@1
+    gas carbonDioxide evolves claim R1
+    reactant hydrochloricAcid disappears claim R2
+  by
+    apply Rules.DiproticAcidCarbonateGasEvolution
+      acid := hydrochloricAcid
+      carbonateSource := sodiumCarbonate
+      gasProduct := carbonDioxide
+      waterProduct := water
+      saltProduct := sodiumChloride

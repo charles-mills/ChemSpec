@@ -116,12 +116,12 @@ Responses API access with an API key.
 ## Language status
 
 The structural `.chems 1` implementation is complete through the fixed seven
-slices. The bundled 118-element identity catalogue and generalized
-alkali-metal-with-water family are promoted through an exact host-pinned AI
-review attestation. Runnable family members are Li, Na, and K; the other 115
-element records do not imply reaction support. The attestation names its AI
-reviewer and limitations; it is an explicit product trust decision, not human
-expert certification.
+slices. The bundled 118-element identity catalogue and five generalized
+reaction families are promoted together through an exact host-pinned AI review
+attestation. The aggregate contains 36 supported finite reaction bindings;
+the remaining element records do not imply reaction support. The attestation
+names its AI reviewer and limitations; it is an explicit product trust
+decision, not human expert certification.
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
@@ -142,10 +142,18 @@ do not choose products or construct bonds for simulation.
 cargo run -p chems-conformance -- validate
 cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansion-001.chems
 cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
-  catalogue/candidates/periodic-table-and-alkali-water
+  catalogue/candidates/periodic-table-and-alkali-water \
+  catalogue/candidates/precipitation-silver-halide \
+  catalogue/candidates/acid-base-neutralization \
+  catalogue/candidates/acid-carbonate-gas-evolution \
+  catalogue/candidates/single-displacement-halogen
 cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
-  --attestation catalogue/reviews/periodic-table-and-alkali-water.review.json \
-  catalogue/candidates/periodic-table-and-alkali-water
+  --attestation catalogue/reviews/core-chemistry.review.json \
+  catalogue/candidates/periodic-table-and-alkali-water \
+  catalogue/candidates/precipitation-silver-halide \
+  catalogue/candidates/acid-base-neutralization \
+  catalogue/candidates/acid-carbonate-gas-evolution \
+  catalogue/candidates/single-displacement-halogen
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check

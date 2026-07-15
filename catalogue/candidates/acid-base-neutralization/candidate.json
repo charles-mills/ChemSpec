@@ -7,7 +7,7 @@
       "title": "Chemistry 2e",
       "publisher": "OpenStax",
       "locator": "Acid-Base Reactions; Strong and Weak Acids and Bases",
-      "reference": "https://openstax.org/details/books/chemistry-2e",
+      "reference": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
       "publication_date": "2019-02-14",
       "retrieved_on": "2026-07-15",
       "usage": "Strong monoprotic acid / alkali-metal hydroxide neutralization outcome and the weak-acid exception for hydrofluoric acid"
@@ -16,15 +16,15 @@
   "premises": [
     {
       "id": "premise.structure.hydrogen-halide",
-      "statement": "Each supported hydrogen halide is a neutral molecular H-X single covalent bond.",
-      "evidence": ["evidence.openstax.chemistry-2e.acid-base"],
+      "statement": "ChemSpec represents each supported hydrogen halide as a neutral molecular H-X single covalent bond.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
     {
       "id": "premise.rule.acid-base-neutralization.standard-outcome",
       "statement": "Mixing an aqueous strong monoprotic hydrogen halide acid with an aqueous alkali-metal hydroxide has the reviewed representative outcome HX + MOH -> MX + H2O, a proton transfer from the acid to the hydroxide oxygen followed by ionic association of the conserved cation and halide.",
-      "evidence": ["evidence.openstax.chemistry-2e.acid-base"],
+      "evidence": ["evidence.chemspec.explanatory-structural-model", "evidence.openstax.chemistry-2e.acid-base"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },
@@ -37,8 +37,8 @@
     },
     {
       "id": "premise.valence.acid-base.initial-domain",
-      "statement": "The listed H, O, Li, Na, K, Cl, Br, F, and I tuples are the closed valence domain for monoprotic acid / alkali-metal hydroxide neutralization chemistry.",
-      "evidence": ["evidence.openstax.chemistry-2e.acid-base"],
+      "statement": "The listed H, O, Li, Na, K, Cl, Br, F, and I tuples are ChemSpec's closed explanatory execution domain for monoprotic acid / alkali-metal hydroxide neutralization; transient states are not claims of physical mechanism.",
+      "evidence": ["evidence.chemspec.explanatory-structural-model"],
       "review": {"status": "provisional", "reviewers": []},
       "rule_version": "1"
     },

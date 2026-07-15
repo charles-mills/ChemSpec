@@ -94,11 +94,12 @@ invalid, unsupported, system-error, and stale states are non-animatable.
 
 ## Implemented vertical slice
 
-The promoted catalogue lives at
-`catalogue/trusted/periodic-table-and-alkali-water/`. One generalized
-`Rules.AlkaliMetalWithWater` family supports the lithium, sodium, and potassium
-experiences. The three `.chems` sources live under `conformance/end-to-end/` and
-their observation evidence packets live under `conformance/observations/`.
+The promoted catalogue lives at `catalogue/trusted/core-chemistry/`. It
+contains the generalized alkali-water, silver-halide precipitation,
+neutralization, carbonate/bicarbonate gas-evolution, and halogen-displacement
+families. The currently implemented app experience remains the lithium,
+sodium, and potassium alkali-water vertical slice; broader app routing is a
+separate integration boundary.
 
 The kernel verifies exact structural transitions, electron bookkeeping,
 represented-electron and charge conservation, bond changes, stable atoms,

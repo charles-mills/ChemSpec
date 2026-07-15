@@ -15,10 +15,8 @@ use chem_presentation::{
     VIRTUAL_ONLY_DISCLOSURE,
 };
 
-const CATALOGUE: &[u8] =
-    include_bytes!("../../../catalogue/trusted/periodic-table-and-alkali-water/catalogue.json");
-const ATTESTATION: &[u8] =
-    include_bytes!("../../../catalogue/trusted/periodic-table-and-alkali-water/review.json");
+const CATALOGUE: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
+const ATTESTATION: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/review.json");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Experience {
