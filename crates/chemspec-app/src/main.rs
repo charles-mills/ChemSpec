@@ -291,7 +291,7 @@ struct App {
     api_key: String,
     periodic_table: periodic_table::State,
     reactant_composer: reactant_composer::State,
-    active_experience: chemistry::Experience,
+    active_request: chemistry::ReactionRequest,
     validated_frames: Option<chem_kernel::SimulationFrames>,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
@@ -300,7 +300,7 @@ struct App {
 impl Default for App {
     fn default() -> Self {
         let codex_available = codex_available();
-        let active_experience = chemistry::Experience::DEFAULT;
+        let active_request = chemistry::ReactionRequest::DEFAULT;
         Self {
             screen: Screen::ProviderSetup,
             smoke_mode: None,
@@ -309,8 +309,8 @@ impl Default for App {
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
-            active_experience,
-            validated_frames: chemistry::run(active_experience)
+            active_request,
+            validated_frames: chemistry::run(active_request)
                 .ok()
                 .map(|run| run.frames().clone()),
             structural_animation: None,
@@ -437,20 +437,18 @@ impl App {
             return;
         }
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-        let Some(experience) = chemistry::experience_for_drafts(first, second) else {
+        let Some(request) = chemistry::request_for_drafts(first, second) else {
             return;
         };
-        self.select_experience(experience);
+        self.select_request(request);
         self.open_structural_animation();
     }
 
     // The offline fixture crosses the same trusted language/kernel boundary
     // that live provider output must cross later.
-    fn select_experience(&mut self, experience: chemistry::Experience) {
-        self.active_experience = experience;
-        self.validated_frames = chemistry::run(experience)
-            .ok()
-            .map(|run| run.frames().clone());
+    fn select_request(&mut self, request: chemistry::ReactionRequest) {
+        self.active_request = request;
+        self.validated_frames = chemistry::run(request).ok().map(|run| run.frames().clone());
         self.structural_animation = None;
         self.structural_error = None;
     }
@@ -682,7 +680,7 @@ impl App {
                 .last()
                 .and_then(|frame| u16::try_from(frame.ordinal()).ok())
                 .ok_or_else(|| "trusted frames exceed the presentation range".to_owned())?;
-            let profile = chemistry::presentation_profile(self.active_experience, last_ordinal);
+            let profile = chemistry::presentation_profile(self.active_request, last_ordinal)?;
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
             Ok::<_, String>(StructuralAnimation {
@@ -1389,11 +1387,9 @@ mod tests {
 
     #[test]
     fn educational_context_does_not_repeat_what_changed_copy() {
-        for experience in chemistry::Experience::ALL {
-            let frames = chemistry::run(experience)
-                .expect("pinned experience validates")
-                .frames();
-            let plan = compile_educational_plan(frames).expect("educational plan compiles");
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames()).expect("educational plan compiles");
             let mut compared = 0;
 
             for scene in &plan.scenes {
@@ -1415,11 +1411,11 @@ mod tests {
                     assert_ne!(
                         normalize_copy(context),
                         normalize_copy(explanation),
-                        "{experience:?} emitted duplicate context and explanation copy",
+                        "{request:?} emitted duplicate context and explanation copy",
                     );
                 }
             }
-            assert!(compared > 0, "{experience:?} emitted no narrated scenes");
+            assert!(compared > 0, "{request:?} emitted no narrated scenes");
         }
     }
 
@@ -1514,14 +1510,14 @@ mod tests {
     }
 
     #[test]
-    fn selecting_an_experience_refreshes_the_trusted_frames() {
+    fn selecting_a_request_refreshes_the_trusted_frames() {
         let mut app = App::default();
-        for experience in [
-            chemistry::Experience::Sodium,
-            chemistry::Experience::Potassium,
+        for request in [
+            chemistry::ReactionRequest::alkali_water(chemistry::AlkaliMetal::Sodium),
+            chemistry::ReactionRequest::alkali_water(chemistry::AlkaliMetal::Potassium),
         ] {
-            app.select_experience(experience);
-            assert_eq!(app.active_experience, experience);
+            app.select_request(request);
+            assert_eq!(app.active_request, request);
             assert!(app.validated_frames.is_some());
             assert!(app.structural_animation.is_none());
         }
@@ -1575,7 +1571,7 @@ mod tests {
         ));
 
         assert_eq!(app.screen, Screen::Structural2d);
-        assert_eq!(app.active_experience, chemistry::Experience::Lithium);
+        assert_eq!(app.active_request, chemistry::ReactionRequest::DEFAULT);
         let animation = app
             .structural_animation
             .as_ref()

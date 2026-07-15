@@ -1504,7 +1504,8 @@ mod tests {
     use crate::chemistry;
 
     fn canonical_plan() -> ScenePlan {
-        let run = chemistry::run(chemistry::Experience::DEFAULT).expect("canonical run validates");
+        let run =
+            chemistry::run(chemistry::ReactionRequest::DEFAULT).expect("canonical run validates");
         let last = u16::try_from(
             run.frames()
                 .frames()
@@ -1515,7 +1516,8 @@ mod tests {
         .expect("ordinal fits presentation range");
         compile_real_world_plan(
             run.frames(),
-            &chemistry::presentation_profile(chemistry::Experience::DEFAULT, last),
+            &chemistry::presentation_profile(chemistry::ReactionRequest::DEFAULT, last)
+                .expect("canonical presentation profile exists"),
         )
         .expect("plan compiles from trusted frames")
     }

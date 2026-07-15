@@ -97,9 +97,10 @@ invalid, unsupported, system-error, and stale states are non-animatable.
 The promoted catalogue lives at `catalogue/trusted/core-chemistry/`. It
 contains the generalized alkali-water, silver-halide precipitation,
 neutralization, carbonate/bicarbonate gas-evolution, and halogen-displacement
-families. The currently implemented app experience remains the lithium,
-sodium, and potassium alkali-water vertical slice; broader app routing is a
-separate integration boundary.
+families. The application has a typed finite request and deterministic source
+authoring path for all 36 supported bindings. The reactant composer currently
+routes only the lithium, sodium, and potassium alkali-water subset; broader
+draft recognition is a separate integration boundary.
 
 The kernel verifies exact structural transitions, electron bookkeeping,
 represented-electron and charge conservation, bond changes, stable atoms,

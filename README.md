@@ -130,11 +130,13 @@ but it cannot promote its own output; chemistry review and host trust-root
 updates remain deliberate source-controlled host actions. Runtime agents and
 candidate packages still cannot promote themselves.
 
-The Iced application now selects Li, Na, or K with water and consumes the
-corresponding `.chems 1` source through the real catalogue, generalized
-expansion, kernel-validation, and `SimulationFrames` APIs. Its
-local periodic-table and composition models are draft presentation only; they
-do not choose products or construct bonds for simulation.
+The Iced application's typed request boundary can deterministically author and
+validate `.chems 1` source for all 36 supported finite bindings through the
+real catalogue, generalized expansion, kernel validation, and
+`SimulationFrames` APIs. The reactant composer currently exposes the Li, Na,
+and K with water subset; expanding draft recognition is a separate UI
+integration step. Local periodic-table and composition models remain draft
+presentation only and do not construct bonds or confer trust.
 
 ## Development commands
 
