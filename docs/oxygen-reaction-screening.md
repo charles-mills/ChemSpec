@@ -47,7 +47,7 @@ The merged catalogue is promoted into the application trust root through an
 explicit AI review attestation; this is not represented as human chemist
 certification. All 68 oxygen registry entries are executable structural
 simulations. The promoted aggregate digest is
-`877f0dfe4f1140c89d315c3e11fb6e257ea417a19614259910bbfd346d09aeeb`.
+`9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2`.
 
 The present molecular process vocabulary is sufficient for the authored
 stoichiometric formula-unit and finite-molecule models: metallic release,

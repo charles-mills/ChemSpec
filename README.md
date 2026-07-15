@@ -118,11 +118,15 @@ Responses API access with an API key.
 The structural `.chems 1` implementation is complete through the fixed seven
 slices. The bundled 118-element identity catalogue and generalized reaction
 families are promoted together through an exact host-pinned AI review
-attestation. The aggregate contains 185 supported experiences: 36 established
-finite bindings, 68 oxygen outcomes, and 81 fixed-charge binary ion pairs. The
+attestation. The aggregate contains 205 supported experiences: 36 established
+finite bindings, 68 oxygen outcomes, 81 fixed-charge binary ion pairs, and 20
+finite covalent-combination outcomes. The
 remaining element records do not imply reaction support. The attestation names
 its AI reviewer and limitations; it is an explicit product trust decision, not
 human expert certification.
+
+The covalent matrix, its closed-world boundary, and regeneration command are
+documented in [`docs/covalent-combinations.md`](docs/covalent-combinations.md).
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
@@ -132,7 +136,7 @@ updates remain deliberate source-controlled host actions. Runtime agents and
 candidate packages still cannot promote themselves.
 
 The Iced application's typed request boundary can deterministically author and
-validate `.chems 1` source for all 185 supported experiences through the real
+validate `.chems 1` source for all 205 supported experiences through the real
 catalogue, generalized expansion, kernel validation, and `SimulationFrames`
 APIs. The reactant composer exposes the complete set, asks the learner to pick
 when a pair has several reviewed products, and keeps oxygen screening distinct
@@ -150,7 +154,8 @@ cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
   catalogue/candidates/single-displacement-halogen \
-  catalogue/candidates/oxygen-reactions
+  catalogue/candidates/oxygen-reactions \
+  catalogue/candidates/covalent-combinations
 cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
   --attestation catalogue/reviews/core-chemistry.review.json \
   catalogue/candidates/periodic-table-and-alkali-water \
@@ -158,7 +163,8 @@ cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
   catalogue/candidates/acid-base-neutralization \
   catalogue/candidates/acid-carbonate-gas-evolution \
   catalogue/candidates/single-displacement-halogen \
-  catalogue/candidates/oxygen-reactions
+  catalogue/candidates/oxygen-reactions \
+  catalogue/candidates/covalent-combinations
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check

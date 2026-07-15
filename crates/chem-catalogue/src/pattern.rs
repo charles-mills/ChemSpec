@@ -14,6 +14,11 @@ use super::{
 };
 
 const MAX_RAW_PATTERN_MATCHES: usize = 4_096;
+// A seven-coordinate molecule such as IF7 has 7! = 5,040 legitimate
+// automorphisms. Keep raw pattern matching at the tighter limit above, but
+// allow complete structural-symmetry proofs for that finite reviewed case.
+const MAX_STRUCTURE_AUTOMORPHISMS: usize = 8_192;
+const MAX_STRUCTURE_AUTOMORPHISM_WORK: usize = 16_384;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureAutomorphism {
@@ -319,7 +324,7 @@ impl ValidatedCatalogueBundle {
             if automorphisms
                 .len()
                 .checked_add(relationship_mappings.len())
-                .is_none_or(|count| count > MAX_RAW_PATTERN_MATCHES)
+                .is_none_or(|count| count > MAX_STRUCTURE_AUTOMORPHISMS)
             {
                 return Ok(None);
             }
@@ -341,7 +346,7 @@ fn enumerate_automorphisms(
     work: &mut usize,
 ) -> bool {
     *work += 1;
-    if *work > MAX_RAW_PATTERN_MATCHES {
+    if *work > MAX_STRUCTURE_AUTOMORPHISM_WORK {
         return false;
     }
     if index == sources.len() {

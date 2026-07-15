@@ -14,7 +14,11 @@ use super::{
     StructureAutomorphism, ValidatedCatalogueBundle,
 };
 
-const MAX_CERTIFICATE_CANDIDATES: usize = 4_096;
+// Seven-coordinate reviewed structures can have 7! = 5,040 complete
+// automorphisms per product instance (10,080 for a balanced pair of IF7).
+// This remains a fixed ceiling; it merely admits that finite symmetry class
+// without weakening fail-closed enumeration.
+const MAX_CERTIFICATE_CANDIDATES: usize = 16_384;
 
 type InstancePatternMatches = BTreeMap<String, Vec<RolePatternMatchBinding>>;
 

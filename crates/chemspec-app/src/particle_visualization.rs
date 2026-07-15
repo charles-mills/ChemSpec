@@ -112,7 +112,7 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let atoms = arranged_atoms(&self.preview.formula, &self.elements, bounds);
+        let atoms = arranged_atoms(&self.preview, &self.elements, bounds);
         for bond in self.preview.covalent_bonds() {
             if let (Some((_, start)), Some((_, end))) = (atoms.get(bond.start), atoms.get(bond.end))
             {
@@ -135,7 +135,7 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
                 &mut frame,
                 element,
                 position,
-                compound_atom_radius(element),
+                compound_atom_radius(element).min(layout_atom_radius(bounds, self.elements.len())),
                 self.phase,
                 self.reveal,
             );
@@ -189,80 +189,103 @@ fn draw_shared_pairs(frame: &mut canvas::Frame, start: Point, end: Point, pairs:
     }
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn arranged_atoms(
-    formula: &str,
+    preview: &TrustedCompositionPreview,
     elements: &[ElementSpec],
     bounds: Rectangle,
 ) -> Vec<(ElementSpec, Point)> {
     let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
-    let find = |atomic_number| {
-        elements
-            .iter()
-            .copied()
-            .find(|element| element.atomic_number == atomic_number)
-    };
-    let entry = |element, offset: Vector| (element, center + offset);
-
-    match formula {
-        "H₂O" => [
-            find(1).map(|element| entry(element, Vector::new(-48.0, 12.0))),
-            find(8).map(|element| entry(element, Vector::new(0.0, -8.0))),
-            find(1).map(|element| entry(element, Vector::new(48.0, 12.0))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect(),
-        "LiOH" => [
-            find(3).map(|element| entry(element, Vector::new(-50.0, 0.0))),
-            find(8).map(|element| entry(element, Vector::new(0.0, 0.0))),
-            find(1).map(|element| entry(element, Vector::new(50.0, 0.0))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect(),
-        "CO₂" => [
-            find(8).map(|element| entry(element, Vector::new(-50.0, 0.0))),
-            find(6).map(|element| entry(element, Vector::new(0.0, 0.0))),
-            find(8).map(|element| entry(element, Vector::new(50.0, 0.0))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect(),
-        _ if elements.len() <= 3 => {
-            let spacing = 50.0;
-            let element_count = u16::try_from(elements.len()).unwrap_or(u16::MAX);
-            let origin = -(f32::from(element_count.saturating_sub(1)) * spacing) / 2.0;
-            elements
+    if elements.is_empty() {
+        return Vec::new();
+    }
+    let count = elements.len();
+    let mut adjacency = vec![Vec::<usize>::new(); count];
+    for (start, end) in preview
+        .covalent_bonds()
+        .iter()
+        .map(|bond| (bond.start, bond.end))
+        .chain(
+            preview
+                .ionic_links()
                 .iter()
-                .copied()
-                .enumerate()
-                .map(|(index, element)| {
-                    let index = u16::try_from(index).unwrap_or(u16::MAX);
-                    entry(
-                        element,
-                        Vector::new(origin + f32::from(index) * spacing, 0.0),
-                    )
-                })
-                .collect()
-        }
-        _ => {
-            let radius = (bounds.width.min(bounds.height) * 0.30).max(34.0);
-            let element_count = u16::try_from(elements.len()).unwrap_or(u16::MAX);
-            elements
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(index, element)| {
-                    let index = u16::try_from(index).unwrap_or(u16::MAX);
-                    let angle = f32::from(index) * TAU / f32::from(element_count) - TAU / 4.0;
-                    entry(
-                        element,
-                        Vector::new(angle.cos() * radius, angle.sin() * radius),
-                    )
-                })
-                .collect()
+                .map(|link| (link.start, link.end)),
+        )
+    {
+        if start < count && end < count && !adjacency[start].contains(&end) {
+            adjacency[start].push(end);
+            adjacency[end].push(start);
         }
     }
+    let radius = (bounds.width.min(bounds.height) * 0.34).max(30.0);
+    let mut positions = vec![center; count];
+
+    if count == 2 {
+        positions[0] = center + Vector::new(-radius * 0.62, 0.0);
+        positions[1] = center + Vector::new(radius * 0.62, 0.0);
+    } else if let Some(root) = adjacency
+        .iter()
+        .position(|neighbours| neighbours.len() == count - 1)
+    {
+        let neighbours = &adjacency[root];
+        let bent = matches!(preview.formula.as_str(), "H₂O" | "H₂S") && neighbours.len() == 2;
+        positions[root] = center + Vector::new(0.0, if bent { -radius * 0.18 } else { 0.0 });
+        for (ordinal, neighbour) in neighbours.iter().copied().enumerate() {
+            let angle = if bent {
+                [TAU * 0.08, TAU * 0.42][ordinal]
+            } else {
+                ordinal as f32 * TAU / neighbours.len() as f32 - TAU / 4.0
+            };
+            positions[neighbour] = center
+                + Vector::new(
+                    angle.cos() * radius,
+                    angle.sin() * radius + if bent { radius * 0.16 } else { 0.0 },
+                );
+        }
+    } else if let Some(start) = adjacency
+        .iter()
+        .position(|neighbours| neighbours.len() == 1)
+        && adjacency.iter().map(Vec::len).sum::<usize>() / 2 == count - 1
+    {
+        let mut order = Vec::with_capacity(count);
+        let mut previous = None;
+        let mut current = start;
+        loop {
+            order.push(current);
+            let next = adjacency[current]
+                .iter()
+                .copied()
+                .find(|candidate| Some(*candidate) != previous);
+            let Some(next) = next else { break };
+            previous = Some(current);
+            current = next;
+        }
+        let spacing = (bounds.width * 0.68 / (count.saturating_sub(1) as f32)).min(52.0);
+        let origin = -(count.saturating_sub(1) as f32 * spacing) / 2.0;
+        for (ordinal, index) in order.into_iter().enumerate() {
+            positions[index] = center
+                + Vector::new(
+                    origin + ordinal as f32 * spacing,
+                    if ordinal % 2 == 0 { -5.0 } else { 5.0 },
+                );
+        }
+    } else {
+        for (index, position) in positions.iter_mut().enumerate() {
+            let angle = index as f32 * TAU / count as f32 - TAU / 4.0;
+            *position = center + Vector::new(angle.cos() * radius, angle.sin() * radius);
+        }
+    }
+
+    elements.iter().copied().zip(positions).collect()
+}
+
+fn layout_atom_radius(bounds: Rectangle, atom_count: usize) -> f32 {
+    let scale = match atom_count {
+        0..=3 => 0.22,
+        4..=5 => 0.16,
+        _ => 0.11,
+    };
+    (bounds.width.min(bounds.height) * scale).clamp(10.0, 28.0)
 }
 
 /// Compound members scale with their shell count, so hydrogen reads smaller
@@ -394,15 +417,51 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let atoms = arranged_atoms(
-            &preview.formula,
+            &preview,
             &elements,
             Rectangle::new(Point::ORIGIN, iced::Size::new(140.0, 80.0)),
         );
 
         assert_eq!(atoms.len(), 3);
-        assert_eq!(atoms[1].0.atomic_number, 8);
-        assert!(atoms[0].1.x < atoms[1].1.x && atoms[1].1.x < atoms[2].1.x);
+        let oxygen = atoms
+            .iter()
+            .find(|(element, _)| element.atomic_number == 8)
+            .expect("oxygen is laid out");
+        assert!(
+            atoms
+                .iter()
+                .filter(|(element, _)| element.atomic_number == 1)
+                .all(|(_, point)| point.y > oxygen.1.y)
+        );
         assert_eq!(preview.covalent_bonds().len(), 2);
         assert!(preview.ionic_links().is_empty());
+    }
+
+    #[test]
+    fn reviewed_if7_layout_places_iodine_at_the_bond_hub() {
+        let preview = composition_catalogue::trusted_preview_by_structure_id("InterhalogenIF7")
+            .expect("trusted IF7 preview");
+        let elements = preview
+            .atoms
+            .iter()
+            .map(|atom| *elements::by_atomic_number(atom.atomic_number).unwrap())
+            .collect::<Vec<_>>();
+        let atoms = arranged_atoms(
+            &preview,
+            &elements,
+            Rectangle::new(Point::ORIGIN, iced::Size::new(220.0, 150.0)),
+        );
+        let iodine = atoms
+            .iter()
+            .position(|(element, _)| element.atomic_number == 53)
+            .expect("iodine is present");
+        assert_eq!(preview.covalent_bonds().len(), 7);
+        assert!(
+            preview
+                .covalent_bonds()
+                .iter()
+                .all(|bond| bond.start == iodine || bond.end == iodine)
+        );
+        assert_eq!(atoms[iodine].1, Point::new(110.0, 75.0));
     }
 }

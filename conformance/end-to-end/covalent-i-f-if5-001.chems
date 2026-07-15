@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction IF5FromElements where
+  reactants
+    central := 1 of Iodine
+    ligand := 5 of Fluorine
+  products
+    compound := 2 of InterhalogenIF5
+  equation
+    1 I2[molecular] + 5 F2[molecular]
+    -> 2 IF5[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.CovalentCombination@1
+    product compound forms claim R1
+    reactant ligand disappears claim R2
+  by
+    apply Rules.Interhalogen5Combination
+      central := central
+      ligand := ligand
+      compound := compound

@@ -2980,6 +2980,446 @@
           "atomic_number": 8
         }
       ]
+    },
+    {
+      "id": "covalent-cl-f-clf",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 17
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-cl-f-clf-001.chems",
+      "evidence_path": "conformance/observations/covalent-cl-f-clf-001.evidence.json",
+      "request": "What covalent product forms when chlorine reacts with fluorine?",
+      "equation": "Cl2 + F2 -> 2 ClF",
+      "subject_name": "chlorine",
+      "product_name": "chlorine monofluoride",
+      "product_structure": "InterhalogenClF"
+    },
+    {
+      "id": "covalent-br-f-brf",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 35
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-br-f-brf-001.chems",
+      "evidence_path": "conformance/observations/covalent-br-f-brf-001.evidence.json",
+      "request": "What covalent product forms when bromine reacts with fluorine?",
+      "equation": "Br2 + F2 -> 2 BrF",
+      "subject_name": "bromine",
+      "product_name": "bromine monofluoride",
+      "product_structure": "InterhalogenBrF"
+    },
+    {
+      "id": "covalent-i-f-if",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 53
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-i-f-if-001.chems",
+      "evidence_path": "conformance/observations/covalent-i-f-if-001.evidence.json",
+      "request": "What covalent product forms when iodine reacts with fluorine?",
+      "equation": "I2 + F2 -> 2 IF",
+      "subject_name": "iodine",
+      "product_name": "iodine monofluoride",
+      "product_structure": "InterhalogenIF"
+    },
+    {
+      "id": "covalent-br-cl-brcl",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 35
+        },
+        {
+          "kind": "element",
+          "atomic_number": 17
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-br-cl-brcl-001.chems",
+      "evidence_path": "conformance/observations/covalent-br-cl-brcl-001.evidence.json",
+      "request": "What covalent product forms when bromine reacts with chlorine?",
+      "equation": "Br2 + Cl2 -> 2 BrCl",
+      "subject_name": "bromine",
+      "product_name": "bromine monochloride",
+      "product_structure": "InterhalogenBrCl"
+    },
+    {
+      "id": "covalent-i-cl-icl",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 53
+        },
+        {
+          "kind": "element",
+          "atomic_number": 17
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-i-cl-icl-001.chems",
+      "evidence_path": "conformance/observations/covalent-i-cl-icl-001.evidence.json",
+      "request": "What covalent product forms when iodine reacts with chlorine?",
+      "equation": "I2 + Cl2 -> 2 ICl",
+      "subject_name": "iodine",
+      "product_name": "iodine monochloride",
+      "product_structure": "InterhalogenICl"
+    },
+    {
+      "id": "covalent-i-br-ibr",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 53
+        },
+        {
+          "kind": "element",
+          "atomic_number": 35
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-i-br-ibr-001.chems",
+      "evidence_path": "conformance/observations/covalent-i-br-ibr-001.evidence.json",
+      "request": "What covalent product forms when iodine reacts with bromine?",
+      "equation": "I2 + Br2 -> 2 IBr",
+      "subject_name": "iodine",
+      "product_name": "iodine monobromide",
+      "product_structure": "InterhalogenIBr"
+    },
+    {
+      "id": "covalent-cl-f-clf3",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 17
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-cl-f-clf3-001.chems",
+      "evidence_path": "conformance/observations/covalent-cl-f-clf3-001.evidence.json",
+      "request": "What covalent product forms when chlorine reacts with fluorine?",
+      "equation": "Cl2 + 3 F2 -> 2 ClF3",
+      "subject_name": "chlorine",
+      "product_name": "chlorine trifluoride",
+      "product_structure": "InterhalogenClF3"
+    },
+    {
+      "id": "covalent-br-f-brf3",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 35
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-br-f-brf3-001.chems",
+      "evidence_path": "conformance/observations/covalent-br-f-brf3-001.evidence.json",
+      "request": "What covalent product forms when bromine reacts with fluorine?",
+      "equation": "Br2 + 3 F2 -> 2 BrF3",
+      "subject_name": "bromine",
+      "product_name": "bromine trifluoride",
+      "product_structure": "InterhalogenBrF3"
+    },
+    {
+      "id": "covalent-i-f-if3",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 53
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-i-f-if3-001.chems",
+      "evidence_path": "conformance/observations/covalent-i-f-if3-001.evidence.json",
+      "request": "What covalent product forms when iodine reacts with fluorine?",
+      "equation": "I2 + 3 F2 -> 2 IF3",
+      "subject_name": "iodine",
+      "product_name": "iodine trifluoride",
+      "product_structure": "InterhalogenIF3"
+    },
+    {
+      "id": "covalent-i-cl-icl3",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 53
+        },
+        {
+          "kind": "element",
+          "atomic_number": 17
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-i-cl-icl3-001.chems",
+      "evidence_path": "conformance/observations/covalent-i-cl-icl3-001.evidence.json",
+      "request": "What covalent product forms when iodine reacts with chlorine?",
+      "equation": "I2 + 3 Cl2 -> 2 ICl3",
+      "subject_name": "iodine",
+      "product_name": "iodine trichloride",
+      "product_structure": "InterhalogenICl3"
+    },
+    {
+      "id": "covalent-cl-f-clf5",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 17
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-cl-f-clf5-001.chems",
+      "evidence_path": "conformance/observations/covalent-cl-f-clf5-001.evidence.json",
+      "request": "What covalent product forms when chlorine reacts with fluorine?",
+      "equation": "Cl2 + 5 F2 -> 2 ClF5",
+      "subject_name": "chlorine",
+      "product_name": "chlorine pentafluoride",
+      "product_structure": "InterhalogenClF5"
+    },
+    {
+      "id": "covalent-br-f-brf5",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 35
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-br-f-brf5-001.chems",
+      "evidence_path": "conformance/observations/covalent-br-f-brf5-001.evidence.json",
+      "request": "What covalent product forms when bromine reacts with fluorine?",
+      "equation": "Br2 + 5 F2 -> 2 BrF5",
+      "subject_name": "bromine",
+      "product_name": "bromine pentafluoride",
+      "product_structure": "InterhalogenBrF5"
+    },
+    {
+      "id": "covalent-i-f-if5",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 53
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-i-f-if5-001.chems",
+      "evidence_path": "conformance/observations/covalent-i-f-if5-001.evidence.json",
+      "request": "What covalent product forms when iodine reacts with fluorine?",
+      "equation": "I2 + 5 F2 -> 2 IF5",
+      "subject_name": "iodine",
+      "product_name": "iodine pentafluoride",
+      "product_structure": "InterhalogenIF5"
+    },
+    {
+      "id": "covalent-i-f-if7",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 53
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-i-f-if7-001.chems",
+      "evidence_path": "conformance/observations/covalent-i-f-if7-001.evidence.json",
+      "request": "What covalent product forms when iodine reacts with fluorine?",
+      "equation": "I2 + 7 F2 -> 2 IF7",
+      "subject_name": "iodine",
+      "product_name": "iodine heptafluoride",
+      "product_structure": "InterhalogenIF7"
+    },
+    {
+      "id": "covalent-h-f-hf",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 1
+        },
+        {
+          "kind": "element",
+          "atomic_number": 9
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-h-f-hf-001.chems",
+      "evidence_path": "conformance/observations/covalent-h-f-hf-001.evidence.json",
+      "request": "What covalent product forms when hydrogen reacts with fluorine?",
+      "equation": "H2 + F2 -> 2 HF",
+      "subject_name": "hydrogen",
+      "product_name": "hydrogen fluoride",
+      "product_structure": "HydrogenFluoride"
+    },
+    {
+      "id": "covalent-h-cl-hcl",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 1
+        },
+        {
+          "kind": "element",
+          "atomic_number": 17
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-h-cl-hcl-001.chems",
+      "evidence_path": "conformance/observations/covalent-h-cl-hcl-001.evidence.json",
+      "request": "What covalent product forms when hydrogen reacts with chlorine?",
+      "equation": "H2 + Cl2 -> 2 HCl",
+      "subject_name": "hydrogen",
+      "product_name": "hydrogen chloride",
+      "product_structure": "HydrogenChloride"
+    },
+    {
+      "id": "covalent-h-br-hbr",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 1
+        },
+        {
+          "kind": "element",
+          "atomic_number": 35
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-h-br-hbr-001.chems",
+      "evidence_path": "conformance/observations/covalent-h-br-hbr-001.evidence.json",
+      "request": "What covalent product forms when hydrogen reacts with bromine?",
+      "equation": "H2 + Br2 -> 2 HBr",
+      "subject_name": "hydrogen",
+      "product_name": "hydrogen bromide",
+      "product_structure": "HydrogenBromide"
+    },
+    {
+      "id": "covalent-h-i-hi",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 1
+        },
+        {
+          "kind": "element",
+          "atomic_number": 53
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-h-i-hi-001.chems",
+      "evidence_path": "conformance/observations/covalent-h-i-hi-001.evidence.json",
+      "request": "What covalent product forms when hydrogen reacts with iodine?",
+      "equation": "H2 + I2 -> 2 HI",
+      "subject_name": "hydrogen",
+      "product_name": "hydrogen iodide",
+      "product_structure": "HydrogenIodide"
+    },
+    {
+      "id": "covalent-h-n-nh3",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 1
+        },
+        {
+          "kind": "element",
+          "atomic_number": 7
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-h-n-nh3-001.chems",
+      "evidence_path": "conformance/observations/covalent-h-n-nh3-001.evidence.json",
+      "request": "What covalent product forms when hydrogen reacts with nitrogen?",
+      "equation": "3 H2 + N2 -> 2 NH3",
+      "subject_name": "hydrogen",
+      "product_name": "ammonia",
+      "product_structure": "Ammonia"
+    },
+    {
+      "id": "covalent-h-s-h2s",
+      "status": "trusted",
+      "family": "covalent_combination",
+      "participants": [
+        {
+          "kind": "element",
+          "atomic_number": 1
+        },
+        {
+          "kind": "element",
+          "atomic_number": 16
+        }
+      ],
+      "source_path": "conformance/end-to-end/covalent-h-s-h2s-001.chems",
+      "evidence_path": "conformance/observations/covalent-h-s-h2s-001.evidence.json",
+      "request": "What covalent product forms when hydrogen reacts with sulfur?",
+      "equation": "8 H2 + S8 -> 8 H2S",
+      "subject_name": "hydrogen",
+      "product_name": "hydrogen sulfide",
+      "product_structure": "HydrogenSulfide"
     }
   ]
 }

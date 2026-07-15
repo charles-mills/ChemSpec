@@ -372,6 +372,7 @@ pub enum ReactionFamily {
     HalogenDisplacement,
     Oxygen,
     FixedChargeIonPair,
+    CovalentCombination,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -390,6 +391,8 @@ struct ExperienceDefinition {
     evidence: &'static str,
     equation: &'static str,
     subject_name: &'static str,
+    product_name: Option<&'static str>,
+    product_structure: Option<&'static str>,
 }
 
 include!(concat!(env!("OUT_DIR"), "/experience_registry.rs"));
@@ -645,6 +648,12 @@ impl ReactionRequest {
 
     #[must_use]
     pub fn name(self) -> String {
+        if let Some(name) = self
+            .definition()
+            .and_then(|definition| definition.product_name)
+        {
+            return name.to_owned();
+        }
         run(self).map_or_else(
             |_| {
                 self.definition().map_or_else(
@@ -664,7 +673,9 @@ impl ReactionRequest {
             ReactionFamily::AcidBicarbonateGasEvolution
             | ReactionFamily::AcidCarbonateGasEvolution => GAS_EVOLUTION_EVIDENCE,
             ReactionFamily::HalogenDisplacement => HALOGEN_DISPLACEMENT_EVIDENCE,
-            ReactionFamily::Oxygen | ReactionFamily::FixedChargeIonPair => self
+            ReactionFamily::Oxygen
+            | ReactionFamily::FixedChargeIonPair
+            | ReactionFamily::CovalentCombination => self
                 .definition()
                 .expect("registry family has a generated definition")
                 .evidence
@@ -725,6 +736,15 @@ impl ReactionRequest {
             } => halogen_displacement_source(displacing, displaced),
             ReactionKind::Registry { index } => EXPERIENCE_DEFINITIONS[index].source.to_owned(),
         }
+    }
+
+    /// Returns the exact reviewed product graph named by a registry experience.
+    /// Formula-only lookup is intentionally not used here: several formulae can
+    /// represent more than one structure.
+    #[must_use]
+    pub fn product_preview(self) -> Option<composition_catalogue::TrustedCompositionPreview> {
+        let structure = self.definition()?.product_structure?;
+        composition_catalogue::trusted_preview_by_structure_id(structure)
     }
 }
 
@@ -1355,8 +1375,15 @@ pub fn presentation_profile(
                     },
                     PresentationObject {
                         id: "product".to_owned(),
-                        asset: AssetProfile::CrystalCluster,
-                        semantic_identity: crate::nomenclature::product_names(frames),
+                        asset: if definition.family == ReactionFamily::CovalentCombination {
+                            AssetProfile::GasCloud
+                        } else {
+                            AssetProfile::CrystalCluster
+                        },
+                        semantic_identity: definition.product_name.map_or_else(
+                            || crate::nomenclature::product_names(frames),
+                            str::to_owned,
+                        ),
                         appearance: AppearanceProfile::LaboratoryNeutral,
                         role: SceneRole::Product,
                         transform: transform([0, 250, 0], [750, 750, 750]),
@@ -1474,7 +1501,7 @@ mod tests {
                 chem_kernel::ValidationResult::ValidatedWithAssumptions
             );
         }
-        assert_eq!(ids.len(), 185);
+        assert_eq!(ids.len(), 205);
         assert_eq!(families[&ReactionFamily::AlkaliWater], 3);
         assert_eq!(families[&ReactionFamily::SilverHalidePrecipitation], 3);
         assert_eq!(families[&ReactionFamily::AcidBaseNeutralization], 9);
@@ -1483,6 +1510,7 @@ mod tests {
         assert_eq!(families[&ReactionFamily::HalogenDisplacement], 3);
         assert_eq!(families[&ReactionFamily::Oxygen], 68);
         assert_eq!(families[&ReactionFamily::FixedChargeIonPair], 81);
+        assert_eq!(families[&ReactionFamily::CovalentCombination], 20);
     }
 
     #[test]
@@ -1644,6 +1672,7 @@ mod tests {
                 ReactionFamily::HalogenDisplacement
                     | ReactionFamily::Oxygen
                     | ReactionFamily::FixedChargeIonPair
+                    | ReactionFamily::CovalentCombination
             ) {
                 assert!(
                     profile
@@ -1671,7 +1700,7 @@ mod tests {
                 assert_eq!(binding.value, value);
             }
         }
-        assert_eq!(profile_ids.len(), 185);
+        assert_eq!(profile_ids.len(), 205);
     }
 
     #[test]
@@ -1694,6 +1723,19 @@ mod tests {
             resolve_drafts(&[26], &[8]),
             DraftResolution::Multiple(outcomes) if outcomes.len() == 3
         ));
+
+        let chlorine_fluorine = requests_for_drafts(&[17], &[9]);
+        assert_eq!(chlorine_fluorine.len(), 3);
+        assert!(
+            chlorine_fluorine
+                .iter()
+                .all(|request| request.family() == ReactionFamily::CovalentCombination)
+        );
+        assert!(
+            chlorine_fluorine
+                .iter()
+                .all(|request| request.product_preview().is_some())
+        );
     }
 
     #[test]

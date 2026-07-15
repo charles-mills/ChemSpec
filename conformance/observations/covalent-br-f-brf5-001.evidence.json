@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.CovalentCombination@1",
+  "claims": [
+    {
+      "id": "R1",
+      "subject_role": "product",
+      "subject": "product",
+      "predicate": "forms",
+      "sources": [
+        "S2"
+      ]
+    },
+    {
+      "id": "R2",
+      "subject_role": "reactant",
+      "subject": "element",
+      "predicate": "disappears",
+      "sources": [
+        "S2"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "S2",
+      "title": "Occurrence, Preparation, and Properties of Halogens",
+      "publisher": "OpenStax",
+      "url": "https://openstax.org/books/chemistry-2e/pages/18-11-occurrence-preparation-and-properties-of-halogens",
+      "supports": [
+        "R1",
+        "R2"
+      ]
+    }
+  ]
+}

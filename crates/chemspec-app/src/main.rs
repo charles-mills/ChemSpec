@@ -33,6 +33,41 @@ fn plan_equation(animation: &StructuralAnimation) -> Option<&str> {
     (!animation.equation.is_empty()).then_some(animation.equation.as_str())
 }
 
+fn reviewed_outcome_choice(request: chemistry::ReactionRequest) -> Element<'static, Message> {
+    let labels = column![
+        text(request.name())
+            .size(type_scale::BODY_LARGE)
+            .color(color::TEXT),
+        text(request.equation())
+            .size(type_scale::CAPTION)
+            .color(color::MUTED),
+    ]
+    .spacing(spacing::XXS)
+    .width(Fill);
+    let choice: Element<'static, Message> = if let Some(preview) = request.product_preview() {
+        row![
+            canvas(particle_visualization::CompoundAtomicDiagram::new(
+                preview, 0.0,
+            ))
+            .width(Length::Fixed(220.0))
+            .height(Length::Fixed(150.0)),
+            labels,
+        ]
+        .spacing(spacing::MD)
+        .align_y(Center)
+        .width(Fill)
+        .into()
+    } else {
+        labels.into()
+    };
+    button(choice)
+        .on_press(Message::OutcomeSelected(request))
+        .padding(spacing::MD)
+        .width(Fill)
+        .style(theme::secondary_button)
+        .into()
+}
+
 #[allow(clippy::cast_precision_loss)]
 fn educational_timeline_progress(animation: &StructuralAnimation) -> f32 {
     let total = animation.educational_plan.duration_ms().max(1);
@@ -663,24 +698,7 @@ impl App {
             .spacing(spacing::MD)
             .width(Fill);
             for request in &self.pending_requests {
-                choices = choices.push(
-                    button(
-                        column![
-                            text(request.name())
-                                .size(type_scale::BODY_LARGE)
-                                .color(color::TEXT),
-                            text(request.equation())
-                                .size(type_scale::CAPTION)
-                                .color(color::MUTED),
-                        ]
-                        .spacing(spacing::XXS)
-                        .width(Fill),
-                    )
-                    .on_press(Message::OutcomeSelected(*request))
-                    .padding(spacing::MD)
-                    .width(Fill)
-                    .style(theme::secondary_button),
-                );
+                choices = choices.push(reviewed_outcome_choice(*request));
             }
             choices.push(back).into()
         } else if let Some(assessment) = &self.oxygen_assessment {

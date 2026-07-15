@@ -447,7 +447,8 @@ fn slot(
 fn slot_state_color(atoms: &[u8]) -> Color {
     if atoms.is_empty() {
         color::LINE_STRONG
-    } else if atoms.len() == 1 || composition_catalogue::recognize(atoms.iter().copied()).is_some()
+    } else if atoms.len() == 1
+        || composition_catalogue::trusted_preview(atoms.iter().copied()).is_some()
     {
         color::ACCENT
     } else {
