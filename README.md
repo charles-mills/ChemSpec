@@ -1,8 +1,8 @@
 # ChemSpec
 
 ChemSpec is an AI-assisted theoretical chemistry explorer. A learner proposes a
-reaction; reviewed catalogue rules identify a supported outcome; an agent
-researches qualitative observations and writes concise `.chems 1`; and a
+reaction; the reviewed catalogue supplies an immediate result when it can; and
+Codex researches and constructs a working chemistry bundle when it cannot. A
 deterministic structural kernel expands and validates the exact atom-mapped
 changes before paired observation and structural simulations can run.
 
@@ -13,9 +13,10 @@ The project is being built for the Education category of
 
 ```text
 request
-  -> reviewed-rule applicability
+  -> catalogue fast path
+     -> miss: Codex researches a self-contained working catalogue, evidence,
+        and concise structural .chems 1
   -> evidence-backed qualitative observations
-  -> concise structural .chems 1
   -> deterministic mapping and operation expansion
   -> graph, charge, electron, and product validation
   -> paired observation and structural-change frames
@@ -25,12 +26,16 @@ request
 - Formulae summarize composition; catalogue graphs define structure.
 - Shared and dative covalent bonds, ionic associations, and metallic domains
   remain distinct; dative direction records donor-pair origin on a single bond.
-- Applicability belongs to reviewed reaction rules, not agent invention.
+- Applicability must be encoded in a catalogue rule and pass deterministic
+  validation. That rule may come from the host-pinned catalogue or a per-run
+  Codex working catalogue.
 - The authored source is visible and editable.
 - The expanded atom map and structural certificate are visible and derived.
-- The validator is the only component that can construct trusted chemistry.
+- The validator is the only component that can construct renderer-eligible
+  chemistry.
 - The renderer visualizes validated states and never discovers outcomes.
-- Unsupported chemistry remains Unsupported rather than false or guessed.
+- Malformed, unsafe, ambiguous, or unrepresentable chemistry remains blocked
+  rather than false or guessed.
 
 ChemSpec shows a representative theoretical outcome. It is not a laboratory
 instruction system, molecular-dynamics simulator, bulk solution model, or
@@ -94,24 +99,28 @@ full; `by apply` cannot select or omit checks.
 
 ## Workspace
 
-The Rust workspace separates pure structural values, language tooling, trusted
-catalogue data, and validation:
+The Rust workspace separates pure structural values, language tooling,
+catalogue data, provider output, and validation:
 
 - `chem-domain` — exact identities and structural domain values;
 - `chems-lang` — lossless `.chems 1` frontend and formatter;
-- `chem-catalogue` — immutable reviewed structures and rules;
+- `chem-catalogue` — immutable reviewed structures/rules and strict working
+  catalogue validation;
 - `chem-kernel` — resolution, expansion, graph validation, and artifacts;
 - `chem-presentation` — deterministic guided-scene and macroscopic-scene plans
-  compiled only from trusted kernel frames;
+  compiled only from validated kernel frames;
+- `agent` — Codex preflight/invocation, strict result decoding, and dynamic
+  validation orchestration;
 - `chems-cli` — parsing, formatting, source/certificate inspection, deterministic
   candidate checking, and attestation-bound catalogue promotion;
 - `chems-conformance` — specification, grammar, fixture, and coverage gates.
 - `chemspec-app` — native Iced composition UI plus Canvas 2D and wgpu 3D
   renderers.
 
-The desktop application is native Rust using Iced and `wgpu`. Provider support
-offers either a Codex subscription through the local `codex` binary or direct
-Responses API access with an API key.
+The desktop application is native Rust using Iced and `wgpu`. The first live
+dynamic provider uses a Codex subscription through the local `codex` binary.
+The startup UI also reserves direct Responses API access with an in-memory API
+key; that provider is not yet connected to dynamic construction.
 
 ## Language status
 
@@ -130,17 +139,23 @@ documented in [`docs/covalent-combinations.md`](docs/covalent-combinations.md).
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
-grammar. The candidate-authoring path can merge and exercise catalogue content,
-but it cannot promote its own output; chemistry review and host trust-root
-updates remain deliberate source-controlled host actions. Runtime agents and
-candidate packages still cannot promote themselves.
+grammar. Runtime Codex results remain working catalogues and cannot promote
+themselves into the host-pinned fast path. Promotion remains a deliberate
+source-controlled optimization, not a prerequisite for displaying a
+deterministically validated dynamic result.
 
 The Iced application's typed request boundary can deterministically author and
 validate `.chems 1` source for all 205 supported experiences through the real
 catalogue, generalized expansion, kernel validation, and `SimulationFrames`
 APIs. The reactant composer exposes the complete set, asks the learner to pick
 when a pair has several reviewed products, and keeps oxygen screening distinct
-from executable frames. Draft previews are projected only from unambiguous
+from executable frames. Recognized catalogue misses show **Codex will build
+this reaction** and launch a generation-scoped provider task. Codex returns a
+strict outer artifact containing a working catalogue document, claim-linked
+evidence, and `.chems 1`; all three cross catalogue, language, evidence, kernel,
+and frame validation before presentation. The editable prompt template embeds
+the normative DSL, wire schemas, and reference artifact at compile time; an
+installed app does not need the source repository. Draft previews are projected only from unambiguous
 structures in the same host-pinned catalogue; they do not confer trust.
 
 ## Development commands

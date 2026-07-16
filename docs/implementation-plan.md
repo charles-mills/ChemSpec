@@ -112,6 +112,26 @@ bound to the exact host-pinned attestation digest.
 
 ## Agent and provider tasks
 
+### Dynamic coverage (`DYN`)
+
+1. **DYN-101 — Codex catalogue-miss vertical.** Recognized misses remain
+   actionable; Codex runs with live search, an ephemeral read-only sandbox, and
+   a strict outer result schema. A self-contained prompt package embeds the DSL
+   specification/grammar, wire schemas, and a complete reference artifact, so
+   packaged apps require no repository checkout. The returned working
+   catalogue, evidence, and source cross deterministic validation into
+   `ValidatedDynamicFrames` before presentation. Late completions are rejected
+   by run ID. **Implemented.**
+2. **DYN-102 — Visible workflow and bounded repair.** Stream normalized events,
+   expose validation diagnostics, terminate the child on cancellation/timeout,
+   and allow at most three artifact repair attempts. **Pending.**
+3. **DYN-103 — Provider/cache breadth.** Connect the direct Responses API
+   provider, add digest-bound local reuse of successful dynamic artifacts, and
+   extend request input beyond the structured two-reactant composer. **Pending.**
+
+The catalogue remains the fast path and cacheable trust root; it is no longer
+the product's chemistry ceiling.
+
 1. Freeze provider-neutral events, evidence, source, repair, and overview
    envelopes against the canonical fixture.
 2. Implement Codex preflight and capability detection without reading auth
@@ -168,13 +188,17 @@ attestation and both exact digests committed to the trust root.
   associations, metallic domains, operations, observations, and product
   membership. The depth-tested wgpu renderer consumes only reusable visual
   profiles and observation-gated effects, never an atom graph.
-- Startup probes `codex --version` and offers Codex subscription or an in-memory
-  API-key mode before entering the builder.
+- Startup capability-probes Codex version, login, live-search support, and every
+  non-interactive flag used by the runtime. Recognized catalogue misses show
+  **Codex will build this reaction**, launch a generation-scoped Iced task, and
+  validate the returned working catalogue/source/evidence bundle before 2D/3D
+  presentation.
 - UI-local hydrogen/oxygen, carbon/oxygen, and silver-chloride outcomes have
-  been removed. Those inputs remain Unsupported until catalogue coverage exists.
+  been removed; known outcomes still come through the catalogue fast path.
 - Editable source invalidates downstream frames and can be revalidated through
-  the trusted boundary. Provider-neutral events, live Codex/API invocation, and
-  richer certificate/derivation inspectors remain the next product work.
+  the trusted boundary. The live Codex construction path is implemented;
+  provider event streaming, repair/cancellation, direct API invocation, and
+  richer certificate/derivation inspectors remain next.
 
 ## Next catalogue breadth
 
@@ -222,4 +246,5 @@ and demo rehearsal pass.
 - Use a plain source editor before advanced language-service UI.
 - Retain primary-platform packaging plus CI build evidence if secondary
   installers are delayed.
-- Stop honestly at Unsupported rather than adding unreviewed chemistry.
+- Stop honestly at Unsupported when bounded dynamic construction cannot produce
+  a valid, safe, representable result.

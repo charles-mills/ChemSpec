@@ -2,28 +2,31 @@
 
 ## Role of the agent
 
-The agent is an identity assistant, observation researcher, concise `.chems 1`
-author, repair assistant, and explainer—not a chemistry authority.
+The agent is a reaction researcher, working-catalogue author, concise `.chems
+1` author, repair assistant, and explainer—not a chemistry authority.
 
-The deterministic engine resolves catalogue identities and selects a unique
-reviewed reaction rule before observation research. The agent then:
+The application first checks the host-pinned catalogue. On a miss, the agent:
 
-1. researches typed qualitative observations with claim-level evidence;
-2. authors concise source using resolved identities and the selected rule;
-3. receives parsing, binding, expansion, and structural diagnostics;
-4. proposes a bounded visible patch when repair is possible; and
-5. supplies a concise evidence-linked overview after playback.
+1. researches the representative reaction and typed qualitative observations
+   with claim-level evidence;
+2. authors a self-contained `working` catalogue document containing the exact
+   premises, structures, applicability, mapping, and operation template;
+3. authors concise source bound to that working catalogue and evidence packet;
+4. receives catalogue, parsing, binding, expansion, and structural diagnostics;
+5. proposes a bounded visible patch when repair is possible; and
+6. supplies a concise evidence-linked overview after playback.
 
-The agent never authors the atom-map or operation templates already owned by
-the rule and never supplies a real-world laboratory method.
+The agent may author atom-map and operation templates only inside an untrusted
+working catalogue. Those records have no effect unless the deterministic
+catalogue and chemistry validators accept the complete artifact. The agent
+never supplies a real-world laboratory method.
 
 ## Visible workflow
 
 ```text
-✓ Identified lithium and water
-✓ Selected reviewed AlkaliMetalWithWater rule
-✓ Researched qualitative observations
-✓ Generated LithiumAndWater.chems
+✓ No catalogue entry; Codex is building this reaction
+✓ Researched reaction and qualitative observations
+✓ Generated working catalogue and LithiumAndWater.chems
 ✓ Expanded 4 reactant and 3 product instances
 ✗ Validation: observation claim R2 has the wrong subject
 ↻ Correcting the .chems source
@@ -43,38 +46,46 @@ Preflight locates `codex`/`codex.exe`, checks `codex --version`, reads
 reads credential files directly.
 
 Required capabilities are non-interactive execution, JSONL events, output
-schema, ephemeral runs, ignored user configuration, read-only sandbox, live
-search, working-directory selection, and cancellation. Capability detection is
-authoritative; no arbitrary minimum version is assumed.
+schema, ephemeral runs, ignored user configuration/rules, read-only sandbox,
+live search, working-directory selection, and a last-message artifact.
+Capability detection is authoritative; no arbitrary minimum version is assumed.
 
 Conceptual invocation:
 
 ```text
-codex exec
+codex --search exec
   --json
   --output-schema <result-schema.json>
+  --output-last-message <result.json>
   --sandbox read-only
-  --search
   --ephemeral
   --ignore-user-config
   --ignore-rules
   --skip-git-repo-check
-  -C <empty-run-directory>
+  -C <isolated-temporary-directory>
   -
 ```
 
 The provider chooses a currently available Codex model independently of the
 direct API provider. It must not assume the same model identifier is valid on
-both surfaces. The prompt is supplied through stdin. ChemSpec parses stdout
-JSONL, captures stderr separately, terminates the child on cancellation, and
-writes returned source only after validating the structured envelope.
+both surfaces. The prompt is supplied through stdin and is self-contained: its
+editable Markdown template, normative `.chems` specification and grammar,
+catalogue/evidence schemas, and complete reference artifact are compiled into
+the binary. An installed app never assumes a repository checkout or asks Codex
+to read project files. Codex runs in an isolated temporary directory. It emits
+JSONL, but the first vertical discards those events, captures bounded stderr on
+failure, and reads the last-message artifact only after the child succeeds.
+Iced generation IDs reject stale completions. Parsing events into visible
+workflow entries and direct child termination remain follow-up work.
 
 Never use sandbox-bypass flags.
 
 ### OpenAI API key
 
-API-key mode calls the Responses API directly and has no Codex binary
-dependency. It does not mutate shared Codex authentication.
+API-key mode is the planned second provider and has no Codex binary dependency.
+The startup selector and in-memory field exist, but dynamic Responses API
+construction is not connected yet. It will not mutate shared Codex
+authentication.
 
 The key stays in memory by default and may be persisted only through the
 operating-system credential manager after explicit choice. It appears only in
@@ -97,9 +108,9 @@ AgentProvider
   cancel(run_id)
 ```
 
-Both providers emit the same normalized events and result envelopes. Parsing,
-catalogue resolution, expansion, validation, and simulation are provider
-independent.
+Both providers use the same normalized result envelope. Catalogue validation,
+parsing, expansion, kernel validation, and simulation are provider independent.
+The initial implemented live path is Codex subscription.
 
 ## Evidence packet
 
@@ -126,17 +137,24 @@ IDs; editing evidence invalidates downstream validation through its digest.
 
 ## Structured output
 
-Provider output contains resolved source text plus the evidence packet and
-provenance envelope. Strict parsing rejects unknown fields, missing claims,
-invalid IDs, source/evidence disagreement, or provider prose outside the
+Provider output contains source text, the evidence packet, a working catalogue
+document, and provenance. The Codex outer schema carries the three nested
+artifacts as strings so each repository-owned strict decoder remains
+authoritative. Strict parsing rejects unknown fields, missing claims, invalid
+IDs, source/evidence/catalogue disagreement, or provider prose outside the
 declared schema.
+
+The editable runtime template lives at
+`crates/agent/prompts/dynamic-reaction.md`. Compile-time inclusions deliberately
+reuse the normative source files instead of copying their contents into Rust or
+maintaining a second grammar/schema.
 
 ## Repair loop
 
-A repair request contains the original request, selected reviewed rule, current
-evidence packet, current source, and stable diagnostics. It instructs the agent
-to patch only invalid authored fields; catalogue facts, rule templates, and
-validator configuration are unavailable for modification.
+A repair request contains the original request, current working catalogue,
+evidence packet, source, and stable diagnostics. It instructs the agent to
+patch only the rejected candidate artifact; validator configuration and the
+host-pinned catalogue are unavailable for modification.
 
 Allow at most three repair attempts. Every patch is shown as a diff and remains
 undoable. After the limit, stop with a transparent invalid or unsupported

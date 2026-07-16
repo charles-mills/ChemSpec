@@ -2,7 +2,8 @@
 //!
 //! Opens on the Stage 1 builder: the learner's question, composed from two
 //! reactant drafts over the full periodic table. Chemistry is supplied only
-//! through the host-pinned language/kernel boundary.
+//! through the catalogue fast path or a deterministically validated dynamic
+//! working catalogue.
 
 mod chemistry;
 mod composition_catalogue;
@@ -18,15 +19,22 @@ mod structural_2d;
 mod structural_3d;
 mod theme;
 
+use std::ops::Deref;
+
+use agent::{
+    CodexProvider, CodexProviderConfig, ReactantInput, ReactionBuildRequest,
+    ValidatedDynamicReaction,
+};
 use chem_presentation::{
-    EducationalPlan, EducationalSceneKind, EffectProfile, ScenePlan, TimelinePosition,
-    compile_educational_plan, compile_real_world_plan,
+    AppearanceProfile, AssetProfile, EducationalPlan, EducationalSceneKind, EffectProfile,
+    PresentationObject, PresentationProfile, PresentationTransform, ScenePlan, SceneRole,
+    TimelinePosition, compile_educational_plan, compile_real_world_plan,
 };
 use iced::widget::{
     button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
     text, text_input,
 };
-use iced::{Center, Element, Fill, Length, Size, Subscription, Theme};
+use iced::{Center, Element, Fill, Length, Size, Subscription, Task, Theme};
 
 use theme::{breakpoint, color, space as spacing, type_scale};
 
@@ -151,7 +159,7 @@ fn main() -> iced::Result {
         eprintln!("{error}");
         std::process::exit(2);
     }
-    iced::application(launch_state, App::update, App::view)
+    iced::application(launch_state, App::update_with_task, App::view)
         .title(App::title)
         .subscription(App::subscription)
         .theme(App::theme)
@@ -182,10 +190,50 @@ fn adaptive_zoom(reported: Size, current_zoom: f32) -> f32 {
 }
 
 fn codex_available() -> bool {
-    std::process::Command::new("codex")
-        .arg("--version")
-        .output()
-        .is_ok_and(|output| output.status.success())
+    CodexProvider::new(CodexProviderConfig::from_environment())
+        .preflight()
+        .is_ok_and(|preflight| preflight.authenticated)
+}
+
+fn dynamic_presentation_profile(
+    _frames: &chem_kernel::SimulationFrames,
+    equation: &str,
+) -> PresentationProfile {
+    let transform = |translation, scale| PresentationTransform {
+        translation,
+        rotation: [0, 0, 0],
+        scale,
+    };
+    PresentationProfile {
+        id: "dynamic-validated".to_owned(),
+        environment: AssetProfile::LaboratoryBench,
+        objects: vec![
+            PresentationObject {
+                id: "vessel".to_owned(),
+                asset: AssetProfile::Beaker,
+                semantic_identity: "virtual reaction vessel".to_owned(),
+                appearance: AppearanceProfile::ClearGlass,
+                role: SceneRole::Vessel,
+                transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
+                visible_from_ordinal: 0,
+                observation: None,
+            },
+            PresentationObject {
+                id: "contents".to_owned(),
+                asset: AssetProfile::LiquidVolume,
+                semantic_identity: "representative reaction contents".to_owned(),
+                appearance: AppearanceProfile::AqueousColourless,
+                role: SceneRole::Contents,
+                transform: transform([0, -150, 0], [1_000, 850, 1_000]),
+                visible_from_ordinal: 0,
+                observation: None,
+            },
+        ],
+        effects: Vec::new(),
+        camera: Vec::new(),
+        equation: equation.to_owned(),
+        disclosure: "Representative virtual presentation.".to_owned(),
+    }
 }
 
 const fn initial_provider(codex_available: bool) -> ProviderChoice {
@@ -386,6 +434,10 @@ enum Message {
     ProviderContinue,
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
+    DynamicBuildFinished {
+        run_id: u64,
+        result: Box<Result<ValidatedDynamicReaction, String>>,
+    },
     OutcomeSelected(chemistry::ReactionRequest),
     StructuralPlaybackToggled,
     StructuralSpeedChanged,
@@ -398,9 +450,36 @@ enum Message {
     ReturnTo2d,
 }
 
+#[derive(Debug, Clone)]
+enum RenderableFrames {
+    Catalogue(chem_kernel::SimulationFrames),
+    Dynamic(chem_kernel::ValidatedDynamicFrames),
+}
+
+impl Deref for RenderableFrames {
+    type Target = chem_kernel::SimulationFrames;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Catalogue(frames) => frames,
+            Self::Dynamic(frames) => frames,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+enum DynamicBuildState {
+    #[default]
+    Idle,
+    Running {
+        run_id: u64,
+    },
+    Failed(String),
+}
+
 #[derive(Debug)]
 struct StructuralAnimation {
-    frames: chem_kernel::SimulationFrames,
+    frames: RenderableFrames,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
     reactant_previews: Vec<composition_catalogue::TrustedCompositionPreview>,
@@ -424,7 +503,10 @@ struct App {
     pending_requests: Vec<chemistry::ReactionRequest>,
     oxygen_assessment: Option<chemistry::OxygenAssessment>,
     active_request: chemistry::ReactionRequest,
-    validated_frames: Option<chem_kernel::SimulationFrames>,
+    validated_frames: Option<RenderableFrames>,
+    dynamic_reaction: Option<ValidatedDynamicReaction>,
+    dynamic_build: DynamicBuildState,
+    next_dynamic_run_id: u64,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
     /// Interface zoom applied on top of the system scale factor.
@@ -448,7 +530,10 @@ impl Default for App {
             active_request,
             validated_frames: chemistry::run(active_request)
                 .ok()
-                .map(|run| run.frames().clone()),
+                .map(|run| RenderableFrames::Catalogue(run.frames().clone())),
+            dynamic_reaction: None,
+            dynamic_build: DynamicBuildState::Idle,
+            next_dynamic_run_id: 1,
             structural_animation: None,
             structural_error: None,
             ui_zoom: 1.0,
@@ -456,6 +541,7 @@ impl Default for App {
     }
 }
 
+#[cfg(test)]
 fn api_key_format_is_valid(api_key: &str) -> bool {
     let Some(secret) = api_key.strip_prefix("sk-") else {
         return false;
@@ -476,7 +562,7 @@ impl App {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn update(&mut self, message: Message) {
+    fn update_with_task(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowResized(size) => self.ui_zoom = adaptive_zoom(size, self.ui_zoom),
             Message::ScreenSelected(screen) => self.screen = screen,
@@ -485,8 +571,7 @@ impl App {
             Message::ProviderContinue => {
                 let ready = match self.provider {
                     Some(ProviderChoice::CodexSubscription) => self.codex_available,
-                    Some(ProviderChoice::ApiKey) => api_key_format_is_valid(&self.api_key),
-                    None => false,
+                    Some(ProviderChoice::ApiKey) | None => false,
                 };
                 if ready {
                     self.screen = Screen::Builder;
@@ -502,7 +587,29 @@ impl App {
                 }
             }
             Message::ReactantComposer(message) => {
-                self.update_reactant_composer(message);
+                return self.update_reactant_composer(message);
+            }
+            Message::DynamicBuildFinished { run_id, result } => {
+                if !matches!(self.dynamic_build, DynamicBuildState::Running { run_id: current } if current == run_id)
+                {
+                    return Task::none();
+                }
+                match *result {
+                    Ok(reaction) => {
+                        self.validated_frames =
+                            Some(RenderableFrames::Dynamic(reaction.frames().clone()));
+                        self.dynamic_reaction = Some(reaction);
+                        self.dynamic_build = DynamicBuildState::Idle;
+                        self.structural_animation = None;
+                        self.structural_error = None;
+                        self.open_structural_animation();
+                    }
+                    Err(error) => {
+                        self.validated_frames = None;
+                        self.dynamic_reaction = None;
+                        self.dynamic_build = DynamicBuildState::Failed(error);
+                    }
+                }
             }
             Message::OutcomeSelected(request) => {
                 self.pending_requests.clear();
@@ -571,12 +678,26 @@ impl App {
             }
             Message::ReturnTo2d => self.screen = Screen::Structural2d,
         }
+        Task::none()
     }
 
-    fn update_reactant_composer(&mut self, message: reactant_composer::Message) {
+    #[cfg(test)]
+    fn update(&mut self, message: Message) {
+        drop(self.update_with_task(message));
+    }
+
+    fn update_reactant_composer(&mut self, message: reactant_composer::Message) -> Task<Message> {
         if !matches!(message, reactant_composer::Message::StartReactionRequested) {
+            self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
+            self.dynamic_build = DynamicBuildState::Idle;
+            if self.dynamic_reaction.take().is_some()
+                || matches!(&self.validated_frames, Some(RenderableFrames::Dynamic(_)))
+            {
+                self.validated_frames = None;
+                self.structural_animation = None;
+            }
             reactant_composer::update(&mut self.reactant_composer, message);
-            return;
+            return Task::none();
         }
         match reactant_composer::resolution(&self.reactant_composer) {
             chemistry::DraftResolution::Supported(request) => {
@@ -584,29 +705,72 @@ impl App {
                 self.oxygen_assessment = None;
                 self.select_request(request);
                 self.open_structural_animation();
+                Task::none()
             }
             chemistry::DraftResolution::Multiple(requests) => {
                 self.pending_requests = requests;
                 self.oxygen_assessment = None;
                 self.screen = Screen::OutcomeChoice;
+                Task::none()
             }
             chemistry::DraftResolution::Screened(assessment) => {
                 self.pending_requests.clear();
                 self.oxygen_assessment = Some(assessment);
                 self.screen = Screen::OutcomeChoice;
+                Task::none()
             }
             chemistry::DraftResolution::ExplicitlyUnsupported(_)
-            | chemistry::DraftResolution::Uncatalogued
-            | chemistry::DraftResolution::Unrecognized
-            | chemistry::DraftResolution::SystemError(_) => {}
+            | chemistry::DraftResolution::Uncatalogued => self.start_dynamic_build(),
+            chemistry::DraftResolution::Unrecognized
+            | chemistry::DraftResolution::SystemError(_) => Task::none(),
         }
+    }
+
+    fn start_dynamic_build(&mut self) -> Task<Message> {
+        if !matches!(self.provider, Some(ProviderChoice::CodexSubscription)) {
+            self.dynamic_build = DynamicBuildState::Failed(
+                "Direct API reaction building is not available yet; choose Codex subscription."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        let request = ReactionBuildRequest {
+            reactants: [first, second].map(|atoms| ReactantInput {
+                display: reactant_composer::formula(atoms),
+                atomic_numbers: atoms.to_vec(),
+            }),
+        };
+        let run_id = self.next_dynamic_run_id;
+        self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
+        self.validated_frames = None;
+        self.dynamic_reaction = None;
+        self.structural_animation = None;
+        self.structural_error = None;
+        self.dynamic_build = DynamicBuildState::Running { run_id };
+        let config = CodexProviderConfig::from_environment();
+        Task::perform(
+            async move {
+                CodexProvider::new(config)
+                    .build_reaction(&request)
+                    .map_err(|error| error.to_string())
+            },
+            move |result| Message::DynamicBuildFinished {
+                run_id,
+                result: Box::new(result),
+            },
+        )
     }
 
     // The offline fixture crosses the same trusted language/kernel boundary
     // that live provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
         self.active_request = request;
-        self.validated_frames = chemistry::run(request).ok().map(|run| run.frames().clone());
+        self.validated_frames = chemistry::run(request)
+            .ok()
+            .map(|run| RenderableFrames::Catalogue(run.frames().clone()));
+        self.dynamic_reaction = None;
+        self.dynamic_build = DynamicBuildState::Idle;
         self.structural_animation = None;
         self.structural_error = None;
     }
@@ -834,10 +998,9 @@ impl App {
         .style(move |_, status| theme::provider_button(api_selected, status));
 
         let choices: Element<'_, Message> = column![codex, api].spacing(spacing::SM).into();
-        let ready = (codex_selected && self.codex_available)
-            || (api_selected && api_key_format_is_valid(&self.api_key));
+        let ready = codex_selected && self.codex_available;
         let continue_label = if api_selected {
-            "Continue with API key"
+            "API provider coming next"
         } else {
             "Continue with Codex"
         };
@@ -933,20 +1096,35 @@ impl App {
             let frames = self
                 .validated_frames
                 .as_ref()
-                .ok_or_else(|| "trusted frames are unavailable".to_owned())?
+                .ok_or_else(|| "validated frames are unavailable".to_owned())?
                 .clone();
             let educational_plan =
                 compile_educational_plan(&frames).map_err(|error| error.to_string())?;
-            let profile = chemistry::presentation_profile(self.active_request, &frames)?;
+            let (profile, reactant_previews, product_preview, equation) =
+                if let Some(dynamic) = &self.dynamic_reaction {
+                    (
+                        dynamic_presentation_profile(&frames, dynamic.equation()),
+                        Vec::new(),
+                        None,
+                        dynamic.equation().to_owned(),
+                    )
+                } else {
+                    (
+                        chemistry::presentation_profile(self.active_request, &frames)?,
+                        self.active_request.reactant_previews(),
+                        self.active_request.product_preview(),
+                        self.active_request.equation(),
+                    )
+                };
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
             Ok::<_, String>(StructuralAnimation {
                 frames,
                 educational_plan,
                 real_world_plan,
-                reactant_previews: self.active_request.reactant_previews(),
-                product_preview: self.active_request.product_preview(),
-                equation: self.active_request.equation(),
+                reactant_previews,
+                product_preview,
+                equation,
                 educational_playhead_ms: 0,
                 frame_index: 0,
                 real_world_playhead_ms: 0,
@@ -1564,6 +1742,13 @@ impl App {
         let composer = reactant_composer::view(
             &self.reactant_composer,
             periodic_table::dragging_atomic_number(&self.periodic_table),
+            match &self.dynamic_build {
+                DynamicBuildState::Idle => None,
+                DynamicBuildState::Running { .. } => {
+                    Some("Codex is building this reaction…".to_owned())
+                }
+                DynamicBuildState::Failed(error) => Some(format!("Couldn’t build: {error}")),
+            },
             compact,
         )
         .map(Message::ReactantComposer);
@@ -1732,6 +1917,43 @@ mod tests {
     }
 
     #[test]
+    fn uncatalogued_reaction_starts_generation_scoped_codex_build() {
+        let mut app = App {
+            provider: Some(ProviderChoice::CodexSubscription),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![20], vec![1, 1, 8]]);
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { run_id: 1 }
+        ));
+        assert!(app.validated_frames.is_none());
+    }
+
+    #[test]
+    fn stale_dynamic_completion_cannot_replace_current_build() {
+        let mut app = App {
+            dynamic_build: DynamicBuildState::Running { run_id: 9 },
+            ..App::default()
+        };
+
+        app.update(Message::DynamicBuildFinished {
+            run_id: 8,
+            result: Box::new(Err("stale failure".to_owned())),
+        });
+
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { run_id: 9 }
+        ));
+    }
+
+    #[test]
     fn adaptive_zoom_scales_windows_beyond_the_design_size() {
         // At or below the design size the layout stays 1:1.
         assert!((adaptive_zoom(DESIGN_SIZE, 1.0) - 1.0).abs() < f32::EPSILON);
@@ -1809,7 +2031,7 @@ mod tests {
     }
 
     #[test]
-    fn api_key_provider_requires_an_in_memory_key_before_continuing() {
+    fn api_key_provider_remains_blocked_until_dynamic_api_is_connected() {
         let mut app = App::default();
         assert_eq!(app.screen, Screen::ProviderSetup);
         app.update(Message::ProviderSelected(ProviderChoice::ApiKey));
@@ -1819,7 +2041,7 @@ mod tests {
             "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789".to_owned(),
         ));
         app.update(Message::ProviderContinue);
-        assert_eq!(app.screen, Screen::Builder);
+        assert_eq!(app.screen, Screen::ProviderSetup);
     }
 
     #[test]

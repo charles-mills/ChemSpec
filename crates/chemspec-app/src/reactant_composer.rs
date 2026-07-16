@@ -199,6 +199,8 @@ pub fn can_start_reaction(state: &State) -> bool {
         chemistry::DraftResolution::Supported(_)
             | chemistry::DraftResolution::Multiple(_)
             | chemistry::DraftResolution::Screened(_)
+            | chemistry::DraftResolution::ExplicitlyUnsupported(_)
+            | chemistry::DraftResolution::Uncatalogued
     )
 }
 
@@ -206,7 +208,6 @@ pub fn resolution(state: &State) -> chemistry::DraftResolution {
     chemistry::resolve_drafts(&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
 
-#[cfg(test)]
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
@@ -218,9 +219,14 @@ pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
     state.limit_reached = false;
 }
 
-pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'static, Message> {
+pub fn view(
+    state: &State,
+    library_drag: Option<u8>,
+    build_status: Option<String>,
+    compact: bool,
+) -> Element<'static, Message> {
     let sentence = sentence(state, library_drag, compact);
-    let actions = action_row(state);
+    let actions = action_row(state, build_status);
 
     container(
         column![sentence, actions]
@@ -290,12 +296,14 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
         .into()
 }
 
-fn action_row(state: &State) -> Element<'static, Message> {
+fn action_row(state: &State, build_status: Option<String>) -> Element<'static, Message> {
     let active_atoms = &state.drafts[state.active.index()].atoms;
     let resolution = resolution(state);
     let run_label = match &resolution {
         chemistry::DraftResolution::Multiple(_) => "Choose product  →",
         chemistry::DraftResolution::Screened(_) => "View outcome  →",
+        chemistry::DraftResolution::ExplicitlyUnsupported(_)
+        | chemistry::DraftResolution::Uncatalogued => "Build reaction  →",
         _ => "Run reaction  →",
     };
     let run = button(text(run_label).size(type_scale::BODY))
@@ -324,7 +332,7 @@ fn action_row(state: &State) -> Element<'static, Message> {
     } else {
         color::WARNING
     };
-    let status = both_present
+    let resolution_status = both_present
         .then_some(&resolution)
         .filter(|resolution| {
             !matches!(
@@ -341,7 +349,11 @@ fn action_row(state: &State) -> Element<'static, Message> {
                 .color(status_color)
         });
     let mut content = column![controls].spacing(spacing::XS).align_x(Center);
-    if let Some(status) = status {
+    if let Some(status) =
+        build_status.map(|message| text(message).size(type_scale::CAPTION).color(color::ACCENT))
+    {
+        content = content.push(status);
+    } else if let Some(status) = resolution_status {
         content = content.push(status);
     }
     content.into()
@@ -658,7 +670,7 @@ fn draft_model_grid(atoms: &[u8], phase: f32, reveal: f32) -> Element<'static, M
         .into()
 }
 
-fn formula(atoms: &[u8]) -> String {
+pub fn formula(atoms: &[u8]) -> String {
     let atoms = chemistry::standardize_elemental_draft(atoms);
     let mut order = Vec::new();
     let mut counts = BTreeMap::<u8, usize>::new();
@@ -737,11 +749,12 @@ mod tests {
 
         assert_eq!(formula(reactants(&state).0), "Rb");
         assert_eq!(formula(reactants(&state).1), "Li");
-        assert!(!can_start_reaction(&state));
+        assert!(can_start_reaction(&state));
+        assert_eq!(resolution(&state), chemistry::DraftResolution::Uncatalogued);
     }
 
     #[test]
-    fn broader_trusted_pairs_enable_run_and_unsupported_pairs_explain_the_block() {
+    fn catalogue_pairs_run_immediately_and_missing_pairs_offer_codex() {
         let mut state = State::default();
         state.drafts[0].atoms = vec![47, 7, 8, 8, 8];
         state.drafts[1].atoms = vec![11, 17];
@@ -752,14 +765,10 @@ mod tests {
         ));
 
         state.drafts[1].atoms = vec![11, 9];
-        assert!(!can_start_reaction(&state));
+        assert!(can_start_reaction(&state));
         let resolution = resolution(&state);
-        assert!(
-            resolution
-                .message()
-                .is_some_and(|message| message.starts_with("Silver fluoride is soluble"))
-        );
-        let _ = action_row(&state);
+        assert_eq!(resolution.message(), Some("Codex will build this reaction"));
+        let _ = action_row(&state, None);
     }
 
     #[test]

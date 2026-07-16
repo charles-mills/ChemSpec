@@ -4,36 +4,36 @@
 
 ChemSpec has four distinct authorities:
 
-> The catalogue supplies reviewed chemistry; the agent proposes source and
-> observations; the kernel produces trust and structural meaning; the
-> application produces the experience.
+> The catalogue supplies cached chemistry; the agent proposes working chemistry
+> and source; the validator produces trust; the chemistry engine produces
+> meaning; the application produces the experience.
 
-No downstream component may synthesize chemistry omitted by the component
-upstream of its trust boundary.
+No layer may bypass the layer immediately downstream of it. In particular, raw
+or stale provider output never reaches the simulation.
 
 ## Runtime flow
 
 ```text
-natural-language reaction request
-  -> catalogue identity resolution
-  -> reviewed-rule applicability
-     -> unsupported / no reaction / ambiguous / invalid: stop honestly
-     -> unique supported outcome: continue
-  -> provider researches typed observations
-  -> provider authors concise structural .chems 1
+structured reaction request
+  -> host-pinned catalogue fast path
+     -> hit: selected production rule/source/evidence
+     -> miss: provider researches and authors a working catalogue document,
+        typed evidence, and concise structural .chems 1
   -> chems-lang parses source
-  -> chem-kernel resolves and expands reviewed rule
+  -> chem-catalogue validates production or working catalogue structure
+  -> chem-kernel resolves and expands the selected rule
   -> chem-kernel validates immutable structural derivation
-  -> ValidatedStructuralReaction
+  -> ValidatedStructuralReaction or ValidatedDynamicFrames
   -> paired structural and observation frames
   -> chem-presentation guided and macroscopic plans
   -> Iced Canvas/wgpu presentation
   -> provider supplies post-playback overview
 ```
 
-The simulation does not parse `.chems`; the agent does not construct trusted
+The simulation does not parse `.chems`; the agent does not construct validated
 domain values; the renderer does not infer bonds; and the application cannot
-mark a reaction valid.
+mark a reaction valid. Dynamic frames retain `review_candidate` provenance even
+after deterministic validation makes them renderer-readable.
 
 ## Workspace boundaries
 
@@ -64,7 +64,8 @@ source only and cannot decide chemical support.
 
 ### `chem-catalogue`
 
-Owns immutable reviewed structure entries, groups, valence/electron premises,
+Owns immutable reviewed structure entries and validated per-run working
+catalogues, groups, valence/electron premises,
 reaction applicability, product/map/operation templates, observation
 compatibility, provenance, review attestations, schema versions, semantic
 digests, validation, and deterministic indexes.
@@ -87,13 +88,15 @@ before graph-state validation begins.
 
 ### `agent`
 
-Owns provider preflight, observation research, evidence packets, concise source
-proposal, bounded repair, post-simulation overview, cancellation, timeouts, and
-normalized workflow events. It returns claims and text, never trusted chemistry.
+Owns provider preflight, reaction research, working catalogue/source/evidence
+artifacts, bounded repair, post-simulation overview, cancellation, timeouts,
+and normalized workflow events. It validates provider artifacts through the
+catalogue/language/kernel boundary and returns only the distinct validated
+dynamic capability, never host-pinned catalogue trust.
 
 ### `chem-presentation`
 
-Compiles trusted kernel frames into deterministic educational scenes and binds
+Compiles validated kernel frames into deterministic educational scenes and binds
 host-selected macroscopic styling into a scene plan. Effects require matching
 validated observation predicates. It cannot parse source, expand rules, alter
 frames, or construct chemical state.

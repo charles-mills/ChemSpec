@@ -36,7 +36,7 @@ Table-driven experiments include at least:
 | `HCl + NaOH` | Neutralization |
 | `HCl + NaHCO3` | Gas formation |
 | `KNO3 + NaCl` | No net reaction |
-| Unknown or out-of-domain chemistry | Unsupported |
+| Unknown or out-of-domain chemistry | Dynamic build, then validated or Unsupported |
 
 Every validated result is checked for:
 
@@ -66,6 +66,11 @@ Every catalogue build checks:
 - deterministic digest;
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
+
+Dynamic working catalogues run the same structural checks but cannot construct
+the host-pinned production capability. Their source/evidence/rule bundle must
+cross review-candidate expansion, kernel validation, and the distinct
+`ValidatedDynamicFrames` boundary before presentation.
 
 ## Agent evaluation
 
@@ -125,6 +130,8 @@ Drive Iced update logic through fake providers and deterministic messages:
 - cancellation and timeout;
 - malformed or unknown JSONL events;
 - structured-output failure;
+- unresolved prompt-template placeholders or accidental repository-path
+  dependencies in packaged-provider prompts;
 - validation failure and repair;
 - repair limit reached;
 - source edits invalidating the simulation;
@@ -138,10 +145,11 @@ Reaction-builder presentation tests additionally check that shell counts and
 outer-electron counts come from curated element metadata, grouped atomic
 layouts are deterministic, reduced motion disables orbital ticks, and forming
 a composition retains exactly one model for each member atom. Stage 4 tests
-check exact, order-independent reaction-candidate matching; unsupported and
-extra reactants remain disabled; and repeated triggering cannot create a second
-queue event. These checks do not confer validation or authorize simulation
-playback.
+check exact, order-independent reaction-candidate matching; unrecognised inputs
+remain disabled; recognized catalogue misses stay enabled with the exact
+**Codex will build this reaction** status; and stale completions cannot replace
+a newer generation. These checks do not confer validation or authorize
+simulation playback.
 
 Stage 5 tests prove that both plans derive from the same current trusted
 `SimulationFrames` generation; source edits stale both pages immediately; and
@@ -174,7 +182,7 @@ Educational narration tests cover the complete trust path. They prove that:
   humanizes `species.*` or atom IDs, or selects reaction-specific copy.
 
 The 3D suite requires a deterministic `ScenePlan` compiled only from the current
-trusted frames and host-selected presentation profile. It covers display
+validated frames and selected presentation profile. It covers display
 equation and typed-observation annotations, variable-duration macroscopic beat
 generation, reaction-independent asset/effect/camera registry resolution,
 distinct effect profiles, actual XYZ geometry, and use of the existing
@@ -275,7 +283,7 @@ A releasable build satisfies:
 1. Every bundled chemistry fixture produces its independently reviewed result.
 2. No invalid or stale source can enter the simulation.
 3. Every displayed empirical claim resolves to provenance.
-4. Unsupported chemistry remains distinct from invalid chemistry.
+4. Catalogue misses remain distinct from invalid or ultimately unsupported chemistry.
 5. Unsafe requests terminate or redirect transparently.
 6. Provider failures cannot masquerade as chemistry results.
 7. The application can complete the canonical journey from a packaged build.

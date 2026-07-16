@@ -2,9 +2,10 @@
 
 ## Outcome
 
-Ship one polished native ChemSpec journey demonstrating the reviewed lithium
-and water outcome from request through evidence, concise `.chems 1`, expanded
-structural validation, paired simulation, and explanation.
+Ship one polished native ChemSpec journey demonstrating both paths: an immediate
+catalogue reaction and an uncatalogued reaction researched and built by Codex,
+each crossing concise `.chems 1`, expanded structural validation, paired
+simulation, and explanation.
 
 ## Milestone 1 — definitive structural language
 
@@ -23,14 +24,15 @@ Exit evidence:
 
 ## Milestone 2 — provider journey
 
-Implement provider-neutral workflow events and fake-provider integration, then
-Codex subscription and direct Responses API providers.
+Implement the Codex subscription catalogue-miss vertical first, then
+provider-neutral workflow events, bounded repair/cancellation, fake-provider
+integration, and the direct Responses API provider.
 
 Exit evidence:
 
 - startup selector and accurate preflight states;
 - live-search observation research with claim-level evidence;
-- strict structured source/evidence output;
+- strict structured working-catalogue/source/evidence output;
 - visible bounded repair; and
 - explicit provider failure states.
 
@@ -64,7 +66,7 @@ Exit evidence:
 
 If time becomes constrained, cut in this order:
 
-1. catalogue breadth beyond lithium and water;
+1. catalogue promotion breadth beyond the core fast path;
 2. custom shaders and decorative motion;
 3. advanced editor features;
 4. secondary-platform installers while retaining build evidence; and

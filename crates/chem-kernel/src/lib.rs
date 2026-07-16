@@ -25,8 +25,8 @@ pub use frames::{
     CurrentArtifactIdentity, FrameAtom, FrameAtomGroup, FrameChange, FrameCovalentEdge, FrameError,
     FrameFailureClass, FrameIonicAssociation, FrameMetallicDomain, FrameModelDisclosure,
     FrameObservation, FrameOperation, FrameTrace, ObservationStatus,
-    ReviewCandidateFrameInspection, SimulationFrame, SimulationFrames, generate_frames,
-    inspect_review_candidate_frames,
+    ReviewCandidateFrameInspection, SimulationFrame, SimulationFrames, ValidatedDynamicFrames,
+    generate_frames, inspect_review_candidate_frames,
 };
 pub use hir::{
     CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidenceTrust,

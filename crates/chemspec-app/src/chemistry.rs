@@ -974,8 +974,9 @@ impl DraftResolution {
                 | OxygenOutcome::Ambiguous { reason }
                 | OxygenOutcome::Unsupported { reason } => reason,
             }),
-            Self::ExplicitlyUnsupported(case) => Some(case.explanation.as_str()),
-            Self::Uncatalogued => Some("No trusted local model for this pair yet."),
+            Self::ExplicitlyUnsupported(_) | Self::Uncatalogued => {
+                Some("Codex will build this reaction")
+            }
             Self::Unrecognized => Some("Build two recognized reactants to continue."),
             Self::SystemError(_) => Some("The trusted chemistry catalogue is unavailable."),
         }

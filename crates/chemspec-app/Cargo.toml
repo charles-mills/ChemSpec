@@ -20,6 +20,7 @@ icons = ["../../target/packaging/*.png"]
 binaries = [{ path = "chemspec-app", main = true }]
 
 [dependencies]
+agent = { path = "../agent" }
 bytemuck = { version = "1.25.1", features = ["derive"] }
 chem-catalogue = { path = "../chem-catalogue" }
 chem-domain = { path = "../chem-domain" }

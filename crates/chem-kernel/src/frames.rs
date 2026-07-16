@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
+    ops::Deref,
 };
 
 use chem_catalogue::{EventModel, ObservationPredicate, SequenceModel};
@@ -417,9 +418,10 @@ pub fn generate_frames(
 }
 
 /// Projects an explicitly untrusted review-candidate derivation for catalogue
-/// authoring inspection. The serialized result retains
-/// `trust: review_candidate` and cannot be passed to the trusted rendering
-/// boundary.
+/// authoring inspection or a validated dynamic reaction. The result retains
+/// `trust: review_candidate`; callers must explicitly cross
+/// [`ReviewCandidateFrameInspection::into_validated_dynamic`] before it can be
+/// presented.
 ///
 /// # Errors
 ///
@@ -433,11 +435,11 @@ pub fn inspect_review_candidate_frames(
     })
 }
 
-/// Serialized-only frame inspection for untrusted catalogue candidates.
+/// Frame inspection for an untrusted catalogue candidate.
 ///
-/// This deliberately does not dereference or convert into [`SimulationFrames`],
-/// which remains the renderer input produced only from a trusted validation
-/// capability by [`generate_frames`].
+/// The contained artifact can be serialized for catalogue review or consumed
+/// into [`ValidatedDynamicFrames`] for runtime presentation. Neither route can
+/// change its `review_candidate` provenance into host-pinned catalogue trust.
 #[derive(Debug, Clone)]
 pub struct ReviewCandidateFrameInspection {
     frames: SimulationFrames,
@@ -461,6 +463,35 @@ impl ReviewCandidateFrameInspection {
     /// Returns `CHEMS-F090` when canonical serialization fails.
     pub fn digest(&self) -> Result<ContentDigest, FrameError> {
         self.frames.digest()
+    }
+
+    /// Consumes a fully inspected candidate into the distinct runtime
+    /// capability accepted for dynamic presentation.
+    #[must_use]
+    pub fn into_validated_dynamic(self) -> ValidatedDynamicFrames {
+        ValidatedDynamicFrames {
+            frames: self.frames,
+        }
+    }
+}
+
+/// Renderer-readable frames produced by deterministic validation over a
+/// runtime working catalogue.
+///
+/// This wrapper intentionally does not expose an owned [`SimulationFrames`]
+/// conversion. The inner artifact remains tagged `review_candidate`, while
+/// dereferencing permits the presentation layer to read the same immutable
+/// frame contract used for host-pinned catalogue reactions.
+#[derive(Debug, Clone)]
+pub struct ValidatedDynamicFrames {
+    frames: SimulationFrames,
+}
+
+impl Deref for ValidatedDynamicFrames {
+    type Target = SimulationFrames;
+
+    fn deref(&self) -> &Self::Target {
+        &self.frames
     }
 }
 
