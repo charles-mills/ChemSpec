@@ -2,9 +2,11 @@
 
 ChemSpec is an AI-assisted theoretical chemistry explorer. A learner proposes a
 reaction; the reviewed catalogue supplies an immediate result when it can; and
-Codex researches and constructs a working chemistry bundle when it cannot. A
-deterministic structural kernel expands and validates the exact atom-mapped
-changes before paired observation and structural simulations can run.
+Codex returns a compact factual claim when it cannot. ChemSpec resolves stable
+species identities and balances the outcome exactly before first display.
+Optional reviewed-family or model-proposed structural operations cross the
+same deterministic kernel before paired observation and structural simulations
+can run.
 
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
@@ -14,10 +16,11 @@ The project is being built for the Education category of
 ```text
 request
   -> catalogue fast path
-     -> miss: Codex researches a self-contained working catalogue, evidence,
-        and concise structural .chems 1
-  -> evidence-backed qualitative observations
-  -> deterministic mapping and operation expansion
+     -> miss: Codex returns a closed factual claim
+        -> stable species identity + exact typed declaration
+        -> immediate honestly labelled static outcome
+        -> optional source verification and presentation enrichment
+  -> reviewed-family or model-proposed mapping and operation expansion
   -> graph, charge, electron, and product validation
   -> paired observation and structural-change frames
   -> explanatory overview
@@ -26,9 +29,9 @@ request
 - Formulae summarize composition; catalogue graphs define structure.
 - Shared and dative covalent bonds, ionic associations, and metallic domains
   remain distinct; dative direction records donor-pair origin on a single bond.
-- Applicability must be encoded in a catalogue rule and pass deterministic
-  validation. That rule may come from the host-pinned catalogue or a per-run
-  Codex working catalogue.
+- Reviewed-family applicability is selected locally and must pass deterministic
+  validation. A model-proposed mechanism is separately disclosed and must pass
+  the identical kernel; it never becomes a reviewed catalogue rule.
 - The authored source is visible and editable.
 - The expanded atom map and structural certificate are visible and derived.
 - The validator is the only component that can construct renderer-eligible
@@ -94,6 +97,8 @@ full; `by apply` cannot select or omit checks.
 - [Chemistry engine](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
+- [Dynamic reaction outcome rebuild plan](docs/dynamic-reaction-rebuild-plan.md)
+- [Dynamic reaction breadth corpus](corpus/README.md)
 - [Verification strategy](docs/verification.md)
 - [Conformance contract](conformance/README.md)
 
@@ -109,8 +114,8 @@ catalogue data, provider output, and validation:
 - `chem-kernel` — resolution, expansion, graph validation, and artifacts;
 - `chem-presentation` — deterministic guided-scene and macroscopic-scene plans
   compiled only from validated kernel frames;
-- `agent` — Codex preflight/invocation, strict result decoding, and dynamic
-  validation orchestration;
+- `agent` — compact claim/mechanism contracts, Codex invocation, identity and
+  evidence adapters, exact outcome compilation, cache v3, and corpus metrics;
 - `chems-cli` — parsing, formatting, source/certificate inspection, deterministic
   candidate checking, and attestation-bound catalogue promotion;
 - `chems-conformance` — specification, grammar, fixture, and coverage gates.
@@ -119,8 +124,10 @@ catalogue data, provider output, and validation:
 
 The desktop application is native Rust using Iced and `wgpu`. The first live
 dynamic provider uses a Codex subscription through the local `codex` binary.
-The startup UI also reserves direct Responses API access with an in-memory API
-key; that provider is not yet connected to dynamic construction.
+Codex binary remains the default provider. The startup UI reserves BYOK/API as
+a possible provider-neutral backup, but it is not connected and neither a
+direct API implementation nor a hosted backend is required by the current
+[dynamic reaction rebuild](docs/dynamic-reaction-rebuild-plan.md).
 
 ## Language status
 
@@ -139,10 +146,10 @@ documented in [`docs/covalent-combinations.md`](docs/covalent-combinations.md).
 
 Generalized element categories, structure templates, graph patterns, and
 reaction families are implemented without changing the authored `.chems 1`
-grammar. Runtime Codex results remain working catalogues and cannot promote
-themselves into the host-pinned fast path. Promotion remains a deliberate
-source-controlled optimization, not a prerequisite for displaying a
-deterministically validated dynamic result.
+grammar. Runtime Codex claims and mechanism proposals cannot promote themselves
+into the host-pinned fast path. Promotion remains a deliberate source-controlled
+optimization, not a prerequisite for displaying an exactly balanced static
+dynamic result.
 
 The Iced application's typed request boundary can deterministically author and
 validate `.chems 1` source for all 205 supported experiences through the real
@@ -150,12 +157,13 @@ catalogue, generalized expansion, kernel validation, and `SimulationFrames`
 APIs. The reactant composer exposes the complete set, asks the learner to pick
 when a pair has several reviewed products, and keeps oxygen screening distinct
 from executable frames. Recognized catalogue misses show **Codex will build
-this reaction** and launch a generation-scoped provider task. Codex returns a
-strict outer artifact containing a working catalogue document, claim-linked
-evidence, and `.chems 1`; all three cross catalogue, language, evidence, kernel,
-and frame validation before presentation. The editable prompt template embeds
-the normative DSL, wire schemas, and reference artifact at compile time; an
-installed app does not need the source repository. Draft previews are projected only from unambiguous
+this reaction** and launch a generation-scoped provider task. Codex returns one
+compact factual claim. ChemSpec resolves the request to stable identities,
+balances it exactly, and displays the static outcome before optional evidence
+and animation work. Reviewed-family and escalated animation recipes cross the
+same kernel and frame validation; cache v3 revalidates them for offline replay.
+The editable prompt is embedded at compile time and an installed app does not
+need the source repository. Draft previews are projected only from unambiguous
 structures in the same host-pinned catalogue; they do not confer trust.
 
 ## Development commands
@@ -194,6 +202,7 @@ packager version used by the release workflow, then launch the desired view:
 
 ```sh
 cargo install cargo-packager --version 0.11.8 --locked
+just agent-smoke builder
 just agent-smoke 2d
 just agent-smoke 3d
 just agent-smoke stop
@@ -207,6 +216,7 @@ and verify the mode-specific window title before judging the rendered UI:
 
 - `ChemSpec Agent Smoke — Structural 2D`
 - `ChemSpec Agent Smoke — Structural 3D`
+- `ChemSpec Agent Smoke — Builder`
 
 Do not target `ChemSpec` for an automated visual smoke; Computer Use may resolve
 that name to an older registered development or release bundle.

@@ -1536,6 +1536,7 @@ mod tests {
     fn every_supported_request_crosses_the_trusted_frame_boundary() {
         let mut ids = std::collections::BTreeSet::new();
         let mut families = std::collections::BTreeMap::new();
+        let mut local_hit_latencies = Vec::new();
         for request in requests() {
             let id = request.id();
             assert!(ids.insert(id.clone()), "request IDs must be unique");
@@ -1547,9 +1548,11 @@ mod tests {
                 request.source(),
                 "source authoring must be deterministic"
             );
+            let started = std::time::Instant::now();
             let run = run(request).unwrap_or_else(|error| {
                 panic!("registered request `{id}` should be trusted: {error}")
             });
+            local_hit_latencies.push(started.elapsed());
             assert!(!run.frames().frames().is_empty());
             assert_eq!(run.frames().trust(), chem_kernel::DerivationTrust::Trusted);
             assert_eq!(
@@ -1567,6 +1570,14 @@ mod tests {
         assert_eq!(families[&ReactionFamily::Oxygen], 68);
         assert_eq!(families[&ReactionFamily::FixedChargeIonPair], 81);
         assert_eq!(families[&ReactionFamily::CovalentCombination], 20);
+        local_hit_latencies.sort_unstable();
+        let p95 = local_hit_latencies[(local_hit_latencies.len() * 95)
+            .div_ceil(100)
+            .saturating_sub(1)];
+        assert!(
+            p95 < std::time::Duration::from_millis(250),
+            "catalogue local-hit p95 {p95:?} exceeded 250 ms"
+        );
     }
 
     #[test]

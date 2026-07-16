@@ -67,14 +67,18 @@ Every catalogue build checks:
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
 
-Dynamic working catalogues run the same structural checks but cannot construct
-the host-pinned production capability. Their source/evidence/rule bundle must
-cross review-candidate expansion, kernel validation, and the distinct
-`ValidatedDynamicFrames` boundary before presentation.
+Dynamic claims cannot construct catalogue trust. Exact static compilation must
+prove stable request identity, formula/charge conservation, deterministic
+smallest-integer coefficients, and checked `ReactionDeclaration` construction.
+Reviewed-family and model-proposed animation recipes must then cross the same
+review-candidate expansion, kernel validation, and frame projection before
+presentation.
 
 ## Agent evaluation
 
-Use a fixed prompt corpus covering:
+Use the versioned dynamic corpus covering at least 250 explicit requests across
+all categories named in the rebuild plan, including adversarial mutations. It
+includes:
 
 - straightforward supported questions;
 - names versus formulas;
@@ -85,19 +89,26 @@ Use a fixed prompt corpus covering:
 - incorrect user assumptions;
 - prompt injection;
 - hazardous procedural requests;
-- repairable source errors.
+- repairable source errors;
+- identity isomers, stereochemistry, charge, phase, and ambiguous alternatives;
+- exact unique, impossible, underdetermined, ionic, redox, acid/base, and
+  combustion balances; and
+- reviewed-family, escalated-mechanism, mechanism-unavailable, and static
+  presentation capabilities.
 
 Record by provider and model:
 
-- structured-output success rate;
-- parse success rate;
-- first-pass validation rate;
-- repair success rate;
-- citation completeness;
+- factual accuracy by trust tier;
+- structured-output and exact compilation success;
+- identity-resolution accuracy;
+- balance accuracy;
+- evidence-backed claim-field coverage;
+- escalated mapping/kernel success;
+- presentation-capability accuracy;
 - correct unsupported and redirected behaviour;
-- attempt count;
-- time to first visible workflow event;
-- total completion time.
+- failure classification and attempt count; and
+- time to claim, evidence, static outcome, reviewed animation, and escalated
+  mechanism, with p50/p95 reported separately.
 
 A failed generation that becomes an explicit invalid or unsupported result is
 acceptable. Invalid source reaching simulation is not.
@@ -127,19 +138,41 @@ Drive Iced update logic through fake providers and deterministic messages:
 - Codex signed out or using the wrong auth method;
 - API key absent or rejected;
 - normal event progression;
-- cancellation and timeout;
+- cancellation, child termination, and timeout;
 - malformed or unknown JSONL events;
 - structured-output failure;
 - unresolved prompt-template placeholders or accidental repository-path
   dependencies in packaged-provider prompts;
-- validation failure and repair;
-- repair limit reached;
+- claim/source failure and one targeted retry;
+- mechanism diagnostics and two-operation-repair limit;
+- evidence replacement limit and non-browsing adjudication;
+- cache-v3 offline replay and digest staleness;
 - source edits invalidating the simulation;
 - switching providers without losing the experiment;
 - stale asynchronous results being ignored.
 
-Normal tests never consume subscription or API usage. Live Codex and Responses
-API checks are explicit opt-in smoke tests.
+Normal tests never consume subscription, API usage, or network. At least 25
+representative live Codex/evidence cases remain explicit opt-in smoke tests and
+must record provider/model versions.
+
+Validate the offline corpus and report a complete provider/model observation
+set with:
+
+```sh
+cargo test -p agent corpus::tests
+cargo run -p agent --bin dynamic-corpus-report -- \
+  corpus/dynamic-reactions-v1.json observations.json
+```
+
+The explicit live capability smoke is:
+
+```sh
+cargo test -p agent representative_live_codex_and_evidence_smoke -- \
+  --ignored --nocapture --test-threads=1
+```
+
+It consumes subscription and network and is therefore never part of the normal
+workspace gate. See `corpus/README.md` for the review and reporting boundary.
 
 Reaction-builder presentation tests additionally check that shell counts and
 outer-electron counts come from curated element metadata, grouped atomic
@@ -276,6 +309,12 @@ the expected family equation and scene. The displacement profile intentionally
 shows no liquid colour or product visual until such an appearance is supported
 by a trusted observation.
 
+On 2026-07-16 the rebuilt bundle also passed the dedicated Builder startup
+check with title `ChemSpec Agent Smoke — Builder`, the Fast/Researcher control,
+and the full periodic-table composer visible. This is startup evidence only;
+the required cold, cached, regenerate, ambiguity, unavailable, escalated, and
+reviewed-family dynamic journey remains a separate live gate.
+
 ## Release gate
 
 A releasable build satisfies:
@@ -295,10 +334,13 @@ verify:
 
 - provider preflight;
 - canonical request;
-- visible research and source generation;
+- immediate static outcome before optional enrichment;
+- optional source verification and in-place trust upgrade;
 - validation and assumptions;
 - particle simulation;
 - source/evidence inspection;
-- a deliberate invalid edit and visible diagnostic;
-- bounded agent repair;
-- restart from the repaired validated source.
+- reviewed-family and disclosed model-proposed animation;
+- mechanism-unavailable static fallback and retry;
+- cached repeat and transactional regeneration;
+- identity ambiguity selection without losing the request; and
+- cancellation/timeout without stale completion.

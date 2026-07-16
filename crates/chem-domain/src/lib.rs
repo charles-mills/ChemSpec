@@ -1,8 +1,10 @@
 pub mod formula;
 pub mod identity;
 pub mod material;
+pub mod reaction;
 pub mod scalar;
 pub mod serialization;
+pub mod species;
 pub mod state;
 pub mod structural;
 pub mod unit;
@@ -28,10 +30,20 @@ pub use identity::{
 };
 pub use material::{
     AnalyticalComponent, DerivedInput, DerivedQuantity, DerivedQuantityRule, Material,
-    MaterialForm, PreparedComponent, QuantityDerivation, ResolvedSpecies,
+    MaterialForm, PreparedComponent, QuantityDerivation, ResolvedSpecies, ResolvedSpeciesInput,
+};
+pub use reaction::{
+    FormulaComposition, ReactionDeclaration, ReactionDeclarationError, ReactionTerm,
+    UnbalancedReactionTerm, reaction_term,
 };
 pub use scalar::{ExactScalar, ScalarError, SourceDecimal, SourceDecimalError, WrittenPrecision};
 pub use serialization::{CanonicalJsonError, canonical_json, lowercase_hex, sha256};
+pub use species::{
+    CachedIdentityRecord, CanonicalSpeciesSerialization, ExternalIdentifier, IdentityCacheEnvelope,
+    IdentityConfidence, IdentityProvenance, ProtonationPolicy, SpeciesAmbiguity,
+    SpeciesIdentityError, SpeciesQuery, SpeciesRegistry, SpeciesResolution, StereochemistryPolicy,
+    TautomerPolicy,
+};
 pub use state::{
     ClosureState, ContactRule, InventoryLocation, InventoryPortion, LedgerEntry, MixingState,
     OpportunityTrigger, PhasePartition, ReactionCandidate, ReactionOpportunity, ReactionRuleFamily,

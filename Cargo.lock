@@ -32,6 +32,7 @@ dependencies = [
  "chem-domain",
  "chem-kernel",
  "chems-lang",
+ "num-bigint",
  "serde",
  "serde_json",
 ]

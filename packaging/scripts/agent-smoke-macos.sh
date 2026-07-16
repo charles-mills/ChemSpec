@@ -104,6 +104,11 @@ if [[ ! -x "$bundled_executable" || ! -f "$plist" ]]; then
     exit 1
 fi
 
+# cargo-packager 0.11.8 emits the obsolete Carbon-only launch declaration.
+# Leaving it true makes LaunchServices reject this modern Mach-O executable as
+# missing even though the bundle path and CFBundleExecutable are correct.
+plutil -remove LSRequiresCarbon "$plist"
+
 actual_name="$(plutil -extract CFBundleDisplayName raw -o - "$plist")"
 actual_id="$(plutil -extract CFBundleIdentifier raw -o - "$plist")"
 actual_executable="$(plutil -extract CFBundleExecutable raw -o - "$plist")"
@@ -124,6 +129,12 @@ if ! cmp -s "$source_executable" "$bundled_executable"; then
     echo "Bundled executable does not match the freshly built binary." >&2
     exit 1
 fi
+
+# cargo's linker ad-hoc signature covers only the Mach-O. Sign the completed
+# bundle so LaunchServices sees an identity whose sealed Info.plist names the
+# byte-checked executable. This smoke bundle is intentionally local-only.
+codesign --force --sign - "$bundle"
+codesign --verify --strict "$bundle"
 
 "$bundled_executable" "--validate-smoke-reaction=$reaction"
 

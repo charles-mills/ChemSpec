@@ -89,6 +89,7 @@ impl Default for State {
 pub enum Message {
     AddElement(u8),
     DropElement(ActiveReactant, u8),
+    SelectReactant(ActiveReactant),
     SlotPressed(ActiveReactant),
     SlotReleased(ActiveReactant),
     SlotHovered(Option<ActiveReactant>),
@@ -104,6 +105,10 @@ pub fn update(state: &mut State, message: Message) {
         Message::DropElement(reactant, atomic_number) => {
             state.active = reactant;
             add_element(state, reactant, atomic_number);
+        }
+        Message::SelectReactant(reactant) => {
+            state.active = reactant;
+            state.holding = None;
         }
         Message::SlotPressed(reactant) => {
             state.holding = Some(HoldState {
@@ -356,6 +361,11 @@ fn action_row(state: &State, build_status: Option<String>) -> Element<'static, M
     } else if let Some(status) = resolution_status {
         content = content.push(status);
     }
+    content = content.push(
+        text("⌘1 / ⌘2 select  ·  ⌘Z undo  ·  ⌘⌫ clear  ·  ⌘↩ run  ·  Esc cancel")
+            .size(type_scale::MICRO)
+            .color(color::MUTED),
+    );
     content.into()
 }
 

@@ -15,7 +15,10 @@ mod validate;
 #[cfg(test)]
 mod dative_tests;
 
-pub use elaborate::{expand_review_candidate, expand_trusted};
+pub use elaborate::{
+    expand_proposed_declaration, expand_review_candidate, expand_reviewed_declaration,
+    expand_trusted,
+};
 pub use error::{ExpansionError, ExpansionFailureClass};
 pub use evidence::{
     EvidenceClaimRecord, EvidenceError, EvidencePacket, EvidencePacketReference,

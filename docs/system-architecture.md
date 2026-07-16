@@ -4,9 +4,8 @@
 
 ChemSpec has four distinct authorities:
 
-> The catalogue supplies cached chemistry; the agent proposes working chemistry
-> and source; the validator produces trust; the chemistry engine produces
-> meaning; the application produces the experience.
+> The agent produces text; the validator produces trust; the
+> chemistry engine produces meaning; the application produces the experience.
 
 No layer may bypass the layer immediately downstream of it. In particular, raw
 or stale provider output never reaches the simulation.
@@ -17,13 +16,14 @@ or stale provider output never reaches the simulation.
 structured reaction request
   -> host-pinned catalogue fast path
      -> hit: selected production rule/source/evidence
-     -> miss: provider researches and authors a working catalogue document,
-        typed evidence, and concise structural .chems 1
-  -> chems-lang parses source
-  -> chem-catalogue validates production or working catalogue structure
-  -> chem-kernel resolves and expands the selected rule
-  -> chem-kernel validates immutable structural derivation
-  -> ValidatedStructuralReaction or ValidatedDynamicFrames
+     -> miss: stable identity resolution + cache-v3 lookup
+        -> provider returns a closed factual ReactionClaim
+        -> exact local balance + checked ReactionDeclaration
+        -> private ValidatedStaticOutcome (no frames)
+        -> optional hostile evidence verification
+        -> reviewed-family match or bounded mechanism proposal
+  -> chem-kernel validates every animated structural derivation
+  -> ValidatedStructuralReaction or model-proposed ValidatedDynamicFrames
   -> paired structural and observation frames
   -> chem-presentation guided and macroscopic plans
   -> Iced Canvas/wgpu presentation
@@ -64,8 +64,7 @@ source only and cannot decide chemical support.
 
 ### `chem-catalogue`
 
-Owns immutable reviewed structure entries and validated per-run working
-catalogues, groups, valence/electron premises,
+Owns immutable reviewed structure entries, groups, valence/electron premises,
 reaction applicability, product/map/operation templates, observation
 compatibility, provenance, review attestations, schema versions, semantic
 digests, validation, and deterministic indexes.
@@ -88,11 +87,12 @@ before graph-state validation begins.
 
 ### `agent`
 
-Owns provider preflight, reaction research, working catalogue/source/evidence
-artifacts, bounded repair, post-simulation overview, cancellation, timeouts,
-and normalized workflow events. It validates provider artifacts through the
-catalogue/language/kernel boundary and returns only the distinct validated
-dynamic capability, never host-pinned catalogue trust.
+Owns provider preflight, closed claim and mechanism wire contracts, reviewed
+identity projection, exact outcome compilation, hostile evidence retrieval,
+reviewed-family matching, bounded mechanism escalation, cache v3, timeouts,
+normalized progress, and corpus metrics. Cached and fresh artefacts cross the
+same identity/balance/evidence/kernel gates. It never constructs host-pinned
+catalogue trust.
 
 ### `chem-presentation`
 
@@ -118,15 +118,15 @@ structural-rule and kernel boundary.
 
 ## Shared contracts
 
-### `ResolvedReactionClaim`
+### `ReactionClaim`
 
 ```text
-source hash and catalogue version/digest
-declared reactants, products, coefficients, and equation
-model disclosures
-evidence packet and typed observation references
-selected rule and complete role binding
-source origins
+closed disposition
+factual product names, formulae, and phases
+required context and typed qualitative observations
+direct source locations and claim-field mappings
+typed ambiguity alternatives
+no structures, coefficients, mapping, operations, or internal trust
 ```
 
 ### `ExpandedStructuralReaction`
@@ -171,6 +171,11 @@ The `.chems` file is the human-readable authored artifact. Evidence,
 certificate, derivation, and frames remain separate and bind to source,
 catalogue, and evidence digests. Editing source or changing either trusted
 digest invalidates every downstream value.
+
+Dynamic cache v3 is separate from authored `.chems`. It binds stable request
+identities, context, identity/catalogue snapshots, and claim/compiler/mechanism
+contract versions. It stores only untrusted claim/evidence/presentation recipes;
+offline load reconstructs every capability through current validators.
 
 ## Platform decision
 

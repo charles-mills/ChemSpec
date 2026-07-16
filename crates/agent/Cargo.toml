@@ -12,6 +12,7 @@ chem-catalogue = { path = "../chem-catalogue" }
 chem-domain = { path = "../chem-domain" }
 chem-kernel = { path = "../chem-kernel" }
 chems-lang = { path = "../chems-lang" }
+num-bigint.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

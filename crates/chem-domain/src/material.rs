@@ -3,8 +3,10 @@ use std::collections::BTreeSet;
 use serde::Serialize;
 
 use crate::{
-    AssumptionPremiseId, Charge, Dimension, ExactScalar, FactId, MaterialId, MediumId,
-    NormalizedFormula, Phase, Quantity, SpeciesId, SubstanceId,
+    AssumptionPremiseId, CanonicalSpeciesSerialization, Charge, Dimension, ExactScalar,
+    ExternalIdentifier, FactId, IdentityConfidence, IdentityProvenance, MaterialId, MediumId,
+    NormalizedFormula, Phase, ProtonationPolicy, Quantity, SpeciesId, StereochemistryPolicy,
+    StructureDefinition, SubstanceId, TautomerPolicy,
 };
 
 /// Closed exact-arithmetic rule used to construct a derived quantity.
@@ -73,9 +75,43 @@ impl DerivedQuantity {
 pub struct ResolvedSpecies {
     pub id: SpeciesId,
     pub substance: SubstanceId,
+    pub display_name: String,
+    pub normalized_aliases: BTreeSet<String>,
+    pub formula_text: String,
     pub formula: NormalizedFormula,
     pub charge: Charge,
     pub phase: Phase,
+    pub structure: Option<StructureDefinition>,
+    pub canonical_serialization: Option<CanonicalSpeciesSerialization>,
+    pub external_identifiers: BTreeSet<ExternalIdentifier>,
+    pub stereochemistry_policy: StereochemistryPolicy,
+    pub tautomer_policy: TautomerPolicy,
+    pub protonation_policy: ProtonationPolicy,
+    pub identity_confidence: IdentityConfidence,
+    pub identity_provenance: Vec<IdentityProvenance>,
+    pub identity_premise: FactId,
+}
+
+/// Unvalidated construction input for a resolved identity. The public
+/// `ResolvedSpecies` value is produced only by its checked constructor.
+#[derive(Debug, Clone)]
+pub struct ResolvedSpeciesInput {
+    pub id: SpeciesId,
+    pub substance: SubstanceId,
+    pub display_name: String,
+    pub normalized_aliases: BTreeSet<String>,
+    pub formula_text: String,
+    pub formula: NormalizedFormula,
+    pub charge: Charge,
+    pub phase: Phase,
+    pub structure: Option<StructureDefinition>,
+    pub canonical_serialization: Option<CanonicalSpeciesSerialization>,
+    pub external_identifiers: BTreeSet<ExternalIdentifier>,
+    pub stereochemistry_policy: StereochemistryPolicy,
+    pub tautomer_policy: TautomerPolicy,
+    pub protonation_policy: ProtonationPolicy,
+    pub identity_confidence: IdentityConfidence,
+    pub identity_provenance: Vec<IdentityProvenance>,
     pub identity_premise: FactId,
 }
 

@@ -6,11 +6,12 @@ ChemSpec turns a theoretical chemistry question into a rule-supported,
 structurally validated, and visually explainable reaction outcome.
 
 Deterministic catalogue rules first provide a fast path for known outcomes. On
-a catalogue miss, an AI agent researches and constructs a self-contained
-working catalogue, evidence packet, and concise `.chems 1` source. The engine
-expands the selected rule into an atom-mapped structural certificate, validates
-every graph state, and drives paired observation and structural-change
-simulations.
+a catalogue miss, an AI agent returns a compact factual claim. ChemSpec resolves
+stable species identities, balances the outcome exactly, and displays an
+honestly labelled static result. Evidence verification and structural
+presentation are separate optional stages: reviewed families or bounded
+model-proposed operations must cross the same deterministic kernel before any
+simulation can run.
 
 ## Audience
 
@@ -49,8 +50,8 @@ proof.
 
 The authored language deliberately excludes quantities, apparatus, vessels,
 timed steps, and physical preparation. Context needed to decide whether a
-supported outcome applies belongs to the validated rule, whether the rule came
-from the host-pinned fast path or a per-run working catalogue. The UI keeps the
+supported outcome applies belongs to the reviewed rule or the checked factual
+claim. A runtime claim never becomes a catalogue rule. The UI keeps the
 representative/explanatory model disclosure visible without turning provenance
 tiers into the main product message.
 
@@ -64,11 +65,12 @@ domain.
 
 The language and deterministic chemistry engine remain closed over explicit
 representations and invariants, but the shipped catalogue is not the product
-ceiling. Missing catalogue coverage invokes Codex. Its generated structures,
-premises, rule, evidence, and source remain per-run working data and become
-displayable only after the same deterministic structural validation succeeds.
-Digest-pinned promotion is an optional latency/token optimization for future
-requests.
+ceiling. Missing catalogue coverage invokes Codex for a factual claim, never a
+trusted graph or rule. Formula-only products remain static. When all structures
+are locally resolved, a reviewed-family match or model-proposed mechanism may
+become displayable only after identical deterministic structural validation.
+Digest-pinned catalogue promotion remains a deliberate source-controlled
+optimization.
 
 The first complete reaction is lithium with water because it exercises
 covalent, ionic, metallic, electron-transfer, observation, and mapping
@@ -85,17 +87,20 @@ unlock animation until a reviewed structural transformation also exists.
 1. **Ask.** The learner asks what happens when two reactants interact.
 2. **Resolve.** The application uses the host-pinned catalogue when an exact
    supported request is available.
-3. **Build on miss.** Otherwise Codex researches qualitative claims and authors
-   a self-contained working catalogue, evidence packet, and `.chems 1` source.
-4. **Bind.** The language/kernel resolve source identities and the exact rule
-   from the selected pinned or working catalogue.
-5. **Expand.** The engine deterministically creates instances, atom mapping,
-   structural operations, and an inspectable certificate.
-6. **Validate.** Every mapping, graph step, valence, charge, electron,
-   association, metallic domain, conservation, and product invariant passes.
-7. **Simulate.** Observation and representative structural views play together.
-8. **Explain.** The agent connects visible observations to validated changes
-   without presenting a real-world method.
+3. **Reuse on repeat.** A cache-v3 envelope for the same stable identities,
+   context, and governing contract digests is decoded and fully revalidated;
+   it never bypasses the chemistry boundary. The learner can explicitly
+   regenerate it.
+4. **Build on miss.** Otherwise Codex returns a closed factual claim.
+5. **Compile static meaning.** ChemSpec resolves identities, proves request
+   binding, balances exactly, and constructs a checked `ReactionDeclaration`.
+6. **Display early.** The first valid static outcome appears without playback.
+7. **Verify when requested.** Hostile source retrieval can upgrade the same
+   result from `ModelAsserted` to `EvidenceBacked` without replacing it.
+8. **Enrich presentation.** A local reviewed family or bounded model-proposed
+   mapping/operation sequence crosses expansion, kernel, and frame validation.
+9. **Simulate and explain.** Observation and representative structural views
+   play together with accurate reviewed/model-proposed disclosure.
 
 ## Product states
 
