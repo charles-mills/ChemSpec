@@ -5,13 +5,12 @@
 
 use bytemuck::{Pod, Zeroable};
 use chem_presentation::{
-    AppearanceProfile, AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile,
-    PresentationEffect, PresentationObject, PresentationTransform, SceneRole,
+    AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, FlamePalette,
+    PresentationEffect, PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole,
 };
 use chem_presentation::{RealWorldPosition, ScenePlan};
 use glam::{EulerRot, Mat4, Quat, Vec3};
-use iced::mouse;
-use iced::widget::shader::{self, Action, Program};
+use iced::widget::shader::{self, Program};
 use iced::{Rectangle, wgpu};
 
 use crate::scene_registry::{self, AssetGeometry, EffectDynamics, EffectGeometry};
@@ -34,110 +33,37 @@ impl Scene {
     }
 }
 
-#[derive(Debug)]
-pub struct CameraState {
-    yaw_offset: f32,
-    pitch_offset: f32,
-    zoom_offset: f32,
-    dragging: bool,
-    cursor: Option<iced::Point>,
-}
-
-impl Default for CameraState {
-    fn default() -> Self {
-        Self {
-            yaw_offset: 0.0,
-            pitch_offset: 0.0,
-            zoom_offset: 0.0,
-            dragging: false,
-            cursor: None,
-        }
-    }
-}
+/// Deliberately stateless: the macroscopic view has no orbit, pan, or zoom
+/// interaction. Vessel-size framing is derived deterministically from the plan.
+#[derive(Debug, Default)]
+pub struct FixedCameraState;
 
 impl<Message> Program<Message> for Scene {
-    type State = CameraState;
+    type State = FixedCameraState;
     type Primitive = ScenePrimitive;
-
-    fn update(
-        &self,
-        state: &mut Self::State,
-        event: &iced::Event,
-        bounds: Rectangle,
-        cursor: mouse::Cursor,
-    ) -> Option<Action<Message>> {
-        match event {
-            iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
-                if cursor.is_over(bounds) =>
-            {
-                state.dragging = true;
-                state.cursor = cursor.position();
-                Some(Action::capture())
-            }
-            iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-                if state.dragging =>
-            {
-                state.dragging = false;
-                state.cursor = None;
-                Some(Action::capture())
-            }
-            iced::Event::Mouse(mouse::Event::CursorMoved { position }) if state.dragging => {
-                if let Some(previous) = state.cursor {
-                    state.yaw_offset += (position.x - previous.x) * 0.009;
-                    state.pitch_offset =
-                        (state.pitch_offset + (position.y - previous.y) * 0.009).clamp(-0.7, 0.7);
-                }
-                state.cursor = Some(*position);
-                Some(Action::request_redraw().and_capture())
-            }
-            iced::Event::Mouse(mouse::Event::WheelScrolled { delta }) if cursor.is_over(bounds) => {
-                let amount = match delta {
-                    mouse::ScrollDelta::Lines { y, .. } => *y * 0.35,
-                    mouse::ScrollDelta::Pixels { y, .. } => *y * 0.008,
-                };
-                state.zoom_offset = (state.zoom_offset - amount).clamp(-2.0, 2.0);
-                Some(Action::request_redraw().and_capture())
-            }
-            _ => None,
-        }
-    }
 
     fn draw(
         &self,
-        state: &Self::State,
-        _cursor: mouse::Cursor,
+        _state: &Self::State,
+        _cursor: iced::mouse::Cursor,
         _bounds: Rectangle,
     ) -> Self::Primitive {
-        let (vertices, indices, opaque_index_count) = build_scene(
+        let (vertices, indices, opaque_index_count, transparent_index_count) = build_scene(
             &self.plan,
             self.moment.ordinal,
             self.moment.ordinal_progress,
         );
-        let (yaw, pitch, zoom) = camera_pose(&self.plan, self.moment);
+        let camera = fixed_camera_pose(&self.plan);
         let focus_target = SceneLayout::resolve(&self.plan).camera_target;
         ScenePrimitive {
             vertices,
             indices,
             opaque_index_count,
-            yaw: yaw + state.yaw_offset,
-            pitch: pitch + state.pitch_offset,
-            zoom: zoom + state.zoom_offset,
+            transparent_index_count,
+            yaw: camera.yaw,
+            pitch: camera.pitch,
+            view_height: camera.view_height,
             focus_target,
-        }
-    }
-
-    fn mouse_interaction(
-        &self,
-        state: &Self::State,
-        bounds: Rectangle,
-        cursor: mouse::Cursor,
-    ) -> mouse::Interaction {
-        if state.dragging {
-            mouse::Interaction::Grabbing
-        } else if cursor.is_over(bounds) {
-            mouse::Interaction::Grab
-        } else {
-            mouse::Interaction::default()
         }
     }
 }
@@ -164,9 +90,10 @@ pub struct ScenePrimitive {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
     opaque_index_count: u32,
+    transparent_index_count: u32,
     yaw: f32,
     pitch: f32,
-    zoom: f32,
+    view_height: f32,
     focus_target: Vec3,
 }
 
@@ -174,12 +101,14 @@ pub struct ScenePrimitive {
 pub struct ScenePipeline {
     opaque_pipeline: wgpu::RenderPipeline,
     transparent_pipeline: wgpu::RenderPipeline,
+    additive_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     depth: Option<DepthTarget>,
     opaque_index_count: u32,
+    transparent_index_count: u32,
     index_count: u32,
     physical_bounds: [u32; 4],
 }
@@ -233,7 +162,8 @@ impl shader::Pipeline for ScenePipeline {
         let create_pipeline = |label: &'static str,
                                blend: Option<wgpu::BlendState>,
                                depth_write_enabled: bool,
-                               cull_mode: Option<wgpu::Face>| {
+                               cull_mode: Option<wgpu::Face>,
+                               fragment_entry: &'static str| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
                 layout: Some(&layout),
@@ -249,7 +179,7 @@ impl shader::Pipeline for ScenePipeline {
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: Some("fragment"),
+                    entry_point: Some(fragment_entry),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
@@ -279,16 +209,33 @@ impl shader::Pipeline for ScenePipeline {
             None,
             true,
             Some(wgpu::Face::Back),
+            "fragment",
         );
         let transparent_pipeline = create_pipeline(
             "chemspec structural 3d transparent pipeline",
             Some(wgpu::BlendState::ALPHA_BLENDING),
             false,
             None,
+            "fragment",
+        );
+        let additive_pipeline = create_pipeline(
+            "chemspec structural 3d additive flame pipeline",
+            Some(wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::SrcAlpha,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent::OVER,
+            }),
+            false,
+            None,
+            "emissive_fragment",
         );
         Self {
             opaque_pipeline,
             transparent_pipeline,
+            additive_pipeline,
             vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("chemspec structural 3d vertices"),
                 size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
@@ -305,6 +252,7 @@ impl shader::Pipeline for ScenePipeline {
             bind_group,
             depth: None,
             opaque_index_count: 0,
+            transparent_index_count: 0,
             index_count: 0,
             physical_bounds: [0; 4],
         }
@@ -366,6 +314,7 @@ impl shader::Primitive for ScenePrimitive {
         }
         if self.vertices.len() as u64 > MAX_VERTICES || self.indices.len() as u64 > MAX_INDICES {
             pipeline.opaque_index_count = 0;
+            pipeline.transparent_index_count = 0;
             pipeline.index_count = 0;
             return;
         }
@@ -381,6 +330,9 @@ impl shader::Primitive for ScenePrimitive {
         );
         pipeline.index_count = u32::try_from(self.indices.len()).unwrap_or(u32::MAX);
         pipeline.opaque_index_count = self.opaque_index_count.min(pipeline.index_count);
+        pipeline.transparent_index_count = self
+            .transparent_index_count
+            .clamp(pipeline.opaque_index_count, pipeline.index_count);
 
         let aspect = width as f32 / height.max(1) as f32;
         let reaction_target = self.focus_target;
@@ -388,9 +340,18 @@ impl shader::Primitive for ScenePrimitive {
         let eye = reaction_target
             + Quat::from_rotation_y(self.yaw)
                 * Quat::from_rotation_x(pitch)
-                * Vec3::new(0.0, 0.0, self.zoom);
+                * Vec3::new(0.0, 0.0, 8.0);
         let view = Mat4::look_at_rh(eye, reaction_target, Vec3::Y);
-        let projection = Mat4::perspective_rh(0.66, aspect, 0.1, 50.0);
+        let half_height = self.view_height * 0.5;
+        let half_width = half_height * aspect;
+        let projection = Mat4::orthographic_rh(
+            -half_width,
+            half_width,
+            -half_height,
+            half_height,
+            0.1,
+            50.0,
+        );
         let uniform = CameraUniform {
             view_projection: (projection * view).to_cols_array_2d(),
             key_direction: [-0.55, -0.88, -0.48, 0.0],
@@ -454,9 +415,21 @@ impl shader::Primitive for ScenePrimitive {
         pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
         pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
-        if pipeline.opaque_index_count < pipeline.index_count {
+        if pipeline.opaque_index_count < pipeline.transparent_index_count {
             pass.set_pipeline(&pipeline.transparent_pipeline);
-            pass.draw_indexed(pipeline.opaque_index_count..pipeline.index_count, 0, 0..1);
+            pass.draw_indexed(
+                pipeline.opaque_index_count..pipeline.transparent_index_count,
+                0,
+                0..1,
+            );
+        }
+        if pipeline.transparent_index_count < pipeline.index_count {
+            pass.set_pipeline(&pipeline.additive_pipeline);
+            pass.draw_indexed(
+                pipeline.transparent_index_count..pipeline.index_count,
+                0,
+                0..1,
+            );
         }
     }
 }
@@ -578,9 +551,17 @@ impl Default for ObjectMotion {
     }
 }
 
-fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, Vec<u32>, u32) {
+fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, Vec<u32>, u32, u32) {
     let mut meshes = SceneMeshes::default();
     let layout = SceneLayout::resolve(plan);
+    let final_ordinal = plan
+        .timeline
+        .beats
+        .last()
+        .map_or(ordinal, |beat| beat.end_ordinal);
+    let visual_inputs =
+        ReactionVisualInputs::from_effects(&plan.effects, ordinal, progress, final_ordinal);
+    let phase = continuous_phase(ordinal, progress);
     let reaction_motion = reaction_surface_motion(plan, ordinal, progress);
     let animated_layout = layout.with_reaction_motion(reaction_motion);
     instantiate_asset(
@@ -596,20 +577,25 @@ fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, V
         Vec3::ZERO,
         Quat::IDENTITY,
         0,
+        visual_inputs,
+        phase,
     );
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
             let shrink = object_scale_from_effects(plan, object.role, ordinal, progress);
+            let formation = object_formation_scale(object, ordinal, progress);
             let motion = object_motion(plan, object, ordinal, progress, reaction_motion);
             instantiate_asset(
                 &mut meshes,
                 object.asset,
                 object.appearance,
                 &object.transform,
-                shrink,
+                shrink * formation,
                 layout.object_offset(object) + motion.translation,
                 motion.rotation,
                 stable_seed(&object.id),
+                visual_inputs,
+                phase,
             );
         }
     }
@@ -628,40 +614,38 @@ fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, V
     meshes.finish()
 }
 
-fn camera_pose(plan: &ScenePlan, moment: RealWorldPosition) -> (f32, f32, f32) {
-    let behaviour = plan
-        .timeline
-        .beats
-        .get(moment.beat_index)
-        .map_or(CameraBehaviour::WideEstablishingShot, |beat| {
-            beat.camera.behaviour
-        });
-    let pose = scene_registry::camera_pose(behaviour);
-    let next_behaviour = plan
-        .timeline
-        .beats
-        .get(moment.beat_index + 1)
-        .map_or(behaviour, |beat| beat.camera.behaviour);
-    let next = scene_registry::camera_pose(next_behaviour);
-    let progress = moment.beat_progress.clamp(0.0, 1.0);
-    let eased = smoother_step(progress);
-    let phase = continuous_phase(moment.ordinal, moment.ordinal_progress);
-    let energy = active_camera_energy(plan, moment.ordinal, moment.ordinal_progress);
-    let beat_breath = (std::f32::consts::PI * progress).sin();
-    let yaw_drift = (phase * 0.37 + seed_phase(plan_seed(plan), 1)).sin()
-        * (0.004 + energy * 0.014)
-        * beat_breath;
-    let pitch_drift = (phase * 0.29 + seed_phase(plan_seed(plan), 2)).cos()
-        * (0.002 + energy * 0.008)
-        * beat_breath;
-    let focus_breath = (phase * 0.22 + seed_phase(plan_seed(plan), 3)).sin()
-        * (0.018 + energy * 0.055)
-        * beat_breath;
-    (
-        pose.yaw + (next.yaw - pose.yaw) * eased + yaw_drift,
-        pose.pitch + (next.pitch - pose.pitch) * eased + pitch_drift,
-        pose.zoom + (next.zoom - pose.zoom) * eased + focus_breath,
-    )
+/// Products begin forming only after their trusted visibility ordinal. Easing
+/// their scale from zero avoids a one-frame pop while preserving the rule that
+/// no product geometry appears before its observation activates.
+fn object_formation_scale(object: &PresentationObject, ordinal: u16, progress: f32) -> f32 {
+    if object.role != SceneRole::Product || ordinal > object.visible_from_ordinal {
+        return 1.0;
+    }
+    if ordinal < object.visible_from_ordinal {
+        return 0.0;
+    }
+    normalized_exponential_response(progress, 4.2)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct FixedCameraPose {
+    yaw: f32,
+    pitch: f32,
+    view_height: f32,
+}
+
+fn fixed_camera_pose(plan: &ScenePlan) -> FixedCameraPose {
+    let vessel_scale = plan
+        .objects
+        .iter()
+        .find(|object| object.role == SceneRole::Vessel)
+        .map_or(Vec3::ONE, |object| transform_scale(&object.transform));
+    let vessel_extent = vessel_scale.x.max(vessel_scale.y).max(vessel_scale.z);
+    FixedCameraPose {
+        yaw: -0.72,
+        pitch: -0.70,
+        view_height: (vessel_extent * 3.8).clamp(3.8, 5.4),
+    }
 }
 
 fn object_scale_from_effects(
@@ -693,7 +677,7 @@ fn object_scale_from_effects(
             } else {
                 f32::from(ordinal.saturating_sub(effect.start_ordinal)) + progress
             };
-            let extent = smoother_step((elapsed / span).clamp(0.0, 1.0));
+            let extent = normalized_exponential_response(elapsed / span, 2.6);
             if grows {
                 0.12 + extent * 0.88
             } else {
@@ -713,33 +697,124 @@ fn object_motion(
         return ObjectMotion::default();
     }
     let seed = stable_seed(&object.id) ^ plan_seed(plan);
-    let local_progress = if ordinal == object.visible_from_ordinal {
-        progress.clamp(0.0, 1.0)
-    } else {
-        1.0
-    };
-    let introduction = if ordinal == object.visible_from_ordinal {
-        let arrival = ease_out_back(local_progress);
-        let remainder = 1.0 - arrival;
-        let settle =
-            (local_progress * std::f32::consts::PI * 3.0).sin() * (1.0 - local_progress).powi(2);
-        Vec3::new(
-            -0.48 * remainder,
-            0.78 * remainder + settle * 0.055,
-            0.22 * remainder,
-        )
-    } else {
-        Vec3::ZERO
-    };
+    let arrival_progress = reactant_arrival_progress(plan, object, ordinal, progress);
+    let introduction = ballistic_throw_offset(seed, arrival_progress);
+    let contact_age = (continuous_phase(ordinal, progress)
+        - f32::from(reactant_contact_ordinal(plan, object)))
+    .max(0.0);
+    let impact = damped_impact_offset(seed, contact_age);
     let phase = continuous_phase(ordinal, progress);
     let activity = reaction_motion.length().min(1.0);
+    let spin_axis = Vec3::new(
+        0.42 + seeded_unit(seed, 0, 51) * 0.36,
+        0.18 + seeded_unit(seed, 0, 52) * 0.22,
+        0.54 + seeded_unit(seed, 0, 53) * 0.38,
+    )
+    .normalize_or_zero();
+    let spin_turns = 1.45 + seeded_unit(seed, 0, 54) * 1.20;
+    let angular_travel = normalized_drag_distance(arrival_progress, 0.34);
+    let flight_rotation = Quat::from_axis_angle(
+        spin_axis,
+        spin_turns * std::f32::consts::TAU * angular_travel,
+    );
+    let impact_decay = (-5.4 * contact_age).exp();
+    let impact_rotation = Quat::from_euler(
+        EulerRot::XYZ,
+        (contact_age * 13.7).sin() * impact_decay * (0.10 + seeded_unit(seed, 0, 55) * 0.08),
+        (contact_age * 9.3).sin() * impact_decay * (seeded_unit(seed, 0, 56) - 0.5) * 0.18,
+        (contact_age * 11.1).sin() * impact_decay * (seeded_unit(seed, 0, 57) - 0.5) * 0.34,
+    );
     let roll = (phase * 0.91 + seed_phase(seed, 5)).sin() * 0.045 * activity;
     let pitch = (phase * 0.67 + seed_phase(seed, 6)).cos() * 0.025 * activity;
-    let arrival_yaw = (1.0 - smoother_step(local_progress)) * 0.24;
     ObjectMotion {
-        translation: introduction + reaction_motion,
-        rotation: Quat::from_euler(EulerRot::XYZ, pitch, arrival_yaw, roll),
+        translation: introduction + impact + reaction_motion,
+        rotation: Quat::from_euler(EulerRot::XYZ, pitch, 0.0, roll)
+            * impact_rotation
+            * flight_rotation,
     }
+}
+
+/// Analytic impulse trajectory sampled directly from the trusted playhead.
+/// The launch velocity is solved so the reactant reaches the reaction surface
+/// exactly at `t = 1`; low horizontal drag and a seeded lateral component keep
+/// it from reading as a spline or conveyor-belt movement.
+fn ballistic_throw_offset(seed: u64, progress: f32) -> Vec3 {
+    let time = progress.clamp(0.0, 1.0);
+    if time >= 1.0 {
+        return Vec3::ZERO;
+    }
+    let start = Vec3::new(
+        -1.14 + (seeded_unit(seed, 0, 58) - 0.5) * 0.22,
+        0.92 + seeded_unit(seed, 0, 59) * 0.24,
+        0.30 + (seeded_unit(seed, 0, 60) - 0.5) * 0.28,
+    );
+    let gravity = Vec3::new(0.0, -2.75, 0.0);
+    let launch_velocity = -start - gravity * 0.5;
+    let ballistic = start + launch_velocity * time + gravity * (0.5 * time * time);
+    let horizontal_travel = normalized_drag_distance(time, 0.22);
+    let drag_correction = Vec3::new(
+        start.x * ((1.0 - horizontal_travel) - (1.0 - time)),
+        0.0,
+        start.z * ((1.0 - horizontal_travel) - (1.0 - time)),
+    );
+    let side_axis = Vec3::new(start.z, 0.0, -start.x).normalize_or_zero();
+    let side_impulse =
+        side_axis * (std::f32::consts::PI * time).sin() * (seeded_unit(seed, 0, 61) - 0.5) * 0.16;
+    ballistic + drag_correction + side_impulse
+}
+
+/// Short inelastic contact response. The discontinuity is in velocity—the
+/// physical impact impulse—not position, followed by rapidly diminishing
+/// rebounds and tangential slip.
+fn damped_impact_offset(seed: u64, contact_age: f32) -> Vec3 {
+    if contact_age <= 0.0 {
+        return Vec3::ZERO;
+    }
+    let decay = (-4.8 * contact_age).exp();
+    let rebound = (contact_age * 14.5).sin().abs() * decay * 0.085;
+    let slip_direction = Vec3::new(
+        seeded_unit(seed, 0, 62) - 0.5,
+        0.0,
+        seeded_unit(seed, 0, 63) - 0.5,
+    )
+    .normalize_or_zero();
+    let slip = slip_direction * (contact_age * 9.0).sin() * decay * 0.032;
+    Vec3::Y * rebound + slip
+}
+
+/// Spreads the approach across every setup ordinal up to the first authorized
+/// effect instead of completing it in the first state and holding still.
+fn reactant_arrival_progress(
+    plan: &ScenePlan,
+    object: &PresentationObject,
+    ordinal: u16,
+    progress: f32,
+) -> f32 {
+    let contact_ordinal = reactant_contact_ordinal(plan, object);
+    let span = f32::from(
+        contact_ordinal
+            .saturating_sub(object.visible_from_ordinal)
+            .max(1),
+    );
+    let elapsed =
+        f32::from(ordinal.saturating_sub(object.visible_from_ordinal)) + progress.clamp(0.0, 1.0);
+    (elapsed / span).clamp(0.0, 1.0)
+}
+
+fn reactant_contact_ordinal(plan: &ScenePlan, object: &PresentationObject) -> u16 {
+    let fallback = plan
+        .timeline
+        .beats
+        .last()
+        .map_or(object.visible_from_ordinal.saturating_add(1), |beat| {
+            beat.end_ordinal
+        });
+    plan.effects
+        .iter()
+        .map(|effect| effect.start_ordinal)
+        .min()
+        .unwrap_or(fallback)
+        .max(object.visible_from_ordinal.saturating_add(1))
 }
 
 fn smoother_step(value: f32) -> f32 {
@@ -747,11 +822,41 @@ fn smoother_step(value: f32) -> f32 {
     value * value * value * (value * (value * 6.0 - 15.0) + 10.0)
 }
 
-fn ease_out_back(value: f32) -> f32 {
+fn normalized_exponential_response(value: f32, rate: f32) -> f32 {
     let value = value.clamp(0.0, 1.0);
-    let shifted = value - 1.0;
-    let overshoot = 1.18;
-    shifted * shifted * ((overshoot + 1.0) * shifted + overshoot) + 1.0
+    let denominator = 1.0 - (-rate).exp();
+    if denominator.abs() <= f32::EPSILON {
+        value
+    } else {
+        ((1.0 - (-rate * value).exp()) / denominator).clamp(0.0, 1.0)
+    }
+}
+
+fn normalized_exponential_decay(value: f32, rate: f32) -> f32 {
+    1.0 - normalized_exponential_response(value, rate)
+}
+
+/// Distance under exponential velocity damping, normalized to reach exactly
+/// one at the end of the presentation interval.
+fn normalized_drag_distance(value: f32, drag: f32) -> f32 {
+    normalized_exponential_response(value, drag.max(0.001))
+}
+
+/// Distance travelled while accelerating toward terminal velocity.
+fn normalized_terminal_distance(value: f32, response: f32) -> f32 {
+    let value = value.clamp(0.0, 1.0);
+    let response = response.max(0.001);
+    let distance = value - (1.0 - (-response * value).exp()) / response;
+    let total = 1.0 - (1.0 - (-response).exp()) / response;
+    if total.abs() <= f32::EPSILON {
+        value
+    } else {
+        (distance / total).clamp(0.0, 1.0)
+    }
+}
+
+const fn ballistic_arc(value: f32) -> f32 {
+    4.0 * value * (1.0 - value)
 }
 
 fn continuous_phase(ordinal: u16, progress: f32) -> f32 {
@@ -793,6 +898,16 @@ const fn effect_profile_seed(effect: EffectProfile) -> u64 {
         EffectProfile::Clouding => 0x082e_fa98_ec4e_6c89,
         EffectProfile::ColourTransition => 0x4528_21e6_38d0_1377,
         EffectProfile::HeatDistortion => 0xbe54_66cf_34e9_0c6c,
+        EffectProfile::FlameEmitter(palette) => 0xc6a4_a793_5bd1_e995 ^ flame_palette_seed(palette),
+    }
+}
+
+const fn flame_palette_seed(palette: FlamePalette) -> u64 {
+    match palette {
+        FlamePalette::Natural => 0x3c6e_f372_fe94_f82b,
+        FlamePalette::Crimson => 0xa54f_f53a_5f1d_36f1,
+        FlamePalette::YellowOrange => 0x510e_527f_ade6_82d1,
+        FlamePalette::Lilac => 0x9b05_688c_2b3e_6c1f,
     }
 }
 
@@ -821,6 +936,25 @@ fn seed_phase(seed: u64, channel: u32) -> f32 {
     seeded_unit(seed, 0, channel) * std::f32::consts::TAU
 }
 
+/// Cheap multi-scale rotational flow used for parcel drift. It is not a fluid
+/// solver, but avoids the single-axis periodic wobble that makes particles read
+/// as synchronized machinery.
+fn curl_like_flow(phase: f32, seed: u64, index: u32) -> Vec3 {
+    let parcel_seed = seed ^ u64::from(index).rotate_left(19);
+    let large =
+        phase * (0.71 + seeded_unit(parcel_seed, 0, 70) * 0.23) + seed_phase(parcel_seed, 71);
+    let medium =
+        phase * (1.63 + seeded_unit(parcel_seed, 0, 72) * 0.41) + seed_phase(parcel_seed, 73);
+    let fine =
+        phase * (3.17 + seeded_unit(parcel_seed, 0, 74) * 0.67) + seed_phase(parcel_seed, 75);
+    Vec3::new(
+        large.cos() + medium.sin() * 0.46 + fine.cos() * 0.17,
+        0.0,
+        -large.sin() + medium.cos() * 0.43 - fine.sin() * 0.19,
+    )
+    .normalize_or_zero()
+}
+
 fn effect_progress(effect: &PresentationEffect, ordinal: u16, progress: f32) -> f32 {
     let span = f32::from(
         effect
@@ -837,27 +971,17 @@ fn effect_envelope(dynamics: EffectDynamics, progress: f32) -> f32 {
     let attack = if dynamics.fade_in <= f32::EPSILON {
         1.0
     } else {
-        smoother_step(progress / dynamics.fade_in)
+        normalized_exponential_response(progress / dynamics.fade_in, 3.8)
     };
     let release = if dynamics.fade_out <= f32::EPSILON {
         1.0
     } else {
-        1.0 - smoother_step((progress - (1.0 - dynamics.fade_out)) / dynamics.fade_out)
+        normalized_exponential_decay(
+            (progress - (1.0 - dynamics.fade_out)) / dynamics.fade_out,
+            3.2,
+        )
     };
     attack * release
-}
-
-fn active_camera_energy(plan: &ScenePlan, ordinal: u16, progress: f32) -> f32 {
-    plan.effects
-        .iter()
-        .filter(|effect| effect.start_ordinal <= ordinal && ordinal <= effect.end_ordinal)
-        .map(|effect| {
-            let dynamics = scene_registry::effect_dynamics(effect.effect, effect.intensity);
-            dynamics.camera_energy
-                * effect_envelope(dynamics, effect_progress(effect, ordinal, progress))
-        })
-        .sum::<f32>()
-        .min(0.65)
 }
 
 fn reaction_surface_motion(plan: &ScenePlan, ordinal: u16, progress: f32) -> Vec3 {
@@ -873,17 +997,18 @@ fn reaction_surface_motion(plan: &ScenePlan, ordinal: u16, progress: f32) -> Vec
             let envelope = effect_envelope(dynamics, effect_progress(effect, ordinal, progress));
             let phase = continuous_phase(ordinal, progress) * dynamics.rate * std::f32::consts::TAU;
             let seed = effect_seed(plan, effect);
-            let x = ((phase + seed_phase(seed, 11)).sin()
-                + (phase * 2.37 + seed_phase(seed, 12)).sin() * 0.34)
-                * dynamics.spread
-                * 0.27;
-            let z = ((phase * 0.83 + seed_phase(seed, 13)).cos()
-                + (phase * 1.91 + seed_phase(seed, 14)).sin() * 0.29)
-                * dynamics.spread
-                * 0.21;
-            let y =
-                (0.5 + 0.5 * (phase * 1.43 + seed_phase(seed, 15)).sin()) * dynamics.lift * 0.055;
-            motion + Vec3::new(x, y, z) * envelope
+            let broad_flow = curl_like_flow(phase, seed, 0);
+            let fine_flow = curl_like_flow(phase * 2.37, seed.rotate_left(11), 1);
+            let flow = broad_flow + fine_flow * 0.31;
+            let vertical_impulse = ((phase * 1.43 + seed_phase(seed, 15)).sin()
+                + (phase * 2.71 + seed_phase(seed, 16)).sin() * 0.28)
+                .abs();
+            motion
+                + Vec3::new(
+                    flow.x * dynamics.spread * 0.27,
+                    vertical_impulse * dynamics.lift * 0.048,
+                    flow.z * dynamics.spread * 0.23,
+                ) * envelope
         })
 }
 
@@ -942,6 +1067,8 @@ fn instantiate_asset(
     position_offset: Vec3,
     rotation_offset: Quat,
     variation_seed: u64,
+    visual_inputs: ReactionVisualInputs,
+    phase: f32,
 ) {
     let position = transform_translation(transform) + position_offset;
     let scale = transform_scale(transform) * scale_multiplier;
@@ -1001,23 +1128,15 @@ fn instantiate_asset(
             );
         }
         AssetGeometry::LiquidCylinder => {
-            let bottom = position + Vec3::new(0.0, -0.52 * scale.y, 0.0);
-            let top = position + Vec3::new(0.0, 0.54 * scale.y, 0.0);
-            add_cylinder(&mut meshes.translucent, bottom, top, 0.82 * scale.x, color);
-            add_disc(
+            add_liquid_volume(
                 &mut meshes.translucent,
-                top,
-                0.82 * scale.x,
-                [0.32, 0.62, 0.76, 0.48],
+                position,
+                scale,
+                color,
+                visual_inputs.liquid_turbulence,
+                phase,
+                variation_seed,
             );
-            add_ring(
-                &mut meshes.translucent,
-                top + Vec3::new(0.0, 0.008, 0.0),
-                0.79 * scale.x,
-                0.014,
-                [0.58, 0.82, 0.92, 0.46],
-            );
-            add_disc(&mut meshes.translucent, bottom, 0.82 * scale.x, color);
         }
         AssetGeometry::LowPolyChunk => {
             let variation = 0.96 + f32::from((variation_seed % 9) as u8) * 0.01;
@@ -1033,7 +1152,15 @@ fn instantiate_asset(
             add_particle_cluster(&mut meshes.opaque, position, scale, color, 18);
         }
         AssetGeometry::GasCluster => {
-            add_particle_cluster(&mut meshes.translucent, position, scale, color, 12);
+            add_gas_volume(
+                &mut meshes.translucent,
+                position,
+                scale,
+                color,
+                variation_seed,
+                phase,
+                0.58 + visual_inputs.gas_generation_rate * 0.42,
+            );
         }
     }
     rotate_mesh_vertices(&mut meshes.opaque, opaque_start, position, rotation);
@@ -1066,10 +1193,12 @@ fn instantiate_effect(
             for index in 0..count {
                 let index = u32::from(index);
                 let birth = seeded_unit(seed, index, 1) * 0.72;
-                let born = smoother_step((effect_progress - birth) / 0.24);
-                if born <= f32::EPSILON {
+                let age = ((effect_progress - birth) / 0.24).clamp(0.0, 1.0);
+                let formation = normalized_exponential_response(age, 3.8);
+                if formation <= f32::EPSILON {
                     continue;
                 }
+                let fall = normalized_terminal_distance(age, 4.6);
                 let angle = seeded_unit(seed, index, 2) * std::f32::consts::TAU;
                 let radius = seeded_unit(seed, index, 3).sqrt() * dynamics.spread;
                 let target = layout.liquid_center
@@ -1078,19 +1207,16 @@ fn instantiate_effect(
                         -0.34 + seeded_unit(seed, index, 4) * 0.26,
                         angle.sin() * radius,
                     );
-                let drift = Vec3::new(
-                    (phase * 0.43 + seed_phase(seed ^ u64::from(index), 5)).sin(),
-                    0.0,
-                    (phase * 0.37 + seed_phase(seed ^ u64::from(index), 6)).cos(),
-                ) * dynamics.turbulence
+                let drift = curl_like_flow(phase * 0.42, seed, index)
+                    * dynamics.turbulence
                     * 0.08
-                    * born;
-                let point = surface_point.lerp(target, born) + drift;
+                    * formation;
+                let point = surface_point.lerp(target, fall) + drift;
                 add_sphere(
                     &mut meshes.translucent,
                     point,
-                    (0.025 + seeded_unit(seed, index, 7) * 0.035) * born,
-                    alpha([0.94, 0.96, 1.0, 0.82], envelope * born),
+                    (0.025 + seeded_unit(seed, index, 7) * 0.035) * formation,
+                    alpha([0.94, 0.96, 1.0, 0.82], envelope * formation),
                     5,
                     7,
                 );
@@ -1102,17 +1228,20 @@ fn instantiate_effect(
                 let speed = 0.76 + seeded_unit(seed, index, 1) * 0.62;
                 let cycle = (phase * dynamics.rate * speed + seeded_unit(seed, index, 2)).fract();
                 let lifecycle = (std::f32::consts::PI * cycle).sin().sqrt() * envelope;
+                let rise = normalized_terminal_distance(cycle, 5.2);
                 let angle = seeded_unit(seed, index, 3) * std::f32::consts::TAU;
                 let radial = seeded_unit(seed, index, 4).sqrt() * dynamics.spread;
-                let wobble = (phase * (1.1 + speed) + seed_phase(seed ^ u64::from(index), 5)).sin()
+                let wobble = curl_like_flow(phase * (1.1 + speed), seed, index)
                     * dynamics.turbulence
-                    * 0.16;
+                    * 0.16
+                    * rise;
                 let point = surface_point
                     + Vec3::new(
-                        angle.cos() * radial + wobble,
-                        -0.42 + smoother_step(cycle) * (0.46 + dynamics.lift),
-                        angle.sin() * radial - wobble * 0.7,
-                    );
+                        angle.cos() * radial,
+                        -0.42 + rise * (0.46 + dynamics.lift),
+                        angle.sin() * radial,
+                    )
+                    + Vec3::new(wobble.x, 0.0, wobble.z);
                 add_sphere(
                     &mut meshes.translucent,
                     point,
@@ -1124,34 +1253,24 @@ fn instantiate_effect(
             }
         }
         EffectGeometry::EscapingGas => {
-            for index in 0..count {
-                let index = u32::from(index);
-                let speed = 0.72 + seeded_unit(seed, index, 1) * 0.56;
-                let cycle = (phase * dynamics.rate * speed + seeded_unit(seed, index, 2)).fract();
-                let angle = seeded_unit(seed, index, 3) * std::f32::consts::TAU
-                    + phase * dynamics.turbulence * 0.23;
-                let spread = dynamics.spread * (0.14 + smoother_step(cycle) * 0.62);
-                let curl = (phase * 0.61 + seed_phase(seed ^ u64::from(index), 4)).sin()
-                    * dynamics.turbulence
-                    * cycle;
-                let point = surface_point
-                    + Vec3::new(
-                        angle.cos() * spread + curl * 0.16,
-                        0.04 + smoother_step(cycle) * dynamics.lift,
-                        angle.sin() * spread - curl * 0.11,
-                    );
-                add_sphere(
-                    &mut meshes.translucent,
-                    point,
-                    0.018 + seeded_unit(seed, index, 5) * 0.025,
-                    alpha(
-                        [0.72, 0.86, 0.92, 0.14],
-                        envelope * (1.0 - smoother_step(cycle)),
-                    ),
-                    4,
-                    6,
-                );
-            }
+            let rise = normalized_terminal_distance(effect_progress, 3.6);
+            let drift = curl_like_flow(phase * 0.44, seed, 0) * dynamics.turbulence * 0.12;
+            let center =
+                surface_point + drift + Vec3::new(0.0, 0.16 + rise * dynamics.lift * 0.72, 0.0);
+            let cloud_scale = Vec3::new(
+                0.30 + dynamics.spread * (0.58 + rise * 0.34),
+                0.32 + dynamics.lift * (0.50 + rise * 0.42),
+                0.30 + dynamics.spread * (0.52 + rise * 0.30),
+            );
+            add_gas_volume(
+                &mut meshes.translucent,
+                center,
+                cloud_scale,
+                alpha([0.70, 0.84, 0.90, 0.20], envelope),
+                seed,
+                phase * dynamics.rate,
+                envelope,
+            );
         }
         EffectGeometry::SurfaceRipples => {
             for ring in 0..count.min(7) {
@@ -1161,7 +1280,7 @@ fn instantiate_effect(
                 add_ring(
                     &mut meshes.translucent,
                     surface_point + Vec3::new(0.0, 0.012, 0.0),
-                    0.10 + smoother_step(cycle) * dynamics.spread,
+                    0.10 + normalized_drag_distance(cycle, 0.16) * dynamics.spread,
                     0.008 + (1.0 - cycle) * 0.008,
                     alpha([0.50, 0.77, 0.90, 0.42], ring_alpha),
                 );
@@ -1173,10 +1292,10 @@ fn instantiate_effect(
                 let speed = 0.82 + seeded_unit(seed, index, 1) * 0.48;
                 let cycle = (phase * dynamics.rate * speed + seeded_unit(seed, index, 2)).fract();
                 let angle = seeded_unit(seed, index, 3) * std::f32::consts::TAU;
-                let distance = smoother_step(cycle)
+                let distance = normalized_drag_distance(cycle, 0.48)
                     * dynamics.spread
                     * (0.44 + seeded_unit(seed, index, 4) * 0.56);
-                let arc = (std::f32::consts::PI * cycle).sin()
+                let arc = ballistic_arc(cycle)
                     * dynamics.lift
                     * (0.56 + seeded_unit(seed, index, 5) * 0.44);
                 let lifecycle = (std::f32::consts::PI * cycle).sin().sqrt() * envelope;
@@ -1192,13 +1311,351 @@ fn instantiate_effect(
                 );
             }
         }
+        EffectGeometry::FlamePlume => {
+            let EffectProfile::FlameEmitter(palette) = effect.effect else {
+                return;
+            };
+            add_flame_plume(
+                meshes,
+                surface_point,
+                palette,
+                dynamics,
+                envelope,
+                phase,
+                seed,
+            );
+        }
         EffectGeometry::PresentationOnly => {}
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct FlameColours {
+    body_low: [f32; 4],
+    body_high: [f32; 4],
+    core: [f32; 4],
+}
+
+const fn flame_colours(palette: FlamePalette) -> FlameColours {
+    match palette {
+        FlamePalette::Natural => FlameColours {
+            body_low: [1.00, 0.32, 0.04, 0.46],
+            body_high: [1.00, 0.74, 0.12, 0.34],
+            core: [1.00, 0.90, 0.48, 0.36],
+        },
+        FlamePalette::Crimson => FlameColours {
+            body_low: [0.88, 0.05, 0.12, 0.42],
+            body_high: [1.00, 0.30, 0.28, 0.32],
+            core: [1.00, 0.70, 0.56, 0.34],
+        },
+        FlamePalette::YellowOrange => FlameColours {
+            body_low: [1.00, 0.34, 0.02, 0.44],
+            body_high: [1.00, 0.82, 0.06, 0.34],
+            core: [1.00, 0.94, 0.54, 0.36],
+        },
+        FlamePalette::Lilac => FlameColours {
+            body_low: [0.48, 0.12, 0.88, 0.42],
+            body_high: [0.82, 0.48, 1.00, 0.34],
+            core: [0.98, 0.82, 1.00, 0.34],
+        },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_flame_plume(
+    meshes: &mut SceneMeshes,
+    source: Vec3,
+    palette: FlamePalette,
+    dynamics: EffectDynamics,
+    envelope: f32,
+    phase: f32,
+    seed: u64,
+) {
+    if envelope <= 0.001 {
+        return;
+    }
+    let colours = flame_colours(palette);
+    for index in 0..dynamics.particle_count {
+        let index = u32::from(index);
+        let rise_speed = 0.78 + seeded_unit(seed, index, 1) * 0.64;
+        let age = (phase * dynamics.rate * rise_speed + seeded_unit(seed, index, 2)).fract();
+        let rise = normalized_terminal_distance(age, 4.8);
+        let lifecycle = (std::f32::consts::PI * age).sin().max(0.0).sqrt() * envelope;
+        if lifecycle <= 0.01 {
+            continue;
+        }
+        let angle = seeded_unit(seed, index, 3) * std::f32::consts::TAU;
+        let source_radius = seeded_unit(seed, index, 4).sqrt() * dynamics.spread * 0.34;
+        let detach = rise * rise;
+        let curl_phase = phase * (1.4 + rise_speed);
+        let curl = curl_like_flow(curl_phase, seed, index) * dynamics.turbulence * 0.16 * detach;
+        let base = source
+            + Vec3::new(
+                angle.cos() * source_radius,
+                0.02 + rise * dynamics.lift * 0.52,
+                angle.sin() * source_radius,
+            )
+            + curl;
+        let lean = curl_like_flow(curl_phase * 1.37, seed.rotate_left(7), index)
+            * dynamics.turbulence
+            * 0.13;
+        let height = (0.16 + seeded_unit(seed, index, 6) * 0.24)
+            * (1.0 - age * 0.38)
+            * (0.72 + dynamics.lift * 0.28);
+        let tip = base + Vec3::Y * height + lean;
+        let width =
+            (0.035 + seeded_unit(seed, index, 7) * 0.055) * (1.0 - age * 0.46) * lifecycle.sqrt();
+        let body_mix = rise * 0.72 + seeded_unit(seed, index, 8) * 0.18;
+        let body_colour = alpha(
+            mix_color(colours.body_low, colours.body_high, body_mix),
+            lifecycle,
+        );
+        add_flame_lobe(&mut meshes.translucent, base, tip, width, body_colour);
+
+        // A small emissive core gives brightness without turning the whole
+        // plume into an additive, colour-saturating cloud.
+        if index % 2 == 0 {
+            let core_tip = base.lerp(tip, 0.62);
+            add_flame_lobe(
+                &mut meshes.emissive,
+                base + Vec3::Y * 0.008,
+                core_tip,
+                width * 0.42,
+                alpha(colours.core, lifecycle * (1.0 - age) * 0.76),
+            );
+        }
+        if index % 5 == 0 && age > 0.48 {
+            let spark_base = tip + lean * 0.28;
+            add_flame_lobe(
+                &mut meshes.emissive,
+                spark_base,
+                spark_base + Vec3::Y * (0.025 + seeded_unit(seed, index, 9) * 0.055),
+                0.008,
+                alpha(colours.core, lifecycle * (1.0 - age) * 0.58),
+            );
+        }
+    }
+}
+
+fn mix_color(a: [f32; 4], b: [f32; 4], amount: f32) -> [f32; 4] {
+    let amount = amount.clamp(0.0, 1.0);
+    std::array::from_fn(|index| a[index] + (b[index] - a[index]) * amount)
+}
+
+/// Adds one tapered, faceted flame particle. The pointed connected silhouette
+/// avoids obvious circular sprites and remains three-dimensional at the fixed
+/// isometric camera angle.
+fn add_flame_lobe(mesh: &mut Mesh, base: Vec3, tip: Vec3, width: f32, color: [f32; 4]) {
+    if width <= 0.001 || color[3] <= 0.001 {
+        return;
+    }
+    let axis = (tip - base).normalize_or_zero();
+    if axis.length_squared() <= f32::EPSILON {
+        return;
+    }
+    let reference = if axis.y.abs() > 0.92 {
+        Vec3::X
+    } else {
+        Vec3::Y
+    };
+    let tangent = axis.cross(reference).normalize_or_zero();
+    let bitangent = axis.cross(tangent).normalize_or_zero();
+    let middle = base.lerp(tip, 0.38);
+    let ring = [
+        middle + tangent * width,
+        middle + bitangent * width * 0.82,
+        middle - tangent * width,
+        middle - bitangent * width * 0.82,
+    ];
+    for side in 0..4 {
+        let next = (side + 1) % 4;
+        add_flat_triangle(mesh, base, ring[next], ring[side], color);
+        add_flat_triangle(mesh, ring[side], ring[next], tip, color);
     }
 }
 
 fn alpha(mut color: [f32; 4], factor: f32) -> [f32; 4] {
     color[3] *= factor.clamp(0.0, 1.0);
     color
+}
+
+fn add_liquid_volume(
+    mesh: &mut Mesh,
+    center: Vec3,
+    scale: Vec3,
+    color: [f32; 4],
+    turbulence: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const RINGS: u16 = 6;
+    const SEGMENTS: u16 = 24;
+    let radius = 0.82 * scale.x;
+    let bottom = center + Vec3::new(0.0, -0.52 * scale.y, 0.0);
+    let surface = center + Vec3::new(0.0, 0.54 * scale.y, 0.0);
+    add_cylinder(mesh, bottom, surface, radius, color);
+    add_disc(mesh, bottom, radius, color);
+
+    for ring in 0..RINGS {
+        let inner_radius = f32::from(ring) / f32::from(RINGS);
+        let outer_radius = f32::from(ring + 1) / f32::from(RINGS);
+        for segment in 0..SEGMENTS {
+            let angle_a = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
+            let angle_b = std::f32::consts::TAU * f32::from(segment + 1) / f32::from(SEGMENTS);
+            let inner_a = liquid_surface_point(
+                surface,
+                radius,
+                inner_radius,
+                angle_a,
+                turbulence,
+                phase,
+                seed,
+            );
+            let inner_b = liquid_surface_point(
+                surface,
+                radius,
+                inner_radius,
+                angle_b,
+                turbulence,
+                phase,
+                seed,
+            );
+            let outer_a = liquid_surface_point(
+                surface,
+                radius,
+                outer_radius,
+                angle_a,
+                turbulence,
+                phase,
+                seed,
+            );
+            let outer_b = liquid_surface_point(
+                surface,
+                radius,
+                outer_radius,
+                angle_b,
+                turbulence,
+                phase,
+                seed,
+            );
+            if ring == 0 {
+                add_flat_triangle(mesh, inner_a, outer_a, outer_b, [0.32, 0.62, 0.76, 0.48]);
+            } else {
+                add_flat_triangle(mesh, inner_a, outer_a, outer_b, [0.32, 0.62, 0.76, 0.48]);
+                add_flat_triangle(mesh, inner_a, outer_b, inner_b, [0.32, 0.62, 0.76, 0.48]);
+            }
+        }
+    }
+    add_ring(
+        mesh,
+        surface + Vec3::new(0.0, 0.018 + turbulence * 0.006, 0.0),
+        radius * 0.965,
+        0.014,
+        [0.58, 0.82, 0.92, 0.52],
+    );
+}
+
+fn liquid_surface_point(
+    center: Vec3,
+    radius: f32,
+    radial: f32,
+    angle: f32,
+    turbulence: f32,
+    phase: f32,
+    seed: u64,
+) -> Vec3 {
+    let edge_damping = (1.0 - radial * radial).max(0.0);
+    let primary = (angle * 2.0 + phase * 2.3 + seed_phase(seed, 31)).sin();
+    let secondary = (angle * 5.0 - phase * 1.7 + seed_phase(seed, 32)).cos() * 0.42;
+    let radial_wave = (radial * 10.0 - phase * 2.8 + seed_phase(seed, 33)).sin() * 0.34;
+    let displacement =
+        ((primary + secondary) * radial + radial_wave) * 0.038 * turbulence * edge_damping;
+    let meniscus = radial.powi(8) * 0.026;
+    center
+        + Vec3::new(
+            angle.cos() * radius * radial,
+            displacement + meniscus,
+            angle.sin() * radius * radial,
+        )
+}
+
+/// Builds one connected, irregular low-poly gas shell. Invisible procedural
+/// parcels are represented by the lobes of this surface; the normal view never
+/// exposes those parcels as molecular beads.
+fn add_gas_volume(
+    mesh: &mut Mesh,
+    center: Vec3,
+    scale: Vec3,
+    color: [f32; 4],
+    seed: u64,
+    phase: f32,
+    density: f32,
+) {
+    const RINGS: u16 = 8;
+    const SECTORS: u16 = 14;
+    if density <= 0.01 || color[3] <= 0.001 {
+        return;
+    }
+    for ring in 0..RINGS {
+        let latitude_a = std::f32::consts::PI * f32::from(ring) / f32::from(RINGS);
+        let latitude_b = std::f32::consts::PI * f32::from(ring + 1) / f32::from(RINGS);
+        for sector in 0..SECTORS {
+            let longitude_a = std::f32::consts::TAU * f32::from(sector) / f32::from(SECTORS);
+            let longitude_b = std::f32::consts::TAU * f32::from(sector + 1) / f32::from(SECTORS);
+            let a = gas_surface_point(center, scale, latitude_a, longitude_a, seed, phase, density);
+            let b = gas_surface_point(center, scale, latitude_b, longitude_a, seed, phase, density);
+            let c = gas_surface_point(center, scale, latitude_b, longitude_b, seed, phase, density);
+            let d = gas_surface_point(center, scale, latitude_a, longitude_b, seed, phase, density);
+            add_flat_triangle(mesh, a, b, c, color);
+            add_flat_triangle(mesh, a, c, d, color);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn gas_surface_point(
+    center: Vec3,
+    scale: Vec3,
+    latitude: f32,
+    longitude: f32,
+    seed: u64,
+    phase: f32,
+    density: f32,
+) -> Vec3 {
+    let direction = Vec3::new(
+        latitude.sin() * longitude.cos(),
+        latitude.cos(),
+        latitude.sin() * longitude.sin(),
+    );
+    let lobe_a =
+        (longitude * 3.0 + phase * 0.83 + seed_phase(seed, 41)).sin() * latitude.sin().powi(2);
+    let lobe_b = (latitude * 4.0 - phase * 0.57 + seed_phase(seed, 42)).cos();
+    let lobe_c = (longitude * 5.0 + latitude * 2.0 + seed_phase(seed, 43)).sin();
+    let radius = (0.78 + lobe_a * 0.15 + lobe_b * 0.09 + lobe_c * 0.06)
+        * (0.72 + density.clamp(0.0, 1.0) * 0.28);
+    let curl = Vec3::new(
+        (latitude * 2.0 + phase * 0.47 + seed_phase(seed, 44)).sin(),
+        (longitude * 2.0 - phase * 0.31 + seed_phase(seed, 45)).cos() * 0.35,
+        (latitude + longitude + phase * 0.39 + seed_phase(seed, 46)).sin(),
+    ) * 0.055
+        * density;
+    center + direction * scale * radius + curl
+}
+
+fn add_flat_triangle(mesh: &mut Mesh, a: Vec3, b: Vec3, c: Vec3, color: [f32; 4]) {
+    let normal = (b - a).cross(c - a).normalize_or_zero();
+    if normal.length_squared() <= f32::EPSILON {
+        return;
+    }
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    for position in [a, b, c] {
+        mesh.vertices.push(Vertex {
+            position: position.to_array(),
+            normal: normal.to_array(),
+            color,
+        });
+    }
+    mesh.indices.extend_from_slice(&[base, base + 1, base + 2]);
 }
 
 fn appearance_color(profile: AppearanceProfile) -> [f32; 4] {
@@ -1251,23 +1708,35 @@ struct SceneMeshes {
     opaque: Mesh,
     translucent: Mesh,
     glass: Mesh,
+    emissive: Mesh,
 }
 
 impl SceneMeshes {
-    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32) {
+    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32, u32) {
         let mut vertices = Vec::with_capacity(
             self.opaque.vertices.len()
                 + self.translucent.vertices.len()
-                + self.glass.vertices.len(),
+                + self.glass.vertices.len()
+                + self.emissive.vertices.len(),
         );
         let mut indices = Vec::with_capacity(
-            self.opaque.indices.len() + self.translucent.indices.len() + self.glass.indices.len(),
+            self.opaque.indices.len()
+                + self.translucent.indices.len()
+                + self.glass.indices.len()
+                + self.emissive.indices.len(),
         );
         append_mesh(&mut vertices, &mut indices, self.opaque);
         let opaque_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
         append_mesh(&mut vertices, &mut indices, self.translucent);
         append_mesh(&mut vertices, &mut indices, self.glass);
-        (vertices, indices, opaque_index_count)
+        let transparent_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
+        append_mesh(&mut vertices, &mut indices, self.emissive);
+        (
+            vertices,
+            indices,
+            opaque_index_count,
+            transparent_index_count,
+        )
     }
 }
 
@@ -1473,6 +1942,10 @@ fn add_ring(mesh: &mut Mesh, center: Vec3, radius: f32, thickness: f32, color: [
 }
 
 fn add_particle_cluster(mesh: &mut Mesh, center: Vec3, scale: Vec3, color: [f32; 4], count: u8) {
+    let particle_scale = scale.abs().max_element();
+    if particle_scale <= 0.001 {
+        return;
+    }
     for index in 0..count {
         let angle = f32::from(index) * 2.399_963_1;
         let radius = (f32::from(index) / f32::from(count.max(1))).sqrt();
@@ -1484,7 +1957,7 @@ fn add_particle_cluster(mesh: &mut Mesh, center: Vec3, scale: Vec3, color: [f32;
         add_sphere(
             mesh,
             center + offset,
-            0.045 + f32::from(index % 4) * 0.012,
+            (0.045 + f32::from(index % 4) * 0.012) * particle_scale,
             color,
             5,
             7,
@@ -1515,6 +1988,167 @@ mod tests {
         assert!((continuous_phase(5, 1.0) - continuous_phase(6, 0.0)).abs() < f32::EPSILON);
         assert!((smoother_step(0.0)).abs() < f32::EPSILON);
         assert!((smoother_step(1.0) - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn fixed_camera_has_no_interaction_state_and_frames_vessel_size_deterministically() {
+        let plan = canonical_plan();
+        let camera = fixed_camera_pose(&plan);
+        assert_eq!(std::mem::size_of::<FixedCameraState>(), 0);
+        assert!(camera.pitch < -0.5);
+        assert_eq!(camera, fixed_camera_pose(&plan));
+
+        let mut larger = plan.clone();
+        let vessel = larger
+            .objects
+            .iter_mut()
+            .find(|object| object.role == SceneRole::Vessel)
+            .expect("vessel exists");
+        vessel.transform.scale = [1_400, 1_400, 1_400];
+        let larger_camera = fixed_camera_pose(&larger);
+        assert!((camera.yaw - larger_camera.yaw).abs() < f32::EPSILON);
+        assert!((camera.pitch - larger_camera.pitch).abs() < f32::EPSILON);
+        assert!(larger_camera.view_height > camera.view_height);
+    }
+
+    #[test]
+    fn gas_is_one_seeded_low_poly_volume_instead_of_a_particle_cluster() {
+        let mut first = Mesh::default();
+        add_gas_volume(
+            &mut first,
+            Vec3::ZERO,
+            Vec3::new(0.8, 1.1, 0.7),
+            [0.7, 0.84, 0.9, 0.2],
+            42,
+            1.25,
+            0.8,
+        );
+        let mut repeated = Mesh::default();
+        add_gas_volume(
+            &mut repeated,
+            Vec3::ZERO,
+            Vec3::new(0.8, 1.1, 0.7),
+            [0.7, 0.84, 0.9, 0.2],
+            42,
+            1.25,
+            0.8,
+        );
+
+        assert!(first.vertices.len() > 300);
+        assert_eq!(first.indices, repeated.indices);
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&first.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated.vertices)
+        );
+    }
+
+    #[test]
+    fn flame_plume_is_seeded_layered_and_low_poly() {
+        let dynamics = scene_registry::effect_dynamics(
+            EffectProfile::FlameEmitter(FlamePalette::Lilac),
+            EffectIntensity::Strong,
+        );
+        let mut first = SceneMeshes::default();
+        add_flame_plume(
+            &mut first,
+            Vec3::ZERO,
+            FlamePalette::Lilac,
+            dynamics,
+            1.0,
+            2.35,
+            73,
+        );
+        let mut repeated = SceneMeshes::default();
+        add_flame_plume(
+            &mut repeated,
+            Vec3::ZERO,
+            FlamePalette::Lilac,
+            dynamics,
+            1.0,
+            2.35,
+            73,
+        );
+
+        assert!(!first.translucent.vertices.is_empty());
+        assert!(!first.emissive.vertices.is_empty());
+        assert_eq!(first.translucent.indices, repeated.translucent.indices);
+        assert_eq!(first.emissive.indices, repeated.emissive.indices);
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&first.translucent.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated.translucent.vertices)
+        );
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&first.emissive.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated.emissive.vertices)
+        );
+        assert!(
+            first
+                .translucent
+                .vertices
+                .iter()
+                .any(|vertex| vertex.color[2] > vertex.color[0]),
+            "the lilac body must remain blue-violet rather than generic orange"
+        );
+    }
+
+    #[test]
+    fn liquid_surface_deformation_is_seeded_and_scales_with_turbulence() {
+        let mut calm = Mesh::default();
+        add_liquid_volume(
+            &mut calm,
+            Vec3::ZERO,
+            Vec3::ONE,
+            appearance_color(AppearanceProfile::Water),
+            0.0,
+            2.0,
+            91,
+        );
+        let mut agitated = Mesh::default();
+        add_liquid_volume(
+            &mut agitated,
+            Vec3::ZERO,
+            Vec3::ONE,
+            appearance_color(AppearanceProfile::Water),
+            0.9,
+            2.0,
+            91,
+        );
+
+        assert_eq!(calm.vertices.len(), agitated.vertices.len());
+        assert_ne!(
+            bytemuck::cast_slice::<Vertex, u8>(&calm.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&agitated.vertices)
+        );
+    }
+
+    #[test]
+    fn distinct_gas_reaction_families_drive_the_same_generic_visual_channels() {
+        let plans = [
+            canonical_plan(),
+            plan_for(chemistry::ReactionRequest::acid_carbonate_gas_evolution(
+                chemistry::AlkaliMetal::Sodium,
+                chemistry::Halogen::Chlorine,
+            )),
+        ];
+        for plan in plans {
+            let gas_start = plan
+                .effects
+                .iter()
+                .find(|effect| effect.effect == EffectProfile::GasRelease)
+                .expect("gas release is observation-backed")
+                .start_ordinal;
+            let final_ordinal = plan
+                .timeline
+                .beats
+                .last()
+                .expect("timeline ends")
+                .end_ordinal;
+            let inputs =
+                ReactionVisualInputs::from_effects(&plan.effects, gas_start, 0.5, final_ordinal);
+            assert!(inputs.gas_generation_rate > 0.0);
+            assert!(inputs.bubble_rate > 0.0);
+            assert!(inputs.liquid_turbulence > 0.0);
+        }
     }
 
     #[test]
@@ -1554,6 +2188,105 @@ mod tests {
     }
 
     #[test]
+    fn reactant_approach_flows_through_setup_ordinals_without_an_idle_hold() {
+        let plan = canonical_plan();
+        let reactant = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Reactant)
+            .expect("reactant exists");
+        let contact_ordinal = plan
+            .effects
+            .iter()
+            .map(|effect| effect.start_ordinal)
+            .min()
+            .expect("reaction has an authorized effect");
+        assert!(contact_ordinal >= reactant.visible_from_ordinal.saturating_add(2));
+
+        let during_setup = object_motion(
+            &plan,
+            reactant,
+            reactant.visible_from_ordinal.saturating_add(1),
+            0.5,
+            Vec3::ZERO,
+        );
+        assert!(
+            during_setup.translation.length() > 0.01,
+            "the reactant must still be approaching during later setup states"
+        );
+
+        let just_before_contact = object_motion(
+            &plan,
+            reactant,
+            contact_ordinal.saturating_sub(1),
+            1.0,
+            Vec3::ZERO,
+        );
+        let at_contact = object_motion(&plan, reactant, contact_ordinal, 0.0, Vec3::ZERO);
+        assert!(just_before_contact.translation.length() < f32::EPSILON);
+        assert_eq!(just_before_contact.translation, at_contact.translation);
+        assert_eq!(just_before_contact.rotation, at_contact.rotation);
+    }
+
+    #[test]
+    fn reactant_entry_is_seeded_ballistic_motion_with_a_damped_impact() {
+        let seed = 0x51a7_9c2d;
+        let start = ballistic_throw_offset(seed, 0.0);
+        let halfway = ballistic_throw_offset(seed, 0.5);
+        let repeated = ballistic_throw_offset(seed, 0.5);
+        let contact = ballistic_throw_offset(seed, 1.0);
+
+        assert_eq!(halfway, repeated);
+        assert_ne!(halfway, ballistic_throw_offset(seed.rotate_left(9), 0.5));
+        assert!(
+            halfway.y > start.y * 0.5,
+            "gravity and launch impulse must create an arc above linear interpolation"
+        );
+        assert!(contact.length() < f32::EPSILON);
+
+        let impact = damped_impact_offset(seed, 0.1);
+        let settled = damped_impact_offset(seed, 1.5);
+        assert!(impact.y > 0.0, "contact impulse produces a rebound");
+        assert!(settled.length() < impact.length() * 0.05);
+    }
+
+    #[test]
+    fn natural_motion_curves_are_asymmetric_and_seeded_without_endpoint_drift() {
+        assert!(normalized_terminal_distance(0.25, 4.8) < 0.25);
+        assert!(normalized_drag_distance(0.25, 0.48) > 0.25);
+        assert!(normalized_exponential_response(0.25, 4.2) > 0.25);
+        assert!((normalized_terminal_distance(1.0, 4.8) - 1.0).abs() < f32::EPSILON);
+        assert!((normalized_drag_distance(1.0, 0.48) - 1.0).abs() < f32::EPSILON);
+        assert_eq!(curl_like_flow(1.7, 42, 3), curl_like_flow(1.7, 42, 3));
+        assert_ne!(curl_like_flow(1.7, 42, 3), curl_like_flow(1.7, 42, 4));
+    }
+
+    #[test]
+    fn product_formation_eases_from_zero_after_its_trusted_boundary() {
+        let plan = canonical_plan();
+        let product = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Product)
+            .expect("product exists");
+
+        assert!(
+            object_formation_scale(product, product.visible_from_ordinal.saturating_sub(1), 1.0,)
+                .abs()
+                < f32::EPSILON
+        );
+        assert!(
+            object_formation_scale(product, product.visible_from_ordinal, 0.0).abs() < f32::EPSILON
+        );
+        let forming = object_formation_scale(product, product.visible_from_ordinal, 0.5);
+        assert!(forming > 0.5 && forming < 1.0);
+        assert!(
+            (object_formation_scale(product, product.visible_from_ordinal, 1.0) - 1.0).abs()
+                < f32::EPSILON
+        );
+    }
+
+    #[test]
     fn scene_mesh_is_deterministic_macroscopic_and_contains_depth_geometry() {
         let plan = canonical_plan();
         let first = build_scene(&plan, 3, 0.5);
@@ -1567,6 +2300,10 @@ mod tests {
         assert!(
             usize::try_from(first.2).is_ok_and(|count| count < first.1.len()),
             "glass, liquid, and effects must remain in the transparent pass"
+        );
+        assert!(
+            usize::try_from(first.3).is_ok_and(|count| count <= first.1.len()),
+            "the additive pass boundary must remain inside the batched index buffer"
         );
         assert!(first.0.iter().any(|vertex| vertex.position[2].abs() > 0.1));
         assert!(
@@ -1591,9 +2328,39 @@ mod tests {
             effect.effect == EffectProfile::SurfaceDisturbance
                 || effect.effect == EffectProfile::SplashEmitter
         }));
-        let moment = plan.timeline.locate(0).expect("timeline begins");
-        let (_, pitch, _) = camera_pose(&plan, moment);
-        assert!(pitch < -0.5);
+        let camera = fixed_camera_pose(&plan);
+        assert!(camera.pitch < -0.5);
+        assert_eq!(camera, fixed_camera_pose(&plan));
+    }
+
+    #[test]
+    fn potassium_uses_generic_flame_pass_while_lithium_does_not_invent_ignition() {
+        let potassium = plan_for(chemistry::ReactionRequest::alkali_water(
+            chemistry::AlkaliMetal::Potassium,
+        ));
+        let flame = potassium
+            .effects
+            .iter()
+            .find(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_)))
+            .expect("reviewed potassium profile selects the generic flame emitter");
+        let potassium_mesh = build_scene(&potassium, flame.start_ordinal, 0.5);
+        assert!(
+            usize::try_from(potassium_mesh.3).is_ok_and(|start| start < potassium_mesh.1.len()),
+            "emissive cores and sparks use the final additive batch"
+        );
+
+        let lithium = canonical_plan();
+        assert!(
+            !lithium
+                .effects
+                .iter()
+                .any(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_)))
+        );
+        let lithium_mesh = build_scene(&lithium, flame.start_ordinal, 0.5);
+        assert_eq!(
+            usize::try_from(lithium_mesh.3).expect("index boundary fits usize"),
+            lithium_mesh.1.len()
+        );
     }
 
     #[test]
@@ -1718,6 +2485,8 @@ mod tests {
             Vec3::ZERO,
             Quat::IDENTITY,
             42,
+            ReactionVisualInputs::default(),
+            0.0,
         );
         let mut rotated_meshes = SceneMeshes::default();
         instantiate_asset(
@@ -1729,9 +2498,11 @@ mod tests {
             Vec3::ZERO,
             Quat::IDENTITY,
             42,
+            ReactionVisualInputs::default(),
+            0.0,
         );
-        let (unrotated, _, _) = unrotated_meshes.finish();
-        let (rotated, _, _) = rotated_meshes.finish();
+        let (unrotated, _, _, _) = unrotated_meshes.finish();
+        let (rotated, _, _, _) = rotated_meshes.finish();
 
         assert_eq!(unrotated.len(), rotated.len());
         assert_ne!(
@@ -1757,8 +2528,10 @@ mod tests {
             Vec3::ZERO,
             Quat::IDENTITY,
             0,
+            ReactionVisualInputs::default(),
+            0.0,
         );
-        let (vertices, _, opaque_indices) = meshes.finish();
+        let (vertices, _, opaque_indices, _) = meshes.finish();
 
         assert!(opaque_indices > 0, "the floor remains opaque geometry");
         assert!(

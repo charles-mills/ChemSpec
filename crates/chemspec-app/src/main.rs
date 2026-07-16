@@ -295,6 +295,7 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
         EffectProfile::ColourTransition => "Colour transition",
         EffectProfile::SplashEmitter => "Fine droplets",
         EffectProfile::HeatDistortion => "Heat distortion",
+        EffectProfile::FlameEmitter(_) => "Flame plume",
     }
 }
 
@@ -380,6 +381,7 @@ const fn initial_provider(codex_available: bool) -> ProviderChoice {
 fn launch_state() -> App {
     let mut app = App::default();
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
+    let smoke_from_start = std::env::args().any(|argument| argument == "--smoke-from-start");
     let smoke_request =
         std::env::args().find_map(|argument| smoke_request_from_argument(&argument));
     if let Some(smoke_mode) = smoke_mode {
@@ -402,7 +404,7 @@ fn launch_state() -> App {
         if let Some(animation) = &mut app.structural_animation {
             let three_dimensional = smoke_mode == SmokeMode::Structural3d;
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
-            if three_dimensional {
+            if three_dimensional && !smoke_from_start {
                 let plan = &animation.real_world_plan;
                 animation.real_world_playhead_ms =
                     plan.timeline.duration_ms().saturating_mul(2) / 3;
@@ -432,7 +434,7 @@ fn launch_state() -> App {
                         .unwrap_or(0);
                 }
             }
-            animation.playing = false;
+            animation.playing = smoke_from_start;
             app.screen = if three_dimensional {
                 Screen::Structural3d
             } else {
@@ -1638,8 +1640,24 @@ impl App {
             iced::widget::Shader::new(structural_3d::Scene::new(real_world_plan, moment))
                 .width(Fill)
                 .height(Fill);
+        let model_disclosure = if compact {
+            "VIRTUAL MODEL · NOT A LAB PROCEDURE"
+        } else {
+            "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
+        };
         let annotation_layer = container(
             column![
+                row![
+                    space().width(Fill),
+                    container(
+                        text(model_disclosure)
+                            .size(type_scale::MICRO)
+                            .color(color::TEXT_SOFT),
+                    )
+                    .style(theme::media_bar)
+                    .padding([spacing::XXS, spacing::XS]),
+                ]
+                .width(Fill),
                 space().height(Fill),
                 container(annotation)
                     .style(theme::media_bar)
@@ -1694,7 +1712,7 @@ impl App {
                 transport,
                 row![
                     text(format!(
-                        "SCENE {:02} / {:02}  ·  CINEMATIC TIMELINE",
+                        "SCENE {:02} / {:02}  ·  FIXED 2.5D VIEW",
                         moment.beat_index + 1,
                         real_world_plan.timeline.beats.len()
                     ))
@@ -1723,7 +1741,7 @@ impl App {
                         text("VALIDATED MACROSCOPIC VIEW")
                             .size(type_scale::MICRO)
                             .color(color::ACCENT),
-                        text("Cinematic real-world approximation")
+                        text("Stylised macroscopic reaction")
                             .size(if compact {
                                 type_scale::BODY_LARGE
                             } else {
@@ -1735,7 +1753,7 @@ impl App {
                     if compact {
                         text("").size(type_scale::MICRO)
                     } else {
-                        text("DRAG TO ORBIT · SCROLL TO ZOOM")
+                        text("FIXED ORTHOGRAPHIC 2.5D CAMERA")
                             .size(type_scale::MICRO)
                             .color(color::MUTED)
                     },
@@ -1743,12 +1761,6 @@ impl App {
                 .align_y(Center),
                 scene,
                 controls,
-                text(real_world_plan.disclosure.as_str())
-                    .size(type_scale::MICRO)
-                    .color(color::TEXT_SOFT),
-                text(real_world_plan.virtual_only_disclosure.as_str())
-                    .size(type_scale::MICRO)
-                    .color(color::WARNING),
             ]
             .spacing(spacing::XS)
             .height(Fill),

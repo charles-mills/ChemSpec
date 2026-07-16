@@ -84,9 +84,9 @@ absolute timeline is scrubbable, supports chapter stepping, and preserves
 elapsed-time overshoot across scene boundaries.
 
 The 3D page is a separate macroscopic presentation. It uses reusable low-poly
-XYZ geometry, complete scene transforms, deterministic seeded effects, opaque
-and transparent depth passes, an absolute scrubbable timeline, and elevated
-near-isometric camera motion on the existing Iced/wgpu device and surface. It
+XYZ geometry, complete scene transforms, deterministic seeded effects, opaque,
+alpha-blended, and bounded additive depth passes, an absolute scrubbable timeline, and elevated
+fixed near-isometric orthographic framing on the existing Iced/wgpu device and surface. It
 does not render structural atoms as laboratory objects.
 
 Only trusted, current frames may produce either plan. Malformed, ill-typed,
@@ -117,6 +117,12 @@ Value-bearing visuals such as precipitate colour are selected from and bound
 to the exact trusted value. A family with no supported visible effect is
 presented without inventing one.
 
+Qualitative reviewed presentation metadata may refine a family member without
+entering the renderer. Potassium-water selects the generic lilac
+`FlameEmitter` at its trusted gas-evolution observation, while lithium-water
+and sodium-water remain flame-free. The renderer sees only the typed effect and
+never branches on those identities.
+
 Future operation or presentation variants must be added vertically: catalogue
 schema, trusted transition validation, frames, planner primitives, renderers,
 conformance, and disclosures must remain aligned.
@@ -145,6 +151,9 @@ cargo run -p chemspec-app -- --structural-2d-smoke
 cargo run -p chemspec-app -- --structural-3d-smoke \
   --smoke-reaction=acid-carbonate-sodium-chloride
 ```
+
+Add `--smoke-from-start` to begin deterministic playback at the reactant-entry
+boundary instead of pausing at the usual later inspection point.
 
 These launch options still cross the complete bundled source, trusted
 catalogue, evidence, expansion, validation, and frame boundary. They never

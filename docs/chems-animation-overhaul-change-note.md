@@ -59,10 +59,11 @@ service, generates runtime code, or lets the renderer infer chemistry.
 ## Authoring impact
 
 Reaction authors do not add bespoke animation instructions to `.chems` files.
-Natural 3D easing, particle variation, emission envelopes, shared reaction
-motion, and camera drift are likewise reusable renderer behaviours selected by
-typed reviewed effect and intensity metadata; they do not extend the language
-or introduce reaction-specific animation fields.
+Natural 3D easing, seeded variation, emission envelopes, connected gas shells,
+liquid-surface motion, layered flame particles, and shared reaction motion are reusable renderer
+behaviours selected by typed reviewed effect and intensity metadata. The
+macroscopic camera is fixed and orthographic. None of these behaviours extends
+the language or introduces reaction-specific animation fields.
 The final product record also requires no new syntax: it reads validated final
 product membership and structural relationships, with reference atomic masses
 coming from bundled element presentation metadata.
@@ -70,6 +71,12 @@ Supporting a new animated reaction still requires a reviewed catalogue rule and,
 for the macroscopic view, a reviewed reusable presentation profile. If that
 trusted metadata is unavailable or incompatible, animation remains unavailable
 rather than being guessed from prose.
+
+The flame addition likewise introduces no `.chems` field. Reviewed qualitative
+family-member metadata may select a generic palette-bearing `FlameEmitter` only
+after the corresponding trusted observation activates. Potassium-water has
+reviewed lilac ignition metadata; lithium-water and sodium-water do not. A
+flame-test colour is not treated as proof that a water reaction ignites.
 
 Any future proposal to add presentation syntax to `.chems` is a language-contract
 change and must update the normative specification, grammar, parser, formatter,

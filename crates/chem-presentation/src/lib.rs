@@ -12,7 +12,7 @@ use chem_catalogue::ObservationPredicate;
 use chem_domain::{AtomId, ContentDigest, IonicAssociationId, StructuralOperationView};
 use chem_kernel::{ObservationStatus, SimulationFrame, SimulationFrames};
 
-pub const VIRTUAL_ONLY_DISCLOSURE: &str = "Virtual educational model—not a laboratory procedure. Timing, scale, motion, and camera movement are illustrative.";
+pub const VIRTUAL_ONLY_DISCLOSURE: &str = "Virtual educational model—not a laboratory procedure. Timing, scale, and motion are illustrative; the fixed 2.5D camera is a presentation view.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EducationalSceneKind {
@@ -919,6 +919,20 @@ pub enum EffectProfile {
     ColourTransition,
     SplashEmitter,
     HeatDistortion,
+    FlameEmitter(FlamePalette),
+}
+
+/// Reviewed flame-colour families available to the generic flame renderer.
+///
+/// Selecting a palette does not assert that a reaction ignites. A trusted
+/// presentation profile must still authorize `FlameEmitter` and bind it to an
+/// observation before the renderer can display it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlamePalette {
+    Natural,
+    Crimson,
+    YellowOrange,
+    Lilac,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -935,6 +949,131 @@ pub struct PresentationEffect {
     pub intensity: EffectIntensity,
     pub start_ordinal: u16,
     pub end_ordinal: u16,
+}
+
+/// Continuous, renderer-independent macroscopic controls compiled from the
+/// currently active, observation-gated presentation effects.
+///
+/// Values are normalized illustrative intensities in `0.0..=1.0`, not measured
+/// kinetic, thermodynamic, or pressure quantities. Missing reviewed metadata
+/// deliberately remains zero instead of being inferred from a chemical name.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ReactionVisualInputs {
+    pub reaction_progress: f32,
+    pub reaction_rate: f32,
+    pub gas_generation_rate: f32,
+    pub bubble_rate: f32,
+    pub pressure_impulse: f32,
+    pub heat_output: f32,
+    pub liquid_turbulence: f32,
+    pub precipitate_generation: f32,
+    pub colour_transition: f32,
+    pub splash_rate: f32,
+    pub foam_amount: f32,
+    pub flame_rate: f32,
+}
+
+impl ReactionVisualInputs {
+    /// Resolves reusable visual controls without inspecting reaction, species,
+    /// or chemical names.
+    #[must_use]
+    pub fn from_effects(
+        effects: &[PresentationEffect],
+        ordinal: u16,
+        ordinal_progress: f32,
+        final_ordinal: u16,
+    ) -> Self {
+        let reaction_progress = if final_ordinal == 0 {
+            ordinal_progress.clamp(0.0, 1.0)
+        } else {
+            ((f32::from(ordinal) + ordinal_progress.clamp(0.0, 1.0))
+                / f32::from(final_ordinal.saturating_add(1)))
+            .clamp(0.0, 1.0)
+        };
+        let mut inputs = Self {
+            reaction_progress,
+            ..Self::default()
+        };
+        for effect in effects
+            .iter()
+            .filter(|effect| effect.start_ordinal <= ordinal && ordinal <= effect.end_ordinal)
+        {
+            let intensity = match effect.intensity {
+                EffectIntensity::Subtle => 0.42,
+                EffectIntensity::Moderate => 0.70,
+                EffectIntensity::Strong => 1.0,
+            };
+            let span = f32::from(
+                effect
+                    .end_ordinal
+                    .saturating_sub(effect.start_ordinal)
+                    .saturating_add(1),
+            );
+            let elapsed = f32::from(ordinal.saturating_sub(effect.start_ordinal))
+                + ordinal_progress.clamp(0.0, 1.0);
+            let local_progress = (elapsed / span.max(1.0)).clamp(0.0, 1.0);
+            let attack = exponential_response(local_progress / 0.16, 3.8);
+            let release = 1.0 - exponential_response((local_progress - 0.76) / 0.24, 3.2);
+            let activity = intensity * attack * release;
+            match effect.effect {
+                EffectProfile::BubbleEmitter => {
+                    inputs.bubble_rate += activity;
+                    inputs.liquid_turbulence += activity * 0.28;
+                }
+                EffectProfile::GasRelease => {
+                    inputs.gas_generation_rate += activity;
+                    inputs.pressure_impulse += activity * 0.18;
+                }
+                EffectProfile::SurfaceDisturbance => {
+                    inputs.liquid_turbulence += activity;
+                }
+                EffectProfile::SplashEmitter => {
+                    inputs.splash_rate += activity;
+                    inputs.liquid_turbulence += activity * 0.72;
+                    inputs.pressure_impulse += activity * 0.58;
+                }
+                EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
+                    inputs.precipitate_generation += activity;
+                }
+                EffectProfile::ColourTransition => inputs.colour_transition += activity,
+                EffectProfile::HeatDistortion => inputs.heat_output += activity,
+                EffectProfile::FlameEmitter(_) => {
+                    inputs.flame_rate += activity;
+                    inputs.heat_output += activity * 0.72;
+                    inputs.liquid_turbulence += activity * 0.12;
+                }
+                EffectProfile::ObjectShrinkage => {}
+            }
+        }
+        inputs.gas_generation_rate = inputs.gas_generation_rate.min(1.0);
+        inputs.bubble_rate = inputs.bubble_rate.min(1.0);
+        inputs.pressure_impulse = inputs.pressure_impulse.min(1.0);
+        inputs.heat_output = inputs.heat_output.min(1.0);
+        inputs.liquid_turbulence = inputs.liquid_turbulence.min(1.0);
+        inputs.precipitate_generation = inputs.precipitate_generation.min(1.0);
+        inputs.colour_transition = inputs.colour_transition.min(1.0);
+        inputs.splash_rate = inputs.splash_rate.min(1.0);
+        inputs.flame_rate = inputs.flame_rate.min(1.0);
+        inputs.reaction_rate = inputs
+            .gas_generation_rate
+            .max(inputs.bubble_rate)
+            .max(inputs.liquid_turbulence)
+            .max(inputs.precipitate_generation)
+            .max(inputs.colour_transition)
+            .max(inputs.heat_output)
+            .max(inputs.flame_rate);
+        inputs
+    }
+}
+
+fn exponential_response(value: f32, rate: f32) -> f32 {
+    let value = value.clamp(0.0, 1.0);
+    let denominator = 1.0 - (-rate).exp();
+    if denominator.abs() <= f32::EPSILON {
+        value
+    } else {
+        ((1.0 - (-rate * value).exp()) / denominator).clamp(0.0, 1.0)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1193,13 +1332,11 @@ fn compile_real_world_timeline(
                     })
                     .map(|effect| effect.intensity)
                     .max();
-                let duration_ms = match intensity {
-                    Some(EffectIntensity::Strong) => 7_200,
-                    Some(EffectIntensity::Moderate) => 6_400,
-                    Some(EffectIntensity::Subtle) => 5_600,
-                    None if start_ordinal == 0 => 4_200,
-                    None => 4_400,
-                };
+                let duration_ms = macroscopic_beat_duration_ms(
+                    intensity,
+                    start_ordinal == 0,
+                    end_ordinal == final_ordinal,
+                );
                 let behaviour = profile
                     .camera
                     .iter()
@@ -1211,11 +1348,7 @@ fn compile_real_world_timeline(
                 RealWorldBeat {
                     start_ordinal,
                     end_ordinal,
-                    duration_ms: if end_ordinal == final_ordinal {
-                        duration_ms.max(5_600)
-                    } else {
-                        duration_ms
-                    },
+                    duration_ms,
                     camera: CameraCue {
                         behaviour,
                         start_ordinal,
@@ -1226,6 +1359,33 @@ fn compile_real_world_timeline(
         })
         .collect();
     RealWorldTimeline { beats }
+}
+
+/// Conservative presentation defaults used when reviewed source does not
+/// provide measured kinetics. The entry beat is deliberately close to the
+/// duration of a short hand-thrown arc; active effects remain long enough to
+/// read while stronger activity resolves more quickly than subtle activity.
+const fn macroscopic_beat_duration_ms(
+    intensity: Option<EffectIntensity>,
+    starts_at_initial_state: bool,
+    is_final: bool,
+) -> u32 {
+    let duration_ms = match intensity {
+        Some(EffectIntensity::Strong) => 2_600,
+        Some(EffectIntensity::Moderate) => 3_400,
+        Some(EffectIntensity::Subtle) => 4_400,
+        None if starts_at_initial_state => 900,
+        None => 1_800,
+    };
+    if is_final {
+        if duration_ms < 2_400 {
+            2_400
+        } else {
+            duration_ms
+        }
+    } else {
+        duration_ms
+    }
 }
 
 fn compile_macroscopic_annotations(
@@ -1301,7 +1461,13 @@ impl std::error::Error for PlanError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{EducationalPlan, EducationalScene, EducationalSceneKind, TimelinePosition};
+    use chem_catalogue::ObservationPredicate;
+
+    use super::{
+        EducationalPlan, EducationalScene, EducationalSceneKind, EffectIntensity, EffectProfile,
+        FlamePalette, PresentationEffect, ReactionVisualInputs, TimelinePosition,
+        macroscopic_beat_duration_ms,
+    };
 
     fn timeline_plan(durations_ms: &[u32]) -> EducationalPlan {
         let scenes = durations_ms
@@ -1351,5 +1517,80 @@ mod tests {
             let position = plan.locate(elapsed_ms).expect("position exists");
             assert_eq!(plan.elapsed_at(position), Some(elapsed_ms));
         }
+    }
+
+    #[test]
+    fn visual_inputs_are_inferred_from_typed_effects_without_reaction_identity() {
+        let effects = vec![
+            PresentationEffect {
+                effect: EffectProfile::BubbleEmitter,
+                trigger: ObservationPredicate::Evolves,
+                intensity: EffectIntensity::Moderate,
+                start_ordinal: 2,
+                end_ordinal: 6,
+            },
+            PresentationEffect {
+                effect: EffectProfile::GasRelease,
+                trigger: ObservationPredicate::Evolves,
+                intensity: EffectIntensity::Moderate,
+                start_ordinal: 2,
+                end_ordinal: 6,
+            },
+        ];
+        let inputs = ReactionVisualInputs::from_effects(&effects, 4, 0.5, 8);
+        let repeated = ReactionVisualInputs::from_effects(&effects, 4, 0.5, 8);
+
+        assert_eq!(inputs, repeated);
+        assert!(inputs.gas_generation_rate > 0.0);
+        assert!(inputs.bubble_rate > 0.0);
+        assert!(inputs.liquid_turbulence > 0.0);
+        assert!(inputs.reaction_rate > 0.0);
+        assert!(inputs.foam_amount.abs() < f32::EPSILON);
+        assert!(inputs.flame_rate.abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn flame_inputs_are_inferred_from_the_generic_typed_effect() {
+        let effects = [PresentationEffect {
+            effect: EffectProfile::FlameEmitter(FlamePalette::Lilac),
+            trigger: ObservationPredicate::Evolves,
+            intensity: EffectIntensity::Strong,
+            start_ordinal: 2,
+            end_ordinal: 6,
+        }];
+        let inputs = ReactionVisualInputs::from_effects(&effects, 4, 0.5, 8);
+
+        assert!(inputs.flame_rate > 0.9);
+        assert!(inputs.heat_output > 0.0);
+        assert!(inputs.liquid_turbulence > 0.0);
+        assert!((inputs.reaction_rate - inputs.flame_rate).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn unavailable_visual_properties_use_conservative_zero_defaults() {
+        let inputs = ReactionVisualInputs::from_effects(&[], 2, 0.5, 8);
+        let completed = ReactionVisualInputs::from_effects(&[], 8, 1.0, 8);
+
+        assert!(inputs.reaction_progress > 0.0);
+        assert!((completed.reaction_progress - 1.0).abs() < f32::EPSILON);
+        assert!(inputs.reaction_rate.abs() < f32::EPSILON);
+        assert!(inputs.gas_generation_rate.abs() < f32::EPSILON);
+        assert!(inputs.pressure_impulse.abs() < f32::EPSILON);
+        assert!(inputs.heat_output.abs() < f32::EPSILON);
+        assert!(inputs.foam_amount.abs() < f32::EPSILON);
+        assert!(inputs.flame_rate.abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn macroscopic_default_timing_is_fast_and_intensity_ordered() {
+        let entry = macroscopic_beat_duration_ms(None, true, false);
+        let strong = macroscopic_beat_duration_ms(Some(EffectIntensity::Strong), false, false);
+        let moderate = macroscopic_beat_duration_ms(Some(EffectIntensity::Moderate), false, false);
+        let subtle = macroscopic_beat_duration_ms(Some(EffectIntensity::Subtle), false, false);
+
+        assert_eq!(entry, 900, "a short throw must not become a slow glide");
+        assert!(strong < moderate);
+        assert!(moderate < subtle);
+        assert_eq!(macroscopic_beat_duration_ms(None, false, true), 2_400);
     }
 }

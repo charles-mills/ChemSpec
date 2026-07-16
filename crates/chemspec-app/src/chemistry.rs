@@ -16,8 +16,8 @@ use chem_kernel::{
 };
 use chem_presentation::{
     AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, EffectIntensity, EffectProfile,
-    ObjectObservationBinding, PresentationEffect, PresentationObject, PresentationProfile,
-    PresentationTransform, SceneRole, VIRTUAL_ONLY_DISCLOSURE,
+    FlamePalette, ObjectObservationBinding, PresentationEffect, PresentationObject,
+    PresentationProfile, PresentationTransform, SceneRole, VIRTUAL_ONLY_DISCLOSURE,
 };
 
 use crate::composition_catalogue::{self, CompositionId};
@@ -99,6 +99,27 @@ impl AlkaliMetal {
             Self::Sodium => CompositionId::SodiumBicarbonate,
             Self::Potassium => CompositionId::PotassiumBicarbonate,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AlkaliWaterVisualEvidence {
+    flame: Option<(FlamePalette, EffectIntensity)>,
+}
+
+/// Reviewed qualitative presentation metadata for the alkali-water family.
+///
+/// The Royal Society of Chemistry's classroom observation table describes
+/// lithium as fizzing and potassium as self-igniting with a lilac flame. This
+/// metadata remains upstream of the generic renderer and does not alter the
+/// trusted reaction frames.
+/// <https://edu.rsc.org/download?ac=512063>
+const fn alkali_water_visual_evidence(metal: AlkaliMetal) -> AlkaliWaterVisualEvidence {
+    match metal {
+        AlkaliMetal::Potassium => AlkaliWaterVisualEvidence {
+            flame: Some((FlamePalette::Lilac, EffectIntensity::Strong)),
+        },
+        AlkaliMetal::Lithium | AlkaliMetal::Sodium => AlkaliWaterVisualEvidence { flame: None },
     }
 }
 
@@ -1125,29 +1146,55 @@ pub fn presentation_profile(
         start_ordinal,
         end_ordinal: last_ordinal,
     };
-    let camera = vec![
-        CameraCue {
-            behaviour: CameraBehaviour::WideEstablishingShot,
-            start_ordinal: 0,
-            end_ordinal: 1.min(last_ordinal),
-        },
-        CameraCue {
-            behaviour: CameraBehaviour::ReactionFocus,
-            start_ordinal: 1.min(last_ordinal),
-            end_ordinal: last_ordinal.saturating_sub(1),
-        },
-        CameraCue {
-            behaviour: CameraBehaviour::FinalHeroShot,
-            start_ordinal: last_ordinal,
-            end_ordinal: last_ordinal,
-        },
-    ];
+    // Kept as one full-range cue for presentation-plan compatibility. The 3D
+    // renderer uses a fixed orthographic angle and only derives framing from
+    // vessel scale; no cue changes its pose during playback.
+    let camera = vec![CameraCue {
+        behaviour: CameraBehaviour::WideEstablishingShot,
+        start_ordinal: 0,
+        end_ordinal: last_ordinal,
+    }];
 
     let (objects, effects) = match request.kind {
         ReactionKind::AlkaliWater { metal } => {
             let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
             let (disappears_ordinal, _) =
                 active_observation(frames, ObservationPredicate::Disappears)?;
+            let visual_evidence = alkali_water_visual_evidence(metal);
+            let mut effects = vec![
+                effect(
+                    EffectProfile::BubbleEmitter,
+                    ObservationPredicate::Evolves,
+                    gas_ordinal,
+                    EffectIntensity::Moderate,
+                ),
+                effect(
+                    EffectProfile::GasRelease,
+                    ObservationPredicate::Evolves,
+                    gas_ordinal,
+                    EffectIntensity::Moderate,
+                ),
+                effect(
+                    EffectProfile::SurfaceDisturbance,
+                    ObservationPredicate::Disappears,
+                    disappears_ordinal,
+                    EffectIntensity::Subtle,
+                ),
+                effect(
+                    EffectProfile::ObjectShrinkage,
+                    ObservationPredicate::Disappears,
+                    disappears_ordinal,
+                    EffectIntensity::Moderate,
+                ),
+            ];
+            if let Some((palette, intensity)) = visual_evidence.flame {
+                effects.push(effect(
+                    EffectProfile::FlameEmitter(palette),
+                    ObservationPredicate::Evolves,
+                    gas_ordinal,
+                    intensity,
+                ));
+            }
             (
                 vec![
                     vessel(AssetProfile::Beaker),
@@ -1176,32 +1223,7 @@ pub fn presentation_profile(
                         }),
                     },
                 ],
-                vec![
-                    effect(
-                        EffectProfile::BubbleEmitter,
-                        ObservationPredicate::Evolves,
-                        gas_ordinal,
-                        EffectIntensity::Moderate,
-                    ),
-                    effect(
-                        EffectProfile::GasRelease,
-                        ObservationPredicate::Evolves,
-                        gas_ordinal,
-                        EffectIntensity::Moderate,
-                    ),
-                    effect(
-                        EffectProfile::SurfaceDisturbance,
-                        ObservationPredicate::Disappears,
-                        disappears_ordinal,
-                        EffectIntensity::Subtle,
-                    ),
-                    effect(
-                        EffectProfile::ObjectShrinkage,
-                        ObservationPredicate::Disappears,
-                        disappears_ordinal,
-                        EffectIntensity::Moderate,
-                    ),
-                ],
+                effects,
             )
         }
         ReactionKind::SilverHalidePrecipitation { halogen } => {
@@ -1633,6 +1655,13 @@ mod tests {
                 .expect("trusted observations select a presentation profile");
             assert!(profile_ids.insert(profile.id.clone()));
             assert_eq!(profile.equation, request.equation());
+            assert_eq!(profile.camera.len(), 1);
+            assert_eq!(profile.camera[0].start_ordinal, 0);
+            assert_eq!(
+                profile.camera[0].end_ordinal,
+                u16::try_from(run.frames().frames().len().saturating_sub(1))
+                    .expect("frame count fits presentation ordinal")
+            );
             assert!(
                 profile
                     .objects
@@ -1722,6 +1751,44 @@ mod tests {
             assert_eq!(product.visible_from_ordinal, ordinal);
             assert_eq!(binding.value, value);
         }
+    }
+
+    #[test]
+    fn reviewed_alkali_water_metadata_distinguishes_ignition_from_flame_test_colour() {
+        for metal in [AlkaliMetal::Lithium, AlkaliMetal::Sodium] {
+            let request = ReactionRequest::alkali_water(metal);
+            let run = run(request).expect("alkali-water request validates");
+            let profile =
+                presentation_profile(request, run.frames()).expect("alkali-water profile compiles");
+            assert!(
+                !profile
+                    .effects
+                    .iter()
+                    .any(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_))),
+                "fizzing without reviewed ignition metadata must not invent a flame"
+            );
+        }
+
+        let request = ReactionRequest::alkali_water(AlkaliMetal::Potassium);
+        let run = run(request).expect("potassium-water request validates");
+        let profile =
+            presentation_profile(request, run.frames()).expect("potassium-water profile compiles");
+        let flame = profile
+            .effects
+            .iter()
+            .find(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_)))
+            .expect("reviewed potassium-water metadata authorizes ignition");
+        assert_eq!(
+            flame.effect,
+            EffectProfile::FlameEmitter(FlamePalette::Lilac)
+        );
+        assert_eq!(flame.intensity, EffectIntensity::Strong);
+        assert_eq!(flame.trigger, ObservationPredicate::Evolves);
+        let (gas_ordinal, _) = active_observation(run.frames(), ObservationPredicate::Evolves)
+            .expect("trusted gas observation activates");
+        assert_eq!(flame.start_ordinal, gas_ordinal);
+        chem_presentation::compile_real_world_plan(run.frames(), &profile)
+            .expect("flame remains gated by a trusted observation");
     }
 
     #[test]

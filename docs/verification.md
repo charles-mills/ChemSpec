@@ -184,18 +184,43 @@ gate.
 
 Renderer-side 3D tests cover role-based scene anchors, vessels grounded on the
 bench, liquid and reaction-interface bounds, full translation/rotation/scale
-application, stable object-ID variation seeds, and camera interpolation by beat
-progress. Mesh tests require separate non-overlapping opaque and transparent
+application, stable object-ID variation seeds, deterministic liquid-surface
+deformation, connected low-poly gas volume generation, and fixed-camera
+automatic framing by vessel scale. The camera state must contain no user orbit,
+pan, or zoom offsets, and its angle must not change with beat progress. Mesh
+tests require separate non-overlapping opaque, alpha-blended, and additive
 index ranges. Live GPU smoke tests verify the opaque depth-writing pass is drawn
-before the alpha-blended liquid/effect/glass pass, both use the same depth-tested
-Iced target, and clear glass does not incorrectly hide opaque scene geometry.
+before the alpha-blended liquid/effect/glass pass and the bounded additive flame
+core pass, all use the same depth-tested Iced target, and clear glass does not
+incorrectly hide opaque scene geometry.
 
 Reusable motion tests additionally require continuous absolute effect phase
 across ordinal boundaries, deterministic seeded particle variation, smooth
 attack and release for transient effects, persistence for accumulated effects,
-and a shared reaction-surface anchor. Seeking the same position must reconstruct
-the same geometry and camera pose without reaction-name branches or hidden
-mutable particle state.
+and a shared reaction-surface anchor. `ReactionVisualInputs` tests require
+typed-effect-only inference, conservative zero defaults for unavailable
+properties, bounded normalized values, and identical channel selection across
+different reaction families using the same effect profiles. Seeking the same
+position must reconstruct the same geometry and fixed camera pose without
+reaction-name branches or hidden mutable particle state.
+
+State-transition tests additionally require the reactant approach to remain in
+motion across later setup ordinals, meet the first effect boundary with matching
+position and rotation on both sides, and avoid an intermediate idle hold.
+Product formation must be zero before and at the start of its trusted visibility
+boundary, interpolate during the active ordinal, and reach full scale smoothly.
+Natural-motion tests require the seeded throw to form a gravity-driven arc that
+differs from linear interpolation, reach the exact contact point, produce a
+positive then damped rebound, and reproduce exactly for the same seed. Terminal
+rise, drag distance, formation response, and curl-like flow must be non-linear,
+bounded at their endpoints, deterministic, and varied between parcel seeds.
+
+Flame tests additionally require deterministic faceted plume geometry, separate
+alpha body and additive core/spark batches, palette preservation, and a smooth
+bounded lifecycle. The reviewed alkali-water profile test must prove that
+potassium selects a strong lilac generic flame emitter at the trusted gas
+observation while lithium and sodium remain flame-free. A flame-test colour
+alone is not ignition metadata.
 
 Educational timeline tests additionally cover variable-duration totals, exact
 scene boundaries, zero-duration scenes, end clamping, and position-to-elapsed
@@ -212,13 +237,16 @@ label placement, and Canvas motion because those properties require the real
 Iced renderer.
 
 Macroscopic timeline tests similarly cover exact beat boundaries, duration
-totals, end clamping, playhead-to-ordinal synchronization, stable camera motion,
-and pause-on-scrub. Annotation tests prove event text comes from typed
+totals, end clamping, playhead-to-ordinal synchronization, stable fixed-camera
+framing, pause-on-scrub, a sub-second default reactant entry, and the ordering
+that strong activity resolves faster than moderate or subtle activity.
+Annotation tests prove event text comes from typed
 observations, never internal IDs or renderer-authored chemistry wording.
 
-Live vessel checks additionally require an initial camera pitch above the rim,
+Live vessel checks additionally require a fixed camera pitch above the rim,
 a grounded vessel, liquid contained below its rim, a visible liquid top
-surface, readable key/fill lighting, automatic progression without stage-button
+surface and meniscus, connected cloud-like gas without a visible bead field,
+readable key/fill lighting, automatic progression without stage-button
 input, stable geometry while seeking, and macroscopic effects whose presence is
 authorized by the reviewed scene plan.
 
@@ -245,7 +273,9 @@ handoff tests prove every trusted family can open both the 2D sequence and its
 macroscopic profile. Profile tests compile all 185 experiences against
 their active trusted observations, reject premature effects and mismatched
 values, and separately preserve the validated white, cream, and yellow
-silver-halide appearances through scene geometry. Effect-free profiles are
+silver-halide appearances through scene geometry. The alkali-water comparison
+separately verifies reviewed potassium ignition against lithium and sodium
+non-ignition without a renderer identity branch. Effect-free profiles are
 checked for a single liquid volume without transparent overdraw. The complete
 application-path tests cover the original 36 independently authored request
 fixtures plus representative single- and multi-outcome registry routes. They

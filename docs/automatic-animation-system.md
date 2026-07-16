@@ -158,7 +158,9 @@ The renderer-independent `ScenePlan` contains:
 The macroscopic planner derives beat boundaries from reviewed object
 visibility, effect ranges, camera ranges, and typed observation ordinals. The
 same plan drives playback, the scrubbable elapsed/total-time control, current
-scene number, camera interpolation, annotations, objects, and effects.
+scene number, annotations, objects, and effects. The macroscopic renderer uses
+a fixed orthographic camera; legacy camera cues may still partition timeline
+beats but do not change the rendered pose.
 `RealWorldTimeline::locate` clamps at the exact end and maps every playhead
 position to a typed ordinal and beat progress; the UI does not advance through
 an unrelated fixed list of manual stages.
@@ -177,7 +179,7 @@ extend the registry; new reactions select existing profiles whenever possible.
 Assets may be stored meshes or deterministic procedural low-poly meshes, but
 runtime selection never regenerates reviewed common assets per reaction.
 
-Vessel camera poses begin above the rim and target the liquid/reaction surface.
+The fixed vessel camera begins above the rim and targets the liquid/reaction surface.
 Scene anchors ground the vessel on the bench, keep liquid inside it, place
 reactants at the reaction interface, and locate gas or precipitate in the
 appropriate region. The renderer applies each complete reviewed transform and
@@ -187,19 +189,25 @@ change shape as the playhead advances.
 The default lighting combines ambient, key, fill, hemispheric, and rim terms so
 clear glass, liquid, reactants, and effects remain readable. Three-dimensional
 playback advances continuously through the complete scene plan; play/pause,
-restart, timeline, speed, orbit, and zoom are presentation controls rather than
-manual chemistry-stage gates. Opaque geometry is depth-written first, followed
-by alpha-blended liquid, effects, and glass with depth writes disabled. Both
-passes share Iced's existing GPU target and depth buffer; the app does not open
-or own a second renderer or event loop.
+restart, timeline, and speed are presentation controls rather than manual
+chemistry-stage gates. Orbit, pan, zoom, shake, and cinematic camera motion are
+disabled. Opaque geometry is depth-written first, followed by alpha-blended
+liquid, effects, and glass with depth writes disabled. A bounded additive pass
+follows only for typed flame cores and sparse sparks; the coloured flame body
+stays alpha blended to preserve its reviewed palette. All passes share Iced's
+existing GPU target and depth buffer; the app does not open or own a second
+renderer or event loop.
 
 ### Reusable natural motion
 
 Natural motion is a renderer concern downstream of the typed scene plan. Each
 reviewed effect profile and intensity resolves to reusable dynamics such as
-particle count, emission rate, spread, lift, turbulence, attack, release, and
-camera energy. Those dynamics never select chemistry and contain no reaction
-identity checks.
+particle count, emission rate, spread, lift, turbulence, attack, and release.
+`ReactionVisualInputs` converts those active typed effects into continuous
+normalized gas, bubble, liquid, pressure, heat, precipitation, colour, and
+splash controls, plus a flame rate only for a typed `FlameEmitter`. Missing
+metadata remains zero. These dynamics never select chemistry and contain no
+reaction identity checks.
 
 Particles use a stable seed derived from the plan and typed effect. Their birth
 times, speeds, sizes, directions, arcs, curls, and settling positions therefore
@@ -210,12 +218,62 @@ envelopes prevent effects from popping into existence; persistent phenomena,
 such as an accumulated precipitate, keep their final state instead of fading
 away.
 
+State boundaries do not restart motion. A reactant begins beyond the vessel rim,
+receives a seeded launch impulse, and follows an analytic gravity-driven arc
+with low horizontal drag and independent angular momentum across the complete
+setup interval. The conservative missing-metadata default completes this entry
+in 0.9 seconds, replacing the previous four-second slow glide. At the first
+observation-authorized effect it reaches the reaction surface exactly, receives
+an inelastic contact impulse, and settles through rapidly damped rebound,
+tangential slip, and rotational follow-through. Product geometry remains absent
+before its trusted visibility ordinal, then grows from zero with an asymmetric
+formation response. This removes static holds, spline-like easing, and one-frame
+pops without overlapping into an unvalidated chemistry state.
+
+Bubble and flame lift accelerate toward terminal velocity rather than following
+an ease curve. Splash droplets use a parabolic ballistic arc with horizontal
+drag, precipitate accelerates downward before settling, and gas, flame, bubble,
+and liquid-interface drift combine independently seeded flow frequencies so
+particles do not move in synchronized waves.
+
+Macroscopic beat durations also use faster generic defaults: strong activity
+uses 2.6 seconds, moderate activity 3.4 seconds, and subtle activity 4.4
+seconds. A final inactive settling beat lasts at least 2.4 seconds. These values
+are presentation defaults, not claimed kinetic measurements; reviewed timing
+metadata can supersede them when the language gains a generic measured-rate
+contract.
+
+### Motion implementation references
+
+The model follows primary implementation guidance rather than a bespoke visual
+timeline:
+
+- [Box2D simulation documentation](https://box2d.org/documentation/md_simulation.html)
+  distinguishes airborne damping from contact friction, describes restitution
+  as an impact response, and recommends stable fixed simulation steps. ChemSpec
+  uses the same force/impact concepts but samples closed-form trajectories from
+  its trusted playhead so pause, replay, and scrubbing remain exact.
+- Bridson, Houriham, and Nordenstam's
+  [Curl-Noise for Procedural Fluid Flow](https://www.cs.ubc.ca/~rbridson/docs/bridson-siggraph2007-curlnoise.pdf)
+  motivates rotational multi-scale procedural flow for natural turbulence.
+  ChemSpec uses a bounded curl-like approximation, not a claimed fluid solver.
+- NVIDIA's [Fire in the Vulcan Demo](https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-6-fire-vulcan-demo)
+  motivates age-dependent emitter attachment, detachment, rolling motion, and
+  varied particle lifetimes.
+
+The flame emitter uses tapered faceted particles rather than a
+reaction-specific timeline. Young lobes remain concentrated at the reaction
+surface; age-dependent lift, detachment, curl, scale, and dissipation produce a
+continuous turbulent plume. The seed includes the palette-bearing typed effect,
+so replay and scrubbing reproduce the same flame geometry whenever a reviewed
+profile authorizes that palette.
+
 The reacting object, splash, ripples, bubbles, and gas share a gently moving
-reaction-surface anchor. Reusable camera poses use eased interpolation with a
-small, seeded focus drift whose strength comes from active typed effect
-intensity. This creates coordinated cinematic movement without changing the
-reviewed outcome, inventing an effect, or adding animation instructions to a
-particular `.chems` file.
+reaction-surface anchor. Liquid uses a seeded displaced surface and raised
+meniscus. Normal-view gas uses connected irregular low-poly shells rather than
+visible parcel or molecule dots. The fixed orthographic camera keeps this
+motion readable without changing the reviewed outcome, inventing an effect, or
+adding animation instructions to a particular `.chems` file.
 
 ## Post-simulation product record
 

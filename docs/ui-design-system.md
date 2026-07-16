@@ -101,9 +101,10 @@ transition into the macroscopic view.
 
 The subsequent 3D page is a separate illustrative scale. It consumes a scene
 plan containing reusable visual assets and observation-gated effects, not the
-structural atom graph. Orbit, zoom, camera motion, timing, and fluid/effect
-motion are presentation controls and carry a persistent virtual-model
-disclosure.
+structural atom graph. Its elevated near-isometric camera is orthographic and
+fixed: there is no orbit, pan, zoom, shake, or cinematic camera motion. Timing
+and fluid/effect motion remain illustrative and carry a persistent
+virtual-model disclosure.
 
 Completing the macroscopic timeline unlocks a final product record. On desktop,
 the page uses an even split: the left side is a full-height, continuously
