@@ -57,9 +57,9 @@ pub struct CorpusScenario {
 pub struct CorpusCase {
     pub id: String,
     pub scenario_id: String,
-    pub request: String,
     pub request_context: String,
     pub adversarial_mutation: Option<String>,
+    pub request: String,
     pub expected_state: CorpusExpectedState,
     pub expected_presentation: CorpusPresentation,
 }
@@ -455,69 +455,6 @@ mod tests {
                 .cases
                 .iter()
                 .any(|case| case.adversarial_mutation.is_some())
-        );
-    }
-
-    #[test]
-    #[ignore = "explicit opt-in live Codex/evidence smoke selection; consumes subscription and network"]
-    fn representative_live_codex_and_evidence_smoke() {
-        use crate::{
-            ClaimMode, CodexProvider, CodexProviderConfig, CurlEvidenceRetriever,
-            EvidenceRetriever, ReactantInput, ReactionBuildRequest,
-        };
-        use serde_json::json;
-
-        let manifest =
-            CorpusManifest::from_json(include_bytes!("../../../corpus/dynamic-reactions-v1.json"))
-                .expect("valid breadth corpus");
-        assert_eq!(manifest.live_smoke_case_ids.len(), 25);
-        let provider = CodexProvider::new(CodexProviderConfig::from_environment());
-        let preflight = provider.preflight().expect("live Codex preflight");
-        assert!(preflight.authenticated, "Codex must be signed in");
-        let mut retriever = CurlEvidenceRetriever::default();
-        let mut records = Vec::new();
-        for case_id in &manifest.live_smoke_case_ids {
-            let case = manifest
-                .cases
-                .iter()
-                .find(|case| &case.id == case_id)
-                .expect("selected case");
-            let scenario = manifest
-                .scenarios
-                .iter()
-                .find(|scenario| scenario.id == case.scenario_id)
-                .expect("scenario");
-            let (first, second) = scenario.reactants[0]
-                .split_once(" + ")
-                .expect("two named reactants");
-            let request = ReactionBuildRequest {
-                reactants: [first, second].map(|display| ReactantInput {
-                    display: display.into(),
-                    atomic_numbers: Vec::new(),
-                    species_id: None,
-                }),
-                selected_context: Some(case.request.clone()),
-            };
-            let claim = provider
-                .claim_reaction(&request, ClaimMode::Researcher)
-                .expect("live Researcher claim");
-            assert!(!claim.sources.is_empty(), "Researcher claim needs sources");
-            for source in &claim.sources {
-                retriever
-                    .retrieve(&source.url)
-                    .expect("bounded live evidence retrieval");
-            }
-            records.push(json!({
-                "case_id": case.id,
-                "provider": "codex_subscription",
-                "model": provider.model_name(),
-                "provider_version": &preflight.version,
-                "source_count": claim.sources.len(),
-            }));
-        }
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&records).expect("live smoke report")
         );
     }
 

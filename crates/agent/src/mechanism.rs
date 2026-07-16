@@ -5,15 +5,17 @@ use std::{
 
 use chem_catalogue::{
     ApplicabilityRecord, AtomRecord, BondDelocalizationRecord, BondElectronOriginRecord,
-    BondOrderRecord, BondRecord, CleavageAllocationRecord, ComponentRecord, EventModel,
-    GroupRecord, IonicAssociationRecord, MappingPairRecord, MetallicDomainRecord,
-    ModelAssumptionsRecord, OperationTemplateRecord, PatternTermRecord, ReactionRuleRecord,
-    RepresentationRecord, RequestRelation, RoleSchemaRecord, RuleSideRecord, SequenceModel,
+    BondOrderRecord, BondRecord, CatalogueEnvelope, CleavageAllocationRecord, ComponentRecord,
+    ElementValenceRecord, EventModel, GroupRecord, IonicAssociationRecord, MappingPairRecord,
+    MetallicDomainRecord, MetallicValenceStateRecord, ModelAssumptionsRecord,
+    OperationTemplateRecord, PatternTermRecord, PremiseRecord, PublicationKind, ReactionRuleRecord,
+    RepresentationRecord, RequestRelation, ReviewMetadata, ReviewStatus, RoleSchemaRecord,
+    RuleSideRecord, SequenceModel, ValencePremiseRecord, ValenceStateRecord,
     ValidatedCatalogueBundle,
 };
 use chem_domain::{
-    CovalentElectronOrigin, PremiseId, ReactionRuleId, RepresentationKind, SpeciesId,
-    StructureDefinition, StructureId,
+    ContentDigest, CovalentElectronOrigin, ElectronState, PremiseId, ReactionRuleId,
+    RepresentationKind, SpeciesId, StructureDefinition, StructureId,
 };
 use chem_kernel::{
     ValidatedDynamicFrames, expand_proposed_declaration, inspect_review_candidate_frames,
@@ -29,6 +31,7 @@ use crate::{
 
 const MAX_MECHANISM_REPAIRS: usize = 2;
 const MAX_STRUCTURE_REPAIRS: usize = 2;
+const DYNAMIC_MECHANISM_VALENCE_PREMISE: &str = "premise.dynamic.mechanism.valence";
 
 #[derive(Debug, Clone)]
 pub struct MechanismContext {
@@ -62,6 +65,7 @@ pub struct EscalatedMechanismOutcome {
     static_outcome: ValidatedStaticOutcome,
     frames: ValidatedDynamicFrames,
     repair_count: usize,
+    structure_repair_count: usize,
 }
 
 impl EscalatedMechanismOutcome {
@@ -78,6 +82,16 @@ impl EscalatedMechanismOutcome {
     #[must_use]
     pub const fn repair_count(&self) -> usize {
         self.repair_count
+    }
+
+    #[must_use]
+    pub const fn structure_repair_count(&self) -> usize {
+        self.structure_repair_count
+    }
+
+    #[must_use]
+    pub const fn total_repair_count(&self) -> usize {
+        self.repair_count + self.structure_repair_count
     }
 
     #[must_use]
@@ -132,7 +146,7 @@ pub trait MechanismProvider {
 }
 
 /// Compiles a mechanism request only when every declaration species has a
-/// validated structural graph. Formula-only products return `Ok(None)` and
+/// validated structural graph. Formula-only species return `Ok(None)` and
 /// remain static; no graph is fabricated.
 ///
 /// # Errors
@@ -144,12 +158,15 @@ pub fn compile_mechanism_request(
     outcome: &ValidatedStaticOutcome,
     catalogue: &ValidatedCatalogueBundle,
 ) -> Result<Option<MechanismContext>, AgentError> {
-    if !outcome.products_without_structure().is_empty() {
+    if !outcome.species_without_structure().is_empty() {
         return Ok(None);
     }
     let mut resolved = BTreeMap::new();
     for species in outcome.reactants() {
-        resolved.insert(species.id.clone(), species);
+        let OutcomeSpecies::Resolved(species) = species else {
+            return Ok(None);
+        };
+        resolved.insert(species.id.clone(), species.as_ref());
     }
     for species in outcome.products() {
         let OutcomeSpecies::Resolved(species) = species else {
@@ -246,6 +263,21 @@ pub fn compile_mechanism_request(
         .flat_map(|structure| structure.formula().elements().keys())
         .map(ToString::to_string)
         .collect::<BTreeSet<_>>();
+    let mut neutral_valence = catalogue
+        .document()
+        .valence_premises
+        .iter()
+        .flat_map(|premise| premise.neutral_valence.iter())
+        .filter(|entry| elements.contains(&entry.element))
+        .cloned()
+        .collect::<Vec<_>>();
+    neutral_valence.sort_by(|left, right| {
+        left.element.cmp(&right.element).then(
+            left.neutral_valence_electrons
+                .cmp(&right.neutral_valence_electrons),
+        )
+    });
+    neutral_valence.dedup();
     let supported_states = catalogue
         .document()
         .valence_premises
@@ -273,8 +305,10 @@ pub fn compile_mechanism_request(
             products,
             reactant_atom_paths: reactant_atoms.keys().cloned().collect(),
             product_atom_paths: product_atoms.keys().cloned().collect(),
+            neutral_valence,
             supported_states,
             metallic_states,
+            provisional_states_allowed: true,
         },
         roles,
         reactant_atoms,
@@ -293,7 +327,7 @@ pub fn derive_mechanism<P: MechanismProvider>(
     provider: &mut P,
 ) -> MechanismEscalationOutcome {
     match compile_mechanism_request(&outcome, catalogue) {
-        Ok(Some(context)) => propose_mechanism_frames(outcome, catalogue, provider, &context),
+        Ok(Some(context)) => propose_mechanism_frames(outcome, catalogue, provider, &context, 0),
         Ok(None) => derive_with_proposed_structures(outcome, catalogue, provider),
         Err(error) => MechanismEscalationOutcome::Unavailable {
             static_outcome: Box::new(outcome),
@@ -309,6 +343,7 @@ fn propose_mechanism_frames<P: MechanismProvider>(
     catalogue: &ValidatedCatalogueBundle,
     provider: &mut P,
     context: &MechanismContext,
+    structure_repair_count: usize,
 ) -> MechanismEscalationOutcome {
     let mut diagnostic = None;
     for attempt in 0..=MAX_MECHANISM_REPAIRS {
@@ -325,6 +360,7 @@ fn propose_mechanism_frames<P: MechanismProvider>(
                     static_outcome: outcome,
                     frames,
                     repair_count: attempt,
+                    structure_repair_count,
                 }));
             }
             Err(error) => diagnostic = Some(error.to_string()),
@@ -347,7 +383,7 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
     catalogue: &ValidatedCatalogueBundle,
     provider: &mut P,
 ) -> MechanismEscalationOutcome {
-    let Some(request) = structure_proposal_request(&outcome) else {
+    let Some(request) = structure_proposal_request(&outcome, catalogue) else {
         return MechanismEscalationOutcome::Unavailable {
             static_outcome: Box::new(outcome),
             attempts: 0,
@@ -356,7 +392,7 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
         };
     };
     let mut diagnostic: Option<String> = None;
-    for _ in 0..=MAX_STRUCTURE_REPAIRS {
+    for structure_attempt in 0..=MAX_STRUCTURE_REPAIRS {
         let response = match provider.propose_structures(&request, diagnostic.as_deref()) {
             Ok(response) => response,
             Err(error) => {
@@ -372,6 +408,7 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
                         &adopted.bundle,
                         provider,
                         &context,
+                        structure_attempt,
                     ),
                     Ok(None) | Err(_) => MechanismEscalationOutcome::Unavailable {
                         static_outcome: Box::new(adopted.outcome),
@@ -417,6 +454,7 @@ pub fn validate_escalated_response(
         static_outcome: outcome,
         frames,
         repair_count: 0,
+        structure_repair_count: 0,
     })
 }
 
@@ -436,7 +474,7 @@ pub fn validate_escalated_response_with_structures(
     let Some(structures) = structures else {
         return validate_escalated_response(outcome, response, catalogue);
     };
-    let request = structure_proposal_request(&outcome).ok_or_else(|| {
+    let request = structure_proposal_request(&outcome, catalogue).ok_or_else(|| {
         AgentError::new(
             "mechanism cache",
             "cached structure proposal does not correspond to missing products",
@@ -453,6 +491,8 @@ fn compile_mechanism(
     catalogue: &ValidatedCatalogueBundle,
 ) -> Result<ValidatedDynamicFrames, AgentError> {
     validate_response_labels(context, response)?;
+    let provisional_bundle = provisional_mechanism_bundle(context, response, catalogue)?;
+    let catalogue = provisional_bundle.as_ref().unwrap_or(catalogue);
     let premise_ids = mechanism_premises(context, catalogue)?;
     let applicability_premise = premise_ids.first().cloned().ok_or_else(|| {
         AgentError::new("mechanism compile", "catalogue exposes no valence premise")
@@ -542,6 +582,363 @@ fn compile_mechanism(
     Ok(inspect_review_candidate_frames(&derivation)
         .map_err(|error| AgentError::new("mechanism frames", error.to_string()))?
         .into_validated_dynamic())
+}
+
+#[allow(clippy::too_many_lines)]
+fn provisional_mechanism_bundle(
+    context: &MechanismContext,
+    response: &MechanismEscalationResponse,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Result<Option<ValidatedCatalogueBundle>, AgentError> {
+    let mut neutral = BTreeMap::<String, BTreeSet<u8>>::new();
+    let mut reviewed = BTreeSet::new();
+    let mut reviewed_metallic = BTreeSet::new();
+    for premise in &catalogue.document().valence_premises {
+        for entry in &premise.neutral_valence {
+            neutral
+                .entry(entry.element.clone())
+                .or_default()
+                .insert(entry.neutral_valence_electrons);
+        }
+        reviewed.extend(premise.supported_states.iter().cloned());
+        reviewed_metallic.extend(premise.metallic_domain_states.iter().cloned());
+    }
+    let mut provisional = BTreeSet::new();
+    let mut used_neutral = BTreeMap::<String, u8>::new();
+    for (path, state) in mechanism_electron_states(response) {
+        let element = context.reactant_atoms.get(path).ok_or_else(|| {
+            AgentError::new(
+                "provisional valence",
+                format!("operation state references unknown atom `{path}`"),
+            )
+        })?;
+        ElectronState::new(state.0, state.1, state.2).map_err(|error| {
+            AgentError::new(
+                "provisional valence",
+                format!("atom `{path}` has an invalid electron state: {error}"),
+            )
+        })?;
+        let candidates = neutral.get(element).ok_or_else(|| {
+            AgentError::new(
+                "provisional valence",
+                format!("atom `{path}` has no reviewed neutral valence"),
+            )
+        })?;
+        let candidate = candidates.iter().find_map(|neutral_electrons| {
+            let bond_sum = i16::from(*neutral_electrons) - i16::from(state.1) - state.0;
+            u8::try_from(bond_sum)
+                .ok()
+                .map(|bond_sum| (*neutral_electrons, bond_sum))
+        });
+        let Some((neutral_electrons, covalent_bond_order_sum)) = candidate else {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!("atom `{path}` violates the reviewed formal-charge identity"),
+            ));
+        };
+        let record = ValenceStateRecord {
+            element: element.clone(),
+            formal_charge: state.0,
+            non_bonding_electrons: state.1,
+            unpaired_electrons: state.2,
+            covalent_bond_order_sum,
+        };
+        if reviewed.contains(&record) {
+            continue;
+        }
+        if used_neutral
+            .insert(element.clone(), neutral_electrons)
+            .is_some_and(|existing| existing != neutral_electrons)
+        {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!("operation states require conflicting neutral valence for `{element}`"),
+            ));
+        }
+        provisional.insert(record);
+    }
+    let provisional_metallic = derive_provisional_metallic_operation_states(
+        context,
+        response,
+        catalogue,
+        &reviewed_metallic,
+    )?;
+    if provisional.is_empty() && provisional_metallic.is_empty() {
+        return Ok(None);
+    }
+    if provisional.is_empty() {
+        let Some(reviewed_anchor) = reviewed.iter().find(|state| {
+            provisional_metallic
+                .iter()
+                .any(|metallic| metallic.element == state.element)
+        }) else {
+            return Err(AgentError::new(
+                "provisional valence",
+                "a provisional metallic state has no reviewed covalent anchor",
+            ));
+        };
+        let neutral_electrons = neutral
+            .get(&reviewed_anchor.element)
+            .and_then(|values| {
+                values.iter().find(|value| {
+                    i16::from(**value)
+                        - i16::from(reviewed_anchor.non_bonding_electrons)
+                        - i16::from(reviewed_anchor.covalent_bond_order_sum)
+                        == reviewed_anchor.formal_charge
+                })
+            })
+            .copied()
+            .ok_or_else(|| {
+                AgentError::new(
+                    "provisional valence",
+                    "reviewed metallic anchor violates its neutral-valence premise",
+                )
+            })?;
+        used_neutral.insert(reviewed_anchor.element.clone(), neutral_electrons);
+        provisional.insert(reviewed_anchor.clone());
+    }
+    let premise_id = PremiseId::from_str(DYNAMIC_MECHANISM_VALENCE_PREMISE)
+        .map_err(|error| AgentError::new("provisional valence", error.to_string()))?;
+    let mut document = catalogue.document().clone();
+    document.publication = PublicationKind::Working;
+    let evidence = document
+        .evidence
+        .first()
+        .map(|source| source.id.clone())
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    document.premises.push(PremiseRecord {
+        id: premise_id.clone(),
+        statement: "ChemSpec-derived provisional operation valence states".to_owned(),
+        evidence,
+        review: ReviewMetadata {
+            status: ReviewStatus::Provisional,
+            reviewers: Vec::new(),
+        },
+        rule_version: "1".to_owned(),
+    });
+    document.valence_premises.push(ValencePremiseRecord {
+        premise_id,
+        neutral_valence: used_neutral
+            .into_iter()
+            .map(
+                |(element, neutral_valence_electrons)| ElementValenceRecord {
+                    element,
+                    neutral_valence_electrons,
+                },
+            )
+            .collect(),
+        supported_states: provisional.into_iter().collect(),
+        metallic_domain_states: provisional_metallic.into_iter().collect(),
+    });
+    let mut envelope = CatalogueEnvelope {
+        digest: ContentDigest::sha256(b"uncomputed dynamic mechanism valence bundle"),
+        bundle: document,
+    };
+    envelope.digest = envelope
+        .computed_digest()
+        .map_err(|error| AgentError::new("provisional valence", error.to_string()))?;
+    ValidatedCatalogueBundle::validate(envelope)
+        .map(Some)
+        .map_err(|error| {
+            AgentError::new(
+                "provisional valence",
+                format!("derived operation states failed working-bundle validation: {error}"),
+            )
+        })
+}
+
+fn derive_provisional_metallic_operation_states(
+    context: &MechanismContext,
+    response: &MechanismEscalationResponse,
+    catalogue: &ValidatedCatalogueBundle,
+    reviewed: &BTreeSet<MetallicValenceStateRecord>,
+) -> Result<BTreeSet<MetallicValenceStateRecord>, AgentError> {
+    let mut provisional = BTreeSet::new();
+    for operation in &response.operations {
+        let (site, domain, state, site_delta) = match operation {
+            MechanismOperation::ReleaseMetallic {
+                site,
+                domain,
+                before,
+                ..
+            } => (site, domain, before, 0_i8),
+            MechanismOperation::JoinMetallic {
+                site,
+                domain,
+                after,
+                ..
+            } => (site, domain, after, 1_i8),
+            _ => continue,
+        };
+        if state.site.1 != 0 {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!("metallic site `{site}` must have zero local electrons in-domain"),
+            ));
+        }
+        let role = domain.split('[').next().ok_or_else(|| {
+            AgentError::new("provisional valence", "metallic domain has no role prefix")
+        })?;
+        let domain_label = domain
+            .split_once("].")
+            .map(|(_, label)| label)
+            .ok_or_else(|| {
+                AgentError::new("provisional valence", "metallic domain path is malformed")
+            })?;
+        let role = context.roles.get(role).ok_or_else(|| {
+            AgentError::new(
+                "provisional valence",
+                "metallic domain role does not resolve",
+            )
+        })?;
+        let structure = catalogue.structures().get(&role.structure).ok_or_else(|| {
+            AgentError::new("provisional valence", "metallic structure does not resolve")
+        })?;
+        let domain = structure
+            .graph()
+            .metallic_domains()
+            .values()
+            .find(|candidate| candidate.id().as_str() == domain_label)
+            .ok_or_else(|| {
+                AgentError::new(
+                    "provisional valence",
+                    "metallic domain label does not resolve",
+                )
+            })?;
+        let base_count = u32::try_from(domain.sites().len())
+            .map_err(|_| AgentError::new("provisional valence", "metallic site count overflow"))?;
+        let site_count = if site_delta == 0 {
+            base_count
+        } else {
+            base_count.checked_add(1).ok_or_else(|| {
+                AgentError::new("provisional valence", "metallic site count overflow")
+            })?
+        };
+        if site_count == 0
+            || state.domain_electrons == 0
+            || state.domain_electrons % site_count != 0
+        {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!(
+                    "metallic domain `{}` has inconsistent site electrons",
+                    domain.id()
+                ),
+            ));
+        }
+        let element = context.reactant_atoms.get(site).ok_or_else(|| {
+            AgentError::new(
+                "provisional valence",
+                "metallic operation site does not resolve",
+            )
+        })?;
+        let record = MetallicValenceStateRecord {
+            element: element.clone(),
+            site_formal_charge: state.site.0,
+            site_local_electrons: state.site.1,
+            delocalized_electrons_per_site: state.domain_electrons / site_count,
+        };
+        if !reviewed.contains(&record) {
+            provisional.insert(record);
+        }
+    }
+    Ok(provisional)
+}
+
+fn push_binary_states<'a>(
+    states: &mut Vec<(&'a str, chem_catalogue::ElectronStateRecord)>,
+    left: &'a str,
+    right: &'a str,
+    before: &chem_catalogue::BinaryElectronStateRecord,
+    after: &chem_catalogue::BinaryElectronStateRecord,
+) {
+    states.extend([
+        (left, before.left),
+        (right, before.right),
+        (left, after.left),
+        (right, after.right),
+    ]);
+}
+
+fn mechanism_electron_states(
+    response: &MechanismEscalationResponse,
+) -> Vec<(&str, chem_catalogue::ElectronStateRecord)> {
+    let mut states = Vec::new();
+    for operation in &response.operations {
+        match operation {
+            MechanismOperation::ReconfigureElectrons {
+                atom,
+                before,
+                after,
+            } => {
+                states.extend([(atom.as_str(), *before), (atom.as_str(), *after)]);
+            }
+            MechanismOperation::CleaveCovalent {
+                edge,
+                before,
+                after,
+                ..
+            }
+            | MechanismOperation::FormCovalent {
+                edge,
+                before,
+                after,
+                ..
+            } => push_binary_states(&mut states, &edge.0, &edge.1, before, after),
+            MechanismOperation::CleaveDative {
+                donor,
+                acceptor,
+                before,
+                after,
+                ..
+            }
+            | MechanismOperation::FormDative {
+                donor,
+                acceptor,
+                before,
+                after,
+            }
+            | MechanismOperation::ChangeCovalent {
+                edge: (donor, acceptor),
+                before,
+                after,
+                ..
+            } => push_binary_states(&mut states, donor, acceptor, before, after),
+            MechanismOperation::TransferElectron {
+                donor,
+                acceptor,
+                before,
+                after,
+                ..
+            } => {
+                states.extend([
+                    (donor.as_str(), before.donor),
+                    (acceptor.as_str(), before.acceptor),
+                    (donor.as_str(), after.donor),
+                    (acceptor.as_str(), after.acceptor),
+                ]);
+            }
+            MechanismOperation::ReleaseMetallic {
+                site,
+                before,
+                after,
+                ..
+            }
+            | MechanismOperation::JoinMetallic {
+                site,
+                before,
+                after,
+                ..
+            } => {
+                states.extend([(site.as_str(), before.site), (site.as_str(), after.site)]);
+            }
+            MechanismOperation::AssociateIonic { .. }
+            | MechanismOperation::DissociateIonic { .. }
+            | MechanismOperation::AssignProduct { .. } => {}
+        }
+    }
+    states
 }
 
 fn mechanism_premises(
@@ -1036,11 +1433,13 @@ mod tests {
         .expect("claim contract");
         let compiled = compile_claim_outcome(
             &ReactionBuildRequest {
-                reactants: reactants.map(|(display, atomic_numbers)| ReactantInput {
-                    display: display.into(),
-                    atomic_numbers,
-                    species_id: None,
-                }),
+                reactants: reactants
+                    .map(|(display, atomic_numbers)| ReactantInput {
+                        display: display.into(),
+                        atomic_numbers,
+                        species_id: None,
+                    })
+                    .to_vec(),
                 selected_context: None,
             },
             claim,
@@ -1198,6 +1597,10 @@ mod tests {
         assert_eq!(animated.repair_count(), 0);
         assert!(!animated.frames().frames().is_empty());
         assert_eq!(provider.diagnostics, [None]);
+        assert!(
+            provider.structure_diagnostics.is_empty(),
+            "a fully reviewed registry hit must never request structures"
+        );
     }
 
     #[test]
@@ -1281,6 +1684,28 @@ mod tests {
         );
     }
 
+    #[test]
+    fn one_structure_request_covers_missing_reactants_and_products() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("CH4", vec![6, 1, 1, 1, 1]), ("O2", vec![8, 8])],
+            &json!([
+                {"name":"methanol","formula":"CH4O","phase":"liquid","identity_hints":[]}
+            ]),
+        );
+        let request = structure_proposal_request(&outcome, &trusted)
+            .expect("both missing sides share one request");
+        assert_eq!(
+            request
+                .species
+                .iter()
+                .map(|species| species.formula.as_str())
+                .collect::<Vec<_>>(),
+            ["CH4", "CH4O"]
+        );
+    }
+
     fn hydrogen_peroxide_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
         static_outcome_for(
             trusted,
@@ -1316,6 +1741,122 @@ mod tests {
             .expect("structure JSON"),
         )
         .expect("structure contract")
+    }
+
+    fn methane_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
+        static_outcome_for(
+            trusted,
+            [("CH4", vec![6, 1, 1, 1, 1]), ("O2", vec![8, 8])],
+            &json!([
+                {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
+                {"name":"water","formula":"H2O","phase":"gas","identity_hints":[]}
+            ]),
+        )
+    }
+
+    fn methane_structure() -> StructureProposalResponse {
+        StructureProposalResponse::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "structures": [{
+                    "representation": "molecular",
+                    "id": "DynamicStructure1",
+                    "formula": "CH4",
+                    "atoms": [
+                        {"label":"c","element":"C","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h1","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h2","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h3","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h4","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0}
+                    ],
+                    "bonds": [
+                        {"left":"c","right":"h1","order":"single"},
+                        {"left":"c","right":"h2","order":"single"},
+                        {"left":"c","right":"h3","order":"single"},
+                        {"left":"c","right":"h4","order":"single"}
+                    ],
+                    "groups": []
+                }]
+            }))
+            .expect("structure JSON"),
+        )
+        .expect("structure contract")
+    }
+
+    #[test]
+    fn chemspec_derives_provisional_operation_states_from_reviewed_neutral_valence() {
+        let trusted = trusted();
+        let outcome = methane_outcome(&trusted);
+        let request =
+            structure_proposal_request(&outcome, &trusted).expect("methane structure request");
+        let adopted = adopt_proposed_structures(&outcome, &request, &methane_structure(), &trusted)
+            .expect("methane structure validates");
+        let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
+            .expect("mechanism request")
+            .expect("all structures present");
+        let carbon = context
+            .reactant_atoms
+            .iter()
+            .find_map(|(path, element)| (element == "C").then_some(path.clone()))
+            .expect("carbon path");
+        let response = MechanismEscalationResponse {
+            schema_version: crate::claim::MECHANISM_ESCALATION_SCHEMA_VERSION,
+            mapping: vec![crate::MechanismMapping {
+                reactant: carbon.clone(),
+                product: context.request.product_atom_paths[0].clone(),
+            }],
+            operations: vec![MechanismOperation::ReconfigureElectrons {
+                atom: carbon,
+                before: chem_catalogue::ElectronStateRecord(0, 0, 0),
+                after: chem_catalogue::ElectronStateRecord(0, 1, 1),
+            }],
+        };
+        let bundle = provisional_mechanism_bundle(&context, &response, &adopted.bundle)
+            .expect("derived provisional state")
+            .expect("uncurated carbon radical adds a working bundle");
+        assert!(bundle.document().valence_premises.iter().any(|premise| {
+            premise.supported_states.iter().any(|state| {
+                state.element == "C"
+                    && state.formal_charge == 0
+                    && state.non_bonding_electrons == 1
+                    && state.unpaired_electrons == 1
+                    && state.covalent_bond_order_sum == 3
+            })
+        }));
+    }
+
+    #[test]
+    fn impossible_provisional_operation_state_fails_with_identity_diagnostic() {
+        let trusted = trusted();
+        let outcome = methane_outcome(&trusted);
+        let request =
+            structure_proposal_request(&outcome, &trusted).expect("methane structure request");
+        let adopted = adopt_proposed_structures(&outcome, &request, &methane_structure(), &trusted)
+            .expect("methane structure validates");
+        let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
+            .expect("mechanism request")
+            .expect("all structures present");
+        let carbon = context
+            .reactant_atoms
+            .iter()
+            .find_map(|(path, element)| (element == "C").then_some(path.clone()))
+            .expect("carbon path");
+        let response = MechanismEscalationResponse {
+            schema_version: crate::claim::MECHANISM_ESCALATION_SCHEMA_VERSION,
+            mapping: vec![crate::MechanismMapping {
+                reactant: carbon.clone(),
+                product: context.request.product_atom_paths[0].clone(),
+            }],
+            operations: vec![MechanismOperation::ReconfigureElectrons {
+                atom: carbon,
+                before: chem_catalogue::ElectronStateRecord(0, 0, 0),
+                after: chem_catalogue::ElectronStateRecord(99, 1, 1),
+            }],
+        };
+        let error = provisional_mechanism_bundle(&context, &response, &adopted.bundle)
+            .expect_err("impossible state must fail");
+        assert_eq!(error.stage(), "provisional valence");
+        assert!(error.to_string().contains("formal-charge identity"));
     }
 
     /// Builds the peroxide mechanism over the exact labels of the adopted
@@ -1364,6 +1905,8 @@ mod tests {
                 {"reactant": o[1], "product": product_o[1]}
             ],
             "operations": [
+                {"kind":"reconfigure_electrons","atom":o[0],"before":[0,4,0],"after":[0,4,2]},
+                {"kind":"reconfigure_electrons","atom":o[0],"before":[0,4,2],"after":[0,4,0]},
                 {"kind":"cleave_covalent","edge":[h[0],h[1],"single"],"allocation":"homolytic",
                  "before":{"left":[0,0,0],"right":[0,0,0]},"after":{"left":[0,1,1],"right":[0,1,1]}},
                 {"kind":"change_covalent","edge":[o[0],o[1]],"old_order":"double","new_order":"single","allocation":"homolytic",
@@ -1391,10 +1934,28 @@ mod tests {
         );
 
         let structures = hydrogen_peroxide_structure();
-        let request = crate::structure_proposal_request(&outcome).expect("structure request");
+        let request =
+            crate::structure_proposal_request(&outcome, &trusted).expect("structure request");
         let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &trusted)
             .expect("proposed structure crosses catalogue validation");
         assert!(adopted.outcome.products_without_structure().is_empty());
+        assert!(
+            !adopted
+                .bundle
+                .document()
+                .valence_premises
+                .iter()
+                .any(|premise| {
+                    premise.supported_states.iter().any(|state| {
+                        state.element == "O"
+                            && state.formal_charge == 0
+                            && state.non_bonding_electrons == 4
+                            && state.unpaired_electrons == 2
+                            && state.covalent_bond_order_sum == 2
+                    })
+                }),
+            "the radical transition must be admitted by mechanism-time derivation, not pre-authored"
+        );
         let mechanism = hydrogen_peroxide_mechanism(&adopted);
 
         let mut provider = FakeProvider {
@@ -1408,6 +1969,8 @@ mod tests {
             panic!("expected escalated animation: {result:?}")
         };
         assert!(!animated.frames().frames().is_empty());
+        assert_eq!(animated.structure_repair_count(), 0);
+        assert_eq!(animated.total_repair_count(), 0);
         assert_eq!(
             animated.frames().trust(),
             chem_kernel::DerivationTrust::ReviewCandidate

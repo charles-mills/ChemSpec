@@ -1,9 +1,11 @@
 use std::{collections::BTreeMap, str::FromStr};
 
+use chem_catalogue::ValidatedCatalogueBundle;
 use chem_domain::{
-    Charge, ContentDigest, ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration,
-    RepresentationKind, ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery,
-    SpeciesRegistry, SpeciesResolution, UnbalancedReactionTerm,
+    BronstedAcidProfile, Charge, ContentDigest, ExternalIdentifier, FormulaComposition, Phase,
+    ReactionDeclaration, RepresentationKind, ResolvedSpecies, SpeciesAmbiguity, SpeciesId,
+    SpeciesQuery, SpeciesRegistry, SpeciesResolution, UnbalancedReactionTerm,
+    classify_bronsted_acid,
 };
 use num_bigint::BigUint;
 
@@ -44,6 +46,17 @@ impl OutcomeSpecies {
             Self::FormulaOnly { id, .. } => id,
         }
     }
+
+    /// Returns a structure-derived proton-donor profile when this species has
+    /// crossed structural validation. Formula-only identities deliberately do
+    /// not gain an acid classification.
+    #[must_use]
+    pub fn bronsted_acid_profile(&self) -> Option<BronstedAcidProfile> {
+        match self {
+            Self::Resolved(species) => species.structure.as_ref().map(classify_bronsted_acid),
+            Self::FormulaOnly { .. } => None,
+        }
+    }
 }
 
 /// Structurally checked static capability. It deliberately exposes no frame
@@ -51,7 +64,7 @@ impl OutcomeSpecies {
 #[derive(Debug, Clone)]
 pub struct ValidatedStaticOutcome {
     declaration: ReactionDeclaration,
-    reactants: Vec<ResolvedSpecies>,
+    reactants: Vec<OutcomeSpecies>,
     products: Vec<OutcomeSpecies>,
     claim: ReactionClaim,
     trust_tier: TrustTier,
@@ -65,7 +78,7 @@ impl ValidatedStaticOutcome {
     }
 
     #[must_use]
-    pub fn reactants(&self) -> &[ResolvedSpecies] {
+    pub fn reactants(&self) -> &[OutcomeSpecies] {
         &self.reactants
     }
 
@@ -87,6 +100,25 @@ impl ValidatedStaticOutcome {
     #[must_use]
     pub fn equation(&self) -> &str {
         &self.equation
+    }
+
+    #[must_use]
+    pub fn species_without_structure(&self) -> Vec<String> {
+        self.reactants
+            .iter()
+            .chain(&self.products)
+            .filter(|product| !product.has_structure())
+            .map(|product| match product {
+                OutcomeSpecies::Resolved(species) => {
+                    format!("{} ({})", species.display_name, species.formula_text)
+                }
+                OutcomeSpecies::FormulaOnly {
+                    display_name,
+                    formula,
+                    ..
+                } => format!("{display_name} ({formula})"),
+            })
+            .collect()
     }
 
     #[must_use]
@@ -112,14 +144,20 @@ impl ValidatedStaticOutcome {
         self
     }
 
-    /// Replaces products with structurally adopted equivalents. Species ids
+    /// Replaces both sides with structurally adopted equivalents. Species ids
     /// and order must stay identical so the balanced declaration remains
     /// valid unchanged.
-    pub(crate) fn with_adopted_products(
+    pub(crate) fn with_adopted_species(
         mut self,
+        reactants: Vec<OutcomeSpecies>,
         products: Vec<OutcomeSpecies>,
     ) -> Result<Self, AgentError> {
-        if products.len() != self.products.len()
+        if reactants.len() != self.reactants.len()
+            || reactants
+                .iter()
+                .zip(&self.reactants)
+                .any(|(adopted, existing)| adopted.id() != existing.id())
+            || products.len() != self.products.len()
             || products
                 .iter()
                 .zip(&self.products)
@@ -127,9 +165,10 @@ impl ValidatedStaticOutcome {
         {
             return Err(AgentError::new(
                 "structure adoption",
-                "adopted products must preserve species identity and order",
+                "adopted species must preserve side, identity, and order",
             ));
         }
+        self.reactants = reactants;
         self.products = products;
         Ok(self)
     }
@@ -157,7 +196,7 @@ pub struct ReactantIdentityAmbiguity {
 
 #[derive(Debug, Clone)]
 pub enum RequestIdentityResolution {
-    Resolved(Vec<ResolvedSpecies>),
+    Resolved(Vec<OutcomeSpecies>),
     Ambiguous(ReactantIdentityAmbiguity),
 }
 
@@ -173,6 +212,8 @@ pub fn compile_claim_outcome(
     claim: ReactionClaim,
     identities: &SpeciesRegistry,
 ) -> Result<CompiledClaimOutcome, AgentError> {
+    validate_request_shape(request)?;
+    validate_selected_context_binding(request, &claim)?;
     match claim.disposition {
         ClaimDisposition::NoReaction => return Ok(CompiledClaimOutcome::NoReaction(claim)),
         ClaimDisposition::Ambiguous => return Ok(CompiledClaimOutcome::Ambiguous(claim)),
@@ -184,19 +225,20 @@ pub fn compile_claim_outcome(
         .products
         .iter()
         .map(|product| {
-            if let Some(species) = resolve_claim_product(product, identities) {
+            let formula = ascii_formula_key(&product.formula);
+            if let Some(species) = resolve_claim_product(product, &formula, identities) {
                 Ok(OutcomeSpecies::Resolved(Box::new(species.clone())))
             } else {
-                let id_material = format!("{}\0{}", product.name, product.formula);
+                let id_material = format!("{}\0{formula}", product.name);
                 let digest = ContentDigest::sha256(id_material.as_bytes()).to_hex();
                 let id = SpeciesId::from_str(&format!("dynamic.s{}", &digest[..24]))
                     .map_err(|error| AgentError::new("outcome identity", error.to_string()))?;
-                FormulaComposition::parse(&product.formula)
+                FormulaComposition::parse(&formula)
                     .map_err(|error| AgentError::new("outcome formula", error.to_string()))?;
                 Ok(OutcomeSpecies::FormulaOnly {
                     id,
                     display_name: product.name.clone(),
-                    formula: product.formula.clone(),
+                    formula,
                     phase: claim_phase(product.phase),
                 })
             }
@@ -205,7 +247,7 @@ pub fn compile_claim_outcome(
     let declaration = ReactionDeclaration::balance(
         reactants
             .iter()
-            .map(resolved_term)
+            .map(outcome_term)
             .collect::<Result<Vec<_>, AgentError>>()?,
         products
             .iter()
@@ -231,11 +273,12 @@ pub fn compile_claim_outcome(
 
 fn resolve_claim_product<'a>(
     product: &ClaimProduct,
+    formula: &str,
     identities: &'a SpeciesRegistry,
 ) -> Option<&'a ResolvedSpecies> {
     let exact = SpeciesQuery {
         name: Some(product.name.clone()),
-        formula: Some(product.formula.clone()),
+        formula: Some(formula.to_owned()),
         charge: None,
         phase: None,
         external_identifier: None,
@@ -250,7 +293,7 @@ fn resolve_claim_product<'a>(
     for hint in &product.identity_hints {
         let hinted = SpeciesQuery {
             name: None,
-            formula: Some(product.formula.clone()),
+            formula: Some(formula.to_owned()),
             charge: None,
             phase: None,
             external_identifier: Some(external_identifier(hint)),
@@ -261,7 +304,7 @@ fn resolve_claim_product<'a>(
     }
     let formula_only = SpeciesQuery {
         name: None,
-        formula: Some(product.formula.clone()),
+        formula: Some(formula.to_owned()),
         charge: None,
         phase: None,
         external_identifier: None,
@@ -296,7 +339,7 @@ fn external_identifier(hint: &ClaimIdentityHint) -> ExternalIdentifier {
 pub fn resolve_request_species(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
-) -> Result<Vec<ResolvedSpecies>, AgentError> {
+) -> Result<Vec<OutcomeSpecies>, AgentError> {
     match resolve_request_identities(request, identities)? {
         RequestIdentityResolution::Resolved(species) => Ok(species),
         RequestIdentityResolution::Ambiguous(ambiguity) => Err(AgentError::new(
@@ -319,6 +362,30 @@ pub fn resolve_request_identities(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
 ) -> Result<RequestIdentityResolution, AgentError> {
+    resolve_request_identities_inner(request, identities, None)
+}
+
+/// Resolves request identities while collapsing reviewed aliases proven
+/// isomorphic by the validated catalogue. Chemically distinct alternatives
+/// remain explicit ambiguity.
+///
+/// # Errors
+///
+/// Returns an error for an absent selected identity or authored atom mismatch.
+pub fn resolve_request_identities_with_catalogue(
+    request: &ReactionBuildRequest,
+    identities: &SpeciesRegistry,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Result<RequestIdentityResolution, AgentError> {
+    resolve_request_identities_inner(request, identities, Some(catalogue))
+}
+
+fn resolve_request_identities_inner(
+    request: &ReactionBuildRequest,
+    identities: &SpeciesRegistry,
+    catalogue: Option<&ValidatedCatalogueBundle>,
+) -> Result<RequestIdentityResolution, AgentError> {
+    validate_request_shape(request)?;
     let mut selections = Vec::with_capacity(request.reactants.len());
     for (reactant_index, input) in request.reactants.iter().enumerate() {
         let lookup = if let Some(species_id) = &input.species_id {
@@ -329,12 +396,12 @@ pub fn resolve_request_identities(
                 )
             })?)
         } else {
-            resolve_name_or_formula(&input.display, identities)?
+            resolve_name_or_formula(&input.display, identities, catalogue)?
         };
         match lookup {
             IdentityLookup::Resolved(species) => {
                 validate_atomic_numbers(&input.atomic_numbers, species)?;
-                selections.push(species.clone());
+                selections.push(OutcomeSpecies::Resolved(Box::new(species.clone())));
             }
             IdentityLookup::Ambiguous(ambiguity) => {
                 let alternatives = ambiguity
@@ -347,7 +414,7 @@ pub fn resolve_request_identities(
                     .cloned()
                     .collect::<Vec<_>>();
                 if alternatives.len() == 1 {
-                    selections.push(alternatives[0].clone());
+                    selections.push(OutcomeSpecies::Resolved(Box::new(alternatives[0].clone())));
                 } else if alternatives.len() >= 2 {
                     return Ok(RequestIdentityResolution::Ambiguous(
                         ReactantIdentityAmbiguity {
@@ -366,19 +433,71 @@ pub fn resolve_request_identities(
                     ));
                 }
             }
+            IdentityLookup::NotFound => {
+                selections.push(formula_only_reactant(input)?);
+            }
         }
     }
     Ok(RequestIdentityResolution::Resolved(selections))
 }
 
+fn validate_request_shape(request: &ReactionBuildRequest) -> Result<(), AgentError> {
+    if !(1..=2).contains(&request.reactants.len()) {
+        return Err(AgentError::new(
+            "request shape",
+            "a dynamic request must contain one or two reactants",
+        ));
+    }
+    if request.reactants.len() == 1
+        && !request.selected_context.as_deref().is_some_and(|context| {
+            matches!(
+                context.trim().to_ascii_lowercase().as_str(),
+                "heat" | "light" | "electricity"
+            )
+        })
+    {
+        return Err(AgentError::new(
+            "request shape",
+            "a single-reactant request requires the context heat, light, or electricity",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_selected_context_binding(
+    request: &ReactionBuildRequest,
+    claim: &ReactionClaim,
+) -> Result<(), AgentError> {
+    if request.reactants.len() != 1 {
+        return Ok(());
+    }
+    let selected = request
+        .selected_context
+        .as_deref()
+        .expect("validated single-reactant requests always have context")
+        .trim();
+    if !claim.required_context.trim().eq_ignore_ascii_case(selected) {
+        return Err(AgentError::new(
+            "request context",
+            format!(
+                "single-reactant claim context `{}` must preserve selected context `{selected}`",
+                claim.required_context
+            ),
+        ));
+    }
+    Ok(())
+}
+
 enum IdentityLookup<'a> {
     Resolved(&'a ResolvedSpecies),
     Ambiguous(SpeciesAmbiguity),
+    NotFound,
 }
 
 fn resolve_name_or_formula<'a>(
     value: &str,
     identities: &'a SpeciesRegistry,
+    catalogue: Option<&ValidatedCatalogueBundle>,
 ) -> Result<IdentityLookup<'a>, AgentError> {
     let formula_key = ascii_formula_key(value);
     for query in [
@@ -410,7 +529,7 @@ fn resolve_name_or_formula<'a>(
                         candidate.formula == first.formula
                             && candidate.charge == first.charge
                             && candidate.phase == first.phase
-                            && equivalent_structure(candidate, first)
+                            && equivalent_structure(candidate, first, catalogue)
                     })
                 {
                     return alternatives
@@ -455,16 +574,73 @@ fn resolve_name_or_formula<'a>(
             SpeciesResolution::NotFound => {}
         }
     }
-    Err(AgentError::new(
-        "request identity",
-        format!("reactant `{value}` is not in the current identity capability"),
-    ))
+    Ok(IdentityLookup::NotFound)
 }
 
-fn equivalent_structure(left: &ResolvedSpecies, right: &ResolvedSpecies) -> bool {
+fn formula_only_reactant(input: &crate::ReactantInput) -> Result<OutcomeSpecies, AgentError> {
+    let formula = ascii_formula_key(&input.display);
+    let composition = FormulaComposition::parse(&formula)
+        .map_err(|error| AgentError::new("request formula", error.to_string()))?;
+    if input.atomic_numbers.is_empty() {
+        return Err(AgentError::new(
+            "request binding",
+            format!("reactant `{}` has no composed atoms", input.display),
+        ));
+    }
+    let formula_atom_count =
+        composition
+            .elements()
+            .values()
+            .try_fold(0_usize, |total, count| {
+                total
+                    .checked_add(usize::try_from(*count).map_err(|_| {
+                        AgentError::new("request binding", "formula atom count overflow")
+                    })?)
+                    .ok_or_else(|| {
+                        AgentError::new("request binding", "formula atom count overflow")
+                    })
+            })?;
+    if formula_atom_count != input.atomic_numbers.len() {
+        return Err(AgentError::new(
+            "request binding",
+            format!(
+                "reactant `{}` formula contains {formula_atom_count} atoms but the composer supplied {}",
+                input.display,
+                input.atomic_numbers.len()
+            ),
+        ));
+    }
+    let mut atomic_numbers = input.atomic_numbers.clone();
+    atomic_numbers.sort_unstable();
+    let id_material = serde_json::to_vec(&("formula-only-reactant-v2", &formula, &atomic_numbers))
+        .map_err(|error| AgentError::new("request identity", error.to_string()))?;
+    let digest = ContentDigest::sha256(&id_material).to_hex();
+    let id = SpeciesId::from_str(&format!("dynamic.r{}", &digest[..24]))
+        .map_err(|error| AgentError::new("request identity", error.to_string()))?;
+    Ok(OutcomeSpecies::FormulaOnly {
+        id,
+        display_name: input.display.clone(),
+        formula,
+        phase: Phase::Unknown,
+    })
+}
+
+fn equivalent_structure(
+    left: &ResolvedSpecies,
+    right: &ResolvedSpecies,
+    catalogue: Option<&ValidatedCatalogueBundle>,
+) -> bool {
     match (&left.structure, &right.structure) {
         (Some(left), Some(right)) => {
-            left.representation() == right.representation() && left.graph() == right.graph()
+            left.representation() == right.representation()
+                && (left.graph() == right.graph()
+                    || catalogue.is_some_and(|catalogue| {
+                        catalogue
+                            .structures_isomorphic(left.id(), right.id())
+                            .ok()
+                            .flatten()
+                            .unwrap_or(false)
+                    }))
         }
         (None, None) => true,
         (Some(_), None) | (None, Some(_)) => false,
@@ -577,7 +753,7 @@ fn format_equation(declaration: &ReactionDeclaration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chem_catalogue::{CatalogueEnvelope, ValidatedCatalogueBundle};
+    use chem_catalogue::{CatalogueEnvelope, TrustedCatalogue, ValidatedCatalogueBundle};
     use serde_json::json;
 
     use crate::{ClaimMode, ReactantInput, ReactionClaim, reviewed_species_registry};
@@ -591,6 +767,17 @@ mod tests {
         envelope.digest = envelope.computed_digest().expect("digest");
         let catalogue = ValidatedCatalogueBundle::validate(envelope).expect("valid catalogue");
         reviewed_species_registry(&catalogue).expect("identities")
+    }
+
+    fn trusted() -> TrustedCatalogue {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        TrustedCatalogue::from_canonical_json(
+            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+                .expect("catalogue"),
+            &std::fs::read(root.join("catalogue/trusted/core-chemistry/review.json"))
+                .expect("review"),
+        )
+        .expect("trusted catalogue")
     }
 
     #[test]
@@ -625,7 +812,8 @@ mod tests {
                         atomic_numbers: vec![1, 1, 8],
                         species_id: None,
                     },
-                ],
+                ]
+                .to_vec(),
                 selected_context: None,
             },
             claim,
@@ -692,7 +880,8 @@ mod tests {
                         atomic_numbers: vec![1, 1, 8],
                         species_id: None,
                     },
-                ],
+                ]
+                .to_vec(),
                 selected_context: None,
             },
             claim,
@@ -704,6 +893,249 @@ mod tests {
         };
         assert!(outcome.products().iter().all(OutcomeSpecies::has_structure));
         assert!(outcome.products_without_structure().is_empty());
+    }
+
+    #[test]
+    fn formula_only_reactant_compiles_and_enters_structure_escalation() {
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "products": [
+                    {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
+                    {"name":"water","formula":"H2O","phase":"gas","identity_hints":[]}
+                ],
+                "required_context":"combustion in oxygen",
+                "observations":[], "sources":[], "ambiguity":null
+            }))
+            .expect("claim bytes"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let catalogue = trusted();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let compiled = compile_claim_outcome(
+            &ReactionBuildRequest {
+                reactants: [
+                    ReactantInput {
+                        display: "CH4".into(),
+                        atomic_numbers: vec![6, 1, 1, 1, 1],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "O2".into(),
+                        atomic_numbers: vec![8, 8],
+                        species_id: None,
+                    },
+                ]
+                .to_vec(),
+                selected_context: None,
+            },
+            claim,
+            &identities,
+        )
+        .expect("formula-only reactants compile");
+        let CompiledClaimOutcome::Static(outcome) = compiled else {
+            panic!("expected static outcome")
+        };
+        let terms = |terms: &[chem_domain::ReactionTerm]| {
+            terms
+                .iter()
+                .map(|term| (term.formula_text().to_owned(), term.coefficient()))
+                .collect::<BTreeMap<_, _>>()
+        };
+        assert_eq!(
+            terms(outcome.declaration().reactants()),
+            BTreeMap::from([("CH4".to_owned(), 1), ("O2".to_owned(), 2)])
+        );
+        assert_eq!(
+            terms(outcome.declaration().products()),
+            BTreeMap::from([("CO2".to_owned(), 1), ("H2O".to_owned(), 2)])
+        );
+        assert!(matches!(
+            &outcome.reactants()[0],
+            OutcomeSpecies::FormulaOnly { formula, .. } if formula == "CH4"
+        ));
+        assert!(
+            outcome
+                .species_without_structure()
+                .iter()
+                .any(|species| species.contains("CH4"))
+        );
+    }
+
+    #[test]
+    fn formula_only_reactant_identity_is_atom_order_canonical_and_count_bound() {
+        let identities = registry();
+        let request = |atomic_numbers| ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "CH4".into(),
+                    atomic_numbers,
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let RequestIdentityResolution::Resolved(first) =
+            resolve_request_identities(&request(vec![6, 1, 1, 1, 1]), &identities)
+                .expect("formula-only identity")
+        else {
+            panic!("formula-only request must resolve")
+        };
+        let RequestIdentityResolution::Resolved(reordered) =
+            resolve_request_identities(&request(vec![1, 6, 1, 1, 1]), &identities)
+                .expect("reordered formula-only identity")
+        else {
+            panic!("reordered formula-only request must resolve")
+        };
+        assert_eq!(first[0].id(), reordered[0].id());
+
+        let error = resolve_request_identities(&request(vec![6, 1, 1]), &identities)
+            .expect_err("the formula and composed atom count must agree");
+        assert_eq!(error.stage(), "request binding");
+    }
+
+    #[test]
+    fn reviewed_isomorphic_aliases_do_not_create_learner_ambiguity() {
+        let catalogue = trusted();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: [
+                ReactantInput {
+                    display: "CO2".into(),
+                    atomic_numbers: vec![6, 8, 8],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "NaCl".into(),
+                    atomic_numbers: vec![11, 17],
+                    species_id: None,
+                },
+            ]
+            .to_vec(),
+            selected_context: None,
+        };
+        let resolved = resolve_request_identities_with_catalogue(&request, &identities, &catalogue)
+            .expect("identity resolution");
+        assert!(matches!(resolved, RequestIdentityResolution::Resolved(_)));
+    }
+
+    #[test]
+    fn single_reactant_light_context_balances_without_photon_species() {
+        let catalogue = trusted();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let mut request = ReactionBuildRequest {
+            reactants: vec![ReactantInput {
+                display: "AgCl".into(),
+                atomic_numbers: vec![47, 17],
+                species_id: None,
+            }],
+            selected_context: Some("light".into()),
+        };
+        let RequestIdentityResolution::Resolved(resolved) =
+            resolve_request_identities_with_catalogue(&request, &identities, &catalogue)
+                .expect("identity resolution")
+        else {
+            panic!("AgCl aliases should collapse")
+        };
+        let OutcomeSpecies::Resolved(species) = &resolved[0] else {
+            panic!("AgCl should be reviewed")
+        };
+        request.reactants[0].species_id = Some(species.id.clone());
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "products": [
+                    {"name":"silver","formula":"Ag","phase":"solid","identity_hints":[]},
+                    {"name":"chlorine","formula":"Cl2","phase":"gas","identity_hints":[]}
+                ],
+                "required_context":"light",
+                "observations":[], "sources":[], "ambiguity":null
+            }))
+            .expect("claim bytes"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &identities).expect("compile")
+        else {
+            panic!("static outcome expected")
+        };
+        assert!(outcome.equation().starts_with("2 AgCl →"));
+        assert!(!outcome.equation().to_ascii_lowercase().contains("photon"));
+        assert_eq!(outcome.declaration().required_context(), "light");
+    }
+
+    #[test]
+    fn single_reactant_claim_cannot_replace_the_selected_energy_context() {
+        let catalogue = trusted();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![ReactantInput {
+                display: "AgCl".into(),
+                atomic_numbers: vec![47, 17],
+                species_id: None,
+            }],
+            selected_context: Some("light".into()),
+        };
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "products": [
+                    {"name":"silver","formula":"Ag","phase":"solid","identity_hints":[]},
+                    {"name":"chlorine","formula":"Cl2","phase":"gas","identity_hints":[]}
+                ],
+                "required_context":"heat",
+                "observations":[], "sources":[], "ambiguity":null
+            }))
+            .expect("claim bytes"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let error = compile_claim_outcome(&request, claim, &identities)
+            .expect_err("the model cannot replace the learner's selected context");
+        assert_eq!(error.stage(), "request context");
+        assert!(
+            error
+                .to_string()
+                .contains("preserve selected context `light`")
+        );
+    }
+
+    #[test]
+    fn two_reactant_request_json_keeps_the_existing_shape() {
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "H2".into(),
+                    atomic_numbers: vec![1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        assert_eq!(
+            serde_json::to_value(request).expect("request JSON"),
+            json!({
+                "reactants": [
+                    {"display":"H2","atomic_numbers":[1,1]},
+                    {"display":"O2","atomic_numbers":[8,8]}
+                ]
+            })
+        );
     }
 
     #[test]
@@ -733,7 +1165,8 @@ mod tests {
                         atomic_numbers: vec![1, 1, 8],
                         species_id: None,
                     },
-                ],
+                ]
+                .to_vec(),
                 selected_context: None,
             },
             parsed,
@@ -758,7 +1191,8 @@ mod tests {
                     atomic_numbers: vec![1, 1, 8],
                     species_id: None,
                 },
-            ],
+            ]
+            .to_vec(),
             selected_context: None,
         };
         let RequestIdentityResolution::Resolved(resolved) =
@@ -766,7 +1200,56 @@ mod tests {
         else {
             panic!("request should resolve")
         };
-        assert_eq!(resolved[1].formula_text, "H2O");
+        let OutcomeSpecies::Resolved(species) = &resolved[1] else {
+            panic!("water should resolve")
+        };
+        assert_eq!(species.formula_text, "H2O");
         assert_eq!(request.reactants[1].display, "H₂O");
+    }
+
+    #[test]
+    fn model_product_subscripts_normalize_before_identity_and_balance() {
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "H₂SO₄".into(),
+                    atomic_numbers: vec![1, 1, 16, 8, 8, 8, 8],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "NaOH".into(),
+                    atomic_numbers: vec![11, 8, 1],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim_json = r#"{
+                "schema_version":1,
+                "disposition":"reaction",
+                "products":[
+                    {"name":"sodium sulfate","formula":"Na₂SO₄","phase":"aqueous","identity_hints":[]},
+                    {"name":"water","formula":"H₂O","phase":"liquid","identity_hints":[]}
+                ],
+                "required_context":"representative complete neutralisation",
+                "observations":[],
+                "sources":[],
+                "ambiguity":null
+            }"#;
+        let claim =
+            ReactionClaim::from_json(claim_json.as_bytes(), ClaimMode::Fast).expect("claim");
+
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &registry()).expect("balanced static outcome")
+        else {
+            panic!("reaction should compile")
+        };
+        assert!(outcome.products().iter().any(|product| {
+            matches!(
+                product,
+                OutcomeSpecies::FormulaOnly { formula, .. } if formula == "Na2SO4"
+            )
+        }));
+        assert_eq!(outcome.claim().products[0].formula, "Na₂SO₄");
     }
 }

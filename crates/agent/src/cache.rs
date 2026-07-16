@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
-const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 2;
+const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 3;
 const MAX_CACHE_BYTES: u64 = 2 * 1024 * 1024;
 static CACHE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -205,6 +205,12 @@ pub fn load_dynamic_cache(
         }
         (_, None) => None,
         (_, Some(_)) => return None,
+    };
+    let presentation = match presentation {
+        Some(DynamicPresentationOutcome::Static {
+            retryable: true, ..
+        }) => None,
+        other => other,
     };
     Some(LoadedDynamicCache {
         outcome,
@@ -421,7 +427,7 @@ fn request_binding(
 ) -> Result<ContentDigest, AgentError> {
     let mut ids = resolve_request_species(request, identities)?
         .into_iter()
-        .map(|species| species.id)
+        .map(|species| species.id().clone())
         .collect::<Vec<_>>();
     ids.sort();
     let selected_context = request.selected_context.as_deref().map(|context| {
@@ -473,7 +479,8 @@ mod tests {
                     atomic_numbers: vec![1, 1, 8],
                     species_id: None,
                 },
-            ],
+            ]
+            .to_vec(),
             selected_context: None,
         }
     }
@@ -627,6 +634,79 @@ mod tests {
         assert_eq!(load_claim_mode(Some(&directory)), ClaimMode::Fast);
         store_claim_mode(&directory, ClaimMode::Researcher).expect("store preference");
         assert_eq!(load_claim_mode(Some(&directory)), ClaimMode::Researcher);
+        fs::remove_dir_all(directory).expect("cleanup");
+    }
+
+    #[test]
+    fn formula_only_reactants_keep_order_independent_cache_binding() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let methane = ReactantInput {
+            display: "CH4".into(),
+            atomic_numbers: vec![6, 1, 1, 1, 1],
+            species_id: None,
+        };
+        let oxygen = ReactantInput {
+            display: "O2".into(),
+            atomic_numbers: vec![8, 8],
+            species_id: None,
+        };
+        let first = ReactionBuildRequest {
+            reactants: vec![methane.clone(), oxygen.clone()],
+            selected_context: None,
+        };
+        let swapped = ReactionBuildRequest {
+            reactants: vec![oxygen, methane],
+            selected_context: None,
+        };
+        let directory = std::path::Path::new("/unused/cache-binding-test");
+        assert_eq!(
+            dynamic_cache_path(directory, &first, ClaimMode::Fast, &identities, &trusted),
+            dynamic_cache_path(directory, &swapped, ClaimMode::Fast, &identities, &trusted)
+        );
+    }
+
+    #[test]
+    fn retryable_static_presentation_reuses_claim_but_retries_enrichment() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let request = request();
+        let claim = claim();
+        let directory = std::env::temp_dir().join(format!(
+            "chemspec-cache-retry-test-{}-{}",
+            std::process::id(),
+            CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        store_dynamic_cache(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &trusted,
+            &claim,
+            None,
+            Some(DynamicCachePresentation::Static {
+                diagnostic: "temporary provider failure".to_owned(),
+                retryable: true,
+            }),
+            "fake",
+            "offline",
+        )
+        .expect("store retryable presentation");
+
+        let loaded = load_dynamic_cache(
+            Some(&directory),
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &trusted,
+        )
+        .expect("reuse the validated claim");
+        assert!(matches!(loaded.outcome, CompiledClaimOutcome::Static(_)));
+        assert!(
+            loaded.presentation.is_none(),
+            "a retryable failure must relaunch presentation enrichment"
+        );
         fs::remove_dir_all(directory).expect("cleanup");
     }
 }

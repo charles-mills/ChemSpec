@@ -1,3 +1,4 @@
+pub mod acidity;
 pub mod formula;
 pub mod identity;
 pub mod material;
@@ -9,6 +10,7 @@ pub mod state;
 pub mod structural;
 pub mod unit;
 
+pub use acidity::{BronstedAcidProfile, ProtonDonorSite, classify_bronsted_acid};
 pub use formula::{
     Charge, ChargeSign, Count, Element, ElementId, ElementRegistry, ElementSymbol, FormulaError,
     FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,

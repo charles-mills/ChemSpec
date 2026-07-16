@@ -13,7 +13,7 @@ use chem_domain::{
     FormulaSyntax, IdentityCacheEnvelope, IdentityConfidence, IdentityProvenance, Phase,
     ProtonationPolicy, ResolvedSpecies, ResolvedSpeciesInput, SpeciesId, SpeciesQuery,
     SpeciesRegistry, SpeciesResolution, StaticElementRegistry, StereochemistryPolicy,
-    StructureDefinition, SubstanceId, TautomerPolicy,
+    StructureDefinition, SubstanceId, TautomerPolicy, classify_bronsted_acid,
 };
 use num_bigint::BigUint;
 
@@ -211,7 +211,7 @@ pub fn reviewed_species_registry(
                 external_identifiers: BTreeSet::<ExternalIdentifier>::new(),
                 stereochemistry_policy: StereochemistryPolicy::Unspecified,
                 tautomer_policy: TautomerPolicy::ExactTautomer,
-                protonation_policy: ProtonationPolicy::ExactChargeState,
+                protonation_policy: protonation_policy(structure),
                 identity_confidence: IdentityConfidence::Reviewed,
                 identity_provenance: vec![IdentityProvenance::HostPinned {
                     catalogue_digest: catalogue.digest(),
@@ -308,7 +308,7 @@ pub(crate) fn model_proposed_species(
             external_identifiers: BTreeSet::<ExternalIdentifier>::new(),
             stereochemistry_policy: StereochemistryPolicy::Unspecified,
             tautomer_policy: TautomerPolicy::ExactTautomer,
-            protonation_policy: ProtonationPolicy::ExactChargeState,
+            protonation_policy: protonation_policy(structure),
             identity_confidence: IdentityConfidence::ExternalUnverified,
             identity_provenance: vec![IdentityProvenance::External {
                 resolver: "model_structure_proposal".to_owned(),
@@ -322,6 +322,14 @@ pub(crate) fn model_proposed_species(
         &elements,
     )
     .map_err(|error| AgentError::new("species identity", error.to_string()))
+}
+
+fn protonation_policy(structure: &StructureDefinition) -> ProtonationPolicy {
+    if classify_bronsted_acid(structure).is_protic_candidate() {
+        ProtonationPolicy::ContextDependent
+    } else {
+        ProtonationPolicy::ExactChargeState
+    }
 }
 
 /// Loads a strict, canonically ordered device-local identity cache. Corrupt,
@@ -700,6 +708,15 @@ mod tests {
                         catalogue_digest: digest,
                     }]
         }));
+        let water = identities
+            .records()
+            .values()
+            .find(|species| species.formula_text == "H2O")
+            .expect("reviewed water identity");
+        assert_eq!(
+            water.protonation_policy,
+            ProtonationPolicy::ContextDependent
+        );
         assert_ne!(digest, ContentDigest::sha256(b"unrelated"));
     }
 

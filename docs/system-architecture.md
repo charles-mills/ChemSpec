@@ -165,6 +165,20 @@ active operation
 explanatory disclosure
 ```
 
+### Structure-derived acid capability
+
+Acid identity is not a formula or name whitelist. Any reviewed, cached, or
+model-proposed structure that has crossed the normal graph validator may be
+inspected for Brønsted-Lowry proton-donor sites. A site exists only when a
+shared single X-H bond can be heterolytically cleaved to X through the exact
+structural-operation electron ledger. The result identifies a possible proton
+donor; acid strength, solvent behaviour, equilibrium, and applicability of a
+complete-dissociation reaction family remain separate premise-bound facts.
+
+Formula-only species receive no acid classification. This preserves isomer and
+protonation ambiguity while allowing inorganic, organic, weak, and polyprotic
+acids to remain valid compounds once their structures validate.
+
 ## Persistence and staleness
 
 The `.chems` file is the human-readable authored artifact. Evidence,

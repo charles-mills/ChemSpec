@@ -168,7 +168,7 @@ const STRUCTURE_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-structu
 const SOURCE_LOCATE_PROMPT_TEMPLATE: &str = include_str!("../prompts/source-locate.md");
 pub const FAST_CLAIM_TIMEOUT: Duration = Duration::from_secs(30);
 pub const RESEARCHER_CLAIM_TIMEOUT: Duration = Duration::from_secs(90);
-pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(2);
+pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(3);
 const MAX_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024;
 const PREFLIGHT_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 const PREFLIGHT_TOTAL_TIMEOUT: Duration = Duration::from_secs(20);
@@ -672,7 +672,7 @@ impl CodexProvider {
     }
 
     /// One escalation window per provider instance: structure proposals,
-    /// mechanism proposals, and every repair share a single 120-second
+    /// mechanism proposals, and every repair share a single 180-second
     /// end-to-end deadline. The application constructs one provider per
     /// presentation generation, so retries and regeneration start fresh.
     fn shared_mechanism_deadline(&mut self) -> Instant {
@@ -1198,7 +1198,8 @@ mod tests {
                     atomic_numbers: vec![1, 1, 8],
                     species_id: None,
                 },
-            ],
+            ]
+            .to_vec(),
             selected_context: Some("aqueous learner context".into()),
         };
         let prompt = build_claim_prompt(&request, ClaimMode::Fast, None).expect("prompt");
@@ -1208,6 +1209,7 @@ mod tests {
         assert!(prompt.contains("factual reaction claim"));
         assert!(prompt.contains("Do not output any of those"));
         assert!(prompt.contains("Use model knowledge only"));
+        assert!(prompt.contains("do not return `ambiguous` solely because quantities were"));
         assert!(!prompt.contains("{{"));
         for forbidden in [
             "release_metallic",
@@ -1224,6 +1226,23 @@ mod tests {
             "runtime prompt unexpectedly grew to {} bytes",
             prompt.len()
         );
+    }
+
+    #[test]
+    fn single_reactant_prompt_keeps_energy_as_exact_context() {
+        let request = ReactionBuildRequest {
+            reactants: vec![crate::ReactantInput {
+                display: "AgCl".to_owned(),
+                atomic_numbers: vec![47, 17],
+                species_id: None,
+            }],
+            selected_context: Some("light".into()),
+        };
+        let prompt = build_claim_prompt(&request, ClaimMode::Fast, None).expect("prompt");
+        assert!(prompt.contains("one or two reactants"));
+        assert!(prompt.contains("preserve that exact"));
+        assert!(prompt.contains("never turn energy into a reactant or product"));
+        assert!(prompt.contains("\"selected_context\": \"light\""));
     }
 
     #[test]

@@ -721,7 +721,8 @@ mod tests {
                     atomic_numbers: vec![1, 1, 8],
                     species_id: None,
                 },
-            ],
+            ]
+            .to_vec(),
             selected_context: None,
         };
         let CompiledClaimOutcome::Static(outcome) = compile_claim_outcome(

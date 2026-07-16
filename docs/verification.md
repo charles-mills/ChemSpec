@@ -93,6 +93,9 @@ includes:
 - identity isomers, stereochemistry, charge, phase, and ambiguous alternatives;
 - exact unique, impossible, underdetermined, ionic, redox, acid/base, and
   combustion balances; and
+- structure-derived proton-donor classification without formula/name lists,
+  including hydrogen halides, carbon-bound donor sites, multiple donor-site
+  counting, and rejection of H-H as a compound acid site; and
 - reviewed-family, escalated-mechanism, mechanism-unavailable, and static
   presentation capabilities.
 

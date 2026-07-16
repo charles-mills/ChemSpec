@@ -463,6 +463,17 @@ fn preview_from_definition(
     })
 }
 
+/// Projects any already-validated structure into the read-only presentation
+/// shape used by the atomic canvas. This does not upgrade provenance: callers
+/// remain responsible for displaying the structure's actual trust tier.
+#[must_use]
+pub fn preview_from_validated_structure(
+    definition: &StructureDefinition,
+    formula: &str,
+) -> Option<TrustedCompositionPreview> {
+    preview_from_definition(definition, formula)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PreviewAtomSignature {
     atomic_number: u8,

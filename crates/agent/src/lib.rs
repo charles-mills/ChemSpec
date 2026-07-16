@@ -66,7 +66,7 @@ pub use mechanism::{
 pub use outcome::{
     CompiledClaimOutcome, OutcomeSpecies, ReactantIdentityAmbiguity, RequestIdentityResolution,
     TrustTier, ValidatedStaticOutcome, compile_claim_outcome, resolve_request_identities,
-    resolve_request_species,
+    resolve_request_identities_with_catalogue, resolve_request_species,
 };
 pub use presentation::{DynamicPresentationOutcome, enrich_static_outcome};
 pub use structure::{
@@ -85,7 +85,7 @@ pub struct ReactantInput {
 /// Provider-neutral request for a reaction absent from the local fast path.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ReactionBuildRequest {
-    pub reactants: [ReactantInput; 2],
+    pub reactants: Vec<ReactantInput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_context: Option<String>,
 }

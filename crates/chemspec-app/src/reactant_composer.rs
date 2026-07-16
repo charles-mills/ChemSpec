@@ -199,14 +199,11 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
 }
 
 pub fn can_start_reaction(state: &State) -> bool {
-    matches!(
-        resolution(state),
-        chemistry::DraftResolution::Supported(_)
-            | chemistry::DraftResolution::Multiple(_)
-            | chemistry::DraftResolution::Screened(_)
-            | chemistry::DraftResolution::ExplicitlyUnsupported(_)
-            | chemistry::DraftResolution::Uncatalogued
-    )
+    state.drafts.iter().all(|draft| !draft.atoms.is_empty())
+        && !matches!(
+            resolution(state),
+            chemistry::DraftResolution::SystemError(_)
+        )
 }
 
 pub fn resolution(state: &State) -> chemistry::DraftResolution {
@@ -308,7 +305,8 @@ fn action_row(state: &State, build_status: Option<String>) -> Element<'static, M
         chemistry::DraftResolution::Multiple(_) => "Choose product  →",
         chemistry::DraftResolution::Screened(_) => "View outcome  →",
         chemistry::DraftResolution::ExplicitlyUnsupported(_)
-        | chemistry::DraftResolution::Uncatalogued => "Build reaction  →",
+        | chemistry::DraftResolution::Uncatalogued
+        | chemistry::DraftResolution::Unrecognized => "Build reaction  →",
         _ => "Run reaction  →",
     };
     let run = button(text(run_label).size(type_scale::BODY))
@@ -789,6 +787,19 @@ mod tests {
         }
         assert_eq!(formula(reactants(&state).0), "RbCO₂");
         assert!(composition_catalogue::recognize(reactants(&state).0.iter().copied()).is_none());
+    }
+
+    #[test]
+    fn two_unrecognised_compounds_can_enter_dynamic_structure_resolution() {
+        let mut state = State::default();
+        state.drafts[0].atoms = vec![1, 1, 16, 8, 8, 8, 8];
+        state.drafts[1].atoms = vec![11, 8, 1];
+
+        assert_eq!(formula(&state.drafts[0].atoms), "H₂SO₄");
+        assert_eq!(formula(&state.drafts[1].atoms), "NaOH");
+        assert_eq!(resolution(&state), chemistry::DraftResolution::Unrecognized);
+        assert!(can_start_reaction(&state));
+        let _ = action_row(&state, None);
     }
 
     #[test]

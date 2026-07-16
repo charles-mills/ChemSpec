@@ -1,9 +1,9 @@
 use chem_catalogue::{
     AtomRecord, BinaryElectronStateRecord, BondOrderRecord, BondRecord, ComponentRecord,
-    ElectronContributionRecord, ElectronStateRecord, GroupRecord, IonicAssociationRecord,
-    MetallicDomainRecord, MetallicElectronStateRecord, MetallicJoinAllocationRecord,
-    MetallicReleaseAllocationRecord, MetallicValenceStateRecord, TransferElectronStateRecord,
-    ValenceStateRecord,
+    ElectronContributionRecord, ElectronStateRecord, ElementValenceRecord, GroupRecord,
+    IonicAssociationRecord, MetallicDomainRecord, MetallicElectronStateRecord,
+    MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord, MetallicValenceStateRecord,
+    TransferElectronStateRecord, ValenceStateRecord,
 };
 use serde::{Deserialize, Serialize};
 
@@ -356,12 +356,18 @@ pub struct MechanismEscalationRequest {
     pub reactant_atom_paths: Vec<String>,
     /// Every product atom path across all coefficient instances.
     pub product_atom_paths: Vec<String>,
+    /// Reviewed neutral-valence axioms used by `ChemSpec` to derive, rather
+    /// than accept, any provisional operation state.
+    pub neutral_valence: Vec<ElementValenceRecord>,
     /// Every reviewed covalent electron state an involved element may pass
     /// through. Operations whose before/after states leave this set fail
     /// kernel validation, so the closed vocabulary is stated up front.
     pub supported_states: Vec<ValenceStateRecord>,
     /// Every reviewed metallic site state for the involved elements.
     pub metallic_states: Vec<MetallicValenceStateRecord>,
+    /// Signals that the model may propose an electron state outside the
+    /// reviewed list; `ChemSpec` still derives and validates its valence record.
+    pub provisional_states_allowed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -411,6 +417,10 @@ pub enum LabelledStructure {
 pub struct StructureProposalRequest {
     pub schema_version: u32,
     pub species: Vec<StructureProposalSpecies>,
+    pub neutral_valence: Vec<ElementValenceRecord>,
+    pub supported_states: Vec<ValenceStateRecord>,
+    pub metallic_states: Vec<MetallicValenceStateRecord>,
+    pub provisional_states_allowed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

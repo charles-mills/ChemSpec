@@ -15,10 +15,22 @@ Mode: **{{MODE}}**
 
 {{SOURCE_POLICY}}
 
-Identify the most defensible outcome for exactly these two reactants. If
-conditions materially change the outcome, either state one ordinary
-representative context in `required_context` or return `ambiguous` with at
-least two labelled alternatives. Never silently substitute a nearby species.
+Identify the most defensible outcome for exactly the one or two reactants in
+the request. A one-reactant request always supplies `selected_context` as the
+closed energy context `heat`, `light`, or `electricity`: preserve that exact
+value in `required_context`, and never turn energy into a reactant or product.
+For a two-reactant request, if conditions materially change the outcome,
+either state one ordinary representative context in `required_context` or
+return `ambiguous` with at least two labelled alternatives. Never silently
+substitute a nearby species.
+
+In Fast mode, prefer a conventional representative transformation over an
+amount-only ambiguity. If partial and complete conversion differ only because
+the request does not specify relative amounts or reaction extent, select the
+ordinary complete transformation and state that representative assumption in
+`required_context`; do not return `ambiguous` solely because quantities were
+omitted. Keep `ambiguous` for genuinely different reactant identities,
+condition-dependent product families, or competing ordinary outcomes.
 
 ## Safety boundary
 
@@ -46,6 +58,9 @@ Return one JSON object and no prose or Markdown. It has exactly these fields:
 - `sources`: direct-source records with exactly `id`, `title`, `publisher`,
   `url`, `supporting_excerpt`, and `supports`. `supports` uses only
   `products`, `required_context`, `observations`, and `no_reaction`.
+  In Researcher mode, open each source and copy a short consecutive excerpt
+  exactly from a directly fetchable static document body; never use a search
+  result snippet or a paraphrase.
 - `ambiguity`: `null`, except for `ambiguous`, where it has exactly `kind`,
   `summary`, and `alternatives`. Kind is `conditions`, `reactant_identity`,
   `multiple_outcomes`, or `conflicting_evidence`. Each alternative has exactly

@@ -263,6 +263,9 @@ fn reactant_family_terms(outcome: &ValidatedStaticOutcome) -> Option<Vec<FamilyT
         .collect::<BTreeMap<_, _>>();
     let mut terms = Vec::new();
     for species in outcome.reactants() {
+        let crate::OutcomeSpecies::Resolved(species) = species else {
+            return None;
+        };
         let structure = species.structure.as_ref()?;
         terms.push(FamilyTerm {
             species: species.id.clone(),
@@ -439,7 +442,8 @@ mod tests {
                         atomic_numbers: vec![1, 1, 8],
                         species_id: None,
                     },
-                ],
+                ]
+                .to_vec(),
                 selected_context: None,
             },
             claim,
@@ -496,7 +500,8 @@ mod tests {
                         atomic_numbers: vec![1, 1, 8],
                         species_id: None,
                     },
-                ],
+                ]
+                .to_vec(),
                 selected_context: None,
             },
             claim,

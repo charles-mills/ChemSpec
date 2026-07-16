@@ -1,5 +1,5 @@
 //! Structure escalation: adopting model-proposed structural graphs for
-//! claimed products absent from the reviewed structure library.
+//! claimed species absent from the reviewed structure library.
 //!
 //! A proposal never touches the trusted catalogue. It is compiled into an
 //! isolated `Working` catalogue bundle that contains the complete trusted
@@ -10,8 +10,10 @@
 use std::{collections::BTreeMap, collections::BTreeSet, str::FromStr};
 
 use chem_catalogue::{
-    CatalogueEnvelope, PremiseRecord, PublicationKind, ReviewMetadata, ReviewStatus,
-    StructureRecord, ValidatedCatalogueBundle,
+    AtomRecord, BondOrderRecord, BondRecord, CatalogueEnvelope, ElementValenceRecord,
+    MetallicDomainRecord, MetallicValenceStateRecord, PremiseRecord, PublicationKind,
+    ReviewMetadata, ReviewStatus, StructureRecord, ValencePremiseRecord, ValenceStateRecord,
+    ValidatedCatalogueBundle,
 };
 use chem_domain::{ContentDigest, FormulaComposition, Phase, PremiseId, SpeciesId, StructureId};
 
@@ -23,7 +25,7 @@ use crate::{
 
 pub(crate) const DYNAMIC_STRUCTURE_PREMISE: &str = "premise.dynamic.structure";
 
-/// An outcome whose formula-only products acquired validated model-proposed
+/// An outcome whose formula-only species acquired validated model-proposed
 /// structures, together with the isolated working bundle those structures
 /// live in. The bundle is required for kernel expansion and never replaces
 /// the trusted catalogue.
@@ -33,8 +35,15 @@ pub struct AdoptedProposedStructures {
     pub bundle: ValidatedCatalogueBundle,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum MissingSide {
+    Reactant,
+    Product,
+}
+
 #[derive(Debug, Clone)]
-struct MissingProduct {
+struct MissingSpecies {
+    side: MissingSide,
     index: usize,
     species: SpeciesId,
     name: String,
@@ -42,64 +51,133 @@ struct MissingProduct {
     phase: Phase,
 }
 
-fn missing_products(outcome: &ValidatedStaticOutcome) -> Vec<MissingProduct> {
-    outcome
-        .products()
-        .iter()
-        .enumerate()
-        .filter_map(|(index, product)| match product {
-            OutcomeSpecies::Resolved(species) if species.structure.is_none() => {
-                Some(MissingProduct {
-                    index,
-                    species: species.id.clone(),
-                    name: species.display_name.clone(),
-                    formula: species.formula_text.clone(),
-                    phase: species.phase,
-                })
-            }
-            OutcomeSpecies::Resolved(_) => None,
-            OutcomeSpecies::FormulaOnly {
-                id,
-                display_name,
-                formula,
-                phase,
-            } => Some(MissingProduct {
-                index,
-                species: id.clone(),
-                name: display_name.clone(),
-                formula: formula.clone(),
-                phase: *phase,
-            }),
-        })
-        .collect()
+struct DerivedProvisionalStates {
+    neutral_valence: Vec<ElementValenceRecord>,
+    supported_states: Vec<ValenceStateRecord>,
+    metallic_domain_states: Vec<MetallicValenceStateRecord>,
+}
+
+fn missing_species(outcome: &ValidatedStaticOutcome) -> Vec<MissingSpecies> {
+    fn append_missing(
+        missing: &mut Vec<MissingSpecies>,
+        species: &[OutcomeSpecies],
+        side: MissingSide,
+    ) {
+        missing.extend(
+            species
+                .iter()
+                .enumerate()
+                .filter_map(|(index, product)| match product {
+                    OutcomeSpecies::Resolved(species) if species.structure.is_none() => {
+                        Some(MissingSpecies {
+                            side,
+                            index,
+                            species: species.id.clone(),
+                            name: species.display_name.clone(),
+                            formula: species.formula_text.clone(),
+                            phase: species.phase,
+                        })
+                    }
+                    OutcomeSpecies::Resolved(_) => None,
+                    OutcomeSpecies::FormulaOnly {
+                        id,
+                        display_name,
+                        formula,
+                        phase,
+                    } => Some(MissingSpecies {
+                        side,
+                        index,
+                        species: id.clone(),
+                        name: display_name.clone(),
+                        formula: formula.clone(),
+                        phase: *phase,
+                    }),
+                }),
+        );
+    }
+    let mut missing = Vec::new();
+    append_missing(&mut missing, outcome.reactants(), MissingSide::Reactant);
+    append_missing(&mut missing, outcome.products(), MissingSide::Product);
+    missing
 }
 
 /// Builds the fixed structure-escalation request for an outcome, or `None`
-/// when every product already has a reviewed structure.
+/// when every species already has a reviewed structure.
 #[must_use]
 pub fn structure_proposal_request(
     outcome: &ValidatedStaticOutcome,
+    catalogue: &ValidatedCatalogueBundle,
 ) -> Option<StructureProposalRequest> {
-    let missing = missing_products(outcome);
+    let missing = missing_species(outcome);
     if missing.is_empty() {
         return None;
     }
+    let elements = missing
+        .iter()
+        .filter_map(|species| FormulaComposition::parse(&species.formula).ok())
+        .flat_map(|formula| {
+            formula
+                .elements()
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        })
+        .collect::<BTreeSet<_>>();
+    let mut neutral_valence = catalogue
+        .document()
+        .valence_premises
+        .iter()
+        .flat_map(|premise| premise.neutral_valence.iter())
+        .filter(|entry| elements.contains(&entry.element))
+        .cloned()
+        .collect::<Vec<_>>();
+    neutral_valence.sort_by(|left, right| {
+        left.element.cmp(&right.element).then(
+            left.neutral_valence_electrons
+                .cmp(&right.neutral_valence_electrons),
+        )
+    });
+    neutral_valence.dedup();
+    let supported_states = catalogue
+        .document()
+        .valence_premises
+        .iter()
+        .flat_map(|premise| premise.supported_states.iter())
+        .filter(|state| elements.contains(&state.element))
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let metallic_states = catalogue
+        .document()
+        .valence_premises
+        .iter()
+        .flat_map(|premise| premise.metallic_domain_states.iter())
+        .filter(|state| elements.contains(&state.element))
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     Some(StructureProposalRequest {
         schema_version: STRUCTURE_PROPOSAL_SCHEMA_VERSION,
         species: missing
             .iter()
             .enumerate()
-            .map(|(ordinal, product)| StructureProposalSpecies {
+            .map(|(ordinal, species)| StructureProposalSpecies {
                 id: format!("DynamicStructure{}", ordinal + 1),
-                name: product.name.clone(),
-                formula: product.formula.clone(),
+                name: species.name.clone(),
+                formula: species.formula.clone(),
             })
             .collect(),
+        neutral_valence,
+        supported_states,
+        metallic_states,
+        provisional_states_allowed: true,
     })
 }
 
 /// Validates a structure proposal inside an isolated working bundle and
-/// upgrades the outcome's formula-only products to resolved species carrying
+/// upgrades the outcome's formula-only species to resolved species carrying
 /// the validated graphs.
 ///
 /// # Errors
@@ -115,11 +193,11 @@ pub fn adopt_proposed_structures(
     response: &StructureProposalResponse,
     catalogue: &ValidatedCatalogueBundle,
 ) -> Result<AdoptedProposedStructures, AgentError> {
-    let missing = missing_products(outcome);
+    let missing = missing_species(outcome);
     if missing.len() != request.species.len() {
         return Err(AgentError::new(
             "structure adoption",
-            "request does not describe this outcome's missing products",
+            "request does not describe this outcome's missing species",
         ));
     }
     let premise_id = PremiseId::from_str(DYNAMIC_STRUCTURE_PREMISE)
@@ -176,7 +254,7 @@ pub fn adopt_proposed_structures(
         .into_iter()
         .collect::<BTreeSet<_>>();
     document.premises.push(PremiseRecord {
-        id: premise_id,
+        id: premise_id.clone(),
         statement: "Model-proposed dynamic structure awaiting independent review".to_owned(),
         evidence,
         review: ReviewMetadata {
@@ -185,6 +263,19 @@ pub fn adopt_proposed_structures(
         },
         rule_version: "1".to_owned(),
     });
+    let DerivedProvisionalStates {
+        neutral_valence,
+        supported_states,
+        metallic_domain_states,
+    } = derive_provisional_structure_states(response, &document.valence_premises)?;
+    if !supported_states.is_empty() || !metallic_domain_states.is_empty() {
+        document.valence_premises.push(ValencePremiseRecord {
+            premise_id: premise_id.clone(),
+            neutral_valence,
+            supported_states,
+            metallic_domain_states,
+        });
+    }
     document.structures.extend(records);
     let mut envelope = CatalogueEnvelope {
         digest: ContentDigest::sha256(b"uncomputed dynamic working bundle"),
@@ -200,8 +291,9 @@ pub fn adopt_proposed_structures(
         )
     })?;
 
+    let mut reactants = outcome.reactants().to_vec();
     let mut products = outcome.products().to_vec();
-    for (product, species_request) in missing.iter().zip(&request.species) {
+    for (missing_species, species_request) in missing.iter().zip(&request.species) {
         let structure_id = StructureId::from_str(&species_request.id)
             .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
         let structure = bundle.structures().get(&structure_id).ok_or_else(|| {
@@ -231,17 +323,280 @@ pub fn adopt_proposed_structures(
             ));
         }
         let resolved = model_proposed_species(
-            &product.species,
-            &product.name,
-            &product.formula,
-            product.phase,
+            &missing_species.species,
+            &missing_species.name,
+            &missing_species.formula,
+            missing_species.phase,
             structure,
             &bundle,
         )?;
-        products[product.index] = OutcomeSpecies::Resolved(Box::new(resolved));
+        match missing_species.side {
+            MissingSide::Reactant => {
+                reactants[missing_species.index] = OutcomeSpecies::Resolved(Box::new(resolved));
+            }
+            MissingSide::Product => {
+                products[missing_species.index] = OutcomeSpecies::Resolved(Box::new(resolved));
+            }
+        }
     }
-    let outcome = outcome.clone().with_adopted_products(products)?;
+    let outcome = outcome.clone().with_adopted_species(reactants, products)?;
     Ok(AdoptedProposedStructures { outcome, bundle })
+}
+
+fn derive_provisional_structure_states(
+    response: &StructureProposalResponse,
+    reviewed: &[ValencePremiseRecord],
+) -> Result<DerivedProvisionalStates, AgentError> {
+    let mut neutral = BTreeMap::<String, BTreeSet<u8>>::new();
+    let mut reviewed_states = BTreeSet::new();
+    let mut reviewed_metallic = BTreeSet::new();
+    for premise in reviewed {
+        for entry in &premise.neutral_valence {
+            neutral
+                .entry(entry.element.clone())
+                .or_default()
+                .insert(entry.neutral_valence_electrons);
+        }
+        reviewed_states.extend(premise.supported_states.iter().cloned());
+        reviewed_metallic.extend(premise.metallic_domain_states.iter().cloned());
+    }
+    let mut provisional = BTreeSet::new();
+    let mut provisional_metallic = BTreeSet::new();
+    let mut used_neutral = BTreeMap::new();
+    for structure in &response.structures {
+        match structure {
+            LabelledStructure::Molecular { atoms, bonds, .. }
+            | LabelledStructure::Ion { atoms, bonds, .. } => derive_component_states(
+                atoms,
+                bonds,
+                &neutral,
+                &reviewed_states,
+                &mut provisional,
+                &mut used_neutral,
+            )?,
+            LabelledStructure::Ionic { components, .. } => {
+                for component in components {
+                    derive_component_states(
+                        &component.atoms,
+                        &component.bonds,
+                        &neutral,
+                        &reviewed_states,
+                        &mut provisional,
+                        &mut used_neutral,
+                    )?;
+                }
+            }
+            LabelledStructure::Metallic { sites, domains, .. } => {
+                derive_metallic_states(
+                    sites,
+                    domains,
+                    &reviewed_metallic,
+                    &mut provisional_metallic,
+                )?;
+            }
+        }
+    }
+    if provisional.is_empty() && !provisional_metallic.is_empty() {
+        let reviewed_anchor = reviewed_states
+            .iter()
+            .find(|state| {
+                provisional_metallic
+                    .iter()
+                    .any(|metallic| metallic.element == state.element)
+            })
+            .ok_or_else(|| {
+                AgentError::new(
+                    "provisional valence",
+                    "a provisional metallic state has no reviewed covalent anchor",
+                )
+            })?;
+        let neutral_electrons = neutral
+            .get(&reviewed_anchor.element)
+            .and_then(|values| {
+                values.iter().find(|value| {
+                    i16::from(**value)
+                        - i16::from(reviewed_anchor.non_bonding_electrons)
+                        - i16::from(reviewed_anchor.covalent_bond_order_sum)
+                        == reviewed_anchor.formal_charge
+                })
+            })
+            .copied()
+            .ok_or_else(|| {
+                AgentError::new(
+                    "provisional valence",
+                    "reviewed metallic anchor violates its neutral-valence premise",
+                )
+            })?;
+        used_neutral.insert(reviewed_anchor.element.clone(), neutral_electrons);
+        provisional.insert(reviewed_anchor.clone());
+    }
+    let neutral_valence = used_neutral
+        .into_iter()
+        .map(
+            |(element, neutral_valence_electrons)| ElementValenceRecord {
+                neutral_valence_electrons,
+                element,
+            },
+        )
+        .collect();
+    Ok(DerivedProvisionalStates {
+        neutral_valence,
+        supported_states: provisional.into_iter().collect(),
+        metallic_domain_states: provisional_metallic.into_iter().collect(),
+    })
+}
+
+fn derive_component_states(
+    atoms: &[AtomRecord],
+    bonds: &[BondRecord],
+    neutral: &BTreeMap<String, BTreeSet<u8>>,
+    reviewed: &BTreeSet<ValenceStateRecord>,
+    provisional: &mut BTreeSet<ValenceStateRecord>,
+    used_neutral: &mut BTreeMap<String, u8>,
+) -> Result<(), AgentError> {
+    let mut bond_sums = atoms
+        .iter()
+        .map(|atom| (atom.label.as_str(), 0_u8))
+        .collect::<BTreeMap<_, _>>();
+    for bond in bonds {
+        let order = match bond.order {
+            BondOrderRecord::Single => 1,
+            BondOrderRecord::Double => 2,
+            BondOrderRecord::Triple => 3,
+        };
+        for label in [&bond.left, &bond.right] {
+            let sum = bond_sums.get_mut(label.as_str()).ok_or_else(|| {
+                AgentError::new(
+                    "provisional valence",
+                    format!("bond endpoint `{label}` is not a proposed atom"),
+                )
+            })?;
+            *sum = sum.checked_add(order).ok_or_else(|| {
+                AgentError::new("provisional valence", "covalent bond-order sum overflow")
+            })?;
+        }
+    }
+    for atom in atoms {
+        if atom.unpaired_electrons > atom.non_bonding_electrons {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!(
+                    "atom `{}` has more unpaired than non-bonding electrons",
+                    atom.label
+                ),
+            ));
+        }
+        let neutral_candidates = neutral.get(&atom.element).ok_or_else(|| {
+            AgentError::new(
+                "provisional valence",
+                format!("atom `{}` has no reviewed neutral valence", atom.label),
+            )
+        })?;
+        let bond_sum = bond_sums[atom.label.as_str()];
+        let neutral_electrons = neutral_candidates.iter().copied().find(|neutral| {
+            i16::from(*neutral) - i16::from(atom.non_bonding_electrons) - i16::from(bond_sum)
+                == atom.formal_charge
+        });
+        let Some(neutral_electrons) = neutral_electrons else {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!(
+                    "atom `{}` violates formal-charge identity for every reviewed neutral valence",
+                    atom.label
+                ),
+            ));
+        };
+        if used_neutral
+            .insert(atom.element.clone(), neutral_electrons)
+            .is_some_and(|existing| existing != neutral_electrons)
+        {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!(
+                    "proposed states require conflicting neutral valence for `{}`",
+                    atom.element
+                ),
+            ));
+        }
+        let state = ValenceStateRecord {
+            element: atom.element.clone(),
+            formal_charge: atom.formal_charge,
+            non_bonding_electrons: atom.non_bonding_electrons,
+            unpaired_electrons: atom.unpaired_electrons,
+            covalent_bond_order_sum: bond_sum,
+        };
+        if !reviewed.contains(&state) {
+            provisional.insert(state);
+        }
+    }
+    Ok(())
+}
+
+fn derive_metallic_states(
+    sites: &[AtomRecord],
+    domains: &[MetallicDomainRecord],
+    reviewed: &BTreeSet<MetallicValenceStateRecord>,
+    provisional: &mut BTreeSet<MetallicValenceStateRecord>,
+) -> Result<(), AgentError> {
+    let by_label = sites
+        .iter()
+        .map(|site| (site.label.as_str(), site))
+        .collect::<BTreeMap<_, _>>();
+    for domain in domains {
+        let site_count = u32::try_from(domain.sites.len())
+            .map_err(|_| AgentError::new("provisional valence", "metallic site overflow"))?;
+        if site_count == 0
+            || domain.delocalized_electrons == 0
+            || domain.delocalized_electrons % site_count != 0
+        {
+            return Err(AgentError::new(
+                "provisional valence",
+                format!(
+                    "metallic domain `{}` has inconsistent site electrons",
+                    domain.label
+                ),
+            ));
+        }
+        let per_site = domain.delocalized_electrons / site_count;
+        let expected_site_charge = i16::try_from(per_site).map_err(|_| {
+            AgentError::new(
+                "provisional valence",
+                format!("metallic domain `{}` site charge overflow", domain.label),
+            )
+        })?;
+        for label in &domain.sites {
+            let site = by_label.get(label.as_str()).ok_or_else(|| {
+                AgentError::new(
+                    "provisional valence",
+                    format!("metallic site `{label}` does not resolve"),
+                )
+            })?;
+            if site.non_bonding_electrons != 0 {
+                return Err(AgentError::new(
+                    "provisional valence",
+                    format!("metallic site `{label}` must have zero local electrons"),
+                ));
+            }
+            if site.formal_charge != expected_site_charge {
+                return Err(AgentError::new(
+                    "provisional valence",
+                    format!(
+                        "metallic site `{label}` formal_charge must equal its {per_site} delocalized electrons"
+                    ),
+                ));
+            }
+            let state = MetallicValenceStateRecord {
+                element: site.element.clone(),
+                site_formal_charge: site.formal_charge,
+                site_local_electrons: site.non_bonding_electrons,
+                delocalized_electrons_per_site: per_site,
+            };
+            if !reviewed.contains(&state) {
+                provisional.insert(state);
+            }
+        }
+    }
+    Ok(())
 }
 
 const fn labelled_id_formula(structure: &LabelledStructure) -> (&String, &String) {
@@ -319,4 +674,78 @@ fn structure_record(
             traits: Vec::new(),
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn copper_premise() -> ValencePremiseRecord {
+        ValencePremiseRecord {
+            premise_id: PremiseId::from_str("premise.test.copper").expect("premise id"),
+            neutral_valence: vec![ElementValenceRecord {
+                element: "Cu".to_owned(),
+                neutral_valence_electrons: 11,
+            }],
+            supported_states: vec![ValenceStateRecord {
+                element: "Cu".to_owned(),
+                formal_charge: 0,
+                non_bonding_electrons: 11,
+                unpaired_electrons: 11,
+                covalent_bond_order_sum: 0,
+            }],
+            metallic_domain_states: vec![MetallicValenceStateRecord {
+                element: "Cu".to_owned(),
+                site_formal_charge: 11,
+                site_local_electrons: 0,
+                delocalized_electrons_per_site: 11,
+            }],
+        }
+    }
+
+    fn copper_structure(formal_charge: i16) -> StructureProposalResponse {
+        StructureProposalResponse {
+            schema_version: crate::claim::STRUCTURE_PROPOSAL_SCHEMA_VERSION,
+            structures: vec![LabelledStructure::Metallic {
+                id: "DynamicStructure1".to_owned(),
+                formula: "Cu".to_owned(),
+                sites: vec![AtomRecord {
+                    label: "cu1".to_owned(),
+                    element: "Cu".to_owned(),
+                    formal_charge,
+                    non_bonding_electrons: 0,
+                    unpaired_electrons: 0,
+                }],
+                domains: vec![MetallicDomainRecord {
+                    label: "metal1".to_owned(),
+                    sites: vec!["cu1".to_owned()],
+                    delocalized_electrons: 11,
+                }],
+            }],
+        }
+    }
+
+    #[test]
+    fn metallic_sites_use_domain_valence_instead_of_covalent_identity() {
+        let derived =
+            derive_provisional_structure_states(&copper_structure(11), &[copper_premise()])
+                .expect("reviewed copper metal state");
+        assert!(derived.neutral_valence.is_empty());
+        assert!(derived.supported_states.is_empty());
+        assert!(derived.metallic_domain_states.is_empty());
+    }
+
+    #[test]
+    fn metallic_site_charge_must_balance_its_domain_electrons() {
+        let Err(error) =
+            derive_provisional_structure_states(&copper_structure(0), &[copper_premise()])
+        else {
+            panic!("neutral local site charge cannot balance the electron domain");
+        };
+        assert!(
+            error
+                .to_string()
+                .contains("formal_charge must equal its 11")
+        );
+    }
 }

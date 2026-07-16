@@ -761,6 +761,183 @@ Acceptance:
   ambiguity, mechanism-unavailable static, escalated-mechanism, and
   reviewed-family demonstrations.
 
+## Phase 2 — coverage and delight (DYN-113 through DYN-119)
+
+Phase 1 delivered parity: any reaction that clears identity and the reviewed
+valence domain reaches the same validated player as catalogued content. Phase
+2 removes the two remaining coverage walls, hardens live escalation to a
+measured success rate, and makes the fast path *feel* fast. Its governing
+principles:
+
+- **Model for knowledge, machine for bookkeeping.** Live measurement showed
+  the model is reliably right about outcomes and reliably sloppy about
+  ledgers. Nothing in this phase asks the model for less chemistry; nothing
+  relaxes the kernel's arithmetic.
+- **Coverage gates are debt, not safety.** "That species is not catalogued"
+  is a wall to remove, not a trust feature. The trust features are the kernel
+  gate and honest labelling, both of which cost zero latency.
+- **The realistic request universe is small.** A few hundred pairs cover most
+  educational curiosity; pre-computing them beats optimizing the cold path.
+
+### DYN-113 — Reactant-side structure escalation
+
+- Let `compile_claim_outcome` accept formula-only reactants: when a composed
+  reactant misses the registry, parse its formula from the composed atoms,
+  bind the claim, balance, and produce the static outcome exactly as
+  formula-only products do today.
+- Generalize `missing_products` to missing species across both sides; the
+  structure proposal request covers reactants and products in one call, with
+  the identical isolated working-bundle validation and model-proposed
+  labelling.
+- Family matching treats a formula-only reactant as `NoMatch` (families
+  require reviewed reactant structures by definition).
+- Cache request binding and the composer flow accept formula-only reactants;
+  the identity dialog appears only for genuine multi-identity ambiguity,
+  never for a clean registry miss.
+
+Acceptance:
+
+- CH4 + O2 (and every corpus organic scenario) reaches a balanced static
+  outcome without identity errors and becomes an escalation candidate;
+- proposed reactant structures cross the same catalogue validation as
+  proposed products, and the mechanism request compiles over them;
+- the corpus expectations are regenerated with the expectation audit after
+  this lands (organics move from `invalid` to `escalated_mechanism`); and
+- a registry hit still never escalates.
+
+### DYN-114 — Provisional valence states
+
+- Collect every electron state used by proposed structures and by mechanism
+  operation before/after transitions; states already in the reviewed
+  `supported_states` remain authoritative and untouched.
+- Admit an uncurated state into the isolated working bundle only when it
+  passes the arithmetic identity anchored to the reviewed `neutral_valence`
+  table: `formal_charge = valence_electrons − non_bonding_electrons −
+  covalent_bond_order_sum`, with `unpaired_electrons ≤
+  non_bonding_electrons` and metallic site-consistency checks.
+- ChemSpec derives the provisional state records itself from the proposal;
+  the model never authors a valence table (the exact failure mode of the
+  retired design).
+- Provisional states exist only inside the working bundle under the dynamic
+  provisional premise; they never touch the trusted catalogue and carry the
+  `ModelAsserted` framing of everything escalated.
+
+Acceptance:
+
+- a mechanism using a chemically ordinary but uncurated state (for example
+  organic combustion intermediates) validates and animates;
+- an arithmetically impossible state fails closed with a repairable
+  diagnostic naming the identity violation;
+- reviewed states still win where they exist, and the trusted catalogue is
+  byte-identical before and after any dynamic run; and
+- kernel conservation checks are unchanged.
+
+### DYN-115 — Escalation hardening and measured reliability
+
+- Bring the structure-proposal prompt to parity with the mechanism prompt:
+  instance indexing, the electrons-not-in-bonds counting convention, and the
+  supported/provisional state vocabulary in the request.
+- Raise the escalated-path deadline from 120 to 180 seconds (supersedes the
+  DYN-111 figure): at 40–60 seconds per call, the budget must fit one
+  proposal and two repairs.
+- Benchmark eligible Codex model slugs on the escalation contract (the plan
+  already mandates measured selection; nobody has run it) and adopt the
+  fastest slug with an acceptable kernel-valid rate.
+- Run the 25-case live smoke selection end to end; fix systematic failure
+  modes the way the Mg + CO2 session did (each fix is a prompt/request
+  change validated live, then pinned by an offline regression test).
+
+Acceptance:
+
+- a measured live first-try and after-repairs success rate exists for the
+  smoke selection, recorded in the decisions log with model and date;
+- no live failure class remains that a request/prompt change fixes; and
+- `live_probe` covers structure escalation as well as mechanism escalation.
+
+### DYN-116 — Identity and tone polish
+
+- Collapse label-variant alias ambiguity in the resolver with the
+  isomorphism check, so the identity dialog appears only for chemically
+  distinct alternatives and never shows internal ids as learner choices.
+- Copy pass on trust language: one quiet "virtual model" disclosure per
+  result; remove "sources unverified" from the window title; badges stay
+  factual (`Reviewed`, `Model asserted`) without apologetic repetition.
+
+Acceptance:
+
+- composing CO2 or NaCl asks the learner nothing;
+- a genuinely distinct-isomer ambiguity still asks, with human-readable
+  names; and
+- the result screen carries exactly one provenance disclosure.
+
+### DYN-117 — Pre-baked dynamic cache
+
+- Add an offline builder binary that runs a curated pair list (the corpus
+  scenarios plus a few hundred likely educational pairs) through the full
+  live pipeline and writes standard cache-v3 envelopes.
+- Bundle the resulting entries with the app; cache lookup consults the
+  bundled set after the device cache, and every bundled entry crosses the
+  identical load-time revalidation (they gain no authority from bundling).
+- Bundled entries are keyed to the shipped catalogue digest and contract
+  versions, so a catalogue update naturally invalidates them at build time,
+  not at runtime.
+
+Acceptance:
+
+- a fresh install answers every pre-baked pair with full animation in under
+  one second, offline;
+- a corrupted bundled entry is a cache miss, never a trusted artifact; and
+- the builder reports which pairs failed live so the list stays honest.
+
+### DYN-118 — The wait as part of the show
+
+- While a mechanism derives, the result area presents the already-validated
+  content as theatre: equation reveal, observation chips, the context
+  sentence, and static structures with idle motion — not a spinner.
+- Progress copy stays product-events-only, but phrased for learners
+  ("working out where the electrons go…") rather than infrastructure
+  ("Codex invocation").
+- Raw provider diagnostics move to a details affordance; the headline failure
+  states stay short and human.
+
+Acceptance:
+
+- during a cold escalation the screen is never static text-only;
+- no provider jargon appears outside the details view; and
+- cancellation and retry remain one tap throughout.
+
+### DYN-119 — Single-reactant and context-driven requests
+
+- Extend the request shape to allow one reactant plus a required context
+  (thermal decomposition, photochemical decomposition), keeping the
+  two-reactant contact form as the default.
+- Energy inputs (heat, light, electricity) are context strings with closed
+  vocabulary, never pseudo-species; the claim contract already carries
+  `required_context`.
+- The corpus photochemical/electrochemical scenarios move from `invalid` to
+  honest claim-backed outcomes where the model supports them.
+
+Acceptance:
+
+- 2 AgCl under a light context reaches a balanced outcome without a
+  "photon" species;
+- two-reactant behavior is byte-identical to today; and
+- the composer exposes the context choice without cluttering the default
+  flow.
+
+### Phase 2 order and dependencies
+
+```text
+DYN-113 reactant escalation ─┬─> DYN-114 provisional states ─> DYN-115 hardening ─> DYN-117 pre-baked cache
+DYN-116 identity/tone polish ┘                                                      (117 needs 113–115 live-reliable)
+DYN-118 wait-as-show: anytime after DYN-116 copy pass
+DYN-119 request shapes: independent; after DYN-115 so its live cases are measurable
+```
+
+DYN-113 and DYN-116 can start immediately and in parallel. DYN-117's pair
+list should only be baked after DYN-115's measured success rate exists,
+otherwise the builder bakes today's failure modes into the bundle.
+
 ## Implementation order and dependencies
 
 ```text

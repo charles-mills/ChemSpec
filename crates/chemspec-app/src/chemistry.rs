@@ -977,7 +977,7 @@ impl DraftResolution {
             Self::ExplicitlyUnsupported(_) | Self::Uncatalogued => {
                 Some("Codex will build this reaction")
             }
-            Self::Unrecognized => Some("Build two recognized reactants to continue."),
+            Self::Unrecognized => Some("Codex will identify and build these compounds"),
             Self::SystemError(_) => Some("The trusted chemistry catalogue is unavailable."),
         }
     }
