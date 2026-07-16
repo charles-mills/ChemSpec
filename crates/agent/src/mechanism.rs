@@ -372,6 +372,18 @@ fn propose_mechanism_frames<P: MechanismProvider>(
             structure_repair_count,
         }));
     }
+    propose_with_provider(outcome, catalogue, provider, context, structure_repair_count)
+}
+
+/// The bounded model-proposal/repair loop, reached only when algorithmic
+/// derivation cannot animate the outcome.
+fn propose_with_provider<P: MechanismProvider>(
+    outcome: ValidatedStaticOutcome,
+    catalogue: &ValidatedCatalogueBundle,
+    provider: &mut P,
+    context: &MechanismContext,
+    structure_repair_count: usize,
+) -> MechanismEscalationOutcome {
     let mut diagnostic = None;
     for attempt in 0..=MAX_MECHANISM_REPAIRS {
         let response = match provider.propose(&context.request, diagnostic.as_deref()) {
@@ -1611,6 +1623,21 @@ mod tests {
         }
     }
 
+    /// Drives the model-proposal loop directly, bypassing algorithmic
+    /// derivation, so repair behaviour stays testable.
+    fn provider_loop_result<P: MechanismProvider>(
+        outcome: ValidatedStaticOutcome,
+        trusted: &TrustedCatalogue,
+        provider: &mut P,
+    ) -> MechanismEscalationOutcome {
+        let augmented = crate::structure::bundle_with_outcome_structures(&outcome, trusted)
+            .expect("augmented bundle");
+        let context = compile_mechanism_request(&outcome, &augmented)
+            .expect("request")
+            .expect("complete structures");
+        propose_with_provider(outcome, &augmented, provider, &context, 0)
+    }
+
     #[test]
     fn reviewed_response_crosses_escalated_kernel_on_first_try() {
         let trusted = trusted();
@@ -1620,7 +1647,7 @@ mod tests {
             responses: VecDeque::from([response]),
             ..FakeProvider::default()
         };
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected animation: {result:?}")
         };
@@ -1644,7 +1671,7 @@ mod tests {
             responses: VecDeque::from([invalid, valid]),
             ..FakeProvider::default()
         };
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
             panic!("expected repaired animation: {result:?}")
         };
@@ -1668,7 +1695,7 @@ mod tests {
             responses: VecDeque::from([invalid.clone(), invalid.clone(), invalid]),
             ..FakeProvider::default()
         };
-        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
         let MechanismEscalationOutcome::Unavailable {
             static_outcome,
             attempts,
@@ -1701,29 +1728,6 @@ mod tests {
         };
         assert!(!animated.frames().frames().is_empty());
         assert_eq!(provider.mechanism_calls, 0, "no model in the path");
-    }
-
-    #[test]
-    fn probe_neutralization_derivation() {
-        let trusted = trusted();
-        let outcome = static_outcome_for(
-            &trusted,
-            [("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]), ("NaOH", vec![11, 8, 1])],
-            &json!([
-                {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
-                {"name":"sodium sulfate","formula":"Na2SO4","phase":"aqueous","identity_hints":[]}
-            ]),
-        );
-        let augmented = crate::structure::bundle_with_outcome_structures(&outcome, &trusted)
-            .expect("augmented bundle");
-        let context = compile_mechanism_request(&outcome, &augmented)
-            .expect("request")
-            .expect("complete");
-        let response = crate::mechanize::derive_algorithmic_mechanism(&context.request)
-            .expect("derivation should produce a response");
-        if let Err(error) = compile_mechanism(&outcome, &context, &response, &augmented) {
-            panic!("compile rejected: {error}\nops: {:#?}", response.operations);
-        }
     }
 
     #[test]
@@ -2134,7 +2138,9 @@ mod tests {
             "the adopted product must carry its validated structure"
         );
         assert_eq!(provider.structure_diagnostics, [None]);
-        assert_eq!(provider.diagnostics, [None]);
+        // The mechanism itself derives algorithmically once structures are
+        // adopted; the model is never consulted for it.
+        assert!(provider.diagnostics.is_empty(), "{:?}", provider.diagnostics);
 
         // The cached-recipe replay must revalidate through the identical path.
         let replayed = validate_escalated_response_with_structures(

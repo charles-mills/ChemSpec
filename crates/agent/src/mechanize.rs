@@ -76,6 +76,7 @@ struct Side {
 /// Derives a complete mechanism response for the request, or None when the
 /// diff cannot be closed exactly (the caller then escalates to the model).
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub(crate) fn derive_algorithmic_mechanism(
     request: &MechanismEscalationRequest,
 ) -> Option<MechanismEscalationResponse> {
@@ -365,6 +366,7 @@ const fn order_of(record: BondOrderRecord) -> u8 {
 
 /// Expands every species instance (one per coefficient) into flat,
 /// path-labelled atoms, bonds, domains, and associations.
+#[allow(clippy::too_many_lines)]
 fn expand_side(species: &[MechanismSpecies]) -> Option<Side> {
     let mut side = Side::default();
     for entry in species {
@@ -372,7 +374,7 @@ fn expand_side(species: &[MechanismSpecies]) -> Option<Side> {
             let prefix = format!("{}[{instance}]", entry.role);
             let path = |label: &str| format!("{prefix}.{label}");
             let mut instance_atoms = Vec::new();
-            let mut push_atoms = |records: &[chem_catalogue::AtomRecord],
+            let push_atoms = |records: &[chem_catalogue::AtomRecord],
                                   side: &mut Side,
                                   instance_atoms: &mut Vec<String>| {
                 for atom in records {

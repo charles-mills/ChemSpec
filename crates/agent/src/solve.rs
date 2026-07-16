@@ -111,7 +111,10 @@ fn solve_neutralization(
     ])
 }
 
-/// Element + element → the unique smallest generable binary compound.
+/// Element + element → binary compound: stoichiometry from charge/valence
+/// balance where that is deterministic (metal + nonmetal, hydrides), and
+/// from unique structural generability otherwise. Chemically ambiguous
+/// pairs (multiple stable oxides, ...) are left to the model.
 fn solve_synthesis(
     left: &StructureDefinition,
     right: &StructureDefinition,
@@ -121,69 +124,66 @@ fn solve_synthesis(
     if left_element == right_element {
         return None;
     }
-    let mut best: Option<(u64, BTreeMap<ElementSymbol, u64>, RepresentationKind)> = None;
-    let mut tie = false;
-    for (i, j) in [(1, 1), (1, 2), (1, 3), (2, 1), (3, 1), (2, 3), (3, 2)] {
-        let inventory = ElementInventory::new([
-            (left_element.clone(), i),
-            (right_element.clone(), j),
-        ])
-        .ok()?;
+    let generable = |first: (&ElementSymbol, u64), second: (&ElementSymbol, u64)| {
+        let inventory =
+            ElementInventory::new([(first.0.clone(), first.1), (second.0.clone(), second.1)])
+                .ok()?;
         let id = StructureId::new("generated.synthesis").ok()?;
-        let Some(candidate) = generate_structure(id, &inventory) else {
-            continue;
-        };
-        let size = i + j;
-        match &best {
-            Some((existing, counts, _)) if *existing == size => {
-                if counts != inventory.elements() {
-                    tie = true;
-                }
-            }
-            Some((existing, _, _)) if *existing < size => {}
-            _ => {
-                best = Some((
-                    size,
-                    inventory.elements().clone(),
-                    candidate.representation(),
-                ));
-                tie = false;
-            }
-        }
-    }
-    let (_, counts, representation) = best?;
-    if tie {
-        return None;
-    }
-    let counts = counts
-        .iter()
-        .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
-        .collect::<BTreeMap<_, _>>();
-    let cation = (representation == RepresentationKind::Ionic)
-        .then(|| cation_of(&counts, &left_element, &right_element))
-        .flatten();
-    Some(vec![product_from_counts(&counts, cation.as_ref())])
-}
+        generate_structure(id, &inventory)
+    };
+    let cation_of = |symbol: &ElementSymbol| chem_domain::common_cation_charge(symbol.as_str());
+    let anion_of = |symbol: &ElementSymbol| chem_domain::anion_valence_charge(symbol.as_str());
 
-/// For an ionic binary product, the metal is whichever element the ionic
-/// assembly promoted to a cation; the generator only promotes metals, and a
-/// binary compound has exactly one of them: the one that is not a nonmetal
-/// anion former. Pick by asking the generator which lone element fails to
-/// stand alone as a molecule (metals always do).
-fn cation_of(
-    counts: &BTreeMap<String, u64>,
-    left: &ElementSymbol,
-    right: &ElementSymbol,
-) -> Option<String> {
-    let _ = counts;
-    for symbol in [left, right] {
-        let inventory = ElementInventory::new([(symbol.clone(), 2)]).ok()?;
-        let id = StructureId::new("generated.metal-probe").ok()?;
-        if generate_structure(id, &inventory).is_none() {
-            return Some(symbol.as_str().to_owned());
+    // Metal + nonmetal, or hydride: exact charge balance.
+    let charge_pair = match (cation_of(&left_element), cation_of(&right_element)) {
+        (Some(charge), None) => Some((left_element.clone(), charge, right_element.clone())),
+        (None, Some(charge)) => Some((right_element.clone(), charge, left_element.clone())),
+        (Some(_), Some(_)) => return None,
+        (None, None) if left_element.as_str() == "H" => {
+            Some((left_element.clone(), 1, right_element.clone()))
+        }
+        (None, None) if right_element.as_str() == "H" => {
+            Some((right_element.clone(), 1, left_element.clone()))
+        }
+        (None, None) => None,
+    };
+    if let Some((positive, positive_charge, negative)) = charge_pair {
+        let anion = i16::from(anion_of(&negative)?);
+        let shared = gcd(
+            u64::try_from(positive_charge).ok()?,
+            u64::try_from(anion).ok()?,
+        );
+        let positive_count = u64::try_from(anion).ok()? / shared;
+        let negative_count = u64::try_from(positive_charge).ok()? / shared;
+        let structure = generable((&positive, positive_count), (&negative, negative_count))?;
+        let counts = [
+            (positive.as_str().to_owned(), positive_count),
+            (negative.as_str().to_owned(), negative_count),
+        ]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let cation = (structure.representation() == RepresentationKind::Ionic)
+            .then(|| positive.as_str().to_owned());
+        return Some(vec![product_from_counts(&counts, cation.as_ref())]);
+    }
+
+    // Two nonmetals: solved only when exactly one small compound generates.
+    let mut candidates = Vec::new();
+    for (i, j) in [(1, 1), (1, 2), (1, 3), (2, 1), (3, 1), (2, 3), (3, 2)] {
+        if generable((&left_element, i), (&right_element, j)).is_some() {
+            candidates.push((i, j));
         }
     }
-    None
+    let [(i, j)] = candidates.as_slice() else {
+        return None;
+    };
+    let counts = [
+        (left_element.as_str().to_owned(), *i),
+        (right_element.as_str().to_owned(), *j),
+    ]
+    .into_iter()
+    .collect::<BTreeMap<_, _>>();
+    Some(vec![product_from_counts(&counts, None)])
 }
 
 fn single_element(structure: &StructureDefinition) -> Option<(ElementSymbol, u64)> {
@@ -375,9 +375,30 @@ mod tests {
     }
 
     #[test]
-    fn ambiguous_synthesis_is_left_to_the_model() {
-        // SO2 and SO3 are both structurally valid; the solver must not guess.
+    fn multi_oxide_synthesis_is_left_to_the_model() {
+        // SO, SO2, and SO3 are all structurally valid; which one forms is
+        // empirical, so the claim falls to the model (its structures and
+        // mechanism still derive algorithmically afterwards).
         let request = request(&[("S₈", &[16; 8]), ("O₂", &[8, 8])]);
+        assert!(solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none());
+    }
+
+    #[test]
+    fn charge_balanced_synthesis_solves_metal_salts_and_hydrides() {
+        let magnesium = request(&[("Mg", &[12]), ("N₂", &[7, 7])]);
+        let claim =
+            solve_reaction_claim(&magnesium, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "Mg3N2");
+
+        let hydrogen_sulfide = request(&[("H₂", &[1, 1]), ("S₈", &[16; 8])]);
+        let claim = solve_reaction_claim(&hydrogen_sulfide, &SpeciesRegistry::default())
+            .expect("solved");
+        assert_eq!(claim.products[0].formula, "H2S");
+    }
+
+    #[test]
+    fn noble_gas_synthesis_is_declined() {
+        let request = request(&[("He", &[2]), ("O₂", &[8, 8])]);
         assert!(solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none());
     }
 }

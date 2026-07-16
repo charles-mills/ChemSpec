@@ -482,6 +482,26 @@ fn charged_slot_sets(elements: &[(String, Facts, u64)], charge: u32) -> Vec<Vec<
         .collect()
 }
 
+/// The most common cation charge for a metal, or None for nonmetals.
+#[must_use]
+pub fn common_cation_charge(symbol: &str) -> Option<i16> {
+    facts(symbol)?.cation_charges.first().copied()
+}
+
+/// The standard anion charge a nonmetal takes in binary compounds
+/// (8 - valence electrons; hydride is 1). None for metals and noble gases.
+#[must_use]
+pub fn anion_valence_charge(symbol: &str) -> Option<u8> {
+    let element_facts = facts(symbol)?;
+    if !element_facts.cation_charges.is_empty() || element_facts.valence == 8 {
+        return None;
+    }
+    if symbol == "H" {
+        return Some(1);
+    }
+    Some(8 - element_facts.valence)
+}
+
 /// Generates the single best structure for an element inventory, or None
 /// when nothing valid exists or the result stays ambiguous.
 #[must_use]
@@ -666,47 +686,66 @@ fn assemble_ionic(
     }
     let (copies, unit) = division?;
 
+    // Ionic atom ids follow the catalogue's `<group>.<atom>` convention so
+    // the graph round-trips through record validation unchanged.
     let mut atoms = Vec::new();
     let mut bonds = Vec::new();
-    let mut groups = Vec::new();
-    let mut next_atom = 0_usize;
+    let mut group_records = Vec::new();
+    let mut group_index = 0_usize;
+    let ion_atom = |group: usize, offset: usize| AtomId::new(format!("g{group}.a{offset}")).ok();
     for ((symbol, element_facts, count), charge) in metals.iter().zip(charges) {
         for _ in 0..*count {
             let lone =
                 u8::try_from((i16::from(element_facts.valence) - charge).max(0)).ok()?;
             let lone = lone - (lone % 2);
-            atoms.push(make_atom(next_atom, symbol, *charge, lone)?);
-            groups.push(vec![next_atom]);
-            next_atom += 1;
+            let atom_id = ion_atom(group_index, 0)?;
+            atoms.push(Atom::new(
+                atom_id.clone(),
+                ElementSymbol::new(symbol).ok()?,
+                ElectronState::new(*charge, lone, 0).ok()?,
+            ));
+            group_records.push(
+                AtomGroup::new(AtomGroupId::new(format!("g{group_index}")).ok()?, [atom_id])
+                    .ok()?,
+            );
+            group_index += 1;
         }
     }
     for _ in 0..copies {
-        let base = next_atom;
         let mut members = Vec::new();
         for (offset, symbol) in unit.symbols.iter().enumerate() {
             let (charge, lone) = unit.states[offset];
-            atoms.push(make_atom(base + offset, symbol, charge, lone)?);
-            members.push(base + offset);
-            next_atom += 1;
+            let atom_id = ion_atom(group_index, offset)?;
+            atoms.push(Atom::new(
+                atom_id.clone(),
+                ElementSymbol::new(symbol).ok()?,
+                ElectronState::new(charge, lone, 0).ok()?,
+            ));
+            members.push(atom_id);
         }
-        bonds.extend(make_bonds(&unit.bonds, base)?);
-        groups.push(members);
+        for (bond_index, (left, right, order)) in unit.bonds.iter().enumerate() {
+            let order = match order {
+                1 => BondOrder::Single,
+                2 => BondOrder::Double,
+                3 => BondOrder::Triple,
+                _ => return None,
+            };
+            bonds.push(
+                CovalentBond::new(
+                    CovalentBondId::new(format!("b{group_index}.{bond_index}")).ok()?,
+                    ion_atom(group_index, *left)?,
+                    ion_atom(group_index, *right)?,
+                    order,
+                )
+                .ok()?,
+            );
+        }
+        group_records.push(
+            AtomGroup::new(AtomGroupId::new(format!("g{group_index}")).ok()?, members).ok()?,
+        );
+        group_index += 1;
     }
 
-    let group_records = groups
-        .iter()
-        .enumerate()
-        .map(|(index, members)| {
-            AtomGroup::new(
-                AtomGroupId::new(format!("g{index}")).ok()?,
-                members
-                    .iter()
-                    .map(|member| atom_id(*member))
-                    .collect::<Option<Vec<_>>>()?,
-            )
-            .ok()
-        })
-        .collect::<Option<Vec<_>>>()?;
     let association = IonicAssociation::new(
         IonicAssociationId::new("ia").ok()?,
         group_records.iter().map(|group| group.id().clone()),

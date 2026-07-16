@@ -388,13 +388,40 @@ pub fn bundle_with_outcome_structures(
         .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
     let labelled = extra
         .iter()
-        .map(|(structure, formula)| crate::mechanism::labelled_structure(structure, formula))
+        .map(|(structure, formula)| {
+            strip_component_prefixes(crate::mechanism::labelled_structure(structure, formula))
+        })
         .collect::<Vec<_>>();
     let records = labelled
         .iter()
         .map(|structure| structure_record(structure, &premise_id))
         .collect::<Result<Vec<_>, AgentError>>()?;
     validated_working_bundle(records, &labelled, &premise_id, catalogue)
+}
+
+/// Catalogue validation qualifies ionic component atoms as
+/// `<component>.<atom>`. A graph whose ids already follow that convention
+/// must be recorded with the prefixes stripped so validation reproduces the
+/// identical ids.
+fn strip_component_prefixes(mut structure: LabelledStructure) -> LabelledStructure {
+    if let LabelledStructure::Ionic { components, .. } = &mut structure {
+        for component in components {
+            let prefix = format!("{}.", component.label);
+            let strip = |label: &mut String| {
+                if let Some(rest) = label.strip_prefix(&prefix) {
+                    *label = rest.to_owned();
+                }
+            };
+            for atom in &mut component.atoms {
+                strip(&mut atom.label);
+            }
+            for bond in &mut component.bonds {
+                strip(&mut bond.left);
+                strip(&mut bond.right);
+            }
+        }
+    }
+    structure
 }
 
 fn derive_provisional_structure_states(
