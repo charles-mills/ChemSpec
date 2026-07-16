@@ -1,7 +1,8 @@
-//! Depth-tested low-poly rendering of reviewed macroscopic scene plans.
+//! Depth-tested low-poly rendering of reviewed macroscopic scene plans and
+//! exact catalogue-projected molecular identities.
 //!
-//! The renderer resolves reusable assets and effects only. It does not inspect
-//! structural atoms, bonds, source, or catalogue rules.
+//! The renderer consumes already-reviewed atoms and bonds for presentation;
+//! it never infers structure, parses source, or selects reaction rules.
 
 use bytemuck::{Pod, Zeroable};
 use chem_presentation::{
@@ -14,6 +15,7 @@ use iced::mouse;
 use iced::widget::shader::{self, Action, Program};
 use iced::{Rectangle, wgpu};
 
+use crate::composition_catalogue::TrustedCompositionPreview;
 use crate::scene_registry::{self, AssetGeometry, EffectDynamics, EffectGeometry};
 
 const MAX_VERTICES: u64 = 32_768;
@@ -23,13 +25,22 @@ const MAX_INDICES: u64 = 98_304;
 pub struct Scene {
     plan: ScenePlan,
     moment: RealWorldPosition,
+    reactant_previews: Vec<TrustedCompositionPreview>,
+    product_preview: Option<TrustedCompositionPreview>,
 }
 
 impl Scene {
-    pub fn new(plan: &ScenePlan, moment: RealWorldPosition) -> Self {
+    pub fn new(
+        plan: &ScenePlan,
+        moment: RealWorldPosition,
+        reactant_previews: &[TrustedCompositionPreview],
+        product_preview: Option<&TrustedCompositionPreview>,
+    ) -> Self {
         Self {
             plan: plan.clone(),
             moment,
+            reactant_previews: reactant_previews.to_vec(),
+            product_preview: product_preview.cloned(),
         }
     }
 }
@@ -112,6 +123,8 @@ impl<Message> Program<Message> for Scene {
             &self.plan,
             self.moment.ordinal,
             self.moment.ordinal_progress,
+            &self.reactant_previews,
+            self.product_preview.as_ref(),
         );
         let (yaw, pitch, zoom) = camera_pose(&self.plan, self.moment);
         let focus_target = SceneLayout::resolve(&self.plan).camera_target;
@@ -578,7 +591,13 @@ impl Default for ObjectMotion {
     }
 }
 
-fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, Vec<u32>, u32) {
+fn build_scene(
+    plan: &ScenePlan,
+    ordinal: u16,
+    progress: f32,
+    reactant_previews: &[TrustedCompositionPreview],
+    product_preview: Option<&TrustedCompositionPreview>,
+) -> (Vec<Vertex>, Vec<u32>, u32) {
     let mut meshes = SceneMeshes::default();
     let layout = SceneLayout::resolve(plan);
     let reaction_motion = reaction_surface_motion(plan, ordinal, progress);
@@ -597,20 +616,48 @@ fn build_scene(plan: &ScenePlan, ordinal: u16, progress: f32) -> (Vec<Vertex>, V
         Quat::IDENTITY,
         0,
     );
+    let mut reactant_index = 0_usize;
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
-            let shrink = object_scale_from_effects(plan, object.role, ordinal, progress);
+            let scale = object_scale_from_effects(plan, object.role, ordinal, progress)
+                * object_replacement_scale(plan, object, ordinal, progress);
             let motion = object_motion(plan, object, ordinal, progress, reaction_motion);
-            instantiate_asset(
-                &mut meshes,
-                object.asset,
-                object.appearance,
-                &object.transform,
-                shrink,
-                layout.object_offset(object) + motion.translation,
-                motion.rotation,
-                stable_seed(&object.id),
-            );
+            let preview = match object.role {
+                SceneRole::Reactant => {
+                    let preview = reactant_previews.get(reactant_index);
+                    reactant_index += 1;
+                    preview
+                }
+                SceneRole::Product => product_preview,
+                _ => None,
+            };
+            // A completed consumption or product-replacement transition
+            // removes the reactant from the scene. Keeping a minimum scale
+            // here left a misleading residue beside exact product models.
+            if scale <= f32::EPSILON {
+                continue;
+            }
+            if let Some(preview) = preview {
+                instantiate_molecule(
+                    &mut meshes.opaque,
+                    preview,
+                    &object.transform,
+                    scale,
+                    layout.object_offset(object) + motion.translation,
+                    motion.rotation,
+                );
+            } else {
+                instantiate_asset(
+                    &mut meshes,
+                    object.asset,
+                    object.appearance,
+                    &object.transform,
+                    scale,
+                    layout.object_offset(object) + motion.translation,
+                    motion.rotation,
+                    stable_seed(&object.id),
+                );
+            }
         }
     }
     for effect in &plan.effects {
@@ -697,9 +744,49 @@ fn object_scale_from_effects(
             if grows {
                 0.12 + extent * 0.88
             } else {
-                (1.0 - 0.76 * extent).max(0.20)
+                (1.0 - extent).max(0.0)
             }
         })
+}
+
+/// Cross-fades reaction profiles that have no observation-backed
+/// consumption/formation effect. Registry reactions still need an honest
+/// transition from their reactant models to the reviewed product model.
+fn object_replacement_scale(
+    plan: &ScenePlan,
+    object: &PresentationObject,
+    ordinal: u16,
+    progress: f32,
+) -> f32 {
+    let replacement_ordinal = plan
+        .objects
+        .iter()
+        .filter(|candidate| candidate.role == SceneRole::Product)
+        .map(|candidate| candidate.visible_from_ordinal)
+        .min();
+    let Some(replacement_ordinal) = replacement_ordinal else {
+        return 1.0;
+    };
+    let has_consumption_effect = plan
+        .effects
+        .iter()
+        .any(|effect| effect.effect == EffectProfile::ObjectShrinkage);
+    let has_formation_effect = plan
+        .effects
+        .iter()
+        .any(|effect| effect.effect == EffectProfile::PrecipitateFormation);
+
+    match object.role {
+        SceneRole::Reactant if !has_consumption_effect => match ordinal.cmp(&replacement_ordinal) {
+            std::cmp::Ordering::Less => 1.0,
+            std::cmp::Ordering::Equal => 1.0 - smoother_step(progress),
+            std::cmp::Ordering::Greater => 0.0,
+        },
+        SceneRole::Product if !has_formation_effect && ordinal == object.visible_from_ordinal => {
+            smoother_step(progress)
+        }
+        _ => 1.0,
+    }
 }
 
 fn object_motion(
@@ -1050,6 +1137,176 @@ fn instantiate_asset(
         rotation,
     );
     rotate_mesh_vertices(&mut meshes.glass, glass_start, position, rotation);
+}
+
+/// Renders the exact reviewed structural preview as a compact ball-and-stick
+/// model. This replaces generic particle clusters whenever the active request
+/// exposes an unambiguous catalogue graph.
+fn instantiate_molecule(
+    mesh: &mut Mesh,
+    preview: &TrustedCompositionPreview,
+    transform: &PresentationTransform,
+    scale_multiplier: f32,
+    position_offset: Vec3,
+    rotation_offset: Quat,
+) {
+    let center = transform_translation(transform) + position_offset;
+    let scale = transform_scale(transform) * scale_multiplier;
+    let uniform_scale = (scale.x + scale.y + scale.z) / 3.0;
+    let rotation = rotation_offset * transform_rotation(transform);
+    let positions = molecular_positions(preview);
+    let start = mesh.vertices.len();
+
+    for bond in preview.covalent_bonds() {
+        let (Some(left), Some(right)) = (positions.get(bond.start), positions.get(bond.end)) else {
+            continue;
+        };
+        add_molecular_bond(
+            mesh,
+            center + *left * uniform_scale,
+            center + *right * uniform_scale,
+            bond.order,
+            uniform_scale,
+            [0.54, 0.66, 0.78, 1.0],
+        );
+    }
+    for link in preview.ionic_links() {
+        let (Some(left), Some(right)) = (positions.get(link.start), positions.get(link.end)) else {
+            continue;
+        };
+        add_molecular_bond(
+            mesh,
+            center + *left * uniform_scale,
+            center + *right * uniform_scale,
+            1,
+            uniform_scale * 0.72,
+            [0.30, 0.78, 0.96, 1.0],
+        );
+    }
+    for (atom, position) in preview.atoms.iter().zip(positions) {
+        add_sphere(
+            mesh,
+            center + position * uniform_scale,
+            molecular_atom_radius(atom.atomic_number) * uniform_scale,
+            molecular_atom_color(atom.atomic_number),
+            8,
+            12,
+        );
+    }
+    rotate_mesh_vertices(mesh, start, center, rotation);
+}
+
+fn add_molecular_bond(
+    mesh: &mut Mesh,
+    start: Vec3,
+    end: Vec3,
+    order: u8,
+    scale: f32,
+    color: [f32; 4],
+) {
+    let direction = (end - start).normalize_or_zero();
+    let perpendicular = if direction.cross(Vec3::Y).length_squared() > 0.01 {
+        direction.cross(Vec3::Y).normalize()
+    } else {
+        direction.cross(Vec3::X).normalize_or_zero()
+    };
+    let offsets: &[f32] = match order {
+        1 => &[0.0],
+        2 => &[-0.032, 0.032],
+        _ => &[-0.052, 0.0, 0.052],
+    };
+    for offset in offsets {
+        let offset = perpendicular * *offset * scale;
+        add_cylinder(mesh, start + offset, end + offset, 0.022 * scale, color);
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn molecular_positions(preview: &TrustedCompositionPreview) -> Vec<Vec3> {
+    let atom_count = preview.atoms.len();
+    if atom_count == 0 {
+        return Vec::new();
+    }
+    if atom_count == 1 {
+        return vec![Vec3::ZERO];
+    }
+
+    let mut adjacency = vec![Vec::<usize>::new(); atom_count];
+    for (left, right) in preview
+        .covalent_bonds()
+        .iter()
+        .map(|bond| (bond.start, bond.end))
+        .chain(
+            preview
+                .ionic_links()
+                .iter()
+                .map(|link| (link.start, link.end)),
+        )
+    {
+        if left < atom_count && right < atom_count && !adjacency[left].contains(&right) {
+            adjacency[left].push(right);
+            adjacency[right].push(left);
+        }
+    }
+
+    if atom_count == 2 {
+        return vec![Vec3::new(-0.34, 0.0, 0.0), Vec3::new(0.34, 0.0, 0.0)];
+    }
+
+    if let Some(root) = adjacency
+        .iter()
+        .position(|neighbours| neighbours.len() == atom_count - 1)
+    {
+        let mut positions = vec![Vec3::ZERO; atom_count];
+        let neighbours = &adjacency[root];
+        if neighbours.len() == 7 {
+            positions[neighbours[0]] = Vec3::new(0.0, 0.52, 0.0);
+            positions[neighbours[1]] = Vec3::new(0.0, -0.52, 0.0);
+            for (index, neighbour) in neighbours.iter().copied().skip(2).enumerate() {
+                let angle = std::f32::consts::TAU * index as f32 / 5.0;
+                positions[neighbour] = Vec3::new(angle.cos() * 0.52, 0.0, angle.sin() * 0.52);
+            }
+        } else {
+            let golden_angle = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
+            for (index, neighbour) in neighbours.iter().copied().enumerate() {
+                let y = 1.0 - 2.0 * (index as f32 + 0.5) / neighbours.len() as f32;
+                let radius = (1.0 - y * y).sqrt();
+                let angle = golden_angle * index as f32;
+                positions[neighbour] =
+                    Vec3::new(angle.cos() * radius, y, angle.sin() * radius) * 0.52;
+            }
+        }
+        return positions;
+    }
+
+    (0..atom_count)
+        .map(|index| {
+            let angle = std::f32::consts::TAU * index as f32 / atom_count as f32;
+            Vec3::new(angle.cos() * 0.48, 0.0, angle.sin() * 0.48)
+        })
+        .collect()
+}
+
+fn molecular_atom_radius(atomic_number: u8) -> f32 {
+    crate::elements::by_atomic_number(atomic_number).map_or(0.11, |element| {
+        0.075 + f32::from(element.period.min(6)) * 0.012
+    })
+}
+
+const fn molecular_atom_color(atomic_number: u8) -> [f32; 4] {
+    match atomic_number {
+        1 => [0.92, 0.95, 1.0, 1.0],
+        6 => [0.20, 0.24, 0.30, 1.0],
+        7 => [0.24, 0.42, 0.92, 1.0],
+        8 => [0.90, 0.24, 0.24, 1.0],
+        9 => [0.46, 0.88, 0.38, 1.0],
+        15 => [0.95, 0.55, 0.20, 1.0],
+        16 => [0.95, 0.82, 0.24, 1.0],
+        17 => [0.28, 0.76, 0.36, 1.0],
+        35 => [0.66, 0.24, 0.18, 1.0],
+        53 => [0.48, 0.26, 0.72, 1.0],
+        _ => [0.40, 0.68, 0.82, 1.0],
+    }
 }
 
 #[allow(clippy::similar_names, clippy::too_many_lines)]
@@ -1562,8 +1819,8 @@ mod tests {
     #[test]
     fn scene_mesh_is_deterministic_macroscopic_and_contains_depth_geometry() {
         let plan = canonical_plan();
-        let first = build_scene(&plan, 3, 0.5);
-        let second = build_scene(&plan, 3, 0.5);
+        let first = build_scene(&plan, 3, 0.5, &[], None);
+        let second = build_scene(&plan, 3, 0.5, &[], None);
         assert_eq!(
             bytemuck::cast_slice::<Vertex, u8>(&first.0),
             bytemuck::cast_slice::<Vertex, u8>(&second.0)
@@ -1582,16 +1839,72 @@ mod tests {
     }
 
     #[test]
+    fn reviewed_if7_graph_renders_distinct_atoms_and_bonds_in_3d() {
+        let request = chemistry::ReactionRequest::from_id("covalent-i-f-if7")
+            .expect("reviewed IF7 request exists");
+        let plan = plan_for(request);
+        let preview = request
+            .product_preview()
+            .expect("reviewed IF7 graph exists");
+        let positions = molecular_positions(&preview);
+        let iodine = preview
+            .atoms
+            .iter()
+            .position(|atom| atom.atomic_number == 53)
+            .expect("IF7 contains iodine");
+        assert_eq!(positions.len(), 8);
+        assert!(
+            preview
+                .covalent_bonds()
+                .iter()
+                .all(|bond| { bond.start == iodine || bond.end == iodine })
+        );
+
+        let final_ordinal = plan.timeline.beats.last().unwrap().end_ordinal;
+        let scene = build_scene(
+            &plan,
+            final_ordinal,
+            1.0,
+            &request.reactant_previews(),
+            Some(&preview),
+        );
+        for color in [molecular_atom_color(9), molecular_atom_color(53)] {
+            assert!(scene.0.iter().any(|vertex| {
+                vertex
+                    .color
+                    .iter()
+                    .zip(color)
+                    .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
+            }));
+        }
+    }
+
+    #[test]
+    fn registry_reactants_are_replaced_by_the_final_3d_product() {
+        let request = chemistry::ReactionRequest::from_id("covalent-i-f-if7")
+            .expect("reviewed IF7 request exists");
+        let plan = plan_for(request);
+        let final_ordinal = plan.timeline.beats.last().unwrap().end_ordinal;
+
+        let reactant = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Reactant)
+            .expect("registry profile has reactants");
+        assert!(object_replacement_scale(&plan, reactant, final_ordinal, 1.0) <= f32::EPSILON);
+    }
+
+    #[test]
     fn lithium_scene_adds_visible_surface_and_reaction_effect_geometry() {
         let plan = canonical_plan();
-        let before = build_scene(&plan, 0, 0.5);
+        let before = build_scene(&plan, 0, 0.5, &[], None);
         let reacting_ordinal = plan
             .effects
             .iter()
             .map(|effect| effect.start_ordinal)
             .min()
             .expect("alkali-water profile has observation-backed effects");
-        let reacting = build_scene(&plan, reacting_ordinal, 0.5);
+        let reacting = build_scene(&plan, reacting_ordinal, 0.5, &[], None);
         assert!(reacting.0.len() > before.0.len());
         assert!(plan.effects.iter().any(|effect| {
             effect.effect == EffectProfile::SurfaceDisturbance
@@ -1623,8 +1936,14 @@ mod tests {
                 .find(|object| object.role == SceneRole::Product)
                 .expect("precipitate product exists");
             let expected = appearance_color(appearance);
-            let before = build_scene(&plan, product.visible_from_ordinal.saturating_sub(1), 0.5);
-            let visible = build_scene(&plan, product.visible_from_ordinal, 0.5);
+            let before = build_scene(
+                &plan,
+                product.visible_from_ordinal.saturating_sub(1),
+                0.5,
+                &[],
+                None,
+            );
+            let visible = build_scene(&plan, product.visible_from_ordinal, 0.5, &[], None);
 
             let has_expected_colour = |vertex: &Vertex| {
                 vertex
@@ -1668,7 +1987,7 @@ mod tests {
                 expected_liquids
             );
             assert!(plan.effects.is_empty());
-            let start = build_scene(&plan, 0, 0.5);
+            let start = build_scene(&plan, 0, 0.5, &[], None);
             let end = build_scene(
                 &plan,
                 plan.timeline
@@ -1677,6 +1996,8 @@ mod tests {
                     .expect("timeline has a final beat")
                     .end_ordinal,
                 0.5,
+                &[],
+                None,
             );
             assert_eq!(start.0.len(), end.0.len());
             assert_eq!(start.1.len(), end.1.len());

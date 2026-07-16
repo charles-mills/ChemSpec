@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "Evidence.CovalentCombination@1",
+  "claims": [
+    {
+      "id": "R1",
+      "subject_role": "product",
+      "subject": "product",
+      "predicate": "forms",
+      "sources": [
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "id": "R2",
+      "subject_role": "reactant",
+      "subject": "element",
+      "predicate": "disappears",
+      "sources": [
+        "S1",
+        "S2"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Occurrence, Preparation, and Compounds of Hydrogen",
+      "publisher": "OpenStax",
+      "url": "https://openstax.org/books/chemistry-atoms-first/pages/18-5-occurrence-preparation-and-compounds-of-hydrogen",
+      "supports": [
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Occurrence, Preparation, and Properties of Halogens",
+      "publisher": "OpenStax",
+      "url": "https://openstax.org/books/chemistry-2e/pages/18-11-occurrence-preparation-and-properties-of-halogens",
+      "supports": [
+        "R1",
+        "R2"
+      ]
+    }
+  ]
+}

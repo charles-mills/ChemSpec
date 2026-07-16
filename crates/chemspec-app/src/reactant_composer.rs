@@ -306,7 +306,7 @@ fn action_row(state: &State) -> Element<'static, Message> {
         .on_press_maybe((!active_atoms.is_empty()).then_some(Message::Undo))
         .padding([spacing::XS, spacing::MD])
         .style(theme::secondary_button);
-    let clear = button(text("Clear").size(type_scale::BODY))
+    let clear = button(text("Clear active").size(type_scale::BODY))
         .on_press_maybe((!active_atoms.is_empty()).then_some(Message::ClearActive))
         .padding([spacing::XS, spacing::MD])
         .style(theme::secondary_button);
@@ -314,7 +314,7 @@ fn action_row(state: &State) -> Element<'static, Message> {
     let controls = row![
         run,
         action_hint(undo, "You can also click the selected box to undo."),
-        action_hint(clear, "You can also hold a box to clear it."),
+        action_hint(clear, "Clears the currently highlighted reactant."),
     ]
     .spacing(spacing::XS)
     .align_y(Center);
@@ -442,7 +442,8 @@ fn slot(
 fn slot_state_color(atoms: &[u8]) -> Color {
     if atoms.is_empty() {
         color::LINE_STRONG
-    } else if atoms.len() == 1 || composition_catalogue::recognize(atoms.iter().copied()).is_some()
+    } else if atoms.len() == 1
+        || composition_catalogue::trusted_preview(atoms.iter().copied()).is_some()
     {
         color::ACCENT
     } else {

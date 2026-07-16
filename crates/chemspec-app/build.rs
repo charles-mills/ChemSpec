@@ -1,5 +1,11 @@
 use std::{collections::BTreeSet, env, fmt::Write as _, fs, path::PathBuf};
 
+fn optional_string(record: &serde_json::Value, field: &str) -> String {
+    record[field]
+        .as_str()
+        .map_or_else(|| "None".to_owned(), |value| format!("Some({value:?})"))
+}
+
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("manifest directory"));
     let root = manifest_dir.join("../..");
@@ -83,15 +89,18 @@ fn main() {
         let family = match string("family") {
             "oxygen" => "ReactionFamily::Oxygen",
             "fixed_charge_ion_pair" => "ReactionFamily::FixedChargeIonPair",
+            "covalent_combination" => "ReactionFamily::CovalentCombination",
             family => panic!("unsupported experience family `{family}`"),
         };
         writeln!(
             generated,
-            "ExperienceDefinition {{ id: {id:?}, family: {family}, participants: [{}, {}], source_name: {source_path:?}, source: {source:?}, evidence: {evidence:?}, equation: {:?}, subject_name: {:?} }},",
+            "ExperienceDefinition {{ id: {id:?}, family: {family}, participants: [{}, {}], source_name: {source_path:?}, source: {source:?}, evidence: {evidence:?}, equation: {:?}, subject_name: {:?}, product_name: {}, product_structure: {} }},",
             participants[0],
             participants[1],
             string("equation"),
-            string("subject_name")
+            string("subject_name"),
+            optional_string(record, "product_name"),
+            optional_string(record, "product_structure"),
         )
         .expect("experience definition is writable");
     }

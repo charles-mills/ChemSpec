@@ -249,13 +249,16 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
                 .iter()
                 .cloned()
                 .collect::<BTreeSet<_>>();
-            if operation_signature(
+            let same_operation = operation_signature(
                 candidate_before,
                 candidate_after,
                 candidate_operation.operation.view(),
-            ) != signature
-                || !affected.is_disjoint(&candidate_atoms)
-            {
+            ) == signature;
+            let independent_atoms = affected.is_disjoint(&candidate_atoms);
+            let supports_shared_center =
+                supports_overlapping_group(first_operation.operation.view())
+                    && supports_overlapping_group(candidate_operation.operation.view());
+            if !same_operation || (!independent_atoms && !supports_shared_center) {
                 break;
             }
             affected.extend(candidate_atoms);
@@ -267,10 +270,24 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
         // atom union remains available on the exact operation cues for
         // simultaneous animation, but is not averaged into a marker between
         // repeated reactant or product instances.
-        let narration = first_narration;
+        let mut narration = first_narration;
+        let operation_count = group_end - group_start + 1;
+        if operation_count > 1 {
+            narration.explanation.text = format!(
+                "{} This occurs at {operation_count} equivalent sites.",
+                narration.explanation.text
+            );
+        }
         let before_digest = before.trace().state_digest;
+        let grouped_pacing = u32::try_from(operation_count.saturating_sub(1))
+            .unwrap_or(u32::MAX)
+            .saturating_mul(140)
+            .min(1_200);
+        // `explanation_duration` already includes the structural-action lead
+        // in. Adding another fixed action duration here made every operation
+        // scene pay for that phase twice.
         let duration_ms =
-            3_200_u32.saturating_add(explanation_duration(&narration.explanation.text));
+            explanation_duration(&narration.explanation.text).saturating_add(grouped_pacing);
         let operations = (group_start..=group_end)
             .map(|index| {
                 let operation_before = &sequence[index - 1];
@@ -331,6 +348,18 @@ fn has_active_observation(frame: &SimulationFrame) -> bool {
         .any(|observation| observation.status == ObservationStatus::Active)
 }
 
+/// Sequential covalent changes can share a central atom (for example every
+/// I–F bond in IF₇) while still representing one repeated teaching idea. The
+/// exact frame boundaries remain in `EducationalOperation`; this only permits
+/// the presentation layer to show those validated transitions in one scene.
+const fn supports_overlapping_group(operation: StructuralOperationView<'_>) -> bool {
+    matches!(
+        operation,
+        StructuralOperationView::CleaveCovalent { .. }
+            | StructuralOperationView::FormCovalent { .. }
+    )
+}
+
 #[allow(clippy::too_many_lines)]
 fn operation_signature(
     before: &SimulationFrame,
@@ -347,22 +376,22 @@ fn operation_signature(
             left,
             right,
             expected_order,
+            allocation,
             ..
         } => format!(
             "cleave:{}:{}:{}:{}",
             atom_symbol(before, after, left),
             atom_symbol(before, after, right),
             expected_order.order(),
-            atom_delta_signature(before, after, [left, right])
+            allocation_signature(before, after, allocation),
         ),
         StructuralOperationView::FormCovalent {
             left, right, order, ..
         } => format!(
-            "form:{}:{}:{}:{}",
+            "form:{}:{}:{}",
             atom_symbol(before, after, left),
             atom_symbol(before, after, right),
             order.order(),
-            atom_delta_signature(before, after, [left, right])
         ),
         StructuralOperationView::CleaveDative {
             donor, acceptor, ..
@@ -480,6 +509,19 @@ fn operation_signature(
                 .collect::<Vec<_>>();
             symbols.sort();
             format!("assign:{}", symbols.join("."))
+        }
+    }
+}
+
+fn allocation_signature(
+    before: &SimulationFrame,
+    after: &SimulationFrame,
+    allocation: &chem_domain::ElectronAllocation,
+) -> String {
+    match allocation {
+        chem_domain::ElectronAllocation::Homolytic => "homolytic".to_owned(),
+        chem_domain::ElectronAllocation::HeterolyticTo(atom) => {
+            format!("heterolytic-to-{}", atom_symbol(before, after, atom))
         }
     }
 }

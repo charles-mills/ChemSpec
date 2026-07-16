@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction ClF3FromElements where
+  reactants
+    central := 1 of Chlorine
+    ligand := 3 of Fluorine
+  products
+    compound := 2 of InterhalogenClF3
+  equation
+    1 Cl2[molecular] + 3 F2[molecular]
+    -> 2 ClF3[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.CovalentCombination@1
+    product compound forms claim R1
+    reactant ligand disappears claim R2
+  by
+    apply Rules.Interhalogen3Combination
+      central := central
+      ligand := ligand
+      compound := compound

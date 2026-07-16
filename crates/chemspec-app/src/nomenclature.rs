@@ -6,6 +6,59 @@ use chem_kernel::{SimulationFrame, SimulationFrames};
 
 use crate::elements::{self, Category};
 
+/// Formats an ASCII catalogue equation for display without changing its
+/// trusted source representation. Stoichiometric coefficients remain normal
+/// digits, formula counts become Unicode subscripts, and ASCII arrows are
+/// normalized to the typographic reaction arrow used elsewhere in the app.
+pub fn display_equation(equation: &str) -> String {
+    equation
+        .split_whitespace()
+        .map(display_equation_token)
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace("->", "→")
+}
+
+fn display_equation_token(token: &str) -> String {
+    if token.chars().all(|character| character.is_ascii_digit()) {
+        return token.to_owned();
+    }
+
+    let characters = token.chars().collect::<Vec<_>>();
+    let mut formatted = String::with_capacity(token.len());
+    for (index, character) in characters.iter().copied().enumerate() {
+        let previous = index.checked_sub(1).and_then(|index| characters.get(index));
+        let formula_count = character.is_ascii_digit()
+            && previous.is_some_and(|previous| {
+                previous.is_ascii_alphabetic()
+                    || previous.is_ascii_digit()
+                    || matches!(previous, ')' | ']')
+            });
+        formatted.push(if formula_count {
+            subscript_digit(character)
+        } else {
+            character
+        });
+    }
+    formatted
+}
+
+const fn subscript_digit(digit: char) -> char {
+    match digit {
+        '0' => '₀',
+        '1' => '₁',
+        '2' => '₂',
+        '3' => '₃',
+        '4' => '₄',
+        '5' => '₅',
+        '6' => '₆',
+        '7' => '₇',
+        '8' => '₈',
+        '9' => '₉',
+        _ => digit,
+    }
+}
+
 pub fn product_names(frames: &SimulationFrames) -> String {
     let Some(frame) = frames.frames().last() else {
         return "reaction products".to_owned();
@@ -236,4 +289,19 @@ fn roman(value: i16) -> String {
         }
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::display_equation;
+
+    #[test]
+    fn display_equations_preserve_coefficients_and_format_formulae() {
+        assert_eq!(display_equation("3 H2 + N2 -> 2 NH3"), "3 H₂ + N₂ → 2 NH₃");
+        assert_eq!(display_equation("I2 + 7 F2 -> 2 IF7"), "I₂ + 7 F₂ → 2 IF₇");
+        assert_eq!(
+            display_equation("2 Fe + 3 O2 → Fe2O3"),
+            "2 Fe + 3 O₂ → Fe₂O₃"
+        );
+    }
 }

@@ -97,9 +97,10 @@ invalid, unsupported, system-error, and stale states are non-animatable.
 The promoted catalogue lives at `catalogue/trusted/core-chemistry/`. It
 contains the generalized alkali-water, silver-halide precipitation,
 neutralization, carbonate/bicarbonate gas-evolution, and halogen-displacement
-families plus the promoted oxygen and fixed-charge ion-pair families. The
+families plus the promoted oxygen, fixed-charge ion-pair, and finite covalent-
+combination families. The
 application has a typed request and deterministic source-authoring path for all
-185 supported experiences. The reactant composer recognises and routes every
+205 supported experiences. The reactant composer recognises and routes every
 experience in either reactant order, requiring an explicit learner choice when
 one pair has multiple reviewed products.
 Recognised but deliberately unsupported pairs explain the missing model;

@@ -288,6 +288,28 @@ pub fn trusted_preview(
     resolve_with_catalogue(catalogue, atomic_numbers)
 }
 
+/// Resolves one exact structure identity from the host-pinned catalogue.
+/// This is used when a reviewed experience already names its product graph.
+#[must_use]
+pub fn trusted_preview_by_structure_id(id: &str) -> Option<TrustedCompositionPreview> {
+    let catalogue = chemistry::trusted_catalogue().ok()?;
+    let structure = catalogue
+        .document()
+        .structures
+        .iter()
+        .find(|record| record.id().as_str() == id)
+        .map(|record| (record.id(), record.formula()))
+        .or_else(|| {
+            catalogue
+                .document()
+                .structure_applications
+                .iter()
+                .find(|application| application.id.as_str() == id)
+                .map(|application| (&application.id, application.formula.as_str()))
+        })?;
+    preview_from_definition(catalogue.structure(structure.0)?, structure.1)
+}
+
 fn resolve_with_catalogue(
     catalogue: &TrustedCatalogue,
     atomic_numbers: impl IntoIterator<Item = u8>,
@@ -707,5 +729,19 @@ mod tests {
         assert_eq!(magnesium_fluoride.formula, "MgF₂");
         assert!(magnesium_fluoride.covalent_bonds().is_empty());
         assert_eq!(magnesium_fluoride.ionic_links().len(), 2);
+    }
+
+    #[test]
+    fn exact_product_identity_resolves_reviewed_covalent_graphs() {
+        let ammonia = trusted_preview_by_structure_id("Ammonia").expect("reviewed ammonia graph");
+        assert_eq!(ammonia.formula, "NH₃");
+        assert_eq!(ammonia.covalent_bonds().len(), 3);
+
+        let iodine_heptafluoride = trusted_preview_by_structure_id("InterhalogenIF7")
+            .expect("reviewed iodine heptafluoride graph");
+        assert_eq!(iodine_heptafluoride.formula, "IF₇");
+        assert_eq!(iodine_heptafluoride.covalent_bonds().len(), 7);
+        assert!(iodine_heptafluoride.ionic_links().is_empty());
+        assert!(trusted_preview_by_structure_id("NotAReviewedStructure").is_none());
     }
 }

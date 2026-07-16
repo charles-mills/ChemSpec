@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction AmmoniaFromElements where
+  reactants
+    hydrogen := 3 of Hydrogen
+    nitrogen := 1 of CovalentNitrogen
+  products
+    compound := 2 of Ammonia
+  equation
+    3 H2[molecular] + 1 N2[molecular]
+    -> 2 NH3[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.CovalentCombination@1
+    product compound forms claim R1
+    reactant nitrogen disappears claim R2
+  by
+    apply Rules.AmmoniaCombination
+      hydrogen := hydrogen
+      nitrogen := nitrogen
+      compound := compound

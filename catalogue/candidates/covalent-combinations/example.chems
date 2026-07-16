@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction HClFromElements where
+  reactants
+    hydrogen := 1 of Hydrogen
+    halogen := 1 of Chlorine
+  products
+    compound := 2 of HydrogenChloride
+  equation
+    1 H2[molecular] + 1 Cl2[molecular]
+    -> 2 HCl[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.CovalentCombination@1
+    product compound forms claim R1
+    reactant halogen disappears claim R2
+  by
+    apply Rules.HydrogenHalideCombination
+      hydrogen := hydrogen
+      halogen := halogen
+      compound := compound

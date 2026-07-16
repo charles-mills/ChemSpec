@@ -1,0 +1,22 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+reaction HydrogenSulfideFromElements where
+  reactants
+    hydrogen := 8 of Hydrogen
+    sulfur := 1 of CovalentSulfur
+  products
+    compound := 8 of HydrogenSulfide
+  equation
+    8 H2[molecular] + 1 S8[molecular]
+    -> 8 H2S[molecular]
+  model
+    event := representative
+    sequence := explanatory
+  observe from Evidence.CovalentCombination@1
+    product compound forms claim R1
+    reactant sulfur disappears claim R2
+  by
+    apply Rules.HydrogenSulfideCombination
+      hydrogen := hydrogen
+      sulfur := sulfur
+      compound := compound

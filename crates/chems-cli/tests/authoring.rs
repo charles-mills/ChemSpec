@@ -343,6 +343,7 @@ fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
     let output = temporary.join("trusted");
     let packages = displacement_packages();
     let oxygen = root().join("catalogue/candidates/oxygen-reactions");
+    let covalent = root().join("catalogue/candidates/covalent-combinations");
     let attestation = root().join("catalogue/reviews/core-chemistry.review.json");
     let result = run(&[
         "catalogue",
@@ -357,6 +358,7 @@ fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
         packages[3].to_str().unwrap(),
         packages[4].to_str().unwrap(),
         oxygen.to_str().unwrap(),
+        covalent.to_str().unwrap(),
     ]);
     assert!(
         result.status.success(),
@@ -402,6 +404,7 @@ fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
         packages[3].to_str().unwrap(),
         packages[4].to_str().unwrap(),
         oxygen.to_str().unwrap(),
+        covalent.to_str().unwrap(),
     ]);
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A041"));
