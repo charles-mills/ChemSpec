@@ -1195,15 +1195,18 @@ fn validate_valence(
         let bond_sum = graph
             .covalent_bond_order_sum(atom.id())
             .ok_or_else(|| KernelError::corrupt("CHEMS-K092", "atom vanished", operation))?;
-        let formal = premises.iter().find_map(|premise| {
-            premise
-                .neutral_valence
-                .iter()
-                .find(|entry| entry.element == atom.element().as_str())
-                .map(|entry| entry.neutral_valence_electrons)
-        });
-        if !formal.is_some_and(|neutral| atom.electrons().formal_charge_matches(neutral, bond_sum))
-        {
+        // Any declared neutral valence for the element may satisfy the
+        // identity: reviewed transition-metal conventions and plain
+        // periodic valences legitimately coexist.
+        let formal = premises
+            .iter()
+            .flat_map(|premise| premise.neutral_valence.iter())
+            .filter(|entry| entry.element == atom.element().as_str())
+            .any(|entry| {
+                atom.electrons()
+                    .formal_charge_matches(entry.neutral_valence_electrons, bond_sum)
+            });
+        if !formal {
             return Err(KernelError::invalid(
                 "CHEMS-K031",
                 format!("atom `{}` violates the formal-charge equation", atom.id()),

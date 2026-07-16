@@ -254,6 +254,21 @@ pub const SUPPORTED: &[ElementSpec] = &[
     e!(118, "Og", "Oganesson", "[294]", 7, 18, 8, NobleGas),
 ];
 
+/// Numeric atomic mass, tolerant of the bracketed most-stable-isotope form.
+pub fn atomic_mass(symbol: &str) -> Option<f32> {
+    SUPPORTED
+        .iter()
+        .find(|element| element.symbol == symbol)
+        .and_then(|element| {
+            element
+                .atomic_mass
+                .trim_start_matches('[')
+                .trim_end_matches(']')
+                .parse()
+                .ok()
+        })
+}
+
 pub fn by_atomic_number(atomic_number: u8) -> Option<&'static ElementSpec> {
     SUPPORTED
         .iter()

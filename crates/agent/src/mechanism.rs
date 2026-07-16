@@ -646,6 +646,16 @@ fn provisional_mechanism_bundle(
         reviewed.extend(premise.supported_states.iter().cloned());
         reviewed_metallic.extend(premise.metallic_domain_states.iter().cloned());
     }
+    // The plain periodic-table valence is always admissible alongside any
+    // reviewed conventions: algorithmically derived operations reason in it.
+    for element in context.reactant_atoms.values() {
+        if let Some(electrons) = chem_domain::valence_electrons_of(element) {
+            neutral
+                .entry(element.clone())
+                .or_default()
+                .insert(electrons);
+        }
+    }
     let mut provisional = BTreeSet::new();
     let mut used_neutral = BTreeMap::<String, u8>::new();
     for (path, state) in mechanism_electron_states(response) {
@@ -1758,6 +1768,67 @@ mod tests {
             [("Li", vec![3]), ("As4", vec![33, 33, 33, 33])],
             &json!([
                 {"name":"lithium arsenide","formula":"Li3As","phase":"solid","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn acid_carbonate_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("HCl", vec![1, 17]), ("Na2CO3", vec![11, 11, 6, 8, 8, 8])],
+            &json!([
+                {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
+                {"name":"sodium chloride","formula":"NaCl","phase":"aqueous","identity_hints":[]},
+                {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn acid_metal_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("Zn", vec![30]), ("HCl", vec![1, 17])],
+            &json!([
+                {"name":"zinc chloride","formula":"ZnCl2","phase":"aqueous","identity_hints":[]},
+                {"name":"Hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn methane_combustion_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("CH4", vec![6, 1, 1, 1, 1]), ("O2", vec![8, 8])],
+            &json!([
+                {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
+                {"name":"Water","formula":"H2O","phase":"gas","identity_hints":[]}
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();

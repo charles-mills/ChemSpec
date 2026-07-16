@@ -15,8 +15,8 @@ use chem_domain::{
 };
 
 use crate::{
-    ClaimDisposition, ClaimPhase, ClaimProduct, OutcomeSpecies, ReactionBuildRequest,
-    ReactionClaim, RequestIdentityResolution,
+    ClaimDisposition, ClaimObservation, ClaimObservationPredicate, ClaimPhase, ClaimProduct,
+    OutcomeSpecies, ReactionBuildRequest, ReactionClaim, RequestIdentityResolution,
     claim::REACTION_CLAIM_SCHEMA_VERSION, resolve_request_identities,
 };
 
@@ -46,26 +46,165 @@ pub fn solve_reaction_claim(
             OutcomeSpecies::FormulaOnly { .. } => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    let products = solve_neutralization(structures[0], structures[1])
-        .or_else(|| solve_neutralization(structures[1], structures[0]))
-        .or_else(|| solve_synthesis(structures[0], structures[1]))?;
+    let verdict = solve_acid_base(structures[0], structures[1])
+        .or_else(|| solve_acid_base(structures[1], structures[0]))
+        .or_else(|| solve_acid_metal(structures[0], structures[1]))
+        .or_else(|| solve_acid_metal(structures[1], structures[0]))
+        .or_else(|| solve_combustion(structures[0], structures[1]))
+        .or_else(|| solve_combustion(structures[1], structures[0]))
+        .or_else(|| {
+            solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
+                products,
+                observations: Vec::new(),
+            })
+        })?;
+    let disposition = if verdict.products.is_empty() {
+        ClaimDisposition::NoReaction
+    } else {
+        ClaimDisposition::Reaction
+    };
     Some(ReactionClaim {
         schema_version: REACTION_CLAIM_SCHEMA_VERSION,
-        disposition: ClaimDisposition::Reaction,
-        products,
+        disposition,
+        products: verdict.products,
         required_context: String::new(),
-        observations: Vec::new(),
+        observations: verdict.observations,
         sources: Vec::new(),
         ambiguity: None,
     })
 }
 
-/// Acid + metal hydroxide → salt + water.
-fn solve_neutralization(
+/// A solved outcome: an empty product list is a confident "no reaction".
+struct Verdict {
+    products: Vec<ClaimProduct>,
+    observations: Vec<ClaimObservation>,
+}
+
+/// Acid + ionic base (hydroxide, carbonate, or bicarbonate) → salt + water,
+/// with carbon dioxide evolution for the carbonates.
+fn solve_acid_base(
     acid: &StructureDefinition,
     base: &StructureDefinition,
-) -> Option<Vec<ClaimProduct>> {
-    if acid.representation() != RepresentationKind::Molecular {
+) -> Option<Verdict> {
+    let donors = acid_donor_count(acid)?;
+    let (cation, cation_charge, anion_kind) = ionic_base(base)?;
+    let salt = conjugate_salt(acid, donors, &cation, cation_charge)?;
+    let mut products = vec![
+        ClaimProduct {
+            name: "Water".to_owned(),
+            formula: "H2O".to_owned(),
+            phase: ClaimPhase::Liquid,
+            identity_hints: Vec::new(),
+        },
+        product_from_counts(&salt, Some(&cation)),
+    ];
+    let mut observations = Vec::new();
+    if matches!(anion_kind, BaseAnion::Carbonate | BaseAnion::Bicarbonate) {
+        products.push(ClaimProduct {
+            name: "carbon dioxide".to_owned(),
+            formula: "CO2".to_owned(),
+            phase: ClaimPhase::Gas,
+            identity_hints: Vec::new(),
+        });
+        observations.push(ClaimObservation {
+            predicate: ClaimObservationPredicate::Evolves,
+            subject: "carbon dioxide gas".to_owned(),
+            value: None,
+        });
+    }
+    Some(Verdict {
+        products,
+        observations,
+    })
+}
+
+/// Acid + elemental metal: salt + hydrogen above the hydrogen pivot in the
+/// activity series, a confident no-reaction below it.
+fn solve_acid_metal(
+    acid: &StructureDefinition,
+    metal: &StructureDefinition,
+) -> Option<Verdict> {
+    let donors = acid_donor_count(acid)?;
+    if metal.representation() != RepresentationKind::Metallic {
+        return None;
+    }
+    let (element, _) = single_element(metal)?;
+    let charge = chem_domain::common_cation_charge(element.as_str())?;
+    if !chem_domain::displaces_hydrogen_from_acids(element.as_str())? {
+        return Some(Verdict {
+            products: Vec::new(),
+            observations: Vec::new(),
+        });
+    }
+    let cation = element.as_str().to_owned();
+    let salt = conjugate_salt(acid, donors, &cation, u64::try_from(charge).ok()?)?;
+    Some(Verdict {
+        products: vec![
+            product_from_counts(&salt, Some(&cation)),
+            ClaimProduct {
+                name: "Hydrogen".to_owned(),
+                formula: "H2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Evolves,
+            subject: "hydrogen gas".to_owned(),
+            value: None,
+        }],
+    })
+}
+
+/// Organic fuel + oxygen → complete combustion to carbon dioxide and
+/// water. Deterministic for any C/H(/O) fuel; the balancer finds the
+/// coefficients.
+fn solve_combustion(
+    fuel: &StructureDefinition,
+    oxidizer: &StructureDefinition,
+) -> Option<Verdict> {
+    let (oxidizer_element, _) = single_element(oxidizer)?;
+    if oxidizer_element.as_str() != "O" {
+        return None;
+    }
+    if fuel.representation() != RepresentationKind::Molecular {
+        return None;
+    }
+    let elements = fuel.formula().elements();
+    let allowed = elements
+        .keys()
+        .all(|symbol| matches!(symbol.as_str(), "C" | "H" | "O"));
+    let has_carbon = elements.keys().any(|symbol| symbol.as_str() == "C");
+    let has_hydrogen = elements.keys().any(|symbol| symbol.as_str() == "H");
+    if !(allowed && has_carbon && has_hydrogen) {
+        return None;
+    }
+    Some(Verdict {
+        products: vec![
+            ClaimProduct {
+                name: "carbon dioxide".to_owned(),
+                formula: "CO2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+            ClaimProduct {
+                name: "Water".to_owned(),
+                formula: "H2O".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Forms,
+            subject: "carbon dioxide and water vapour".to_owned(),
+            value: None,
+        }],
+    })
+}
+
+/// Qualifying proton-donor count for a molecular acid (never water).
+fn acid_donor_count(acid: &StructureDefinition) -> Option<u64> {
+    if acid.representation() != RepresentationKind::Molecular || is_water(acid.formula()) {
         return None;
     }
     let donors = classify_bronsted_acid(acid)
@@ -74,11 +213,16 @@ fn solve_neutralization(
         .filter(|site| ACIDIC_DONORS.contains(&site.donor_element().as_str()))
         .count();
     let donors = u64::try_from(donors).ok()?;
-    if donors == 0 || is_water(acid.formula()) {
-        return None;
-    }
-    let (cation, cation_charge) = hydroxide_base_cation(base)?;
+    (donors > 0).then_some(donors)
+}
 
+/// The charge-balanced salt of an acid's conjugate anion with one cation.
+fn conjugate_salt(
+    acid: &StructureDefinition,
+    donors: u64,
+    cation: &str,
+    cation_charge: u64,
+) -> Option<BTreeMap<String, u64>> {
     let mut anion = acid
         .formula()
         .elements()
@@ -93,22 +237,13 @@ fn solve_neutralization(
     if anion.is_empty() {
         return None;
     }
-
     let shared = gcd(cation_charge, donors);
     let mut salt = BTreeMap::new();
-    salt.insert(cation.clone(), donors / shared);
+    salt.insert(cation.to_owned(), donors / shared);
     for (symbol, count) in &anion {
         *salt.entry(symbol.clone()).or_insert(0) += count * (cation_charge / shared);
     }
-    Some(vec![
-        ClaimProduct {
-            name: "Water".to_owned(),
-            formula: "H2O".to_owned(),
-            phase: ClaimPhase::Liquid,
-            identity_hints: Vec::new(),
-        },
-        product_from_counts(&salt, Some(&cation)),
-    ])
+    Some(salt)
 }
 
 /// Element + element → binary compound: stoichiometry from charge/valence
@@ -207,13 +342,31 @@ fn is_water(inventory: &ElementInventory) -> bool {
 
 /// One ionic hydroxide base: every group is either a single-atom cation of
 /// one element or an O-H hydroxide unit.
-fn hydroxide_base_cation(base: &StructureDefinition) -> Option<(String, u64)> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BaseAnion {
+    Hydroxide,
+    Carbonate,
+    Bicarbonate,
+}
+
+fn base_anion_kind(sorted_elements: &[&str]) -> Option<BaseAnion> {
+    match sorted_elements {
+        ["H", "O"] => Some(BaseAnion::Hydroxide),
+        ["C", "O", "O", "O"] => Some(BaseAnion::Carbonate),
+        ["C", "H", "O", "O", "O"] => Some(BaseAnion::Bicarbonate),
+        _ => None,
+    }
+}
+
+/// One ionic base: every group is either a single-atom cation of one
+/// element, or one consistent basic anion (hydroxide/carbonate/bicarbonate).
+fn ionic_base(base: &StructureDefinition) -> Option<(String, u64, BaseAnion)> {
     if base.representation() != RepresentationKind::Ionic {
         return None;
     }
     let graph = base.graph();
     let mut cation: Option<(String, u64)> = None;
-    let mut hydroxides = 0_u64;
+    let mut anion_kind: Option<BaseAnion> = None;
     for group in graph.groups().values() {
         let members = group
             .atoms()
@@ -237,14 +390,15 @@ fn hydroxide_base_cation(base: &StructureDefinition) -> Option<(String, u64)> {
             _ => {
                 let mut sorted = elements.clone();
                 sorted.sort_unstable();
-                if sorted != ["H", "O"] {
+                let kind = base_anion_kind(&sorted)?;
+                if *anion_kind.get_or_insert(kind) != kind {
                     return None;
                 }
-                hydroxides += 1;
             }
         }
     }
-    (hydroxides > 0).then_some(cation)?
+    let (cation, charge) = cation?;
+    Some((cation, charge, anion_kind?))
 }
 
 /// Salt-style formula text: cation first, then non-O/H elements, then O,
@@ -366,6 +520,102 @@ mod tests {
             solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products.len(), 1);
         assert_eq!(claim.products[0].formula, "HCl");
+    }
+
+    #[test]
+    fn acid_and_carbonate_solve_with_carbon_dioxide_evolution() {
+        let request = request(&[
+            ("HCl", &[1, 17]),
+            ("Na₂CO₃", &[11, 11, 6, 8, 8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["H2O", "NaCl", "CO2"]);
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject.contains("carbon dioxide"))
+        );
+    }
+
+    #[test]
+    fn acid_and_bicarbonate_solve_the_same_family() {
+        let request = request(&[
+            ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]),
+            ("NaHCO₃", &[11, 1, 6, 8, 8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["H2O", "Na2SO4", "CO2"]);
+    }
+
+    #[test]
+    fn reactive_metal_and_acid_evolve_hydrogen() {
+        let request = request(&[("Zn", &[30]), ("HCl", &[1, 17])]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.disposition, ClaimDisposition::Reaction);
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["ZnCl2", "H2"]);
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject.contains("hydrogen"))
+        );
+    }
+
+    #[test]
+    fn noble_metal_and_acid_is_a_confident_no_reaction() {
+        let request = request(&[("Cu", &[29]), ("HCl", &[1, 17])]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+        assert!(claim.products.is_empty());
+    }
+
+    #[test]
+    fn methane_combustion_solves() {
+        let request = request(&[("CH₄", &[6, 1, 1, 1, 1]), ("O₂", &[8, 8])]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["CO2", "H2O"]);
+    }
+
+    #[test]
+    fn ethanol_combustion_solves() {
+        let request = request(&[
+            ("C₂H₆O", &[6, 6, 8, 1, 1, 1, 1, 1, 1]),
+            ("O₂", &[8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["CO2", "H2O"]);
     }
 
     #[test]

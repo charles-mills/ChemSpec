@@ -75,18 +75,21 @@ fn facts(symbol: &str) -> Option<Facts> {
         "Al" => f(3, 3, 161, &[3]),
         "Ga" => f(3, 4, 181, &[3]),
         "In" => f(3, 5, 178, &[3]),
-        "Zn" => f(2, 4, 165, &[2]),
-        "Cd" => f(2, 5, 169, &[2]),
-        "Ag" => f(1, 5, 193, &[1]),
-        "Cu" => f(1, 4, 190, &[2, 1]),
-        "Fe" => f(2, 4, 183, &[3, 2]),
-        "Ni" => f(2, 4, 191, &[2]),
-        "Co" => f(2, 4, 188, &[2]),
-        "Mn" => f(2, 4, 155, &[2]),
-        "Cr" => f(1, 4, 166, &[3, 2]),
+        // Transition metals count s+d electrons (their group number), the
+        // same convention the reviewed catalogue uses, so generated ions
+        // match reviewed electron states (e.g. Zn2+ keeps 10 d electrons).
+        "Zn" => f(12, 4, 165, &[2]),
+        "Cd" => f(12, 5, 169, &[2]),
+        "Ag" => f(11, 5, 193, &[1]),
+        "Cu" => f(11, 4, 190, &[2, 1]),
+        "Fe" => f(8, 4, 183, &[3, 2]),
+        "Ni" => f(10, 4, 191, &[2]),
+        "Co" => f(9, 4, 188, &[2]),
+        "Mn" => f(7, 4, 155, &[2]),
+        "Cr" => f(6, 4, 166, &[3, 2]),
         "Sn" => f(4, 5, 196, &[2, 4]),
         "Pb" => f(4, 6, 233, &[2, 4]),
-        "Au" => f(1, 6, 254, &[3, 1]),
+        "Au" => f(11, 6, 254, &[3, 1]),
         _ => None,
     }
 }
@@ -486,6 +489,29 @@ fn charged_slot_sets(elements: &[(String, Facts, u64)], charge: u32) -> Vec<Vec<
 #[must_use]
 pub fn common_cation_charge(symbol: &str) -> Option<i16> {
     facts(symbol)?.cation_charges.first().copied()
+}
+
+/// The metal activity series, most reactive first, with hydrogen as the
+/// pivot for acid reactivity. Periodic-trend knowledge, kept as code.
+const ACTIVITY_SERIES: [&str; 24] = [
+    "Cs", "Rb", "K", "Ba", "Sr", "Ca", "Na", "Mg", "Al", "Mn", "Zn", "Cr", "Fe", "Cd", "Co",
+    "Ni", "Sn", "Pb", "H", "Cu", "Ag", "Hg", "Pt", "Au",
+];
+
+/// Position in the activity series (lower is more reactive), when listed.
+#[must_use]
+pub fn activity_rank(symbol: &str) -> Option<usize> {
+    ACTIVITY_SERIES
+        .iter()
+        .position(|candidate| *candidate == symbol)
+}
+
+/// Whether this metal displaces hydrogen from non-oxidizing acids. None
+/// when the element is not in the series.
+#[must_use]
+pub fn displaces_hydrogen_from_acids(symbol: &str) -> Option<bool> {
+    let hydrogen = activity_rank("H").unwrap_or(usize::MAX);
+    activity_rank(symbol).map(|rank| rank < hydrogen)
 }
 
 /// The standard anion charge a nonmetal takes in binary compounds

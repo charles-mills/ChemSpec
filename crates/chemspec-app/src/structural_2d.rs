@@ -14,8 +14,11 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Size, Theme, Vector, border};
 
+use crate::elements;
 use crate::fonts;
+use crate::structural_physics::{Anchor, AtomSpec, DragTarget, Spring, VIRTUAL, WorldSpec};
 use crate::theme::{LAB_DARK, chemistry_color, color};
+use iced::mouse;
 
 const ACCENT: Color = color::ACCENT;
 const ACCENT_BRIGHT: Color = color::ACCENT_HOVER;
@@ -367,6 +370,162 @@ fn render_atom_state(frame: &SimulationFrame, id: &chem_domain::AtomId) -> Optio
     })
 }
 
+/// Drawn atom radius in virtual units, scaled by the cube root of atomic
+/// mass so heavier elements read as heavier without dwarfing hydrogen.
+#[must_use]
+pub fn atom_visual_radius(element: &str) -> f32 {
+    let mass = elements::atomic_mass(element).unwrap_or(16.0);
+    24.0 * (mass / 16.0).cbrt().clamp(0.62, 1.5)
+}
+
+/// Structural action progress for a scene: explanation beats compress the
+/// structural motion into the first 55% of the scene.
+#[must_use]
+pub fn scene_action(kind: EducationalSceneKind, has_explanation: bool, progress: f32) -> f32 {
+    let structural = if kind == EducationalSceneKind::StructuralChange && has_explanation {
+        (progress / 0.55).clamp(0.0, 1.0)
+    } else {
+        progress
+    };
+    animation_phase(structural).action
+}
+
+/// A drag interaction on the structural canvas, in virtual coordinates.
+#[derive(Debug, Clone)]
+pub enum DragEvent {
+    Started { target: DragTarget, cursor: Point },
+    Moved { cursor: Point },
+    Ended,
+}
+
+fn virtual_rectangle() -> Rectangle {
+    Rectangle::new(Point::ORIGIN, VIRTUAL)
+}
+
+/// Uniform fit of the virtual simulation space into the widget bounds.
+fn fit_transform(bounds: Rectangle) -> (f32, Vector) {
+    let fit = (bounds.width / VIRTUAL.width)
+        .min(bounds.height / VIRTUAL.height)
+        .max(0.05);
+    let offset = Vector::new(
+        (bounds.width - VIRTUAL.width * fit) * 0.5,
+        (bounds.height - VIRTUAL.height * fit) * 0.5,
+    );
+    (fit, offset)
+}
+
+fn to_screen(point: Point, fit: f32, offset: Vector) -> Point {
+    Point::new(point.x * fit, point.y * fit) + offset
+}
+
+fn to_virtual(point: Point, fit: f32, offset: Vector) -> Point {
+    Point::new((point.x - offset.x) / fit, (point.y - offset.y) / fit)
+}
+
+/// The physics world for one scene moment: blended bond springs, per-atom
+/// homes from the choreographed static layout, and mass-scaled radii.
+#[must_use]
+pub fn world_spec(before: &SimulationFrame, after: &SimulationFrame, action: f32) -> WorldSpec {
+    let before_frame = RenderFrame::from(before);
+    let after_frame = RenderFrame::from(after);
+    let bounds = virtual_rectangle();
+    let (before_homes, after_homes) = layout_transition(&before_frame, &after_frame, bounds);
+
+    let mut atoms = BTreeMap::new();
+    for atom in before_frame.atoms.iter().chain(&after_frame.atoms) {
+        atoms.insert(atom.id.clone(), atom.element.clone());
+    }
+    let radius_of = |id: &str| {
+        atoms
+            .get(id)
+            .map_or(24.0, |element| atom_visual_radius(element))
+    };
+    let home_of = |id: &str| {
+        let start = before_homes.get(id).or_else(|| after_homes.get(id));
+        let end = after_homes.get(id).or_else(|| before_homes.get(id));
+        match (start, end) {
+            (Some(start), Some(end)) => Some(lerp_point(*start, *end, action)),
+            _ => None,
+        }
+    };
+
+    // Covalent springs, blended across the transition so breaking bonds
+    // release and forming bonds tighten as the operation plays.
+    let mut springs = BTreeMap::<(String, String), Spring>::new();
+    let mut add_bonds = |frame: &RenderFrame, weight: f32| {
+        for bond in &frame.covalent_bonds {
+            let key = sorted_pair(&bond.left, &bond.right);
+            let rest = radius_of(&bond.left) + radius_of(&bond.right) + 22.0
+                - 3.0 * f32::from(bond.order.saturating_sub(1));
+            let entry = springs.entry(key.clone()).or_insert(Spring {
+                a: key.0,
+                b: key.1,
+                rest,
+                strength: 0.0,
+            });
+            entry.strength = (entry.strength + weight).min(1.0);
+        }
+    };
+    add_bonds(&before_frame, 1.0 - action);
+    add_bonds(&after_frame, action);
+
+    // Ionic partners attract loosely between their charged anchor atoms.
+    let mut add_ionic = |frame: &RenderFrame, weight: f32| {
+        for association in &frame.ionic_associations {
+            let render = RenderIonicAssociation {
+                id: association.id.clone(),
+                components: association.components.clone(),
+            };
+            for (left, right) in ionic_component_pairs(&render) {
+                let (Some(anchor_left), Some(anchor_right)) = (
+                    ionic_anchor_id(&association.components[left], frame),
+                    ionic_anchor_id(&association.components[right], frame),
+                ) else {
+                    continue;
+                };
+                let key = sorted_pair(anchor_left, anchor_right);
+                let rest = radius_of(anchor_left) + radius_of(anchor_right) + 34.0;
+                let entry = springs.entry(key.clone()).or_insert(Spring {
+                    a: key.0,
+                    b: key.1,
+                    rest,
+                    strength: 0.0,
+                });
+                entry.strength = (entry.strength + weight * 0.55).min(1.0);
+            }
+        }
+    };
+    add_ionic(&before_frame, 1.0 - action);
+    add_ionic(&after_frame, action);
+
+    let spec_atoms = atoms
+        .iter()
+        .filter_map(|(id, element)| {
+            home_of(id).map(|home| AtomSpec {
+                id: id.clone(),
+                radius: atom_visual_radius(element),
+                seed: home,
+            })
+        })
+        .collect::<Vec<_>>();
+    let anchors = spec_atoms
+        .iter()
+        .map(|atom| Anchor {
+            atom: atom.id.clone(),
+            home: atom.seed,
+            strength: 10.0,
+        })
+        .collect();
+    WorldSpec {
+        atoms: spec_atoms,
+        springs: springs
+            .into_values()
+            .filter(|spring| spring.strength > 0.04)
+            .collect(),
+        anchors,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Diagram {
     before: RenderFrame,
@@ -378,6 +537,8 @@ pub struct Diagram {
     context: SceneContext,
     ambient_progress: f32,
     show_structure_labels: bool,
+    /// Live simulation positions, in virtual coordinates.
+    positions: BTreeMap<String, Point>,
 }
 
 impl Diagram {
@@ -392,6 +553,7 @@ impl Diagram {
         context: SceneContext,
         ambient_progress: f32,
         show_structure_labels: bool,
+        positions: BTreeMap<String, Point>,
     ) -> Self {
         Self {
             before: RenderFrame::from(before),
@@ -410,12 +572,125 @@ impl Diagram {
             context,
             ambient_progress: ambient_progress.clamp(0.0, 1.0),
             show_structure_labels,
+            positions,
         }
+    }
+
+    /// Nearest draggable thing to a virtual-space point: an atom within its
+    /// circle (plus slack), else a bond segment within grab range.
+    fn hit_test(&self, point: Point) -> Option<DragTarget> {
+        let mut elements = BTreeMap::new();
+        for atom in self.before.atoms.iter().chain(&self.after.atoms) {
+            elements.insert(atom.id.as_str(), atom.element.as_str());
+        }
+        let mut best_atom: Option<(f32, &str)> = None;
+        for (id, position) in &self.positions {
+            let Some(element) = elements.get(id.as_str()) else {
+                continue;
+            };
+            let distance = position.distance(point);
+            let reach = atom_visual_radius(element) + 10.0;
+            if distance <= reach && best_atom.is_none_or(|(closest, _)| distance < closest) {
+                best_atom = Some((distance, id));
+            }
+        }
+        if let Some((_, id)) = best_atom {
+            return Some(DragTarget::Atom(id.to_owned()));
+        }
+
+        let mut best_bond: Option<(f32, (&str, &str))> = None;
+        for bond in self
+            .before
+            .covalent_bonds
+            .iter()
+            .chain(&self.after.covalent_bonds)
+        {
+            let (Some(left), Some(right)) = (
+                self.positions.get(&bond.left),
+                self.positions.get(&bond.right),
+            ) else {
+                continue;
+            };
+            let distance = segment_distance(point, *left, *right);
+            if distance <= 14.0
+                && best_bond.is_none_or(|(closest, _)| distance < closest)
+            {
+                best_bond = Some((distance, (&bond.left, &bond.right)));
+            }
+        }
+        best_bond.map(|(_, (left, right))| DragTarget::Bond(left.to_owned(), right.to_owned()))
     }
 }
 
-impl<Message> canvas::Program<Message> for Diagram {
-    type State = ();
+fn segment_distance(point: Point, start: Point, end: Point) -> f32 {
+    let segment = end - start;
+    let length_squared = segment.x * segment.x + segment.y * segment.y;
+    if length_squared <= f32::EPSILON {
+        return point.distance(start);
+    }
+    let t = (((point.x - start.x) * segment.x + (point.y - start.y) * segment.y)
+        / length_squared)
+        .clamp(0.0, 1.0);
+    point.distance(Point::new(start.x + segment.x * t, start.y + segment.y * t))
+}
+
+impl canvas::Program<DragEvent> for Diagram {
+    type State = bool;
+
+    fn update(
+        &self,
+        dragging: &mut Self::State,
+        event: &canvas::Event,
+        bounds: Rectangle,
+        cursor: Cursor,
+    ) -> Option<canvas::Action<DragEvent>> {
+        let (fit, offset) = fit_transform(bounds);
+        match event {
+            canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                let point = cursor.position_in(bounds)?;
+                let target = self.hit_test(to_virtual(point, fit, offset))?;
+                *dragging = true;
+                Some(
+                    canvas::Action::publish(DragEvent::Started {
+                        target,
+                        cursor: to_virtual(point, fit, offset),
+                    })
+                    .and_capture(),
+                )
+            }
+            canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) if *dragging => {
+                let point = cursor.position_in(bounds)?;
+                Some(canvas::Action::publish(DragEvent::Moved {
+                    cursor: to_virtual(point, fit, offset),
+                }))
+            }
+            canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+                if *dragging =>
+            {
+                *dragging = false;
+                Some(canvas::Action::publish(DragEvent::Ended).and_capture())
+            }
+            _ => None,
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        dragging: &Self::State,
+        bounds: Rectangle,
+        cursor: Cursor,
+    ) -> mouse::Interaction {
+        if *dragging {
+            return mouse::Interaction::Grabbing;
+        }
+        let (fit, offset) = fit_transform(bounds);
+        cursor
+            .position_in(bounds)
+            .and_then(|point| self.hit_test(to_virtual(point, fit, offset)))
+            .map_or(mouse::Interaction::default(), |_| {
+                mouse::Interaction::Grab
+            })
+    }
 
     fn draw(
         &self,
@@ -426,7 +701,8 @@ impl<Message> canvas::Program<Message> for Diagram {
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let scale = visual_scale(bounds);
+        let (fit, offset) = fit_transform(bounds);
+        let scale = fit;
         draw_atmosphere(&mut frame, bounds, self.ambient_progress);
 
         let combined_learning_beat = self.context.kind == EducationalSceneKind::StructuralChange
@@ -441,16 +717,14 @@ impl<Message> canvas::Program<Message> for Diagram {
         } else {
             self.progress
         };
-        let (before_positions, after_positions) =
-            layout_transition(&self.before, &self.after, bounds);
         let action = animation_phase(structural_progress).action;
-        let positions = interpolated_positions(&before_positions, &after_positions, action);
+        let positions: BTreeMap<String, Point> = self
+            .positions
+            .iter()
+            .map(|(id, point)| (id.clone(), to_screen(*point, fit, offset)))
+            .collect();
         let active = active_atoms(&self.operations);
-        let content_alpha = if self.context.kind == EducationalSceneKind::Equation {
-            0.34
-        } else {
-            1.0
-        };
+        let content_alpha = 1.0;
 
         draw_metallic_transition(
             &mut frame,
@@ -508,7 +782,6 @@ impl<Message> canvas::Program<Message> for Diagram {
                 scale,
             );
         }
-        draw_scene_context(&mut frame, &self.context, bounds, self.progress, scale);
         draw_observation_context(
             &mut frame,
             &self.context_labels,
@@ -544,12 +817,6 @@ fn animation_phase(progress: f32) -> AnimationPhase {
         context: smoother_step(((progress - 0.42) / 0.16).clamp(0.0, 1.0))
             * smoother_step(((1.0 - progress) / 0.05).clamp(0.0, 1.0)),
     }
-}
-
-fn visual_scale(bounds: Rectangle) -> f32 {
-    (bounds.width / 1_180.0)
-        .min(bounds.height / 650.0)
-        .clamp(0.72, 1.28)
 }
 
 fn smoother_step(value: f32) -> f32 {
@@ -945,25 +1212,6 @@ fn component_adjacency(
     adjacency
 }
 
-fn interpolated_positions(
-    before: &BTreeMap<String, Point>,
-    after: &BTreeMap<String, Point>,
-    progress: f32,
-) -> BTreeMap<String, Point> {
-    before
-        .keys()
-        .chain(after.keys())
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .filter_map(|id| {
-            let start = before.get(&id).or_else(|| after.get(&id))?;
-            let end = after.get(&id).or_else(|| before.get(&id))?;
-            Some((id, lerp_point(*start, *end, progress)))
-        })
-        .collect()
-}
-
 fn lerp_point(start: Point, end: Point, progress: f32) -> Point {
     Point::new(
         start.x + (end.x - start.x) * progress,
@@ -1320,6 +1568,7 @@ fn draw_atom_transition(
         let atom = after_atom
             .or(before_atom)
             .expect("atom exists in frame union");
+        let bond_angles = atom_bond_angles(id, before, after, positions, position);
         draw_atom_shell(
             frame,
             atom,
@@ -1340,6 +1589,7 @@ fn draw_atom_transition(
             ambient_progress,
             alpha,
             scale,
+            &bond_angles,
         );
         draw_charge_transition(
             frame,
@@ -1349,8 +1599,36 @@ fn draw_atom_transition(
             progress,
             alpha,
             scale,
+            &bond_angles,
         );
     }
+}
+
+/// Directions of every covalent bond touching an atom in either frame.
+fn atom_bond_angles(
+    id: &str,
+    before: &StructuralFrame,
+    after: &StructuralFrame,
+    positions: &BTreeMap<String, Point>,
+    center: Point,
+) -> Vec<f32> {
+    let mut angles = Vec::new();
+    for bond in before.covalent_bonds.iter().chain(&after.covalent_bonds) {
+        let other = if bond.left == id {
+            &bond.right
+        } else if bond.right == id {
+            &bond.left
+        } else {
+            continue;
+        };
+        if let Some(neighbour) = positions.get(other) {
+            let delta = *neighbour - center;
+            if delta.x.abs() > f32::EPSILON || delta.y.abs() > f32::EPSILON {
+                angles.push(delta.y.atan2(delta.x));
+            }
+        }
+    }
+    angles
 }
 
 fn draw_atom_shell(
@@ -1362,7 +1640,7 @@ fn draw_atom_shell(
     alpha: f32,
     scale: f32,
 ) {
-    let radius = (if active { 27.0 } else { 24.0 }) * scale;
+    let radius = atom_visual_radius(&atom.element) * (if active { 1.12 } else { 1.0 }) * scale;
     let pulse = 0.5 + 0.5 * (phase * std::f32::consts::TAU * 3.0).sin();
     frame.fill(
         &Path::circle(center, radius + (10.0 + pulse * 4.0) * scale),
@@ -1414,14 +1692,15 @@ fn draw_electron_transition(
     phase: f32,
     alpha: f32,
     scale: f32,
+    bond_angles: &[f32],
 ) {
     let delta = electron_state_delta(before, after);
     if operation_moves_atom_electrons(operations, atom_id) {
         let before_positions = before.map_or_else(Vec::new, |atom| {
-            electron_positions(center, atom, phase, scale)
+            electron_positions(center, atom, phase, scale, bond_angles)
         });
         let after_positions = after.map_or_else(Vec::new, |atom| {
-            electron_positions(center, atom, phase, scale)
+            electron_positions(center, atom, phase, scale, bond_angles)
         });
         for index in 0..usize::from(delta.persistent) {
             let position = match (before_positions.get(index), after_positions.get(index)) {
@@ -1433,14 +1712,30 @@ fn draw_electron_transition(
         }
     } else if before == after {
         if let Some(atom) = after.or(before) {
-            draw_electrons(frame, center, atom, phase, alpha, scale);
+            draw_electrons(frame, center, atom, phase, alpha, scale, bond_angles);
         }
     } else {
         if let Some(atom) = before {
-            draw_electrons(frame, center, atom, phase, alpha * (1.0 - progress), scale);
+            draw_electrons(
+                frame,
+                center,
+                atom,
+                phase,
+                alpha * (1.0 - progress),
+                scale,
+                bond_angles,
+            );
         }
         if let Some(atom) = after {
-            draw_electrons(frame, center, atom, phase, alpha * progress, scale);
+            draw_electrons(
+                frame,
+                center,
+                atom,
+                phase,
+                alpha * progress,
+                scale,
+                bond_angles,
+            );
         }
     }
 }
@@ -1486,23 +1781,59 @@ fn draw_electrons(
     phase: f32,
     alpha: f32,
     scale: f32,
+    bond_angles: &[f32],
 ) {
-    for position in electron_positions(center, atom, phase, scale) {
+    for position in electron_positions(center, atom, phase, scale, bond_angles) {
         draw_electron_dot(frame, position, alpha, scale);
     }
 }
 
-fn electron_positions(center: Point, atom: &AtomState, phase: f32, scale: f32) -> Vec<Point> {
-    let radius = 31.0 * scale;
+/// Angular gaps between a set of bond directions, largest first, as
+/// (start angle, span). No bonds yields one full-circle gap.
+fn angular_gaps(bond_angles: &[f32]) -> Vec<(f32, f32)> {
+    if bond_angles.is_empty() {
+        return vec![(-std::f32::consts::FRAC_PI_2, std::f32::consts::TAU)];
+    }
+    let mut angles = bond_angles
+        .iter()
+        .map(|angle| angle.rem_euclid(std::f32::consts::TAU))
+        .collect::<Vec<_>>();
+    angles.sort_by(f32::total_cmp);
+    let mut gaps = Vec::with_capacity(angles.len());
+    for (index, start) in angles.iter().enumerate() {
+        let end = angles.get(index + 1).copied().unwrap_or(
+            angles.first().copied().unwrap_or(0.0) + std::f32::consts::TAU,
+        );
+        gaps.push((*start, (end - start).max(0.0)));
+    }
+    gaps.sort_by(|left, right| right.1.total_cmp(&left.1));
+    gaps
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn electron_positions(
+    center: Point,
+    atom: &AtomState,
+    phase: f32,
+    scale: f32,
+    bond_angles: &[f32],
+) -> Vec<Point> {
+    let radius = (atom_visual_radius(&atom.element) + 8.0) * scale;
     let drift = (phase * std::f32::consts::TAU * 0.45).sin() * 0.055;
+    let occupancies =
+        electron_domain_occupancies(atom.non_bonding_electrons, atom.unpaired_electrons);
+    // Domains spread across the largest bond-free arc so dots never sit on
+    // a bond line; with no bonds they keep the classic four-way cross.
+    let gaps = angular_gaps(bond_angles);
+    let (gap_start, gap_span) = gaps.first().copied().unwrap_or((0.0, std::f32::consts::TAU));
+    let domain_count = occupancies.len().max(1) as f32;
     let mut positions = Vec::with_capacity(usize::from(atom.non_bonding_electrons.min(8)));
-    for (domain, occupancy) in
-        electron_domain_occupancies(atom.non_bonding_electrons, atom.unpaired_electrons)
-            .into_iter()
-            .enumerate()
-    {
-        let domain = u8::try_from(domain).unwrap_or(u8::MAX);
-        let base_angle = std::f32::consts::FRAC_PI_2 * f32::from(domain) + drift;
+    for (domain, occupancy) in occupancies.into_iter().enumerate() {
+        let base_angle = if bond_angles.is_empty() {
+            std::f32::consts::FRAC_PI_2 * domain as f32 + drift
+        } else {
+            gap_start + gap_span * (domain as f32 + 1.0) / (domain_count + 1.0) + drift
+        };
         for electron in 0..occupancy {
             let offset = match occupancy {
                 1 => 0.0,
@@ -1542,6 +1873,7 @@ fn draw_electron_dot(frame: &mut canvas::Frame, position: Point, alpha: f32, sca
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_charge_transition(
     frame: &mut canvas::Frame,
     before: Option<&AtomState>,
@@ -1550,28 +1882,40 @@ fn draw_charge_transition(
     progress: f32,
     alpha: f32,
     scale: f32,
+    bond_angles: &[f32],
 ) {
+    let element = after.or(before).map_or("O", |atom| atom.element.as_str());
+    // The badge sits just off the atom rim, in the second-largest bond-free
+    // gap so it stays clear of both bonds and the electron arc.
+    let gaps = angular_gaps(bond_angles);
+    let angle = gaps.get(1).or_else(|| gaps.first()).map_or(
+        -std::f32::consts::FRAC_PI_4,
+        |(start, span)| {
+            if bond_angles.is_empty() {
+                -std::f32::consts::FRAC_PI_4
+            } else if gaps.len() > 1 {
+                start + span * 0.5
+            } else {
+                start + span * 0.16
+            }
+        },
+    );
+    let offset = (atom_visual_radius(element) + 6.0) * scale;
+    let badge = center + Vector::new(angle.cos() * offset, angle.sin() * offset);
     let before_charge = before.map_or(0, |atom| atom.formal_charge);
     let after_charge = after.map_or(0, |atom| atom.formal_charge);
     if before_charge == after_charge {
-        draw_charge(frame, center, after_charge, alpha, scale);
+        draw_charge(frame, badge, after_charge, alpha, scale);
     } else {
-        draw_charge(
-            frame,
-            center,
-            before_charge,
-            alpha * (1.0 - progress),
-            scale,
-        );
-        draw_charge(frame, center, after_charge, alpha * progress, scale);
+        draw_charge(frame, badge, before_charge, alpha * (1.0 - progress), scale);
+        draw_charge(frame, badge, after_charge, alpha * progress, scale);
     }
 }
 
-fn draw_charge(frame: &mut canvas::Frame, center: Point, charge: i16, alpha: f32, scale: f32) {
+fn draw_charge(frame: &mut canvas::Frame, badge: Point, charge: i16, alpha: f32, scale: f32) {
     let Some(label) = charge_label(charge) else {
         return;
     };
-    let badge = center + Vector::new(19.0 * scale, -19.0 * scale);
     frame.fill(
         &Path::circle(badge, 9.0 * scale),
         color::CANVAS.scale_alpha(alpha),
@@ -1779,7 +2123,7 @@ fn draw_metallic_electron_transfer(
         return;
     };
     let delta = electron_state_delta(Some(before_acceptor), Some(after_acceptor));
-    let targets = electron_positions(*acceptor_center, after_acceptor, phase, scale)
+    let targets = electron_positions(*acceptor_center, after_acceptor, phase, scale, &[])
         .into_iter()
         .skip(usize::from(delta.persistent))
         .take(usize::from(delta.enters_shell))
@@ -1908,7 +2252,7 @@ fn moving_shell_electrons(
     phase: f32,
     scale: f32,
 ) -> Vec<Point> {
-    electron_positions(center, atom, phase, scale)
+    electron_positions(center, atom, phase, scale, &[])
         .into_iter()
         .skip(usize::from(persistent))
         .take(usize::from(moving))
@@ -2100,99 +2444,6 @@ fn draw_context_card(
         );
         frame.fill(&Path::circle(end, 2.6 * scale), accent.scale_alpha(reveal));
     }
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn draw_scene_context(
-    frame: &mut canvas::Frame,
-    context: &SceneContext,
-    bounds: Rectangle,
-    progress: f32,
-    scale: f32,
-) {
-    let enter = smoother_step((progress / 0.14).clamp(0.0, 1.0));
-    let Some(title) = scene_title(context.kind) else {
-        return;
-    };
-    let chip_width = (title.len() as f32 * 7.2 + 86.0).clamp(160.0, 250.0) * scale;
-    let chip_height = 34.0 * scale;
-    let rect = Rectangle::new(
-        Point::new(22.0, 18.0 - (1.0 - enter) * 10.0),
-        Size::new(chip_width, chip_height),
-    );
-    draw_glass_panel(frame, rect, ACCENT, enter, 17.0 * scale);
-    frame.fill(
-        &Path::circle(
-            Point::new(rect.x + 16.0 * scale, rect.y + rect.height * 0.5),
-            3.0 * scale,
-        ),
-        ACCENT.scale_alpha(enter),
-    );
-    frame.fill_text(canvas::Text {
-        content: title.to_owned(),
-        position: Point::new(rect.x + 28.0 * scale, rect.y + rect.height * 0.5),
-        color: TEXT.scale_alpha(enter),
-        size: iced::Pixels(11.0 * scale),
-        align_y: iced::alignment::Vertical::Center,
-        font: fonts::REGULAR,
-        ..canvas::Text::default()
-    });
-    if context.kind == EducationalSceneKind::Equation
-        && let Some(equation) = &context.equation
-    {
-        draw_equation_card(frame, equation, bounds, progress, scale);
-    }
-}
-
-fn scene_title(kind: EducationalSceneKind) -> Option<&'static str> {
-    match kind {
-        EducationalSceneKind::Introduction => Some("VALIDATED REACTION"),
-        EducationalSceneKind::ReactantSetup => Some("REACTANT STRUCTURES"),
-        EducationalSceneKind::Equation => Some("BALANCED EQUATION"),
-        EducationalSceneKind::ExplanationPause => Some("PAUSE & UNDERSTAND"),
-        EducationalSceneKind::Summary => Some("VALIDATED OUTCOME"),
-        EducationalSceneKind::StructuralChange | EducationalSceneKind::ObservationConnection => {
-            None
-        }
-    }
-}
-
-fn draw_equation_card(
-    frame: &mut canvas::Frame,
-    equation: &str,
-    bounds: Rectangle,
-    progress: f32,
-    scale: f32,
-) {
-    let reveal = smoother_step(((progress - 0.10) / 0.30).clamp(0.0, 1.0));
-    let width = (bounds.width * 0.62).clamp(300.0, 760.0);
-    let height = 116.0 * scale;
-    let rect = Rectangle::new(
-        Point::new(
-            (bounds.width - width) * 0.5,
-            (bounds.height - height) * 0.5 + (1.0 - reveal) * 14.0,
-        ),
-        Size::new(width, height),
-    );
-    draw_glass_panel(frame, rect, GOLD, reveal, 18.0 * scale);
-    frame.fill_text(canvas::Text {
-        content: "REVIEWED STOICHIOMETRY".to_owned(),
-        position: Point::new(rect.center_x(), rect.y + 29.0 * scale),
-        color: GOLD.scale_alpha(reveal),
-        size: iced::Pixels(10.0 * scale),
-        align_x: iced::alignment::Horizontal::Center.into(),
-        font: fonts::REGULAR,
-        ..canvas::Text::default()
-    });
-    frame.fill_text(canvas::Text {
-        content: equation.to_owned(),
-        position: Point::new(rect.center_x(), rect.y + 72.0 * scale),
-        color: TEXT.scale_alpha(reveal),
-        size: iced::Pixels(21.0 * scale),
-        align_x: iced::alignment::Horizontal::Center.into(),
-        font: fonts::REGULAR,
-        ..canvas::Text::default()
-    });
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -2656,32 +2907,6 @@ mod tests {
         }
         assert!(animation_phase(0.0).action.abs() < f32::EPSILON);
         assert!((animation_phase(1.0).action - 1.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn action_and_observation_scenes_have_no_top_left_chip() {
-        assert_eq!(scene_title(EducationalSceneKind::StructuralChange), None);
-        assert_eq!(
-            scene_title(EducationalSceneKind::ObservationConnection),
-            None
-        );
-    }
-
-    #[test]
-    fn interpolation_keeps_atoms_from_both_frames() {
-        let before = BTreeMap::from([
-            ("a".to_owned(), Point::new(0.0, 0.0)),
-            ("b".to_owned(), Point::new(10.0, 0.0)),
-        ]);
-        let after = BTreeMap::from([
-            ("b".to_owned(), Point::new(20.0, 0.0)),
-            ("c".to_owned(), Point::new(30.0, 0.0)),
-        ]);
-        let positions = interpolated_positions(&before, &after, 0.5);
-        assert_eq!(positions.len(), 3);
-        assert_eq!(positions["a"], Point::new(0.0, 0.0));
-        assert_eq!(positions["b"], Point::new(15.0, 0.0));
-        assert_eq!(positions["c"], Point::new(30.0, 0.0));
     }
 
     #[test]

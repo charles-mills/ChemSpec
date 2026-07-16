@@ -208,15 +208,17 @@ pub(crate) fn derive_algorithmic_mechanism(
             needed -= count;
             let donor_before = *ledger.get(&donor_path)?;
             let acceptor_before = *ledger.get(&acceptor)?;
+            let donor_lone = donor_before.lone.checked_sub(count)?;
             let donor_after = State {
                 charge: donor_before.charge.checked_add(i16::from(count))?,
-                lone: donor_before.lone.checked_sub(count)?,
-                unpaired: donor_before.unpaired.abs_diff(count),
+                lone: donor_lone,
+                unpaired: settled_unpaired(donor_before.unpaired, count, donor_lone),
             };
+            let acceptor_lone = acceptor_before.lone.checked_add(count)?;
             let acceptor_after = State {
                 charge: acceptor_before.charge.checked_sub(i16::from(count))?,
-                lone: acceptor_before.lone.checked_add(count)?,
-                unpaired: acceptor_before.unpaired.abs_diff(count),
+                lone: acceptor_lone,
+                unpaired: settled_unpaired(acceptor_before.unpaired, count, acceptor_lone),
             };
             operations.push(MechanismOperation::TransferElectron {
                 count,
@@ -249,24 +251,44 @@ pub(crate) fn derive_algorithmic_mechanism(
         if survives {
             continue;
         }
-        let left_before = *ledger.get(left)?;
-        let right_before = *ledger.get(right)?;
-        let give_left = left_before.lone.checked_sub(target(left)?.lone)?;
-        let give_right = right_before.lone.checked_sub(target(right)?.lone)?;
+        let give_left = ledger.get(left)?.lone.checked_sub(target(left)?.lone)?;
+        let give_right = ledger.get(right)?.lone.checked_sub(target(right)?.lone)?;
         let total = bond.order.checked_mul(2)?;
         let left_contribution = bond.order.min(give_left).max(total.saturating_sub(give_right));
         let right_contribution = total.checked_sub(left_contribution)?;
         if left_contribution > give_left || right_contribution > give_right {
             return None;
         }
+        // The kernel forms bonds from unpaired electrons: break lone pairs
+        // open first where a contributor has too few singles.
+        for (path, contribution) in [(left, left_contribution), (right, right_contribution)] {
+            let state = *ledger.get(path)?;
+            if state.unpaired < contribution {
+                let unpaired = if (state.lone - contribution) % 2 == 0 {
+                    contribution
+                } else {
+                    contribution.checked_add(1)?
+                };
+                let opened = State { unpaired, ..state };
+                operations.push(MechanismOperation::ReconfigureElectrons {
+                    atom: path.clone(),
+                    before: state.record(),
+                    after: opened.record(),
+                });
+                ledger.insert(path.clone(), opened);
+            }
+        }
+        let left_before = *ledger.get(left)?;
+        let right_before = *ledger.get(right)?;
         let contribute = |state: State, contribution: u8| -> Option<State> {
+            let lone = state.lone.checked_sub(contribution)?;
             Some(State {
                 charge: state
                     .charge
                     .checked_add(i16::from(contribution))?
                     .checked_sub(i16::from(bond.order))?,
-                lone: state.lone.checked_sub(contribution)?,
-                unpaired: state.unpaired.saturating_sub(contribution),
+                lone,
+                unpaired: settled_unpaired(state.unpaired, contribution, lone),
             })
         };
         let left_after = contribute(left_before, left_contribution)?;
@@ -290,7 +312,28 @@ pub(crate) fn derive_algorithmic_mechanism(
         ledger.insert(right.clone(), right_after);
     }
 
-    // 6. Product ionic associations reassemble from the mapped atoms.
+    // 6. Close pure spin-pairing gaps: a donor that gave from its d-shell
+    // may be left with unpaired electrons the product state has paired.
+    for atom in &reactants.atoms {
+        let current = *ledger.get(&atom.path)?;
+        let goal = target(&atom.path)?;
+        if current == goal {
+            continue;
+        }
+        if current.charge == goal.charge && current.lone == goal.lone {
+            operations.push(MechanismOperation::ReconfigureElectrons {
+                atom: atom.path.clone(),
+                before: current.record(),
+                after: goal.record(),
+            });
+            ledger.insert(atom.path.clone(), goal);
+        } else {
+            // Anything beyond spin pairing means the diff did not close.
+            return None;
+        }
+    }
+
+    // 7. Product ionic associations reassemble from the mapped atoms.
     for (index, association) in products.associations.iter().enumerate() {
         let components = association
             .components
@@ -325,7 +368,7 @@ pub(crate) fn derive_algorithmic_mechanism(
         });
     }
 
-    // 7. Assign every product instance its mapped atoms.
+    // 8. Assign every product instance its mapped atoms.
     for (prefix, atom_paths) in &products.instances {
         let atoms = atom_paths
             .iter()
@@ -345,6 +388,18 @@ pub(crate) fn derive_algorithmic_mechanism(
             .collect(),
         operations,
     })
+}
+
+/// Unpaired electrons after moving `delta` electrons in or out of a shell:
+/// existing unpaired electrons participate first, and any pair that had to
+/// break leaves a single behind (parity of the remaining shell decides).
+fn settled_unpaired(unpaired: u8, delta: u8, lone_after: u8) -> u8 {
+    let base = unpaired.saturating_sub(delta).min(lone_after);
+    if (lone_after - base) % 2 == 1 {
+        base + 1
+    } else {
+        base
+    }
 }
 
 fn bond_record(order: u8) -> Option<BondOrderRecord> {

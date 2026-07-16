@@ -187,31 +187,22 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
         return Err(PlanError::InvalidFrameSequence);
     }
 
-    let mut scenes = vec![
-        scene(
-            EducationalSceneKind::Introduction,
-            first,
-            first,
-            3_000,
-            vec![EducationalCue::PreserveDisclosure],
-        ),
-        scene(
-            EducationalSceneKind::ReactantSetup,
-            first,
-            first,
-            4_000,
-            vec![EducationalCue::EstablishFrame {
+    // The playback opens directly on the chemistry: one short scene that
+    // establishes the reactant structures, then straight into the
+    // operations. Title cards and equation interstitials are gone — the
+    // equation already lives in the app header.
+    let mut scenes = vec![scene(
+        EducationalSceneKind::ReactantSetup,
+        first,
+        first,
+        1_600,
+        vec![
+            EducationalCue::PreserveDisclosure,
+            EducationalCue::EstablishFrame {
                 frame: first.trace().state_digest,
-            }],
-        ),
-        scene(
-            EducationalSceneKind::Equation,
-            first,
-            first,
-            3_800,
-            Vec::new(),
-        ),
-    ];
+            },
+        ],
+    )];
 
     let mut transition_index = 1;
     while transition_index < sequence.len() {

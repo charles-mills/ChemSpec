@@ -424,6 +424,7 @@ fn strip_component_prefixes(mut structure: LabelledStructure) -> LabelledStructu
     structure
 }
 
+#[allow(clippy::too_many_lines)]
 fn derive_provisional_structure_states(
     structures: &[LabelledStructure],
     reviewed: &[ValencePremiseRecord],
@@ -455,10 +456,14 @@ fn derive_provisional_structure_states(
             LabelledStructure::Metallic { sites, .. } => sites.iter().collect(),
         };
         for atom in atoms {
-            if !neutral.contains_key(&atom.element)
-                && let Some(electrons) = chem_domain::valence_electrons_of(&atom.element)
-            {
-                neutral.entry(atom.element.clone()).or_default().insert(electrons);
+            // Added alongside any reviewed values: generated structures use
+            // the plain periodic-table valence, which can differ from a
+            // reviewed transition-metal convention.
+            if let Some(electrons) = chem_domain::valence_electrons_of(&atom.element) {
+                neutral
+                    .entry(atom.element.clone())
+                    .or_default()
+                    .insert(electrons);
             }
         }
     }

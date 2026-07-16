@@ -16,6 +16,7 @@ mod periodic_table;
 mod reactant_composer;
 mod scene_registry;
 mod structural_2d;
+mod structural_physics;
 mod structural_3d;
 mod theme;
 
@@ -576,6 +577,7 @@ enum Message {
     StructuralChapterChanged(i8),
     StructuralRestarted,
     StructuralTick,
+    StructuralDrag(structural_2d::DragEvent),
     ContinueTo3d,
     ReturnTo2d,
 }
@@ -711,6 +713,7 @@ struct StructuralAnimation {
     real_world_playhead_ms: u64,
     playing: bool,
     playback_speed: PlaybackSpeed,
+    physics: structural_physics::Simulation,
 }
 
 struct App {
@@ -1165,14 +1168,34 @@ impl App {
             }
             Message::StructuralChapterChanged(delta) => self.change_structural_frame(delta),
             Message::StructuralTick => {
-                let elapsed = self
+                let (elapsed, playing) = self
                     .structural_animation
                     .as_ref()
-                    .map_or(33, |animation| animation.playback_speed.scale_millis(33));
+                    .map_or((33, false), |animation| {
+                        (animation.playback_speed.scale_millis(33), animation.playing)
+                    });
                 if self.screen == Screen::Structural3d {
                     self.advance_real_world_playback(elapsed);
                 } else {
-                    self.advance_educational_playback(elapsed);
+                    if playing {
+                        self.advance_educational_playback(elapsed);
+                    }
+                    self.step_structural_physics();
+                }
+            }
+            Message::StructuralDrag(event) => {
+                if let Some(animation) = &mut self.structural_animation {
+                    match event {
+                        structural_2d::DragEvent::Started { target, cursor } => {
+                            animation.physics.begin_drag(&target, cursor);
+                        }
+                        structural_2d::DragEvent::Moved { cursor } => {
+                            animation.physics.move_drag(cursor);
+                        }
+                        structural_2d::DragEvent::Ended => {
+                            animation.physics.end_drag();
+                        }
+                    }
                 }
             }
             Message::StructuralRestarted => {
@@ -1580,15 +1603,6 @@ impl App {
         })
     }
 
-    fn structural_trust_label(&self) -> &'static str {
-        match &self.dynamic_presentation {
-            Some(DynamicPresentationOutcome::ReviewedFamily(_)) => "REVIEWED FAMILY",
-            Some(DynamicPresentationOutcome::Escalated(_)) => "VALIDATED MODEL-PROPOSED MECHANISM",
-            Some(DynamicPresentationOutcome::Static { .. }) => "STATIC OUTCOME",
-            None => "REVIEWED CATALOGUE MODEL",
-        }
-    }
-
     // The offline fixture crosses the same trusted language/kernel boundary
     // that live provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
@@ -1663,11 +1677,12 @@ impl App {
                 reactant_composer::subscription(&self.reactant_composer)
                     .map(Message::ReactantComposer),
             ])
-        } else if matches!(self.screen, Screen::Structural2d | Screen::Structural3d)
-            && self
-                .structural_animation
-                .as_ref()
-                .is_some_and(|animation| animation.playing)
+        } else if self.screen == Screen::Structural2d
+            || (self.screen == Screen::Structural3d
+                && self
+                    .structural_animation
+                    .as_ref()
+                    .is_some_and(|animation| animation.playing))
         {
             iced::time::every(std::time::Duration::from_millis(33)).map(|_| Message::StructuralTick)
         } else {
@@ -1995,12 +2010,18 @@ impl App {
                 real_world_playhead_ms: 0,
                 playing: true,
                 playback_speed: PlaybackSpeed::Normal,
+                physics: structural_physics::Simulation::default(),
             })
         })();
         match result {
             Ok(animation) => {
                 self.structural_animation = Some(animation);
                 self.structural_error = None;
+                // Seed the simulation so the first paint has settled-ish
+                // positions instead of an empty canvas.
+                for _ in 0..24 {
+                    self.step_structural_physics();
+                }
             }
             Err(error) => {
                 self.structural_animation = None;
@@ -2027,6 +2048,52 @@ impl App {
             animation.playing = false;
         }
         sync_educational_frame(animation);
+    }
+
+    /// Advances the 2D force simulation against the current scene's world.
+    fn step_structural_physics(&mut self) {
+        let Some(animation) = &mut self.structural_animation else {
+            return;
+        };
+        let Some(position) = animation
+            .educational_plan
+            .locate(animation.educational_playhead_ms)
+        else {
+            return;
+        };
+        let Some(scene) = animation
+            .educational_plan
+            .scenes
+            .get(position.scene_index)
+        else {
+            return;
+        };
+        let frames = animation.frames.frames();
+        let Some(after) = frames
+            .iter()
+            .find(|candidate| candidate.trace().state_digest == scene.end_frame)
+        else {
+            return;
+        };
+        let before = frames
+            .iter()
+            .find(|candidate| candidate.trace().state_digest == scene.start_frame)
+            .unwrap_or(after);
+        #[allow(clippy::cast_precision_loss)]
+        let scene_progress = if scene.duration_ms == 0 {
+            1.0
+        } else {
+            (position.scene_elapsed_ms as f32 / scene.duration_ms as f32).clamp(0.0, 1.0)
+        };
+        let has_explanation = scene.cues.iter().any(|cue| {
+            matches!(
+                cue,
+                chem_presentation::EducationalCue::ShowExplanation { .. }
+            )
+        });
+        let action = structural_2d::scene_action(scene.kind, has_explanation, scene_progress);
+        let spec = structural_2d::world_spec(before, after, action);
+        animation.physics.step(&spec);
     }
 
     fn seek_educational_timeline(&mut self, elapsed_ms: u64) {
@@ -2219,8 +2286,8 @@ impl App {
             animation.educational_plan.scenes.len(),
         )
         .with_equation(equation.clone());
-        let diagram = container(
-            canvas(structural_2d::Diagram::new(
+        let diagram_canvas: Element<'_, structural_2d::DragEvent> = canvas(
+            structural_2d::Diagram::new(
                 before_frame,
                 frame,
                 &operation_transitions,
@@ -2235,13 +2302,16 @@ impl App {
                         | EducationalSceneKind::StructuralChange
                         | EducationalSceneKind::ExplanationPause
                 ),
-            ))
-            .width(Fill)
-            .height(Fill),
+                animation.physics.positions(),
+            ),
         )
-        .style(theme::inset)
         .width(Fill)
-        .height(Fill);
+        .height(Fill)
+        .into();
+        let diagram = container(diagram_canvas.map(Message::StructuralDrag))
+            .style(theme::inset)
+            .width(Fill)
+            .height(Fill);
 
         let duration_ms = animation.educational_plan.duration_ms();
         let slider_duration = u32::try_from(duration_ms).unwrap_or(u32::MAX).max(1);
@@ -2337,33 +2407,18 @@ impl App {
                 row![
                     exit,
                     regenerate,
-                    column![
-                        text("VALIDATED 2D EXPLANATION")
-                            .size(type_scale::MICRO)
-                            .color(color::ACCENT),
-                        text(
-                            equation
-                                .clone()
-                                .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
-                        )
-                        .size(if compact {
-                            type_scale::BODY_LARGE
-                        } else {
-                            type_scale::TITLE
-                        })
-                        .color(color::TEXT),
-                    ]
-                    .spacing(spacing::XXS),
+                    text(
+                        equation
+                            .clone()
+                            .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
+                    )
+                    .size(if compact {
+                        type_scale::BODY_LARGE
+                    } else {
+                        type_scale::TITLE
+                    })
+                    .color(color::TEXT),
                     space().width(Fill),
-                    column![
-                        text(self.structural_trust_label())
-                            .size(type_scale::MICRO)
-                            .color(color::SUCCESS),
-                        text("VIRTUAL MODEL")
-                            .size(type_scale::MICRO)
-                            .color(color::WARNING),
-                    ]
-                    .spacing(spacing::XXS),
                 ]
                 .align_y(Center),
                 diagram,
