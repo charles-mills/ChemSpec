@@ -279,13 +279,88 @@ impl TrustedCompositionPreview {
     }
 }
 
-/// Resolves a draft only when the trusted catalogue contains one unambiguous
-/// structural graph for its exact atom inventory.
+/// Resolves a draft from the built-in catalogue first, then falls back to
+/// programmatic structure generation. Recognition is no longer bounded by a
+/// curated list: any inventory the generator can build unambiguously gets a
+/// structural preview.
 pub fn trusted_preview(
     atomic_numbers: impl IntoIterator<Item = u8>,
 ) -> Option<TrustedCompositionPreview> {
+    let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
     let catalogue = chemistry::trusted_catalogue().ok()?;
-    resolve_with_catalogue(catalogue, atomic_numbers)
+    resolve_with_catalogue(catalogue, atomic_numbers.iter().copied())
+        .or_else(|| generated_preview(&atomic_numbers))
+}
+
+/// Structural preview straight from the generator: no catalogue involved.
+fn generated_preview(atomic_numbers: &[u8]) -> Option<TrustedCompositionPreview> {
+    let atomic_numbers = chemistry::standardize_elemental_draft(atomic_numbers);
+    let mut counts = std::collections::BTreeMap::new();
+    for number in atomic_numbers {
+        let symbol = chem_domain::ElementSymbol::new(chem_domain::symbol_of(number)?).ok()?;
+        *counts.entry(symbol).or_insert(0_u64) += 1;
+    }
+    let inventory = chem_domain::ElementInventory::new(counts).ok()?;
+    let structure = chem_domain::generate_structure(
+        chem_domain::StructureId::new("generated.preview").ok()?,
+        &inventory,
+    )?;
+    let formula = conventional_formula(&structure);
+    preview_from_definition(&structure, &formula)
+}
+
+/// Formula text for a generated structure: cations first for ionic
+/// compounds, then non-O/H elements, then O, then H; molecular formulas
+/// lead with H instead (`H2O`, `HCl`, `H2SO4`).
+fn conventional_formula(structure: &StructureDefinition) -> String {
+    let graph = structure.graph();
+    let mut counts = BTreeMap::<String, u64>::new();
+    let mut cations = BTreeMap::<String, u64>::new();
+    for atom in graph.atoms().values() {
+        let element = atom.element().as_str().to_owned();
+        if structure.representation() == chem_domain::RepresentationKind::Ionic
+            && atom.electrons().formal_charge() > 0
+        {
+            *cations.entry(element).or_insert(0) += 1;
+        } else {
+            *counts.entry(element).or_insert(0) += 1;
+        }
+    }
+    let mut formula = String::new();
+    let mut append = |symbol: &str, count: u64| {
+        formula.push_str(symbol);
+        if count > 1 {
+            formula.push_str(&count.to_string());
+        }
+    };
+    for (symbol, count) in &cations {
+        append(symbol, *count);
+    }
+    // Hill-style: carbon leads organics, otherwise hydrogen acids lead
+    // with H (H2O, HCl, H2SO4).
+    if let Some(count) = counts.get("C") {
+        append("C", *count);
+    }
+    if cations.is_empty()
+        && let Some(count) = counts.get("H")
+    {
+        append("H", *count);
+    }
+    for (symbol, count) in &counts {
+        if symbol == "O" || symbol == "H" || symbol == "C" {
+            continue;
+        }
+        append(symbol, *count);
+    }
+    if let Some(count) = counts.get("O") {
+        append("O", *count);
+    }
+    if !cations.is_empty()
+        && let Some(count) = counts.get("H")
+    {
+        append("H", *count);
+    }
+    formula
 }
 
 /// Resolves one exact structure identity from the host-pinned catalogue.
@@ -740,6 +815,24 @@ mod tests {
         assert_eq!(magnesium_fluoride.formula, "MgF₂");
         assert!(magnesium_fluoride.covalent_bonds().is_empty());
         assert_eq!(magnesium_fluoride.ionic_links().len(), 2);
+    }
+
+    #[test]
+    fn uncatalogued_inventories_generate_structural_previews() {
+        let sulfuric_acid = trusted_preview([1, 1, 16, 8, 8, 8, 8]).expect("generated H2SO4");
+        assert_eq!(sulfuric_acid.formula, "H₂SO₄");
+        assert_eq!(sulfuric_acid.atoms.len(), 7);
+        assert_eq!(sulfuric_acid.covalent_bonds().len(), 6);
+        assert!(sulfuric_acid.ionic_links().is_empty());
+
+        let methane = trusted_preview([6, 1, 1, 1, 1]).expect("generated CH4");
+        assert_eq!(methane.formula, "CH₄");
+        assert_eq!(methane.covalent_bonds().len(), 4);
+
+        let sodium_sulfate =
+            trusted_preview([11, 11, 16, 8, 8, 8, 8]).expect("generated Na2SO4");
+        assert_eq!(sodium_sulfate.formula, "Na₂SO₄");
+        assert!(!sodium_sulfate.ionic_links().is_empty());
     }
 
     #[test]

@@ -1277,24 +1277,6 @@ pub struct ElectronContributionRecord {
     pub right: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CatalogueReviewAttestation {
-    pub schema_version: u32,
-    pub id: String,
-    pub catalogue_digest: ContentDigest,
-    pub reviewer: String,
-    pub reviewed_on: String,
-    pub scope: String,
-    pub method: String,
-    #[serde(deserialize_with = "deserialize_unique_set")]
-    pub sources: BTreeSet<EvidenceSourceId>,
-    #[serde(deserialize_with = "deserialize_unique_set")]
-    pub premises: BTreeSet<PremiseId>,
-    pub coverage_conclusion: String,
-    pub limitation: String,
-}
-
 fn deserialize_unique_set<'de, D, T>(deserializer: D) -> Result<BTreeSet<T>, D::Error>
 where
     D: Deserializer<'de>,

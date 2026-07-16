@@ -31,15 +31,15 @@ use std::{
 
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
-    CodexProviderConfig, CompiledClaimOutcome, CurlEvidenceRetriever, DynamicCachePresentation,
-    DynamicPresentationOutcome, EvidenceBackedOutcome, EvidenceSnapshot, FAST_CLAIM_TIMEOUT,
+    CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
+    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT,
     LatencyMilestones, OutcomeSpecies, RESEARCHER_CLAIM_TIMEOUT, ReactantIdentityAmbiguity,
     ReactantInput, ReactionBuildRequest, ReactionClaim, RequestIdentityResolution, TrustTier,
     ValidatedStaticOutcome, compile_claim_outcome, enrich_static_outcome, load_claim_mode,
     load_dynamic_cache, resolve_request_identities_with_catalogue, reviewed_species_registry,
-    store_claim_mode, store_dynamic_cache, upgrade_dynamic_cache_evidence, verify_evidence,
+    store_claim_mode, store_dynamic_cache,
 };
-use chem_domain::{SpeciesId, SpeciesRegistry};
+use chem_domain::SpeciesId;
 use chem_presentation::{
     AppearanceProfile, AssetProfile, EducationalPlan, EducationalSceneKind, EffectProfile,
     PresentationObject, PresentationProfile, PresentationTransform, ScenePlan, SceneRole,
@@ -59,58 +59,6 @@ fn plan_equation(animation: &StructuralAnimation) -> Option<&str> {
 
 fn elapsed_millis(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
-}
-
-fn verify_dynamic_outcome(
-    provider: &CodexProvider,
-    request: &ReactionBuildRequest,
-    displayed: &ValidatedStaticOutcome,
-    identities: &SpeciesRegistry,
-    deadline: Instant,
-) -> Result<EvidenceBackedOutcome, String> {
-    let located = if displayed.claim().sources.is_empty() {
-        provider
-            .locate_claim_sources_until(request, displayed.claim(), deadline)
-            .map_err(|error| error.to_string())?
-    } else {
-        displayed.claim().clone()
-    };
-    let compile_same = |claim: ReactionClaim| {
-        let compiled =
-            compile_claim_outcome(request, claim, identities).map_err(|error| error.to_string())?;
-        let CompiledClaimOutcome::Static(candidate) = compiled else {
-            return Err("source verification changed the outcome disposition".to_owned());
-        };
-        if candidate.declaration().digest() != displayed.declaration().digest() {
-            return Err("source verification changed the balanced declaration".to_owned());
-        }
-        Ok(candidate)
-    };
-    let candidate = compile_same(located)?;
-    match verify_evidence(
-        candidate,
-        &mut CurlEvidenceRetriever::with_deadline(deadline),
-    ) {
-        Ok(verified) => Ok(verified),
-        Err(first_error) => {
-            let replacement = provider
-                .replace_claim_sources_until(
-                    request,
-                    displayed.claim(),
-                    &first_error.to_string(),
-                    deadline,
-                )
-                .map_err(|error| error.to_string())?;
-            let replacement = compile_same(replacement)?;
-            verify_evidence(
-                replacement,
-                &mut CurlEvidenceRetriever::with_deadline(deadline),
-            )
-            .map_err(|error| {
-                format!("evidence verification failed after one source replacement: {error}")
-            })
-        }
-    }
 }
 
 fn reviewed_outcome_choice(
@@ -618,11 +566,6 @@ enum Message {
         run_id: u64,
     },
     DynamicTheatreTick,
-    VerifyDynamicSources,
-    DynamicEvidenceFinished {
-        run_id: u64,
-        result: Box<Result<EvidenceBackedOutcome, String>>,
-    },
     RegenerateDynamicReaction,
     RetryDynamicPresentation,
     OutcomeSelected(chemistry::ReactionRequest),
@@ -742,21 +685,10 @@ enum DynamicBuildStage {
     Presentation,
 }
 
-#[derive(Debug, Clone, Default)]
-enum DynamicVerificationState {
-    #[default]
-    Idle,
-    Running {
-        run_id: u64,
-    },
-    Failed(String),
-}
-
 #[derive(Debug, Clone)]
 struct DynamicClaimStageResult {
     outcome: CompiledClaimOutcome,
     presentation: Option<DynamicPresentationOutcome>,
-    evidence: Option<EvidenceSnapshot>,
     latency: LatencyMilestones,
 }
 
@@ -796,8 +728,6 @@ struct App {
     dynamic_claim: Option<ReactionClaim>,
     dynamic_static: Option<ValidatedStaticOutcome>,
     dynamic_presentation: Option<DynamicPresentationOutcome>,
-    dynamic_evidence: Option<EvidenceSnapshot>,
-    dynamic_verification: DynamicVerificationState,
     dynamic_request: Option<ReactionBuildRequest>,
     dynamic_identity_choice: Option<DynamicIdentityChoice>,
     dynamic_context: Option<DynamicRequestContext>,
@@ -839,8 +769,6 @@ impl Default for App {
             dynamic_claim: None,
             dynamic_static: None,
             dynamic_presentation: None,
-            dynamic_evidence: None,
-            dynamic_verification: DynamicVerificationState::Idle,
             dynamic_request: None,
             dynamic_identity_choice: None,
             dynamic_context: None,
@@ -911,17 +839,7 @@ impl App {
                 Some(DynamicPresentationOutcome::Static { .. }) => "static result only",
                 None => "static result ready",
             };
-            let verification = match &self.dynamic_verification {
-                DynamicVerificationState::Running { .. } => "source verification running",
-                DynamicVerificationState::Failed(_) => "source verification failed",
-                DynamicVerificationState::Idle
-                    if outcome.trust_tier() == TrustTier::EvidenceBacked =>
-                {
-                    "sources verified"
-                }
-                DynamicVerificationState::Idle => "source check available",
-            };
-            format!("{}; {capability}; {verification}", outcome.equation())
+            format!("{}; {capability}", outcome.equation())
         } else {
             match &self.dynamic_build {
                 DynamicBuildState::Idle => "idle".to_owned(),
@@ -969,12 +887,7 @@ impl App {
                 return self.update_reactant_composer(message);
             }
             Message::ClaimModeSelected(mode) => {
-                if matches!(self.dynamic_build, DynamicBuildState::Running { .. })
-                    || matches!(
-                        self.dynamic_verification,
-                        DynamicVerificationState::Running { .. }
-                    )
-                {
+                if matches!(self.dynamic_build, DynamicBuildState::Running { .. }) {
                     return Task::none();
                 }
                 self.claim_mode = mode;
@@ -1036,13 +949,6 @@ impl App {
                     self.dynamic_build =
                         DynamicBuildState::Failed("Cancelled by the learner".into());
                 }
-                if matches!(
-                    self.dynamic_verification,
-                    DynamicVerificationState::Running { .. }
-                ) {
-                    self.dynamic_verification =
-                        DynamicVerificationState::Failed("Cancelled by the learner".into());
-                }
                 self.dynamic_progress_receiver = None;
             }
             Message::DynamicClaimFinished { run_id, result } => {
@@ -1054,15 +960,12 @@ impl App {
                     Ok(DynamicClaimStageResult {
                         outcome: CompiledClaimOutcome::Static(outcome),
                         presentation,
-                        evidence,
                         latency,
                     }) => {
                         self.dynamic_latency = latency;
                         self.dynamic_claim = Some(outcome.claim().clone());
                         self.dynamic_static = Some(outcome.clone());
                         self.dynamic_presentation = None;
-                        self.dynamic_evidence = evidence;
-                        self.dynamic_verification = DynamicVerificationState::Idle;
                         if let Some(presentation) = presentation {
                             self.dynamic_cancellation = None;
                             self.dynamic_progress_receiver = None;
@@ -1084,7 +987,6 @@ impl App {
                             request,
                             self.claim_mode,
                             outcome,
-                            self.dynamic_evidence.clone(),
                             self.dynamic_cancellation
                                 .clone()
                                 .expect("a running build retains cancellation"),
@@ -1097,15 +999,12 @@ impl App {
                             | CompiledClaimOutcome::Ambiguous(claim)
                             | CompiledClaimOutcome::Unsupported(claim),
                         presentation: _,
-                        evidence: _,
                         latency,
                     }) => {
                         self.dynamic_latency = latency;
                         self.dynamic_claim = Some(claim);
                         self.dynamic_static = None;
                         self.dynamic_presentation = None;
-                        self.dynamic_evidence = None;
-                        self.dynamic_verification = DynamicVerificationState::Idle;
                         self.validated_frames = None;
                         self.dynamic_build = DynamicBuildState::Idle;
                         self.dynamic_cancellation = None;
@@ -1116,8 +1015,6 @@ impl App {
                         self.dynamic_claim = None;
                         self.dynamic_static = None;
                         self.dynamic_presentation = None;
-                        self.dynamic_evidence = None;
-                        self.dynamic_verification = DynamicVerificationState::Idle;
                         self.dynamic_build = DynamicBuildState::Failed(error);
                         self.dynamic_cancellation = None;
                         self.dynamic_progress_receiver = None;
@@ -1167,9 +1064,6 @@ impl App {
                 let current = matches!(
                     self.dynamic_build,
                     DynamicBuildState::Running { run_id: current, .. } if current == run_id
-                ) || matches!(
-                    self.dynamic_verification,
-                    DynamicVerificationState::Running { run_id: current } if current == run_id
                 );
                 if let DynamicBuildState::Running {
                     run_id: current,
@@ -1194,81 +1088,6 @@ impl App {
                 ) && self.dynamic_static.is_some()
                 {
                     self.dynamic_theatre_phase = (self.dynamic_theatre_phase + 0.006).fract();
-                }
-            }
-            Message::VerifyDynamicSources => {
-                if matches!(
-                    self.dynamic_verification,
-                    DynamicVerificationState::Running { .. }
-                ) {
-                    return Task::none();
-                }
-                let (Some(request), Some(outcome)) =
-                    (self.dynamic_request.clone(), self.dynamic_static.clone())
-                else {
-                    return Task::none();
-                };
-                let run_id = self.next_dynamic_run_id;
-                self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
-                let cancellation = Arc::new(AtomicBool::new(false));
-                self.dynamic_cancellation = Some(cancellation.clone());
-                self.dynamic_verification = DynamicVerificationState::Running { run_id };
-                let progress = self.reset_dynamic_progress_channel();
-                return Self::start_dynamic_verification(
-                    run_id,
-                    request,
-                    self.claim_mode,
-                    outcome,
-                    cancellation,
-                    progress,
-                );
-            }
-            Message::DynamicEvidenceFinished { run_id, result } => {
-                if !matches!(self.dynamic_verification, DynamicVerificationState::Running { run_id: current } if current == run_id)
-                {
-                    return Task::none();
-                }
-                match *result {
-                    Ok(verified) => {
-                        self.dynamic_latency.evidence_ms =
-                            self.dynamic_started_at.map(elapsed_millis);
-                        self.dynamic_claim = Some(verified.outcome().claim().clone());
-                        self.dynamic_static = Some(verified.outcome().clone());
-                        self.dynamic_evidence = Some(verified.snapshot().clone());
-                        self.dynamic_verification = DynamicVerificationState::Idle;
-                        if matches!(
-                            self.dynamic_presentation,
-                            None | Some(DynamicPresentationOutcome::Static { .. })
-                        ) {
-                            let Some(request) = self.dynamic_request.clone() else {
-                                return Task::none();
-                            };
-                            self.dynamic_build = DynamicBuildState::Running {
-                                run_id,
-                                elapsed_seconds: 0,
-                                stage: DynamicBuildStage::Presentation,
-                            };
-                            let progress = self.reset_dynamic_progress_channel();
-                            return Self::start_dynamic_presentation(
-                                run_id,
-                                request,
-                                self.claim_mode,
-                                verified.into_outcome(),
-                                self.dynamic_evidence.clone(),
-                                self.dynamic_cancellation
-                                    .clone()
-                                    .expect("verification retains cancellation"),
-                                progress,
-                            );
-                        }
-                        self.dynamic_cancellation = None;
-                        self.dynamic_progress_receiver = None;
-                    }
-                    Err(error) => {
-                        self.dynamic_verification = DynamicVerificationState::Failed(error);
-                        self.dynamic_cancellation = None;
-                        self.dynamic_progress_receiver = None;
-                    }
                 }
             }
             Message::RegenerateDynamicReaction => {
@@ -1312,7 +1131,6 @@ impl App {
                     request,
                     self.claim_mode,
                     outcome,
-                    self.dynamic_evidence.clone(),
                     cancellation,
                     progress,
                 );
@@ -1417,8 +1235,7 @@ impl App {
                 self.validated_frames = None;
                 self.structural_animation = None;
             }
-            self.dynamic_evidence = None;
-            self.dynamic_verification = DynamicVerificationState::Idle;
+
             self.dynamic_request = None;
             reactant_composer::update(&mut self.reactant_composer, message);
             return Task::none();
@@ -1496,8 +1313,7 @@ impl App {
         self.dynamic_claim = None;
         self.dynamic_static = None;
         self.dynamic_presentation = None;
-        self.dynamic_evidence = None;
-        self.dynamic_verification = DynamicVerificationState::Idle;
+
         self.dynamic_identity_choice = None;
         self.dynamic_details_open = false;
         self.dynamic_started_at = None;
@@ -1526,7 +1342,11 @@ impl App {
         match resolve_request_identities_with_catalogue(&request, &identities, &catalogue) {
             Ok(RequestIdentityResolution::Resolved(resolved)) => {
                 for (input, species) in request.reactants.iter_mut().zip(resolved) {
-                    if let agent::OutcomeSpecies::Resolved(species) = species {
+                    // Generated identities are rebuilt deterministically on
+                    // each resolution, so only registry-pinned ids persist.
+                    if let agent::OutcomeSpecies::Resolved(species) = species
+                        && identities.get(&species.id).is_some()
+                    {
                         input.species_id = Some(species.id);
                     }
                 }
@@ -1585,48 +1405,31 @@ impl App {
                         }
                         Some(DynamicPresentationOutcome::Static { .. }) | None => {}
                     }
-                    if cached.evidence.is_some() {
-                        latency.evidence_ms = Some(elapsed);
-                    }
                     return Ok(DynamicClaimStageResult {
                         outcome: cached.outcome,
                         presentation: cached.presentation,
-                        evidence: cached.evidence,
                         latency,
                     });
                 }
-                let claim = provider
-                    .claim_reaction_until(&request, mode, deadline)
-                    .map_err(|error| error.to_string())?;
+                // Algorithmic solving comes first: deterministic reaction
+                // families never need the model at all.
+                let solved = agent::solve_reaction_claim(&request, &identities);
+                let algorithmic = solved.is_some();
+                let claim = match solved {
+                    Some(claim) => claim,
+                    None => provider
+                        .claim_reaction_until(&request, mode, deadline)
+                        .map_err(|error| error.to_string())?,
+                };
                 latency.claim_ms = Some(elapsed_millis(started));
                 let outcome = compile_claim_outcome(&request, claim.clone(), &identities)
                     .map_err(|error| error.to_string())?;
                 if matches!(outcome, CompiledClaimOutcome::Static(_)) {
                     latency.static_outcome_ms = Some(elapsed_millis(started));
                 }
-                let (outcome, evidence) = if mode == ClaimMode::Researcher {
-                    match outcome {
-                        CompiledClaimOutcome::Static(static_outcome) => {
-                            let verified = verify_dynamic_outcome(
-                                &provider,
-                                &request,
-                                &static_outcome,
-                                &identities,
-                                deadline,
-                            )?;
-                            let snapshot = verified.snapshot().clone();
-                            latency.evidence_ms = Some(elapsed_millis(started));
-                            (
-                                CompiledClaimOutcome::Static(verified.into_outcome()),
-                                Some(snapshot),
-                            )
-                        }
-                        other => (other, None),
-                    }
-                } else {
-                    (outcome, None)
-                };
-                if let Some(directory) = provider.config().cache_directory.as_deref() {
+                // Algorithmic claims are recomputed instantly; only model
+                // claims are worth caching.
+                if !algorithmic && let Some(directory) = provider.config().cache_directory.as_deref() {
                     let _ = store_dynamic_cache(
                         directory,
                         &request,
@@ -1634,7 +1437,6 @@ impl App {
                         &identities,
                         &catalogue,
                         &claim,
-                        evidence.as_ref(),
                         None,
                         "codex_subscription",
                         provider.model_name(),
@@ -1643,7 +1445,6 @@ impl App {
                 Ok(DynamicClaimStageResult {
                     outcome,
                     presentation: None,
-                    evidence,
                     latency,
                 })
             },
@@ -1659,7 +1460,6 @@ impl App {
         request: ReactionBuildRequest,
         mode: ClaimMode,
         outcome: ValidatedStaticOutcome,
-        evidence: Option<EvidenceSnapshot>,
         cancellation: Arc<AtomicBool>,
         progress: Sender<CodexProgressEvent>,
     ) -> Task<Message> {
@@ -1683,28 +1483,31 @@ impl App {
                     .map_err(|error| error.to_string())?;
                 let recipe = match &presentation {
                     DynamicPresentationOutcome::ReviewedFamily(outcome) => {
-                        DynamicCachePresentation::ReviewedFamily {
+                        Some(DynamicCachePresentation::ReviewedFamily {
                             rule_id: outcome.family_rule().clone(),
-                        }
+                        })
                     }
-                    DynamicPresentationOutcome::Escalated(_) => {
-                        DynamicCachePresentation::Escalated {
-                            response: provider.take_last_mechanism_response().ok_or_else(|| {
-                                "validated escalation did not retain its response".to_owned()
-                            })?,
+                    // An escalation with no retained model response was
+                    // derived algorithmically; it recomputes instantly and
+                    // is not worth caching.
+                    DynamicPresentationOutcome::Escalated(_) => provider
+                        .take_last_mechanism_response()
+                        .map(|response| DynamicCachePresentation::Escalated {
+                            response,
                             structures: provider.take_last_structure_response(),
-                        }
-                    }
+                        }),
                     DynamicPresentationOutcome::Static {
                         diagnostic,
                         retryable,
                         ..
-                    } => DynamicCachePresentation::Static {
+                    } => Some(DynamicCachePresentation::Static {
                         diagnostic: diagnostic.clone(),
                         retryable: *retryable,
-                    },
+                    }),
                 };
-                if let Some(directory) = provider.config().cache_directory.as_deref() {
+                if let (Some(recipe), Some(directory)) =
+                    (recipe, provider.config().cache_directory.as_deref())
+                {
                     let identities =
                         reviewed_species_registry(&catalogue).map_err(|error| error.to_string())?;
                     let _ = store_dynamic_cache(
@@ -1714,7 +1517,6 @@ impl App {
                         &identities,
                         &catalogue,
                         &claim,
-                        evidence.as_ref(),
                         Some(recipe),
                         "codex_subscription",
                         provider.model_name(),
@@ -1778,56 +1580,6 @@ impl App {
         })
     }
 
-    fn start_dynamic_verification(
-        run_id: u64,
-        request: ReactionBuildRequest,
-        mode: ClaimMode,
-        displayed: ValidatedStaticOutcome,
-        cancellation: Arc<AtomicBool>,
-        progress: Sender<CodexProgressEvent>,
-    ) -> Task<Message> {
-        let mut config = CodexProviderConfig::from_environment();
-        config.cancellation = Some(cancellation);
-        config.progress = Some(progress);
-        let catalogue = match chemistry::trusted_catalogue() {
-            Ok(catalogue) => catalogue.clone(),
-            Err(error) => {
-                return Task::done(Message::DynamicEvidenceFinished {
-                    run_id,
-                    result: Box::new(Err(error.to_owned())),
-                });
-            }
-        };
-        Task::perform(
-            async move {
-                let deadline = Instant::now() + RESEARCHER_CLAIM_TIMEOUT;
-                let provider = CodexProvider::new(config);
-                let identities =
-                    reviewed_species_registry(&catalogue).map_err(|error| error.to_string())?;
-                let verified =
-                    verify_dynamic_outcome(&provider, &request, &displayed, &identities, deadline)?;
-                if let Some(directory) = provider.config().cache_directory.as_deref() {
-                    let _ = upgrade_dynamic_cache_evidence(
-                        directory,
-                        &request,
-                        mode,
-                        &identities,
-                        &catalogue,
-                        verified.outcome().claim(),
-                        verified.snapshot(),
-                        "codex_subscription",
-                        provider.model_name(),
-                    );
-                }
-                Ok(verified)
-            },
-            move |result| Message::DynamicEvidenceFinished {
-                run_id,
-                result: Box::new(result),
-            },
-        )
-    }
-
     fn structural_trust_label(&self) -> &'static str {
         match &self.dynamic_presentation {
             Some(DynamicPresentationOutcome::ReviewedFamily(_)) => "REVIEWED FAMILY",
@@ -1847,8 +1599,7 @@ impl App {
         self.dynamic_claim = None;
         self.dynamic_static = None;
         self.dynamic_presentation = None;
-        self.dynamic_evidence = None;
-        self.dynamic_verification = DynamicVerificationState::Idle;
+
         self.dynamic_request = None;
         self.dynamic_build = DynamicBuildState::Idle;
         self.structural_animation = None;
@@ -1924,17 +1675,13 @@ impl App {
         };
 
         let dynamic_build = if self.screen == Screen::Builder {
-            match (&self.dynamic_build, &self.dynamic_verification) {
-                (DynamicBuildState::Running { run_id, .. }, _)
-                | (_, DynamicVerificationState::Running { run_id }) => {
+            match &self.dynamic_build {
+                DynamicBuildState::Running { run_id, .. } => {
                     iced::time::every(std::time::Duration::from_secs(1))
                         .with(*run_id)
                         .map(|(run_id, _)| Message::DynamicBuildTick { run_id })
                 }
-                (
-                    DynamicBuildState::Idle | DynamicBuildState::Failed(_),
-                    DynamicVerificationState::Idle | DynamicVerificationState::Failed(_),
-                ) => Subscription::none(),
+                DynamicBuildState::Idle | DynamicBuildState::Failed(_) => Subscription::none(),
             }
         } else {
             Subscription::none()
@@ -2877,7 +2624,6 @@ impl App {
         if let Some(outcome) = &self.dynamic_static {
             let trust = match outcome.trust_tier() {
                 TrustTier::Reviewed => "REVIEWED",
-                TrustTier::EvidenceBacked => "EVIDENCE BACKED",
                 TrustTier::ModelAsserted => "MODEL ASSERTED",
             };
             let presentation = match (&self.dynamic_build, &self.dynamic_presentation) {
@@ -2903,34 +2649,6 @@ impl App {
                 }
                 (_, None) => "Validated static result".to_owned(),
             };
-            let verification = match &self.dynamic_verification {
-                DynamicVerificationState::Idle if outcome.trust_tier() == TrustTier::Reviewed => {
-                    "Supported by a reviewed local family".to_owned()
-                }
-                DynamicVerificationState::Idle
-                    if outcome.trust_tier() == TrustTier::EvidenceBacked =>
-                {
-                    "Fetched claim-level sources verified".to_owned()
-                }
-                DynamicVerificationState::Idle => "Verify with sources".to_owned(),
-                DynamicVerificationState::Running { .. } => {
-                    self.dynamic_progress_label().map_or_else(
-                        || "Fetching and checking cited passages…".to_owned(),
-                        |progress| format!("Fetching and checking cited passages · {progress}…"),
-                    )
-                }
-                DynamicVerificationState::Failed(_) => "Source check unavailable".to_owned(),
-            };
-            let verify = button(text(verification))
-                .on_press_maybe(
-                    (outcome.trust_tier() == TrustTier::ModelAsserted
-                        && !matches!(
-                            self.dynamic_verification,
-                            DynamicVerificationState::Running { .. }
-                        ))
-                    .then_some(Message::VerifyDynamicSources),
-                )
-                .style(theme::secondary_button);
             let retry: Element<'_, Message> = if matches!(
                 (&self.dynamic_presentation, &self.dynamic_build),
                 (
@@ -2984,16 +2702,9 @@ impl App {
                 })
                 .collect::<Vec<_>>()
                 .join("  ·  ");
-            let diagnostic = match (&self.dynamic_presentation, &self.dynamic_verification) {
-                (
-                    Some(DynamicPresentationOutcome::Static { diagnostic, .. }),
-                    DynamicVerificationState::Failed(error),
-                ) => Some(format!("Presentation: {diagnostic}\nSource check: {error}")),
-                (Some(DynamicPresentationOutcome::Static { diagnostic, .. }), _) => {
+            let diagnostic = match &self.dynamic_presentation {
+                Some(DynamicPresentationOutcome::Static { diagnostic, .. }) => {
                     Some(format!("Presentation: {diagnostic}"))
-                }
-                (_, DynamicVerificationState::Failed(error)) => {
-                    Some(format!("Source check: {error}"))
                 }
                 _ => match &self.dynamic_build {
                     DynamicBuildState::Failed(error) => Some(format!("Build: {error}")),
@@ -3051,7 +2762,6 @@ impl App {
                     text(self.dynamic_latency_summary())
                         .size(type_scale::MICRO)
                         .color(color::MUTED),
-                    verify,
                     retry,
                     details_button,
                     details,
@@ -3205,11 +2915,7 @@ impl App {
         .width(Fill)
         .height(Fill);
 
-        let dynamic_busy = matches!(self.dynamic_build, DynamicBuildState::Running { .. })
-            || matches!(
-                self.dynamic_verification,
-                DynamicVerificationState::Running { .. }
-            );
+        let dynamic_busy = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
         let context_controls: Element<'_, Message> = if !first.is_empty() && second.is_empty() {
             let mut controls = row![
@@ -3270,12 +2976,8 @@ impl App {
             space().width(Fill),
             button(text("Cancel"))
                 .on_press_maybe(
-                    (matches!(self.dynamic_build, DynamicBuildState::Running { .. })
-                        || matches!(
-                            self.dynamic_verification,
-                            DynamicVerificationState::Running { .. }
-                        ))
-                    .then_some(Message::CancelDynamicWork),
+                    matches!(self.dynamic_build, DynamicBuildState::Running { .. })
+                        .then_some(Message::CancelDynamicWork),
                 )
                 .style(theme::secondary_button),
         ]
@@ -3548,7 +3250,7 @@ mod tests {
     }
 
     #[test]
-    fn unrecognised_sulfuric_acid_pair_enters_structure_escalation() {
+    fn uncatalogued_sulfuric_acid_pair_starts_a_dynamic_build_with_generated_identities() {
         let mut app = App {
             provider: Some(ProviderChoice::CodexSubscription),
             ..App::default()
@@ -3734,7 +3436,6 @@ mod tests {
             result: Box::new(Ok(DynamicClaimStageResult {
                 outcome: CompiledClaimOutcome::Static(outcome),
                 presentation: None,
-                evidence: None,
                 latency: LatencyMilestones {
                     claim_ms: Some(1_200),
                     static_outcome_ms: Some(1_250),

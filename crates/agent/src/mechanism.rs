@@ -326,6 +326,20 @@ pub fn derive_mechanism<P: MechanismProvider>(
     catalogue: &ValidatedCatalogueBundle,
     provider: &mut P,
 ) -> MechanismEscalationOutcome {
+    // Generated structures live only on the outcome; premise them into a
+    // working bundle exactly like adopted proposals before compiling.
+    let augmented = match crate::structure::bundle_with_outcome_structures(&outcome, catalogue) {
+        Ok(bundle) => bundle,
+        Err(error) => {
+            return MechanismEscalationOutcome::Unavailable {
+                static_outcome: Box::new(outcome),
+                attempts: 0,
+                diagnostic: error.to_string(),
+                retryable: false,
+            };
+        }
+    };
+    let catalogue = &augmented;
     match compile_mechanism_request(&outcome, catalogue) {
         Ok(Some(context)) => propose_mechanism_frames(outcome, catalogue, provider, &context, 0),
         Ok(None) => derive_with_proposed_structures(outcome, catalogue, provider),
@@ -345,6 +359,19 @@ fn propose_mechanism_frames<P: MechanismProvider>(
     context: &MechanismContext,
     structure_repair_count: usize,
 ) -> MechanismEscalationOutcome {
+    // The mechanism is a computable graph diff whenever both endpoint
+    // structures are known; the model is only consulted when derivation or
+    // its kernel validation fails.
+    if let Some(response) = crate::mechanize::derive_algorithmic_mechanism(&context.request)
+        && let Ok(frames) = compile_mechanism(&outcome, context, &response, catalogue)
+    {
+        return MechanismEscalationOutcome::Animated(Box::new(EscalatedMechanismOutcome {
+            static_outcome: outcome,
+            frames,
+            repair_count: 0,
+            structure_repair_count,
+        }));
+    }
     let mut diagnostic = None;
     for attempt in 0..=MAX_MECHANISM_REPAIRS {
         let response = match provider.propose(&context.request, diagnostic.as_deref()) {
@@ -443,6 +470,8 @@ pub fn validate_escalated_response(
     response: &MechanismEscalationResponse,
     catalogue: &ValidatedCatalogueBundle,
 ) -> Result<EscalatedMechanismOutcome, AgentError> {
+    let augmented = crate::structure::bundle_with_outcome_structures(&outcome, catalogue)?;
+    let catalogue = &augmented;
     let context = compile_mechanism_request(&outcome, catalogue)?.ok_or_else(|| {
         AgentError::new(
             "mechanism cache",
@@ -474,6 +503,8 @@ pub fn validate_escalated_response_with_structures(
     let Some(structures) = structures else {
         return validate_escalated_response(outcome, response, catalogue);
     };
+    let augmented = crate::structure::bundle_with_outcome_structures(&outcome, catalogue)?;
+    let catalogue = &augmented;
     let request = structure_proposal_request(&outcome, catalogue).ok_or_else(|| {
         AgentError::new(
             "mechanism cache",
@@ -1241,7 +1272,10 @@ fn cleavage(value: &MechanismCleavageAllocation) -> CleavageAllocationRecord {
     }
 }
 
-fn labelled_structure(structure: &StructureDefinition, formula: &str) -> LabelledStructure {
+pub(crate) fn labelled_structure(
+    structure: &StructureDefinition,
+    formula: &str,
+) -> LabelledStructure {
     let graph = structure.graph();
     let atoms = || graph.atoms().values().map(atom_record).collect::<Vec<_>>();
     let bonds = || {
@@ -1404,12 +1438,8 @@ mod tests {
 
     fn trusted() -> TrustedCatalogue {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/review.json"))
-                .expect("review"),
-        )
+        TrustedCatalogue::from_canonical_json(&std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+                .expect("catalogue"))
         .expect("trusted catalogue")
     }
 
@@ -1655,15 +1685,92 @@ mod tests {
     }
 
     #[test]
-    fn formula_only_product_escalates_structures_and_stays_retryable() {
+    fn ionic_synthesis_animates_algorithmically_without_any_model() {
         let trusted = trusted();
-        let outcome = static_outcome(
+        let outcome = static_outcome_for(
             &trusted,
+            [("Na", vec![11]), ("ElementalChlorine", vec![17, 17])],
             &json!([
-                {"name":"lithium hydride candidate","formula":"LiH","phase":"solid","identity_hints":[]},
-                {"name":"oxygen","formula":"O2","phase":"gas","identity_hints":[]}
+                {"name":"sodium chloride","formula":"NaCl","phase":"solid","identity_hints":[]}
             ]),
         );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn probe_neutralization_derivation() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]), ("NaOH", vec![11, 8, 1])],
+            &json!([
+                {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
+                {"name":"sodium sulfate","formula":"Na2SO4","phase":"aqueous","identity_hints":[]}
+            ]),
+        );
+        let augmented = crate::structure::bundle_with_outcome_structures(&outcome, &trusted)
+            .expect("augmented bundle");
+        let context = compile_mechanism_request(&outcome, &augmented)
+            .expect("request")
+            .expect("complete");
+        let response = crate::mechanize::derive_algorithmic_mechanism(&context.request)
+            .expect("derivation should produce a response");
+        if let Err(error) = compile_mechanism(&outcome, &context, &response, &augmented) {
+            panic!("compile rejected: {error}\nops: {:#?}", response.operations);
+        }
+    }
+
+    #[test]
+    fn neutralization_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]), ("NaOH", vec![11, 8, 1])],
+            &json!([
+                {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
+                {"name":"sodium sulfate","formula":"Na2SO4","phase":"aqueous","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn lithium_arsenide_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("Li", vec![3]), ("As4", vec![33, 33, 33, 33])],
+            &json!([
+                {"name":"lithium arsenide","formula":"Li3As","phase":"solid","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn formula_only_product_escalates_structures_and_stays_retryable() {
+        // C3H8O is deliberately ambiguous (1-propanol vs 2-propanol), so the
+        // structure generator declines and model escalation stays necessary.
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
         let mut provider = MechanismOnlyProvider::default();
         let result = derive_mechanism(outcome, &trusted, &mut provider);
         let MechanismEscalationOutcome::Unavailable {
@@ -1686,12 +1793,16 @@ mod tests {
 
     #[test]
     fn one_structure_request_covers_missing_reactants_and_products() {
+        // Both sides use ambiguous inventories the generator declines.
         let trusted = trusted();
         let outcome = static_outcome_for(
             &trusted,
-            [("CH4", vec![6, 1, 1, 1, 1]), ("O2", vec![8, 8])],
+            [
+                ("C3H8O", vec![6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1, 1]),
+                ("O2", vec![8, 8]),
+            ],
             &json!([
-                {"name":"methanol","formula":"CH4O","phase":"liquid","identity_hints":[]}
+                {"name":"propane diol","formula":"C3H8O2","phase":"liquid","identity_hints":[]}
             ]),
         );
         let request = structure_proposal_request(&outcome, &trusted)
@@ -1702,78 +1813,60 @@ mod tests {
                 .iter()
                 .map(|species| species.formula.as_str())
                 .collect::<Vec<_>>(),
-            ["CH4", "CH4O"]
+            ["C3H8O", "C3H8O2"]
         );
     }
 
-    fn hydrogen_peroxide_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
+    /// Ethylene + methanol: the product C3H8O is structurally ambiguous
+    /// (1-propanol vs 2-propanol tie), so the generator declines and the
+    /// model escalation path stays exercised.
+    fn ether_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
         static_outcome_for(
             trusted,
-            [("H2", vec![1, 1]), ("O2", vec![8, 8])],
+            [
+                ("C2H4", vec![6, 6, 1, 1, 1, 1]),
+                ("CH4O", vec![6, 8, 1, 1, 1, 1]),
+            ],
             &json!([
-                {"name":"hydrogen peroxide","formula":"H2O2","phase":"liquid","identity_hints":[]}
+                {"name":"methoxyethane","formula":"C3H8O","phase":"liquid","identity_hints":[]}
             ]),
         )
     }
 
-    fn hydrogen_peroxide_structure() -> StructureProposalResponse {
+    fn ether_structure() -> StructureProposalResponse {
         StructureProposalResponse::from_json(
             &serde_json::to_vec(&json!({
                 "schema_version": 1,
                 "structures": [{
                     "representation": "molecular",
                     "id": "DynamicStructure1",
-                    "formula": "H2O2",
+                    "formula": "C3H8O",
                     "atoms": [
-                        {"label":"h1","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
-                        {"label":"o1","element":"O","formal_charge":0,"non_bonding_electrons":4,"unpaired_electrons":0},
-                        {"label":"o2","element":"O","formal_charge":0,"non_bonding_electrons":4,"unpaired_electrons":0},
-                        {"label":"h2","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0}
-                    ],
-                    "bonds": [
-                        {"left":"h1","right":"o1","order":"single"},
-                        {"left":"o1","right":"o2","order":"single"},
-                        {"left":"o2","right":"h2","order":"single"}
-                    ],
-                    "groups": []
-                }]
-            }))
-            .expect("structure JSON"),
-        )
-        .expect("structure contract")
-    }
-
-    fn methane_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
-        static_outcome_for(
-            trusted,
-            [("CH4", vec![6, 1, 1, 1, 1]), ("O2", vec![8, 8])],
-            &json!([
-                {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
-                {"name":"water","formula":"H2O","phase":"gas","identity_hints":[]}
-            ]),
-        )
-    }
-
-    fn methane_structure() -> StructureProposalResponse {
-        StructureProposalResponse::from_json(
-            &serde_json::to_vec(&json!({
-                "schema_version": 1,
-                "structures": [{
-                    "representation": "molecular",
-                    "id": "DynamicStructure1",
-                    "formula": "CH4",
-                    "atoms": [
-                        {"label":"c","element":"C","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"c1","element":"C","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"c2","element":"C","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"mc","element":"C","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"o","element":"O","formal_charge":0,"non_bonding_electrons":4,"unpaired_electrons":0},
                         {"label":"h1","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
                         {"label":"h2","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
                         {"label":"h3","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
-                        {"label":"h4","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0}
+                        {"label":"h4","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h5","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h6","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h7","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0},
+                        {"label":"h8","element":"H","formal_charge":0,"non_bonding_electrons":0,"unpaired_electrons":0}
                     ],
                     "bonds": [
-                        {"left":"c","right":"h1","order":"single"},
-                        {"left":"c","right":"h2","order":"single"},
-                        {"left":"c","right":"h3","order":"single"},
-                        {"left":"c","right":"h4","order":"single"}
+                        {"left":"c1","right":"c2","order":"single"},
+                        {"left":"c1","right":"h1","order":"single"},
+                        {"left":"c1","right":"h2","order":"single"},
+                        {"left":"c1","right":"h3","order":"single"},
+                        {"left":"c2","right":"h4","order":"single"},
+                        {"left":"c2","right":"h5","order":"single"},
+                        {"left":"c2","right":"o","order":"single"},
+                        {"left":"o","right":"mc","order":"single"},
+                        {"left":"mc","right":"h6","order":"single"},
+                        {"left":"mc","right":"h7","order":"single"},
+                        {"left":"mc","right":"h8","order":"single"}
                     ],
                     "groups": []
                 }]
@@ -1786,11 +1879,11 @@ mod tests {
     #[test]
     fn chemspec_derives_provisional_operation_states_from_reviewed_neutral_valence() {
         let trusted = trusted();
-        let outcome = methane_outcome(&trusted);
+        let outcome = ether_outcome(&trusted);
         let request =
-            structure_proposal_request(&outcome, &trusted).expect("methane structure request");
-        let adopted = adopt_proposed_structures(&outcome, &request, &methane_structure(), &trusted)
-            .expect("methane structure validates");
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        let adopted = adopt_proposed_structures(&outcome, &request, &ether_structure(), &trusted)
+            .expect("ether structure validates");
         let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
             .expect("mechanism request")
             .expect("all structures present");
@@ -1828,11 +1921,11 @@ mod tests {
     #[test]
     fn impossible_provisional_operation_state_fails_with_identity_diagnostic() {
         let trusted = trusted();
-        let outcome = methane_outcome(&trusted);
+        let outcome = ether_outcome(&trusted);
         let request =
-            structure_proposal_request(&outcome, &trusted).expect("methane structure request");
-        let adopted = adopt_proposed_structures(&outcome, &request, &methane_structure(), &trusted)
-            .expect("methane structure validates");
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        let adopted = adopt_proposed_structures(&outcome, &request, &ether_structure(), &trusted)
+            .expect("ether structure validates");
         let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
             .expect("mechanism request")
             .expect("all structures present");
@@ -1859,63 +1952,119 @@ mod tests {
         assert!(error.to_string().contains("formal-charge identity"));
     }
 
-    /// Builds the peroxide mechanism over the exact labels of the adopted
-    /// request, the same way a live provider reads them from its prompt.
-    fn hydrogen_peroxide_mechanism(
+    /// Builds the ethylene + methanol → methoxyethane mechanism over the
+    /// exact labels of the adopted request, the same way a live provider
+    /// reads them from its prompt. Adjacency is read from the labelled
+    /// structures so the mapping stays consistent with whatever labels the
+    /// generator assigned.
+    #[allow(clippy::too_many_lines)]
+    fn ether_mechanism(
         adopted: &crate::AdoptedProposedStructures,
     ) -> MechanismEscalationResponse {
         let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
             .expect("request")
             .expect("complete structural request");
         let request = context.request();
-        let species_atoms = |formula: &str, element: &str, entries: &[MechanismSpecies]| {
+        let molecular = |formula: &str, entries: &[MechanismSpecies]| {
             entries
                 .iter()
                 .find_map(|entry| match &entry.structure {
                     LabelledStructure::Molecular {
                         formula: found,
                         atoms,
+                        bonds,
                         ..
-                    } if found == formula => Some(
-                        atoms
-                            .iter()
-                            .filter(|atom| atom.element == element)
-                            .map(|atom| format!("{}[1].{}", entry.role, atom.label))
-                            .collect::<Vec<_>>(),
-                    ),
+                    } if found == formula => {
+                        Some((entry.role.clone(), atoms.clone(), bonds.clone()))
+                    }
                     _ => None,
                 })
                 .unwrap_or_else(|| panic!("no molecular species with formula {formula}"))
         };
-        let h = species_atoms("H2", "H", &request.reactants);
-        let o = species_atoms("O2", "O", &request.reactants);
-        let product_h = species_atoms("H2O2", "H", &request.products);
-        let product_o = species_atoms("H2O2", "O", &request.products);
-        let product_instance = product_h[0]
-            .split('.')
-            .next()
-            .expect("product instance prefix")
-            .to_owned();
+        let path = |role: &str, label: &str| format!("{role}[1].{label}");
+        let neighbours = |atoms: &[chem_catalogue::AtomRecord],
+                          bonds: &[chem_catalogue::BondRecord],
+                          label: &str,
+                          element: &str| {
+            bonds
+                .iter()
+                .filter_map(|bond| {
+                    let other = if bond.left == label {
+                        &bond.right
+                    } else if bond.right == label {
+                        &bond.left
+                    } else {
+                        return None;
+                    };
+                    atoms
+                        .iter()
+                        .any(|atom| &atom.label == other && atom.element == element)
+                        .then(|| other.clone())
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let (ethylene_role, ethylene_atoms, ethylene_bonds) = molecular("C2H4", &request.reactants);
+        let (methanol_role, methanol_atoms, methanol_bonds) =
+            molecular("CH4O", &request.reactants);
+        let (product_role, _, _) = molecular("C3H8O", &request.products);
+        let carbons = ethylene_atoms
+            .iter()
+            .filter(|atom| atom.element == "C")
+            .map(|atom| atom.label.clone())
+            .collect::<Vec<_>>();
+        let (c_a, c_b) = (carbons[0].clone(), carbons[1].clone());
+        let a_hydrogens = neighbours(&ethylene_atoms, &ethylene_bonds, &c_a, "H");
+        let b_hydrogens = neighbours(&ethylene_atoms, &ethylene_bonds, &c_b, "H");
+        let oxygen = methanol_atoms
+            .iter()
+            .find(|atom| atom.element == "O")
+            .expect("methanol oxygen")
+            .label
+            .clone();
+        let hydroxyl_h = neighbours(&methanol_atoms, &methanol_bonds, &oxygen, "H")
+            .first()
+            .expect("methanol O-H")
+            .clone();
+        let methyl_c = neighbours(&methanol_atoms, &methanol_bonds, &oxygen, "C")
+            .first()
+            .expect("methanol carbon")
+            .clone();
+        let methyl_hydrogens = neighbours(&methanol_atoms, &methanol_bonds, &methyl_c, "H");
+
+        let e = |label: &str| path(&ethylene_role, label);
+        let m = |label: &str| path(&methanol_role, label);
+        let p = |label: &str| path(&product_role, label);
+        let product_instance = format!("{product_role}[1]");
         let response = json!({
             "schema_version": crate::claim::MECHANISM_ESCALATION_SCHEMA_VERSION,
             "mapping": [
-                {"reactant": h[0], "product": product_h[0]},
-                {"reactant": h[1], "product": product_h[1]},
-                {"reactant": o[0], "product": product_o[0]},
-                {"reactant": o[1], "product": product_o[1]}
+                {"reactant": e(&c_a), "product": p("c1")},
+                {"reactant": e(&c_b), "product": p("c2")},
+                {"reactant": m(&methyl_c), "product": p("mc")},
+                {"reactant": m(&oxygen), "product": p("o")},
+                {"reactant": e(&a_hydrogens[0]), "product": p("h1")},
+                {"reactant": e(&a_hydrogens[1]), "product": p("h2")},
+                {"reactant": m(&hydroxyl_h), "product": p("h3")},
+                {"reactant": e(&b_hydrogens[0]), "product": p("h4")},
+                {"reactant": e(&b_hydrogens[1]), "product": p("h5")},
+                {"reactant": m(&methyl_hydrogens[0]), "product": p("h6")},
+                {"reactant": m(&methyl_hydrogens[1]), "product": p("h7")},
+                {"reactant": m(&methyl_hydrogens[2]), "product": p("h8")}
             ],
             "operations": [
-                {"kind":"reconfigure_electrons","atom":o[0],"before":[0,4,0],"after":[0,4,2]},
-                {"kind":"reconfigure_electrons","atom":o[0],"before":[0,4,2],"after":[0,4,0]},
-                {"kind":"cleave_covalent","edge":[h[0],h[1],"single"],"allocation":"homolytic",
+                {"kind":"change_covalent","edge":[e(&c_a),e(&c_b)],"old_order":"double","new_order":"single","allocation":"homolytic",
                  "before":{"left":[0,0,0],"right":[0,0,0]},"after":{"left":[0,1,1],"right":[0,1,1]}},
-                {"kind":"change_covalent","edge":[o[0],o[1]],"old_order":"double","new_order":"single","allocation":"homolytic",
-                 "before":{"left":[0,4,0],"right":[0,4,0]},"after":{"left":[0,5,1],"right":[0,5,1]}},
-                {"kind":"form_covalent","edge":[h[0],o[0],"single"],"electron_contribution":{"left":1,"right":1},
+                {"kind":"cleave_covalent","edge":[m(&hydroxyl_h),m(&oxygen),"single"],"allocation":"homolytic",
+                 "before":{"left":[0,0,0],"right":[0,4,0]},"after":{"left":[0,1,1],"right":[0,5,1]}},
+                {"kind":"form_covalent","edge":[e(&c_a),m(&hydroxyl_h),"single"],"electron_contribution":{"left":1,"right":1},
+                 "before":{"left":[0,1,1],"right":[0,1,1]},"after":{"left":[0,0,0],"right":[0,0,0]}},
+                {"kind":"form_covalent","edge":[e(&c_b),m(&oxygen),"single"],"electron_contribution":{"left":1,"right":1},
                  "before":{"left":[0,1,1],"right":[0,5,1]},"after":{"left":[0,0,0],"right":[0,4,0]}},
-                {"kind":"form_covalent","edge":[h[1],o[1],"single"],"electron_contribution":{"left":1,"right":1},
-                 "before":{"left":[0,1,1],"right":[0,5,1]},"after":{"left":[0,0,0],"right":[0,4,0]}},
-                {"kind":"assign_product","atoms":[h[0],h[1],o[0],o[1]],"product":product_instance}
+                {"kind":"assign_product",
+                 "atoms":[e(&c_a),e(&c_b),e(&a_hydrogens[0]),e(&a_hydrogens[1]),e(&b_hydrogens[0]),e(&b_hydrogens[1]),
+                          m(&oxygen),m(&hydroxyl_h),m(&methyl_c),m(&methyl_hydrogens[0]),m(&methyl_hydrogens[1]),m(&methyl_hydrogens[2])],
+                 "product":product_instance}
             ]
         });
         MechanismEscalationResponse::from_json(
@@ -1927,13 +2076,13 @@ mod tests {
     #[test]
     fn proposed_structure_unlocks_full_escalated_animation() {
         let trusted = trusted();
-        let outcome = hydrogen_peroxide_outcome(&trusted);
+        let outcome = ether_outcome(&trusted);
         assert!(
             !outcome.products_without_structure().is_empty(),
-            "test premise: H2O2 must be absent from the reviewed structure library"
+            "test premise: ambiguous C3H8O must stay ungenerated and uncatalogued"
         );
 
-        let structures = hydrogen_peroxide_structure();
+        let structures = ether_structure();
         let request =
             crate::structure_proposal_request(&outcome, &trusted).expect("structure request");
         let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &trusted)
@@ -1947,16 +2096,15 @@ mod tests {
                 .iter()
                 .any(|premise| {
                     premise.supported_states.iter().any(|state| {
-                        state.element == "O"
+                        state.element == "C"
                             && state.formal_charge == 0
-                            && state.non_bonding_electrons == 4
-                            && state.unpaired_electrons == 2
-                            && state.covalent_bond_order_sum == 2
+                            && state.non_bonding_electrons == 1
+                            && state.unpaired_electrons == 1
                     })
                 }),
             "the radical transition must be admitted by mechanism-time derivation, not pre-authored"
         );
-        let mechanism = hydrogen_peroxide_mechanism(&adopted);
+        let mechanism = ether_mechanism(&adopted);
 
         let mut provider = FakeProvider {
             responses: VecDeque::from([mechanism.clone()]),
@@ -1966,7 +2114,10 @@ mod tests {
         };
         let result = derive_mechanism(outcome.clone(), &trusted, &mut provider);
         let MechanismEscalationOutcome::Animated(animated) = result else {
-            panic!("expected escalated animation: {result:?}")
+            panic!(
+                "expected escalated animation: mech {:?} struct {:?} result {result:?}",
+                provider.diagnostics, provider.structure_diagnostics
+            )
         };
         assert!(!animated.frames().frames().is_empty());
         assert_eq!(animated.structure_repair_count(), 0);

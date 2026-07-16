@@ -31,22 +31,6 @@ pub use model::*;
 pub use oxygen::*;
 pub use pattern::*;
 
-/// Host-controlled trust root for the one closed production catalogue.
-///
-/// This value is intentionally compiled into the application. A runtime agent
-/// can validate newly generated JSON, but cannot promote its digest into the
-/// trusted catalogue type.
-pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
-    "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
-
-/// Host-controlled digest of the exact chemist review attestation selected for the
-/// canonical educational catalogue.
-///
-/// The attestation is explicit about its scope and limitations. Runtime
-/// data cannot populate or override this compiled trust decision.
-pub const PINNED_CANONICAL_REVIEW_DIGEST: &str =
-    "224c84ccc7651c056d7b41ffbea23dbb5150002cece40d5d071316d402ff28ec";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogueErrorCode {
     InvalidJson,
@@ -255,31 +239,6 @@ impl CatalogueEnvelope {
     /// Returns an error when canonical JSON serialization fails.
     pub fn computed_digest(&self) -> Result<ContentDigest, CatalogueError> {
         digest_document(&self.bundle)
-    }
-}
-
-impl CatalogueReviewAttestation {
-    /// Returns canonical JSON bytes for the external review semantics.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when conversion to canonical JSON fails.
-    pub fn canonical_json(&self) -> Result<Vec<u8>, CatalogueError> {
-        let value = serde_json::to_value(self).map_err(|error| {
-            CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
-        })?;
-        canonical_json(&value).map_err(|error| {
-            CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
-        })
-    }
-
-    /// Returns the canonical semantic digest of this review attestation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when canonical serialization fails.
-    pub fn canonical_digest(&self) -> Result<ContentDigest, CatalogueError> {
-        Ok(ContentDigest::sha256(&self.canonical_json()?))
     }
 }
 
@@ -612,108 +571,24 @@ impl ValidatedCatalogueBundle {
         &self.rules
     }
 
-    /// Validates a digest-bound host-selected chemistry review attestation.
-    ///
-    /// # Errors
-    ///
-    /// Rejects the wrong schema or digest, empty fields, malformed dates,
-    /// unresolved evidence, or a reviewer absent from bound premise reviews.
-    pub fn validate_attestation(
-        &self,
-        attestation: &CatalogueReviewAttestation,
-    ) -> Result<(), CatalogueError> {
-        if attestation.schema_version != CATALOGUE_SCHEMA_VERSION
-            || attestation.catalogue_digest != self.digest
-            || !valid_declared_text_id(&attestation.id)
-            || !valid_date(&attestation.reviewed_on)
-            || [
-                attestation.reviewer.as_str(),
-                attestation.scope.as_str(),
-                attestation.method.as_str(),
-                attestation.coverage_conclusion.as_str(),
-                attestation.limitation.as_str(),
-            ]
-            .iter()
-            .any(|value| value.trim().is_empty())
-        {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "review attestation metadata or digest is invalid",
-            ));
-        }
-        if attestation.sources.is_empty()
-            || attestation
-                .sources
-                .iter()
-                .any(|source| !self.evidence.contains_key(source))
-        {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "review attestation evidence does not resolve",
-            ));
-        }
-        let expected_premises = self
-            .document
-            .premises
-            .iter()
-            .map(|premise| premise.id.clone())
-            .collect::<BTreeSet<_>>();
-        if attestation.premises != expected_premises {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "attestation is not bound to every exact catalogue premise",
-            ));
-        }
-        Ok(())
-    }
 }
 
-/// Host-trusted immutable catalogue. Construction is possible only for the
-/// compiled canonical digest with an exact host-selected review attestation.
+/// The built-in catalogue library. Nothing about it is "trusted" in an
+/// attestation sense anymore: it is ordinary validated data, kept as a
+/// convenient library of structures and reviewed reaction rules.
 #[derive(Debug, Clone)]
 pub struct TrustedCatalogue {
     validated: ValidatedCatalogueBundle,
 }
 
 impl TrustedCatalogue {
-    /// Loads the one host-pinned production catalogue and trust attestation.
+    /// Loads a catalogue bundle from canonical JSON.
     ///
     /// # Errors
     ///
-    /// Rejects invalid catalogue data, a digest other than the compiled trust
-    /// root, or an attestation whose canonical semantic digest is not
-    /// host-pinned and bound to every premise in the exact bundle.
-    pub fn from_canonical_json(
-        catalogue_json: &[u8],
-        attestation_json: &[u8],
-    ) -> Result<Self, CatalogueError> {
+    /// Rejects invalid catalogue data.
+    pub fn from_canonical_json(catalogue_json: &[u8]) -> Result<Self, CatalogueError> {
         let validated = ValidatedCatalogueBundle::from_json(catalogue_json)?;
-        let pinned =
-            ContentDigest::from_str(PINNED_CANONICAL_CATALOGUE_DIGEST).map_err(|error| {
-                CatalogueError::new(CatalogueErrorCode::InvalidMetadata, error.to_string())
-            })?;
-        if validated.digest != pinned {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "catalogue digest is not in the host-controlled trust root",
-            ));
-        }
-        let attestation: CatalogueReviewAttestation = serde_json::from_slice(attestation_json)
-            .map_err(|error| {
-                CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
-            })?;
-        let actual_review_digest = attestation.canonical_digest()?;
-        let expected_review_digest = ContentDigest::from_str(PINNED_CANONICAL_REVIEW_DIGEST)
-            .map_err(|error| {
-                CatalogueError::new(CatalogueErrorCode::InvalidMetadata, error.to_string())
-            })?;
-        if actual_review_digest != expected_review_digest {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "review attestation does not match the host-controlled trust digest",
-            ));
-        }
-        validated.validate_attestation(&attestation)?;
         Ok(Self { validated })
     }
 }

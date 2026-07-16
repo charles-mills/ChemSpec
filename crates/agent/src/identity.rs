@@ -246,6 +246,55 @@ pub(crate) fn model_proposed_species(
     bundle: &ValidatedCatalogueBundle,
 ) -> Result<ResolvedSpecies, AgentError> {
     let elements = reviewed_element_registry(bundle)?;
+    species_from_structure(
+        id,
+        display_name,
+        formula_text,
+        phase,
+        structure,
+        &elements,
+        "model_structure_proposal",
+        "urn:chemspec:model-proposed-structure",
+    )
+}
+
+/// Builds a species identity around a programmatically generated structure.
+/// No catalogue or review is involved: the structure itself is the identity.
+///
+/// # Errors
+///
+/// Returns an error when the structure, formula, charge, or identity contract
+/// cannot be satisfied.
+pub fn generated_species(
+    id: &SpeciesId,
+    display_name: &str,
+    formula_text: &str,
+    phase: Phase,
+    structure: &StructureDefinition,
+) -> Result<ResolvedSpecies, AgentError> {
+    species_from_structure(
+        id,
+        display_name,
+        formula_text,
+        phase,
+        structure,
+        chem_domain::element_registry(),
+        "structure_generator",
+        "urn:chemspec:generated-structure",
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn species_from_structure(
+    id: &SpeciesId,
+    display_name: &str,
+    formula_text: &str,
+    phase: Phase,
+    structure: &StructureDefinition,
+    elements: &StaticElementRegistry,
+    resolver: &str,
+    source_url: &str,
+) -> Result<ResolvedSpecies, AgentError> {
     let formula = FormulaSyntax {
         segments: vec![FormulaSegment {
             coefficient: Count::one(),
@@ -264,7 +313,7 @@ pub(crate) fn model_proposed_species(
                 .collect::<Result<Vec<_>, AgentError>>()?,
         }],
     }
-    .normalize(&elements)
+    .normalize(elements)
     .map_err(|error| AgentError::new("species identity", error.to_string()))?;
     let net_charge = structure.graph().system_net_charge();
     let charge = if net_charge == 0 {
@@ -311,15 +360,15 @@ pub(crate) fn model_proposed_species(
             protonation_policy: protonation_policy(structure),
             identity_confidence: IdentityConfidence::ExternalUnverified,
             identity_provenance: vec![IdentityProvenance::External {
-                resolver: "model_structure_proposal".to_owned(),
-                source_url: "urn:chemspec:model-proposed-structure".to_owned(),
+                resolver: resolver.to_owned(),
+                source_url: source_url.to_owned(),
                 retrieved_at_unix_ms: 0,
                 content_digest: chem_domain::ContentDigest::sha256(&canonical_graph),
             }],
             identity_premise: FactId::from_str(&format!("identity.{}", structure.id()))
                 .map_err(|error| AgentError::new("species identity", error.to_string()))?,
         },
-        &elements,
+        elements,
     )
     .map_err(|error| AgentError::new("species identity", error.to_string()))
 }

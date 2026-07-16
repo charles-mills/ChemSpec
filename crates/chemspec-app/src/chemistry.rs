@@ -23,7 +23,6 @@ use chem_presentation::{
 use crate::composition_catalogue::{self, CompositionId};
 
 const CATALOGUE: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
-const ATTESTATION: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/review.json");
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -891,7 +890,7 @@ impl TrustedRun {
 }
 
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
-    TrustedCatalogue::from_canonical_json(CATALOGUE, ATTESTATION).map_err(|error| error.to_string())
+    TrustedCatalogue::from_canonical_json(CATALOGUE).map_err(|error| error.to_string())
 });
 
 pub(crate) fn trusted_catalogue() -> Result<&'static TrustedCatalogue, &'static str> {
@@ -1007,7 +1006,8 @@ pub fn request_for_participants(
 fn standard_state_count(atomic_number: u8) -> usize {
     match atomic_number {
         1 | 7 | 8 | 9 | 17 | 35 | 53 => 2,
-        15 => 4,
+        // Tetrahedral P4 and its arsenic analogue.
+        15 | 33 => 4,
         16 => 8,
         _ => 1,
     }

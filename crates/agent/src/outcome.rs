@@ -2,10 +2,11 @@ use std::{collections::BTreeMap, str::FromStr};
 
 use chem_catalogue::ValidatedCatalogueBundle;
 use chem_domain::{
-    BronstedAcidProfile, Charge, ContentDigest, ExternalIdentifier, FormulaComposition, Phase,
-    ReactionDeclaration, RepresentationKind, ResolvedSpecies, SpeciesAmbiguity, SpeciesId,
-    SpeciesQuery, SpeciesRegistry, SpeciesResolution, UnbalancedReactionTerm,
-    classify_bronsted_acid,
+    BronstedAcidProfile, Charge, ContentDigest, ElementInventory, ElementSymbol,
+    ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
+    ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry,
+    SpeciesResolution, StructureId, UnbalancedReactionTerm, classify_bronsted_acid,
+    generate_structure, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -18,7 +19,6 @@ use crate::{
 #[serde(rename_all = "snake_case")]
 pub enum TrustTier {
     Reviewed,
-    EvidenceBacked,
     ModelAsserted,
 }
 
@@ -139,11 +139,6 @@ impl ValidatedStaticOutcome {
             .collect()
     }
 
-    pub(crate) fn mark_evidence_backed(mut self) -> Self {
-        self.trust_tier = TrustTier::EvidenceBacked;
-        self
-    }
-
     /// Replaces both sides with structurally adopted equivalents. Species ids
     /// and order must stay identical so the balanced declaration remains
     /// valid unchanged.
@@ -228,6 +223,10 @@ pub fn compile_claim_outcome(
             let formula = ascii_formula_key(&product.formula);
             if let Some(species) = resolve_claim_product(product, &formula, identities) {
                 Ok(OutcomeSpecies::Resolved(Box::new(species.clone())))
+            } else if let Some(generated) =
+                generated_product(&product.name, &formula, claim_phase(product.phase))
+            {
+                Ok(generated)
             } else {
                 let id_material = format!("{}\0{formula}", product.name);
                 let digest = ContentDigest::sha256(id_material.as_bytes()).to_hex();
@@ -256,9 +255,6 @@ pub fn compile_claim_outcome(
         claim.required_context.clone(),
     )
     .map_err(|error| AgentError::new("outcome balance", error.to_string()))?;
-    // Identity resolution and exact balancing establish structure and meaning,
-    // not source support. EvidenceBacked is an explicit later upgrade after
-    // fetched bytes cover each claim field.
     let trust_tier = TrustTier::ModelAsserted;
     let equation = format_equation(&declaration);
     Ok(CompiledClaimOutcome::Static(ValidatedStaticOutcome {
@@ -434,7 +430,11 @@ fn resolve_request_identities_inner(
                 }
             }
             IdentityLookup::NotFound => {
-                selections.push(formula_only_reactant(input)?);
+                if let Some(generated) = generated_reactant(input) {
+                    selections.push(generated);
+                } else {
+                    selections.push(formula_only_reactant(input)?);
+                }
             }
         }
     }
@@ -575,6 +575,52 @@ fn resolve_name_or_formula<'a>(
         }
     }
     Ok(IdentityLookup::NotFound)
+}
+
+/// Builds an on-the-fly identity around a programmatically generated
+/// structure. Returns None when the inventory has no unambiguous structure,
+/// leaving the formula-only path to handle it.
+fn generated_outcome_species(
+    display_name: &str,
+    formula_text: &str,
+    phase: Phase,
+    inventory: &ElementInventory,
+) -> Option<OutcomeSpecies> {
+    let digest =
+        ContentDigest::sha256(format!("{display_name}\0{formula_text}").as_bytes()).to_hex();
+    let id = SpeciesId::from_str(&format!("generated.s{}", &digest[..24])).ok()?;
+    let structure_id = StructureId::new(format!("generated.{}", &digest[..24])).ok()?;
+    let structure = generate_structure(structure_id, inventory)?;
+    let species =
+        crate::identity::generated_species(&id, display_name, formula_text, phase, &structure)
+            .ok()?;
+    Some(OutcomeSpecies::Resolved(Box::new(species)))
+}
+
+fn generated_reactant(input: &crate::ReactantInput) -> Option<OutcomeSpecies> {
+    if input.atomic_numbers.is_empty() {
+        return None;
+    }
+    let mut counts = std::collections::BTreeMap::new();
+    for atomic_number in &input.atomic_numbers {
+        let symbol = ElementSymbol::new(symbol_of(*atomic_number)?).ok()?;
+        *counts.entry(symbol).or_insert(0_u64) += 1;
+    }
+    let inventory = ElementInventory::new(counts).ok()?;
+    let formula_text = ascii_formula_key(&input.display);
+    generated_outcome_species(&input.display, &formula_text, Phase::Unknown, &inventory)
+}
+
+fn generated_product(name: &str, formula: &str, phase: Phase) -> Option<OutcomeSpecies> {
+    let composition = FormulaComposition::parse(formula).ok()?;
+    let inventory = ElementInventory::new(
+        composition
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.clone(), *count)),
+    )
+    .ok()?;
+    generated_outcome_species(name, formula, phase, &inventory)
 }
 
 fn formula_only_reactant(input: &crate::ReactantInput) -> Result<OutcomeSpecies, AgentError> {
@@ -771,12 +817,8 @@ mod tests {
 
     fn trusted() -> TrustedCatalogue {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/review.json"))
-                .expect("review"),
-        )
+        TrustedCatalogue::from_canonical_json(&std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+                .expect("catalogue"))
         .expect("trusted catalogue")
     }
 
@@ -952,16 +994,13 @@ mod tests {
             terms(outcome.declaration().products()),
             BTreeMap::from([("CO2".to_owned(), 1), ("H2O".to_owned(), 2)])
         );
+        // Methane is not catalogued, but its structure generates on the fly,
+        // so nothing needs escalation.
         assert!(matches!(
             &outcome.reactants()[0],
-            OutcomeSpecies::FormulaOnly { formula, .. } if formula == "CH4"
+            OutcomeSpecies::Resolved(species) if species.structure.is_some()
         ));
-        assert!(
-            outcome
-                .species_without_structure()
-                .iter()
-                .any(|species| species.contains("CH4"))
-        );
+        assert!(outcome.species_without_structure().is_empty());
     }
 
     #[test]
@@ -1247,7 +1286,8 @@ mod tests {
         assert!(outcome.products().iter().any(|product| {
             matches!(
                 product,
-                OutcomeSpecies::FormulaOnly { formula, .. } if formula == "Na2SO4"
+                OutcomeSpecies::Resolved(species)
+                    if species.formula_text == "Na2SO4" && species.structure.is_some()
             )
         }));
         assert_eq!(outcome.claim().products[0].formula, "Na₂SO₄");

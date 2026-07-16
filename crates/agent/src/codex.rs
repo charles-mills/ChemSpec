@@ -15,7 +15,7 @@ use std::{
 use crate::{
     AgentError, ClaimMode, MechanismEscalationRequest, MechanismEscalationResponse,
     MechanismProvider, ReactionBuildRequest, ReactionClaim, StructureProposalRequest,
-    StructureProposalResponse, bind_source_locating_claim,
+    StructureProposalResponse,
 };
 
 const CLAIM_RESULT_SCHEMA: &str = r##"{
@@ -165,7 +165,6 @@ const STRUCTURE_RESULT_SCHEMA: &str = include_str!("../schemas/structure-respons
 const CLAIM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-reaction.md");
 const MECHANISM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-mechanism.md");
 const STRUCTURE_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-structure.md");
-const SOURCE_LOCATE_PROMPT_TEMPLATE: &str = include_str!("../prompts/source-locate.md");
 pub const FAST_CLAIM_TIMEOUT: Duration = Duration::from_secs(30);
 pub const RESEARCHER_CLAIM_TIMEOUT: Duration = Duration::from_secs(90);
 pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(3);
@@ -437,105 +436,6 @@ impl CodexProvider {
             false,
         )?;
         StructureProposalResponse::from_json(&bytes)
-    }
-
-    /// Locates sources for an immutable, already displayed factual claim.
-    ///
-    /// # Errors
-    ///
-    /// Returns a provider/schema error or a typed conflict if the response
-    /// changes any factual field instead of only supplying sources.
-    pub fn locate_claim_sources(
-        &self,
-        request: &ReactionBuildRequest,
-        claim: &ReactionClaim,
-    ) -> Result<ReactionClaim, AgentError> {
-        self.locate_claim_sources_until(request, claim, Instant::now() + RESEARCHER_CLAIM_TIMEOUT)
-    }
-
-    /// Locates immutable claim sources within a caller-owned total deadline.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same closed source-location errors as
-    /// [`Self::locate_claim_sources`].
-    pub fn locate_claim_sources_until(
-        &self,
-        request: &ReactionBuildRequest,
-        claim: &ReactionClaim,
-        deadline: Instant,
-    ) -> Result<ReactionClaim, AgentError> {
-        self.locate_claim_sources_inner(request, claim, None, deadline)
-    }
-
-    /// Performs the single bounded source-replacement attempt after fetched
-    /// bytes failed a local evidence check. The factual claim remains fixed.
-    ///
-    /// # Errors
-    ///
-    /// Returns a provider/schema error or a typed factual conflict.
-    pub fn replace_claim_sources(
-        &self,
-        request: &ReactionBuildRequest,
-        claim: &ReactionClaim,
-        failed_check: &str,
-    ) -> Result<ReactionClaim, AgentError> {
-        self.replace_claim_sources_until(
-            request,
-            claim,
-            failed_check,
-            Instant::now() + RESEARCHER_CLAIM_TIMEOUT,
-        )
-    }
-
-    /// Performs the one source replacement within a caller-owned total
-    /// deadline.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same closed replacement errors as
-    /// [`Self::replace_claim_sources`].
-    pub fn replace_claim_sources_until(
-        &self,
-        request: &ReactionBuildRequest,
-        claim: &ReactionClaim,
-        failed_check: &str,
-        deadline: Instant,
-    ) -> Result<ReactionClaim, AgentError> {
-        self.locate_claim_sources_inner(request, claim, Some(failed_check), deadline)
-    }
-
-    fn locate_claim_sources_inner(
-        &self,
-        request: &ReactionBuildRequest,
-        claim: &ReactionClaim,
-        failed_check: Option<&str>,
-        deadline: Instant,
-    ) -> Result<ReactionClaim, AgentError> {
-        let preflight = self.preflight_until(deadline)?;
-        if !preflight.authenticated {
-            return Err(AgentError::new(
-                "Codex preflight",
-                "Codex is installed but not authenticated",
-            ));
-        }
-        let temporary = TemporaryRun::create()?;
-        let schema_path = temporary.path.join("source-claim.schema.json");
-        let result_path = temporary.path.join("source-claim.json");
-        fs::write(&schema_path, CLAIM_RESULT_SCHEMA)
-            .map_err(|error| AgentError::new("Codex run setup", error.to_string()))?;
-        let prompt = build_source_locate_prompt(request, claim, failed_check)?;
-        let bytes = self.invoke(
-            &temporary,
-            &schema_path,
-            &result_path,
-            &prompt,
-            deadline,
-            true,
-        )?;
-        let located = ReactionClaim::from_json(&bytes, ClaimMode::Researcher)?;
-        bind_source_locating_claim(claim, located)
-            .map_err(|error| AgentError::new("source claim conflict", error.to_string()))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1098,36 +998,6 @@ fn build_structure_prompt(
         return Err(AgentError::new(
             "Codex prompt",
             "runtime structure prompt contains an unresolved placeholder",
-        ));
-    }
-    Ok(prompt)
-}
-
-fn build_source_locate_prompt(
-    request: &ReactionBuildRequest,
-    claim: &ReactionClaim,
-    failed_check: Option<&str>,
-) -> Result<String, AgentError> {
-    let request = serde_json::to_string_pretty(request)
-        .map_err(|error| AgentError::new("Codex prompt", error.to_string()))?;
-    let claim = serde_json::to_string_pretty(claim)
-        .map_err(|error| AgentError::new("Codex prompt", error.to_string()))?;
-    let replacement_context = failed_check.map_or_else(
-        || "This is the initial source-locating attempt.".to_owned(),
-        |diagnostic| {
-            format!(
-                "This is the one permitted replacement attempt. The previous sources failed the local check: {diagnostic}\nReplace only the sources array; do not retry or revise any factual field."
-            )
-        },
-    );
-    let prompt = SOURCE_LOCATE_PROMPT_TEMPLATE
-        .replace("{{REQUEST_JSON}}", &request)
-        .replace("{{CLAIM_JSON}}", &claim)
-        .replace("{{REPLACEMENT_CONTEXT}}", &replacement_context);
-    if prompt.contains("{{") {
-        return Err(AgentError::new(
-            "Codex prompt",
-            "source-locating prompt contains an unresolved placeholder",
         ));
     }
     Ok(prompt)

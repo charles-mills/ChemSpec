@@ -24,6 +24,7 @@ use crate::{
 };
 
 pub(crate) const DYNAMIC_STRUCTURE_PREMISE: &str = "premise.dynamic.structure";
+pub(crate) const GENERATED_STRUCTURE_PREMISE: &str = "premise.generated.structure";
 
 /// An outcome whose formula-only species acquired validated model-proposed
 /// structures, together with the isolated working bundle those structures
@@ -242,54 +243,7 @@ pub fn adopt_proposed_structures(
         records.push(structure_record(proposal, &premise_id)?);
     }
 
-    let mut document = catalogue.document().clone();
-    document.publication = PublicationKind::Working;
-    // The premise must reference resolvable evidence. The trusted document's
-    // internal explanatory-model source is the honest anchor: a proposed
-    // structure is a modeling assumption, not an empirical claim.
-    let evidence = document
-        .evidence
-        .first()
-        .map(|source| source.id.clone())
-        .into_iter()
-        .collect::<BTreeSet<_>>();
-    document.premises.push(PremiseRecord {
-        id: premise_id.clone(),
-        statement: "Model-proposed dynamic structure awaiting independent review".to_owned(),
-        evidence,
-        review: ReviewMetadata {
-            status: ReviewStatus::Provisional,
-            reviewers: Vec::new(),
-        },
-        rule_version: "1".to_owned(),
-    });
-    let DerivedProvisionalStates {
-        neutral_valence,
-        supported_states,
-        metallic_domain_states,
-    } = derive_provisional_structure_states(response, &document.valence_premises)?;
-    if !supported_states.is_empty() || !metallic_domain_states.is_empty() {
-        document.valence_premises.push(ValencePremiseRecord {
-            premise_id: premise_id.clone(),
-            neutral_valence,
-            supported_states,
-            metallic_domain_states,
-        });
-    }
-    document.structures.extend(records);
-    let mut envelope = CatalogueEnvelope {
-        digest: ContentDigest::sha256(b"uncomputed dynamic working bundle"),
-        bundle: document,
-    };
-    envelope.digest = envelope
-        .computed_digest()
-        .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
-    let bundle = ValidatedCatalogueBundle::validate(envelope).map_err(|error| {
-        AgentError::new(
-            "structure validation",
-            format!("proposed structure failed catalogue validation: {error}"),
-        )
-    })?;
+    let bundle = validated_working_bundle(records, &response.structures, &premise_id, catalogue)?;
 
     let mut reactants = outcome.reactants().to_vec();
     let mut products = outcome.products().to_vec();
@@ -343,8 +297,108 @@ pub fn adopt_proposed_structures(
     Ok(AdoptedProposedStructures { outcome, bundle })
 }
 
+/// Builds a validated working bundle carrying the given structure records on
+/// top of the catalogue, deriving any provisional valence states the new
+/// structures need.
+fn validated_working_bundle(
+    records: Vec<chem_catalogue::StructureRecord>,
+    labelled: &[LabelledStructure],
+    premise_id: &PremiseId,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Result<ValidatedCatalogueBundle, AgentError> {
+    let mut document = catalogue.document().clone();
+    document.publication = PublicationKind::Working;
+    // The premise must reference resolvable evidence. The trusted document's
+    // internal explanatory-model source is the honest anchor: a proposed
+    // structure is a modeling assumption, not an empirical claim.
+    let evidence = document
+        .evidence
+        .first()
+        .map(|source| source.id.clone())
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    document.premises.push(PremiseRecord {
+        id: premise_id.clone(),
+        statement: "Model-proposed dynamic structure awaiting independent review".to_owned(),
+        evidence,
+        review: ReviewMetadata {
+            status: ReviewStatus::Provisional,
+            reviewers: Vec::new(),
+        },
+        rule_version: "1".to_owned(),
+    });
+    let DerivedProvisionalStates {
+        neutral_valence,
+        supported_states,
+        metallic_domain_states,
+    } = derive_provisional_structure_states(labelled, &document.valence_premises)?;
+    if !supported_states.is_empty() || !metallic_domain_states.is_empty() {
+        document.valence_premises.push(ValencePremiseRecord {
+            premise_id: premise_id.clone(),
+            neutral_valence,
+            supported_states,
+            metallic_domain_states,
+        });
+    }
+    document.structures.extend(records);
+    let mut envelope = CatalogueEnvelope {
+        digest: ContentDigest::sha256(b"uncomputed dynamic working bundle"),
+        bundle: document,
+    };
+    envelope.digest = envelope
+        .computed_digest()
+        .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
+    ValidatedCatalogueBundle::validate(envelope).map_err(|error| {
+        AgentError::new(
+            "structure validation",
+            format!("proposed structure failed catalogue validation: {error}"),
+        )
+    })
+}
+
+/// Extends the catalogue with any outcome structures it does not already
+/// carry (programmatically generated identities), so mechanism compilation
+/// can premise them exactly like adopted proposals.
+///
+/// # Errors
+///
+/// Returns an error when a generated structure fails working-bundle
+/// validation.
+pub fn bundle_with_outcome_structures(
+    outcome: &ValidatedStaticOutcome,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Result<ValidatedCatalogueBundle, AgentError> {
+    let extra = outcome
+        .reactants()
+        .iter()
+        .chain(outcome.products())
+        .filter_map(|species| match species {
+            OutcomeSpecies::Resolved(resolved) => resolved
+                .structure
+                .as_ref()
+                .map(|structure| (structure, resolved.formula_text.clone())),
+            OutcomeSpecies::FormulaOnly { .. } => None,
+        })
+        .filter(|(structure, _)| !catalogue.structures().contains_key(structure.id()))
+        .collect::<Vec<_>>();
+    if extra.is_empty() {
+        return Ok(catalogue.clone());
+    }
+    let premise_id = PremiseId::from_str(GENERATED_STRUCTURE_PREMISE)
+        .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
+    let labelled = extra
+        .iter()
+        .map(|(structure, formula)| crate::mechanism::labelled_structure(structure, formula))
+        .collect::<Vec<_>>();
+    let records = labelled
+        .iter()
+        .map(|structure| structure_record(structure, &premise_id))
+        .collect::<Result<Vec<_>, AgentError>>()?;
+    validated_working_bundle(records, &labelled, &premise_id, catalogue)
+}
+
 fn derive_provisional_structure_states(
-    response: &StructureProposalResponse,
+    structures: &[LabelledStructure],
     reviewed: &[ValencePremiseRecord],
 ) -> Result<DerivedProvisionalStates, AgentError> {
     let mut neutral = BTreeMap::<String, BTreeSet<u8>>::new();
@@ -360,10 +414,31 @@ fn derive_provisional_structure_states(
         reviewed_states.extend(premise.supported_states.iter().cloned());
         reviewed_metallic.extend(premise.metallic_domain_states.iter().cloned());
     }
+    // Elements outside the catalogue's premises get their neutral valence
+    // from the periodic table itself: it is physics, not sourced data.
+    for structure in structures {
+        let atoms: Vec<&AtomRecord> = match structure {
+            LabelledStructure::Molecular { atoms, .. } | LabelledStructure::Ion { atoms, .. } => {
+                atoms.iter().collect()
+            }
+            LabelledStructure::Ionic { components, .. } => components
+                .iter()
+                .flat_map(|component| component.atoms.iter())
+                .collect(),
+            LabelledStructure::Metallic { sites, .. } => sites.iter().collect(),
+        };
+        for atom in atoms {
+            if !neutral.contains_key(&atom.element)
+                && let Some(electrons) = chem_domain::valence_electrons_of(&atom.element)
+            {
+                neutral.entry(atom.element.clone()).or_default().insert(electrons);
+            }
+        }
+    }
     let mut provisional = BTreeSet::new();
     let mut provisional_metallic = BTreeSet::new();
     let mut used_neutral = BTreeMap::new();
-    for structure in &response.structures {
+    for structure in structures {
         match structure {
             LabelledStructure::Molecular { atoms, bonds, .. }
             | LabelledStructure::Ion { atoms, bonds, .. } => derive_component_states(
@@ -728,7 +803,7 @@ mod tests {
     #[test]
     fn metallic_sites_use_domain_valence_instead_of_covalent_identity() {
         let derived =
-            derive_provisional_structure_states(&copper_structure(11), &[copper_premise()])
+            derive_provisional_structure_states(&copper_structure(11).structures, &[copper_premise()])
                 .expect("reviewed copper metal state");
         assert!(derived.neutral_valence.is_empty());
         assert!(derived.supported_states.is_empty());
@@ -738,7 +813,7 @@ mod tests {
     #[test]
     fn metallic_site_charge_must_balance_its_domain_electrons() {
         let Err(error) =
-            derive_provisional_structure_states(&copper_structure(0), &[copper_premise()])
+            derive_provisional_structure_states(&copper_structure(0).structures, &[copper_premise()])
         else {
             panic!("neutral local site charge cannot balance the electron domain");
         };

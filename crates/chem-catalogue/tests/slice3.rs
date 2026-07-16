@@ -1,11 +1,11 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_catalogue::{
-    CatalogueEnvelope, CatalogueErrorCode, CatalogueReviewAttestation,
+    CatalogueEnvelope, CatalogueErrorCode,
     ObservationCompatibilityRecord, ObservationPredicate, PublicationKind, ReviewStatus,
     ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
 };
-use chem_domain::{EvidenceSourceId, PremiseId, ReactionRuleId, RepresentationKind, StructureId};
+use chem_domain::{PremiseId, ReactionRuleId, RepresentationKind, StructureId};
 use serde_json::Value;
 
 fn workspace_root() -> PathBuf {
@@ -119,97 +119,11 @@ fn canonical_fixture_matches_schema_digest_and_closed_domain() {
 }
 
 #[test]
-fn canonical_ai_attestation_is_digest_bound() {
-    let root = workspace_root();
-    let review_bytes = fs::read(root.join("catalogue/trusted/core-chemistry/review.json")).unwrap();
-    let attestation: CatalogueReviewAttestation = serde_json::from_slice(&review_bytes).unwrap();
-    assert_eq!(attestation.reviewer, "OpenAI Codex (AI)");
-    assert_eq!(
-        attestation.canonical_digest().unwrap().to_string(),
-        chem_catalogue::PINNED_CANONICAL_REVIEW_DIGEST
-    );
-    let trusted = TrustedCatalogue::from_canonical_json(&trusted_catalogue_bytes(), &review_bytes)
-        .expect("the exact host-selected AI attestation should promote the canonical catalogue");
+fn built_in_catalogue_loads_without_any_attestation() {
+    let trusted = TrustedCatalogue::from_canonical_json(&trusted_catalogue_bytes())
+        .expect("a validated bundle needs no review ceremony");
     assert_eq!(trusted.document().elements.len(), 118);
     assert_eq!(trusted.document().generalized_rules.len(), 75);
-}
-
-#[test]
-fn self_asserted_reviews_cannot_extend_the_host_trust_root() {
-    let mut invented = envelope();
-    invented.bundle.publication = PublicationKind::Production;
-    for premise in &mut invented.bundle.premises {
-        premise.review.status = ReviewStatus::Reviewed;
-        premise.review.reviewers = vec![ReviewerRecord {
-            reviewer: "Invented runtime agent".to_owned(),
-            reviewed_on: "2026-07-14".to_owned(),
-            reference: "self-asserted".to_owned(),
-            notes: None,
-        }];
-    }
-    invented = rebound(invented);
-    let attestation = CatalogueReviewAttestation {
-        schema_version: 1,
-        id: "review.invented".to_owned(),
-        catalogue_digest: invented.digest,
-        reviewer: "Invented runtime agent".to_owned(),
-        reviewed_on: "2026-07-14".to_owned(),
-        scope: "invented".to_owned(),
-        method: "invented".to_owned(),
-        sources: [
-            EvidenceSourceId::from_str("evidence.iupac.goldbook").unwrap(),
-            EvidenceSourceId::from_str("evidence.openstax.chemistry-2e").unwrap(),
-        ]
-        .into_iter()
-        .collect(),
-        premises: invented
-            .bundle
-            .premises
-            .iter()
-            .map(|premise| premise.id.clone())
-            .collect(),
-        coverage_conclusion: "invented".to_owned(),
-        limitation: "invented".to_owned(),
-    };
-    let mut reordered_review = serde_json::to_value(&attestation).unwrap();
-    reordered_review["sources"]
-        .as_array_mut()
-        .unwrap()
-        .reverse();
-    reordered_review["premises"]
-        .as_array_mut()
-        .unwrap()
-        .reverse();
-    let reordered_review: CatalogueReviewAttestation =
-        serde_json::from_value(reordered_review).unwrap();
-    assert_eq!(
-        attestation.canonical_digest().unwrap(),
-        reordered_review.canonical_digest().unwrap()
-    );
-    let mut changed_review = attestation.clone();
-    changed_review.coverage_conclusion = "materially changed conclusion".to_owned();
-    assert_ne!(
-        attestation.canonical_digest().unwrap(),
-        changed_review.canonical_digest().unwrap()
-    );
-    for field in ["sources", "premises"] {
-        let mut duplicate_review = serde_json::to_value(&attestation).unwrap();
-        let duplicate = duplicate_review[field][0].clone();
-        duplicate_review[field]
-            .as_array_mut()
-            .unwrap()
-            .push(duplicate);
-        assert!(
-            serde_json::from_value::<CatalogueReviewAttestation>(duplicate_review).is_err(),
-            "duplicate `{field}` entry must be rejected before hashing"
-        );
-    }
-    let error = TrustedCatalogue::from_canonical_json(
-        &serde_json::to_vec(&invented).unwrap(),
-        &serde_json::to_vec(&attestation).unwrap(),
-    )
-    .unwrap_err();
-    assert_eq!(error.code(), CatalogueErrorCode::InvalidReview);
 }
 
 #[test]

@@ -5,7 +5,7 @@ use std::{
 };
 
 use chem_catalogue::{
-    CatalogueDocument, CatalogueEnvelope, CatalogueReviewAttestation, CreationMetadata,
+    CatalogueDocument, CatalogueEnvelope, CreationMetadata,
     ElementCategoryRecord, ElementRecord, EvidenceSource, GeneralizedReactionRuleRecord,
     GraphPatternRecord, PremiseRecord, PublicationKind, ReactionRuleRecord, ReviewStatus,
     StructuralTraitDefinitionRecord, StructureRecord, StructureTemplateApplicationRecord,
@@ -99,16 +99,6 @@ struct InspectionDigests {
     frames: ContentDigest,
 }
 
-#[derive(Debug, Serialize)]
-struct PromotionManifest {
-    schema_version: u32,
-    status: &'static str,
-    catalogue_digest: ContentDigest,
-    review_digest: ContentDigest,
-    packages: Vec<String>,
-    trust_boundary: &'static str,
-}
-
 pub(crate) fn catalogue_command(arguments: &[String]) -> Result<(), String> {
     match arguments.first().map(String::as_str) {
         Some("check") => check_command(&arguments[1..]),
@@ -170,7 +160,9 @@ fn assess_packages(package_paths: &[PathBuf]) -> Result<CandidateAssessment, Str
 }
 
 fn promote_command(arguments: &[String]) -> Result<(), String> {
-    let (output, attestation_path, package_paths) = promote_arguments(arguments)?;
+    // Promotion is just validated publication now: no attestation, no
+    // review ceremony. If the bundle validates, it ships.
+    let (output, package_paths) = promote_arguments(arguments)?;
     if output.exists() {
         return Err(format!(
             "CHEMS-A003 output directory `{}` must not already exist",
@@ -179,43 +171,18 @@ fn promote_command(arguments: &[String]) -> Result<(), String> {
     }
     reject_output_inside_package(&output, &package_paths)?;
     let assessment = assess_packages(&package_paths)?;
-    let attestation_bytes =
-        fs::read(&attestation_path).map_err(|error| io_error(&attestation_path, &error))?;
-    let attestation: CatalogueReviewAttestation = serde_json::from_slice(&attestation_bytes)
-        .map_err(|error| format!("CHEMS-A040 invalid AI attestation: {error}"))?;
-    assessment
-        .catalogue
-        .validate_attestation(&attestation)
-        .map_err(|error| format!("CHEMS-A041 AI attestation rejected: {error}"))?;
-    let review_digest = attestation
-        .canonical_digest()
-        .map_err(|error| format!("CHEMS-A042 cannot digest AI attestation: {error}"))?;
-    let manifest = PromotionManifest {
-        schema_version: 1,
-        status: "host-selected-ai-reviewed",
-        catalogue_digest: assessment.catalogue.digest(),
-        review_digest,
-        packages: assessment
-            .packages
-            .iter()
-            .map(|package| package.shard.id.clone())
-            .collect(),
-        trust_boundary: "Runtime trust begins only when both digests are compiled into TrustedCatalogue.",
-    };
     fs::create_dir(&output).map_err(|error| io_error(&output, &error))?;
     write_file(&output.join("catalogue.json"), &assessment.catalogue_bytes)?;
-    write_file(
-        &output.join("catalogue.digest"),
-        format!("{}\n", assessment.catalogue.digest()).as_bytes(),
-    )?;
-    write_file(&output.join("review.json"), &pretty_json(&attestation)?)?;
-    write_file(&output.join("promotion.json"), &pretty_json(&manifest)?)?;
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "status": manifest.status,
-            "catalogue_digest": manifest.catalogue_digest,
-            "review_digest": manifest.review_digest,
+            "status": "published",
+            "catalogue_digest": assessment.catalogue.digest(),
+            "packages": assessment
+                .packages
+                .iter()
+                .map(|package| package.shard.id.clone())
+                .collect::<Vec<_>>(),
             "output": output,
         }))
         .map_err(|error| error.to_string())?
@@ -270,26 +237,19 @@ fn check_arguments(arguments: &[String]) -> Result<(PathBuf, Vec<PathBuf>), Stri
     Ok((output, packages))
 }
 
-fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, PathBuf, Vec<PathBuf>), String> {
+fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, Vec<PathBuf>), String> {
     let mut output = None;
-    let mut attestation = None;
     let mut packages = Vec::new();
     let mut index = 0;
     while index < arguments.len() {
         match arguments[index].as_str() {
-            "--out" | "--attestation" => {
-                let option = arguments[index].as_str();
+            "--out" => {
                 index += 1;
                 let path = arguments
                     .get(index)
-                    .ok_or_else(|| format!("CHEMS-A001 `{option}` requires a path"))?;
-                let slot = if option == "--out" {
-                    &mut output
-                } else {
-                    &mut attestation
-                };
-                if slot.replace(PathBuf::from(path)).is_some() {
-                    return Err(format!("CHEMS-A001 `{option}` may be specified only once"));
+                    .ok_or("CHEMS-A001 `--out` requires a path")?;
+                if output.replace(PathBuf::from(path)).is_some() {
+                    return Err("CHEMS-A001 `--out` may be specified only once".to_owned());
                 }
             }
             option if option.starts_with('-') => {
@@ -300,12 +260,10 @@ fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, PathBuf, Vec<Path
         index += 1;
     }
     let output = output.ok_or("CHEMS-A001 catalogue promote requires `--out <directory>`")?;
-    let attestation =
-        attestation.ok_or("CHEMS-A001 catalogue promote requires `--attestation <review.json>`")?;
     if packages.is_empty() {
         return Err("CHEMS-A001 catalogue promote requires a candidate package".to_owned());
     }
-    Ok((output, attestation, packages))
+    Ok((output, packages))
 }
 
 fn load_package(root: &Path) -> Result<LoadedPackage, String> {
@@ -761,8 +719,8 @@ fn review_request<'a>(
                 )
             })
             .collect(),
-        required_external_artifact: "chem-catalogue-review-1 attestation",
-        promotion_boundary: "Only an exact host-selected AI attestation accepted by the host-pinned TrustedCatalogue API can promote this digest.",
+        required_external_artifact: "none",
+        promotion_boundary: "None: a validated bundle is publishable as-is.",
     }
 }
 

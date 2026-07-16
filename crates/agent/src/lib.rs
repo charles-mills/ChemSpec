@@ -8,13 +8,13 @@
 mod cache;
 mod claim;
 mod codex;
-mod corpus;
-mod evidence;
 mod family;
 mod identity;
 mod mechanism;
+mod mechanize;
 mod outcome;
 mod presentation;
+mod solve;
 mod structure;
 
 use std::fmt;
@@ -25,7 +25,6 @@ use serde::Serialize;
 pub use cache::{
     DYNAMIC_CACHE_SCHEMA_VERSION, DynamicCachePresentation, LoadedDynamicCache, dynamic_cache_path,
     load_claim_mode, load_dynamic_cache, store_claim_mode, store_dynamic_cache,
-    upgrade_dynamic_cache_evidence,
 };
 pub use claim::{
     ClaimAlternative, ClaimAmbiguity, ClaimAmbiguityKind, ClaimDisposition, ClaimField,
@@ -38,16 +37,6 @@ pub use claim::{
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,
     FAST_CLAIM_TIMEOUT, MECHANISM_TIMEOUT, RESEARCHER_CLAIM_TIMEOUT,
-};
-pub use corpus::{
-    BenchmarkClass, CORPUS_SCHEMA_VERSION, CorpusCase, CorpusError, CorpusExpectedState,
-    CorpusManifest, CorpusMetrics, CorpusObservation, CorpusPresentation, CorpusScenario,
-    CorpusTrustTier, FailureClassification, LatencyMilestones,
-};
-pub use evidence::{
-    CurlEvidenceRetriever, EvidenceBackedOutcome, EvidenceContentType, EvidenceError,
-    EvidenceRetriever, EvidenceSnapshot, RetrievedEvidenceDocument, SourceQuality,
-    VerifiedEvidenceSource, bind_source_locating_claim, restore_evidence_backed, verify_evidence,
 };
 pub use family::{
     FamilyMatchOutcome, ReviewedAnimationOutcome, ReviewedFamilyMatch, compile_reviewed_animation,
@@ -69,9 +58,21 @@ pub use outcome::{
     resolve_request_identities_with_catalogue, resolve_request_species,
 };
 pub use presentation::{DynamicPresentationOutcome, enrich_static_outcome};
+pub use solve::solve_reaction_claim;
 pub use structure::{
     AdoptedProposedStructures, adopt_proposed_structures, structure_proposal_request,
 };
+
+/// Stage timings for one dynamic reaction build.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LatencyMilestones {
+    pub claim_ms: Option<u64>,
+    pub evidence_ms: Option<u64>,
+    pub static_outcome_ms: Option<u64>,
+    pub mechanism_ms: Option<u64>,
+    pub reviewed_animation_ms: Option<u64>,
+}
 
 /// One structured reactant as composed by the user.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

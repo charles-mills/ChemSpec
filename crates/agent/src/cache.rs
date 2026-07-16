@@ -13,11 +13,10 @@ use crate::claim::{
     STRUCTURE_PROPOSAL_SCHEMA_VERSION,
 };
 use crate::{
-    AgentError, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome, EvidenceSnapshot,
-    FamilyMatchOutcome, MechanismEscalationResponse, ReactionBuildRequest, ReactionClaim,
-    StructureProposalResponse, TrustTier, compile_claim_outcome, compile_reviewed_animation,
-    match_reviewed_family, resolve_request_species, restore_evidence_backed,
-    validate_escalated_response_with_structures,
+    AgentError, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome, FamilyMatchOutcome,
+    MechanismEscalationResponse, ReactionBuildRequest, ReactionClaim, StructureProposalResponse,
+    TrustTier, compile_claim_outcome, compile_reviewed_animation, match_reviewed_family,
+    resolve_request_species, validate_escalated_response_with_structures,
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
@@ -48,7 +47,6 @@ pub enum DynamicCachePresentation {
 pub struct LoadedDynamicCache {
     pub outcome: CompiledClaimOutcome,
     pub presentation: Option<DynamicPresentationOutcome>,
-    pub evidence: Option<EvidenceSnapshot>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,7 +63,6 @@ struct DynamicCacheEnvelope {
     claim_digest: ContentDigest,
     claim: ReactionClaim,
     trust_tier: TrustTier,
-    evidence: Option<EvidenceSnapshot>,
     presentation: Option<DynamicCachePresentation>,
 }
 
@@ -183,22 +180,13 @@ pub fn load_dynamic_cache(
     let DynamicCacheEnvelope {
         claim,
         trust_tier,
-        evidence,
         presentation: cached_presentation,
         ..
     } = cached;
-    let mut outcome = compile_claim_outcome(request, claim, identities).ok()?;
-    match (&mut outcome, trust_tier, &evidence) {
-        (
-            CompiledClaimOutcome::Static(static_outcome),
-            TrustTier::EvidenceBacked,
-            Some(snapshot),
-        ) => {
-            *static_outcome = restore_evidence_backed(static_outcome.clone(), snapshot).ok()?;
-        }
-        (_, TrustTier::ModelAsserted, None) => {}
-        _ => return None,
+    if trust_tier != TrustTier::ModelAsserted {
+        return None;
     }
+    let outcome = compile_claim_outcome(request, claim, identities).ok()?;
     let presentation = match (&outcome, cached_presentation) {
         (CompiledClaimOutcome::Static(static_outcome), Some(recipe)) => {
             Some(revalidate_presentation(static_outcome.clone(), recipe, catalogue).ok()?)
@@ -215,7 +203,6 @@ pub fn load_dynamic_cache(
     Some(LoadedDynamicCache {
         outcome,
         presentation,
-        evidence,
     })
 }
 
@@ -233,28 +220,14 @@ pub fn store_dynamic_cache(
     identities: &SpeciesRegistry,
     catalogue: &TrustedCatalogue,
     claim: &ReactionClaim,
-    evidence: Option<&EvidenceSnapshot>,
     presentation: Option<DynamicCachePresentation>,
     provider: &str,
     model: &str,
 ) -> Result<(), AgentError> {
     // Recompile before persistence so a provider response alone can never
     // populate the cache.
-    let compiled = compile_claim_outcome(request, claim.clone(), identities)?;
-    let trust_tier = match (&compiled, evidence) {
-        (CompiledClaimOutcome::Static(outcome), Some(snapshot)) => {
-            restore_evidence_backed(outcome.clone(), snapshot)
-                .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
-            TrustTier::EvidenceBacked
-        }
-        (_, None) => TrustTier::ModelAsserted,
-        (_, Some(_)) => {
-            return Err(AgentError::new(
-                "reaction cache",
-                "evidence snapshot requires a static outcome",
-            ));
-        }
-    };
+    compile_claim_outcome(request, claim.clone(), identities)?;
+    let trust_tier = TrustTier::ModelAsserted;
     let path = dynamic_cache_path(directory, request, mode, identities, catalogue)?;
     let envelope = DynamicCacheEnvelope {
         schema_version: DYNAMIC_CACHE_SCHEMA_VERSION,
@@ -270,7 +243,6 @@ pub fn store_dynamic_cache(
         claim_digest: claim_digest(claim)?,
         claim: claim.clone(),
         trust_tier,
-        evidence: evidence.cloned(),
         presentation,
     };
     let bytes = serde_json::to_vec(&envelope)
@@ -288,58 +260,6 @@ pub fn store_dynamic_cache(
     fs::write(&temporary, bytes)
         .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
     atomic_replace(&temporary, &path, "reaction cache")
-}
-
-/// Transactionally upgrades an existing entry with a fetched evidence
-/// snapshot while preserving its validated presentation recipe.
-///
-/// # Errors
-///
-/// Returns an error if the prior entry is absent/corrupt or if the upgraded
-/// claim and snapshot fail the normal v3 store validation.
-#[allow(clippy::too_many_arguments)]
-pub fn upgrade_dynamic_cache_evidence(
-    directory: &Path,
-    request: &ReactionBuildRequest,
-    mode: ClaimMode,
-    identities: &SpeciesRegistry,
-    catalogue: &TrustedCatalogue,
-    claim: &ReactionClaim,
-    evidence: &EvidenceSnapshot,
-    provider: &str,
-    model: &str,
-) -> Result<(), AgentError> {
-    let path = dynamic_cache_path(directory, request, mode, identities, catalogue)?;
-    let bytes =
-        fs::read(&path).map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
-    let existing: DynamicCacheEnvelope = serde_json::from_slice(&bytes)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
-    if existing.schema_version != DYNAMIC_CACHE_SCHEMA_VERSION
-        || existing.compiler_contract_version != DYNAMIC_COMPILER_CONTRACT_VERSION
-        || existing.request_binding != request_binding(request, identities)?
-        || existing.identity_snapshot
-            != identities
-                .snapshot_digest()
-                .map_err(|error| AgentError::new("reaction cache", error.to_string()))?
-        || existing.catalogue_digest != catalogue.digest()
-    {
-        return Err(AgentError::new(
-            "reaction cache",
-            "existing entry is stale or bound to different governing inputs",
-        ));
-    }
-    store_dynamic_cache(
-        directory,
-        request,
-        mode,
-        identities,
-        catalogue,
-        claim,
-        Some(evidence),
-        existing.presentation,
-        provider,
-        model,
-    )
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -461,7 +381,6 @@ mod tests {
         TrustedCatalogue::from_canonical_json(
             &fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
                 .expect("catalogue"),
-            &fs::read(root.join("catalogue/trusted/core-chemistry/review.json")).expect("review"),
         )
         .expect("trusted catalogue")
     }
@@ -523,7 +442,6 @@ mod tests {
             &trusted,
             &claim,
             None,
-            None,
             "fake",
             "offline",
         )
@@ -555,7 +473,6 @@ mod tests {
             &identities,
             &trusted,
             &claim,
-            None,
             Some(DynamicCachePresentation::ReviewedFamily {
                 rule_id: family.rule_id().clone(),
             }),
@@ -684,7 +601,6 @@ mod tests {
             &identities,
             &trusted,
             &claim,
-            None,
             Some(DynamicCachePresentation::Static {
                 diagnostic: "temporary provider failure".to_owned(),
                 retryable: true,

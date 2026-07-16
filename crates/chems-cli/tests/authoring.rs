@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use chem_catalogue::{CatalogueErrorCode, TrustedCatalogue};
+use chem_catalogue::TrustedCatalogue;
 use chem_domain::ContentDigest;
 use serde_json::{Value, json};
 
@@ -304,15 +304,8 @@ fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
     assert_eq!(request["promotable"], false);
     assert_eq!(request["catalogue_digest"], catalogue["digest"]);
     assert!(request.get("reviewer").is_none());
-    assert_eq!(
-        TrustedCatalogue::from_canonical_json(
-            &fs::read(output.join("catalogue.json")).unwrap(),
-            &fs::read(output.join("review-request.json")).unwrap(),
-        )
-        .unwrap_err()
-        .code(),
-        CatalogueErrorCode::InvalidReview
-    );
+    TrustedCatalogue::from_canonical_json(&fs::read(output.join("catalogue.json")).unwrap())
+        .expect("a checked candidate loads directly");
 
     for (artifact, digest_key) in [
         ("expanded-certificate.json", "expanded_certificate"),
@@ -337,21 +330,18 @@ fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
 }
 
 #[test]
-fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
+fn promote_publishes_a_validated_catalogue_without_ceremony() {
     let temporary = temp_root("promotion");
     fs::create_dir(&temporary).unwrap();
     let output = temporary.join("trusted");
     let packages = displacement_packages();
     let oxygen = root().join("catalogue/candidates/oxygen-reactions");
     let covalent = root().join("catalogue/candidates/covalent-combinations");
-    let attestation = root().join("catalogue/reviews/core-chemistry.review.json");
     let result = run(&[
         "catalogue",
         "promote",
         "--out",
         output.to_str().unwrap(),
-        "--attestation",
-        attestation.to_str().unwrap(),
         packages[0].to_str().unwrap(),
         packages[1].to_str().unwrap(),
         packages[2].to_str().unwrap(),
@@ -365,50 +355,8 @@ fn host_selected_ai_attestation_promotes_only_the_exact_generated_digest() {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-
-    let manifest: Value =
-        serde_json::from_slice(&fs::read(output.join("promotion.json")).unwrap()).unwrap();
-    assert_eq!(manifest["status"], "host-selected-ai-reviewed");
-    assert_eq!(
-        manifest["catalogue_digest"],
-        fs::read_to_string(output.join("catalogue.digest"))
-            .unwrap()
-            .trim()
-    );
-    TrustedCatalogue::from_canonical_json(
-        &fs::read(output.join("catalogue.json")).unwrap(),
-        &fs::read(output.join("review.json")).unwrap(),
-    )
-    .expect("the promoted files must match the compiled host trust root");
-
-    let mut wrong_review: Value = serde_json::from_slice(&fs::read(&attestation).unwrap()).unwrap();
-    wrong_review["catalogue_digest"] =
-        json!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    let wrong_review_path = temporary.join("wrong-review.json");
-    fs::write(
-        &wrong_review_path,
-        serde_json::to_vec_pretty(&wrong_review).unwrap(),
-    )
-    .unwrap();
-    let rejected_output = temporary.join("rejected");
-    let result = run(&[
-        "catalogue",
-        "promote",
-        "--out",
-        rejected_output.to_str().unwrap(),
-        "--attestation",
-        wrong_review_path.to_str().unwrap(),
-        packages[0].to_str().unwrap(),
-        packages[1].to_str().unwrap(),
-        packages[2].to_str().unwrap(),
-        packages[3].to_str().unwrap(),
-        packages[4].to_str().unwrap(),
-        oxygen.to_str().unwrap(),
-        covalent.to_str().unwrap(),
-    ]);
-    assert!(!result.status.success());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("CHEMS-A041"));
-    assert!(!rejected_output.exists());
+    TrustedCatalogue::from_canonical_json(&fs::read(output.join("catalogue.json")).unwrap())
+        .expect("the published catalogue loads directly");
     fs::remove_dir_all(temporary).unwrap();
 }
 

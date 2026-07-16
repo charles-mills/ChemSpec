@@ -399,12 +399,8 @@ mod tests {
 
     fn trusted() -> TrustedCatalogue {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/review.json"))
-                .expect("review"),
-        )
+        TrustedCatalogue::from_canonical_json(&std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+                .expect("catalogue"))
         .expect("trusted catalogue")
     }
 
@@ -412,8 +408,8 @@ mod tests {
     fn formula_only_products_cannot_block_a_reviewed_family_match() {
         // The product formula `KHO` parses to the same element inventory as
         // the reviewed `KOH` structure but misses the string-keyed registry
-        // lookup, so the outcome carries a formula-only product. The family
-        // must still match from the reactants alone.
+        // lookup. The structure generator now fills that gap on the fly, and
+        // the family must still match from the reactants alone.
         let trusted = trusted();
         let identities = reviewed_species_registry(&trusted).expect("identities");
         let claim = json!({
@@ -454,8 +450,8 @@ mod tests {
             panic!("static outcome")
         };
         assert!(
-            !outcome.products_without_structure().is_empty(),
-            "test premise: the hydroxide product must be formula-only"
+            outcome.products_without_structure().is_empty(),
+            "the mis-keyed hydroxide product should gain a generated structure"
         );
         let matched = match_reviewed_family(&outcome, &trusted).expect("family match");
         let FamilyMatchOutcome::Matched(family) = matched else {
