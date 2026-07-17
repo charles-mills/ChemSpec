@@ -502,21 +502,12 @@ fn main() -> iced::Result {
 /// Resize events report sizes already divided by the active zoom, so the new
 /// factor is computed from zoom-invariant design units. Windows at or below
 /// the design size keep the 1:1 layout.
-///
-/// The zoom is quantized so the total device pixel ratio (monitor scale ×
-/// zoom) stays an integer. A continuous zoom puts every glyph baseline and
-/// quad edge on fractional device rows, where the text renderer's Y-axis
-/// pixel snapping visibly floats labels above the centre of buttons.
-fn adaptive_zoom(reported: Size, current_zoom: f32, monitor_scale: f32) -> f32 {
+fn adaptive_zoom(reported: Size, current_zoom: f32) -> f32 {
     let width = reported.width * current_zoom;
     let height = reported.height * current_zoom;
-    let desired = (width / DESIGN_SIZE.width).min(height / DESIGN_SIZE.height);
-    let scale = if monitor_scale.is_finite() && monitor_scale >= 1.0 {
-        monitor_scale
-    } else {
-        1.0
-    };
-    ((desired * scale).floor() / scale).clamp(1.0, MAX_UI_ZOOM)
+    (width / DESIGN_SIZE.width)
+        .min(height / DESIGN_SIZE.height)
+        .clamp(1.0, MAX_UI_ZOOM)
 }
 
 fn codex_available() -> bool {
@@ -759,7 +750,6 @@ impl PlaybackSpeed {
 #[derive(Debug, Clone)]
 enum Message {
     WindowResized(Size),
-    MonitorScaleMeasured(f32),
     DumpFrame,
     FrameCaptured(std::path::PathBuf, iced::window::Screenshot),
     DynamicOverlayDismissed,
@@ -1206,10 +1196,6 @@ struct App {
     dynamic_overlay_dismissed: bool,
     /// Debug harness: dump one frame to this path, then keep running.
     dump_frame_path: Option<std::path::PathBuf>,
-    /// The active monitor's scale factor, used to quantize `ui_zoom`.
-    monitor_scale: f32,
-    /// Last window size in zoom-invariant design units.
-    window_design_size: Size,
 }
 
 impl Default for App {
@@ -1258,8 +1244,6 @@ impl Default for App {
             ui_zoom: 1.0,
             dynamic_overlay_dismissed: false,
             dump_frame_path: None,
-            monitor_scale: 1.0,
-            window_design_size: DESIGN_SIZE,
         }
     }
 }
@@ -1338,15 +1322,8 @@ impl App {
     fn update_with_task(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowResized(size) => {
-                self.window_design_size =
-                    Size::new(size.width * self.ui_zoom, size.height * self.ui_zoom);
-                self.ui_zoom = adaptive_zoom(size, self.ui_zoom, self.monitor_scale);
+                self.ui_zoom = adaptive_zoom(size, self.ui_zoom);
                 reactant_composer::resize_ambient(&mut self.reactant_composer, size);
-                // The quantization step depends on the monitor's own scale
-                // factor, which can change when the window switches displays.
-                return iced::window::latest()
-                    .and_then(iced::window::scale_factor)
-                    .map(Message::MonitorScaleMeasured);
             }
             Message::DumpFrame => {
                 if let Some(path) = self.dump_frame_path.take() {
@@ -1371,12 +1348,6 @@ impl App {
                 self.dynamic_overlay_dismissed = true;
             }
             Message::Noop => {}
-            Message::MonitorScaleMeasured(scale) => {
-                if (scale - self.monitor_scale).abs() > f32::EPSILON {
-                    self.monitor_scale = scale;
-                    self.ui_zoom = adaptive_zoom(self.window_design_size, 1.0, scale);
-                }
-            }
             Message::KeyboardEvent { event, status } => {
                 let message = match self.screen {
                     Screen::Builder => builder_keyboard_message(
@@ -5455,32 +5426,25 @@ mod tests {
     #[test]
     fn adaptive_zoom_scales_windows_beyond_the_design_size() {
         // At or below the design size the layout stays 1:1.
-        assert!((adaptive_zoom(DESIGN_SIZE, 1.0, 2.0) - 1.0).abs() < f32::EPSILON);
-        assert!((adaptive_zoom(Size::new(560.0, 760.0), 1.0, 2.0) - 1.0).abs() < f32::EPSILON);
+        assert!((adaptive_zoom(DESIGN_SIZE, 1.0) - 1.0).abs() < f32::EPSILON);
+        assert!((adaptive_zoom(Size::new(560.0, 760.0), 1.0) - 1.0).abs() < f32::EPSILON);
 
         // A 32in 4K-class window zooms by its most constrained axis (height:
-        // 1490 / 900 = 1.655…), quantized down to an integer total device
-        // pixel ratio (1.5 x 2.0 = 3).
-        let zoom = adaptive_zoom(Size::new(2_650.0, 1_490.0), 1.0, 2.0);
-        assert!((zoom - 1.5).abs() < f32::EPSILON);
+        // 1490 / 900 = 1.655…).
+        let zoom = adaptive_zoom(Size::new(2_650.0, 1_490.0), 1.0);
+        assert!((zoom - 1_490.0 / DESIGN_SIZE.height).abs() < 0.001);
 
         // Zoom never exceeds the cap, however large the window.
-        assert!((adaptive_zoom(Size::new(7_680.0, 4_320.0), 1.0, 2.0) - MAX_UI_ZOOM).abs() < 0.001);
+        assert!((adaptive_zoom(Size::new(7_680.0, 4_320.0), 1.0) - MAX_UI_ZOOM).abs() < 0.001);
     }
 
     #[test]
-    fn adaptive_zoom_quantizes_to_integer_device_pixel_ratios() {
-        // 1997x1359 on a 1x monitor wants zoom 1.387; fractional totals put
-        // glyphs on fractional device rows, so it settles on 1.0.
-        assert!((adaptive_zoom(Size::new(1_997.0, 1_359.0), 1.0, 1.0) - 1.0).abs() < f32::EPSILON);
-        // The same window on a 2x monitor can afford half steps (total 2).
-        let retina = adaptive_zoom(Size::new(1_997.0, 1_359.0), 1.0, 2.0);
-        assert!((retina - 1.0).abs() < f32::EPSILON);
-        // A taller window on 2x reaches the next clean total (1.5 x 2 = 3).
-        let larger = adaptive_zoom(Size::new(2_400.0, 1_400.0), 1.0, 2.0);
-        assert!((larger - 1.5).abs() < f32::EPSILON);
-        // An undefined monitor scale falls back to integer zoom steps.
-        assert!((adaptive_zoom(Size::new(2_400.0, 1_400.0), 1.0, 0.0) - 1.0).abs() < f32::EPSILON);
+    fn adaptive_zoom_scales_the_complete_ui_at_common_fullscreen_sizes() {
+        let full_hd = adaptive_zoom(Size::new(1_920.0, 1_080.0), 1.0);
+        assert!((full_hd - 1.2).abs() < f32::EPSILON);
+
+        let quad_hd = adaptive_zoom(Size::new(2_560.0, 1_440.0), 1.0);
+        assert!((quad_hd - 1.6).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -5488,9 +5452,9 @@ mod tests {
         // Resize events report design units (physical over total scale), so a
         // window that settled on a zoom keeps it: 2880x1800 physical reads as
         // 1440x900 under zoom 2.0 and recomputes to exactly 2.0 again.
-        let settled = adaptive_zoom(Size::new(2_880.0, 1_800.0), 1.0, 2.0);
+        let settled = adaptive_zoom(Size::new(2_880.0, 1_800.0), 1.0);
         assert!((settled - 2.0).abs() < f32::EPSILON);
-        let recomputed = adaptive_zoom(Size::new(1_440.0, 900.0), settled, 2.0);
+        let recomputed = adaptive_zoom(Size::new(1_440.0, 900.0), settled);
         assert!((recomputed - settled).abs() < f32::EPSILON);
     }
 
