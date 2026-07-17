@@ -18,8 +18,9 @@ pub use formula::{
     FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,
 };
 pub use generate::{
-    activity_rank, anion_valence_charge, common_cation_charge, displaces_hydrogen_from_acids,
-    generate_structure, has_variable_cation_charge, lowest_cation_charge,
+    activity_rank, anion_valence_charge, aqueous_cation_charge, common_cation_charge,
+    displaces_hydrogen_from_acids, generate_structure, has_variable_cation_charge,
+    lowest_cation_charge,
 };
 pub use identity::{
     AssumptionKindId, AssumptionKindKind, AssumptionPremiseId, AssumptionPremiseKind, AtomGroupId,

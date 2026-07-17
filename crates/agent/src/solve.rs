@@ -1,11 +1,15 @@
 //! Algorithmic reaction solving.
 //!
-//! Predicts products for reaction families that follow deterministically
-//! from reactant structure: acid-base neutralization and binary synthesis.
-//! The output is an ordinary [`ReactionClaim`]; downstream exact balancing
-//! and structural validation gate it exactly like a model claim. Anything
-//! outside these families returns None so the caller can fall back to the
-//! model.
+//! Predicts products for the classroom reaction families that follow
+//! deterministically from reactant structure: acid-base (oxides,
+//! hydroxides, carbonates, bicarbonates), acid + metal, binary synthesis,
+//! combustion, oxide hydration and slaking, metal + water, single, double,
+//! and halogen displacement with solubility rules, heat/light/electricity
+//! decomposition, and confident no-reactions (noble gases, metal pairs,
+//! light-stable and inert pairings). The output is an ordinary
+//! [`ReactionClaim`]; downstream exact balancing and structural validation
+//! gate it exactly like a model claim. Anything outside these families
+//! returns None so the caller can fall back to the model.
 
 use std::collections::BTreeMap;
 
@@ -145,14 +149,16 @@ fn solve_acid_base(acid: &StructureDefinition, base: &StructureDefinition) -> Op
 }
 
 /// Acid + elemental metal: salt + hydrogen above the hydrogen pivot in the
-/// activity series, a confident no-reaction below it.
+/// activity series, a confident no-reaction below it. Dilute acids are
+/// mild oxidants: variable-charge metals only reach their mild aqueous
+/// state (Fe + 2HCl → `FeCl2`, never `FeCl3`).
 fn solve_acid_metal(acid: &StructureDefinition, metal: &StructureDefinition) -> Option<Verdict> {
     let donors = acid_donor_count(acid)?;
     if metal.representation() != RepresentationKind::Metallic {
         return None;
     }
     let (element, _) = single_element(metal)?;
-    let charge = chem_domain::common_cation_charge(element.as_str())?;
+    let charge = chem_domain::aqueous_cation_charge(element.as_str())?;
     if !chem_domain::displaces_hydrogen_from_acids(element.as_str())? {
         return Some(Verdict {
             products: Vec::new(),
@@ -773,11 +779,22 @@ fn solve_synthesis(
         let id = StructureId::new("generated.synthesis").ok()?;
         generate_structure(id, &inventory)
     };
-    let cation_of = |symbol: &ElementSymbol| chem_domain::common_cation_charge(symbol.as_str());
+    // The oxidant decides how far a variable-charge metal goes: fluorine,
+    // oxygen, chlorine, and bromine reach the highest common state
+    // (Fe + Cl2 → FeCl3), while the milder chalcogens and iodine only
+    // reach the lowest (Fe + S → FeS, Fe + I2 → FeI2 — iodide cannot
+    // coexist with the higher cation).
+    let cation_of = |metal: &ElementSymbol, oxidant: &ElementSymbol| match oxidant.as_str() {
+        "S" | "Se" | "Te" | "I" => chem_domain::lowest_cation_charge(metal.as_str()),
+        _ => chem_domain::common_cation_charge(metal.as_str()),
+    };
     let anion_of = |symbol: &ElementSymbol| chem_domain::anion_valence_charge(symbol.as_str());
 
     // Metal + nonmetal, or hydride: exact charge balance.
-    let charge_pair = match (cation_of(&left_element), cation_of(&right_element)) {
+    let charge_pair = match (
+        cation_of(&left_element, &right_element),
+        cation_of(&right_element, &left_element),
+    ) {
         (Some(charge), None) => Some((left_element.clone(), charge, right_element.clone())),
         (None, Some(charge)) => Some((right_element.clone(), charge, left_element.clone())),
         (Some(_), Some(_)) => return None,
@@ -1136,7 +1153,9 @@ fn solve_single_displacement(
             observations: Vec::new(),
         });
     }
-    let charge = u64::try_from(chem_domain::common_cation_charge(element.as_str())?).ok()?;
+    // A dissolved cation is a mild oxidant: the incoming metal only
+    // reaches its mild aqueous state (Fe + CuSO4 → FeSO4, never Fe2(SO4)3).
+    let charge = u64::try_from(chem_domain::aqueous_cation_charge(element.as_str())?).ok()?;
     let displaced = ClaimProduct {
         name: chem_domain::element_name(&salt.cation)?.to_owned(),
         formula: salt.cation.clone(),
@@ -1350,6 +1369,50 @@ mod tests {
                 .iter()
                 .any(|observation| observation.subject.contains("hydrogen"))
         );
+    }
+
+    #[test]
+    fn variable_charge_metals_stay_low_against_mild_oxidants() {
+        // Dilute acid: iron(II), never iron(III).
+        let acid = request(&[("Fe", &[26]), ("HCl", &[1, 17])]);
+        let claim = solve_reaction_claim(&acid, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "FeCl2");
+        assert_eq!(claim.products[0].name, "iron(II) chloride");
+
+        // Displacement from a dissolved salt: iron(II) sulfate.
+        let displacement = request(&[("Fe", &[26]), ("CuSO₄", &[29, 16, 8, 8, 8, 8])]);
+        let claim =
+            solve_reaction_claim(&displacement, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "FeSO4");
+        assert_eq!(claim.products[0].name, "iron(II) sulfate");
+        assert_eq!(claim.products[1].formula, "Cu");
+
+        // Sulfur and iodine are mild; chlorine reaches iron(III).
+        let sulfide = request(&[("Fe", &[26]), ("S₈", &[16; 8])]);
+        let claim = solve_reaction_claim(&sulfide, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "FeS");
+        assert_eq!(claim.products[0].name, "iron(II) sulfide");
+
+        let iodide = request(&[("Fe", &[26]), ("I₂", &[53, 53])]);
+        let claim = solve_reaction_claim(&iodide, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "FeI2");
+
+        let chloride = request(&[("Fe", &[26]), ("Cl₂", &[17, 17])]);
+        let claim = solve_reaction_claim(&chloride, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "FeCl3");
+
+        // Copper is the aqueous exception (Cu+ disproportionates in water),
+        // but dry synthesis genuinely reaches copper(I).
+        let copper_sulfide = request(&[("Cu", &[29]), ("S₈", &[16; 8])]);
+        let claim =
+            solve_reaction_claim(&copper_sulfide, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "Cu2S");
+        assert_eq!(claim.products[0].name, "copper(I) sulfide");
+
+        let copper_iodide = request(&[("Cu", &[29]), ("I₂", &[53, 53])]);
+        let claim =
+            solve_reaction_claim(&copper_iodide, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "CuI");
     }
 
     #[test]

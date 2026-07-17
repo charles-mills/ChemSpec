@@ -754,6 +754,17 @@ pub fn lowest_cation_charge(symbol: &str) -> Option<i16> {
     facts(symbol)?.cation_charges.iter().copied().min()
 }
 
+/// The charge a metal cation takes against mild aqueous oxidants (dilute
+/// acids, dissolved salts): the lowest common charge, except copper, whose
+/// +1 state disproportionates in water.
+#[must_use]
+pub fn aqueous_cation_charge(symbol: &str) -> Option<i16> {
+    if symbol == "Cu" {
+        return common_cation_charge(symbol);
+    }
+    lowest_cation_charge(symbol)
+}
+
 /// Whether a metal commonly takes more than one cation charge (and so
 /// needs a Roman numeral in salt names).
 #[must_use]
@@ -844,30 +855,33 @@ pub fn generate_structure(
     }
 }
 
-/// A single-site metallic structure: the standard model for one atom of an
-/// elemental metal (site holds its cation charge, the metallic domain owns
-/// the released electrons, net zero).
+/// A metallic structure for any portion of one elemental metal: every site
+/// holds its cation charge and one shared domain owns the released
+/// electrons, net zero.
 fn generate_elemental_metal(
     id: StructureId,
     inventory: &ElementInventory,
     metals: &[(String, Facts, u64)],
 ) -> Option<StructureDefinition> {
-    let [(symbol, element_facts, 1)] = metals else {
+    let [(symbol, element_facts, count)] = metals else {
         return None;
     };
     element_facts.cation_charges.first()?;
     // Every valence electron joins the domain, the same convention the
     // reviewed catalogue uses, so metallic and ionic electron books agree.
     let charge = i16::from(element_facts.valence);
-    let electrons = u32::from(element_facts.valence);
-    let atom = make_atom(0, symbol, charge, 0)?;
+    let sites = usize::try_from(*count).ok()?;
+    let electrons = u32::from(element_facts.valence).checked_mul(u32::try_from(sites).ok()?)?;
+    let atoms = (0..sites)
+        .map(|index| make_atom(index, symbol, charge, 0))
+        .collect::<Option<Vec<_>>>()?;
     let domain = MetallicDomain::new(
         MetallicDomainId::new("metallic").ok()?,
-        [atom_id(0)?],
+        (0..sites).map(atom_id).collect::<Option<Vec<_>>>()?,
         electrons,
     )
     .ok()?;
-    let graph = StructuralGraph::new([atom], [], [], [], [domain]).ok()?;
+    let graph = StructuralGraph::new(atoms, [], [], [], [domain]).ok()?;
     StructureDefinition::new(id, inventory.clone(), RepresentationKind::Metallic, graph).ok()
 }
 
@@ -1434,6 +1448,21 @@ mod tests {
     }
 
     #[test]
+    fn multi_atom_metal_portions_share_one_domain() {
+        let copper = structure(&[("Cu", 3)]).expect("Cu3");
+        assert_eq!(copper.representation(), RepresentationKind::Metallic);
+        let graph = copper.graph();
+        assert_eq!(graph.atoms().len(), 3);
+        let domain = graph
+            .metallic_domains()
+            .values()
+            .next()
+            .expect("one domain");
+        assert_eq!(domain.sites().len(), 3);
+        assert_eq!(domain.delocalized_electrons(), 33);
+    }
+
+    #[test]
     fn localized_molecules_stay_localized() {
         for (pairs, label) in [
             (&[("H", 2), ("O", 1)][..], "water"),
@@ -1668,6 +1697,7 @@ mod tests {
     #[test]
     fn unbuildable_inventories_are_declined() {
         assert!(structure(&[("He", 2)]).is_none());
-        assert!(structure(&[("Na", 2)]).is_none());
+        // A metal portion is buildable at any count; a noble gas is not.
+        assert!(structure(&[("Na", 2)]).is_some());
     }
 }
