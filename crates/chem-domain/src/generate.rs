@@ -920,7 +920,7 @@ fn generate_canonical_molecule(
 /// constitutional isomers of a canonical molecule — most organics — are
 /// only reachable by name. Spellings are matched lowercase with collapsed
 /// whitespace.
-const NAMED_MOLECULES: [(&[&str], &str); 19] = [
+const NAMED_MOLECULES: [(&[&str], &str); 28] = [
     (
         &["ammonium cyanate", "nh4ocn", "nh4cno"],
         "[NH4+].[O-]C#N",
@@ -943,6 +943,15 @@ const NAMED_MOLECULES: [(&[&str], &str); 19] = [
     (&["1,2-dichloroethane"], "ClCCCl"),
     (&["1,2-dibromopropane"], "CC(Br)CBr"),
     (&["1,2-dichloropropane"], "CC(Cl)CCl"),
+    (&["chloromethane", "methyl chloride"], "CCl"),
+    (&["bromomethane", "methyl bromide"], "CBr"),
+    (&["chloroethane", "ethyl chloride"], "CCCl"),
+    (&["bromoethane", "ethyl bromide"], "CCBr"),
+    (&["cyclopropane"], "C1CC1"),
+    (&["cyclobutane"], "C1CCC1"),
+    (&["cyclopentane"], "C1CCCC1"),
+    (&["cyclohexane"], "C1CCCCC1"),
+    (&["glycerol", "glycerine", "propane-1,2,3-triol"], "OCC(O)CO"),
 ];
 
 /// Every named molecule as (accepted spellings, subset SMILES); the first
@@ -977,9 +986,18 @@ pub fn generate_named_structure(
     name: &str,
     inventory: &ElementInventory,
 ) -> Option<StructureDefinition> {
-    let smiles = named_molecule_smiles(name)?;
-    let structure = crate::smiles::structure_from_smiles(id, smiles)?;
+    let smiles = resolved_name_smiles(name)?;
+    let structure = crate::smiles::structure_from_smiles(id, &smiles)?;
     (structure.formula() == inventory).then_some(structure)
+}
+
+/// The subset SMILES a molecule name resolves to: the named-molecule table
+/// first (trivial spellings win), then systematic IUPAC parsing.
+#[must_use]
+pub fn resolved_name_smiles(name: &str) -> Option<String> {
+    named_molecule_smiles(name)
+        .map(str::to_owned)
+        .or_else(|| crate::iupac::smiles_for_name(name))
 }
 
 /// Deterministic standard-state allotropes the bond search cannot settle on

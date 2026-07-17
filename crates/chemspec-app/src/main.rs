@@ -16,6 +16,7 @@ mod periodic_table;
 mod product_summary;
 mod reactant_composer;
 mod scene_registry;
+mod sketcher;
 mod structural_2d;
 mod structural_3d;
 mod structural_physics;
@@ -779,6 +780,7 @@ enum Message {
     ProviderContinue,
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
+    Sketcher(sketcher::Message),
     BuilderPanelToggled(BuilderPanel),
     BuilderPanelClosed,
     DynamicContextSelected(Option<DynamicRequestContext>),
@@ -822,6 +824,7 @@ enum Message {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BuilderPanel {
     Conditions,
+    Sketch,
     Help,
 }
 
@@ -1161,6 +1164,7 @@ struct App {
     api_key: String,
     periodic_table: periodic_table::State,
     reactant_composer: reactant_composer::State,
+    sketcher: sketcher::State,
     pending_requests: Vec<chemistry::ReactionRequest>,
     oxygen_assessment: Option<chemistry::OxygenAssessment>,
     active_request: chemistry::ReactionRequest,
@@ -1211,6 +1215,7 @@ impl Default for App {
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
+            sketcher: sketcher::State::default(),
             pending_requests: Vec::new(),
             oxygen_assessment: None,
             active_request,
@@ -1432,6 +1437,22 @@ impl App {
             }
             Message::ReactantComposer(message) => {
                 return self.update_reactant_composer(message);
+            }
+            Message::Sketcher(message) => {
+                let submit = matches!(message, sketcher::Message::UseAsReactant);
+                sketcher::update(&mut self.sketcher, message);
+                if submit && let Some(sketch) = sketcher::submission(&self.sketcher) {
+                    // Filling a slot is a draft edit: it must invalidate
+                    // dynamic work exactly like typed or clicked edits do.
+                    self.cancel_dynamic_work();
+                    reactant_composer::set_sketched_reactant(
+                        &mut self.reactant_composer,
+                        sketch.atoms,
+                        sketch.smiles,
+                    );
+                    self.builder_panel = None;
+                    self.sync_builder_submit_prompt();
+                }
             }
             Message::BuilderPanelToggled(panel) => {
                 self.builder_panel = (self.builder_panel != Some(panel)).then_some(panel);
@@ -1833,6 +1854,32 @@ impl App {
         reactant_composer::set_submit_available(&mut self.reactant_composer, available);
     }
 
+    /// Cancels any in-flight dynamic build and clears its results. Every
+    /// draft edit — typed, clicked, or sketched — must route through this so
+    /// stale dynamic chemistry never survives a changed question.
+    fn cancel_dynamic_work(&mut self) {
+        if let Some(cancellation) = self.dynamic_cancellation.take() {
+            cancellation.store(true, Ordering::Relaxed);
+        }
+        self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
+        self.dynamic_build = DynamicBuildState::Idle;
+        self.dynamic_identity_choice = None;
+        self.dynamic_started_at = None;
+        self.dynamic_latency = LatencyMilestones::default();
+        self.dynamic_progress = None;
+        self.dynamic_progress_receiver = None;
+        if self.dynamic_static.take().is_some()
+            || self.dynamic_claim.take().is_some()
+            || self.dynamic_presentation.take().is_some()
+            || matches!(&self.validated_frames, Some(RenderableFrames::Dynamic(_)))
+        {
+            self.validated_frames = None;
+            self.structural_animation = None;
+        }
+
+        self.dynamic_request = None;
+    }
+
     fn update_reactant_composer(&mut self, message: reactant_composer::Message) -> Task<Message> {
         let focus_target = match &message {
             reactant_composer::Message::BeginNameEntry(reactant) => {
@@ -1853,26 +1900,7 @@ impl App {
                 reactant_composer::update(&mut self.reactant_composer, message);
                 return Task::none();
             }
-            if let Some(cancellation) = self.dynamic_cancellation.take() {
-                cancellation.store(true, Ordering::Relaxed);
-            }
-            self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
-            self.dynamic_build = DynamicBuildState::Idle;
-            self.dynamic_identity_choice = None;
-            self.dynamic_started_at = None;
-            self.dynamic_latency = LatencyMilestones::default();
-            self.dynamic_progress = None;
-            self.dynamic_progress_receiver = None;
-            if self.dynamic_static.take().is_some()
-                || self.dynamic_claim.take().is_some()
-                || self.dynamic_presentation.take().is_some()
-                || matches!(&self.validated_frames, Some(RenderableFrames::Dynamic(_)))
-            {
-                self.validated_frames = None;
-                self.structural_animation = None;
-            }
-
-            self.dynamic_request = None;
+            self.cancel_dynamic_work();
             reactant_composer::update(&mut self.reactant_composer, message);
             let (first, second) = reactant_composer::reactants(&self.reactant_composer);
             if !second.is_empty() {
@@ -1918,8 +1946,10 @@ impl App {
     fn start_dynamic_build(&mut self) -> Task<Message> {
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
         let names = reactant_composer::draft_names(&self.reactant_composer);
-        let single_context = second.is_empty().then_some(self.dynamic_context).flatten();
-        let drafts = if single_context.is_some() {
+        // A selected condition rides along for any reactant count; the
+        // submit gate already requires one for single-reactant requests.
+        let context = self.dynamic_context;
+        let drafts = if second.is_empty() {
             vec![first]
         } else {
             vec![first, second]
@@ -1942,7 +1972,7 @@ impl App {
                     species_id: None,
                 })
                 .collect(),
-            selected_context: single_context.map(|context| context.value().to_owned()),
+            selected_context: context.map(|context| context.value().to_owned()),
         };
         self.start_dynamic_build_request(request, false)
     }
@@ -3834,6 +3864,22 @@ impl App {
         alternatives.into()
     }
 
+    /// Wraps a toolbar control in the shared bottom-anchored tooltip chrome.
+    fn toolbar_tooltip<'a>(
+        control: iced::widget::Button<'a, Message>,
+        label: &'a str,
+    ) -> Element<'a, Message> {
+        tooltip(
+            control,
+            text(label).size(type_scale::CAPTION).color(color::TEXT_SOFT),
+            tooltip::Position::Bottom,
+        )
+        .gap(spacing::XS)
+        .padding(spacing::XS)
+        .style(|_| theme::tooltip_surface(1.0))
+        .into()
+    }
+
     fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
         let conditions_selected =
             self.builder_panel == Some(BuilderPanel::Conditions) || self.dynamic_context.is_some();
@@ -3844,77 +3890,73 @@ impl App {
         } else {
             color::FAINT
         };
-        let conditions = button(icons::atom(20.0, conditions_color))
-            .on_press_maybe(
-                conditions_enabled
-                    .then_some(Message::BuilderPanelToggled(BuilderPanel::Conditions)),
-            )
+        let conditions = Self::toolbar_tooltip(
+            button(icons::atom(20.0, conditions_color))
+                .on_press_maybe(
+                    conditions_enabled
+                        .then_some(Message::BuilderPanelToggled(BuilderPanel::Conditions)),
+                )
+                .padding(spacing::XS)
+                .style(if conditions_selected {
+                    theme::primary_button
+                } else {
+                    theme::secondary_button
+                }),
+            if conditions_enabled {
+                "Reaction conditions"
+            } else {
+                "Conditions unlock once a reactant is composed"
+            },
+        );
+
+        let sketch_selected = self.builder_panel == Some(BuilderPanel::Sketch);
+        let sketch = Self::toolbar_tooltip(
+            button(icons::pencil(
+                20.0,
+                if sketch_selected {
+                    color::CANVAS
+                } else {
+                    color::TEXT_SOFT
+                },
+            ))
+            .on_press(Message::BuilderPanelToggled(BuilderPanel::Sketch))
             .padding(spacing::XS)
-            .style(if conditions_selected {
+            .style(if sketch_selected {
                 theme::primary_button
             } else {
                 theme::secondary_button
-            });
-        let conditions: Element<'_, Message> = tooltip(
-            conditions,
-            text(if conditions_enabled {
-                "Reaction conditions"
-            } else {
-                "Conditions are available for a single reactant"
-            })
-            .size(type_scale::CAPTION)
-            .color(color::TEXT_SOFT),
-            tooltip::Position::Bottom,
-        )
-        .gap(spacing::XS)
-        .padding(spacing::XS)
-        .style(|_| theme::tooltip_surface(1.0))
-        .into();
+            }),
+            "Draw a molecule",
+        );
 
         let help_selected = self.builder_panel == Some(BuilderPanel::Help);
-        let help = button(icons::help(
-            20.0,
-            if help_selected {
-                color::CANVAS
-            } else {
-                color::TEXT_SOFT
-            },
-        ))
-        .on_press(Message::BuilderPanelToggled(BuilderPanel::Help))
-        .padding(spacing::XS)
-        .style(if help_selected {
-            theme::primary_button
-        } else {
-            theme::secondary_button
-        });
-        let help: Element<'_, Message> = tooltip(
-            help,
-            text("Help and shortcuts")
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT),
-            tooltip::Position::Bottom,
-        )
-        .gap(spacing::XS)
-        .padding(spacing::XS)
-        .style(|_| theme::tooltip_surface(1.0))
-        .into();
-
-        let settings = button(icons::settings(20.0, color::FAINT))
+        let help = Self::toolbar_tooltip(
+            button(icons::help(
+                20.0,
+                if help_selected {
+                    color::CANVAS
+                } else {
+                    color::TEXT_SOFT
+                },
+            ))
+            .on_press(Message::BuilderPanelToggled(BuilderPanel::Help))
             .padding(spacing::XS)
-            .style(theme::secondary_button);
-        let settings: Element<'_, Message> = tooltip(
-            settings,
-            text("Settings — coming soon")
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT),
-            tooltip::Position::Bottom,
-        )
-        .gap(spacing::XS)
-        .padding(spacing::XS)
-        .style(|_| theme::tooltip_surface(1.0))
-        .into();
+            .style(if help_selected {
+                theme::primary_button
+            } else {
+                theme::secondary_button
+            }),
+            "Help and shortcuts",
+        );
 
-        row![space().width(Fill), conditions, help, settings,]
+        let settings = Self::toolbar_tooltip(
+            button(icons::settings(20.0, color::FAINT))
+                .padding(spacing::XS)
+                .style(theme::secondary_button),
+            "Settings — coming soon",
+        );
+
+        row![space().width(Fill), sketch, conditions, help, settings,]
             .spacing(spacing::XS)
             .align_y(Center)
             .into()
@@ -3956,6 +3998,11 @@ impl App {
                 }
                 choices.into()
             }
+            Some(BuilderPanel::Sketch) => {
+                let slot_available =
+                    !matches!(self.dynamic_build, DynamicBuildState::Running { .. });
+                sketcher::view(&self.sketcher, slot_available).map(Message::Sketcher)
+            }
             Some(BuilderPanel::Help) => {
                 let shortcut = |key: &'static str, description: &'static str| {
                     row![
@@ -3995,9 +4042,15 @@ impl App {
             None => space().height(Length::Shrink).into(),
         };
 
+        // The sketch canvas needs more room than the text panels.
+        let width = if self.builder_panel == Some(BuilderPanel::Sketch) {
+            420.0
+        } else {
+            340.0
+        };
         container(content)
             .padding(spacing::MD)
-            .width(Length::Fixed(340.0))
+            .width(Length::Fixed(width))
             .style(|_| theme::tooltip_surface(1.0))
             .into()
     }
@@ -4191,8 +4244,8 @@ impl App {
         let library = container(element_library).width(Fill).height(Fill);
 
         let dynamic_busy = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
-        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-        let conditions_enabled = !dynamic_busy && !first.is_empty() && second.is_empty();
+        let (first, _) = reactant_composer::reactants(&self.reactant_composer);
+        let conditions_enabled = !dynamic_busy && !first.is_empty();
         let toolbar = self.builder_toolbar(conditions_enabled);
         let foreground = column![toolbar, composer, library]
             .spacing(spacing::XS)

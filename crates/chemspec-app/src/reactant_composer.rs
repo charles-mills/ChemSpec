@@ -26,7 +26,9 @@ use crate::fonts;
 use crate::particle_visualization::{AmbientReactantDiagram, ambient_footprint};
 use crate::theme::{self, color, motion, space as spacing, type_scale};
 
-const MAX_ATOMS_PER_REACTANT: usize = 12;
+// Matches the domain generator's structure cap so name-resolved organics
+// (butane, esters) fit in one slot.
+const MAX_ATOMS_PER_REACTANT: usize = 24;
 
 const SENTENCE_FONT: Font = fonts::MEDIUM;
 const FORMULA_FONT: Font = fonts::SEMIBOLD;
@@ -758,6 +760,23 @@ pub const fn submit_available(state: &State) -> bool {
     state.submit_available
 }
 
+/// Fills the active slot with a sketched structure: the full atom inventory
+/// (implicit hydrogens included) plus its SMILES as the draft name, which
+/// the dynamic pipeline resolves back into the exact drawn structure.
+pub fn set_sketched_reactant(state: &mut State, atoms: Vec<u8>, smiles: String) {
+    let draft = &mut state.drafts[state.active.index()];
+    draft.atoms = atoms;
+    draft.name = Some(smiles);
+    state.limit_reached = false;
+    state.editing = None;
+    state.name_input.clear();
+    state.name_feedback = None;
+    for ambient in &mut state.ambient {
+        *ambient = AmbientPresentation::default();
+    }
+    sync_ambient_presentations(state);
+}
+
 #[cfg(test)]
 pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
     state.drafts = drafts.map(|atoms| ReactantDraft { atoms, name: None });
@@ -1196,6 +1215,16 @@ mod tests {
     fn click_slot(state: &mut State, slot: ActiveReactant) {
         update(state, Message::SlotPressed(slot));
         update(state, Message::SlotReleased(slot));
+    }
+
+    #[test]
+    fn sketched_reactants_fill_the_active_slot() {
+        let mut state = State::default();
+        update(&mut state, Message::SelectReactant(ActiveReactant::Second));
+        set_sketched_reactant(&mut state, vec![6, 6, 1, 1, 1, 1, 1, 1], "CC".to_owned());
+
+        assert_eq!(reactants(&state).1, [6, 6, 1, 1, 1, 1, 1, 1]);
+        assert_eq!(draft_names(&state), [None, Some("CC")]);
     }
 
     #[test]

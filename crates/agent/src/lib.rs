@@ -10,6 +10,7 @@ mod claim;
 mod codex;
 mod family;
 mod identity;
+mod iupac_name;
 mod mechanism;
 mod mechanize;
 mod naming;

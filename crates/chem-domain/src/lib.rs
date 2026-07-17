@@ -1,7 +1,9 @@
 pub mod acidity;
+pub mod cip;
 pub mod formula;
 pub mod generate;
 pub mod identity;
+pub mod iupac;
 pub mod material;
 pub mod periodic;
 pub mod reaction;
@@ -14,6 +16,7 @@ pub mod structural;
 pub mod unit;
 
 pub use acidity::{BronstedAcidProfile, ProtonDonorSite, classify_bronsted_acid};
+pub use cip::{StereoDescriptor, stereocentre_descriptor};
 pub use formula::{
     Charge, ChargeSign, Count, Element, ElementId, ElementRegistry, ElementSymbol, FormulaError,
     FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,
@@ -21,9 +24,12 @@ pub use formula::{
 pub use generate::{
     activity_rank, anion_valence_charge, aqueous_cation_charge, common_cation_charge,
     displaces_hydrogen_from_acids, electronegativity, generate_named_structure,
-    generate_structure, has_variable_cation_charge, lowest_cation_charge, named_molecule_smiles, named_molecules,
+    generate_structure, has_variable_cation_charge, lowest_cation_charge, named_molecule_smiles, named_molecules, resolved_name_smiles,
 };
-pub use smiles::{smiles_from_structure, structure_from_smiles, subset_valence};
+pub use iupac::smiles_for_name;
+pub use smiles::{
+    smiles_from_structure, structure_from_heavy_graph, structure_from_smiles, subset_valence,
+};
 pub use identity::{
     AssumptionKindId, AssumptionKindKind, AssumptionPremiseId, AssumptionPremiseKind, AtomGroupId,
     AtomGroupKind, AtomId, AtomKind, AtomMappingId, AtomMappingKind, ClaimId, ClaimKind,
@@ -66,11 +72,12 @@ pub use state::{
 };
 pub use structural::{
     Atom, AtomGroup, AtomMapping, BondOrder, CovalentBond, CovalentDelocalization,
-    CovalentElectronOrigin, EffectiveBondOrder, ElectronAllocation, ElectronState,
+    CovalentElectronOrigin, DoubleBondStereo, EffectiveBondOrder, ElectronAllocation, ElectronState,
     ElectronTransition, ElementInventory, IonicAssociation, MetallicDomain, MetallicJoinAllocation,
     MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError, StructuralGraph,
-    StructuralOperation, StructuralOperationInput, StructuralOperationView, StructureDefinition,
-    StructureInstance, canonical_structural_json, structural_digest,
+    StereoArrangement, StructuralOperation, StructuralOperationInput, StructuralOperationView,
+    TetrahedralChirality, TetrahedralHandedness,
+    StructureDefinition, StructureInstance, canonical_structural_json, structural_digest,
 };
 pub use unit::{
     Dimension, DimensionError, Quantity, QuantityConversion, QuantityError, ResolvedUnit,

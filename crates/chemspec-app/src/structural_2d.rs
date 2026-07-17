@@ -1340,25 +1340,25 @@ fn layout_component(
     let adjacency = component_adjacency(frame, component);
     let mut seen: BTreeSet<String>;
     let mut queue: VecDeque<(String, usize, f32)>;
-    if let Some(ring) = single_ring(&adjacency) {
-        // Ring atoms sit on a regular polygon whose edge matches the widest
-        // bond length, so no neighbouring shells are squeezed; substituents
-        // hang radially outward from their ring atom.
-        let count = ring.len();
-        let edge = (0..count)
-            .map(|index| radius_of(&ring[index]) + radius_of(&ring[(index + 1) % count]) + gap)
-            .fold(0.0_f32, f32::max);
-        let circumradius = edge / (2.0 * (std::f32::consts::PI / count as f32).sin());
-        seen = ring.iter().cloned().collect();
+    let placed_rings = fused_layout(frame, &adjacency, center, gap, positions)
+        .or_else(|| spiro_layout(frame, &adjacency, center, gap, positions))
+        .or_else(|| bridged_layout(frame, &adjacency, center, gap, positions));
+    if let Some(rings) = placed_rings {
+        // Substituents hang radially outward from their ring's centre.
+        seen = rings.iter().flat_map(|(ring, _)| ring).cloned().collect();
         queue = VecDeque::new();
-        for (index, id) in ring.iter().enumerate() {
-            let angle =
-                -std::f32::consts::FRAC_PI_2 + std::f32::consts::TAU * index as f32 / count as f32;
-            positions.insert(
-                id.clone(),
-                center + Vector::new(angle.cos() * circumradius, angle.sin() * circumradius),
-            );
-            queue.push_back((id.clone(), 1, angle));
+        let mut queued = BTreeSet::new();
+        for (ring, ring_center) in &rings {
+            for id in ring {
+                if !queued.insert(id.clone()) {
+                    continue;
+                }
+                let Some(position) = positions.get(id) else {
+                    continue;
+                };
+                let angle = (position.y - ring_center.y).atan2(position.x - ring_center.x);
+                queue.push_back((id.clone(), 1, angle));
+            }
         }
     } else {
         let root = component
@@ -1404,16 +1404,287 @@ fn layout_component(
     }
 }
 
-/// The lone simple cycle of a connected component, in traversal order,
-/// when the component contains exactly one; `None` for acyclic graphs.
-/// ponytail: fused/bridged systems (edges > atoms) keep the tree fallback;
-/// add SSSR perception if polycyclics ever need honest polygons.
-fn single_ring(adjacency: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<String>> {
-    let edges = adjacency.values().map(BTreeSet::len).sum::<usize>() / 2;
-    if edges != adjacency.len() {
+/// Places an edge-fused ring system: each ring's atoms sit on a regular
+/// polygon — the first ring centred on `center` with its edge matching the
+/// widest bond length, every later ring folding outward across the edge it
+/// shares with an already-placed ring (the standard fused-polygon
+/// construction). Returns each ring with its centre; `None` when the
+/// component is not a fused system.
+fn fused_layout(
+    frame: &StructuralFrame,
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    center: Point,
+    gap: f32,
+    positions: &mut BTreeMap<String, Point>,
+) -> Option<Vec<(Vec<String>, Point)>> {
+    let rings = ring_systems(adjacency)?;
+    let mut placed = Vec::with_capacity(rings.len());
+    let mut ring_centers: Vec<Point> = Vec::new();
+    for ring in rings {
+        let ring_center = place_ring(frame, &ring, &ring_centers, center, gap, positions);
+        ring_centers.push(ring_center);
+        placed.push((ring, ring_center));
+    }
+    Some(placed)
+}
+
+/// Follows a degree-2 chain through the 2-core from `start` via `via`
+/// until it reaches a hub (a core atom of degree other than 2), returning
+/// the interior atoms in walk order and the terminal hub.
+fn core_chain<'a>(
+    adjacency: &'a BTreeMap<String, BTreeSet<String>>,
+    core: &BTreeSet<&'a str>,
+    hubs: &BTreeSet<&'a str>,
+    start: &'a str,
+    via: &'a str,
+) -> Option<(Vec<String>, &'a str)> {
+    let mut previous = start;
+    let mut current = via;
+    let mut interior = Vec::new();
+    while !hubs.contains(current) {
+        if interior.len() > core.len() {
+            return None;
+        }
+        interior.push(current.to_owned());
+        let next = adjacency[current]
+            .iter()
+            .map(String::as_str)
+            .find(|id| core.contains(id) && *id != previous)?;
+        previous = current;
+        current = next;
+    }
+    Some((interior, current))
+}
+
+/// Two rings sharing exactly one atom (a spiro junction): each ring is a
+/// regular polygon on its own side of the shared atom, ring centres
+/// collinear through it, so the junction's two bond pairs mirror across
+/// the centre line. Returns each ring with its centre; `None` for anything
+/// that is not exactly two vertex-sharing rings.
+#[allow(clippy::cast_precision_loss)]
+fn spiro_layout(
+    frame: &StructuralFrame,
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    center: Point,
+    gap: f32,
+    positions: &mut BTreeMap<String, Point>,
+) -> Option<Vec<(Vec<String>, Point)>> {
+    let degrees = core_degrees(adjacency);
+    let core = degrees.keys().copied().collect::<BTreeSet<_>>();
+    let hubs = degrees
+        .iter()
+        .filter(|(_, degree)| **degree != 2)
+        .map(|(id, degree)| (*id, *degree))
+        .collect::<Vec<_>>();
+    let [(pivot, 4)] = hubs.as_slice() else {
+        return None;
+    };
+    let hub_set = BTreeSet::from([*pivot]);
+    let mut remaining = adjacency[*pivot]
+        .iter()
+        .map(String::as_str)
+        .filter(|id| core.contains(id))
+        .collect::<BTreeSet<_>>();
+    let mut rings: Vec<Vec<String>> = Vec::new();
+    while let Some(start) = remaining.pop_first() {
+        let (interior, terminal) = core_chain(adjacency, &core, &hub_set, pivot, start)?;
+        if terminal != *pivot {
+            return None;
+        }
+        if let Some(last) = interior.last() {
+            remaining.remove(last.as_str());
+        }
+        let mut ring = vec![(*pivot).to_owned()];
+        ring.extend(interior);
+        rings.push(ring);
+    }
+    let [first, second] = rings.as_slice() else {
+        return None;
+    };
+    if first.len() + second.len() != core.len() + 1 {
         return None;
     }
-    // Exactly one independent cycle: peel leaves until only the ring is left.
+
+    let radius_of =
+        |id: &str| atom(frame, id).map_or(24.0, |state| atom_visual_radius(&state.element));
+    let mut placed = Vec::with_capacity(2);
+    for (ring, base_angle) in [(first, 0.0_f32), (second, std::f32::consts::PI)] {
+        let count = ring.len();
+        let edge = (0..count)
+            .map(|index| radius_of(&ring[index]) + radius_of(&ring[(index + 1) % count]) + gap)
+            .fold(0.0_f32, f32::max);
+        let circumradius = edge / (2.0 * (std::f32::consts::PI / count as f32).sin());
+        // The shared atom (vertex 0) sits exactly on `center`; the ring
+        // centre backs away from it along the horizontal axis.
+        let ring_center = center - Vector::new(base_angle.cos() * circumradius, 0.0);
+        for (index, id) in ring.iter().enumerate() {
+            let angle = base_angle + std::f32::consts::TAU * index as f32 / count as f32;
+            positions.insert(
+                id.clone(),
+                ring_center + Vector::new(angle.cos() * circumradius, angle.sin() * circumradius),
+            );
+        }
+        placed.push((ring.clone(), ring_center));
+    }
+    Some(placed)
+}
+
+/// A two-bridgehead bicyclic (norbornane-style): the two longest
+/// bridgehead-to-bridgehead paths form one regular perimeter polygon and
+/// the shortest bridge's atoms arc gently through its interior, bowed off
+/// the bridgehead chord so they clear the centre and the perimeter.
+/// ponytail: single-bridge bicyclics only; tri-bridged cages keep the tree
+/// fallback until they need honest geometry.
+#[allow(clippy::cast_precision_loss)]
+fn bridged_layout(
+    frame: &StructuralFrame,
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    center: Point,
+    gap: f32,
+    positions: &mut BTreeMap<String, Point>,
+) -> Option<Vec<(Vec<String>, Point)>> {
+    let degrees = core_degrees(adjacency);
+    let core = degrees.keys().copied().collect::<BTreeSet<_>>();
+    let hubs = degrees
+        .iter()
+        .filter(|(_, degree)| **degree != 2)
+        .map(|(id, degree)| (*id, *degree))
+        .collect::<Vec<_>>();
+    let [(first_head, 3), (second_head, 3)] = hubs.as_slice() else {
+        return None;
+    };
+    let hub_set = BTreeSet::from([*first_head, *second_head]);
+    let mut paths: Vec<Vec<String>> = Vec::with_capacity(3);
+    for via in adjacency[*first_head]
+        .iter()
+        .map(String::as_str)
+        .filter(|id| core.contains(id))
+    {
+        let (interior, terminal) = core_chain(adjacency, &core, &hub_set, first_head, via)?;
+        if terminal != *second_head {
+            return None;
+        }
+        paths.push(interior);
+    }
+    if paths.len() != 3 || paths.iter().map(Vec::len).sum::<usize>() + 2 != core.len() {
+        return None;
+    }
+    paths.sort_by_key(|path| std::cmp::Reverse(path.len()));
+    let bridge = paths.pop()?;
+    if bridge.is_empty() {
+        // A direct bridgehead-to-bridgehead edge is a fused system,
+        // already handled upstream.
+        return None;
+    }
+
+    let mut perimeter = vec![(*first_head).to_owned()];
+    perimeter.extend(paths[0].iter().cloned());
+    perimeter.push((*second_head).to_owned());
+    perimeter.extend(paths[1].iter().rev().cloned());
+    let ring_center = place_ring(frame, &perimeter, &[], center, gap, positions);
+    let (Some(&head_a), Some(&head_b)) = (
+        positions.get(*first_head),
+        positions.get(*second_head),
+    ) else {
+        return None;
+    };
+    let edge = positions
+        .get(&perimeter[1])
+        .map_or(74.0, |next| vector_magnitude(*next - head_a));
+    let chord = head_b - head_a;
+    let length = vector_magnitude(chord).max(1.0);
+    let perpendicular = Vector::new(-chord.y, chord.x) * (1.0 / length);
+    let bow = edge * 0.35;
+    for (index, id) in bridge.iter().enumerate() {
+        let t = (index + 1) as f32 / (bridge.len() + 1) as f32;
+        positions.insert(
+            id.clone(),
+            head_a + chord * t + perpendicular * (bow * (std::f32::consts::PI * t).sin()),
+        );
+    }
+    let mut atoms = perimeter;
+    atoms.extend(bridge);
+    Some(vec![(atoms, ring_center)])
+}
+
+/// Places one ring of a fused system as a regular polygon and returns its
+/// centre: the first ring lands on `center`, and every later ring folds
+/// outward across the edge it shares with the already-placed rings.
+#[allow(clippy::cast_precision_loss)]
+fn place_ring(
+    frame: &StructuralFrame,
+    ring: &[String],
+    prior_centers: &[Point],
+    center: Point,
+    gap: f32,
+    positions: &mut BTreeMap<String, Point>,
+) -> Point {
+    let count = ring.len();
+    let angle_step = std::f32::consts::PI / count as f32;
+    let shared = (0..count).find_map(|index| {
+        let a = positions.get(&ring[index])?;
+        let b = positions.get(&ring[(index + 1) % count])?;
+        Some((index, *a, *b))
+    });
+    let Some((start, edge_a, edge_b)) = shared else {
+        let radius_of =
+            |id: &str| atom(frame, id).map_or(24.0, |state| atom_visual_radius(&state.element));
+        let edge = (0..count)
+            .map(|index| radius_of(&ring[index]) + radius_of(&ring[(index + 1) % count]) + gap)
+            .fold(0.0_f32, f32::max);
+        let circumradius = edge / (2.0 * angle_step.sin());
+        for (index, id) in ring.iter().enumerate() {
+            let angle =
+                -std::f32::consts::FRAC_PI_2 + std::f32::consts::TAU * index as f32 / count as f32;
+            positions.insert(
+                id.clone(),
+                center + Vector::new(angle.cos() * circumradius, angle.sin() * circumradius),
+            );
+        }
+        return center;
+    };
+    let edge = vector_magnitude(edge_b - edge_a).max(1.0);
+    let circumradius = edge / (2.0 * angle_step.sin());
+    let midpoint = Point::new(
+        f32::midpoint(edge_a.x, edge_b.x),
+        f32::midpoint(edge_a.y, edge_b.y),
+    );
+    let mut normal = Vector::new(edge_a.y - edge_b.y, edge_b.x - edge_a.x) * (1.0 / edge);
+    // Fold away from the ring system placed so far.
+    let inside = Point::new(
+        prior_centers.iter().map(|point| point.x).sum::<f32>() / prior_centers.len().max(1) as f32,
+        prior_centers.iter().map(|point| point.y).sum::<f32>() / prior_centers.len().max(1) as f32,
+    );
+    if (midpoint.x - inside.x) * normal.x + (midpoint.y - inside.y) * normal.y < 0.0 {
+        normal = Vector::new(-normal.x, -normal.y);
+    }
+    let apothem = edge / (2.0 * angle_step.tan());
+    let ring_center = midpoint + normal * apothem;
+    let angle_a = (edge_a.y - ring_center.y).atan2(edge_a.x - ring_center.x);
+    let angle_b = (edge_b.y - ring_center.y).atan2(edge_b.x - ring_center.x);
+    let mut step = angle_b - angle_a;
+    if step > std::f32::consts::PI {
+        step -= std::f32::consts::TAU;
+    } else if step < -std::f32::consts::PI {
+        step += std::f32::consts::TAU;
+    }
+    for offset in 0..count {
+        let id = &ring[(start + offset) % count];
+        if positions.contains_key(id) {
+            continue;
+        }
+        let angle = angle_a + step * offset as f32;
+        positions.insert(
+            id.clone(),
+            ring_center + Vector::new(angle.cos() * circumradius, angle.sin() * circumradius),
+        );
+    }
+    ring_center
+}
+
+/// The 2-core of a component's adjacency — leaves iteratively peeled until
+/// only ring atoms remain — with each survivor's degree within the core.
+fn core_degrees(adjacency: &BTreeMap<String, BTreeSet<String>>) -> BTreeMap<&str, usize> {
     let mut degree = adjacency
         .iter()
         .map(|(id, neighbours)| (id.as_str(), neighbours.len()))
@@ -1434,26 +1705,111 @@ fn single_ring(adjacency: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<Str
             }
         }
     }
-    let core = degree.keys().copied().collect::<BTreeSet<_>>();
+    degree
+}
+
+/// The smallest-cycle rings of a connected component, each in traversal
+/// order, ordered so every ring after the first shares an edge with an
+/// earlier one; `None` for acyclic components and for anything that does
+/// not decompose into edge-sharing fused rings.
+/// ponytail: spiro and single-bridge bicyclics get their own layouts
+/// downstream; multi-bridge cages and mixed polycyclics keep the tree
+/// fallback until they ever need honest polygons.
+fn ring_systems(adjacency: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<Vec<String>>> {
+    let edges = adjacency.values().map(BTreeSet::len).sum::<usize>() / 2;
+    if edges < adjacency.len() {
+        return None;
+    }
+    let core = core_degrees(adjacency)
+        .into_keys()
+        .collect::<BTreeSet<_>>();
     if core.len() < 3 {
         return None;
     }
-    // Every core atom has exactly two core neighbours: walk the ring.
-    let start = *core.iter().next()?;
-    let on_ring = |id: &&str| core.contains(*id);
-    let mut ring = vec![start.to_owned()];
-    let mut previous = start;
-    let mut current = adjacency[start].iter().map(String::as_str).find(on_ring)?;
-    while current != start {
-        ring.push(current.to_owned());
-        let next = adjacency[current]
-            .iter()
-            .map(String::as_str)
-            .find(|id| core.contains(*id) && *id != previous)?;
-        previous = current;
-        current = next;
+    // A smallest-cycles basis (SSSR equivalent at this scale): the
+    // deduplicated shortest cycle through every core edge, smallest first,
+    // keeping each cycle that still covers a new edge.
+    let ring_edges = |ring: &[String]| {
+        (0..ring.len())
+            .map(|index| sorted_pair(&ring[index], &ring[(index + 1) % ring.len()]))
+            .collect::<BTreeSet<_>>()
+    };
+    let mut candidates: Vec<Vec<String>> = Vec::new();
+    let mut keys = BTreeSet::new();
+    for &from in &core {
+        for to in adjacency[from].iter().map(String::as_str) {
+            if !core.contains(to) || from >= to {
+                continue;
+            }
+            let ring = shortest_cycle(adjacency, &core, from, to)?;
+            if keys.insert(ring_edges(&ring)) {
+                candidates.push(ring);
+            }
+        }
     }
-    Some(ring)
+    candidates.sort_by_key(Vec::len);
+    let mut selected: Vec<Vec<String>> = Vec::new();
+    let mut covered: BTreeSet<(String, String)> = BTreeSet::new();
+    for ring in candidates {
+        let edges = ring_edges(&ring);
+        if edges.iter().any(|edge| !covered.contains(edge)) {
+            covered.extend(edges);
+            selected.push(ring);
+        }
+    }
+    // Order the rings so each one fuses onto an already-placed edge; any
+    // ring gluing on by more than one edge (bridged) or by no edge (spiro)
+    // sends the whole component to the tree fallback.
+    if selected.is_empty() {
+        return None;
+    }
+    let mut ordered = vec![selected.remove(0)];
+    let mut placed: BTreeSet<String> = ordered[0].iter().cloned().collect();
+    while !selected.is_empty() {
+        let next = selected.iter().position(|ring| {
+            (0..ring.len()).any(|index| {
+                placed.contains(&ring[index]) && placed.contains(&ring[(index + 1) % ring.len()])
+            })
+        })?;
+        let ring = selected.remove(next);
+        if ring.iter().filter(|id| placed.contains(*id)).count() > 2 {
+            return None;
+        }
+        placed.extend(ring.iter().cloned());
+        ordered.push(ring);
+    }
+    Some(ordered)
+}
+
+/// The shortest cycle through one core edge: BFS between its endpoints
+/// with the edge itself forbidden. `None` marks a bridge between rings.
+fn shortest_cycle(
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    core: &BTreeSet<&str>,
+    from: &str,
+    to: &str,
+) -> Option<Vec<String>> {
+    let mut parent = BTreeMap::from([(from, from)]);
+    let mut queue = VecDeque::from([from]);
+    while let Some(node) = queue.pop_front() {
+        for next in adjacency[node].iter().map(String::as_str) {
+            if !core.contains(next) || parent.contains_key(next) || (node == from && next == to) {
+                continue;
+            }
+            parent.insert(next, node);
+            if next == to {
+                let mut ring = vec![to.to_owned()];
+                let mut walk = to;
+                while walk != from {
+                    walk = parent[walk];
+                    ring.push(walk.to_owned());
+                }
+                return Some(ring);
+            }
+            queue.push_back(next);
+        }
+    }
+    None
 }
 
 /// Lays out a component that is exactly one ionic lattice group as a
@@ -3723,6 +4079,314 @@ mod tests {
                 "h{} inside the ring",
                 index + 1
             );
+        }
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)]
+    fn naphthalene_lays_out_as_two_regular_hexagons_sharing_one_edge() {
+        // Kekulé naphthalene: c9/c10 are the bridgeheads, h1..h8 sit on
+        // c1..c8, and alternating bond orders keep every carbon at four.
+        let bond = |left: &str, right: &str, order: u8| RenderBond {
+            left: left.to_owned(),
+            right: right.to_owned(),
+            order,
+            effective_order: None,
+        };
+        let mut atoms = (1..=10)
+            .map(|index| ion_atom(&format!("c{index}"), "C", 0))
+            .collect::<Vec<_>>();
+        let mut covalent_bonds = [
+            ("c1", "c2", 2),
+            ("c2", "c3", 1),
+            ("c3", "c4", 2),
+            ("c4", "c9", 1),
+            ("c9", "c10", 2),
+            ("c10", "c1", 1),
+            ("c9", "c5", 1),
+            ("c5", "c6", 2),
+            ("c6", "c7", 1),
+            ("c7", "c8", 2),
+            ("c8", "c10", 1),
+        ]
+        .into_iter()
+        .map(|(left, right, order)| bond(left, right, order))
+        .collect::<Vec<_>>();
+        for index in 1..=8 {
+            atoms.push(ion_atom(&format!("h{index}"), "H", 0));
+            covalent_bonds.push(bond(&format!("c{index}"), &format!("h{index}"), 1));
+        }
+        let frame = RenderFrame {
+            atoms,
+            covalent_bonds,
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let component = frame
+            .atoms
+            .iter()
+            .map(|atom| atom.id.clone())
+            .collect::<Vec<_>>();
+
+        let center = Point::new(400.0, 300.0);
+        let mut positions = BTreeMap::new();
+        layout_component(&frame, &component, center, &mut positions);
+        assert_eq!(positions.len(), 18);
+
+        // Both rings are regular hexagons: every edge and every vertex's
+        // distance from its ring centroid match the bond-length formula.
+        let expected_edge = 2.0 * atom_visual_radius("C") + 26.0;
+        let hexagons = [
+            ["c1", "c2", "c3", "c4", "c9", "c10"],
+            ["c5", "c6", "c7", "c8", "c10", "c9"],
+        ];
+        let centroid_of = |ids: &[&str]| {
+            Point::new(
+                ids.iter().map(|id| positions[*id].x).sum::<f32>() / ids.len() as f32,
+                ids.iter().map(|id| positions[*id].y).sum::<f32>() / ids.len() as f32,
+            )
+        };
+        for hexagon in hexagons {
+            let ring_center = centroid_of(&hexagon);
+            for index in 0..6 {
+                let reach = vector_magnitude(positions[hexagon[index]] - ring_center);
+                assert!(
+                    (reach - expected_edge).abs() < 0.5,
+                    "{} off its circumcircle: {reach} vs {expected_edge}",
+                    hexagon[index]
+                );
+                let edge = vector_magnitude(
+                    positions[hexagon[(index + 1) % 6]] - positions[hexagon[index]],
+                );
+                assert!(
+                    (edge - expected_edge).abs() < 0.5,
+                    "edge {edge} vs {expected_edge}"
+                );
+            }
+        }
+        // Exactly one shared edge: the ring centres sit two apothems apart.
+        let ring_gap = vector_magnitude(centroid_of(&hexagons[1]) - centroid_of(&hexagons[0]));
+        assert!(
+            (ring_gap - expected_edge * 3.0_f32.sqrt()).abs() < 0.5,
+            "ring centres {ring_gap} apart vs {}",
+            expected_edge * 3.0_f32.sqrt()
+        );
+
+        // No overlapping atoms anywhere in the layout.
+        let ids = positions.keys().cloned().collect::<Vec<_>>();
+        for (slot, left) in ids.iter().enumerate() {
+            for right in &ids[slot + 1..] {
+                assert!(
+                    vector_magnitude(positions[right] - positions[left])
+                        > 0.5 * atom_visual_radius("H"),
+                    "{left} and {right} overlap"
+                );
+            }
+        }
+
+        // Every hydrogen hangs outside the ring system.
+        let system_centroid = centroid_of(&[
+            "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10",
+        ]);
+        for index in 1..=8 {
+            assert!(
+                vector_magnitude(positions[&format!("h{index}")] - system_centroid)
+                    > vector_magnitude(positions[&format!("c{index}")] - system_centroid),
+                "h{index} inside the ring system"
+            );
+        }
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)]
+    fn spiro_rings_lay_out_as_regular_polygons_on_opposite_sides() {
+        // Spiro[4.4]nonane: two cyclopentane rings sharing only c5.
+        let bond = |left: &str, right: &str| RenderBond {
+            left: left.to_owned(),
+            right: right.to_owned(),
+            order: 1,
+            effective_order: None,
+        };
+        let frame = RenderFrame {
+            atoms: (1..=9)
+                .map(|index| ion_atom(&format!("c{index}"), "C", 0))
+                .collect(),
+            covalent_bonds: [
+                ("c1", "c2"),
+                ("c2", "c3"),
+                ("c3", "c4"),
+                ("c4", "c5"),
+                ("c5", "c1"),
+                ("c5", "c6"),
+                ("c6", "c7"),
+                ("c7", "c8"),
+                ("c8", "c9"),
+                ("c9", "c5"),
+            ]
+            .into_iter()
+            .map(|(left, right)| bond(left, right))
+            .collect(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let component = frame
+            .atoms
+            .iter()
+            .map(|atom| atom.id.clone())
+            .collect::<Vec<_>>();
+
+        let center = Point::new(400.0, 300.0);
+        let mut positions = BTreeMap::new();
+        layout_component(&frame, &component, center, &mut positions);
+        assert_eq!(positions.len(), 9);
+
+        // Both rings are regular pentagons sharing exactly c5.
+        let expected_edge = 2.0 * atom_visual_radius("C") + 26.0;
+        let circumradius = expected_edge / (2.0 * (std::f32::consts::PI / 5.0).sin());
+        let rings = [
+            ["c5", "c1", "c2", "c3", "c4"],
+            ["c5", "c6", "c7", "c8", "c9"],
+        ];
+        let centroid_of = |ids: &[&str]| {
+            Point::new(
+                ids.iter().map(|id| positions[*id].x).sum::<f32>() / ids.len() as f32,
+                ids.iter().map(|id| positions[*id].y).sum::<f32>() / ids.len() as f32,
+            )
+        };
+        for ring in rings {
+            let ring_center = centroid_of(&ring);
+            for index in 0..5 {
+                let reach = vector_magnitude(positions[ring[index]] - ring_center);
+                assert!(
+                    (reach - circumradius).abs() < 0.5,
+                    "{} off its circumcircle: {reach} vs {circumradius}",
+                    ring[index]
+                );
+                let edge =
+                    vector_magnitude(positions[ring[(index + 1) % 5]] - positions[ring[index]]);
+                assert!(
+                    (edge - expected_edge).abs() < 0.5,
+                    "edge {edge} vs {expected_edge}"
+                );
+            }
+        }
+
+        // Ring centres sit on opposite sides of the shared atom, collinear
+        // through it.
+        let pivot = positions["c5"];
+        let to_first = centroid_of(&rings[0]) - pivot;
+        let to_second = centroid_of(&rings[1]) - pivot;
+        assert!(
+            to_first.x * to_second.x + to_first.y * to_second.y < 0.0,
+            "ring centres share a side of the spiro atom"
+        );
+        assert!(
+            (to_first.x * to_second.y - to_first.y * to_second.x).abs() < 1.0,
+            "ring centres are not collinear through the spiro atom"
+        );
+
+        // No overlapping atoms anywhere in the layout.
+        let ids = positions.keys().cloned().collect::<Vec<_>>();
+        for (slot, left) in ids.iter().enumerate() {
+            for right in &ids[slot + 1..] {
+                assert!(
+                    vector_magnitude(positions[right] - positions[left])
+                        > 0.5 * atom_visual_radius("C"),
+                    "{left} and {right} overlap"
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)]
+    fn norbornane_lays_out_as_a_perimeter_hexagon_with_the_bridge_inside() {
+        // Bicyclo[2.2.1]heptane: bridgeheads c1/c4, two-carbon bridges
+        // c2-c3 and c5-c6, one-carbon bridge c7.
+        let bond = |left: &str, right: &str| RenderBond {
+            left: left.to_owned(),
+            right: right.to_owned(),
+            order: 1,
+            effective_order: None,
+        };
+        let frame = RenderFrame {
+            atoms: (1..=7)
+                .map(|index| ion_atom(&format!("c{index}"), "C", 0))
+                .collect(),
+            covalent_bonds: [
+                ("c1", "c2"),
+                ("c2", "c3"),
+                ("c3", "c4"),
+                ("c4", "c5"),
+                ("c5", "c6"),
+                ("c6", "c1"),
+                ("c1", "c7"),
+                ("c7", "c4"),
+            ]
+            .into_iter()
+            .map(|(left, right)| bond(left, right))
+            .collect(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let component = frame
+            .atoms
+            .iter()
+            .map(|atom| atom.id.clone())
+            .collect::<Vec<_>>();
+
+        let center = Point::new(400.0, 300.0);
+        let mut positions = BTreeMap::new();
+        layout_component(&frame, &component, center, &mut positions);
+        assert_eq!(positions.len(), 7);
+
+        // The perimeter (both two-carbon bridges plus the bridgeheads) is
+        // a regular hexagon.
+        let expected_edge = 2.0 * atom_visual_radius("C") + 26.0;
+        let perimeter = ["c1", "c2", "c3", "c4", "c5", "c6"];
+        let ring_center = Point::new(
+            perimeter.iter().map(|id| positions[*id].x).sum::<f32>() / 6.0,
+            perimeter.iter().map(|id| positions[*id].y).sum::<f32>() / 6.0,
+        );
+        for index in 0..6 {
+            let reach = vector_magnitude(positions[perimeter[index]] - ring_center);
+            assert!(
+                (reach - expected_edge).abs() < 0.5,
+                "{} off its circumcircle: {reach} vs {expected_edge}",
+                perimeter[index]
+            );
+            let edge = vector_magnitude(
+                positions[perimeter[(index + 1) % 6]] - positions[perimeter[index]],
+            );
+            assert!(
+                (edge - expected_edge).abs() < 0.5,
+                "edge {edge} vs {expected_edge}"
+            );
+        }
+
+        // The bridge carbon sits strictly inside the perimeter: within the
+        // hexagon's inscribed circle, and off the bridgehead chord's centre.
+        let apothem = expected_edge * 3.0_f32.sqrt() * 0.5;
+        let bridge_reach = vector_magnitude(positions["c7"] - ring_center);
+        assert!(
+            bridge_reach < apothem,
+            "bridge outside the perimeter: {bridge_reach} vs apothem {apothem}"
+        );
+        assert!(
+            bridge_reach > 1.0,
+            "bridge atom sits exactly on the polygon centre"
+        );
+
+        // No overlapping atoms anywhere in the layout.
+        let ids = positions.keys().cloned().collect::<Vec<_>>();
+        for (slot, left) in ids.iter().enumerate() {
+            for right in &ids[slot + 1..] {
+                assert!(
+                    vector_magnitude(positions[right] - positions[left])
+                        > 0.5 * atom_visual_radius("C"),
+                    "{left} and {right} overlap"
+                );
+            }
         }
     }
 

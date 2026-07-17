@@ -57,9 +57,12 @@ pub fn solve_reaction_claim(
             OutcomeSpecies::FormulaOnly { .. } => None,
         })
         .collect::<Vec<_>>();
+    let pair_context = request
+        .selected_context
+        .as_deref()
+        .map(|context| context.trim().to_lowercase());
     let verdict = if species.len() == 1 {
-        let context = request.selected_context.as_deref()?.trim().to_lowercase();
-        solve_decomposition(optional_structures[0]?, &context)?
+        solve_decomposition(optional_structures[0]?, pair_context.as_deref()?)?
     } else {
         let identity_verdict = solve_trivial_no_reaction(
             (&compositions[0], optional_structures[0]),
@@ -77,6 +80,12 @@ pub fn solve_reaction_claim(
                 .or_else(|| solve_combustion(structures[1], structures[0]))
                 .or_else(|| solve_alkene_addition(structures[0], structures[1]))
                 .or_else(|| solve_alkene_addition(structures[1], structures[0]))
+                .or_else(|| {
+                    solve_substitution(structures[0], structures[1], pair_context.as_deref())
+                })
+                .or_else(|| {
+                    solve_substitution(structures[1], structures[0], pair_context.as_deref())
+                })
                 .or_else(|| solve_esterification(structures[0], structures[1]))
                 .or_else(|| solve_esterification(structures[1], structures[0]))
                 .or_else(|| solve_oxide_water(structures[0], structures[1]))
@@ -633,7 +642,7 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
 fn organic_product(molecule: &organic::Editable, phase: ClaimPhase) -> Option<ClaimProduct> {
     let smiles = molecule.to_smiles()?;
     let formula = molecule.formula_text();
-    let name = organic::recognised_name(molecule).map_or_else(|| formula.clone(), str::to_owned);
+    let name = organic::recognised_name(molecule).unwrap_or_else(|| formula.clone());
     Some(ClaimProduct {
         name,
         formula,
@@ -701,6 +710,38 @@ fn solve_alkene_addition(
     Some(Verdict {
         products: vec![organic_product(&product, phase)?],
         observations,
+    })
+}
+
+/// Free-radical substitution under light: alkane + halogen → haloalkane +
+/// hydrogen halide, only where every substitutable position is equivalent
+/// (methane, ethane, neopentane) so the product is unambiguous.
+fn solve_substitution(
+    candidate: &StructureDefinition,
+    reagent: &StructureDefinition,
+    context: Option<&str>,
+) -> Option<Verdict> {
+    if context != Some("light") {
+        return None;
+    }
+    let element = addition_reagent(reagent)?;
+    if element == "H" {
+        return None;
+    }
+    let molecule = organic::Editable::from_structure(candidate)?;
+    let product = organic::unique_monosubstitution(&molecule, element)?;
+    let halide_root = if element == "Cl" { "chloride" } else { "bromide" };
+    Some(Verdict {
+        products: vec![
+            organic_product(&product, ClaimPhase::Gas)?,
+            ClaimProduct {
+                name: format!("hydrogen {halide_root}"),
+                formula: format!("H{element}"),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: Vec::new(),
     })
 }
 
@@ -1652,6 +1693,62 @@ mod tests {
     }
 
     #[test]
+    fn methane_and_chlorine_substitute_under_light() {
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "methane".to_owned(),
+                    atomic_numbers: vec![6, 1, 1, 1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "chlorine".to_owned(),
+                    atomic_numbers: vec![17, 17],
+                    species_id: None,
+                },
+            ],
+            selected_context: Some("light".to_owned()),
+        };
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        let names: Vec<&str> = claim
+            .products
+            .iter()
+            .map(|product| product.name.as_str())
+            .collect();
+        assert_eq!(names, ["chloromethane", "hydrogen chloride"]);
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced");
+        assert!(matches!(outcome, CompiledClaimOutcome::Static(_)));
+
+        // Without light nothing fires; with an ambiguous position (propane)
+        // nothing fires either.
+        let dark = ReactionBuildRequest {
+            selected_context: None,
+            ..request
+        };
+        assert!(solve_reaction_claim(&dark, &registry).is_none());
+        let propane = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "propane".to_owned(),
+                    atomic_numbers: vec![6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "chlorine".to_owned(),
+                    atomic_numbers: vec![17, 17],
+                    species_id: None,
+                },
+            ],
+            selected_context: Some("light".to_owned()),
+        };
+        assert!(
+            solve_reaction_claim(&propane, &registry).is_none(),
+            "positional ambiguity fails closed"
+        );
+    }
+
+    #[test]
     fn ethene_decolourises_bromine_to_the_dibromide() {
         let request = request(&[("ethene", &[6, 6, 1, 1, 1, 1]), ("bromine", &[35, 35])]);
         let registry = SpeciesRegistry::default();
@@ -1676,6 +1773,19 @@ mod tests {
             panic!("expected static outcome");
         };
         assert!(outcome.species_without_structure().is_empty());
+    }
+
+    #[test]
+    fn stereo_alkenes_hydrogenate_like_their_plain_isomer() {
+        let request = request(&[
+            ("trans-but-2-ene", &[6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1]),
+            ("hydrogen", &[1, 1]),
+        ]);
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        assert_eq!(claim.products[0].name, "butane");
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced");
+        assert!(matches!(outcome, CompiledClaimOutcome::Static(_)));
     }
 
     #[test]
@@ -1728,6 +1838,20 @@ mod tests {
             .map(|product| product.name.as_str())
             .collect();
         assert_eq!(names, ["ethene", "Water"]);
+    }
+
+    #[test]
+    fn sketched_smiles_displays_compile_and_balance() {
+        // A sketched draft's display is its SMILES; "CCO" must not be
+        // mistaken for the formula C2O.
+        let request = contextual("CCO", &[6, 6, 8, 1, 1, 1, 1, 1, 1], "heat");
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced");
+        let CompiledClaimOutcome::Static(outcome) = outcome else {
+            panic!("expected static outcome");
+        };
+        assert!(outcome.equation().contains("C2H6O"), "{}", outcome.equation());
     }
 
     #[test]

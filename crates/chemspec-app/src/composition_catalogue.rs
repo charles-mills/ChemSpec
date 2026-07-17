@@ -232,6 +232,19 @@ pub struct PreviewAtom {
     pub formal_charge: i16,
     pub non_bonding_electrons: u8,
     pub unpaired_electrons: u8,
+    /// Tetrahedral stereocentre descriptor, when the source graph carries
+    /// one; absent for the common achiral case.
+    pub chirality: Option<PreviewChirality>,
+}
+
+/// A stereocentre in preview index space: the four bonded neighbours (as
+/// indices into `TrustedCompositionPreview::atoms`, in the order the
+/// handedness is defined against) plus the winding of the last three viewed
+/// from the first listed neighbour toward the centre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreviewChirality {
+    pub neighbours: [usize; 4],
+    pub handedness: chem_domain::TetrahedralHandedness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -470,23 +483,38 @@ fn preview_from_definition(
     formula: &str,
 ) -> Option<TrustedCompositionPreview> {
     let graph = definition.graph();
-    let mut atom_indices = BTreeMap::new();
-    let atoms = graph
+    let atom_indices = graph
         .atoms()
         .values()
         .enumerate()
-        .map(|(index, atom)| {
-            atom_indices.insert(atom.id().clone(), index);
+        .map(|(index, atom)| (atom.id().clone(), index))
+        .collect::<BTreeMap<_, _>>();
+    let atoms = graph
+        .atoms()
+        .values()
+        .map(|atom| {
             let element = elements::SUPPORTED
                 .iter()
                 .find(|candidate| candidate.symbol == atom.element().as_str())?;
             let electrons = atom.electrons();
+            // Listed neighbours map to indices the same way bonds do below.
+            let chirality = atom.chirality().and_then(|descriptor| {
+                let mut listed = [0_usize; 4];
+                for (slot, id) in descriptor.neighbours().iter().enumerate() {
+                    listed[slot] = *atom_indices.get(id)?;
+                }
+                Some(PreviewChirality {
+                    neighbours: listed,
+                    handedness: descriptor.handedness(),
+                })
+            });
             Some(PreviewAtom {
                 label: atom.id().as_str().to_owned(),
                 atomic_number: element.atomic_number,
                 formal_charge: electrons.formal_charge(),
                 non_bonding_electrons: electrons.non_bonding_electrons(),
                 unpaired_electrons: electrons.unpaired_electrons(),
+                chirality,
             })
         })
         .collect::<Option<Vec<_>>>()?;

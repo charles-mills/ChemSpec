@@ -89,6 +89,59 @@ pub struct Atom {
     id: AtomId,
     element: ElementSymbol,
     electrons: ElectronState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chirality: Option<TetrahedralChirality>,
+}
+
+/// Tetrahedral handedness viewed from the first listed neighbour toward
+/// the centre: the remaining three run counterclockwise (SMILES `@`) or
+/// clockwise (`@@`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TetrahedralHandedness {
+    Counterclockwise,
+    Clockwise,
+}
+
+/// A tetrahedral stereocentre: the four neighbours (explicit hydrogens
+/// included — the graph model always materializes them) in the order the
+/// handedness is defined against. Absent for the overwhelmingly common
+/// achiral case, so existing serializations and digests are untouched.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct TetrahedralChirality {
+    neighbours: [AtomId; 4],
+    handedness: TetrahedralHandedness,
+}
+
+impl TetrahedralChirality {
+    /// # Errors
+    ///
+    /// Returns [`StructuralError::InvalidChirality`] for duplicate
+    /// neighbours.
+    pub fn new(
+        neighbours: [AtomId; 4],
+        handedness: TetrahedralHandedness,
+    ) -> Result<Self, StructuralError> {
+        for (index, neighbour) in neighbours.iter().enumerate() {
+            if neighbours[..index].contains(neighbour) {
+                return Err(StructuralError::InvalidChirality(neighbour.clone()));
+            }
+        }
+        Ok(Self {
+            neighbours,
+            handedness,
+        })
+    }
+
+    #[must_use]
+    pub const fn neighbours(&self) -> &[AtomId; 4] {
+        &self.neighbours
+    }
+
+    #[must_use]
+    pub const fn handedness(&self) -> TetrahedralHandedness {
+        self.handedness
+    }
 }
 
 impl Atom {
@@ -98,7 +151,16 @@ impl Atom {
             id,
             element,
             electrons,
+            chirality: None,
         }
+    }
+
+    /// The same atom carrying a tetrahedral stereocentre descriptor. The
+    /// graph constructor validates the neighbours against real bonds.
+    #[must_use]
+    pub fn with_chirality(mut self, chirality: TetrahedralChirality) -> Self {
+        self.chirality = Some(chirality);
+        self
     }
 
     #[must_use]
@@ -114,6 +176,11 @@ impl Atom {
     #[must_use]
     pub const fn electrons(&self) -> ElectronState {
         self.electrons
+    }
+
+    #[must_use]
+    pub const fn chirality(&self) -> Option<&TetrahedralChirality> {
+        self.chirality.as_ref()
     }
 }
 
@@ -289,6 +356,42 @@ impl ElementInventory {
 }
 
 /// A localized covalent edge between two distinct atoms.
+/// Relative geometry across a double bond: one named substituent on each
+/// end sits on the same side (cis) or opposite sides (trans). Absent for
+/// bonds whose geometry is unspecified — the overwhelmingly common case —
+/// so existing canonical serializations and digests are untouched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StereoArrangement {
+    Cis,
+    Trans,
+}
+
+/// The reference substituents anchoring a double bond's arrangement.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct DoubleBondStereo {
+    left_reference: AtomId,
+    right_reference: AtomId,
+    arrangement: StereoArrangement,
+}
+
+impl DoubleBondStereo {
+    #[must_use]
+    pub const fn left_reference(&self) -> &AtomId {
+        &self.left_reference
+    }
+
+    #[must_use]
+    pub const fn right_reference(&self) -> &AtomId {
+        &self.right_reference
+    }
+
+    #[must_use]
+    pub const fn arrangement(&self) -> StereoArrangement {
+        self.arrangement
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct CovalentBond {
     id: CovalentBondId,
@@ -299,6 +402,8 @@ pub struct CovalentBond {
     electron_origin: CovalentElectronOrigin,
     #[serde(skip_serializing_if = "Option::is_none")]
     delocalization: Option<CovalentDelocalization>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stereo: Option<DoubleBondStereo>,
 }
 
 impl CovalentBond {
@@ -328,6 +433,7 @@ impl CovalentBond {
             order,
             electron_origin: CovalentElectronOrigin::Shared,
             delocalization: None,
+            stereo: None,
         })
     }
 
@@ -356,6 +462,7 @@ impl CovalentBond {
             order: BondOrder::Single,
             electron_origin: CovalentElectronOrigin::Dative { donor, acceptor },
             delocalization: None,
+            stereo: None,
         })
     }
 
@@ -385,6 +492,50 @@ impl CovalentBond {
         Ok(bond)
     }
 
+    /// Constructs a shared double bond carrying a cis/trans arrangement
+    /// relative to one substituent on each end. The graph constructor
+    /// validates that the references are genuine neighbours.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StructuralError::SelfBond`] for equal endpoints and
+    /// [`StructuralError::InvalidStereo`] for a non-double order or a
+    /// reference that duplicates an endpoint.
+    pub fn new_stereo(
+        id: CovalentBondId,
+        left: AtomId,
+        right: AtomId,
+        order: BondOrder,
+        left_reference: AtomId,
+        right_reference: AtomId,
+        arrangement: StereoArrangement,
+    ) -> Result<Self, StructuralError> {
+        // References follow the same canonical endpoint swap as the bond.
+        let swapped = right < left;
+        let mut bond = Self::new(id, left, right, order)?;
+        if bond.order != BondOrder::Double {
+            return Err(StructuralError::InvalidStereo(bond.id));
+        }
+        let (left_reference, right_reference) = if swapped {
+            (right_reference, left_reference)
+        } else {
+            (left_reference, right_reference)
+        };
+        if left_reference == bond.left
+            || left_reference == bond.right
+            || right_reference == bond.left
+            || right_reference == bond.right
+        {
+            return Err(StructuralError::InvalidStereo(bond.id));
+        }
+        bond.stereo = Some(DoubleBondStereo {
+            left_reference,
+            right_reference,
+            arrangement,
+        });
+        Ok(bond)
+    }
+
     #[must_use]
     pub const fn id(&self) -> &CovalentBondId {
         &self.id
@@ -403,6 +554,11 @@ impl CovalentBond {
     #[must_use]
     pub const fn order(&self) -> BondOrder {
         self.order
+    }
+
+    #[must_use]
+    pub const fn stereo(&self) -> Option<&DoubleBondStereo> {
+        self.stereo.as_ref()
     }
 
     #[must_use]
@@ -587,6 +743,8 @@ impl StructuralGraph {
     ) -> Result<Self, StructuralError> {
         let atom_map = build_atoms(atoms)?;
         let bond_map = build_bonds(covalent_bonds, &atom_map)?;
+        validate_stereo_references(&bond_map)?;
+        validate_chirality(&atom_map, &bond_map)?;
         let group_map = build_groups(groups, &atom_map)?;
         let association_map = build_associations(ionic_associations, &group_map, &atom_map)?;
         let domain_map = build_domains(metallic_domains, &atom_map, &bond_map)?;
@@ -1893,6 +2051,59 @@ pub fn structural_digest<T: Serialize>(value: &T) -> Result<ContentDigest, Struc
     Ok(ContentDigest::sha256(&canonical_structural_json(value)?))
 }
 
+/// Every stereo reference must be a genuine neighbour of its own end of
+/// the double bond, reached through some other bond.
+fn validate_stereo_references(
+    bonds: &BTreeMap<CovalentBondId, CovalentBond>,
+) -> Result<(), StructuralError> {
+    let bonded = |a: &AtomId, b: &AtomId| {
+        bonds.values().any(|bond| {
+            (bond.left() == a && bond.right() == b) || (bond.left() == b && bond.right() == a)
+        })
+    };
+    for bond in bonds.values() {
+        if let Some(stereo) = bond.stereo()
+            && (!bonded(bond.left(), stereo.left_reference())
+                || !bonded(bond.right(), stereo.right_reference()))
+        {
+            return Err(StructuralError::InvalidStereo(bond.id().clone()));
+        }
+    }
+    Ok(())
+}
+
+/// A chiral atom's four listed neighbours must be exactly its bonded
+/// partners.
+fn validate_chirality(
+    atoms: &BTreeMap<AtomId, Atom>,
+    bonds: &BTreeMap<CovalentBondId, CovalentBond>,
+) -> Result<(), StructuralError> {
+    for atom in atoms.values() {
+        let Some(chirality) = atom.chirality() else {
+            continue;
+        };
+        let mut partners: Vec<&AtomId> = bonds
+            .values()
+            .filter_map(|bond| {
+                if bond.left() == atom.id() {
+                    Some(bond.right())
+                } else if bond.right() == atom.id() {
+                    Some(bond.left())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        partners.sort();
+        let mut listed: Vec<&AtomId> = chirality.neighbours().iter().collect();
+        listed.sort();
+        if partners != listed {
+            return Err(StructuralError::InvalidChirality(atom.id().clone()));
+        }
+    }
+    Ok(())
+}
+
 fn relabel_graph(
     instance: &StructureInstanceId,
     graph: &StructuralGraph,
@@ -2179,6 +2390,8 @@ fn group_charge(group: &AtomGroup, atoms: &BTreeMap<AtomId, Atom>) -> i64 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralError {
+    InvalidStereo(CovalentBondId),
+    InvalidChirality(AtomId),
     InvalidUnpairedElectrons {
         non_bonding_electrons: u8,
         unpaired_electrons: u8,
@@ -2269,6 +2482,14 @@ impl fmt::Display for StructuralError {
     #[allow(clippy::too_many_lines)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidStereo(bond) => write!(
+                formatter,
+                "bond `{bond}` carries a stereo descriptor that is not a double bond between valid neighbour references"
+            ),
+            Self::InvalidChirality(atom) => write!(
+                formatter,
+                "atom `{atom}` carries a chirality descriptor whose neighbours are not its four bonded partners"
+            ),
             Self::InvalidUnpairedElectrons {
                 non_bonding_electrons,
                 unpaired_electrons,

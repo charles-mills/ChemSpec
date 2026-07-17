@@ -59,7 +59,7 @@ impl Editable {
         })
     }
 
-    fn neighbours(&self, index: usize) -> impl Iterator<Item = (usize, u8)> + '_ {
+    pub(crate) fn neighbours(&self, index: usize) -> impl Iterator<Item = (usize, u8)> + '_ {
         self.bonds.iter().filter_map(move |(left, right, order)| {
             if *left == index {
                 Some((*right, *order))
@@ -253,23 +253,27 @@ pub(crate) fn editable_from_explicit(
     })
 }
 
-/// The display name of a named molecule matching this editable graph, when
-/// one exists. Wrong names are worse than none: only exact (canonical-key)
-/// matches name.
-pub(crate) fn recognised_name(molecule: &Editable) -> Option<&'static str> {
-    let key = molecule.canonical_key()?;
-    for (spellings, smiles) in chem_domain::named_molecules() {
-        let candidate = chem_domain::structure_from_smiles(
-            chem_domain::StructureId::new("organic.name-lookup").ok()?,
-            smiles,
-        )?;
-        if let Some(editable) = Editable::from_structure(&candidate)
-            && editable.canonical_key().as_deref() == Some(key.as_str())
-        {
-            return spellings.first().copied();
+/// The display name of a molecule matching this editable graph: the named
+/// table first (trivial spellings win), then a systematic IUPAC name for
+/// the classroom subset. Wrong names are worse than none: table matches
+/// are exact (canonical-key), and the systematic namer declines anything
+/// outside its subset.
+pub(crate) fn recognised_name(molecule: &Editable) -> Option<String> {
+    let key = molecule.canonical_key();
+    if let Some(key) = &key {
+        for (spellings, smiles) in chem_domain::named_molecules() {
+            let candidate = chem_domain::structure_from_smiles(
+                chem_domain::StructureId::new("organic.name-lookup").ok()?,
+                smiles,
+            )?;
+            if let Some(editable) = Editable::from_structure(&candidate)
+                && editable.canonical_key().as_deref() == Some(key.as_str())
+            {
+                return spellings.first().map(|name| (*name).to_owned());
+            }
         }
     }
-    None
+    crate::iupac_name::systematic_name(molecule)
 }
 
 /// The single C=C double bond of a plain alkene: exactly one multiple bond
@@ -398,7 +402,10 @@ pub(crate) fn dehydrate(molecule: &Editable) -> Option<Editable> {
         return None;
     };
     let (carbon, oxygen) = (*carbon, *oxygen);
-    let partner = molecule
+    // Every eliminable neighbour must give the same alkene (ethanol,
+    // propan-2-ol); butan-2-ol's two distinct products stay ambiguous and
+    // fall to the model — a guessed regiochemistry is worse than none.
+    let partners: Vec<usize> = molecule
         .neighbours(carbon)
         .filter(|(neighbour, order)| {
             *order == 1
@@ -407,17 +414,28 @@ pub(crate) fn dehydrate(molecule: &Editable) -> Option<Editable> {
                 && molecule.hydrogens[*neighbour] > 0
         })
         .map(|(neighbour, _)| neighbour)
-        .min()?;
-    let mut product = remove_atom(molecule, oxygen);
-    let remap = |index: usize| if index > oxygen { index - 1 } else { index };
-    let (carbon, partner) = (remap(carbon), remap(partner));
-    product.hydrogens[partner] -= 1;
-    for bond in &mut product.bonds {
-        if (bond.0, bond.1) == (carbon, partner) || (bond.1, bond.0) == (carbon, partner) {
-            bond.2 = 2;
+        .collect();
+    let mut unique: Option<(String, Editable)> = None;
+    for partner in partners {
+        let mut product = remove_atom(molecule, oxygen);
+        let remap = |index: usize| if index > oxygen { index - 1 } else { index };
+        let (chain_carbon, partner) = (remap(carbon), remap(partner));
+        product.hydrogens[partner] -= 1;
+        for bond in &mut product.bonds {
+            if (bond.0, bond.1) == (chain_carbon, partner)
+                || (bond.1, bond.0) == (chain_carbon, partner)
+            {
+                bond.2 = 2;
+            }
+        }
+        let key = product.canonical_key()?;
+        match &unique {
+            None => unique = Some((key, product)),
+            Some((existing, _)) if *existing == key => {}
+            Some(_) => return None,
         }
     }
-    Some(product)
+    unique.map(|(_, product)| product)
 }
 
 /// Condenses a carboxylic acid with an alcohol into the ester: the acid
@@ -475,6 +493,36 @@ pub(crate) fn esterify(acid: &Editable, alcohol: &Editable) -> Option<Editable> 
     product.hydrogens[offset + alcohol_oxygen] -= 1;
     product.bonds.push((acid_carbon, offset + alcohol_oxygen, 1));
     Some(product)
+}
+
+/// The single monosubstitution product of an alkane, when every choice of
+/// carbon gives the same molecule (methane, ethane, neopentane): one
+/// hydrogen swaps for the halogen. Positional ambiguity (propane and up)
+/// returns None — a guessed isomer is worse than none.
+pub(crate) fn unique_monosubstitution(molecule: &Editable, halogen: &str) -> Option<Editable> {
+    if molecule.symbols.iter().any(|symbol| symbol != "C")
+        || molecule.bonds.iter().any(|(_, _, order)| *order != 1)
+    {
+        return None;
+    }
+    let mut unique: Option<(String, Editable)> = None;
+    for carbon in 0..molecule.symbols.len() {
+        if molecule.hydrogens[carbon] == 0 {
+            continue;
+        }
+        let mut product = molecule.clone();
+        product.hydrogens[carbon] -= 1;
+        product.symbols.push(halogen.to_owned());
+        product.hydrogens.push(0);
+        product.bonds.push((carbon, product.symbols.len() - 1, 1));
+        let key = product.canonical_key()?;
+        match &unique {
+            None => unique = Some((key, product)),
+            Some((existing, _)) if *existing == key => {}
+            Some(_) => return None,
+        }
+    }
+    unique.map(|(_, product)| product)
 }
 
 /// The molecule with one atom (and its bonds) removed; indices above it

@@ -2049,71 +2049,59 @@ fn molecular_layout(preview: &TrustedCompositionPreview) -> MolecularLayout {
         let mut queue = std::collections::VecDeque::new();
         if edge_ends / 2 >= component.len() && component.len() > 2 {
             if let Some(ring) = simple_ring(&component, &neighbours) {
-                // ponytail: flat regular polygon even for saturated rings;
-                // chair/crown conformers can replace this if the visual
-                // ever matters.
-                let mut edge_sum = 0.0_f32;
-                for (slot, atom) in ring.iter().copied().enumerate() {
-                    let next = ring[(slot + 1) % ring.len()];
-                    let (_, order, kind) = neighbours[atom]
-                        .iter()
-                        .copied()
-                        .find(|(other, _, _)| *other == next)
-                        .expect("consecutive ring atoms are bonded");
-                    edge_sum += bond_length_angstrom(
-                        preview.atoms[atom].atomic_number,
-                        preview.atoms[next].atomic_number,
-                        order,
-                        kind,
-                    );
-                }
-                let edge = edge_sum / ring.len() as f32;
-                let ring_radius = edge / (2.0 * (std::f32::consts::PI / ring.len() as f32).sin());
-                for (slot, atom) in ring.iter().copied().enumerate() {
-                    let angle = std::f32::consts::TAU * slot as f32 / ring.len() as f32;
-                    positions[atom] =
-                        Vec3::new(angle.cos() * ring_radius, 0.0, angle.sin() * ring_radius);
-                    placed[atom] = true;
-                }
-                // Substituents take the directions the ring leaves free:
-                // in-plane radial for trigonal ring atoms, half-tetrahedral
-                // tilts above/below the plane (alternating around the ring)
-                // for tetrahedral ones. Their subtrees continue through the
-                // shared BFS below.
-                for (slot, atom) in ring.iter().copied().enumerate() {
-                    let radial = positions[atom].normalize_or_zero();
-                    let lone_pairs = usize::from(preview.atoms[atom].non_bonding_electrons / 2);
-                    let steric = (covalent_degree(atom) + lone_pairs).max(neighbours[atom].len());
-                    let mut branch = 0_usize;
-                    for (other, order, kind) in &neighbours[atom] {
-                        if placed[*other] {
-                            continue;
-                        }
-                        let direction = if steric <= 3 {
-                            radial
-                        } else {
-                            let side = if (slot + branch).is_multiple_of(2) { 1.0 } else { -1.0 };
-                            (radial / 3.0_f32.sqrt() + Vec3::Y * side * (2.0 / 3.0_f32).sqrt())
-                                .normalize()
-                        };
-                        branch += 1;
-                        let length = bond_length_angstrom(
-                            preview.atoms[atom].atomic_number,
-                            preview.atoms[*other].atomic_number,
-                            *order,
-                            *kind,
-                        );
-                        positions[*other] = positions[atom] + direction * length;
-                        placed[*other] = true;
-                        parent_map[*other] = Some(atom);
-                        queue.push_back(*other);
-                    }
-                }
+                place_lone_ring(preview, &neighbours, &ring, &mut positions, &mut placed);
+                place_ring_substituents(
+                    preview,
+                    &neighbours,
+                    &ring,
+                    Vec3::ZERO,
+                    Vec3::Y,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
+            } else if let Some(rings) = fused_ring_system(&component, &neighbours) {
+                place_fused_rings(
+                    preview,
+                    &neighbours,
+                    &rings,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
+            } else if let Some((first, second)) = spiro_rings(&component, &neighbours) {
+                place_spiro_rings(
+                    preview,
+                    &neighbours,
+                    &first,
+                    &second,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
+            } else if let Some((main_ring, bridge, tail_slot)) =
+                bridged_bicyclic(&component, &neighbours)
+            {
+                place_bridged_bicyclic(
+                    preview,
+                    &neighbours,
+                    &main_ring,
+                    &bridge,
+                    tail_slot,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
             } else {
-                // ponytail: fused rings and cages (P4) still fall back to a
-                // regular polygon with true edge lengths; replace with a
-                // multi-ring embedder if fused systems ever enter the
-                // catalogue.
+                // ponytail: cages (P4) and multi-bridge polycyclics that
+                // resist an edge-fused, spiro, or single-bridge
+                // decomposition still fall back to a regular polygon with
+                // true edge lengths; replace with a proper 3D cage embedder
+                // if those ever matter visually.
                 let mut length_sum = 0.0_f32;
                 let mut length_count = 0_u32;
                 for atom in &component {
@@ -2174,22 +2162,27 @@ fn molecular_layout(preview: &TrustedCompositionPreview) -> MolecularLayout {
                 }
                 next_slot = 1;
             }
+            let mut pending: Vec<(usize, u8, MolecularLink, Vec3)> = Vec::new();
             for (other, order, kind) in &neighbours[atom] {
                 if placed[*other] {
                     continue;
                 }
                 let direction = oriented.get(next_slot).copied().unwrap_or(-oriented[0]);
                 next_slot += 1;
+                pending.push((*other, *order, *kind, direction));
+            }
+            enforce_chirality(preview, atom, &positions, &placed, &mut pending);
+            for (other, order, kind, direction) in pending {
                 let length = bond_length_angstrom(
                     preview.atoms[atom].atomic_number,
-                    preview.atoms[*other].atomic_number,
-                    *order,
-                    *kind,
+                    preview.atoms[other].atomic_number,
+                    order,
+                    kind,
                 );
-                positions[*other] = positions[atom] + direction * length;
-                placed[*other] = true;
-                parent_map[*other] = Some(atom);
-                queue.push_back(*other);
+                positions[other] = positions[atom] + direction * length;
+                placed[other] = true;
+                parent_map[other] = Some(atom);
+                queue.push_back(other);
             }
         }
         // Disconnected fragments sit side by side instead of overlapping.
@@ -2233,6 +2226,81 @@ fn molecular_layout(preview: &TrustedCompositionPreview) -> MolecularLayout {
     }
 }
 
+/// Signed volume `det[(p1-p0), (p2-p0), (p3-p0)]` over a stereocentre's four
+/// listed neighbour positions. Convention (validated by unit test): looking
+/// from the first listed neighbour toward the centre, the remaining three
+/// wind counterclockwise when the volume is NEGATIVE, clockwise when
+/// POSITIVE.
+fn chirality_signed_volume(corners: [Vec3; 4]) -> f32 {
+    (corners[1] - corners[0])
+        .cross(corners[2] - corners[0])
+        .dot(corners[3] - corners[0])
+}
+
+/// Reassigns a chiral atom's outgoing VSEPR direction slots — before any
+/// subtree is laid out, so the swap is free — so the finished tetrahedron
+/// matches the declared handedness. All four corners sit on rays from the
+/// centre, so swapping two listed neighbours' slots flips the parity.
+/// Ring stereocentres (more than one listed neighbour already placed) are
+/// out of scope and left alone.
+fn enforce_chirality(
+    preview: &TrustedCompositionPreview,
+    atom: usize,
+    positions: &[Vec3],
+    placed: &[bool],
+    pending: &mut [(usize, u8, MolecularLink, Vec3)],
+) {
+    let Some(chirality) = preview.atoms[atom].chirality else {
+        return;
+    };
+    if chirality
+        .neighbours
+        .iter()
+        .filter(|neighbour| placed[**neighbour])
+        .count()
+        > 1
+    {
+        return;
+    }
+    let corner = |neighbour: usize| {
+        if placed[neighbour] {
+            return Some(positions[neighbour]);
+        }
+        let (_, order, kind, direction) =
+            pending.iter().find(|(other, ..)| *other == neighbour)?;
+        let length = bond_length_angstrom(
+            preview.atoms[atom].atomic_number,
+            preview.atoms[neighbour].atomic_number,
+            *order,
+            *kind,
+        );
+        Some(positions[atom] + *direction * length)
+    };
+    let mut corners = [Vec3::ZERO; 4];
+    for (slot, neighbour) in chirality.neighbours.iter().enumerate() {
+        let Some(position) = corner(*neighbour) else {
+            return;
+        };
+        corners[slot] = position;
+    }
+    let volume = chirality_signed_volume(corners);
+    let wants_negative = chirality.handedness
+        == chem_domain::TetrahedralHandedness::Counterclockwise;
+    if (volume < 0.0) == wants_negative {
+        return;
+    }
+    let swappable: Vec<usize> = pending
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (other, ..))| chirality.neighbours.contains(other).then_some(index))
+        .collect();
+    if let [first, .., last] = swappable.as_slice() {
+        let direction = pending[*first].3;
+        pending[*first].3 = pending[*last].3;
+        pending[*last].3 = direction;
+    }
+}
+
 /// Orders a component's cycle atoms when they form exactly one simple ring:
 /// leaves prune away until only the 2-core remains, and that core must be a
 /// single cycle (every core atom keeps exactly two core neighbours). Fused
@@ -2241,28 +2309,7 @@ fn simple_ring(
     component: &[usize],
     neighbours: &[Vec<(usize, u8, MolecularLink)>],
 ) -> Option<Vec<usize>> {
-    let mut in_core = vec![false; neighbours.len()];
-    let mut degree = vec![0_usize; neighbours.len()];
-    for atom in component {
-        in_core[*atom] = true;
-        degree[*atom] = neighbours[*atom].len();
-    }
-    let mut leaves: Vec<usize> = component
-        .iter()
-        .copied()
-        .filter(|atom| degree[*atom] <= 1)
-        .collect();
-    while let Some(atom) = leaves.pop() {
-        in_core[atom] = false;
-        for (other, _, _) in &neighbours[atom] {
-            if in_core[*other] {
-                degree[*other] -= 1;
-                if degree[*other] == 1 {
-                    leaves.push(*other);
-                }
-            }
-        }
-    }
+    let (in_core, degree) = two_core(component, neighbours);
     let core: Vec<usize> = component
         .iter()
         .copied()
@@ -2286,6 +2333,734 @@ fn simple_ring(
         ring.push(next);
     }
     (ring.len() == core.len()).then_some(ring)
+}
+
+/// Leaf-prunes a component down to its 2-core: `(membership, core degree)`
+/// indexed by atom.
+fn two_core(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> (Vec<bool>, Vec<usize>) {
+    let mut in_core = vec![false; neighbours.len()];
+    let mut degree = vec![0_usize; neighbours.len()];
+    for atom in component {
+        in_core[*atom] = true;
+        degree[*atom] = neighbours[*atom].len();
+    }
+    let mut leaves: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| degree[*atom] <= 1)
+        .collect();
+    while let Some(atom) = leaves.pop() {
+        in_core[atom] = false;
+        for (other, _, _) in &neighbours[atom] {
+            if in_core[*other] {
+                degree[*other] -= 1;
+                if degree[*other] == 1 {
+                    leaves.push(*other);
+                }
+            }
+        }
+    }
+    (in_core, degree)
+}
+
+/// Decomposes a component's 2-core into edge-fused smallest rings
+/// (naphthalene, anthracene): one smallest cycle per core edge,
+/// deduplicated, then ordered so every ring after the first shares exactly
+/// one edge — and no other atoms — with the rings before it. Bridged
+/// bicyclics, cages (norbornane, P4), and linked-but-unfused rings return
+/// `None` and keep the polygon fallback.
+fn fused_ring_system(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<Vec<Vec<usize>>> {
+    let (in_core, _) = two_core(component, neighbours);
+    let core: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| in_core[*atom])
+        .collect();
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    for atom in &core {
+        for (other, _, _) in &neighbours[*atom] {
+            if in_core[*other] && *atom < *other {
+                edges.push((*atom, *other));
+            }
+        }
+    }
+    if core.len() < 4 || edges.len() <= core.len() {
+        return None;
+    }
+    let mut rings: Vec<Vec<usize>> = Vec::new();
+    for (start, end) in &edges {
+        let ring = smallest_cycle_through_edge(*start, *end, &in_core, neighbours)?;
+        if !rings
+            .iter()
+            .any(|known| known.len() == ring.len() && ring.iter().all(|atom| known.contains(atom)))
+        {
+            rings.push(ring);
+        }
+    }
+    // One independent cycle per extra edge is the edge-fused signature;
+    // cages (P4, cubane) surface more distinct smallest rings than that.
+    if rings.len() != edges.len() - core.len() + 1 {
+        return None;
+    }
+    let edge_key = |left: usize, right: usize| (left.min(right), left.max(right));
+    let ring_edges = |ring: &[usize]| -> Vec<(usize, usize)> {
+        (0..ring.len())
+            .map(|slot| edge_key(ring[slot], ring[(slot + 1) % ring.len()]))
+            .collect()
+    };
+    let mut ordered = vec![rings.swap_remove(0)];
+    let mut fused_edges: Vec<(usize, usize)> = ring_edges(&ordered[0]);
+    let mut fused_atoms: Vec<usize> = ordered[0].clone();
+    while !rings.is_empty() {
+        let next = rings.iter().position(|ring| {
+            ring_edges(ring)
+                .iter()
+                .any(|edge| fused_edges.contains(edge))
+        })?;
+        let ring = rings.swap_remove(next);
+        let shared_edges = ring_edges(&ring)
+            .iter()
+            .filter(|edge| fused_edges.contains(edge))
+            .count();
+        let shared_atoms = ring
+            .iter()
+            .filter(|atom| fused_atoms.contains(atom))
+            .count();
+        if shared_edges != 1 || shared_atoms != 2 {
+            return None;
+        }
+        fused_edges.extend(ring_edges(&ring));
+        for atom in &ring {
+            if !fused_atoms.contains(atom) {
+                fused_atoms.push(*atom);
+            }
+        }
+        ordered.push(ring);
+    }
+    (fused_atoms.len() == core.len()).then_some(ordered)
+}
+
+/// Smallest cycle containing a core edge: BFS between its endpoints with
+/// the edge itself removed. `None` for bridges, whose removal disconnects
+/// the endpoints.
+fn smallest_cycle_through_edge(
+    start: usize,
+    end: usize,
+    in_core: &[bool],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<Vec<usize>> {
+    let mut previous: Vec<Option<usize>> = vec![None; neighbours.len()];
+    previous[start] = Some(start);
+    let mut queue = std::collections::VecDeque::from([start]);
+    while let Some(atom) = queue.pop_front() {
+        for (other, _, _) in &neighbours[atom] {
+            if !in_core[*other] || previous[*other].is_some() || (atom == start && *other == end) {
+                continue;
+            }
+            previous[*other] = Some(atom);
+            if *other == end {
+                let mut cycle = vec![end];
+                let mut walk = end;
+                while walk != start {
+                    walk = previous[walk].unwrap_or(start);
+                    cycle.push(walk);
+                }
+                return Some(cycle);
+            }
+            queue.push_back(*other);
+        }
+    }
+    None
+}
+
+/// Mean ring edge length, `ring_pucker` lift, and the projected
+/// circumradius that keeps each edge (chord² + lift-difference²) at the
+/// target bond length.
+#[allow(clippy::cast_precision_loss)]
+fn ring_metrics(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    ring: &[usize],
+) -> (f32, f32) {
+    let mut edge_sum = 0.0_f32;
+    for (slot, atom) in ring.iter().copied().enumerate() {
+        let next = ring[(slot + 1) % ring.len()];
+        edge_sum += ring_bond_length(preview, neighbours, atom, next);
+    }
+    let edge = edge_sum / ring.len() as f32;
+    let lift = ring_pucker(ring, neighbours, edge);
+    let chord = (edge * edge - 4.0 * lift * lift).sqrt();
+    let radius = chord / (2.0 * (std::f32::consts::PI / ring.len() as f32).sin());
+    (lift, radius)
+}
+
+/// Places one ring as a regular polygon around the origin in the XZ plane.
+/// Saturated even rings pucker into a chair/crown: alternate atoms lift
+/// above/below the plane per `ring_pucker`.
+#[allow(clippy::cast_precision_loss)]
+fn place_lone_ring(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    ring: &[usize],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+) {
+    let (lift, radius) = ring_metrics(preview, neighbours, ring);
+    for (slot, atom) in ring.iter().copied().enumerate() {
+        let angle = std::f32::consts::TAU * slot as f32 / ring.len() as f32;
+        let side = if slot.is_multiple_of(2) { lift } else { -lift };
+        positions[atom] = Vec3::new(angle.cos() * radius, side, angle.sin() * radius);
+        placed[atom] = true;
+    }
+}
+
+/// Lays out an edge-fused ring system: all-saturated systems of one even
+/// ring size pucker into linked chairs/crowns, everything else (aromatics,
+/// mixed systems like tetralin, mixed ring sizes) stays coplanar regular
+/// polygons — the first ring sits flat around the origin, and every later
+/// ring extends across its single shared edge, away from the ring that
+/// owns it, the classic fused-polygon construction for naphthalene-style
+/// aromatics.
+// ponytail: mixed aromatic/saturated fused systems (tetralin) and
+// mixed-size saturated ones (hydrindane) stay planar; per-ring puckering
+// against an already-curved neighbour if those visuals ever matter.
+#[allow(clippy::cast_precision_loss)]
+fn place_fused_rings(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    rings: &[Vec<usize>],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    let uniform = rings.iter().all(|ring| ring.len() == rings[0].len());
+    let puckered = rings
+        .iter()
+        .all(|ring| ring_metrics(preview, neighbours, ring).0 > f32::EPSILON);
+    if uniform && puckered {
+        place_fused_chairs(preview, neighbours, rings, positions, placed, parent_map, queue);
+        return;
+    }
+    let mut centers: Vec<Vec3> = Vec::with_capacity(rings.len());
+    for (index, ring) in rings.iter().enumerate() {
+        let count = ring.len() as f32;
+        let sector = std::f32::consts::PI / count;
+        if index == 0 {
+            let edge_sum: f32 = (0..ring.len())
+                .map(|slot| {
+                    ring_bond_length(preview, neighbours, ring[slot], ring[(slot + 1) % ring.len()])
+                })
+                .sum();
+            let radius = edge_sum / count / (2.0 * sector.sin());
+            for (slot, atom) in ring.iter().copied().enumerate() {
+                let angle = 2.0 * sector * slot as f32;
+                positions[atom] = Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
+                placed[atom] = true;
+            }
+            centers.push(Vec3::ZERO);
+            continue;
+        }
+        // The one ring edge whose endpoints both already exist is the
+        // fusion edge; the new polygon extends away from the ring that
+        // placed it.
+        let Some(shared_slot) = (0..ring.len())
+            .find(|slot| placed[ring[*slot]] && placed[ring[(slot + 1) % ring.len()]])
+        else {
+            centers.push(Vec3::ZERO);
+            continue;
+        };
+        let start = ring[shared_slot];
+        let second = ring[(shared_slot + 1) % ring.len()];
+        let owner_center = rings[..index]
+            .iter()
+            .zip(&centers)
+            .find(|(earlier, _)| earlier.contains(&start) && earlier.contains(&second))
+            .map_or(Vec3::ZERO, |(_, center)| *center);
+        let midpoint = (positions[start] + positions[second]) * 0.5;
+        let outward = (midpoint - owner_center).normalize_or_zero();
+        let half_edge = (positions[second] - positions[start]).length() * 0.5;
+        let center = midpoint + outward * (half_edge / sector.tan());
+        let radius = half_edge / sector.sin();
+        let from_center = positions[start] - center;
+        let start_angle = from_center.z.atan2(from_center.x);
+        let vertex = |sign: f32, slot: usize| {
+            let angle = start_angle + sign * 2.0 * sector * slot as f32;
+            center + Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius)
+        };
+        // Walk the cycle from the fusion edge; the step sign that lands
+        // slot 1 on the edge's far atom orients the rest of the polygon.
+        let sign = if vertex(1.0, 1).distance(positions[second])
+            <= vertex(-1.0, 1).distance(positions[second])
+        {
+            1.0
+        } else {
+            -1.0
+        };
+        for slot in 2..ring.len() {
+            let atom = ring[(shared_slot + slot) % ring.len()];
+            if !placed[atom] {
+                positions[atom] = vertex(sign, slot);
+                placed[atom] = true;
+            }
+        }
+        centers.push(center);
+    }
+    for (ring, center) in rings.iter().zip(&centers) {
+        place_ring_substituents(
+            preview, neighbours, ring, *center, Vec3::Y, positions, placed, parent_map, queue,
+        );
+    }
+}
+
+/// Edge-fused all-saturated rings of one even size pucker into linked
+/// chairs/crowns: the first ring is the standard chair, and every later
+/// ring is the point reflection of the ring owning its fusion edge through
+/// that edge's midpoint. Bond midpoints are inversion centres of the
+/// diamond lattice, so the reflected ring is a congruent chair extending
+/// trans across the fusion — trans-decalin geometry.
+#[allow(clippy::cast_precision_loss)]
+fn place_fused_chairs(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    rings: &[Vec<usize>],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    place_lone_ring(preview, neighbours, &rings[0], positions, placed);
+    for (index, ring) in rings.iter().enumerate().skip(1) {
+        let count = ring.len();
+        // The one ring edge whose endpoints both already exist is the
+        // fusion edge; reflect the owning ring through its midpoint.
+        let Some(shared_slot) =
+            (0..count).find(|slot| placed[ring[*slot]] && placed[ring[(slot + 1) % count]])
+        else {
+            continue;
+        };
+        let start = ring[shared_slot];
+        let second = ring[(shared_slot + 1) % count];
+        let Some(owner) = rings[..index]
+            .iter()
+            .find(|earlier| earlier.contains(&start) && earlier.contains(&second))
+        else {
+            continue;
+        };
+        let owner_slot = owner
+            .iter()
+            .position(|atom| *atom == start)
+            .expect("the fusion edge's owner contains both endpoints");
+        // Walking the new ring onward from the fusion edge mirrors walking
+        // the owner backward from `start`, so counterparts pair off slot by
+        // slot in opposite cycle directions.
+        let forward = owner[(owner_slot + 1) % count] == second;
+        let midpoint = (positions[start] + positions[second]) * 0.5;
+        for step in 1..count - 1 {
+            let atom = ring[(shared_slot + 1 + step) % count];
+            if placed[atom] {
+                continue;
+            }
+            let counterpart_slot = if forward {
+                (owner_slot + count - step) % count
+            } else {
+                (owner_slot + step) % count
+            };
+            positions[atom] = midpoint * 2.0 - positions[owner[counterpart_slot]];
+            placed[atom] = true;
+        }
+    }
+    for ring in rings {
+        let center =
+            ring.iter().map(|atom| positions[*atom]).sum::<Vec3>() / ring.len() as f32;
+        place_ring_substituents(
+            preview, neighbours, ring, center, Vec3::Y, positions, placed, parent_map, queue,
+        );
+    }
+}
+
+/// Two rings sharing exactly one atom (spiro): the 2-core has one degree-4
+/// hub whose ring walks partition the rest into two degree-2 cycles.
+/// Returns both cycles, each starting at the hub.
+fn spiro_rings(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<(Vec<usize>, Vec<usize>)> {
+    let (in_core, degree) = two_core(component, neighbours);
+    let core: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| in_core[*atom])
+        .collect();
+    let hub = *core.iter().find(|atom| degree[**atom] == 4)?;
+    if core
+        .iter()
+        .any(|atom| *atom != hub && degree[*atom] != 2)
+    {
+        return None;
+    }
+    let walk = |first: usize| -> Option<Vec<usize>> {
+        let mut ring = vec![hub, first];
+        for _ in 0..core.len() {
+            let current = *ring.last().expect("ring starts non-empty");
+            let previous = ring[ring.len() - 2];
+            let next = neighbours[current]
+                .iter()
+                .map(|(other, _, _)| *other)
+                .find(|other| in_core[*other] && *other != previous)?;
+            if next == hub {
+                return (ring.len() >= 3).then_some(ring);
+            }
+            ring.push(next);
+        }
+        None
+    };
+    let hub_neighbours: Vec<usize> = neighbours[hub]
+        .iter()
+        .map(|(other, _, _)| *other)
+        .filter(|other| in_core[*other])
+        .collect();
+    let first = walk(*hub_neighbours.first()?)?;
+    let start = hub_neighbours
+        .iter()
+        .copied()
+        .find(|other| !first.contains(other))?;
+    let second = walk(start)?;
+    (first.len() + second.len() - 1 == core.len()
+        && second.iter().all(|atom| *atom == hub || !first.contains(atom)))
+    .then_some((first, second))
+}
+
+/// Spiro pair: the first ring lies about the origin as usual, and the
+/// second stands in the perpendicular plane through the shared atom —
+/// spanned by that atom's outward radial and the vertical — so the four
+/// ring bonds at the shared atom spread roughly tetrahedrally.
+#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
+fn place_spiro_rings(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    first: &[usize],
+    second: &[usize],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    place_lone_ring(preview, neighbours, first, positions, placed);
+    let hub = second[0];
+    let hub_position = positions[hub];
+    let outward = Vec3::new(hub_position.x, 0.0, hub_position.z).normalize_or_zero();
+    let (lift, radius) = ring_metrics(preview, neighbours, second);
+    let inward = -outward;
+    let normal = inward.cross(Vec3::Y).normalize_or_zero();
+    // The hub sits at the second ring's slot-0 vertex: solve the centre so
+    // that vertex (radial + pucker lift) lands exactly on the placed hub.
+    let center = hub_position + outward * radius - normal * lift;
+    for (slot, atom) in second.iter().copied().enumerate() {
+        if placed[atom] {
+            continue;
+        }
+        let angle = std::f32::consts::TAU * slot as f32 / second.len() as f32;
+        let side = if slot.is_multiple_of(2) { lift } else { -lift };
+        positions[atom] =
+            center + (inward * angle.cos() + Vec3::Y * angle.sin()) * radius + normal * side;
+        placed[atom] = true;
+    }
+    place_ring_substituents(
+        preview, neighbours, first, Vec3::ZERO, Vec3::Y, positions, placed, parent_map, queue,
+    );
+    let second_center =
+        second.iter().map(|atom| positions[*atom]).sum::<Vec3>() / second.len() as f32;
+    place_ring_substituents(
+        preview,
+        neighbours,
+        second,
+        second_center,
+        normal,
+        positions,
+        placed,
+        parent_map,
+        queue,
+    );
+}
+
+/// Bridged bicyclic: exactly two degree-3 bridgeheads joined by three
+/// disjoint paths, none of them a bare edge (that shape is edge-fused and
+/// handled earlier). Returns the main ring — first bridgehead, longest
+/// path, second bridgehead, second-longest path reversed — plus the
+/// shortest path's interior atoms ordered from the first bridgehead, and
+/// the second bridgehead's slot in the main ring.
+fn bridged_bicyclic(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<(Vec<usize>, Vec<usize>, usize)> {
+    let (in_core, degree) = two_core(component, neighbours);
+    let core: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| in_core[*atom])
+        .collect();
+    let bridgeheads: Vec<usize> = core
+        .iter()
+        .copied()
+        .filter(|atom| degree[*atom] == 3)
+        .collect();
+    let [head, tail] = bridgeheads.as_slice() else {
+        return None;
+    };
+    if core
+        .iter()
+        .any(|atom| !bridgeheads.contains(atom) && degree[*atom] != 2)
+    {
+        return None;
+    }
+    let mut paths: Vec<Vec<usize>> = Vec::new();
+    for (first, _, _) in &neighbours[*head] {
+        if !in_core[*first] {
+            continue;
+        }
+        let mut interior = Vec::new();
+        let mut previous = *head;
+        let mut current = *first;
+        for _ in 0..=core.len() {
+            if current == *tail {
+                break;
+            }
+            if current == *head {
+                return None;
+            }
+            interior.push(current);
+            let next = neighbours[current]
+                .iter()
+                .map(|(other, _, _)| *other)
+                .find(|other| in_core[*other] && *other != previous)?;
+            previous = current;
+            current = next;
+        }
+        if current != *tail {
+            return None;
+        }
+        paths.push(interior);
+    }
+    if paths.len() != 3 {
+        return None;
+    }
+    paths.sort_by_key(|path| std::cmp::Reverse(path.len()));
+    if paths[2].is_empty()
+        || 2 + paths.iter().map(Vec::len).sum::<usize>() != core.len()
+    {
+        return None;
+    }
+    let tail_slot = 1 + paths[0].len();
+    let mut main_ring = vec![*head];
+    main_ring.append(&mut paths[0]);
+    main_ring.push(*tail);
+    main_ring.extend(paths[1].iter().rev());
+    Some((main_ring, std::mem::take(&mut paths[2]), tail_slot))
+}
+
+/// Lays the main ring (the two longest bridges) as a lone — puckered when
+/// saturated — ring, then lifts the shortest bridge on a circular arc in
+/// the plane of the bridgehead axis and the ring normal, bulging away from
+/// the ring so every bridge bond keeps its target length.
+#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
+fn place_bridged_bicyclic(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    main_ring: &[usize],
+    bridge: &[usize],
+    tail_slot: usize,
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    place_lone_ring(preview, neighbours, main_ring, positions, placed);
+    let head = main_ring[0];
+    let tail = main_ring[tail_slot];
+    let head_position = positions[head];
+    let tail_position = positions[tail];
+    let span = tail_position - head_position;
+    let distance = span.length();
+    let axis = span / distance.max(f32::EPSILON);
+    let midpoint = (head_position + tail_position) * 0.5;
+    let up = Vec3::Y.reject_from_normalized(axis).normalize_or_zero();
+    let chain: Vec<usize> = std::iter::once(head)
+        .chain(bridge.iter().copied())
+        .chain(std::iter::once(tail))
+        .collect();
+    let segments = bridge.len() + 1;
+    let length = (0..segments)
+        .map(|slot| ring_bond_length(preview, neighbours, chain[slot], chain[slot + 1]))
+        .sum::<f32>()
+        / segments as f32;
+    let ratio = distance / length;
+    let mut previous = head;
+    if ratio >= segments as f32 * 0.999 {
+        // ponytail: a bridge with no slack (unsaturated main rings can
+        // stretch the bridgehead span past the bond budget) degrades to
+        // evenly spaced points on the axis; a boat main ring would make
+        // room if that visual ever matters.
+        for (slot, atom) in bridge.iter().copied().enumerate() {
+            positions[atom] =
+                head_position + span * ((slot + 1) as f32 / segments as f32);
+            placed[atom] = true;
+            parent_map[atom] = Some(previous);
+            queue.push_back(atom);
+            previous = atom;
+        }
+    } else {
+        // Circular arc through both bridgeheads: bisect on the per-segment
+        // subtended angle until the end-to-end chord matches the
+        // bridgehead distance, then sweep the interior points.
+        let mut low = f32::EPSILON;
+        let mut high = std::f32::consts::TAU / segments as f32 - f32::EPSILON;
+        for _ in 0..60 {
+            let phi = (low + high) * 0.5;
+            let chord = (segments as f32 * phi * 0.5).sin() / (phi * 0.5).sin();
+            if chord > ratio {
+                low = phi;
+            } else {
+                high = phi;
+            }
+        }
+        let phi = (low + high) * 0.5;
+        let arc_radius = length / (2.0 * (phi * 0.5).sin());
+        let half_sweep = segments as f32 * phi * 0.5;
+        let center = midpoint
+            - up * (arc_radius * arc_radius - distance * distance * 0.25)
+                .max(0.0)
+                .sqrt();
+        for (slot, atom) in bridge.iter().copied().enumerate() {
+            let theta = -half_sweep + (slot + 1) as f32 * phi;
+            positions[atom] = center + (up * theta.cos() + axis * theta.sin()) * arc_radius;
+            placed[atom] = true;
+            parent_map[atom] = Some(previous);
+            queue.push_back(atom);
+            previous = atom;
+        }
+    }
+    place_ring_substituents(
+        preview, neighbours, main_ring, Vec3::ZERO, Vec3::Y, positions, placed, parent_map,
+        queue,
+    );
+}
+
+/// Substituents take the directions the ring leaves free: in-plane radial
+/// for trigonal ring atoms, half-tetrahedral tilts above/below the plane
+/// (alternating around the ring) for tetrahedral ones. The tilt side
+/// follows the atom's own `ring_pucker` lift along `normal` — axial first,
+/// equatorial-ish second — falling back to slot parity for flat rings.
+/// Subtrees continue through the shared BFS loop via `queue`.
+#[allow(clippy::too_many_arguments)]
+fn place_ring_substituents(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    ring: &[usize],
+    ring_center: Vec3,
+    normal: Vec3,
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    for (slot, atom) in ring.iter().copied().enumerate() {
+        let radial = (positions[atom] - ring_center).normalize_or_zero();
+        let lift = (positions[atom] - ring_center).dot(normal);
+        let axial_sign = if lift.abs() > 1e-4 {
+            lift.signum()
+        } else if slot.is_multiple_of(2) {
+            1.0
+        } else {
+            -1.0
+        };
+        let lone_pairs = usize::from(preview.atoms[atom].non_bonding_electrons / 2);
+        let bonded = neighbours[atom]
+            .iter()
+            .filter(|(_, _, kind)| *kind == MolecularLink::Covalent)
+            .count();
+        let steric = (bonded + lone_pairs).max(neighbours[atom].len());
+        let mut branch = 0_usize;
+        for (other, order, kind) in &neighbours[atom] {
+            if placed[*other] {
+                continue;
+            }
+            let direction = if steric <= 3 {
+                radial
+            } else {
+                let side = if branch.is_multiple_of(2) { axial_sign } else { -axial_sign };
+                (radial / 3.0_f32.sqrt() + normal * side * (2.0 / 3.0_f32).sqrt()).normalize()
+            };
+            branch += 1;
+            let length = bond_length_angstrom(
+                preview.atoms[atom].atomic_number,
+                preview.atoms[*other].atomic_number,
+                *order,
+                *kind,
+            );
+            positions[*other] = positions[atom] + direction * length;
+            placed[*other] = true;
+            parent_map[*other] = Some(atom);
+            queue.push_back(*other);
+        }
+    }
+}
+
+/// Length of the bond between two consecutive ring atoms.
+fn ring_bond_length(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    atom: usize,
+    next: usize,
+) -> f32 {
+    let (order, kind) = neighbours[atom]
+        .iter()
+        .find(|(other, _, _)| *other == next)
+        .map_or((1, MolecularLink::Covalent), |(_, order, kind)| {
+            (*order, *kind)
+        });
+    bond_length_angstrom(
+        preview.atoms[atom].atomic_number,
+        preview.atoms[next].atomic_number,
+        order,
+        kind,
+    )
+}
+
+/// Out-of-plane lift for a simple ring's alternating chair/crown pucker.
+///
+/// Zero for planar rings: any ring bond of order ≥ 2 marks the delocalized
+/// or aromatic case (benzene's Kekulé alternation always surfaces at least
+/// one double bond in the preview's localized orders). Even-membered
+/// saturated rings pucker; six-membered use the exact tetrahedral chair
+/// lift (edge/6, cyclohexane's ~0.5 Å spread), larger crowns a slightly
+/// deeper fraction that lands S8 at its observed ±0.45 Å.
+// ponytail: odd saturated rings (cyclopentane) stay flat; an envelope flap
+// can replace this if that visual ever matters.
+fn ring_pucker(
+    ring: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    edge: f32,
+) -> f32 {
+    let planar = ring.iter().enumerate().any(|(slot, atom)| {
+        let next = ring[(slot + 1) % ring.len()];
+        neighbours[*atom]
+            .iter()
+            .any(|(other, order, _)| *other == next && *order >= 2)
+    });
+    if planar || !ring.len().is_multiple_of(2) {
+        0.0
+    } else if ring.len() == 6 {
+        edge / 6.0
+    } else {
+        edge * 0.22
+    }
 }
 
 /// Ideal electron-domain directions per steric number. Axial slots come first
@@ -4273,6 +5048,131 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
+    fn naphthalene_lays_out_as_two_coplanar_edge_fused_hexagons() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.naphthalene").expect("valid structure id"),
+            "C1=CC=C2C=CC=CC2=C1",
+        )
+        .expect("naphthalene Kekulé SMILES parses");
+        let naphthalene =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C10H8")
+                .expect("naphthalene preview projects");
+        let carbons: Vec<usize> = naphthalene
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        let hydrogens: Vec<usize> = naphthalene
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 10);
+        assert_eq!(hydrogens.len(), 8);
+
+        let layout = molecular_layout(&naphthalene);
+        // The whole fused aromatic system is coplanar.
+        let plane_y = layout.positions[carbons[0]].y;
+        for position in &layout.positions {
+            assert!((position.y - plane_y).abs() < 0.001);
+        }
+        // No collapsed geometry: every atom pair keeps at least a bonding
+        // distance apart (in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+        // Every bonded C-C pair spans one regular-hexagon edge.
+        let ring_bonds: Vec<f32> = naphthalene
+            .covalent_bonds()
+            .iter()
+            .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
+            .map(|bond| (layout.positions[bond.start] - layout.positions[bond.end]).length())
+            .collect();
+        assert_eq!(ring_bonds.len(), 11, "10 carbons close two fused hexagons");
+        let edge = ring_bonds[0];
+        for length in &ring_bonds {
+            assert!((length - edge).abs() < 0.001);
+        }
+        // The two junction carbons (three carbon neighbours each) share
+        // exactly one bond: the fusion edge.
+        let carbon_neighbours = |atom: usize| {
+            naphthalene
+                .covalent_bonds()
+                .iter()
+                .filter(|bond| {
+                    (bond.start == atom && carbons.contains(&bond.end))
+                        || (bond.end == atom && carbons.contains(&bond.start))
+                })
+                .count()
+        };
+        let junctions: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon) == 3)
+            .collect();
+        assert_eq!(junctions.len(), 2);
+        assert!(
+            naphthalene.covalent_bonds().iter().any(|bond| {
+                junctions.contains(&bond.start) && junctions.contains(&bond.end)
+            }),
+            "the junction carbons are directly bonded"
+        );
+        // The two hexagon centres sit an apothem either side of the fusion
+        // edge; every carbon lies one circumradius (= edge) from exactly
+        // one centre, junctions from both.
+        let midpoint = (layout.positions[junctions[0]] + layout.positions[junctions[1]]) * 0.5;
+        let along = (layout.positions[junctions[1]] - layout.positions[junctions[0]]).normalize();
+        let perpendicular = Vec3::new(-along.z, 0.0, along.x);
+        let apothem = edge * 3.0_f32.sqrt() * 0.5;
+        let centers = [
+            midpoint + perpendicular * apothem,
+            midpoint - perpendicular * apothem,
+        ];
+        for center in &centers {
+            let members = carbons
+                .iter()
+                .filter(|carbon| {
+                    ((layout.positions[**carbon] - *center).length() - edge).abs() < 0.005
+                })
+                .count();
+            assert_eq!(members, 6, "each fused ring is a regular hexagon");
+        }
+        // Each hydrogen points radially outward, in-plane, from its
+        // carbon's own hexagon.
+        for hydrogen in &hydrogens {
+            let bonds: Vec<_> = naphthalene
+                .covalent_bonds()
+                .iter()
+                .filter(|bond| bond.start == *hydrogen || bond.end == *hydrogen)
+                .collect();
+            assert_eq!(bonds.len(), 1);
+            let carbon = if bonds[0].start == *hydrogen {
+                bonds[0].end
+            } else {
+                bonds[0].start
+            };
+            let own_center = centers
+                .iter()
+                .find(|center| {
+                    ((layout.positions[carbon] - **center).length() - edge).abs() < 0.005
+                })
+                .expect("every hydrogen-bearing carbon sits on one hexagon");
+            let outward = (layout.positions[*hydrogen] - layout.positions[carbon]).normalize();
+            let radial = (layout.positions[carbon] - *own_center).normalize();
+            assert!(
+                outward.dot(radial) > 0.99,
+                "hydrogen must extend its hexagon radius, got dot {}",
+                outward.dot(radial)
+            );
+        }
+    }
+
+    #[test]
     fn sulfur_crown_keeps_all_eight_atoms_evenly_on_one_ring() {
         let sulfur = crate::composition_catalogue::trusted_preview([16; 8])
             .expect("S8 preview resolves");
@@ -4296,11 +5196,541 @@ mod tests {
         for length in &bond_lengths {
             assert!((length - bond_lengths[0]).abs() < 0.001);
         }
+        // Crown pucker: every sulfur lifts the same distance out of the
+        // ring plane, and bonded neighbours sit on opposite sides.
+        for position in &layout.positions {
+            assert!(
+                position.y.abs() / layout.units_per_angstrom > 0.1,
+                "S8 puckers out of the ring plane"
+            );
+            assert!((position.y.abs() - layout.positions[0].y.abs()).abs() < 0.001);
+        }
+        for bond in sulfur.covalent_bonds() {
+            assert!(
+                layout.positions[bond.start].y * layout.positions[bond.end].y < 0.0,
+                "bonded sulfurs alternate above/below the ring plane"
+            );
+        }
         // Bonded neighbours sit on adjacent polygon slots: every bond spans
-        // one octagon edge, never a chord across the ring.
-        let edge = 2.0 * radii[0] * (std::f32::consts::PI / 8.0).sin();
-        for length in &bond_lengths {
-            assert!((length - edge).abs() < 0.001);
+        // one octagon step in projection, never a chord across the ring.
+        let angle_of = |atom: usize| {
+            let offset = layout.positions[atom] - center;
+            offset.z.atan2(offset.x)
+        };
+        for bond in sulfur.covalent_bonds() {
+            let mut delta = (angle_of(bond.start) - angle_of(bond.end)).abs();
+            if delta > std::f32::consts::PI {
+                delta = std::f32::consts::TAU - delta;
+            }
+            assert!(
+                (delta - std::f32::consts::TAU / 8.0).abs() < 0.01,
+                "every bond spans one octagon step, got {delta}"
+            );
+        }
+    }
+
+    #[test]
+    fn cyclohexane_lays_out_as_a_chair() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.cyclohexane").expect("valid structure id"),
+            "C1CCCCC1",
+        )
+        .expect("cyclohexane SMILES parses");
+        let cyclohexane =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C6H12")
+                .expect("cyclohexane preview projects");
+        let carbons: Vec<usize> = cyclohexane
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        let hydrogens: Vec<usize> = cyclohexane
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 6);
+        assert_eq!(hydrogens.len(), 12);
+
+        let layout = molecular_layout(&cyclohexane);
+        let bonded = |left: usize, right: usize| {
+            cyclohexane.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        // Walk the carbon ring in bond order.
+        let mut ring = vec![carbons[0]];
+        while ring.len() < 6 {
+            let current = *ring.last().expect("ring starts non-empty");
+            let next = carbons
+                .iter()
+                .copied()
+                .find(|carbon| !ring.contains(carbon) && bonded(current, *carbon))
+                .expect("the carbon ring closes");
+            ring.push(next);
+        }
+        assert!(bonded(ring[5], ring[0]));
+        // Chair: equal signed lifts from the carbon mean plane, alternating
+        // around the ring — three carbons above, three below.
+        let mean_y = ring.iter().map(|carbon| layout.positions[*carbon].y).sum::<f32>() / 6.0;
+        let lifts: Vec<f32> = ring
+            .iter()
+            .map(|carbon| layout.positions[*carbon].y - mean_y)
+            .collect();
+        for (slot, lift) in lifts.iter().enumerate() {
+            assert!(
+                lift.abs() / layout.units_per_angstrom > 0.1,
+                "ring carbons pucker out of plane"
+            );
+            assert!((lift.abs() - lifts[0].abs()).abs() < 0.001);
+            assert!(
+                lift * lifts[(slot + 1) % 6] < 0.0,
+                "adjacent ring carbons sit on opposite sides of the plane"
+            );
+        }
+        // All six C-C bonds keep one length.
+        let ring_bonds: Vec<f32> = (0..6)
+            .map(|slot| {
+                (layout.positions[ring[slot]] - layout.positions[ring[(slot + 1) % 6]]).length()
+            })
+            .collect();
+        for length in &ring_bonds {
+            assert!((length - ring_bonds[0]).abs() < 0.001);
+        }
+        // Every carbon carries exactly two hydrogens at one C-H length.
+        let mut hydrogen_bond_lengths = Vec::new();
+        for carbon in &carbons {
+            let attached: Vec<usize> = hydrogens
+                .iter()
+                .copied()
+                .filter(|hydrogen| bonded(*carbon, *hydrogen))
+                .collect();
+            assert_eq!(attached.len(), 2);
+            for hydrogen in attached {
+                hydrogen_bond_lengths
+                    .push((layout.positions[hydrogen] - layout.positions[*carbon]).length());
+            }
+        }
+        assert_eq!(hydrogen_bond_lengths.len(), 12, "every hydrogen bonds to one ring carbon");
+        for length in &hydrogen_bond_lengths {
+            assert!((length - hydrogen_bond_lengths[0]).abs() < 0.001);
+        }
+        // No collapsed geometry: every atom pair keeps at least a bonding
+        // distance apart (in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+    }
+
+    /// Centroid and unit normal (Newell's method) of an ordered ring.
+    #[allow(clippy::cast_precision_loss)]
+    fn ring_plane(points: &[Vec3]) -> (Vec3, Vec3) {
+        let centroid = points.iter().copied().sum::<Vec3>() / points.len() as f32;
+        let mut normal = Vec3::ZERO;
+        for (slot, point) in points.iter().enumerate() {
+            let next = points[(slot + 1) % points.len()];
+            normal += (*point - centroid).cross(next - centroid);
+        }
+        (centroid, normal.normalize())
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn decalin_lays_out_as_two_edge_fused_chairs() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.decalin").expect("valid structure id"),
+            "C1CCC2CCCCC2C1",
+        )
+        .expect("decalin SMILES parses");
+        let decalin =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C10H18")
+                .expect("decalin preview projects");
+        let carbons: Vec<usize> = decalin
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        let hydrogens: Vec<usize> = decalin
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 10);
+        assert_eq!(hydrogens.len(), 18);
+
+        let layout = molecular_layout(&decalin);
+        let bonded = |left: usize, right: usize| {
+            decalin.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        let carbon_neighbours = |atom: usize| -> Vec<usize> {
+            carbons
+                .iter()
+                .copied()
+                .filter(|carbon| bonded(atom, *carbon))
+                .collect()
+        };
+        // The two ring-junction carbons are directly bonded.
+        let junctions: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon).len() == 3)
+            .collect();
+        assert_eq!(junctions.len(), 2);
+        assert!(bonded(junctions[0], junctions[1]));
+        // Walk each four-carbon path between the junctions into a ring.
+        let rings: Vec<Vec<usize>> = carbon_neighbours(junctions[0])
+            .into_iter()
+            .filter(|carbon| *carbon != junctions[1])
+            .map(|start| {
+                let mut ring = vec![junctions[0], start];
+                while *ring.last().expect("ring starts non-empty") != junctions[1] {
+                    let current = *ring.last().expect("ring starts non-empty");
+                    let next = carbon_neighbours(current)
+                        .into_iter()
+                        .find(|carbon| !ring.contains(carbon))
+                        .expect("the path reaches the far junction");
+                    ring.push(next);
+                }
+                ring
+            })
+            .collect();
+        assert_eq!(rings.len(), 2);
+        // Each ring is a chair about its own best-fit plane: equal-magnitude
+        // signed lifts alternating around the ring.
+        for ring in &rings {
+            assert_eq!(ring.len(), 6);
+            let points: Vec<Vec3> = ring.iter().map(|atom| layout.positions[*atom]).collect();
+            let (centroid, normal) = ring_plane(&points);
+            let lifts: Vec<f32> = points
+                .iter()
+                .map(|point| (*point - centroid).dot(normal))
+                .collect();
+            for (slot, lift) in lifts.iter().enumerate() {
+                assert!(
+                    lift.abs() / layout.units_per_angstrom > 0.1,
+                    "chair carbons pucker out of the ring plane, got {lift}"
+                );
+                assert!((lift.abs() - lifts[0].abs()).abs() < 0.005);
+                assert!(
+                    lift * lifts[(slot + 1) % 6] < 0.0,
+                    "adjacent ring carbons sit on opposite sides of the plane"
+                );
+            }
+        }
+        // All eleven C-C bonds keep one length.
+        let ring_bonds: Vec<f32> = decalin
+            .covalent_bonds()
+            .iter()
+            .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
+            .map(|bond| (layout.positions[bond.start] - layout.positions[bond.end]).length())
+            .collect();
+        assert_eq!(ring_bonds.len(), 11, "10 carbons close two fused hexagons");
+        for length in &ring_bonds {
+            assert!((length - ring_bonds[0]).abs() < 0.005);
+        }
+        // No collapsed geometry (distances in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+        // Hydrogens: one per junction carbon, two elsewhere, all at one C-H
+        // length.
+        let mut hydrogen_bond_lengths = Vec::new();
+        for carbon in &carbons {
+            let attached: Vec<usize> = hydrogens
+                .iter()
+                .copied()
+                .filter(|hydrogen| bonded(*carbon, *hydrogen))
+                .collect();
+            let expected = if junctions.contains(carbon) { 1 } else { 2 };
+            assert_eq!(attached.len(), expected);
+            for hydrogen in attached {
+                hydrogen_bond_lengths
+                    .push((layout.positions[hydrogen] - layout.positions[*carbon]).length());
+            }
+        }
+        assert_eq!(hydrogen_bond_lengths.len(), 18);
+        for length in &hydrogen_bond_lengths {
+            assert!((length - hydrogen_bond_lengths[0]).abs() < 0.005);
+        }
+    }
+
+    #[test]
+    fn spiro_nonane_stands_its_two_rings_in_crossed_planes() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.spiro-nonane").expect("valid structure id"),
+            "C1CCC2(C1)CCCC2",
+        )
+        .expect("spiro[4.4]nonane SMILES parses");
+        let spiro =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C9H16")
+                .expect("spiro[4.4]nonane preview projects");
+        let carbons: Vec<usize> = spiro
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 9);
+
+        let layout = molecular_layout(&spiro);
+        let bonded = |left: usize, right: usize| {
+            spiro.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        let carbon_neighbours = |atom: usize| -> Vec<usize> {
+            carbons
+                .iter()
+                .copied()
+                .filter(|carbon| bonded(atom, *carbon))
+                .collect()
+        };
+        // Exactly one spiro carbon carries four ring bonds.
+        let hubs: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon).len() == 4)
+            .collect();
+        assert_eq!(hubs.len(), 1);
+        let hub = hubs[0];
+        // Walk both rings out from the hub.
+        let mut rings: Vec<Vec<usize>> = Vec::new();
+        for start in carbon_neighbours(hub) {
+            if rings.iter().any(|ring| ring.contains(&start)) {
+                continue;
+            }
+            let mut ring = vec![hub, start];
+            loop {
+                let current = *ring.last().expect("ring starts non-empty");
+                let previous = ring[ring.len() - 2];
+                let next = carbon_neighbours(current)
+                    .into_iter()
+                    .find(|carbon| *carbon != previous)
+                    .expect("ring carbons keep two ring bonds");
+                if next == hub {
+                    break;
+                }
+                ring.push(next);
+            }
+            rings.push(ring);
+        }
+        assert_eq!(rings.len(), 2, "two rings meet at the spiro carbon");
+        // Equal bond lengths within each ring.
+        for ring in &rings {
+            assert_eq!(ring.len(), 5);
+            let lengths: Vec<f32> = (0..ring.len())
+                .map(|slot| {
+                    layout.positions[ring[slot]]
+                        .distance(layout.positions[ring[(slot + 1) % ring.len()]])
+                })
+                .collect();
+            for length in &lengths {
+                assert!((length - lengths[0]).abs() < 0.005);
+            }
+        }
+        // The hub's four ring-bond directions spread out: no two closer
+        // than ~60 degrees.
+        let directions: Vec<Vec3> = carbon_neighbours(hub)
+            .into_iter()
+            .map(|carbon| (layout.positions[carbon] - layout.positions[hub]).normalize())
+            .collect();
+        for (index, left) in directions.iter().enumerate() {
+            for right in &directions[index + 1..] {
+                assert!(
+                    left.dot(*right) < 0.52,
+                    "spiro ring bonds crowd together, dot {}",
+                    left.dot(*right)
+                );
+            }
+        }
+        // No collapsed geometry (distances in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+    }
+
+    #[test]
+    fn norbornane_arcs_its_one_carbon_bridge_over_the_main_ring() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.norbornane").expect("valid structure id"),
+            "C1CC2CCC1C2",
+        )
+        .expect("norbornane SMILES parses");
+        let norbornane =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C7H12")
+                .expect("norbornane preview projects");
+        let carbons: Vec<usize> = norbornane
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 7);
+
+        let layout = molecular_layout(&norbornane);
+        let bonded = |left: usize, right: usize| {
+            norbornane.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        let carbon_neighbours = |atom: usize| -> Vec<usize> {
+            carbons
+                .iter()
+                .copied()
+                .filter(|carbon| bonded(atom, *carbon))
+                .collect()
+        };
+        // Two bridgeheads, and one bridge carbon bonded to both of them.
+        let bridgeheads: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon).len() == 3)
+            .collect();
+        assert_eq!(bridgeheads.len(), 2);
+        let bridge_carbons: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| {
+                let neighbours = carbon_neighbours(*carbon);
+                neighbours.len() == 2
+                    && neighbours.iter().all(|other| bridgeheads.contains(other))
+            })
+            .collect();
+        assert_eq!(bridge_carbons.len(), 1);
+        let bridge = bridge_carbons[0];
+        // Walk the six-carbon main ring (everything except the bridge).
+        let start = carbon_neighbours(bridgeheads[0])
+            .into_iter()
+            .find(|carbon| *carbon != bridge)
+            .expect("the bridgehead joins the main ring");
+        let mut main_ring = vec![bridgeheads[0], start];
+        while main_ring.len() < 6 {
+            let current = *main_ring.last().expect("ring starts non-empty");
+            let next = carbon_neighbours(current)
+                .into_iter()
+                .find(|carbon| *carbon != bridge && !main_ring.contains(carbon))
+                .expect("the main ring closes");
+            main_ring.push(next);
+        }
+        assert!(bonded(main_ring[5], main_ring[0]));
+        // The bridge carbon rises out of the main ring's best-fit plane.
+        let points: Vec<Vec3> = main_ring
+            .iter()
+            .map(|atom| layout.positions[*atom])
+            .collect();
+        let (centroid, normal) = ring_plane(&points);
+        let bridge_lift =
+            (layout.positions[bridge] - centroid).dot(normal).abs() / layout.units_per_angstrom;
+        assert!(
+            bridge_lift > 0.3,
+            "the bridge carbon must arc over the ring plane, got {bridge_lift}"
+        );
+        // Every C-C bond keeps its target length.
+        let target = bond_length_angstrom(6, 6, 1, MolecularLink::Covalent)
+            * layout.units_per_angstrom;
+        let ring_bonds: Vec<f32> = norbornane
+            .covalent_bonds()
+            .iter()
+            .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
+            .map(|bond| layout.positions[bond.start].distance(layout.positions[bond.end]))
+            .collect();
+        assert_eq!(ring_bonds.len(), 8, "norbornane closes with eight C-C bonds");
+        for length in &ring_bonds {
+            assert!(
+                (length - target).abs() < target * 0.01,
+                "C-C bond drifted from its target: {length} vs {target}"
+            );
+        }
+        // No collapsed geometry (distances in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+    }
+
+    #[test]
+    fn signed_volume_convention_matches_handedness_semantics() {
+        // Hand-built regular tetrahedron around the origin. First listed
+        // neighbour at +Z; viewer at +Z looking toward the centre sees the
+        // XY plane in its usual orientation, and p1 (0°) → p2 (120°) →
+        // p3 (240°) winds counterclockwise: `Counterclockwise` handedness.
+        let half = 3.0_f32.sqrt() / 2.0;
+        let counterclockwise = [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, -0.5),
+            Vec3::new(-0.5, half, -0.5),
+            Vec3::new(-0.5, -half, -0.5),
+        ];
+        assert!(
+            chirality_signed_volume(counterclockwise) < 0.0,
+            "counterclockwise winding must give a negative signed volume"
+        );
+        // Swapping two neighbours yields the mirror image: `Clockwise`.
+        let clockwise = [
+            counterclockwise[0],
+            counterclockwise[2],
+            counterclockwise[1],
+            counterclockwise[3],
+        ];
+        assert!(chirality_signed_volume(clockwise) > 0.0);
+    }
+
+    #[test]
+    fn enantiomer_layouts_mirror_each_other_at_the_stereocentre() {
+        let butanol = |smiles: &str, id: &str| {
+            let structure = chem_domain::structure_from_smiles(
+                chem_domain::StructureId::new(id).expect("valid structure id"),
+                smiles,
+            )
+            .expect("butan-2-ol SMILES parses");
+            let preview = crate::composition_catalogue::preview_from_validated_structure(
+                &structure, "C4H10O",
+            )
+            .expect("butan-2-ol preview projects");
+            let chirality = preview
+                .atoms
+                .iter()
+                .find_map(|atom| atom.chirality)
+                .expect("the stereocentre survives preview projection");
+            let layout = molecular_layout(&preview);
+            let corners = chirality.neighbours.map(|index| layout.positions[index]);
+            (chirality.handedness, chirality_signed_volume(corners))
+        };
+        let (left_hand, left_volume) = butanol("C[C@H](O)CC", "test.butan-2-ol-at");
+        let (right_hand, right_volume) = butanol("C[C@@H](O)CC", "test.butan-2-ol-at-at");
+        assert_ne!(left_hand, right_hand, "enantiomers carry opposite descriptors");
+        assert!(
+            left_volume * right_volume < 0.0,
+            "enantiomer layouts must mirror: {left_volume} vs {right_volume}"
+        );
+        for (hand, volume) in [(left_hand, left_volume), (right_hand, right_volume)] {
+            match hand {
+                chem_domain::TetrahedralHandedness::Counterclockwise => assert!(
+                    volume < 0.0,
+                    "counterclockwise centre laid out clockwise ({volume})"
+                ),
+                chem_domain::TetrahedralHandedness::Clockwise => assert!(
+                    volume > 0.0,
+                    "clockwise centre laid out counterclockwise ({volume})"
+                ),
+            }
         }
     }
 

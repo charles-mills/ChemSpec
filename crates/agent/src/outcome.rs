@@ -591,9 +591,15 @@ fn generated_outcome_species(
     let structure_id = StructureId::new(format!("generated.{}", &digest[..24])).ok()?;
     // Name-keyed canonical structures first: an inventory maps to one
     // generated structure, so a constitutional isomer of a canonical
-    // molecule (ammonium cyanate vs urea) is only reachable by name.
+    // molecule (ammonium cyanate vs urea) is only reachable by name — or
+    // by subset SMILES, which the sketcher emits as the display.
     let structure =
         chem_domain::generate_named_structure(structure_id.clone(), display_name, inventory)
+            .or_else(|| {
+                let parsed =
+                    chem_domain::structure_from_smiles(structure_id.clone(), display_name)?;
+                (parsed.formula() == inventory).then_some(parsed)
+            })
             .or_else(|| generate_structure(structure_id, inventory))?;
     let species =
         crate::identity::generated_species(&id, display_name, formula_text, phase, &structure)
@@ -611,10 +617,21 @@ fn generated_reactant(input: &crate::ReactantInput) -> Option<OutcomeSpecies> {
         *counts.entry(symbol).or_insert(0_u64) += 1;
     }
     let inventory = ElementInventory::new(counts).ok()?;
-    // A display that is a species name rather than a formula ("ammonium
-    // cyanate") gets its formula text from the composed inventory instead.
+    // The display is only trusted as a formula when it actually describes
+    // the composed atoms: names ("ammonium cyanate") fail to parse, and a
+    // SMILES display like "CCO" parses to the WRONG composition (C2O), so
+    // both fall back to the inventory's own formula text.
     let key = ascii_formula_key(&input.display);
-    let formula_text = if FormulaComposition::parse(&key).is_ok() {
+    let display_is_formula = FormulaComposition::parse(&key).is_ok_and(|parsed| {
+        ElementInventory::new(
+            parsed
+                .elements()
+                .iter()
+                .map(|(symbol, count)| (symbol.clone(), *count)),
+        )
+        .is_ok_and(|parsed_inventory| parsed_inventory == inventory)
+    });
+    let formula_text = if display_is_formula {
         key
     } else {
         crate::identity::inventory_formula(&inventory)
