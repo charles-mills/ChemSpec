@@ -11,12 +11,15 @@ use crate::{
     MetallicDomainId, RepresentationKind, StructuralGraph, StructureDefinition, StructureId,
 };
 
-// ponytail: DFS enumeration; benzene-sized inputs and charge-separated
-// neutrals (CO, HNO3, ozone) bail to the caller's fallback (catalogue or
-// LLM proposal). Extend with positive formal charges if that tail matters.
+// ponytail: DFS enumeration; benzene-sized covalent units bail to the
+// caller's fallback (catalogue or LLM proposal). Ionic compounds are only
+// bounded per ion unit, so large salts assemble fine.
 const MAX_ATOMS: usize = 12;
+const MAX_TOTAL_ATOMS: usize = 24;
 const MAX_WORK: u32 = 500_000;
 const HOMONUCLEAR_PENALTY: u32 = 1_000;
+const CHARGE_SEPARATION_PENALTY: u32 = 40;
+const TRIANGLE_PENALTY: u32 = 60;
 
 #[derive(Clone, Copy)]
 struct Facts {
@@ -217,6 +220,31 @@ fn consider(
     best_score: &mut u32,
     best: &mut Vec<(SolvedUnit, String)>,
 ) {
+    // Octet expansion is only physical toward more electronegative
+    // partners (S→O, I→F); anything else is a ledger-valid abomination.
+    for (index, (slot, target)) in slots.iter().zip(targets).enumerate() {
+        let minimum = slot.bond_sum_options().first().copied().unwrap_or(0);
+        if *target <= minimum {
+            continue;
+        }
+        let expansion_is_physical = bonds
+            .iter()
+            .filter_map(|(left, right, _)| {
+                if *left == index {
+                    Some(*right)
+                } else if *right == index {
+                    Some(*left)
+                } else {
+                    None
+                }
+            })
+            .all(|partner| {
+                slots[partner].facts.electronegativity > slot.facts.electronegativity
+            });
+        if !expansion_is_physical {
+            return;
+        }
+    }
     let score = score_graph(slots, targets, bonds);
     if score > *best_score {
         return;
@@ -388,12 +416,40 @@ fn score_graph(slots: &[Slot], targets: &[u8], bonds: &[(usize, usize, u8)]) -> 
             }
         }
     }
+    let bottom_heavy = slots
+        .iter()
+        .filter(|slot| slot.symbol != "H")
+        .map(|slot| slot.facts.electronegativity)
+        .min()
+        .unwrap_or(0);
     for (slot, target) in slots.iter().zip(targets) {
         let minimum = slot.bond_sum_options().first().copied().unwrap_or(0);
         score += u32::from(target - minimum);
         if slot.formal_charge < 0 && slot.symbol != "H" {
             score += u32::from(top_heavy - slot.facts.electronegativity)
                 * u32::from(slot.formal_charge.unsigned_abs());
+        }
+        if slot.formal_charge > 0 {
+            // Charge separation is a last resort, placed on the least
+            // electronegative heavy atom when unavoidable.
+            score += CHARGE_SEPARATION_PENALTY
+                + u32::from(slot.facts.electronegativity.saturating_sub(bottom_heavy));
+        }
+    }
+    // Three-membered rings are strained; prefer open forms (real ozone
+    // over cyclic ozone).
+    let bonded = |a: usize, b: usize| {
+        bonds
+            .iter()
+            .any(|(left, right, _)| (*left == a && *right == b) || (*left == b && *right == a))
+    };
+    for a in 0..slots.len() {
+        for b in a + 1..slots.len() {
+            for c in b + 1..slots.len() {
+                if bonded(a, b) && bonded(b, c) && bonded(a, c) {
+                    score += TRIANGLE_PENALTY;
+                }
+            }
         }
     }
     score
@@ -433,11 +489,19 @@ fn isomorphism_key(slots: &[Slot], bonds: &[(usize, usize, u8)]) -> String {
 
 /// Builds every way of handing out `charge` units of -1 across non-hydrogen
 /// atoms, identical elements collapsed.
-fn charged_slot_sets(elements: &[(String, Facts, u64)], charge: u32) -> Vec<Vec<Slot>> {
+/// Every way of placing `negatives` × (-1) and `positives` × (+1) across
+/// the unit's non-hydrogen atoms, identical elements collapsed. An atom
+/// carries at most one unit of charge of one sign.
+fn charged_slot_sets(
+    elements: &[(String, Facts, u64)],
+    negatives: u32,
+    positives: u32,
+) -> Vec<Vec<Slot>> {
     fn distribute(
         elements: &[(String, Facts, u64)],
         index: usize,
         left: u64,
+        occupied: &[u64],
         allocation: &mut Vec<u64>,
         out: &mut Vec<Vec<u64>>,
     ) {
@@ -450,39 +514,63 @@ fn charged_slot_sets(elements: &[(String, Facts, u64)], charge: u32) -> Vec<Vec<
         let cap = if elements[index].0 == "H" {
             0
         } else {
-            left.min(elements[index].2)
+            left.min(
+                elements[index]
+                    .2
+                    .saturating_sub(occupied.get(index).copied().unwrap_or(0)),
+            )
         };
         for take in 0..=cap {
             allocation.push(take);
-            distribute(elements, index + 1, left - take, allocation, out);
+            distribute(elements, index + 1, left - take, occupied, allocation, out);
             allocation.pop();
         }
     }
 
-    let mut allocations = Vec::new();
+    let mut positive_allocations = Vec::new();
     distribute(
         elements,
         0,
-        u64::from(charge),
+        u64::from(positives),
+        &[],
         &mut Vec::new(),
-        &mut allocations,
+        &mut positive_allocations,
     );
-    allocations
-        .into_iter()
-        .map(|allocation| {
+    let mut sets = Vec::new();
+    for positive in positive_allocations {
+        let mut negative_allocations = Vec::new();
+        distribute(
+            elements,
+            0,
+            u64::from(negatives),
+            &positive,
+            &mut Vec::new(),
+            &mut negative_allocations,
+        );
+        for negative in negative_allocations {
             let mut slots = Vec::new();
-            for ((symbol, element_facts, count), charged) in elements.iter().zip(&allocation) {
+            for (index, (symbol, element_facts, count)) in elements.iter().enumerate() {
+                let plus = positive.get(index).copied().unwrap_or(0);
+                let minus = negative.get(index).copied().unwrap_or(0);
                 for position in 0..*count {
+                    let formal_charge = if position < plus {
+                        1
+                    } else if position < plus + minus {
+                        -1
+                    } else {
+                        0
+                    };
                     slots.push(Slot {
                         symbol: symbol.clone(),
                         facts: *element_facts,
-                        formal_charge: if position < *charged { -1 } else { 0 },
+                        formal_charge,
                     });
                 }
             }
-            slots
-        })
-        .collect()
+            sets.push(slots);
+        }
+    }
+    sets
 }
 
 /// The most common cation charge for a metal, or None for nonmetals.
@@ -538,7 +626,7 @@ pub fn generate_structure(
 ) -> Option<StructureDefinition> {
     let counts = inventory.elements();
     let total: u64 = counts.values().sum();
-    if total == 0 || total > u64::try_from(MAX_ATOMS).expect("small constant") {
+    if total == 0 || total > u64::try_from(MAX_TOTAL_ATOMS).expect("small constant") {
         return None;
     }
     let mut metals = Vec::new();
@@ -555,9 +643,15 @@ pub fn generate_structure(
         if let Some(structure) = generate_allotrope(id.clone(), inventory, &nonmetals) {
             return Some(structure);
         }
-        let slots = charged_slot_sets(&nonmetals, 0);
-        let unit = best_solution(&slots)?;
-        build_molecular(id, inventory, &unit)
+        let mut slots = charged_slot_sets(&nonmetals, 0, 0);
+        // Charge-separated neutrals (CO, HNO3, ozone) join the pool; the
+        // separation penalty keeps plain octet solutions ahead when both
+        // exist.
+        slots.extend(charged_slot_sets(&nonmetals, 1, 1));
+        if let Some(unit) = best_solution(&slots) {
+            return build_molecular(id, inventory, &unit);
+        }
+        generate_ammonium_salt(id, inventory, &nonmetals)
     } else if nonmetals.is_empty() {
         generate_elemental_metal(id, inventory, &metals)
     } else {
@@ -688,56 +782,64 @@ fn assemble_ionic(
     nonmetals: &[(String, Facts, u64)],
     positive: i64,
 ) -> Option<StructureDefinition> {
+    let (copies, unit) = divide_anion_units(nonmetals, positive)?;
+    let mut units = Vec::new();
+    for ((symbol, element_facts, count), charge) in metals.iter().zip(charges) {
+        for _ in 0..*count {
+            let lone = u8::try_from((i16::from(element_facts.valence) - charge).max(0)).ok()?;
+            let lone = lone - (lone % 2);
+            units.push(SolvedUnit {
+                symbols: vec![symbol.clone()],
+                states: vec![(*charge, lone)],
+                bonds: Vec::new(),
+            });
+        }
+    }
+    for _ in 0..copies {
+        units.push(unit.clone());
+    }
+    ionic_structure(id, inventory, &units)
+}
+
+/// Splits the anion inventory into the most, smallest solvable units
+/// (2 OH⁻ over HO-OH²⁻) that balance the given positive charge.
+fn divide_anion_units(
+    nonmetals: &[(String, Facts, u64)],
+    positive: i64,
+) -> Option<(u64, SolvedUnit)> {
     let count_gcd = nonmetals
         .iter()
         .map(|(_, _, count)| *count)
         .fold(u64::try_from(positive).ok()?, gcd);
-    // Prefer the most, smallest anion units (2 OH⁻ over HO-OH²⁻).
-    let mut division = None;
     for divisor in (1..=count_gcd).rev() {
         if !count_gcd.is_multiple_of(divisor) {
             continue;
         }
         let unit_elements = nonmetals
             .iter()
-            .map(|(symbol, element_facts, count)| {
-                (symbol.clone(), *element_facts, count / divisor)
-            })
+            .map(|(symbol, element_facts, count)| (symbol.clone(), *element_facts, count / divisor))
             .collect::<Vec<_>>();
         let unit_charge = u32::try_from(positive / i64::try_from(divisor).ok()?).ok()?;
         if let Some(unit) = solve_anion_unit(&unit_elements, unit_charge) {
-            division = Some((divisor, unit));
-            break;
+            return Some((divisor, unit));
         }
     }
-    let (copies, unit) = division?;
+    None
+}
 
-    // Ionic atom ids follow the catalogue's `<group>.<atom>` convention so
-    // the graph round-trips through record validation unchanged.
+/// Builds the ionic graph for a list of ion units, one group per unit.
+/// Ionic atom ids follow the catalogue's `<group>.<atom>` convention so the
+/// graph round-trips through record validation unchanged.
+fn ionic_structure(
+    id: StructureId,
+    inventory: &ElementInventory,
+    units: &[SolvedUnit],
+) -> Option<StructureDefinition> {
     let mut atoms = Vec::new();
     let mut bonds = Vec::new();
     let mut group_records = Vec::new();
-    let mut group_index = 0_usize;
     let ion_atom = |group: usize, offset: usize| AtomId::new(format!("g{group}.a{offset}")).ok();
-    for ((symbol, element_facts, count), charge) in metals.iter().zip(charges) {
-        for _ in 0..*count {
-            let lone =
-                u8::try_from((i16::from(element_facts.valence) - charge).max(0)).ok()?;
-            let lone = lone - (lone % 2);
-            let atom_id = ion_atom(group_index, 0)?;
-            atoms.push(Atom::new(
-                atom_id.clone(),
-                ElementSymbol::new(symbol).ok()?,
-                ElectronState::new(*charge, lone, 0).ok()?,
-            ));
-            group_records.push(
-                AtomGroup::new(AtomGroupId::new(format!("g{group_index}")).ok()?, [atom_id])
-                    .ok()?,
-            );
-            group_index += 1;
-        }
-    }
-    for _ in 0..copies {
+    for (group_index, unit) in units.iter().enumerate() {
         let mut members = Vec::new();
         for (offset, symbol) in unit.symbols.iter().enumerate() {
             let (charge, lone) = unit.states[offset];
@@ -769,7 +871,6 @@ fn assemble_ionic(
         group_records.push(
             AtomGroup::new(AtomGroupId::new(format!("g{group_index}")).ok()?, members).ok()?,
         );
-        group_index += 1;
     }
 
     let association = IonicAssociation::new(
@@ -779,6 +880,67 @@ fn assemble_ionic(
     .ok()?;
     let graph = StructuralGraph::new(atoms, bonds, group_records, [association], []).ok()?;
     StructureDefinition::new(id, inventory.clone(), RepresentationKind::Ionic, graph).ok()
+}
+
+/// Ammonium salts: the one common polyatomic cation. Tried only after the
+/// molecular search fails, so amines keep their covalent structures.
+#[allow(clippy::needless_pass_by_value)]
+fn generate_ammonium_salt(
+    id: StructureId,
+    inventory: &ElementInventory,
+    nonmetals: &[(String, Facts, u64)],
+) -> Option<StructureDefinition> {
+    let nitrogen_facts = facts("N")?;
+    let hydrogen_facts = facts("H")?;
+    let ammonium = best_solution(&charged_slot_sets(
+        &[
+            ("N".to_owned(), nitrogen_facts, 1),
+            ("H".to_owned(), hydrogen_facts, 4),
+        ],
+        0,
+        1,
+    ))?;
+    let count_of = |symbol: &str| {
+        nonmetals
+            .iter()
+            .find(|(candidate, ..)| candidate == symbol)
+            .map_or(0, |(_, _, count)| *count)
+    };
+    for cations in 1..=3_u64 {
+        if count_of("N") < cations || count_of("H") < cations * 4 {
+            break;
+        }
+        let remainder = nonmetals
+            .iter()
+            .map(|(symbol, element_facts, count)| {
+                let used = match symbol.as_str() {
+                    "N" => cations,
+                    "H" => cations * 4,
+                    _ => 0,
+                };
+                (symbol.clone(), *element_facts, count - used)
+            })
+            .filter(|(_, _, count)| *count > 0)
+            .collect::<Vec<_>>();
+        if remainder.is_empty() {
+            continue;
+        }
+        let Some((copies, anion)) = divide_anion_units(&remainder, i64::try_from(cations).ok()?)
+        else {
+            continue;
+        };
+        let mut units = Vec::new();
+        for _ in 0..cations {
+            units.push(ammonium.clone());
+        }
+        for _ in 0..copies {
+            units.push(anion.clone());
+        }
+        if let Some(structure) = ionic_structure(id.clone(), inventory, &units) {
+            return Some(structure);
+        }
+    }
+    None
 }
 
 fn solve_anion_unit(elements: &[(String, Facts, u64)], charge: u32) -> Option<SolvedUnit> {
@@ -799,7 +961,8 @@ fn solve_anion_unit(elements: &[(String, Facts, u64)], charge: u32) -> Option<So
         }
         return None;
     }
-    let slot_sets = charged_slot_sets(elements, charge);
+    let mut slot_sets = charged_slot_sets(elements, charge, 0);
+    slot_sets.extend(charged_slot_sets(elements, charge + 1, 1));
     best_solution(&slot_sets)
 }
 
@@ -991,6 +1154,91 @@ mod tests {
                 .atoms()
                 .values()
                 .all(|atom| atom.electrons().non_bonding_electrons() == 4)
+        );
+    }
+
+    #[test]
+    fn charge_separated_species_generate() {
+        // Nitrate: N carries +1, two O carry -1.
+        let sodium_nitrate = structure(&[("Na", 1), ("N", 1), ("O", 3)]).expect("NaNO3");
+        assert_eq!(sodium_nitrate.representation(), RepresentationKind::Ionic);
+        assert_eq!(sodium_nitrate.graph().system_net_charge(), 0);
+        let nitrogen = sodium_nitrate
+            .graph()
+            .atoms()
+            .values()
+            .find(|atom| atom.element().as_str() == "N")
+            .expect("nitrogen");
+        assert_eq!(nitrogen.electrons().formal_charge(), 1);
+
+        let silver_nitrate = structure(&[("Ag", 1), ("N", 1), ("O", 3)]).expect("AgNO3");
+        assert_eq!(silver_nitrate.representation(), RepresentationKind::Ionic);
+
+        // Nitric acid and carbon monoxide are charge-separated neutrals.
+        let nitric_acid = structure(&[("H", 1), ("N", 1), ("O", 3)]).expect("HNO3");
+        assert_eq!(nitric_acid.representation(), RepresentationKind::Molecular);
+        assert!(crate::classify_bronsted_acid(&nitric_acid).is_protic_candidate());
+
+        let carbon_monoxide = structure(&[("C", 1), ("O", 1)]).expect("CO");
+        assert_eq!(
+            carbon_monoxide
+                .graph()
+                .covalent_bonds()
+                .values()
+                .next()
+                .expect("bond")
+                .order(),
+            BondOrder::Triple
+        );
+    }
+
+    #[test]
+    fn ammonium_salts_generate_with_a_polyatomic_cation() {
+        let ammonium_chloride = structure(&[("N", 1), ("H", 4), ("Cl", 1)]).expect("NH4Cl");
+        assert_eq!(
+            ammonium_chloride.representation(),
+            RepresentationKind::Ionic
+        );
+        assert_eq!(ammonium_chloride.graph().system_net_charge(), 0);
+        let nitrogen = ammonium_chloride
+            .graph()
+            .atoms()
+            .values()
+            .find(|atom| atom.element().as_str() == "N")
+            .expect("nitrogen");
+        assert_eq!(nitrogen.electrons().formal_charge(), 1);
+
+        let ammonium_nitrate = structure(&[("N", 2), ("H", 4), ("O", 3)]).expect("NH4NO3");
+        assert_eq!(ammonium_nitrate.representation(), RepresentationKind::Ionic);
+        assert_eq!(ammonium_nitrate.graph().groups().len(), 2);
+
+        let ammonium_sulfate =
+            structure(&[("N", 2), ("H", 8), ("S", 1), ("O", 4)]).expect("(NH4)2SO4");
+        assert_eq!(ammonium_sulfate.graph().groups().len(), 3);
+
+        // Methylamine stays a covalent molecule, not an ammonium salt.
+        let methylamine = structure(&[("C", 1), ("N", 1), ("H", 5)]).expect("CH3NH2");
+        assert_eq!(methylamine.representation(), RepresentationKind::Molecular);
+    }
+
+    #[test]
+    fn plain_octet_solutions_still_beat_charge_separation() {
+        // Water and CO2 must not regress into charge-separated variants.
+        let water = structure(&[("H", 2), ("O", 1)]).expect("water");
+        assert!(
+            water
+                .graph()
+                .atoms()
+                .values()
+                .all(|atom| atom.electrons().formal_charge() == 0)
+        );
+        let carbon_dioxide = structure(&[("C", 1), ("O", 2)]).expect("CO2");
+        assert!(
+            carbon_dioxide
+                .graph()
+                .atoms()
+                .values()
+                .all(|atom| atom.electrons().formal_charge() == 0)
         );
     }
 
