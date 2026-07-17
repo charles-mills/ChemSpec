@@ -196,30 +196,69 @@ pub fn subscription(state: &State) -> Subscription<Message> {
     }
 }
 
-/// Fills the active slot from a typed compound name or formula.
+/// Fills slots from typed compound names or formulas. A separator
+/// ("oxygen + water", "zinc, hydrochloric acid", "iron and sulfur")
+/// fills both boxes at once; a single compound fills the active one.
 fn submit_name(state: &mut State) {
-    if state.name_input.trim().is_empty() {
+    let input = state.name_input.trim().to_owned();
+    if input.is_empty() {
         return;
     }
-    let Some(atoms) = chemistry::atoms_from_name(&state.name_input) else {
-        state.name_feedback = Some("Not recognised — try a name like “copper(II) sulfate” or a formula like CuSO4".to_owned());
-        return;
+    let filled = match split_reactant_names(&input).as_slice() {
+        [only] => resolve_named(only).map(|atoms| {
+            state.drafts[state.active.index()].atoms = atoms;
+        }),
+        [first, second] => resolve_named(first).and_then(|first| {
+            resolve_named(second).map(|second| {
+                state.drafts[0].atoms = first;
+                state.drafts[1].atoms = second;
+            })
+        }),
+        _ => Err("Reactions here take at most two reactants".to_owned()),
+    };
+    match filled {
+        Ok(()) => {
+            state.name_input.clear();
+            state.name_feedback = None;
+            state.limit_reached = false;
+        }
+        Err(feedback) => state.name_feedback = Some(feedback),
+    }
+}
+
+fn split_reactant_names(input: &str) -> Vec<&str> {
+    let symbols = input
+        .split(['+', ','])
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if symbols.len() > 1 {
+        return symbols;
+    }
+    let words = input
+        .split(" and ")
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if words.len() > 1 { words } else { vec![input] }
+}
+
+fn resolve_named(input: &str) -> Result<Vec<u8>, String> {
+    let Some(atoms) = chemistry::atoms_from_name(input) else {
+        return Err(format!(
+            "“{input}” isn’t recognised — try a name like “copper(II) sulfate” or a formula like CuSO4"
+        ));
     };
     if atoms.len() > MAX_ATOMS_PER_REACTANT {
-        state.name_feedback = Some("That compound has too many atoms for one reactant".to_owned());
-        return;
+        return Err(format!("“{input}” has too many atoms for one reactant"));
     }
     if let Some(&unknown) = atoms
         .iter()
         .find(|number| elements::by_atomic_number(**number).is_none())
     {
-        state.name_feedback = Some(format!("Element {unknown} is not in the library yet"));
-        return;
+        return Err(format!("Element {unknown} is not in the library yet"));
     }
-    state.drafts[state.active.index()].atoms = atoms;
-    state.name_input.clear();
-    state.name_feedback = None;
-    state.limit_reached = false;
+    Ok(atoms)
 }
 
 fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
@@ -413,7 +452,7 @@ fn action_row(
 /// name or a formula.
 fn name_entry(state: &State) -> Element<'static, Message> {
     let input = text_input(
-        "…or type it: “copper(II) sulfate”, “oxygen”, CuSO4",
+        "…or type it: “copper(II) sulfate”, CuSO4, “zinc + hydrochloric acid”",
         &state.name_input,
     )
     .on_input(Message::NameInput)
@@ -818,6 +857,31 @@ mod tests {
         update(&mut state, Message::NameSubmitted);
         assert!(state.name_feedback.is_some());
         assert_eq!(reactants(&state).1, [1, 11, 8]);
+    }
+
+    #[test]
+    fn separators_fill_both_slots_at_once() {
+        let mut state = State::default();
+        update(&mut state, Message::NameInput("oxygen + water".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state), (&[8_u8, 8][..], &[1_u8, 1, 8][..]));
+        assert!(state.name_input.is_empty());
+
+        // "and" and commas separate too.
+        update(&mut state, Message::NameInput("zinc and hydrochloric acid".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state), (&[30_u8][..], &[17_u8, 1][..]));
+
+        // One bad half fails the whole submission and names the culprit.
+        update(&mut state, Message::NameInput("oxygen + unobtainium".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert!(state.name_feedback.as_deref().is_some_and(|f| f.contains("unobtainium")));
+        assert_eq!(reactants(&state), (&[30_u8][..], &[17_u8, 1][..]));
+
+        // Three reactants is one too many.
+        update(&mut state, Message::NameInput("iron, sulfur, oxygen".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert!(state.name_feedback.as_deref().is_some_and(|f| f.contains("two")));
     }
 
     #[test]
