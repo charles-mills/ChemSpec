@@ -1938,6 +1938,29 @@ mod tests {
     }
 
     #[test]
+    fn halogen_displacement_animates_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [
+                ("ElementalChlorine", vec![17, 17]),
+                ("PotassiumBromide", vec![19, 35]),
+            ],
+            &json!([
+                {"name":"potassium chloride","formula":"KCl","phase":"aqueous","identity_hints":[]},
+                {"name":"bromine","formula":"Br2","phase":"aqueous","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
     fn precipitation_animates_algorithmically_without_any_model() {
         let trusted = trusted();
         let outcome = static_outcome_for(

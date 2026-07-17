@@ -50,7 +50,8 @@ pub fn solve_reaction_claim(
         let context = request.selected_context.as_deref()?.trim().to_lowercase();
         solve_decomposition(structures[0], &context)?
     } else {
-        solve_acid_base(structures[0], structures[1])
+        solve_trivial_no_reaction(structures[0], structures[1])
+            .or_else(|| solve_acid_base(structures[0], structures[1]))
             .or_else(|| solve_acid_base(structures[1], structures[0]))
             .or_else(|| solve_acid_metal(structures[0], structures[1]))
             .or_else(|| solve_acid_metal(structures[1], structures[0]))
@@ -62,6 +63,8 @@ pub fn solve_reaction_claim(
             .or_else(|| solve_metal_water(structures[1], structures[0]))
             .or_else(|| solve_single_displacement(structures[0], structures[1]))
             .or_else(|| solve_single_displacement(structures[1], structures[0]))
+            .or_else(|| solve_halogen_displacement(structures[0], structures[1]))
+            .or_else(|| solve_halogen_displacement(structures[1], structures[0]))
             .or_else(|| solve_double_displacement(structures[0], structures[1]))
             .or_else(|| {
                 solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
@@ -311,6 +314,124 @@ fn solve_oxide_water(
     Some(Verdict {
         products: Vec::new(),
         observations: Vec::new(),
+    })
+}
+
+/// Pairings that confidently do nothing: a light noble gas with anything
+/// (Kr and Xe form real fluorides, so no verdict there), two elemental
+/// metals (alloys are mixtures, not reactions), or two portions of the
+/// same closed-shell substance (open-shell twins like NO2 dimerize).
+fn solve_trivial_no_reaction(
+    left: &StructureDefinition,
+    right: &StructureDefinition,
+) -> Option<Verdict> {
+    let inert = |structure: &StructureDefinition| {
+        single_element(structure)
+            .is_some_and(|(element, _)| matches!(element.as_str(), "He" | "Ne" | "Ar"))
+    };
+    let metallic = |structure: &StructureDefinition| {
+        structure.representation() == RepresentationKind::Metallic
+    };
+    let closed_shell = |structure: &StructureDefinition| {
+        structure
+            .graph()
+            .atoms()
+            .values()
+            .all(|atom| atom.electrons().unpaired_electrons() == 0)
+    };
+    let same_substance = left.formula().elements() == right.formula().elements()
+        && left.representation() == right.representation()
+        && closed_shell(left);
+    (inert(left) || inert(right) || (metallic(left) && metallic(right)) || same_substance)
+        .then(|| Verdict {
+            products: Vec::new(),
+            observations: Vec::new(),
+        })
+}
+
+/// Halogens in decreasing reactivity.
+const HALOGENS: [&str; 4] = ["F", "Cl", "Br", "I"];
+
+/// Solution colours of the displaced halogens.
+fn halogen_colour(symbol: &str) -> Option<&'static str> {
+    match symbol {
+        "Br" => Some("orange"),
+        "I" => Some("brown"),
+        _ => None,
+    }
+}
+
+/// Elemental halogen + dissolved halide salt: a more reactive halogen
+/// displaces a less reactive one (Cl2 + 2KBr → 2KCl + Br2); the reverse
+/// confidently does nothing. Elemental fluorine attacks the water itself,
+/// so it gets no solution verdict.
+fn solve_halogen_displacement(
+    halogen: &StructureDefinition,
+    salt: &StructureDefinition,
+) -> Option<Verdict> {
+    if halogen.representation() != RepresentationKind::Molecular {
+        return None;
+    }
+    let (element, _) = single_element(halogen)?;
+    let incoming = HALOGENS
+        .iter()
+        .position(|candidate| *candidate == element.as_str())?;
+    let salt = ionic_salt(salt)?;
+    let resident_symbol = if salt.anion.len() == 1 {
+        salt.anion.keys().next()?.clone()
+    } else {
+        return None;
+    };
+    let resident = HALOGENS
+        .iter()
+        .position(|candidate| *candidate == resident_symbol)?;
+    if salt_solubility(&salt.cation, &salt.anion) != Some(true) {
+        return None;
+    }
+    if incoming == 0 {
+        return None;
+    }
+    if incoming >= resident {
+        return Some(Verdict {
+            products: Vec::new(),
+            observations: Vec::new(),
+        });
+    }
+    let displaced_name = chem_domain::element_name(&resident_symbol)?.to_owned();
+    let incoming_anion = Salt {
+        cation: String::new(),
+        cation_charge: 0,
+        anion: [(element.as_str().to_owned(), 1)].into(),
+        anion_charge: 1,
+    };
+    let mut observations = vec![ClaimObservation {
+        predicate: ClaimObservationPredicate::Forms,
+        subject: format!("displaced {displaced_name}"),
+        value: None,
+    }];
+    if let Some(colour) = halogen_colour(&resident_symbol) {
+        observations.push(ClaimObservation {
+            predicate: ClaimObservationPredicate::Colour,
+            subject: "solution".to_owned(),
+            value: Some(colour.to_owned()),
+        });
+    }
+    Some(Verdict {
+        products: vec![
+            exchanged_salt(
+                &salt.cation,
+                salt.cation_charge,
+                &incoming_anion,
+                salt_solubility(&salt.cation, &incoming_anion.anion),
+            ),
+            ClaimProduct {
+                name: displaced_name,
+                formula: format!("{resident_symbol}2"),
+                phase: ClaimPhase::Aqueous,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations,
     })
 }
 
@@ -1567,8 +1688,59 @@ mod tests {
     }
 
     #[test]
-    fn noble_gas_synthesis_is_declined() {
-        let request = request(&[("He", &[2]), ("O₂", &[8, 8])]);
-        assert!(solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none());
+    fn trivially_inert_pairings_are_confident_no_reactions() {
+        let no_reaction = |reactants: &[(&str, &[u8])]| {
+            let claim = solve_reaction_claim(&request(reactants), &SpeciesRegistry::default())
+                .expect("verdict");
+            assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+            assert!(claim.products.is_empty());
+        };
+        // Light noble gases with anything.
+        no_reaction(&[("He", &[2]), ("O₂", &[8, 8])]);
+        no_reaction(&[("NaCl", &[11, 17]), ("Ar", &[18])]);
+        // Two metals only alloy.
+        no_reaction(&[("Cu", &[29]), ("Zn", &[30])]);
+        // A substance and itself.
+        no_reaction(&[("O₂", &[8, 8]), ("O₂", &[8, 8])]);
+        no_reaction(&[("H₂O", &[1, 1, 8]), ("H₂O", &[1, 1, 8])]);
+
+        // Xenon genuinely fluorinates; no verdict.
+        let xenon = request(&[("Xe", &[54]), ("F₂", &[9, 9])]);
+        assert!(solve_reaction_claim(&xenon, &SpeciesRegistry::default()).is_none());
+    }
+
+    #[test]
+    fn reactive_halogens_displace_less_reactive_halides() {
+        let displacement = request(&[
+            ("Cl₂", &[17, 17]),
+            ("KBr", &[19, 35]),
+        ]);
+        let claim = solve_reaction_claim(&displacement, &SpeciesRegistry::default())
+            .expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["KCl", "Br2"]);
+        assert_eq!(claim.products[1].name, "bromine");
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.value.as_deref() == Some("orange"))
+        );
+
+        // The reverse is a confident no-reaction.
+        let reverse = request(&[("I₂", &[53, 53]), ("NaCl", &[11, 17])]);
+        let claim =
+            solve_reaction_claim(&reverse, &SpeciesRegistry::default()).expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+
+        // Fluorine attacks water first; silver bromide never dissolves.
+        let fluorine = request(&[("F₂", &[9, 9]), ("NaCl", &[11, 17])]);
+        assert!(solve_reaction_claim(&fluorine, &SpeciesRegistry::default()).is_none());
+        let silver = request(&[("Cl₂", &[17, 17]), ("AgBr", &[47, 35])]);
+        assert!(solve_reaction_claim(&silver, &SpeciesRegistry::default()).is_none());
     }
 }
