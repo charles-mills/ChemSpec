@@ -57,3 +57,8 @@ fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
     let edge_alpha = input.color.a + rim * glass * 0.20;
     return vec4<f32>(min(polished, vec3<f32>(1.0)), clamp(edge_alpha, 0.0, 1.0));
 }
+
+@fragment
+fn emissive_fragment(input: VertexOutput) -> @location(0) vec4<f32> {
+    return vec4<f32>(input.color.rgb, clamp(input.color.a, 0.0, 1.0));
+}

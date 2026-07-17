@@ -383,6 +383,7 @@ fn merge_packages(packages: &[LoadedPackage]) -> Result<CatalogueEnvelope, Strin
         structure_applications: Vec::new(),
         graph_patterns: Vec::new(),
         generalized_rules: Vec::new(),
+        macroscopic_materials: Vec::new(),
     };
     for package in packages {
         let shard = &package.shard;

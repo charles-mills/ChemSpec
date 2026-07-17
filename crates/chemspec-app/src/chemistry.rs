@@ -16,8 +16,10 @@ use chem_kernel::{
 };
 use chem_presentation::{
     AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, EffectIntensity, EffectProfile,
-    ObjectObservationBinding, PresentationEffect, PresentationObject, PresentationProfile,
-    PresentationTransform, SceneRole, VIRTUAL_ONLY_DISCLOSURE,
+    FlamePalette, MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicReaction,
+    ObjectObservationBinding, PresentationColourTransition, PresentationEffect, PresentationObject,
+    PresentationProfile, PresentationTransform, SceneRole, VIRTUAL_ONLY_DISCLOSURE,
+    compile_phase_driven_profile, visual_colour,
 };
 
 use crate::composition_catalogue::{self, CompositionId};
@@ -98,6 +100,27 @@ impl AlkaliMetal {
             Self::Sodium => CompositionId::SodiumBicarbonate,
             Self::Potassium => CompositionId::PotassiumBicarbonate,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AlkaliWaterVisualEvidence {
+    flame: Option<(FlamePalette, EffectIntensity)>,
+}
+
+/// Reviewed qualitative presentation metadata for the alkali-water family.
+///
+/// The Royal Society of Chemistry's classroom observation table describes
+/// lithium as fizzing and potassium as self-igniting with a lilac flame. This
+/// metadata remains upstream of the generic renderer and does not alter the
+/// trusted reaction frames.
+/// <https://edu.rsc.org/download?ac=512063>
+const fn alkali_water_visual_evidence(metal: AlkaliMetal) -> AlkaliWaterVisualEvidence {
+    match metal {
+        AlkaliMetal::Potassium => AlkaliWaterVisualEvidence {
+            flame: Some((FlamePalette::Lilac, EffectIntensity::Strong)),
+        },
+        AlkaliMetal::Lithium | AlkaliMetal::Sodium => AlkaliWaterVisualEvidence { flame: None },
     }
 }
 
@@ -877,9 +900,10 @@ fn halogen_displacement_source(displacing: Halogen, displaced: Halogen) -> Strin
     )
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TrustedRun {
     frames: SimulationFrames,
+    macroscopic: Option<MacroscopicReaction>,
 }
 
 impl TrustedRun {
@@ -887,6 +911,20 @@ impl TrustedRun {
     pub const fn frames(&self) -> &SimulationFrames {
         &self.frames
     }
+
+    /// Catalogue-resolved material phases for the generic presentation
+    /// compiler. `None` means the trusted catalogue predates those optional
+    /// records; it never means that a phase was guessed.
+    #[must_use]
+    pub const fn macroscopic(&self) -> Option<&MacroscopicReaction> {
+        self.macroscopic.as_ref()
+    }
+}
+
+#[derive(Debug)]
+struct ValidatedRequestArtifacts {
+    frames: SimulationFrames,
+    macroscopic: Option<MacroscopicReaction>,
 }
 
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
@@ -912,8 +950,11 @@ pub fn run(request: ReactionRequest) -> Result<TrustedRun, String> {
 }
 
 fn build_run(request: ReactionRequest) -> Result<TrustedRun, String> {
-    let frames = validate_request_source(request, &request.source())?;
-    Ok(TrustedRun { frames })
+    let validated = validate_request_source(request, &request.source())?;
+    Ok(TrustedRun {
+        frames: validated.frames,
+        macroscopic: validated.macroscopic,
+    })
 }
 
 /// Parses, expands, validates, and projects source against the exact host-pinned
@@ -921,7 +962,7 @@ fn build_run(request: ReactionRequest) -> Result<TrustedRun, String> {
 fn validate_request_source(
     request: ReactionRequest,
     source: &str,
-) -> Result<SimulationFrames, String> {
+) -> Result<ValidatedRequestArtifacts, String> {
     if source != request.source() {
         return Err(format!(
             "request/source identity mismatch for `{}`",
@@ -936,10 +977,65 @@ fn validate_request_source(
         request.evidence(),
     )
     .map_err(|error| error.to_string())?;
+    let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
     let current =
         CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
     let validated = validate_trusted(&expanded, catalogue).map_err(|error| error.to_string())?;
-    generate_frames(&validated, current).map_err(|error| error.to_string())
+    let frames = generate_frames(&validated, current).map_err(|error| error.to_string())?;
+    Ok(ValidatedRequestArtifacts {
+        frames,
+        macroscopic,
+    })
+}
+
+fn catalogue_macroscopic_reaction(
+    request: ReactionRequest,
+    expanded: &chem_kernel::ExpandedStructuralReaction,
+    catalogue: &TrustedCatalogue,
+) -> Option<MacroscopicReaction> {
+    let rule = &expanded.claim.rule.rule;
+    let resolve = |binding: &str,
+                   resolved: &chem_kernel::ResolvedStructureBinding,
+                   role: MacroscopicMaterialRole| {
+        let rule_role = expanded
+            .claim
+            .rule
+            .bindings
+            .values()
+            .find(|candidate| candidate.binding == binding)
+            .map(|candidate| (rule, candidate.role.as_str()));
+        catalogue
+            .macroscopic_material(&resolved.structure, rule_role)
+            .map(|record| MacroscopicMaterial {
+                binding: binding.to_owned(),
+                semantic_identity: resolved.name.clone(),
+                role,
+                phase: record.phase,
+                representation: resolved.representation,
+            })
+    };
+    let mut materials =
+        Vec::with_capacity(expanded.claim.reactants.len() + expanded.claim.products.len());
+    for (binding, material) in &expanded.claim.reactants {
+        materials.push(resolve(
+            binding,
+            material,
+            MacroscopicMaterialRole::Reactant,
+        )?);
+    }
+    for (binding, material) in &expanded.claim.products {
+        materials.push(resolve(
+            binding,
+            material,
+            MacroscopicMaterialRole::Product,
+        )?);
+    }
+    Some(MacroscopicReaction {
+        profile_id: format!("presentation.catalogue.{}", request.id()),
+        equation: request.equation(),
+        materials,
+        intensity: EffectIntensity::Moderate,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -1211,6 +1307,7 @@ pub fn presentation_profile(
         transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
         visible_from_ordinal: 0,
         observation: None,
+        colour_transition: None,
     };
     let contents = |id: &str, identity: &str, appearance| PresentationObject {
         id: id.to_owned(),
@@ -1221,6 +1318,7 @@ pub fn presentation_profile(
         transform: transform([0, -150, 0], [1_000, 850, 1_000]),
         visible_from_ordinal: 0,
         observation: None,
+        colour_transition: None,
     };
     let effect = |effect, trigger, start_ordinal, intensity| PresentationEffect {
         effect,
@@ -1229,29 +1327,55 @@ pub fn presentation_profile(
         start_ordinal,
         end_ordinal: last_ordinal,
     };
-    let camera = vec![
-        CameraCue {
-            behaviour: CameraBehaviour::WideEstablishingShot,
-            start_ordinal: 0,
-            end_ordinal: 1.min(last_ordinal),
-        },
-        CameraCue {
-            behaviour: CameraBehaviour::ReactionFocus,
-            start_ordinal: 1.min(last_ordinal),
-            end_ordinal: last_ordinal.saturating_sub(1),
-        },
-        CameraCue {
-            behaviour: CameraBehaviour::FinalHeroShot,
-            start_ordinal: last_ordinal,
-            end_ordinal: last_ordinal,
-        },
-    ];
+    // Kept as one full-range cue for presentation-plan compatibility. The 3D
+    // renderer uses a fixed orthographic angle and only derives framing from
+    // vessel scale; no cue changes its pose during playback.
+    let camera = vec![CameraCue {
+        behaviour: CameraBehaviour::WideEstablishingShot,
+        start_ordinal: 0,
+        end_ordinal: last_ordinal,
+    }];
 
     let (objects, effects) = match request.kind {
         ReactionKind::AlkaliWater { metal } => {
             let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
             let (disappears_ordinal, _) =
                 active_observation(frames, ObservationPredicate::Disappears)?;
+            let visual_evidence = alkali_water_visual_evidence(metal);
+            let mut effects = vec![
+                effect(
+                    EffectProfile::BubbleEmitter,
+                    ObservationPredicate::Evolves,
+                    gas_ordinal,
+                    EffectIntensity::Moderate,
+                ),
+                effect(
+                    EffectProfile::GasRelease,
+                    ObservationPredicate::Evolves,
+                    gas_ordinal,
+                    EffectIntensity::Moderate,
+                ),
+                effect(
+                    EffectProfile::SurfaceDisturbance,
+                    ObservationPredicate::Disappears,
+                    disappears_ordinal,
+                    EffectIntensity::Subtle,
+                ),
+                effect(
+                    EffectProfile::ObjectShrinkage,
+                    ObservationPredicate::Disappears,
+                    disappears_ordinal,
+                    EffectIntensity::Moderate,
+                ),
+            ];
+            if let Some((palette, intensity)) = visual_evidence.flame {
+                effects.push(effect(
+                    EffectProfile::FlameEmitter(palette),
+                    ObservationPredicate::Evolves,
+                    gas_ordinal,
+                    intensity,
+                ));
+            }
             (
                 vec![
                     vessel(AssetProfile::Beaker),
@@ -1265,6 +1389,7 @@ pub fn presentation_profile(
                         transform: transform([0, 610, 0], [650, 650, 650]),
                         visible_from_ordinal: 0,
                         observation: None,
+                        colour_transition: None,
                     },
                     PresentationObject {
                         id: "hydrogen".to_owned(),
@@ -1278,34 +1403,10 @@ pub fn presentation_profile(
                             predicate: ObservationPredicate::Evolves,
                             value: None,
                         }),
+                        colour_transition: None,
                     },
                 ],
-                vec![
-                    effect(
-                        EffectProfile::BubbleEmitter,
-                        ObservationPredicate::Evolves,
-                        gas_ordinal,
-                        EffectIntensity::Moderate,
-                    ),
-                    effect(
-                        EffectProfile::GasRelease,
-                        ObservationPredicate::Evolves,
-                        gas_ordinal,
-                        EffectIntensity::Moderate,
-                    ),
-                    effect(
-                        EffectProfile::SurfaceDisturbance,
-                        ObservationPredicate::Disappears,
-                        disappears_ordinal,
-                        EffectIntensity::Subtle,
-                    ),
-                    effect(
-                        EffectProfile::ObjectShrinkage,
-                        ObservationPredicate::Disappears,
-                        disappears_ordinal,
-                        EffectIntensity::Moderate,
-                    ),
-                ],
+                effects,
             )
         }
         ReactionKind::SilverHalidePrecipitation { halogen } => {
@@ -1314,12 +1415,8 @@ pub fn presentation_profile(
                 active_observation(frames, ObservationPredicate::Colour)?;
             let colour = colour
                 .ok_or_else(|| "trusted precipitate colour observation has no value".to_owned())?;
-            let appearance = match colour.as_str() {
-                "White" => AppearanceProfile::WhitePrecipitate,
-                "Cream" => AppearanceProfile::CreamPrecipitate,
-                "Yellow" => AppearanceProfile::YellowPrecipitate,
-                value => return Err(format!("unsupported trusted precipitate colour `{value}`")),
-            };
+            let target = visual_colour(&colour)
+                .ok_or_else(|| format!("unsupported trusted visual colour `{colour}`"))?;
             (
                 vec![
                     vessel(AssetProfile::TestTube),
@@ -1335,13 +1432,19 @@ pub fn presentation_profile(
                             "silver {} precipitate",
                             halogen.halide_name().to_lowercase()
                         ),
-                        appearance,
+                        appearance: AppearanceProfile::WhitePrecipitate,
                         role: SceneRole::Product,
                         transform: transform([0, -520, 0], [760, 360, 760]),
-                        visible_from_ordinal: colour_ordinal,
+                        visible_from_ordinal: forms_ordinal,
                         observation: Some(ObjectObservationBinding {
-                            predicate: ObservationPredicate::Colour,
-                            value: Some(colour),
+                            predicate: ObservationPredicate::Forms,
+                            value: None,
+                        }),
+                        colour_transition: Some(PresentationColourTransition {
+                            subject_binding: "silverHalide".to_owned(),
+                            value: colour,
+                            target,
+                            start_ordinal: colour_ordinal,
                         }),
                     },
                 ],
@@ -1358,20 +1461,44 @@ pub fn presentation_profile(
                         forms_ordinal,
                         EffectIntensity::Subtle,
                     ),
+                    effect(
+                        EffectProfile::ColourTransition,
+                        ObservationPredicate::Colour,
+                        colour_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
                 ],
             )
         }
-        ReactionKind::AcidBaseNeutralization { .. } => (
-            vec![
-                vessel(AssetProfile::Beaker),
-                contents(
-                    "neutralization-mixture",
-                    "aqueous acid and alkali hydroxide",
-                    AppearanceProfile::AqueousColourless,
-                ),
-            ],
-            Vec::new(),
-        ),
+        ReactionKind::AcidBaseNeutralization { .. } => {
+            let (disappears_ordinal, _) =
+                active_observation(frames, ObservationPredicate::Disappears)?;
+            let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
+            (
+                vec![
+                    vessel(AssetProfile::Beaker),
+                    contents(
+                        "neutralization-mixture",
+                        "aqueous acid and alkali hydroxide",
+                        AppearanceProfile::AqueousColourless,
+                    ),
+                ],
+                vec![
+                    effect(
+                        EffectProfile::LiquidMixing,
+                        ObservationPredicate::Disappears,
+                        disappears_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::SurfaceDisturbance,
+                        ObservationPredicate::Forms,
+                        forms_ordinal,
+                        EffectIntensity::Subtle,
+                    ),
+                ],
+            )
+        }
         ReactionKind::AcidBicarbonateGasEvolution { .. }
         | ReactionKind::AcidCarbonateGasEvolution { .. } => {
             let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
@@ -1397,6 +1524,7 @@ pub fn presentation_profile(
                             predicate: ObservationPredicate::Evolves,
                             value: None,
                         }),
+                        colour_transition: None,
                     },
                 ],
                 vec![
@@ -1446,6 +1574,7 @@ pub fn presentation_profile(
                         transform: transform([-300, 250, 0], [650, 650, 650]),
                         visible_from_ordinal: 0,
                         observation: None,
+                        colour_transition: None,
                     },
                     PresentationObject {
                         id: "co-reactant".to_owned(),
@@ -1456,6 +1585,7 @@ pub fn presentation_profile(
                         transform: transform([300, 250, 0], [650, 650, 650]),
                         visible_from_ordinal: 0,
                         observation: None,
+                        colour_transition: None,
                     },
                     PresentationObject {
                         id: "product".to_owned(),
@@ -1476,6 +1606,7 @@ pub fn presentation_profile(
                             predicate: ObservationPredicate::Forms,
                             value: None,
                         }),
+                        colour_transition: None,
                     },
                 ],
                 Vec::new(),
@@ -1492,6 +1623,20 @@ pub fn presentation_profile(
         equation: request.equation(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     })
+}
+
+/// Selects the generic catalogue-driven compiler when every material phase is
+/// reviewed, otherwise retaining the existing reviewed profile for backwards
+/// compatibility with catalogues that predate macroscopic material records.
+pub fn presentation_profile_with_catalogue(
+    request: ReactionRequest,
+    frames: &SimulationFrames,
+    macroscopic: Option<&MacroscopicReaction>,
+) -> Result<PresentationProfile, String> {
+    if let Some(reaction) = macroscopic {
+        return compile_phase_driven_profile(frames, reaction).map_err(|error| error.to_string());
+    }
+    presentation_profile(request, frames)
 }
 
 fn active_observation(
@@ -1521,6 +1666,7 @@ fn active_observation(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chem_domain::{Phase, RepresentationKind};
 
     fn participant_atoms(participant: DraftParticipant) -> Vec<u8> {
         match participant {
@@ -1558,6 +1704,181 @@ mod tests {
                     .collect()
             }
         }
+    }
+
+    fn material(
+        binding: &str,
+        role: MacroscopicMaterialRole,
+        phase: Phase,
+        representation: RepresentationKind,
+    ) -> MacroscopicMaterial {
+        MacroscopicMaterial {
+            binding: binding.to_owned(),
+            semantic_identity: binding.to_owned(),
+            role,
+            phase,
+            representation,
+        }
+    }
+
+    fn future_profile(
+        request: ReactionRequest,
+        materials: Vec<MacroscopicMaterial>,
+    ) -> PresentationProfile {
+        let run = run(request).expect("future profile fixture validates");
+        let profile = compile_phase_driven_profile(
+            run.frames(),
+            &MacroscopicReaction {
+                profile_id: "presentation.catalogue.future-fixture".to_owned(),
+                equation: request.equation(),
+                materials,
+                intensity: EffectIntensity::Moderate,
+            },
+        )
+        .expect("catalogue phases compile");
+        chem_presentation::compile_real_world_plan(run.frames(), &profile)
+            .expect("generic profile remains observation-gated");
+        profile
+    }
+
+    #[test]
+    fn future_solid_plus_gas_to_gas_uses_cloud_without_liquid_bubbles() {
+        let request = ReactionRequest::from_id("oxygen-carbon-oxygen")
+            .expect("carbon oxygen experience exists");
+        let profile = future_profile(
+            request,
+            vec![
+                material(
+                    "subject",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Solid,
+                    RepresentationKind::Molecular,
+                ),
+                material(
+                    "oxygen",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Gas,
+                    RepresentationKind::Molecular,
+                ),
+                material(
+                    "oxide",
+                    MacroscopicMaterialRole::Product,
+                    Phase::Gas,
+                    RepresentationKind::Molecular,
+                ),
+            ],
+        );
+
+        assert!(profile.objects.iter().any(|object| {
+            object.id == "oxide"
+                && object.asset == AssetProfile::GasCloud
+                && object.role == SceneRole::Product
+        }));
+        assert!(
+            profile
+                .effects
+                .iter()
+                .any(|effect| effect.effect == EffectProfile::GasRelease)
+        );
+        assert!(
+            profile
+                .effects
+                .iter()
+                .all(|effect| effect.effect != EffectProfile::BubbleEmitter)
+        );
+    }
+
+    #[test]
+    fn future_gas_plus_gas_to_liquid_forms_a_liquid_without_precipitate() {
+        let request = ReactionRequest::from_id("oxygen-hydrogen-oxygen")
+            .expect("hydrogen oxygen experience exists");
+        let profile = future_profile(
+            request,
+            vec![
+                material(
+                    "subject",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Gas,
+                    RepresentationKind::Molecular,
+                ),
+                material(
+                    "oxygen",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Gas,
+                    RepresentationKind::Molecular,
+                ),
+                material(
+                    "oxide",
+                    MacroscopicMaterialRole::Product,
+                    Phase::Liquid,
+                    RepresentationKind::Molecular,
+                ),
+            ],
+        );
+
+        assert!(
+            profile.objects.iter().any(|object| {
+                object.id == "oxide" && object.asset == AssetProfile::LiquidVolume
+            })
+        );
+        assert!(
+            profile
+                .effects
+                .iter()
+                .any(|effect| effect.effect == EffectProfile::LiquidMixing)
+        );
+        assert!(profile.effects.iter().all(|effect| !matches!(
+            effect.effect,
+            EffectProfile::PrecipitateFormation | EffectProfile::BubbleEmitter
+        )));
+    }
+
+    #[test]
+    fn future_aqueous_product_solid_uses_generic_precipitation_physics() {
+        let request = ReactionRequest::silver_halide_precipitation(Halogen::Bromine);
+        let profile = future_profile(
+            request,
+            vec![
+                material(
+                    "silverNitrate",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Aqueous,
+                    RepresentationKind::Ionic,
+                ),
+                material(
+                    "sodiumHalide",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Aqueous,
+                    RepresentationKind::Ionic,
+                ),
+                material(
+                    "silverHalide",
+                    MacroscopicMaterialRole::Product,
+                    Phase::Solid,
+                    RepresentationKind::Ionic,
+                ),
+                material(
+                    "sodiumNitrate",
+                    MacroscopicMaterialRole::Product,
+                    Phase::Aqueous,
+                    RepresentationKind::Ionic,
+                ),
+            ],
+        );
+
+        assert!(profile.objects.iter().any(|object| {
+            object.id == "silverHalide" && object.asset == AssetProfile::PrecipitateCloud
+        }));
+        assert!(profile.effects.iter().any(|effect| {
+            effect.effect == EffectProfile::PrecipitateFormation
+                && effect.trigger == ObservationPredicate::Forms
+        }));
+        assert!(
+            profile
+                .effects
+                .iter()
+                .all(|effect| effect.effect != EffectProfile::GasRelease)
+        );
     }
 
     #[test]
@@ -1752,10 +2073,18 @@ mod tests {
         let mut profile_ids = std::collections::BTreeSet::new();
         for request in requests() {
             let run = run(request).expect("supported request validates");
-            let profile = presentation_profile(request, run.frames())
-                .expect("trusted observations select a presentation profile");
+            let profile =
+                presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+                    .expect("trusted observations select a presentation profile");
             assert!(profile_ids.insert(profile.id.clone()));
             assert_eq!(profile.equation, request.equation());
+            assert_eq!(profile.camera.len(), 1);
+            assert_eq!(profile.camera[0].start_ordinal, 0);
+            assert_eq!(
+                profile.camera[0].end_ordinal,
+                u16::try_from(run.frames().frames().len().saturating_sub(1))
+                    .expect("frame count fits presentation ordinal")
+            );
             assert!(
                 profile
                     .objects
@@ -1836,9 +2165,9 @@ mod tests {
     #[test]
     fn precipitation_profiles_preserve_each_validated_precipitate_colour() {
         for (halogen, expected) in [
-            (Halogen::Chlorine, AppearanceProfile::WhitePrecipitate),
-            (Halogen::Bromine, AppearanceProfile::CreamPrecipitate),
-            (Halogen::Iodine, AppearanceProfile::YellowPrecipitate),
+            (Halogen::Chlorine, "White"),
+            (Halogen::Bromine, "Cream"),
+            (Halogen::Iodine, "Yellow"),
         ] {
             let request = ReactionRequest::silver_halide_precipitation(halogen);
             let run = run(request).expect("precipitation request validates");
@@ -1849,16 +2178,68 @@ mod tests {
                 .iter()
                 .find(|object| object.role == SceneRole::Product)
                 .expect("precipitate product is presented");
-            let binding = product
+            let formation = product
                 .observation
                 .as_ref()
+                .expect("precipitate is bound to its formation observation");
+            let transition = product
+                .colour_transition
+                .as_ref()
                 .expect("precipitate is bound to its colour observation");
-            let (ordinal, value) = active_observation(run.frames(), ObservationPredicate::Colour)
-                .expect("trusted colour observation activates");
-            assert_eq!(product.appearance, expected);
-            assert_eq!(product.visible_from_ordinal, ordinal);
-            assert_eq!(binding.value, value);
+            let (forms_ordinal, _) = active_observation(run.frames(), ObservationPredicate::Forms)
+                .expect("trusted formation observation activates");
+            let (colour_ordinal, value) =
+                active_observation(run.frames(), ObservationPredicate::Colour)
+                    .expect("trusted colour observation activates");
+            assert_eq!(product.appearance, AppearanceProfile::WhitePrecipitate);
+            assert_eq!(product.visible_from_ordinal, forms_ordinal);
+            assert_eq!(formation.predicate, ObservationPredicate::Forms);
+            assert_eq!(transition.start_ordinal, colour_ordinal);
+            assert_eq!(transition.value, expected);
+            assert_eq!(
+                transition.target,
+                visual_colour(expected).expect("colour resolves")
+            );
+            assert_eq!(value.as_deref(), Some(expected));
         }
+    }
+
+    #[test]
+    fn reviewed_alkali_water_metadata_distinguishes_ignition_from_flame_test_colour() {
+        for metal in [AlkaliMetal::Lithium, AlkaliMetal::Sodium] {
+            let request = ReactionRequest::alkali_water(metal);
+            let run = run(request).expect("alkali-water request validates");
+            let profile =
+                presentation_profile(request, run.frames()).expect("alkali-water profile compiles");
+            assert!(
+                !profile
+                    .effects
+                    .iter()
+                    .any(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_))),
+                "fizzing without reviewed ignition metadata must not invent a flame"
+            );
+        }
+
+        let request = ReactionRequest::alkali_water(AlkaliMetal::Potassium);
+        let run = run(request).expect("potassium-water request validates");
+        let profile =
+            presentation_profile(request, run.frames()).expect("potassium-water profile compiles");
+        let flame = profile
+            .effects
+            .iter()
+            .find(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_)))
+            .expect("reviewed potassium-water metadata authorizes ignition");
+        assert_eq!(
+            flame.effect,
+            EffectProfile::FlameEmitter(FlamePalette::Lilac)
+        );
+        assert_eq!(flame.intensity, EffectIntensity::Strong);
+        assert_eq!(flame.trigger, ObservationPredicate::Evolves);
+        let (gas_ordinal, _) = active_observation(run.frames(), ObservationPredicate::Evolves)
+            .expect("trusted gas observation activates");
+        assert_eq!(flame.start_ordinal, gas_ordinal);
+        chem_presentation::compile_real_world_plan(run.frames(), &profile)
+            .expect("flame remains gated by a trusted observation");
     }
 
     #[test]
@@ -1872,6 +2253,37 @@ mod tests {
             Err(chem_presentation::PlanError::UnsupportedEffectTrigger)
         );
 
+        let mut incompatible_effect =
+            presentation_profile(ReactionRequest::DEFAULT, alkali.frames())
+                .expect("alkali profile compiles");
+        let gas = incompatible_effect
+            .effects
+            .iter_mut()
+            .find(|effect| effect.effect == EffectProfile::GasRelease)
+            .expect("gas release exists");
+        gas.trigger = ObservationPredicate::Disappears;
+        assert_eq!(
+            chem_presentation::compile_real_world_plan(alkali.frames(), &incompatible_effect),
+            Err(chem_presentation::PlanError::IncompatibleEffectObservation)
+        );
+
+        let mut incompatible_object =
+            presentation_profile(ReactionRequest::DEFAULT, alkali.frames())
+                .expect("alkali profile compiles");
+        incompatible_object
+            .objects
+            .iter_mut()
+            .find(|object| object.asset == AssetProfile::GasCloud)
+            .expect("gas product exists")
+            .observation
+            .as_mut()
+            .expect("gas product is observation bound")
+            .predicate = ObservationPredicate::Forms;
+        assert_eq!(
+            chem_presentation::compile_real_world_plan(alkali.frames(), &incompatible_object),
+            Err(chem_presentation::PlanError::UnsupportedObjectObservation)
+        );
+
         let request = ReactionRequest::silver_halide_precipitation(Halogen::Bromine);
         let precipitation = run(request).expect("precipitation request validates");
         let mut mismatched = presentation_profile(request, precipitation.frames())
@@ -1882,28 +2294,30 @@ mod tests {
             .find(|object| object.role == SceneRole::Product)
             .expect("precipitate product exists");
         product
-            .observation
+            .colour_transition
             .as_mut()
-            .expect("product has an observation binding")
-            .value = Some("Magenta".to_owned());
+            .expect("product has a colour binding")
+            .value = "Magenta".to_owned();
         assert_eq!(
             chem_presentation::compile_real_world_plan(precipitation.frames(), &mismatched),
-            Err(chem_presentation::PlanError::UnsupportedObjectObservation)
+            Err(chem_presentation::PlanError::InvalidVisualColour)
         );
 
-        let product = mismatched
+        let mut premature_colour = presentation_profile(request, precipitation.frames())
+            .expect("precipitation profile compiles");
+        let product = premature_colour
             .objects
             .iter_mut()
             .find(|object| object.role == SceneRole::Product)
             .expect("precipitate product exists");
         product
-            .observation
+            .colour_transition
             .as_mut()
-            .expect("product has an observation binding")
-            .value = None;
+            .expect("product has a colour binding")
+            .start_ordinal = 0;
         assert_eq!(
-            chem_presentation::compile_real_world_plan(precipitation.frames(), &mismatched),
-            Err(chem_presentation::PlanError::UnsupportedObjectObservation)
+            chem_presentation::compile_real_world_plan(precipitation.frames(), &premature_colour),
+            Err(chem_presentation::PlanError::UnsupportedColourObservation)
         );
 
         let mut premature = presentation_profile(request, precipitation.frames())

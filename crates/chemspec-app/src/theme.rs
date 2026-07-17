@@ -381,6 +381,76 @@ pub fn media_bar(_: &Theme) -> container::Style {
         })
 }
 
+pub fn summary_visual_panel(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(chemistry_color::STRUCTURAL_CANVAS)
+        .border(border_style(color::LINE_STRONG, 1.0, radius::PANEL))
+        .shadow(Shadow {
+            color: color::SHADOW.scale_alpha(0.28),
+            offset: Vector::new(0.0, 8.0),
+            blur_radius: 24.0,
+        })
+}
+
+pub fn summary_properties_panel(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::CANVAS_RAISED)
+        .border(border_style(color::LINE_STRONG, 1.0, radius::PANEL))
+        .shadow(Shadow {
+            color: color::SHADOW.scale_alpha(0.30),
+            offset: Vector::new(0.0, 10.0),
+            blur_radius: 28.0,
+        })
+}
+
+pub fn summary_product_heading(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::ACCENT_FAINT.scale_alpha(0.72))
+        .border(border_style(
+            color::ACCENT.scale_alpha(0.36),
+            1.0,
+            radius::CONTROL,
+        ))
+}
+
+pub fn summary_property_row(started: bool, active: bool) -> container::Style {
+    let background = if active {
+        color::ACCENT_FAINT.scale_alpha(0.74)
+    } else if started {
+        color::SURFACE.scale_alpha(0.66)
+    } else {
+        color::CANVAS.scale_alpha(0.44)
+    };
+    let border = if active {
+        color::ACCENT.scale_alpha(0.62)
+    } else {
+        color::LINE.scale_alpha(0.82)
+    };
+    container::Style::default()
+        .background(background)
+        .border(border_style(border, 1.0, radius::CONTROL))
+}
+
+pub fn summary_trust_strip(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::SUCCESS.scale_alpha(0.07))
+        .border(border_style(
+            color::SUCCESS.scale_alpha(0.32),
+            1.0,
+            radius::CONTROL,
+        ))
+}
+
+pub fn summary_badge(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::SUCCESS.scale_alpha(0.10))
+        .border(border_style(
+            color::SUCCESS.scale_alpha(0.42),
+            1.0,
+            radius::PILL,
+        ))
+}
+
 pub fn timeline_slider(_: &Theme, status: slider::Status) -> slider::Style {
     let (radius, handle, border_color, rail) = match status {
         slider::Status::Active => (7.0, color::TEXT, color::CANVAS, color::ACCENT),
@@ -511,6 +581,15 @@ pub fn danger_divider(_: &Theme) -> rule::Style {
     rule::Style {
         color: color::DANGER,
         radius: border::Radius::default(),
+        fill_mode: rule::FillMode::Full,
+        snap: true,
+    }
+}
+
+pub fn soft_rule(_: &Theme) -> rule::Style {
+    rule::Style {
+        color: color::LINE,
+        radius: border::Radius::new(radius::PILL),
         fill_mode: rule::FillMode::Full,
         snap: true,
     }

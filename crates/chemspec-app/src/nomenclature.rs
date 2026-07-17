@@ -76,7 +76,10 @@ pub fn product_names(frames: &SimulationFrames) -> String {
 /// One product's display name, delegated to the shared naming module so
 /// animations, previews, and solver claims never disagree. Falls back to a
 /// plain formula when the compound is outside the nomenclature rules.
-fn product_name(frame: &SimulationFrame, product_atoms: &BTreeSet<chem_domain::AtomId>) -> String {
+pub(crate) fn product_name(
+    frame: &SimulationFrame,
+    product_atoms: &BTreeSet<chem_domain::AtomId>,
+) -> String {
     let mut counts = BTreeMap::<String, u64>::new();
     for atom in product_atoms {
         if let Some(atom) = frame.atoms().get(atom) {

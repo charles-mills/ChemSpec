@@ -40,7 +40,25 @@
         "structure_templates": {"type": "array", "items": {"$ref": "#/$defs/structureTemplate"}},
         "structure_applications": {"type": "array", "items": {"$ref": "#/$defs/structureApplication"}},
         "graph_patterns": {"type": "array", "items": {"$ref": "#/$defs/graphPattern"}},
-        "generalized_rules": {"type": "array", "items": {"$ref": "#/$defs/generalizedRule"}}
+        "generalized_rules": {"type": "array", "items": {"$ref": "#/$defs/generalizedRule"}},
+        "macroscopic_materials": {"type": "array", "items": {"$ref": "#/$defs/macroscopicMaterial"}}
+      }
+    },
+    "macroscopicMaterialContext": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "standard"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "rule", "role"], "properties": {"kind": {"const": "reaction_role"}, "rule": {"$ref": "#/$defs/id"}, "role": {"$ref": "#/$defs/id"}}}
+      ]
+    },
+    "macroscopicMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["structure", "context", "phase", "premise_ids"],
+      "properties": {
+        "structure": {"$ref": "#/$defs/id"},
+        "context": {"$ref": "#/$defs/macroscopicMaterialContext"},
+        "phase": {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"enum": ["aqueous", "solid", "liquid", "gas"]}}},
+        "premise_ids": {"$ref": "#/$defs/premiseIds"}
       }
     },
     "created": {

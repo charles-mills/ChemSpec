@@ -100,6 +100,7 @@ full; `by apply` cannot select or omit checks.
 - [Catalogue candidate and Luna handoff](docs/luna-catalogue-handoff.md)
 - [Chemistry engine](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
+- [Macroscopic 3D visual system](docs/macroscopic-visual-system.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
 - [Dynamic reaction outcome rebuild plan](docs/dynamic-reaction-rebuild-plan.md)
 - [Verification strategy](docs/verification.md)

@@ -13,6 +13,7 @@ mod icons;
 mod nomenclature;
 mod particle_visualization;
 mod periodic_table;
+mod product_summary;
 mod reactant_composer;
 mod scene_registry;
 mod structural_2d;
@@ -49,7 +50,7 @@ use iced::widget::{
     button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
     text, text_input, tooltip,
 };
-use iced::{Center, Element, Fill, Length, Size, Subscription, Task, Theme};
+use iced::{Center, Element, Fill, FillPortion, Length, Size, Subscription, Task, Theme};
 
 use theme::{breakpoint, color, space as spacing, type_scale};
 
@@ -201,6 +202,224 @@ fn format_media_time(milliseconds: u64) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
 }
 
+fn typewriter_value(value: &str, line: usize, elapsed_ms: u64) -> (String, bool, bool) {
+    const INTRO_DELAY_MS: u64 = 520;
+    const LINE_STAGGER_MS: u64 = 330;
+    const CHARACTER_MS: u64 = 24;
+    let start = INTRO_DELAY_MS.saturating_add(
+        u64::try_from(line)
+            .unwrap_or(u64::MAX)
+            .saturating_mul(LINE_STAGGER_MS),
+    );
+    if elapsed_ms < start {
+        return (String::new(), false, false);
+    }
+    let visible =
+        usize::try_from(elapsed_ms.saturating_sub(start) / CHARACTER_MS).unwrap_or(usize::MAX);
+    let total = value.chars().count();
+    let complete = visible >= total;
+    let mut rendered = value.chars().take(visible).collect::<String>();
+    if !complete && (elapsed_ms / 260).is_multiple_of(2) {
+        rendered.push('▌');
+    }
+    (rendered, true, complete)
+}
+
+#[allow(clippy::too_many_lines)]
+fn product_properties_view(
+    summary: &product_summary::SummaryData,
+    elapsed_ms: u64,
+    compact: bool,
+    dense: bool,
+) -> Element<'static, Message> {
+    let pulse = (elapsed_ms / 420).is_multiple_of(2);
+    let panel_spacing = if dense { spacing::XS } else { spacing::SM };
+    let row_padding = if dense {
+        [spacing::XXS, spacing::XS]
+    } else {
+        [spacing::XS, spacing::SM]
+    };
+    let mut content = column![
+        row![
+            column![
+                text("MOLECULAR PROPERTIES")
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT),
+                text("Validated product record")
+                    .size(if dense {
+                        type_scale::BODY_LARGE
+                    } else {
+                        type_scale::TITLE
+                    })
+                    .font(fonts::SEMIBOLD)
+                    .color(color::TEXT),
+            ]
+            .spacing(spacing::XXS),
+            space().width(Fill),
+            row![
+                text(if pulse { "●" } else { "○" })
+                    .size(type_scale::CAPTION)
+                    .color(color::ACCENT),
+                text("READING")
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+            ]
+            .spacing(spacing::XXS)
+            .align_y(Center),
+        ]
+        .align_y(Center),
+        rule::horizontal(1).style(theme::soft_rule),
+        text("Properties are compiled locally from the trusted final frame and bundled element metadata.")
+            .size(type_scale::CAPTION)
+            .color(color::TEXT_SOFT),
+    ]
+    .spacing(panel_spacing);
+    let mut line = 0_usize;
+    for product in &summary.products {
+        let product_start =
+            260_u64.saturating_add(u64::try_from(line).unwrap_or(u64::MAX).saturating_mul(330));
+        let product_visible = elapsed_ms >= product_start;
+        let heading = container(
+            row![
+                column![
+                    text(product.display_name())
+                        .size(type_scale::BODY_LARGE)
+                        .font(fonts::SEMIBOLD)
+                        .color(if product_visible {
+                            color::TEXT
+                        } else {
+                            color::FAINT
+                        }),
+                    text(if product_visible {
+                        product.classification
+                    } else {
+                        "Awaiting validated structure…"
+                    })
+                    .size(type_scale::MICRO)
+                    .color(if product_visible {
+                        color::ACCENT
+                    } else {
+                        color::MUTED
+                    }),
+                ]
+                .spacing(spacing::XXS)
+                .width(FillPortion(3)),
+                text(if product_visible {
+                    product.formula.clone()
+                } else {
+                    "···".to_owned()
+                })
+                .size(type_scale::TITLE)
+                .font(fonts::SEMIBOLD)
+                .color(if product_visible {
+                    color::TEXT
+                } else {
+                    color::FAINT
+                })
+                .width(FillPortion(2))
+                .align_x(iced::Right),
+            ]
+            .spacing(panel_spacing)
+            .align_y(Center),
+        )
+        .style(theme::summary_product_heading)
+        .padding(row_padding);
+        content = content.push(heading);
+        for (label, value) in product.property_rows() {
+            let (typed, started, complete) = typewriter_value(&value, line, elapsed_ms);
+            let active = started && !complete;
+            let label = text(label)
+                .size(if dense {
+                    type_scale::MICRO
+                } else {
+                    type_scale::CAPTION
+                })
+                .color(if started {
+                    color::TEXT_SOFT
+                } else {
+                    color::MUTED
+                });
+            let value = text(if started { typed } else { "—".to_owned() })
+                .size(if dense {
+                    type_scale::CAPTION
+                } else {
+                    type_scale::BODY
+                })
+                .font(if active {
+                    fonts::MEDIUM
+                } else {
+                    fonts::REGULAR
+                })
+                .color(if active {
+                    color::ACCENT_HOVER
+                } else if complete {
+                    color::TEXT
+                } else {
+                    color::FAINT
+                });
+            let row_content: Element<'static, Message> = if compact {
+                column![label, value]
+                    .spacing(spacing::XXS)
+                    .width(Fill)
+                    .into()
+            } else {
+                row![
+                    label.width(FillPortion(2)),
+                    value.width(FillPortion(3)).align_x(iced::Right),
+                ]
+                .spacing(panel_spacing)
+                .align_y(Center)
+                .width(Fill)
+                .into()
+            };
+            let row = container(row_content)
+                .style(move |_| theme::summary_property_row(started, active))
+                .padding(row_padding);
+            content = content.push(row);
+            line += 1;
+        }
+    }
+    content = content.push(
+        container(
+            row![
+                text("TRUST BOUNDARY")
+                    .size(type_scale::MICRO)
+                    .color(color::SUCCESS),
+                space().width(Fill),
+                text("DETERMINISTIC · OFFLINE")
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+            ]
+            .align_y(Center),
+        )
+        .style(theme::summary_trust_strip)
+        .padding(row_padding),
+    );
+    let content: Element<'static, Message> = if compact {
+        content.into()
+    } else {
+        let scroll_content = container(content)
+            .padding(iced::Padding {
+                right: spacing::MD,
+                ..iced::Padding::ZERO
+            })
+            .width(Fill);
+        scrollable(scroll_content).height(Fill).into()
+    };
+    container(content)
+        .style(theme::summary_properties_panel)
+        .padding(if dense {
+            spacing::XS
+        } else if compact {
+            spacing::SM
+        } else {
+            spacing::MD
+        })
+        .width(Fill)
+        .height(if compact { Length::Shrink } else { Fill })
+        .into()
+}
+
 fn sync_educational_frame(animation: &mut StructuralAnimation) {
     let Some(position) = animation
         .educational_plan
@@ -226,12 +445,14 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
         EffectProfile::BubbleEmitter => "Interface bubbles",
         EffectProfile::GasRelease => "Gas release",
         EffectProfile::SurfaceDisturbance => "Surface motion",
+        EffectProfile::LiquidMixing => "Liquid mixing",
         EffectProfile::ObjectShrinkage => "Reactant consumption",
         EffectProfile::PrecipitateFormation => "Precipitate formation",
         EffectProfile::Clouding => "Solution clouding",
         EffectProfile::ColourTransition => "Colour transition",
         EffectProfile::SplashEmitter => "Fine droplets",
         EffectProfile::HeatDistortion => "Heat distortion",
+        EffectProfile::FlameEmitter(_) => "Flame plume",
     }
 }
 
@@ -324,6 +545,7 @@ fn dynamic_presentation_profile(
                 transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
                 visible_from_ordinal: 0,
                 observation: None,
+                colour_transition: None,
             },
             PresentationObject {
                 id: "contents".to_owned(),
@@ -334,6 +556,7 @@ fn dynamic_presentation_profile(
                 transform: transform([0, -150, 0], [1_000, 850, 1_000]),
                 visible_from_ordinal: 0,
                 observation: None,
+                colour_transition: None,
             },
         ],
         effects: Vec::new(),
@@ -346,6 +569,7 @@ fn dynamic_presentation_profile(
 fn launch_state() -> App {
     let mut app = App::default();
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
+    let smoke_from_start = std::env::args().any(|argument| argument == "--smoke-from-start");
     let smoke_request =
         std::env::args().find_map(|argument| smoke_request_from_argument(&argument));
     if let Some(smoke_mode) = smoke_mode {
@@ -368,7 +592,7 @@ fn launch_state() -> App {
         if let Some(animation) = &mut app.structural_animation {
             let three_dimensional = smoke_mode == SmokeMode::Structural3d;
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
-            if three_dimensional {
+            if three_dimensional && !smoke_from_start {
                 let plan = &animation.real_world_plan;
                 animation.real_world_playhead_ms =
                     plan.timeline.duration_ms().saturating_mul(2) / 3;
@@ -398,7 +622,7 @@ fn launch_state() -> App {
                         .unwrap_or(0);
                 }
             }
-            animation.playing = false;
+            animation.playing = smoke_from_start;
             app.screen = if three_dimensional {
                 Screen::Structural3d
             } else {
@@ -457,6 +681,7 @@ enum Screen {
     OutcomeChoice,
     Structural2d,
     Structural3d,
+    ProductSummary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -572,7 +797,9 @@ enum Message {
     StructuralTick,
     StructuralDrag(structural_2d::DragEvent),
     ContinueTo3d,
+    ContinueToSummary,
     ReturnTo2d,
+    ReturnTo3d,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -730,6 +957,7 @@ struct StructuralAnimation {
     educational_playhead_ms: u64,
     frame_index: usize,
     real_world_playhead_ms: u64,
+    summary_elapsed_ms: u64,
     playing: bool,
     playback_speed: PlaybackSpeed,
     physics: structural_physics::Simulation,
@@ -754,6 +982,7 @@ struct App {
     oxygen_assessment: Option<chemistry::OxygenAssessment>,
     active_request: chemistry::ReactionRequest,
     validated_frames: Option<RenderableFrames>,
+    validated_macroscopic: Option<chem_presentation::MacroscopicReaction>,
     dynamic_claim: Option<ReactionClaim>,
     dynamic_static: Option<ValidatedStaticOutcome>,
     dynamic_presentation: Option<DynamicPresentationOutcome>,
@@ -780,6 +1009,7 @@ impl Default for App {
     fn default() -> Self {
         let codex_available = codex_available();
         let active_request = chemistry::ReactionRequest::DEFAULT;
+        let trusted_run = chemistry::run(active_request).ok();
         Self {
             screen: Screen::ProviderSetup,
             smoke_mode: None,
@@ -791,9 +1021,12 @@ impl Default for App {
             pending_requests: Vec::new(),
             oxygen_assessment: None,
             active_request,
-            validated_frames: chemistry::run(active_request)
-                .ok()
+            validated_frames: trusted_run
+                .as_ref()
                 .map(|run| RenderableFrames::Catalogue(run.frames().clone())),
+            validated_macroscopic: trusted_run
+                .as_ref()
+                .and_then(|run| run.macroscopic().cloned()),
             dynamic_claim: None,
             dynamic_static: None,
             dynamic_presentation: None,
@@ -1204,7 +1437,12 @@ impl App {
                     .map_or((33, false), |animation| {
                         (animation.playback_speed.scale_millis(33), animation.playing)
                     });
-                if self.screen == Screen::Structural3d {
+                if self.screen == Screen::ProductSummary {
+                    if let Some(animation) = &mut self.structural_animation {
+                        animation.summary_elapsed_ms =
+                            animation.summary_elapsed_ms.saturating_add(33);
+                    }
+                } else if self.screen == Screen::Structural3d {
                     self.advance_real_world_playback(elapsed);
                 } else {
                     if playing {
@@ -1255,7 +1493,20 @@ impl App {
                     self.screen = Screen::Structural3d;
                 }
             }
+            Message::ContinueToSummary => {
+                if self.structural_animation.as_ref().is_some_and(|animation| {
+                    animation.real_world_playhead_ms
+                        == animation.real_world_plan.timeline.duration_ms()
+                }) {
+                    if let Some(animation) = &mut self.structural_animation {
+                        animation.summary_elapsed_ms = 0;
+                        animation.playing = false;
+                    }
+                    self.screen = Screen::ProductSummary;
+                }
+            }
             Message::ReturnTo2d => self.screen = Screen::Structural2d,
+            Message::ReturnTo3d => self.screen = Screen::Structural3d,
         }
         Task::none()
     }
@@ -1708,9 +1959,13 @@ impl App {
     // that live provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
         self.active_request = request;
-        self.validated_frames = chemistry::run(request)
-            .ok()
+        let trusted_run = chemistry::run(request).ok();
+        self.validated_frames = trusted_run
+            .as_ref()
             .map(|run| RenderableFrames::Catalogue(run.frames().clone()));
+        self.validated_macroscopic = trusted_run
+            .as_ref()
+            .and_then(|run| run.macroscopic().cloned());
         self.dynamic_claim = None;
         self.dynamic_static = None;
         self.dynamic_presentation = None;
@@ -1791,6 +2046,8 @@ impl App {
                     .is_some_and(|animation| animation.playing))
         {
             iced::time::every(std::time::Duration::from_millis(33)).map(|_| Message::StructuralTick)
+        } else if self.screen == Screen::ProductSummary {
+            iced::time::every(theme::motion::TICK).map(|_| Message::StructuralTick)
         } else {
             Subscription::none()
         };
@@ -1845,6 +2102,7 @@ impl App {
             Screen::OutcomeChoice => responsive(|size| self.outcome_choice_view(size)).into(),
             Screen::Structural2d => responsive(|size| self.structural_2d_view(size)).into(),
             Screen::Structural3d => responsive(|size| self.structural_3d_view(size)).into(),
+            Screen::ProductSummary => responsive(|size| self.product_summary_view(size)).into(),
         }
     }
 
@@ -2129,7 +2387,11 @@ impl App {
                     )
                 } else {
                     (
-                        chemistry::presentation_profile(self.active_request, &frames)?,
+                        chemistry::presentation_profile_with_catalogue(
+                            self.active_request,
+                            &frames,
+                            self.validated_macroscopic.as_ref(),
+                        )?,
                         self.active_request.reactant_previews(),
                         self.active_request.product_preview(),
                         self.active_request.equation(),
@@ -2148,6 +2410,7 @@ impl App {
                 educational_playhead_ms: 0,
                 frame_index: 0,
                 real_world_playhead_ms: 0,
+                summary_elapsed_ms: 0,
                 playing: true,
                 playback_speed: PlaybackSpeed::Normal,
                 physics: structural_physics::Simulation::default(),
@@ -2644,6 +2907,15 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
+        let at_end = animation.real_world_playhead_ms == real_world_plan.timeline.duration_ms();
+        let review_products = button(text(if at_end {
+            "Review products  →"
+        } else {
+            "Complete simulation to review"
+        }))
+        .on_press_maybe(at_end.then_some(Message::ContinueToSummary))
+        .padding([spacing::XS, spacing::SM])
+        .style(theme::primary_button);
         let active_annotation = real_world_plan.annotations.iter().rfind(|annotation| {
             annotation.start_ordinal <= moment.ordinal && moment.ordinal <= annotation.end_ordinal
         });
@@ -2706,8 +2978,24 @@ impl App {
         ))
         .width(Fill)
         .height(Fill);
+        let model_disclosure = if compact {
+            "VIRTUAL MODEL · NOT A LAB PROCEDURE"
+        } else {
+            "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
+        };
         let annotation_layer = container(
             column![
+                row![
+                    space().width(Fill),
+                    container(
+                        text(model_disclosure)
+                            .size(type_scale::MICRO)
+                            .color(color::TEXT_SOFT),
+                    )
+                    .style(theme::media_bar)
+                    .padding([spacing::XXS, spacing::XS]),
+                ]
+                .width(Fill),
                 space().height(Fill),
                 container(annotation)
                     .style(theme::media_bar)
@@ -2744,7 +3032,7 @@ impl App {
         .style(theme::timeline_slider);
         let transport: Element<'_, Message> = if compact {
             column![
-                row![playback, restart, speed]
+                row![playback, restart, speed, review_products]
                     .spacing(spacing::XS)
                     .align_y(Center),
                 scrubber,
@@ -2752,7 +3040,7 @@ impl App {
             .spacing(spacing::XXS)
             .into()
         } else {
-            row![playback, restart, speed, scrubber]
+            row![playback, restart, speed, scrubber, review_products]
                 .spacing(spacing::XS)
                 .align_y(Center)
                 .into()
@@ -2762,7 +3050,7 @@ impl App {
                 transport,
                 row![
                     text(format!(
-                        "SCENE {:02} / {:02}  ·  CINEMATIC TIMELINE",
+                        "SCENE {:02} / {:02}  ·  FIXED 2.5D VIEW",
                         moment.beat_index + 1,
                         real_world_plan.timeline.beats.len()
                     ))
@@ -2804,7 +3092,7 @@ impl App {
                     if compact {
                         text("").size(type_scale::MICRO)
                     } else {
-                        text("DRAG TO ORBIT · SCROLL TO ZOOM")
+                        text("FIXED ORTHOGRAPHIC 2.5D CAMERA")
                             .size(type_scale::MICRO)
                             .color(color::MUTED)
                     },
@@ -2812,9 +3100,6 @@ impl App {
                 .align_y(Center),
                 scene,
                 controls,
-                text(real_world_plan.virtual_only_disclosure.as_str())
-                    .size(type_scale::MICRO)
-                    .color(color::WARNING),
             ]
             .spacing(spacing::XS)
             .height(Fill),
@@ -3252,6 +3537,147 @@ impl App {
             .width(Length::Fixed(340.0))
             .style(|_| theme::tooltip_surface(1.0))
             .into()
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn product_summary_view(&self, size: Size) -> Element<'_, Message> {
+        let Some(animation) = &self.structural_animation else {
+            return Self::structural_unavailable_view("Trusted product frames are unavailable");
+        };
+        let Some(summary) = product_summary::SummaryData::from_frames(&animation.frames) else {
+            return Self::structural_unavailable_view(
+                "Validated product membership is unavailable",
+            );
+        };
+        let compact = size.width < 1_080.0;
+        let dense = size.height < 820.0 || size.width < 1_280.0;
+        let elapsed_ms = animation.summary_elapsed_ms;
+        let back = button(text("← Macroscopic view"))
+            .on_press(Message::ReturnTo3d)
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
+        let new_reaction = button(text("Build another reaction  →"))
+            .on_press(Message::ScreenSelected(Screen::Builder))
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
+        let header = row![
+            back,
+            column![
+                row![
+                    text("VALIDATED PRODUCT RECORD")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
+                    container(text("FINAL").size(type_scale::MICRO).color(color::SUCCESS))
+                        .style(theme::summary_badge)
+                        .padding([spacing::XXS, spacing::XS]),
+                ]
+                .spacing(spacing::XS)
+                .align_y(Center),
+                text("What the reaction produced")
+                    .size(if compact {
+                        type_scale::TITLE
+                    } else {
+                        type_scale::DISPLAY
+                    })
+                    .font(fonts::SEMIBOLD)
+                    .color(color::TEXT),
+            ]
+            .spacing(spacing::XXS),
+            space().width(Fill),
+            if compact {
+                text("").size(type_scale::MICRO)
+            } else {
+                text(animation.equation.as_str())
+                    .size(type_scale::CAPTION)
+                    .color(color::TEXT_SOFT)
+            },
+            new_reaction,
+        ]
+        .spacing(spacing::SM)
+        .align_y(Center);
+
+        let three_dimensional = container(
+            column![
+                row![
+                    column![
+                        text("PRODUCT SPACE")
+                            .size(type_scale::MICRO)
+                            .color(color::SELECTION),
+                        text("Rotating 3D products")
+                            .size(type_scale::BODY_LARGE)
+                            .font(fonts::SEMIBOLD)
+                            .color(color::TEXT),
+                    ]
+                    .spacing(spacing::XXS),
+                    space().width(Fill),
+                    row![
+                        text("●").size(type_scale::MICRO).color(color::ACCENT),
+                        text("LIVE · 360°")
+                            .size(type_scale::MICRO)
+                            .color(color::TEXT_SOFT),
+                    ]
+                    .spacing(spacing::XXS),
+                ]
+                .align_y(Center),
+                canvas(product_summary::Product3dScene::new(
+                    summary.clone(),
+                    elapsed_ms,
+                ))
+                .width(Fill)
+                .height(if compact {
+                    Length::Fixed((size.height * 0.48).clamp(300.0, 480.0))
+                } else {
+                    Fill
+                }),
+            ]
+            .spacing(spacing::XS),
+        )
+        .style(theme::summary_visual_panel)
+        .padding(spacing::SM)
+        .width(Fill)
+        .height(if compact { Length::Shrink } else { Fill });
+
+        let properties = product_properties_view(&summary, elapsed_ms, compact, dense);
+        let body: Element<'_, Message> = if compact {
+            scrollable(column![three_dimensional, properties].spacing(spacing::SM))
+                .width(Fill)
+                .height(Fill)
+                .into()
+        } else {
+            row![
+                container(three_dimensional)
+                    .width(FillPortion(1))
+                    .height(Fill),
+                container(properties).width(FillPortion(1)).height(Fill),
+            ]
+            .spacing(spacing::SM)
+            .height(Fill)
+            .into()
+        };
+
+        container(
+            column![
+                header,
+                body,
+                row![
+                    text("Representative explanatory geometry · validated composition and relationships")
+                        .size(type_scale::MICRO)
+                        .color(color::TEXT_SOFT),
+                    space().width(Fill),
+                    text("SOURCE · CURRENT .CHEMS + TRUSTED FRAME + ELEMENT CATALOGUE")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
+                ]
+                .align_y(Center),
+            ]
+            .spacing(spacing::SM)
+            .height(Fill),
+        )
+        .style(theme::frame)
+        .padding(spacing::SM)
+        .width(Fill)
+        .height(Fill)
+        .into()
     }
 
     /// Stage 1: the question sentence above the full periodic table, with no
@@ -4560,6 +4986,44 @@ mod tests {
     }
 
     #[test]
+    fn completed_macroscopic_playback_opens_the_animated_product_summary() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.screen = Screen::Structural3d;
+        app.update(Message::ContinueToSummary);
+        assert_eq!(app.screen, Screen::Structural3d);
+
+        let duration = app
+            .structural_animation
+            .as_ref()
+            .expect("animation exists")
+            .real_world_plan
+            .timeline
+            .duration_ms();
+        app.seek_real_world_timeline(duration);
+        app.update(Message::ContinueToSummary);
+        assert_eq!(app.screen, Screen::ProductSummary);
+        assert_eq!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation remains available")
+                .summary_elapsed_ms,
+            0
+        );
+
+        app.update(Message::StructuralTick);
+        assert_eq!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation remains available")
+                .summary_elapsed_ms,
+            33
+        );
+        app.update(Message::ReturnTo3d);
+        assert_eq!(app.screen, Screen::Structural3d);
+    }
+
+    #[test]
     fn every_supported_binding_crosses_the_complete_app_path() {
         let mut families = std::collections::BTreeSet::new();
         let mut requests = std::collections::BTreeSet::new();
@@ -4685,7 +5149,8 @@ mod tests {
 
     #[test]
     fn all_responsive_compositions_build() {
-        let app = App::default();
+        let mut app = App::default();
+        app.open_structural_animation();
 
         let choice_app = App {
             pending_requests: chemistry::requests_for_drafts(&[53], &[9]),
@@ -4701,6 +5166,9 @@ mod tests {
             let _ = app.builder_view(size);
             let _ = app.provider_setup_view(size);
             let _ = choice_app.outcome_choice_view(size);
+            let _ = app.structural_2d_view(size);
+            let _ = app.structural_3d_view(size);
+            let _ = app.product_summary_view(size);
         }
     }
 
