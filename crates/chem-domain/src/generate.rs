@@ -87,7 +87,9 @@ fn facts(symbol: &str) -> Option<Facts> {
         // match reviewed electron states (e.g. Zn2+ keeps 10 d electrons).
         "Zn" => f(12, 4, 165, &[2]),
         "Cd" => f(12, 5, 169, &[2]),
-        "Ag" => f(11, 5, 193, &[1]),
+        // Reviewed silver templates use the fixed +1 cation convention
+        // (5s¹ valence), not the s+d count the other transition metals use.
+        "Ag" => f(1, 5, 193, &[1]),
         "Cu" => f(11, 4, 190, &[2, 1]),
         "Fe" => f(8, 4, 183, &[3, 2]),
         "Ni" => f(10, 4, 191, &[2]),

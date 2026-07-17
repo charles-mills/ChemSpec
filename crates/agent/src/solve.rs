@@ -534,7 +534,11 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
                 value: None,
             }],
         }),
+        "light" => photolysis(reactant),
         "heat" => {
+            if let Some(verdict) = nitrate_decomposition(reactant) {
+                return Some(verdict);
+            }
             let (cation, charge, anion_kind) = ionic_base(reactant)?;
             let stable = HEAT_STABLE_CATIONS.contains(&cation.as_str());
             let oxide = |cation: &str, charge: u64| {
@@ -603,6 +607,106 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
         }
         _ => None,
     }
+}
+
+/// Metal nitrates under heat: sodium-tier alkali nitrates melt to the
+/// nitrite and oxygen; lithium (the classic exception) and every heavier
+/// metal decompose further, to the oxide, brown nitrogen dioxide, and
+/// oxygen.
+fn nitrate_decomposition(reactant: &StructureDefinition) -> Option<Verdict> {
+    let salt = ionic_salt(reactant)?;
+    let nitrate_unit: BTreeMap<String, u64> = [("N".to_owned(), 1), ("O".to_owned(), 3)].into();
+    if salt.anion != nitrate_unit {
+        return None;
+    }
+    let oxygen = ClaimProduct {
+        name: "Oxygen".to_owned(),
+        formula: "O2".to_owned(),
+        phase: ClaimPhase::Gas,
+        identity_hints: Vec::new(),
+    };
+    let evolves = |subject: &str| ClaimObservation {
+        predicate: ClaimObservationPredicate::Evolves,
+        subject: subject.to_owned(),
+        value: None,
+    };
+    if matches!(salt.cation.as_str(), "Na" | "K" | "Rb" | "Cs") {
+        let nitrite = Salt {
+            cation: String::new(),
+            cation_charge: 0,
+            anion: [("N".to_owned(), 1), ("O".to_owned(), 2)].into(),
+            anion_charge: 1,
+        };
+        return Some(Verdict {
+            products: vec![
+                exchanged_salt(&salt.cation, salt.cation_charge, &nitrite, None),
+                oxygen,
+            ],
+            observations: vec![evolves("oxygen gas")],
+        });
+    }
+    chem_domain::common_cation_charge(&salt.cation)?;
+    let oxide = Salt {
+        cation: String::new(),
+        cation_charge: 0,
+        anion: [("O".to_owned(), 1)].into(),
+        anion_charge: 2,
+    };
+    Some(Verdict {
+        products: vec![
+            exchanged_salt(&salt.cation, salt.cation_charge, &oxide, None),
+            ClaimProduct {
+                name: "nitrogen dioxide".to_owned(),
+                formula: "NO2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+            oxygen,
+        ],
+        observations: vec![evolves("brown nitrogen dioxide gas")],
+    })
+}
+
+/// Silver chloride and bromide under light: photolysis to metallic silver
+/// and the halogen, the reaction behind photographic film. Iodide is too
+/// sluggish for a confident verdict.
+fn photolysis(reactant: &StructureDefinition) -> Option<Verdict> {
+    let salt = ionic_salt(reactant)?;
+    if salt.cation != "Ag" || salt.anion.len() != 1 {
+        return None;
+    }
+    let halide = salt.anion.keys().next()?.clone();
+    if !matches!(halide.as_str(), "Cl" | "Br") {
+        return None;
+    }
+    Some(Verdict {
+        products: vec![
+            ClaimProduct {
+                name: "silver".to_owned(),
+                formula: "Ag".to_owned(),
+                phase: ClaimPhase::Solid,
+                identity_hints: Vec::new(),
+            },
+            ClaimProduct {
+                name: chem_domain::element_name(&halide)?.to_owned(),
+                formula: format!("{halide}2"),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: vec![
+            ClaimObservation {
+                predicate: ClaimObservationPredicate::Forms,
+                subject: "metallic silver".to_owned(),
+                value: None,
+            },
+            ClaimObservation {
+                predicate: ClaimObservationPredicate::Colour,
+                subject: "the solid".to_owned(),
+                value: Some("darkening grey".to_owned()),
+            },
+        ],
+    })
 }
 
 /// Qualifying proton-donor count for a molecular acid (never water).
@@ -1339,6 +1443,74 @@ mod tests {
         let claim =
             solve_reaction_claim(&sodium_carbonate, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+    }
+
+    #[test]
+    fn nitrates_decompose_by_cation_tier_under_heat() {
+        // Sodium-tier alkali: nitrite + oxygen.
+        let saltpetre = contextual("KNO₃", &[19, 7, 8, 8, 8], "heat");
+        let claim = solve_reaction_claim(&saltpetre, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["KNO2", "O2"]);
+        assert_eq!(claim.products[0].name, "potassium nitrite");
+
+        // Lithium is the classic exception: oxide + brown gas + oxygen.
+        let lithium = contextual("LiNO₃", &[3, 7, 8, 8, 8], "heat");
+        let claim = solve_reaction_claim(&lithium, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["Li2O", "NO2", "O2"]);
+
+        let copper = contextual("Cu(NO₃)₂", &[29, 7, 8, 8, 8, 7, 8, 8, 8], "heat");
+        let claim = solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["CuO", "NO2", "O2"]);
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject.contains("brown"))
+        );
+    }
+
+    #[test]
+    fn silver_halides_photolyse_under_light() {
+        let chloride = contextual("AgCl", &[47, 17], "light");
+        let claim = solve_reaction_claim(&chloride, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.required_context, "light");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["Ag", "Cl2"]);
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject.contains("silver"))
+        );
+
+        let bromide = contextual("AgBr", &[47, 35], "light");
+        let claim = solve_reaction_claim(&bromide, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[1].formula, "Br2");
+
+        // Iodide is sluggish and sodium chloride is light-stable: no verdicts.
+        let iodide = contextual("AgI", &[47, 53], "light");
+        assert!(solve_reaction_claim(&iodide, &SpeciesRegistry::default()).is_none());
+        let table_salt = contextual("NaCl", &[11, 17], "light");
+        assert!(solve_reaction_claim(&table_salt, &SpeciesRegistry::default()).is_none());
     }
 
     #[test]

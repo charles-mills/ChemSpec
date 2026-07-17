@@ -2036,6 +2036,48 @@ mod tests {
     }
 
     #[test]
+    fn saltpetre_decomposition_animates_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_single(
+            &trusted,
+            ("KNO3", vec![19, 7, 8, 8, 8]),
+            "heat",
+            &json!([
+                {"name":"potassium nitrite","formula":"KNO2","phase":"unknown","identity_hints":[]},
+                {"name":"Oxygen","formula":"O2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn silver_chloride_photolysis_animates_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_single(
+            &trusted,
+            ("AgCl", vec![47, 17]),
+            "light",
+            &json!([
+                {"name":"silver","formula":"Ag","phase":"solid","identity_hints":[]},
+                {"name":"chlorine","formula":"Cl2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
     fn water_electrolysis_animates_algorithmically_without_any_model() {
         let trusted = trusted();
         let outcome = static_outcome_single(
