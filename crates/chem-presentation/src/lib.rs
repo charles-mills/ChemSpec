@@ -5,12 +5,14 @@
 //! This crate owns pacing and macroscopic scene composition. It never parses
 //! `.chems`, resolves rules, or constructs chemistry.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use chem_catalogue::ObservationPredicate;
-use chem_domain::{AtomId, ContentDigest, IonicAssociationId, StructuralOperationView};
-use chem_kernel::{ObservationStatus, SimulationFrame, SimulationFrames};
+use chem_domain::{
+    AtomId, ContentDigest, IonicAssociationId, Phase, RepresentationKind, StructuralOperationView,
+};
+use chem_kernel::{FrameObservation, ObservationStatus, SimulationFrame, SimulationFrames};
 
 pub const VIRTUAL_ONLY_DISCLOSURE: &str = "Virtual educational model—not a laboratory procedure. Timing, scale, and motion are illustrative; the fixed 2.5D camera is a presentation view.";
 
@@ -897,6 +899,7 @@ pub struct PresentationObject {
     pub transform: PresentationTransform,
     pub visible_from_ordinal: u16,
     pub observation: Option<ObjectObservationBinding>,
+    pub colour_transition: Option<PresentationColourTransition>,
 }
 
 /// A trusted observation that must activate before an object may be shown.
@@ -908,11 +911,80 @@ pub struct ObjectObservationBinding {
     pub value: Option<String>,
 }
 
+/// An sRGB display colour selected only after an exact typed colour
+/// observation survives catalogue and kernel validation. Opacity remains a
+/// material/phase concern so the same colour works for solids, liquids, and
+/// gases without turning every phase opaque.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VisualColour {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+}
+
+/// Binds a reusable colour transition to one exact validated `.chems`
+/// observation. The subject and value prevent a colour belonging to one
+/// product from leaking onto another product in the same reaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresentationColourTransition {
+    pub subject_binding: String,
+    pub value: String,
+    pub target: VisualColour,
+    pub start_ordinal: u16,
+}
+
+/// Resolve the visual interpretation of a reviewed `.chems` colour value.
+/// Common named colours are supported directly. `Rgb.HexRRGGBB` uses the
+/// existing qualified-name grammar and provides an exact arbitrary sRGB value
+/// without changing `.chems 1` syntax.
+#[must_use]
+pub fn visual_colour(value: &str) -> Option<VisualColour> {
+    let named = match value {
+        "Colourless" => [0xd8, 0xe3, 0xe8],
+        "White" => [0xf0, 0xf5, 0xfa],
+        "Cream" => [0xf0, 0xe0, 0xad],
+        "Yellow" => [0xef, 0xd1, 0x47],
+        "Amber" => [0xe4, 0x9b, 0x2f],
+        "Orange" => [0xe9, 0x7b, 0x32],
+        "Red" => [0xd8, 0x4a, 0x4a],
+        "Crimson" => [0xb9, 0x2f, 0x52],
+        "Pink" => [0xe5, 0x83, 0xae],
+        "Purple" => [0x8c, 0x62, 0xc7],
+        "Violet" => [0x75, 0x55, 0xc7],
+        "Blue" => [0x4d, 0x83, 0xc6],
+        "Cyan" => [0x49, 0xb9, 0xc2],
+        "Green" => [0x56, 0xa7, 0x68],
+        "Olive" => [0x88, 0x8a, 0x45],
+        "Brown" => [0x8b, 0x5f, 0x43],
+        "Grey" | "Gray" => [0x8b, 0x96, 0xa0],
+        "Black" => [0x18, 0x1b, 0x1f],
+        value => return parse_hex_visual_colour(value),
+    };
+    Some(VisualColour {
+        red: named[0],
+        green: named[1],
+        blue: named[2],
+    })
+}
+
+fn parse_hex_visual_colour(value: &str) -> Option<VisualColour> {
+    let digits = value.strip_prefix("Rgb.Hex")?;
+    if digits.len() != 6 || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(VisualColour {
+        red: u8::from_str_radix(&digits[0..2], 16).ok()?,
+        green: u8::from_str_radix(&digits[2..4], 16).ok()?,
+        blue: u8::from_str_radix(&digits[4..6], 16).ok()?,
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectProfile {
     BubbleEmitter,
     GasRelease,
     SurfaceDisturbance,
+    LiquidMixing,
     ObjectShrinkage,
     PrecipitateFormation,
     Clouding,
@@ -971,6 +1043,7 @@ pub struct ReactionVisualInputs {
     pub splash_rate: f32,
     pub foam_amount: f32,
     pub flame_rate: f32,
+    pub container_vibration: f32,
 }
 
 impl ReactionVisualInputs {
@@ -1027,6 +1100,9 @@ impl ReactionVisualInputs {
                 EffectProfile::SurfaceDisturbance => {
                     inputs.liquid_turbulence += activity;
                 }
+                EffectProfile::LiquidMixing => {
+                    inputs.liquid_turbulence += activity * 0.88;
+                }
                 EffectProfile::SplashEmitter => {
                     inputs.splash_rate += activity;
                     inputs.liquid_turbulence += activity * 0.72;
@@ -1054,6 +1130,13 @@ impl ReactionVisualInputs {
         inputs.colour_transition = inputs.colour_transition.min(1.0);
         inputs.splash_rate = inputs.splash_rate.min(1.0);
         inputs.flame_rate = inputs.flame_rate.min(1.0);
+        inputs.container_vibration = (inputs.bubble_rate * 0.04
+            + inputs.gas_generation_rate * 0.05
+            + inputs.pressure_impulse * 0.30
+            + inputs.liquid_turbulence * 0.16
+            + inputs.splash_rate * 0.25
+            + inputs.flame_rate * 0.12)
+            .min(0.55);
         inputs.reaction_rate = inputs
             .gas_generation_rate
             .max(inputs.bubble_rate)
@@ -1103,6 +1186,479 @@ pub struct PresentationProfile {
     pub equation: String,
     pub disclosure: String,
 }
+
+/// Chemical role of one catalogue-resolved material in a macroscopic scene.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MacroscopicMaterialRole {
+    Reactant,
+    Product,
+}
+
+/// Renderer-independent material fact resolved from a trusted catalogue.
+///
+/// `phase` is deliberately mandatory here: callers with an older catalogue
+/// must use their reviewed legacy profile rather than silently guessing from a
+/// name, formula, or representation kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MacroscopicMaterial {
+    pub binding: String,
+    pub semantic_identity: String,
+    pub role: MacroscopicMaterialRole,
+    pub phase: Phase,
+    pub representation: RepresentationKind,
+}
+
+/// Generic input for phase-driven visual compilation. It contains no reaction
+/// identity and therefore cannot select a named-reaction animation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MacroscopicReaction {
+    pub profile_id: String,
+    pub equation: String,
+    pub materials: Vec<MacroscopicMaterial>,
+    pub intensity: EffectIntensity,
+}
+
+/// Compiles reusable assets and effects from trusted material phases and typed
+/// observations. Chemistry remains upstream: this function neither predicts a
+/// product nor infers a phase.
+///
+/// # Errors
+///
+/// Returns an error when a binding is duplicated, a typed gas observation is
+/// not backed by a gaseous catalogue material, or frame ordinals exceed the
+/// presentation range.
+// Keeping the closed phase/predicate matrix together makes unsupported
+// combinations visible and reviewable beside the combinations they exclude.
+#[allow(clippy::too_many_lines)]
+pub fn compile_phase_driven_profile(
+    frames: &SimulationFrames,
+    reaction: &MacroscopicReaction,
+) -> Result<PresentationProfile, PhaseDrivenProfileError> {
+    let final_ordinal = frames
+        .frames()
+        .last()
+        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
+        .ok_or(PhaseDrivenProfileError::PresentationRange)?;
+    let by_binding = reaction
+        .materials
+        .iter()
+        .map(|material| (material.binding.as_str(), material))
+        .collect::<BTreeMap<_, _>>();
+    if by_binding.len() != reaction.materials.len() {
+        return Err(PhaseDrivenProfileError::DuplicateBinding);
+    }
+
+    let transform = |translation, scale| PresentationTransform {
+        translation,
+        rotation: [0, 0, 0],
+        scale,
+    };
+    let mut objects = vec![PresentationObject {
+        id: "vessel".to_owned(),
+        asset: AssetProfile::Beaker,
+        semantic_identity: "open reaction vessel".to_owned(),
+        appearance: AppearanceProfile::ClearGlass,
+        role: SceneRole::Vessel,
+        transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
+        visible_from_ordinal: 0,
+        observation: None,
+        colour_transition: None,
+    }];
+    let has_mobile_reactant = reaction.materials.iter().any(|material| {
+        material.role == MacroscopicMaterialRole::Reactant
+            && matches!(material.phase, Phase::Aqueous | Phase::Liquid)
+    });
+    if has_mobile_reactant {
+        objects.push(PresentationObject {
+            id: "mobile-phase".to_owned(),
+            asset: AssetProfile::LiquidVolume,
+            semantic_identity: "catalogue-resolved mobile reaction phase".to_owned(),
+            appearance: AppearanceProfile::AqueousColourless,
+            role: SceneRole::Contents,
+            transform: transform([0, -150, 0], [1_000, 850, 1_000]),
+            visible_from_ordinal: 0,
+            observation: None,
+            colour_transition: None,
+        });
+    }
+
+    let mut reactant_slot = 0_i16;
+    for material in reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Reactant)
+    {
+        let asset = match material.phase {
+            Phase::Aqueous | Phase::Liquid => continue,
+            Phase::Gas => AssetProfile::GasCloud,
+            Phase::Solid if material.representation == RepresentationKind::Metallic => {
+                AssetProfile::MetalChunk
+            }
+            Phase::Solid => AssetProfile::PowderPile,
+        };
+        let x = if reactant_slot % 2 == 0 { -280 } else { 280 };
+        reactant_slot = reactant_slot.saturating_add(1);
+        objects.push(PresentationObject {
+            id: material.binding.clone(),
+            asset,
+            semantic_identity: material.semantic_identity.clone(),
+            appearance: appearance_for_material(material),
+            role: SceneRole::Reactant,
+            transform: transform([x, 610, 0], [650, 650, 650]),
+            visible_from_ordinal: 0,
+            observation: None,
+            colour_transition: None,
+        });
+    }
+
+    let active = active_observations_by_binding(frames)?;
+    let mut effects = Vec::new();
+    for ((binding, predicate), (ordinal, value)) in &active {
+        let Some(material) = by_binding.get(binding.as_str()).copied() else {
+            continue;
+        };
+        match predicate {
+            ObservationPredicate::Evolves => {
+                if material.phase != Phase::Gas {
+                    return Err(PhaseDrivenProfileError::GasObservationPhaseMismatch(
+                        binding.clone(),
+                    ));
+                }
+                add_product_object(
+                    &mut objects,
+                    material,
+                    *ordinal,
+                    ObservationPredicate::Evolves,
+                    None,
+                    &transform,
+                    has_mobile_reactant,
+                );
+                push_effect(
+                    &mut effects,
+                    EffectProfile::GasRelease,
+                    *predicate,
+                    *ordinal,
+                    final_ordinal,
+                    reaction.intensity,
+                );
+                if has_mobile_reactant {
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::BubbleEmitter,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        reaction.intensity,
+                    );
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::SurfaceDisturbance,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        EffectIntensity::Subtle,
+                    );
+                }
+            }
+            ObservationPredicate::Forms => match material.phase {
+                Phase::Gas => {
+                    add_product_object(
+                        &mut objects,
+                        material,
+                        *ordinal,
+                        *predicate,
+                        None,
+                        &transform,
+                        has_mobile_reactant,
+                    );
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::GasRelease,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        reaction.intensity,
+                    );
+                    if has_mobile_reactant {
+                        push_effect(
+                            &mut effects,
+                            EffectProfile::BubbleEmitter,
+                            *predicate,
+                            *ordinal,
+                            final_ordinal,
+                            reaction.intensity,
+                        );
+                    }
+                }
+                Phase::Solid => {
+                    add_product_object(
+                        &mut objects,
+                        material,
+                        *ordinal,
+                        *predicate,
+                        None,
+                        &transform,
+                        has_mobile_reactant,
+                    );
+                    if has_mobile_reactant {
+                        push_effect(
+                            &mut effects,
+                            EffectProfile::PrecipitateFormation,
+                            *predicate,
+                            *ordinal,
+                            final_ordinal,
+                            reaction.intensity,
+                        );
+                        push_effect(
+                            &mut effects,
+                            EffectProfile::Clouding,
+                            *predicate,
+                            *ordinal,
+                            final_ordinal,
+                            EffectIntensity::Subtle,
+                        );
+                    }
+                }
+                Phase::Aqueous | Phase::Liquid => {
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::LiquidMixing,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        reaction.intensity,
+                    );
+                    if !has_mobile_reactant {
+                        add_product_object(
+                            &mut objects,
+                            material,
+                            *ordinal,
+                            *predicate,
+                            None,
+                            &transform,
+                            false,
+                        );
+                    }
+                }
+            },
+            ObservationPredicate::Disappears => {
+                if matches!(material.phase, Phase::Aqueous | Phase::Liquid) {
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::LiquidMixing,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        reaction.intensity,
+                    );
+                } else {
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::ObjectShrinkage,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        reaction.intensity,
+                    );
+                }
+                if has_mobile_reactant {
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::SurfaceDisturbance,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        EffectIntensity::Subtle,
+                    );
+                }
+            }
+            ObservationPredicate::Colour => {
+                let value = value
+                    .as_ref()
+                    .ok_or_else(|| PhaseDrivenProfileError::InvalidColour(binding.clone()))?;
+                let target = visual_colour(value)
+                    .ok_or_else(|| PhaseDrivenProfileError::InvalidColour(binding.clone()))?;
+                if !objects.iter().any(|object| object.id == *binding)
+                    && material.role == MacroscopicMaterialRole::Product
+                    && !matches!(material.phase, Phase::Aqueous | Phase::Liquid)
+                {
+                    add_product_object(
+                        &mut objects,
+                        material,
+                        *ordinal,
+                        ObservationPredicate::Colour,
+                        Some(value.clone()),
+                        &transform,
+                        has_mobile_reactant,
+                    );
+                }
+                let colour_target = objects
+                    .iter()
+                    .position(|object| object.id == *binding)
+                    .or_else(|| {
+                        objects
+                            .iter()
+                            .position(|object| object.id == "mobile-phase")
+                    });
+                if let Some(index) = colour_target {
+                    let object = &mut objects[index];
+                    object.colour_transition = Some(PresentationColourTransition {
+                        subject_binding: binding.clone(),
+                        value: value.clone(),
+                        target,
+                        start_ordinal: *ordinal,
+                    });
+                    push_effect(
+                        &mut effects,
+                        EffectProfile::ColourTransition,
+                        *predicate,
+                        *ordinal,
+                        final_ordinal,
+                        reaction.intensity,
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(PresentationProfile {
+        id: reaction.profile_id.clone(),
+        environment: AssetProfile::LaboratoryBench,
+        objects,
+        effects,
+        camera: vec![CameraCue {
+            behaviour: CameraBehaviour::WideEstablishingShot,
+            start_ordinal: 0,
+            end_ordinal: final_ordinal,
+        }],
+        equation: reaction.equation.clone(),
+        disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+    })
+}
+
+type ActiveObservationKey = (String, ObservationPredicate);
+type ActiveObservationValue = (u16, Option<String>);
+type ActiveObservations = BTreeMap<ActiveObservationKey, ActiveObservationValue>;
+
+fn active_observations_by_binding(
+    frames: &SimulationFrames,
+) -> Result<ActiveObservations, PhaseDrivenProfileError> {
+    let mut active = BTreeMap::new();
+    for frame in frames.frames() {
+        let ordinal = u16::try_from(frame.ordinal())
+            .map_err(|_| PhaseDrivenProfileError::PresentationRange)?;
+        for observation in frame
+            .observations()
+            .iter()
+            .filter(|observation| observation.status == ObservationStatus::Active)
+        {
+            active
+                .entry((observation.subject_binding.clone(), observation.predicate))
+                .or_insert_with(|| (ordinal, observation.value.clone()));
+        }
+    }
+    Ok(active)
+}
+
+fn appearance_for_material(material: &MacroscopicMaterial) -> AppearanceProfile {
+    match (material.phase, material.representation) {
+        (Phase::Aqueous | Phase::Liquid | Phase::Gas, _) => AppearanceProfile::AqueousColourless,
+        (Phase::Solid, RepresentationKind::Metallic) => AppearanceProfile::MetalSilver,
+        (Phase::Solid, _) => AppearanceProfile::LaboratoryNeutral,
+    }
+}
+
+fn add_product_object<F>(
+    objects: &mut Vec<PresentationObject>,
+    material: &MacroscopicMaterial,
+    ordinal: u16,
+    predicate: ObservationPredicate,
+    value: Option<String>,
+    transform: &F,
+    settles_in_liquid: bool,
+) where
+    F: Fn([i16; 3], [u16; 3]) -> PresentationTransform,
+{
+    if objects.iter().any(|object| object.id == material.binding) {
+        return;
+    }
+    let (asset, translation, scale) = match material.phase {
+        Phase::Gas => (AssetProfile::GasCloud, [160, 930, 0], [620, 620, 620]),
+        Phase::Solid if settles_in_liquid => (
+            AssetProfile::PrecipitateCloud,
+            [0, -520, 0],
+            [760, 360, 760],
+        ),
+        Phase::Solid => (AssetProfile::CrystalCluster, [0, 220, 0], [750, 750, 750]),
+        Phase::Aqueous | Phase::Liquid => (
+            AssetProfile::LiquidVolume,
+            [0, -150, 0],
+            [1_000, 850, 1_000],
+        ),
+    };
+    objects.push(PresentationObject {
+        id: material.binding.clone(),
+        asset,
+        semantic_identity: material.semantic_identity.clone(),
+        appearance: appearance_for_material(material),
+        role: SceneRole::Product,
+        transform: transform(translation, scale),
+        visible_from_ordinal: ordinal,
+        observation: Some(ObjectObservationBinding { predicate, value }),
+        colour_transition: None,
+    });
+}
+
+fn push_effect(
+    effects: &mut Vec<PresentationEffect>,
+    effect: EffectProfile,
+    trigger: ObservationPredicate,
+    start_ordinal: u16,
+    end_ordinal: u16,
+    intensity: EffectIntensity,
+) {
+    let candidate = PresentationEffect {
+        effect,
+        trigger,
+        intensity,
+        start_ordinal,
+        end_ordinal,
+    };
+    if !effects.contains(&candidate) {
+        effects.push(candidate);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PhaseDrivenProfileError {
+    PresentationRange,
+    DuplicateBinding,
+    GasObservationPhaseMismatch(String),
+    InvalidColour(String),
+}
+
+impl fmt::Display for PhaseDrivenProfileError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PresentationRange => {
+                formatter.write_str("trusted frames exceed the presentation range")
+            }
+            Self::DuplicateBinding => {
+                formatter.write_str("macroscopic material bindings are not unique")
+            }
+            Self::GasObservationPhaseMismatch(binding) => write!(
+                formatter,
+                "gas observation binding `{binding}` is not catalogue-resolved as gas"
+            ),
+            Self::InvalidColour(binding) => write!(
+                formatter,
+                "colour observation binding `{binding}` has no supported value"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for PhaseDrivenProfileError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MacroscopicAnnotation {
@@ -1236,6 +1792,13 @@ pub fn compile_real_world_plan(
                 .map(move |observation| (ordinal, observation))
         })
         .collect::<Vec<_>>();
+    if profile
+        .effects
+        .iter()
+        .any(|effect| !effect_observation_is_compatible(effect.effect, effect.trigger))
+    {
+        return Err(PlanError::IncompatibleEffectObservation);
+    }
     if profile.effects.iter().any(|effect| {
         active_observations
             .iter()
@@ -1246,6 +1809,14 @@ pub fn compile_real_world_plan(
     }) {
         return Err(PlanError::UnsupportedEffectTrigger);
     }
+    if profile
+        .objects
+        .iter()
+        .any(|object| !object_observation_is_compatible(object))
+    {
+        return Err(PlanError::IncompatibleObjectObservation);
+    }
+    validate_colour_transitions(profile, &active_observations)?;
     if profile.objects.iter().any(|object| {
         (object.role == SceneRole::Product && object.observation.is_none())
             || object.observation.as_ref().is_some_and(|binding| {
@@ -1289,6 +1860,100 @@ pub fn compile_real_world_plan(
     })
 }
 
+fn validate_colour_transitions(
+    profile: &PresentationProfile,
+    active_observations: &[(u16, &FrameObservation)],
+) -> Result<(), PlanError> {
+    for transition in profile
+        .objects
+        .iter()
+        .filter_map(|object| object.colour_transition.as_ref())
+    {
+        if visual_colour(&transition.value) != Some(transition.target) {
+            return Err(PlanError::InvalidVisualColour);
+        }
+        let trigger = active_observations
+            .iter()
+            .filter(|(_, observation)| {
+                observation.predicate == ObservationPredicate::Colour
+                    && observation.subject_binding == transition.subject_binding
+                    && observation.value.as_deref() == Some(transition.value.as_str())
+            })
+            .map(|(ordinal, _)| *ordinal)
+            .min();
+        if trigger.is_none_or(|ordinal| transition.start_ordinal < ordinal) {
+            return Err(PlanError::UnsupportedColourObservation);
+        }
+    }
+    Ok(())
+}
+
+const fn effect_observation_is_compatible(
+    effect: EffectProfile,
+    predicate: ObservationPredicate,
+) -> bool {
+    match effect {
+        EffectProfile::BubbleEmitter | EffectProfile::GasRelease => matches!(
+            predicate,
+            ObservationPredicate::Evolves | ObservationPredicate::Forms
+        ),
+        EffectProfile::FlameEmitter(_) => matches!(predicate, ObservationPredicate::Evolves),
+        EffectProfile::ObjectShrinkage => {
+            matches!(predicate, ObservationPredicate::Disappears)
+        }
+        EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
+            matches!(predicate, ObservationPredicate::Forms)
+        }
+        EffectProfile::ColourTransition => matches!(predicate, ObservationPredicate::Colour),
+        EffectProfile::SurfaceDisturbance
+        | EffectProfile::LiquidMixing
+        | EffectProfile::SplashEmitter => matches!(
+            predicate,
+            ObservationPredicate::Evolves
+                | ObservationPredicate::Disappears
+                | ObservationPredicate::Forms
+        ),
+        // `.chems 1` has no typed thermal observation. Keeping this closed
+        // prevents a renderer profile from treating an unrelated observation
+        // as proof of heat release.
+        EffectProfile::HeatDistortion => false,
+    }
+}
+
+fn object_observation_is_compatible(object: &PresentationObject) -> bool {
+    if object.role != SceneRole::Product {
+        return true;
+    }
+    let Some(binding) = &object.observation else {
+        // The existing observation-presence validation reports this separately.
+        return true;
+    };
+    match object.asset {
+        AssetProfile::GasCloud => matches!(
+            binding.predicate,
+            ObservationPredicate::Evolves | ObservationPredicate::Forms
+        ),
+        AssetProfile::PrecipitateCloud
+        | AssetProfile::CrystalCluster
+        | AssetProfile::PowderPile => matches!(
+            binding.predicate,
+            ObservationPredicate::Forms | ObservationPredicate::Colour
+        ),
+        AssetProfile::LiquidVolume => matches!(binding.predicate, ObservationPredicate::Forms),
+        AssetProfile::LaboratoryBench
+        | AssetProfile::DarkPresentationPlatform
+        | AssetProfile::Beaker
+        | AssetProfile::TestTube
+        | AssetProfile::ConicalFlask
+        | AssetProfile::MeasuringCylinder
+        | AssetProfile::MetalChunk
+        | AssetProfile::MetalStrip => matches!(
+            binding.predicate,
+            ObservationPredicate::Forms | ObservationPredicate::Colour
+        ),
+    }
+}
+
 const fn appearance_colour_value(appearance: AppearanceProfile) -> Option<&'static str> {
     match appearance {
         AppearanceProfile::WhitePrecipitate => Some("White"),
@@ -1305,6 +1970,9 @@ fn compile_real_world_timeline(
     let mut boundaries = BTreeSet::from([0, final_ordinal.saturating_add(1)]);
     for object in &profile.objects {
         boundaries.insert(object.visible_from_ordinal);
+        if let Some(transition) = &object.colour_transition {
+            boundaries.insert(transition.start_ordinal);
+        }
     }
     for effect in &profile.effects {
         boundaries.insert(effect.start_ordinal);
@@ -1363,7 +2031,7 @@ fn compile_real_world_timeline(
 
 /// Conservative presentation defaults used when reviewed source does not
 /// provide measured kinetics. The entry beat is deliberately close to the
-/// duration of a short hand-thrown arc; active effects remain long enough to
+/// duration of a short gravity-driven drop; active effects remain long enough to
 /// read while stronger activity resolves more quickly than subtle activity.
 const fn macroscopic_beat_duration_ms(
     intensity: Option<EffectIntensity>,
@@ -1429,8 +2097,12 @@ pub enum PlanError {
     MissingFrames,
     InvalidFrameSequence,
     MissingOperation(u32),
+    IncompatibleEffectObservation,
     UnsupportedEffectTrigger,
+    IncompatibleObjectObservation,
     UnsupportedObjectObservation,
+    InvalidVisualColour,
+    UnsupportedColourObservation,
     PresentationRange,
     Digest,
 }
@@ -1443,11 +2115,21 @@ impl fmt::Display for PlanError {
             Self::MissingOperation(ordinal) => {
                 write!(formatter, "frame {ordinal} has no operation")
             }
+            Self::IncompatibleEffectObservation => formatter
+                .write_str("presentation effect is incompatible with its typed observation"),
             Self::UnsupportedEffectTrigger => formatter.write_str(
                 "presentation effect precedes or lacks an active validated observation trigger",
             ),
+            Self::IncompatibleObjectObservation => formatter
+                .write_str("presentation object phase is incompatible with its typed observation"),
             Self::UnsupportedObjectObservation => formatter.write_str(
                 "presentation object precedes or mismatches its active validated observation",
+            ),
+            Self::InvalidVisualColour => formatter.write_str(
+                "presentation colour is unsupported or mismatches its `.chems` colour value",
+            ),
+            Self::UnsupportedColourObservation => formatter.write_str(
+                "presentation colour precedes or mismatches its active validated colour observation",
             ),
             Self::PresentationRange => {
                 formatter.write_str("trusted frames exceed the presentation range")
@@ -1465,9 +2147,31 @@ mod tests {
 
     use super::{
         EducationalPlan, EducationalScene, EducationalSceneKind, EffectIntensity, EffectProfile,
-        FlamePalette, PresentationEffect, ReactionVisualInputs, TimelinePosition,
-        macroscopic_beat_duration_ms,
+        FlamePalette, PresentationEffect, ReactionVisualInputs, TimelinePosition, VisualColour,
+        macroscopic_beat_duration_ms, visual_colour,
     };
+
+    #[test]
+    fn visual_colours_support_reviewed_names_and_exact_rgb_without_schema_changes() {
+        assert_eq!(
+            visual_colour("Cream"),
+            Some(VisualColour {
+                red: 0xf0,
+                green: 0xe0,
+                blue: 0xad,
+            })
+        );
+        assert_eq!(
+            visual_colour("Rgb.Hex12ABEF"),
+            Some(VisualColour {
+                red: 0x12,
+                green: 0xab,
+                blue: 0xef,
+            })
+        );
+        assert_eq!(visual_colour("Rgb.Hex12AXEF"), None);
+        assert_eq!(visual_colour("UnreviewedMagenta"), None);
+    }
 
     fn timeline_plan(durations_ms: &[u32]) -> EducationalPlan {
         let scenes = durations_ms
@@ -1544,6 +2248,8 @@ mod tests {
         assert!(inputs.gas_generation_rate > 0.0);
         assert!(inputs.bubble_rate > 0.0);
         assert!(inputs.liquid_turbulence > 0.0);
+        assert!(inputs.container_vibration > 0.0);
+        assert!(inputs.container_vibration < 0.20);
         assert!(inputs.reaction_rate > 0.0);
         assert!(inputs.foam_amount.abs() < f32::EPSILON);
         assert!(inputs.flame_rate.abs() < f32::EPSILON);
@@ -1561,9 +2267,31 @@ mod tests {
         let inputs = ReactionVisualInputs::from_effects(&effects, 4, 0.5, 8);
 
         assert!(inputs.flame_rate > 0.9);
+        assert!(inputs.container_vibration > 0.10);
         assert!(inputs.heat_output > 0.0);
         assert!(inputs.liquid_turbulence > 0.0);
         assert!((inputs.reaction_rate - inputs.flame_rate).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn liquid_mixing_drives_flow_without_inventing_gas_or_solid_products() {
+        let effects = [PresentationEffect {
+            effect: EffectProfile::LiquidMixing,
+            trigger: ObservationPredicate::Disappears,
+            intensity: EffectIntensity::Moderate,
+            start_ordinal: 2,
+            end_ordinal: 6,
+        }];
+        let inputs = ReactionVisualInputs::from_effects(&effects, 4, 0.5, 8);
+
+        assert!(inputs.liquid_turbulence > 0.5);
+        assert!(inputs.reaction_rate > 0.5);
+        assert!(inputs.container_vibration > 0.0);
+        assert!(inputs.container_vibration < 0.15);
+        assert!(inputs.gas_generation_rate.abs() < f32::EPSILON);
+        assert!(inputs.bubble_rate.abs() < f32::EPSILON);
+        assert!(inputs.precipitate_generation.abs() < f32::EPSILON);
+        assert!(inputs.flame_rate.abs() < f32::EPSILON);
     }
 
     #[test]
@@ -1579,6 +2307,22 @@ mod tests {
         assert!(inputs.heat_output.abs() < f32::EPSILON);
         assert!(inputs.foam_amount.abs() < f32::EPSILON);
         assert!(inputs.flame_rate.abs() < f32::EPSILON);
+        assert!(inputs.container_vibration.abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn persistent_precipitate_does_not_invent_container_violence() {
+        let effects = [PresentationEffect {
+            effect: EffectProfile::PrecipitateFormation,
+            trigger: ObservationPredicate::Forms,
+            intensity: EffectIntensity::Moderate,
+            start_ordinal: 2,
+            end_ordinal: 6,
+        }];
+        let inputs = ReactionVisualInputs::from_effects(&effects, 4, 0.5, 8);
+
+        assert!(inputs.precipitate_generation > 0.0);
+        assert!(inputs.container_vibration.abs() < f32::EPSILON);
     }
 
     #[test]
@@ -1588,7 +2332,7 @@ mod tests {
         let moderate = macroscopic_beat_duration_ms(Some(EffectIntensity::Moderate), false, false);
         let subtle = macroscopic_beat_duration_ms(Some(EffectIntensity::Subtle), false, false);
 
-        assert_eq!(entry, 900, "a short throw must not become a slow glide");
+        assert_eq!(entry, 900, "a short drop must not become a slow glide");
         assert!(strong < moderate);
         assert!(moderate < subtle);
         assert_eq!(macroscopic_beat_duration_ms(None, false, true), 2_400);

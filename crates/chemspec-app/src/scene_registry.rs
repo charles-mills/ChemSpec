@@ -11,16 +11,17 @@ pub enum AssetGeometry {
     CylindricalVessel,
     LiquidCylinder,
     LowPolyChunk,
-    ParticleCluster,
+    ShardCluster,
     GasCluster,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectGeometry {
-    ParticleCloud,
+    SettlingShards,
     RisingBubbles,
     EscapingGas,
     SurfaceRipples,
+    MixingCurrents,
     SplashDroplets,
     FlamePlume,
     PresentationOnly,
@@ -54,7 +55,7 @@ pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
         AssetProfile::MetalChunk | AssetProfile::MetalStrip => AssetGeometry::LowPolyChunk,
         AssetProfile::PrecipitateCloud
         | AssetProfile::CrystalCluster
-        | AssetProfile::PowderPile => AssetGeometry::ParticleCluster,
+        | AssetProfile::PowderPile => AssetGeometry::ShardCluster,
         AssetProfile::GasCloud => AssetGeometry::GasCluster,
     }
 }
@@ -62,11 +63,12 @@ pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
 pub const fn effect_geometry(profile: EffectProfile) -> EffectGeometry {
     match profile {
         EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
-            EffectGeometry::ParticleCloud
+            EffectGeometry::SettlingShards
         }
         EffectProfile::BubbleEmitter => EffectGeometry::RisingBubbles,
         EffectProfile::GasRelease => EffectGeometry::EscapingGas,
         EffectProfile::SurfaceDisturbance => EffectGeometry::SurfaceRipples,
+        EffectProfile::LiquidMixing => EffectGeometry::MixingCurrents,
         EffectProfile::SplashEmitter => EffectGeometry::SplashDroplets,
         EffectProfile::FlameEmitter(_) => EffectGeometry::FlamePlume,
         EffectProfile::ObjectShrinkage
@@ -122,6 +124,15 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             turbulence: 0.24,
             fade_in: 0.12,
             fade_out: 0.22,
+        },
+        EffectProfile::LiquidMixing => EffectDynamics {
+            particle_count: particle_count.min(9),
+            rate: 0.64,
+            spread: 0.62,
+            lift: 0.26,
+            turbulence: 0.34,
+            fade_in: 0.10,
+            fade_out: 0.30,
         },
         EffectProfile::SplashEmitter => EffectDynamics {
             particle_count: particle_count.min(15),

@@ -155,6 +155,15 @@ The renderer-independent `ScenePlan` contains:
 - reusable near-isometric camera behaviours and timing;
 - the validated reaction/catalogue identities and virtual-only disclosure.
 
+Before scene compilation, the application can build a
+`MacroscopicReaction` from exact expanded bindings plus optional reviewed
+`macroscopic_materials` catalogue records. The generic compiler has no
+reaction-name input: it combines material role, `Phase`, structural
+representation, active observation predicate, and conservative effect
+intensity. Rule-role phase overrides take precedence over standard material
+state. Incomplete old catalogue data falls back to its existing reviewed
+profile rather than becoming a guessed state.
+
 The macroscopic planner derives beat boundaries from reviewed object
 visibility, effect ranges, camera ranges, and typed observation ordinals. The
 same plan drives playback, the scrubbable elapsed/total-time control, current
@@ -209,26 +218,60 @@ splash controls, plus a flame rate only for a typed `FlameEmitter`. Missing
 metadata remains zero. These dynamics never select chemistry and contain no
 reaction identity checks.
 
-Particles use a stable seed derived from the plan and typed effect. Their birth
-times, speeds, sizes, directions, arcs, curls, and settling positions therefore
-vary organically while remaining exactly reproducible when paused or scrubbed.
+`LiquidMixing` is the reusable liquid-liquid contact effect. It drives stronger
+surface displacement and deterministic subsurface vortex ribbons while its
+envelope attacks and decays with the observation-bound beat. For example, the
+acid-base profile binds mixing to acid disappearance and a restrained surface
+response to water formation. It remains colourless and cannot activate gas,
+bubbles, precipitation, or flame channels.
+
+An optional `PresentationColourTransition` binds an object to one exact active
+typed colour observation by subject binding, value, and ordinal. The generic
+renderer applies that binding to `LiquidVolume`, solid chunk/shard profiles,
+and `GasCloud`; it does not contain reaction or chemical-name branches.
+Spatially staggered, absolute-playhead colour diffusion avoids an instantaneous
+whole-object swap while remaining deterministic under pause, replay, and
+seeking. Phase opacity is preserved separately from observed RGB colour.
+
+The same continuous inputs derive a bounded `container_vibration` value from
+gas flow, bubbling, pressure impulse, liquid turbulence, splashing, and flame
+activity. A seeded multi-frequency displacement moves the vessel and its
+contents together while leaving the bench and fixed camera stationary. Its
+envelope follows the authorized effects, so vibration rises with activity and
+settles instead of continuing after the reaction.
+
+Effect parcels and solid shards use a stable seed derived from the plan and
+typed effect. Their birth times, speeds, sizes, directions, arcs, curls,
+angular momentum, and settling positions therefore vary organically while
+remaining exactly reproducible when paused or scrubbed.
 Motion uses the absolute ordinal plus progress as one continuous phase, so an
 emitter does not visibly restart at a beat boundary. Smooth attack and release
 envelopes prevent effects from popping into existence; persistent phenomena,
 such as an accumulated precipitate, keep their final state instead of fading
 away.
 
-State boundaries do not restart motion. A reactant begins beyond the vessel rim,
-receives a seeded launch impulse, and follows an analytic gravity-driven arc
-with low horizontal drag and independent angular momentum across the complete
-setup interval. The conservative missing-metadata default completes this entry
-in 0.9 seconds, replacing the previous four-second slow glide. At the first
+State boundaries do not restart motion. A reactant begins above the middle of
+the vessel with a small seeded release offset and follows an analytic free-fall
+trajectory. Its downward speed increases under gravity while mild bounded air
+drift and restrained angular momentum prevent a mechanically perfect vertical
+line. The conservative missing-metadata default completes this entry in 0.9
+seconds. At the first
 observation-authorized effect it reaches the reaction surface exactly, receives
-an inelastic contact impulse, and settles through rapidly damped rebound,
-tangential slip, and rotational follow-through. Product geometry remains absent
+an inelastic contact impulse, briefly plunges into the liquid, and settles
+through rapidly damped rebound, tangential slip, and rotational follow-through.
+Product geometry remains absent
 before its trusted visibility ordinal, then grows from zero with an asymmetric
 formation response. This removes static holds, spline-like easing, and one-frame
 pops without overlapping into an unvalidated chemistry state.
+
+For an observation-authorized precipitate or clouding effect, fragments form as
+seeded pointed low-poly shards at the reaction region. Their analytic path
+accelerates under gravity, attenuates turbulent drift in the liquid, rotates
+under drag-limited angular travel, contacts the vessel floor, and receives a
+small liquid-damped rebound before settling. The final precipitate, crystal, or
+powder asset is a deterministic cluster of the same faceted shards. The scene
+timeline still controls formation and visibility; physics changes the path, not
+the trusted chemical outcome.
 
 Bubble and flame lift accelerate toward terminal velocity rather than following
 an ease curve. Splash droplets use a parabolic ballistic arc with horizontal

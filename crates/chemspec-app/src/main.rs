@@ -289,6 +289,7 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
         EffectProfile::BubbleEmitter => "Interface bubbles",
         EffectProfile::GasRelease => "Gas release",
         EffectProfile::SurfaceDisturbance => "Surface motion",
+        EffectProfile::LiquidMixing => "Liquid mixing",
         EffectProfile::ObjectShrinkage => "Reactant consumption",
         EffectProfile::PrecipitateFormation => "Precipitate formation",
         EffectProfile::Clouding => "Solution clouding",
@@ -610,6 +611,7 @@ struct App {
     oxygen_assessment: Option<chemistry::OxygenAssessment>,
     active_request: chemistry::ReactionRequest,
     validated_frames: Option<chem_kernel::SimulationFrames>,
+    validated_macroscopic: Option<chem_presentation::MacroscopicReaction>,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
     /// Interface zoom applied on top of the system scale factor.
@@ -620,6 +622,7 @@ impl Default for App {
     fn default() -> Self {
         let codex_available = codex_available();
         let active_request = chemistry::ReactionRequest::DEFAULT;
+        let trusted_run = chemistry::run(active_request).ok();
         Self {
             screen: Screen::ProviderSetup,
             smoke_mode: None,
@@ -631,9 +634,10 @@ impl Default for App {
             pending_requests: Vec::new(),
             oxygen_assessment: None,
             active_request,
-            validated_frames: chemistry::run(active_request)
-                .ok()
-                .map(|run| run.frames().clone()),
+            validated_frames: trusted_run.as_ref().map(|run| run.frames().clone()),
+            validated_macroscopic: trusted_run
+                .as_ref()
+                .and_then(|run| run.macroscopic().cloned()),
             structural_animation: None,
             structural_error: None,
             ui_zoom: 1.0,
@@ -809,7 +813,11 @@ impl App {
     // that live provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
         self.active_request = request;
-        self.validated_frames = chemistry::run(request).ok().map(|run| run.frames().clone());
+        let trusted_run = chemistry::run(request).ok();
+        self.validated_frames = trusted_run.as_ref().map(|run| run.frames().clone());
+        self.validated_macroscopic = trusted_run
+            .as_ref()
+            .and_then(|run| run.macroscopic().cloned());
         self.structural_animation = None;
         self.structural_error = None;
     }
@@ -1147,7 +1155,11 @@ impl App {
                 .clone();
             let educational_plan =
                 compile_educational_plan(&frames).map_err(|error| error.to_string())?;
-            let profile = chemistry::presentation_profile(self.active_request, &frames)?;
+            let profile = chemistry::presentation_profile_with_catalogue(
+                self.active_request,
+                &frames,
+                self.validated_macroscopic.as_ref(),
+            )?;
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
             Ok::<_, String>(StructuralAnimation {

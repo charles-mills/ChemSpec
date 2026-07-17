@@ -72,6 +72,7 @@ pub enum CatalogueErrorCode {
     InvalidGraphPattern,
     InvalidGeneralizedRule,
     InvalidGeneralizedCase,
+    InvalidMacroscopicMaterial,
 }
 
 impl CatalogueErrorCode {
@@ -101,6 +102,7 @@ impl CatalogueErrorCode {
             Self::InvalidGraphPattern => "CHEMS-C021",
             Self::InvalidGeneralizedRule => "CHEMS-C022",
             Self::InvalidGeneralizedCase => "CHEMS-C023",
+            Self::InvalidMacroscopicMaterial => "CHEMS-C024",
         }
     }
 }
@@ -219,6 +221,7 @@ pub struct ValidatedCatalogueBundle {
     structure_application_provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
     graph_patterns: BTreeMap<GraphPatternId, usize>,
     generalized_rules: BTreeMap<ReactionRuleId, ValidatedGeneralizedRule>,
+    macroscopic_materials: BTreeMap<(StructureId, MacroscopicMaterialContextRecord), usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -395,6 +398,14 @@ impl ValidatedCatalogueBundle {
             &premises,
         )?;
         ensure_rule_namespaces_disjoint(&rules, &generalized_rules)?;
+        let macroscopic_materials = validate_macroscopic_materials(
+            &document.macroscopic_materials,
+            &structures,
+            &rules,
+            &generalized_rules,
+            &document.generalized_rules,
+            &premises,
+        )?;
 
         Ok(Self {
             digest: envelope.digest,
@@ -417,6 +428,7 @@ impl ValidatedCatalogueBundle {
             structure_application_provenance: g1.provenance,
             graph_patterns,
             generalized_rules,
+            macroscopic_materials,
         })
     }
 
@@ -612,6 +624,35 @@ impl ValidatedCatalogueBundle {
         &self.rules
     }
 
+    /// Resolves reviewed macroscopic state for a structure. A matching
+    /// rule-role fact wins over the standard-context fallback.
+    #[must_use]
+    pub fn macroscopic_material(
+        &self,
+        structure: &StructureId,
+        rule_role: Option<(&ReactionRuleId, &str)>,
+    ) -> Option<&MacroscopicMaterialRecord> {
+        let role_record = rule_role.and_then(|(rule, role)| {
+            self.macroscopic_materials
+                .get(&(
+                    structure.clone(),
+                    MacroscopicMaterialContextRecord::ReactionRole {
+                        rule: rule.clone(),
+                        role: role.to_owned(),
+                    },
+                ))
+                .map(|index| &self.document.macroscopic_materials[*index])
+        });
+        role_record.or_else(|| {
+            self.macroscopic_materials
+                .get(&(
+                    structure.clone(),
+                    MacroscopicMaterialContextRecord::Standard,
+                ))
+                .map(|index| &self.document.macroscopic_materials[*index])
+        })
+    }
+
     /// Validates a digest-bound host-selected chemistry review attestation.
     ///
     /// # Errors
@@ -749,6 +790,72 @@ fn validate_metadata(document: &CatalogueDocument) -> Result<(), CatalogueError>
         ));
     }
     Ok(())
+}
+
+fn validate_macroscopic_materials(
+    records: &[MacroscopicMaterialRecord],
+    structures: &BTreeMap<StructureId, StructureDefinition>,
+    rules: &BTreeMap<ReactionRuleId, ValidatedReactionRule>,
+    generalized_rules: &BTreeMap<ReactionRuleId, ValidatedGeneralizedRule>,
+    generalized_rule_records: &[GeneralizedReactionRuleRecord],
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<BTreeMap<(StructureId, MacroscopicMaterialContextRecord), usize>, CatalogueError> {
+    let mut index = BTreeMap::new();
+    for (position, record) in records.iter().enumerate() {
+        if !structures.contains_key(&record.structure) {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidMacroscopicMaterial,
+                format!(
+                    "macroscopic material references unknown structure `{}`",
+                    record.structure
+                ),
+            ));
+        }
+        if record.premise_ids.is_empty()
+            || record
+                .premise_ids
+                .iter()
+                .any(|premise| !premises.contains_key(premise))
+        {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidMacroscopicMaterial,
+                format!(
+                    "macroscopic material `{}` lacks resolvable premises",
+                    record.structure
+                ),
+            ));
+        }
+        if let MacroscopicMaterialContextRecord::ReactionRole { rule, role } = &record.context {
+            let legacy_role_exists = rules
+                .get(rule)
+                .is_some_and(|validated| validated.record().roles.contains_key(role));
+            let generalized_role_exists = generalized_rules.contains_key(rule)
+                && generalized_rule_records
+                    .iter()
+                    .find(|record| record.id == *rule)
+                    .is_some_and(|record| record.roles.contains_key(role));
+            if role.trim().is_empty() || (!legacy_role_exists && !generalized_role_exists) {
+                return Err(CatalogueError::new(
+                    CatalogueErrorCode::InvalidMacroscopicMaterial,
+                    format!(
+                        "macroscopic material `{}` references unknown role `{role}` on `{rule}`",
+                        record.structure
+                    ),
+                ));
+            }
+        }
+        let key = (record.structure.clone(), record.context.clone());
+        if index.insert(key, position).is_some() {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidMacroscopicMaterial,
+                format!(
+                    "duplicate macroscopic material context for `{}`",
+                    record.structure
+                ),
+            ));
+        }
+    }
+    Ok(index)
 }
 
 fn index_evidence(
@@ -4049,6 +4156,9 @@ fn normalize_document(document: &mut CatalogueDocument) {
         .graph_patterns
         .sort_by(|left, right| left.id.cmp(&right.id));
     normalize_generalized_rules(&mut document.generalized_rules);
+    document.macroscopic_materials.sort_by(|left, right| {
+        (&left.structure, &left.context).cmp(&(&right.structure, &right.context))
+    });
 }
 
 fn normalize_generalized_rules(rules: &mut [GeneralizedReactionRuleRecord]) {

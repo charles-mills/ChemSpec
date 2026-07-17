@@ -67,7 +67,10 @@ source only and cannot decide chemical support.
 Owns immutable reviewed structure entries, groups, valence/electron premises,
 reaction applicability, product/map/operation templates, observation
 compatibility, provenance, review attestations, schema versions, semantic
-digests, validation, and deterministic indexes.
+digests, validation, and deterministic indexes. Optional evidence-backed
+macroscopic material records attach `Phase` to a structure in a standard or
+exact rule-role context. They are presentation facts only and cannot authorize
+a reaction or construct a product.
 
 The implemented generalized-rules design extends this boundary with an
 element registry, derived reviewed categories, checked structural traits,
@@ -94,9 +97,11 @@ normalized workflow events. It returns claims and text, never trusted chemistry.
 ### `chem-presentation`
 
 Compiles trusted kernel frames into deterministic educational scenes and binds
-host-selected macroscopic styling into a scene plan. Effects require matching
-validated observation predicates. It cannot parse source, expand rules, alter
-frames, or construct chemical state.
+host-selected or generic phase-driven macroscopic styling into a scene plan.
+The generic compiler accepts catalogue-resolved material roles/phases and typed
+observations, never reaction names. Effects require matching validated
+observation predicates. It cannot parse source, expand rules, alter frames, or
+construct chemical state.
 
 ### `chemspec-app`
 

@@ -185,7 +185,8 @@ gate.
 Renderer-side 3D tests cover role-based scene anchors, vessels grounded on the
 bench, liquid and reaction-interface bounds, full translation/rotation/scale
 application, stable object-ID variation seeds, deterministic liquid-surface
-deformation, connected low-poly gas volume generation, and fixed-camera
+deformation, connected low-poly gas volume generation, deterministic faceted
+solid-shard generation, and fixed-camera
 automatic framing by vessel scale. The camera state must contain no user orbit,
 pan, or zoom offsets, and its angle must not change with beat progress. Mesh
 tests require separate non-overlapping opaque, alpha-blended, and additive
@@ -204,16 +205,58 @@ different reaction families using the same effect profiles. Seeking the same
 position must reconstruct the same geometry and fixed camera pose without
 reaction-name branches or hidden mutable particle state.
 
+Neutralization regression tests require its trusted disappearance and formation
+observations to authorize deterministic liquid mixing and surface motion. The
+same test prohibits gas, bubbles, precipitate, flame, and product-phase assets,
+and requires the colourless material to remain less blue and more transparent
+than the stylised water material.
+
+Colour tests require named and exact `Rgb.HexRRGGBB` values to resolve
+deterministically, malformed or observation-mismatched values to fail with a
+typed plan error, and the same validated target to work for liquid, solid, and
+gas assets. Intermediate samples must differ from both endpoints, final samples
+must reach the exact requested RGB value, phase alpha must remain unchanged,
+and seeking the same sample must reproduce identical vertex colours.
+
 State-transition tests additionally require the reactant approach to remain in
 motion across later setup ordinals, meet the first effect boundary with matching
 position and rotation on both sides, and avoid an intermediate idle hold.
 Product formation must be zero before and at the start of its trusted visibility
 boundary, interpolate during the active ordinal, and reach full scale smoothly.
-Natural-motion tests require the seeded throw to form a gravity-driven arc that
-differs from linear interpolation, reach the exact contact point, produce a
-positive then damped rebound, and reproduce exactly for the same seed. Terminal
+Natural-motion tests require the seeded drop to begin over the vessel centre,
+fall farther during each successive interval under gravity, reach the exact
+contact point, produce a damped plunge-and-rebound response, and reproduce
+exactly for the same seed. Terminal
 rise, drag distance, formation response, and curl-like flow must be non-linear,
 bounded at their endpoints, deterministic, and varied between parcel seeds.
+
+Container-vibration tests require deterministic seeded motion, a strict
+sub-percent displacement bound, zero displacement without dynamic effects, and
+an unchanged fixed-camera pose. Persistent precipitate alone must not invent
+violent motion.
+
+Solid-physics tests require deterministic flat-shaded shard geometry rather
+than spheres, acceleration during the precipitate fall, exact floor contact, a
+bounded damped rebound, settled endpoints, and seeded drag-limited rotation.
+These tests operate on absolute playhead samples so replay and seeking cannot
+accumulate integration error or cross a trusted observation boundary.
+
+Macroscopic plan validation also rejects phase/predicate mismatches:
+precipitate and clouding effects require `forms`, disappearance controls
+require `disappears`, and gas effects cannot use `disappears`. Gas assets and
+gas expansion may use `evolves`, or `forms` only when the phase-driven compiler
+received a separate reviewed gas-phase catalogue fact. Acid-base profiles with
+no gas or precipitation observation must remain free of those assets and
+effects.
+
+Catalogue macroscopic-material tests require omission to preserve old schema-1
+catalogue parsing and canonical digests, rule-role context to override standard
+context, unknown structure/rule/role and premise references to fail with
+`CHEMS-C024`, and duplicate contexts to fail deterministically. Generic
+phase-combination tests cover solid + gas -> gas without bubbles, gas + gas ->
+liquid without precipitate, and aqueous reactants -> solid with settling
+precipitate. The compiler input contains bindings and phases but no reaction
+name.
 
 Flame tests additionally require deterministic faceted plume geometry, separate
 alpha body and additive core/spark batches, palette preservation, and a smooth
