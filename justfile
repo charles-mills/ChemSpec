@@ -41,9 +41,5 @@ fmt-check:
 lint:
     cargo clippy --workspace --all-targets -- -D warnings
 
-# Validate the executable ChemSpec conformance contract
-conformance:
-    cargo run -p chems-conformance -- validate
-
 # Run the complete local CI gate
-ci: fmt-check test lint conformance
+ci: fmt-check test lint

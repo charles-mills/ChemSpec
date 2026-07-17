@@ -2,41 +2,43 @@
 
 ## Role and trust boundary
 
-The agent supplies text; it is never a chemistry authority. On a reviewed
-catalogue miss, Codex may provide two narrowly separated untrusted artefacts:
+The agent crate answers algorithmically first; the model supplies text only
+for genuine unknowns and is never a chemistry authority. On a reviewed
+catalogue miss the solver attempts the claim itself; on a solver miss, Codex
+may provide two narrowly separated untrusted artefacts:
 
 1. a compact factual `ReactionClaim`; and
-2. only when local reviewed-family matching cannot animate an evidence-backed
-   outcome, a mapping and ordered operation proposal over host-labelled
-   structures.
+2. only when neither the graph-diff deriver nor local reviewed-family
+   matching can animate the outcome, a mapping and ordered operation
+   proposal over host-labelled structures.
 
-Codex does not author `.chems`, catalogues, evidence packets, structures,
-valence states, coefficients, internal IDs, or trusted capabilities. Stable
-species identity, exact balancing, typed declarations, family applicability,
-kernel validation, frame projection, evidence trust, and cache revalidation are
-local responsibilities. No provider result can bypass the next downstream
-gate.
+Codex does not author `.chems`, catalogues, structures, valence states,
+coefficients, internal IDs, or trusted capabilities. Stable species identity,
+structure generation, exact balancing, typed declarations, family
+applicability, kernel validation, frame projection, and cache revalidation
+are local responsibilities. No provider result can bypass the next
+downstream gate.
 
 ## Progressive result path
 
 ```text
 request
   -> reviewed catalogue fast path
-  -> cache v3 replay (before provider preflight)
-  -> stable reactant identity
-  -> compact claim
+  -> stable reactant identity + generated structures
+  -> algorithmic solver claim (families, confident no-reactions)
+     -> miss: cache v3 replay, then provider compact claim
   -> exact balance + checked ReactionDeclaration
-  -> immediate ModelAsserted static outcome
-  -> optional evidence verification
-  -> local reviewed-family match
+  -> immediate static outcome
+  -> algorithmic graph-diff mechanism
+     or local reviewed-family match
      or bounded model-proposed mechanism escalation
      or labelled mechanism-unavailable static outcome
 ```
 
-The application commits the first valid static result before optional evidence,
-mapping, or animation work. Static results have no frame or playback capability.
-Reviewed-family and escalated animations cross the same expansion, kernel, and
-frame-validation boundary. An escalated sequence is always disclosed as
+The application commits the first valid static result before mapping or
+animation work. Static results have no frame or playback capability. Solved,
+reviewed-family, and escalated animations cross the same expansion, kernel,
+and frame-validation boundary. An escalated sequence is always disclosed as
 model-proposed.
 
 Every claim, verification, and presentation task carries a monotonically
@@ -53,8 +55,8 @@ choice locally.
 - **Fast** uses model knowledge, returns no invented citations, and targets the
   first static result. **Verify with sources** can later locate and fetch direct
   support.
-- **Researcher** enables source search for the claim and verifies fetched
-  evidence before the result can proceed to family candidacy.
+- **Researcher** enables source search for the claim and requires at least
+  one direct source location in the returned claim.
 
 These product modes are unrelated to the Codex Fast service tier. Release
 invocation always requests low reasoning and `service_tier="default"`.
@@ -80,9 +82,9 @@ The release path fixes:
 - claim repair to one targeted correction; and
 - operation repair to at most two kernel-diagnostic corrections.
 
-`CHEMSPEC_CODEX_MODEL` remains a development benchmark override. No model slug
-is promoted as the release default until the same corpus demonstrates its
-valid-result latency and factual success.
+`CHEMSPEC_CODEX_MODEL` remains a development benchmark override. Promoting a
+different release-default model slug is a deliberate decision backed by
+benchmark evidence, not an ambient configuration change.
 
 Codex JSONL is normalized to closed product events: started, working, searching
 sources, completed, and failed, each with elapsed time. Model text and hidden
@@ -137,14 +139,13 @@ not fabricate unknown graphs.
 The cache key binds canonical request identities and context, claim/mode
 contracts, identity snapshot, trusted catalogue digest, compiler contract, and
 mechanism contract. Its envelope stores untrusted claim bytes, provider/model
-provenance, an optional evidence snapshot, and an optional presentation recipe.
-It never serializes a trusted capability.
+provenance, and an optional presentation recipe. It never serializes a
+trusted capability.
 
-Every load recompiles request binding and exact balance, restores evidence only
-after digest and field-coverage checks, and revalidates reviewed-family or
-escalated presentation through the kernel. Corrupt and old entries are misses
-and are not deleted. Cache lookup precedes Codex preflight, preserving offline
-replay.
+Every load recompiles request binding and exact balance and revalidates
+reviewed-family or escalated presentation through the kernel. Corrupt and old
+entries are misses and are not deleted. Cache lookup precedes Codex
+preflight, preserving offline replay.
 
 The default location is the platform cache directory (`Library/Caches` on
 macOS, `LOCALAPPDATA` on Windows, and `XDG_CACHE_HOME` or `.cache` on Linux).
@@ -157,10 +158,6 @@ reserved provider-neutral direction only; no direct OpenAI HTTP call, API-key
 persistence, hosted backend, account system, billing, or deployment is part of
 this rebuild.
 
-Normal tests use fake providers and fake evidence retrievers and consume no
-subscription or network. Live Codex/evidence runs are explicit ignored smoke
-tests. Corpus reports must record provider, model, and provider version and
-must report factual state, trust tier, identity, balance, evidence coverage,
-mapping, presentation, latency, and failure classification separately.
-The checked-in runner and its independent-review boundary are documented in
-`corpus/README.md`.
+Normal tests use fake providers and consume no subscription or network. Live
+Codex runs are explicit ignored smoke tests and must record provider, model,
+and provider version.

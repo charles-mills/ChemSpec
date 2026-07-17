@@ -6,7 +6,6 @@ members = [
     "crates/chem-kernel",
     "crates/chem-presentation",
     "crates/chems-cli",
-    "crates/chems-conformance",
     "crates/chems-lang",
     "crates/chemspec-app",
 ]

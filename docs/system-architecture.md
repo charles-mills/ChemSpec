@@ -15,19 +15,19 @@ or stale provider output never reaches the simulation.
 ```text
 structured reaction request
   -> host-pinned catalogue fast path
-     -> hit: selected production rule/source/evidence
-     -> miss: stable identity resolution + cache-v3 lookup
-        -> provider returns a closed factual ReactionClaim
+     -> hit: selected production rule
+     -> miss: stable identity resolution + generated structures
+        -> algorithmic reaction solver (families, confident no-reactions)
+           -> miss: cache-v3 lookup, then provider ReactionClaim
         -> exact local balance + checked ReactionDeclaration
         -> private ValidatedStaticOutcome (no frames)
-        -> optional hostile evidence verification
-        -> reviewed-family match or bounded mechanism proposal
+        -> algorithmic graph-diff mechanism derivation
+           -> miss: reviewed-family match or bounded model proposal
   -> chem-kernel validates every animated structural derivation
-  -> ValidatedStructuralReaction or model-proposed ValidatedDynamicFrames
+  -> ValidatedStructuralReaction or ValidatedDynamicFrames
   -> paired structural and observation frames
   -> chem-presentation guided and macroscopic plans
   -> Iced Canvas/wgpu presentation
-  -> provider supplies post-playback overview
 ```
 
 The simulation does not parse `.chems`; the agent does not construct validated
@@ -87,12 +87,15 @@ before graph-state validation begins.
 
 ### `agent`
 
-Owns provider preflight, closed claim and mechanism wire contracts, reviewed
-identity projection, exact outcome compilation, hostile evidence retrieval,
-reviewed-family matching, bounded mechanism escalation, cache v3, timeouts,
-normalized progress, and corpus metrics. Cached and fresh artefacts cross the
-same identity/balance/evidence/kernel gates. It never constructs host-pinned
-catalogue trust.
+Owns the algorithmic reaction solver (classroom families, solubility and
+activity tables, confident no-reactions), systematic naming in both
+directions (product names and typed-name input), graph-diff mechanism
+derivation, provider preflight, closed claim and mechanism wire contracts,
+reviewed identity projection, exact outcome compilation, reviewed-family
+matching, bounded mechanism escalation, cache v3, timeouts, and normalized
+progress. Cached, solved, and fresh artefacts cross the same
+identity/balance/kernel gates. It never constructs host-pinned catalogue
+trust.
 
 ### `chem-presentation`
 
@@ -181,14 +184,14 @@ acids to remain valid compounds once their structures validate.
 
 ## Persistence and staleness
 
-The `.chems` file is the human-readable authored artifact. Evidence,
-certificate, derivation, and frames remain separate and bind to source,
-catalogue, and evidence digests. Editing source or changing either trusted
-digest invalidates every downstream value.
+The `.chems` file is the human-readable authored artifact. Certificate,
+derivation, and frames remain separate and bind to source and catalogue
+digests. Editing source or changing a trusted digest invalidates every
+downstream value.
 
 Dynamic cache v3 is separate from authored `.chems`. It binds stable request
 identities, context, identity/catalogue snapshots, and claim/compiler/mechanism
-contract versions. It stores only untrusted claim/evidence/presentation recipes;
+contract versions. It stores only untrusted claim/presentation recipes;
 offline load reconstructs every capability through current validators.
 
 ## Platform decision

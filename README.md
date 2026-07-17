@@ -1,12 +1,14 @@
 # ChemSpec
 
-ChemSpec is an AI-assisted theoretical chemistry explorer. A learner proposes a
-reaction; the reviewed catalogue supplies an immediate result when it can; and
-Codex returns a compact factual claim when it cannot. ChemSpec resolves stable
-species identities and balances the outcome exactly before first display.
-Optional reviewed-family or model-proposed structural operations cross the
-same deterministic kernel before paired observation and structural simulations
-can run.
+ChemSpec is a theoretical chemistry explorer. A learner composes reactants;
+an algorithmic solver predicts the outcome for the classroom reaction
+families it knows (neutralization, displacement, combustion, decomposition,
+precipitation, oxide chemistry, and more), a Lewis-structure generator
+derives every species' structure from periodic-table physics, and a
+graph-diff deriver computes the mechanism between the two validated
+endpoints. A model (Codex) is consulted only when the algorithms decline,
+and its claims cross exactly the same balancing, kernel validation, and
+animation pipeline — the model is a fallback, never a shortcut.
 
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
@@ -15,15 +17,15 @@ The project is being built for the Education category of
 
 ```text
 request
-  -> catalogue fast path
-     -> miss: Codex returns a closed factual claim
-        -> stable species identity + exact typed declaration
-        -> immediate honestly labelled static outcome
-        -> optional source verification and presentation enrichment
-  -> reviewed-family or model-proposed mapping and operation expansion
+  -> algorithmic solver (reaction families, confident no-reactions)
+     -> miss: reviewed catalogue fast path
+        -> miss: model returns a closed factual claim
+  -> stable species identity + exact balancing (all paths)
+  -> structure generation for every species without a reviewed graph
+  -> mechanism: graph diff between validated endpoints
+     -> miss: model proposal, validated identically
   -> graph, charge, electron, and product validation
   -> paired observation and structural-change frames
-  -> explanatory overview
 ```
 
 - Formulae summarize composition; catalogue graphs define structure.
@@ -98,9 +100,8 @@ full; `by apply` cannot select or omit checks.
 - [System architecture](docs/system-architecture.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
 - [Dynamic reaction outcome rebuild plan](docs/dynamic-reaction-rebuild-plan.md)
-- [Dynamic reaction breadth corpus](corpus/README.md)
 - [Verification strategy](docs/verification.md)
-- [Conformance contract](conformance/README.md)
+- [Conformance fixtures](conformance/README.md)
 
 ## Workspace
 
@@ -114,11 +115,10 @@ catalogue data, provider output, and validation:
 - `chem-kernel` — resolution, expansion, graph validation, and artifacts;
 - `chem-presentation` — deterministic guided-scene and macroscopic-scene plans
   compiled only from validated kernel frames;
-- `agent` — compact claim/mechanism contracts, Codex invocation, identity and
-  evidence adapters, exact outcome compilation, cache v3, and corpus metrics;
-- `chems-cli` — parsing, formatting, source/certificate inspection, deterministic
-  candidate checking, and attestation-bound catalogue promotion;
-- `chems-conformance` — specification, grammar, fixture, and coverage gates.
+- `agent` — the algorithmic reaction solver, systematic naming (both
+  directions), graph-diff mechanism derivation, compact claim/mechanism
+  contracts, Codex invocation, exact outcome compilation, and cache v3;
+- `chems-cli` — parsing, formatting, and source/expansion inspection;
 - `chemspec-app` — native Iced composition UI plus Canvas 2D and wgpu 3D
   renderers.
 
@@ -129,65 +129,38 @@ a possible provider-neutral backup, but it is not connected and neither a
 direct API implementation nor a hosted backend is required by the current
 [dynamic reaction rebuild](docs/dynamic-reaction-rebuild-plan.md).
 
-## Language status
+## Chemistry status
 
-The structural `.chems 1` implementation is complete through the fixed seven
-slices. The bundled 118-element identity catalogue and generalized reaction
-families are promoted together through an exact host-pinned AI review
-attestation. The aggregate contains 205 supported experiences: 36 established
-finite bindings, 68 oxygen outcomes, 81 fixed-charge binary ion pairs, and 20
-finite covalent-combination outcomes. The
-remaining element records do not imply reaction support. The attestation names
-its AI reviewer and limitations; it is an explicit product trust decision, not
-human expert certification.
+Chemistry is derived programmatically, with the reviewed catalogue as a
+curated fast path rather than a boundary:
 
-The covalent matrix, its closed-world boundary, and regeneration command are
-documented in [`docs/covalent-combinations.md`](docs/covalent-combinations.md).
+- The **structure generator** builds Lewis structures from an element
+  multiset alone — octet/duet ledgers, expanded octets toward more
+  electronegative partners, formal-charge distributions, symmetric-resonance
+  delocalization (nitrate reads 4/3, benzene 3/2) — and declines honestly
+  when a formula is genuinely ambiguous.
+- The **reaction solver** covers the classroom families: acid-base (oxides,
+  hydroxides, carbonates, bicarbonates), acid + metal and the activity
+  series, single/double/halogen displacement with solubility rules, C/H/O
+  combustion, anhydride hydration and slaking, metal + water, heat and
+  electrolysis decomposition, plus confident no-reactions (noble gases,
+  metal pairs, insoluble ions). Products carry systematic names.
+- The **mechanism deriver** computes operation sequences as a graph diff
+  between validated endpoint structures; the kernel validates the result
+  identically whether it came from the deriver, a reviewed family, or a
+  model proposal.
+- The **reactant composer** accepts periodic-table drafts or typed names and
+  formulas ("copper(II) sulfate", `Mg(NO3)2`, "zinc + hydrochloric acid"),
+  and previews any compound the generator can build.
 
-Generalized element categories, structure templates, graph patterns, and
-reaction families are implemented without changing the authored `.chems 1`
-grammar. Runtime Codex claims and mechanism proposals cannot promote themselves
-into the host-pinned fast path. Promotion remains a deliberate source-controlled
-optimization, not a prerequisite for displaying an exactly balanced static
-dynamic result.
-
-The Iced application's typed request boundary can deterministically author and
-validate `.chems 1` source for all 205 supported experiences through the real
-catalogue, generalized expansion, kernel validation, and `SimulationFrames`
-APIs. The reactant composer exposes the complete set, asks the learner to pick
-when a pair has several reviewed products, and keeps oxygen screening distinct
-from executable frames. Recognized catalogue misses show **Codex will build
-this reaction** and launch a generation-scoped provider task. Codex returns one
-compact factual claim. ChemSpec resolves the request to stable identities,
-balances it exactly, and displays the static outcome before optional evidence
-and animation work. Reviewed-family and escalated animation recipes cross the
-same kernel and frame validation; cache v3 revalidates them for offline replay.
-The editable prompt is embedded at compile time and an installed app does not
-need the source repository. Draft previews are projected only from unambiguous
-structures in the same host-pinned catalogue; they do not confer trust.
+Runtime model claims cannot promote themselves into the reviewed catalogue,
+and cache v3 revalidates cached outcomes for offline replay. Malformed,
+ambiguous, or unrepresentable chemistry remains blocked rather than guessed.
 
 ## Development commands
 
 ```sh
-cargo run -p chems-conformance -- validate
 cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansion-001.chems
-cargo run -p chems-cli -- catalogue check --out /tmp/chems-review \
-  catalogue/candidates/periodic-table-and-alkali-water \
-  catalogue/candidates/precipitation-silver-halide \
-  catalogue/candidates/acid-base-neutralization \
-  catalogue/candidates/acid-carbonate-gas-evolution \
-  catalogue/candidates/single-displacement-halogen \
-  catalogue/candidates/oxygen-reactions \
-  catalogue/candidates/covalent-combinations
-cargo run -p chems-cli -- catalogue promote --out /tmp/chems-trusted \
-  --attestation catalogue/reviews/core-chemistry.review.json \
-  catalogue/candidates/periodic-table-and-alkali-water \
-  catalogue/candidates/precipitation-silver-halide \
-  catalogue/candidates/acid-base-neutralization \
-  catalogue/candidates/acid-carbonate-gas-evolution \
-  catalogue/candidates/single-displacement-halogen \
-  catalogue/candidates/oxygen-reactions \
-  catalogue/candidates/covalent-combinations
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check

@@ -512,7 +512,6 @@ version = "0.1.0"
 dependencies = [
  "chem-catalogue",
  "chem-domain",
- "chems-conformance",
  "chems-lang",
  "jsonschema",
  "num-bigint",
@@ -537,16 +536,6 @@ dependencies = [
  "chem-domain",
  "chem-kernel",
  "chems-lang",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "chems-conformance"
-version = "0.1.0"
-dependencies = [
- "chem-domain",
- "jsonschema",
  "serde",
  "serde_json",
 ]

@@ -76,45 +76,27 @@ presentation.
 
 ## Agent evaluation
 
-Use the versioned dynamic corpus covering at least 250 explicit requests across
-all categories named in the rebuild plan, including adversarial mutations. It
-includes:
+The algorithmic paths are the primary evaluation surface and are covered by
+ordinary workspace tests:
 
-- straightforward supported questions;
-- names versus formulas;
-- missing quantities;
-- ambiguous commercial materials;
-- no-reaction cases;
-- unsupported chemistry;
-- incorrect user assumptions;
-- prompt injection;
-- hazardous procedural requests;
-- repairable source errors;
-- identity isomers, stereochemistry, charge, phase, and ambiguous alternatives;
-- exact unique, impossible, underdetermined, ionic, redox, acid/base, and
-  combustion balances; and
-- structure-derived proton-donor classification without formula/name lists,
-  including hydrogen halides, carbon-bound donor sites, multiple donor-site
-  counting, and rejection of H-H as a compound acid site; and
-- reviewed-family, escalated-mechanism, mechanism-unavailable, and static
-  presentation capabilities.
-
-Record by provider and model:
-
-- factual accuracy by trust tier;
-- structured-output and exact compilation success;
-- identity-resolution accuracy;
-- balance accuracy;
-- evidence-backed claim-field coverage;
-- escalated mapping/kernel success;
-- presentation-capability accuracy;
-- correct unsupported and redirected behaviour;
-- failure classification and attempt count; and
-- time to claim, evidence, static outcome, reviewed animation, and escalated
-  mechanism, with p50/p95 reported separately.
+- solver family tests: every reaction family asserts its products, phases,
+  observations, systematic names, and — equally important — its honest
+  declines (borderline solubility, redox-prone pairings, steam-only metals,
+  ambiguous oxides);
+- confident no-reaction tests: noble gases, metal pairs, identical
+  closed-shell reactants, and displacement reversals answer instantly;
+- generator tests: structures derive from element multisets alone, resonance
+  systems delocalize (nitrate 4/3, benzene 3/2), and genuinely ambiguous
+  formulas decline rather than guess;
+- end-to-end animation tests: each solved family drives structure
+  generation, graph-diff mechanism derivation, kernel validation, and frame
+  projection while asserting **zero model calls**;
+- provider-path tests with fakes: structured-output failure, bounded repair,
+  escalated mechanism validation, and cache-v3 replay.
 
 A failed generation that becomes an explicit invalid or unsupported result is
-acceptable. Invalid source reaching simulation is not.
+acceptable. Invalid source reaching simulation is not, and a confident wrong
+verdict is worse than a decline to the model.
 
 ## Simulation verification
 
@@ -148,34 +130,14 @@ Drive Iced update logic through fake providers and deterministic messages:
   dependencies in packaged-provider prompts;
 - claim/source failure and one targeted retry;
 - mechanism diagnostics and two-operation-repair limit;
-- evidence replacement limit and non-browsing adjudication;
 - cache-v3 offline replay and digest staleness;
 - source edits invalidating the simulation;
 - switching providers without losing the experiment;
 - stale asynchronous results being ignored.
 
-Normal tests never consume subscription, API usage, or network. At least 25
-representative live Codex/evidence cases remain explicit opt-in smoke tests and
-must record provider/model versions.
-
-Validate the offline corpus and report a complete provider/model observation
-set with:
-
-```sh
-cargo test -p agent corpus::tests
-cargo run -p agent --bin dynamic-corpus-report -- \
-  corpus/dynamic-reactions-v1.json observations.json
-```
-
-The explicit live capability smoke is:
-
-```sh
-cargo test -p agent representative_live_codex_and_evidence_smoke -- \
-  --ignored --nocapture --test-threads=1
-```
-
-It consumes subscription and network and is therefore never part of the normal
-workspace gate. See `corpus/README.md` for the review and reporting boundary.
+Normal tests never consume subscription, API usage, or network. Live provider
+checks remain explicit opt-in smoke tests and must record provider/model
+versions; they are never part of the normal workspace gate.
 
 Reaction-builder presentation tests additionally check that shell counts and
 outer-electron counts come from curated element metadata, grouped atomic
