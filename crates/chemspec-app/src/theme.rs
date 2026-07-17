@@ -485,6 +485,15 @@ pub fn provider_button(selected: bool, status: button::Status) -> button::Style 
     }
 }
 
+pub fn soft_divider(_: &Theme) -> rule::Style {
+    rule::Style {
+        color: color::LINE,
+        radius: border::Radius::default(),
+        fill_mode: rule::FillMode::Full,
+        snap: true,
+    }
+}
+
 pub fn danger_divider(_: &Theme) -> rule::Style {
     rule::Style {
         color: color::DANGER,

@@ -961,7 +961,7 @@ pub enum DraftResolution {
 
 impl DraftResolution {
     #[must_use]
-    pub fn message(&self) -> Option<&str> {
+    pub fn message(&self, local: bool) -> Option<&str> {
         match self {
             Self::Supported(_) => None,
             Self::Multiple(_) => Some("Choose one reviewed product outcome."),
@@ -973,10 +973,16 @@ impl DraftResolution {
                 | OxygenOutcome::Ambiguous { reason }
                 | OxygenOutcome::Unsupported { reason } => reason,
             }),
-            Self::ExplicitlyUnsupported(_) | Self::Uncatalogued => {
-                Some("Codex will build this reaction")
-            }
-            Self::Unrecognized => Some("Codex will identify and build these compounds"),
+            Self::ExplicitlyUnsupported(_) | Self::Uncatalogued => Some(if local {
+                "Local Mode will try to derive this reaction"
+            } else {
+                "Codex will build this reaction"
+            }),
+            Self::Unrecognized => Some(if local {
+                "Local Mode will try to derive these compounds"
+            } else {
+                "Codex will identify and build these compounds"
+            }),
             Self::SystemError(_) => Some("The trusted chemistry catalogue is unavailable."),
         }
     }

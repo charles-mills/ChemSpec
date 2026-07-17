@@ -347,14 +347,6 @@ fn dynamic_presentation_profile(
     }
 }
 
-const fn initial_provider(codex_available: bool) -> ProviderChoice {
-    if codex_available {
-        ProviderChoice::CodexSubscription
-    } else {
-        ProviderChoice::ApiKey
-    }
-}
-
 fn launch_state() -> App {
     let mut app = App::default();
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
@@ -499,6 +491,7 @@ impl SmokeMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProviderChoice {
+    Local,
     CodexSubscription,
     ApiKey,
 }
@@ -759,7 +752,7 @@ impl Default for App {
             screen: Screen::ProviderSetup,
             smoke_mode: None,
             codex_available,
-            provider: Some(initial_provider(codex_available)),
+            provider: Some(ProviderChoice::Local),
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
@@ -805,6 +798,12 @@ fn api_key_format_is_valid(api_key: &str) -> bool {
 }
 
 impl App {
+    /// Local Mode is a state for the whole app: no model integration, no
+    /// model-facing copy, and anything only a model could do is unsupported.
+    fn local_mode(&self) -> bool {
+        self.provider == Some(ProviderChoice::Local)
+    }
+
     fn title(&self) -> String {
         let base = self.smoke_mode.map_or_else(
             || "ChemSpec — reaction builder".to_owned(),
@@ -870,6 +869,7 @@ impl App {
             Message::ApiKeyChanged(api_key) => self.api_key = api_key,
             Message::ProviderContinue => {
                 let ready = match self.provider {
+                    Some(ProviderChoice::Local) => true,
                     Some(ProviderChoice::CodexSubscription) => self.codex_available,
                     Some(ProviderChoice::ApiKey) | None => false,
                 };
@@ -989,6 +989,7 @@ impl App {
                             run_id,
                             request,
                             self.claim_mode,
+                            self.local_mode(),
                             outcome,
                             self.dynamic_cancellation
                                 .clone()
@@ -1133,6 +1134,7 @@ impl App {
                     run_id,
                     request,
                     self.claim_mode,
+                    self.local_mode(),
                     outcome,
                     cancellation,
                     progress,
@@ -1320,7 +1322,8 @@ impl App {
         mut request: ReactionBuildRequest,
         regenerate: bool,
     ) -> Task<Message> {
-        if !matches!(self.provider, Some(ProviderChoice::CodexSubscription)) {
+        let local = self.local_mode();
+        if !local && !matches!(self.provider, Some(ProviderChoice::CodexSubscription)) {
             self.dynamic_build = DynamicBuildState::Failed(
                 "Direct API reaction building is not available yet; choose Codex subscription."
                     .to_owned(),
@@ -1408,7 +1411,10 @@ impl App {
                     };
                 let mut latency = LatencyMilestones::default();
                 let provider = CodexProvider::new(config);
+                // Local Mode never reads the cache: cached claims are model
+                // output, and Local Mode is purely programmatic.
                 if !regenerate
+                    && !local
                     && let Some(cached) = load_dynamic_cache(
                         provider.config().cache_directory.as_deref(),
                         &request,
@@ -1440,6 +1446,13 @@ impl App {
                 let algorithmic = solved.is_some();
                 let claim = match solved {
                     Some(claim) => claim,
+                    None if local => {
+                        return Err(
+                            "This reaction isn't supported in Local Mode — ChemSpec couldn't \
+                             derive it programmatically. Switch to an AI mode to research it."
+                                .to_owned(),
+                        );
+                    }
                     None => provider
                         .claim_reaction_until(&request, mode, deadline)
                         .map_err(|error| error.to_string())?,
@@ -1482,6 +1495,7 @@ impl App {
         run_id: u64,
         request: ReactionBuildRequest,
         mode: ClaimMode,
+        local: bool,
         outcome: ValidatedStaticOutcome,
         cancellation: Arc<AtomicBool>,
         progress: Sender<CodexProgressEvent>,
@@ -1500,6 +1514,31 @@ impl App {
         };
         Task::perform(
             async move {
+                if local {
+                    // Reviewed-family and algorithmic mechanisms only; model
+                    // escalation is explicitly unsupported, so a static
+                    // settle is final rather than retryable.
+                    let presentation = enrich_static_outcome(
+                        outcome,
+                        &catalogue,
+                        &mut agent::UnsupportedMechanismProvider,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    return Ok(match presentation {
+                        DynamicPresentationOutcome::Static {
+                            outcome,
+                            diagnostic,
+                            attempts,
+                            retryable: _,
+                        } => DynamicPresentationOutcome::Static {
+                            outcome,
+                            diagnostic,
+                            attempts,
+                            retryable: false,
+                        },
+                        animated => animated,
+                    });
+                }
                 let mut provider = CodexProvider::new(config);
                 let claim = outcome.claim().clone();
                 let presentation = enrich_static_outcome(outcome, &catalogue, &mut provider)
@@ -1839,8 +1878,22 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn provider_setup_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
+        let local_selected = self.provider == Some(ProviderChoice::Local);
         let codex_selected = self.provider == Some(ProviderChoice::CodexSubscription);
         let api_selected = self.provider == Some(ProviderChoice::ApiKey);
+
+        let local = button(
+            row![
+                icons::chip(20.0, color::ACCENT),
+                text("Local Mode").size(type_scale::BODY_LARGE),
+            ]
+            .spacing(spacing::SM)
+            .align_y(Center),
+        )
+        .on_press(Message::ProviderSelected(ProviderChoice::Local))
+        .padding([spacing::SM, spacing::MD])
+        .width(Fill)
+        .style(move |_, status| theme::provider_button(local_selected, status));
 
         let codex_icon_color = if self.codex_available {
             color::ACCENT
@@ -1877,9 +1930,21 @@ impl App {
         .width(Fill)
         .style(move |_, status| theme::provider_button(api_selected, status));
 
-        let choices: Element<'_, Message> = column![codex, api].spacing(spacing::SM).into();
-        let ready = codex_selected && self.codex_available;
-        let continue_label = if api_selected {
+        let choices: Element<'_, Message> = column![
+            local,
+            rule::horizontal(1).style(theme::soft_divider),
+            text("Supercharge ChemSpec with AI")
+                .size(type_scale::BODY)
+                .color(color::MUTED),
+            codex,
+            api,
+        ]
+        .spacing(spacing::SM)
+        .into();
+        let ready = local_selected || (codex_selected && self.codex_available);
+        let continue_label = if local_selected {
+            "Continue with Local Mode"
+        } else if api_selected {
             "API provider coming next"
         } else {
             "Continue with Codex"
@@ -1933,6 +1998,7 @@ impl App {
                 })
                 .color(color::TEXT)
                 .into(),
+            choices,
         ];
 
         if !self.codex_available {
@@ -1956,7 +2022,7 @@ impl App {
             );
         }
 
-        sections.extend([choices, action]);
+        sections.push(action);
 
         let content = container(column(sections).spacing(spacing::LG))
             .width(Fill)
@@ -2259,7 +2325,11 @@ impl App {
             .on_press(Message::ScreenSelected(Screen::Builder))
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let regenerate: Element<'_, Message> = if self.dynamic_request.is_some() {
+        // Local Mode derivations are deterministic; regenerating would only
+        // recompute the identical result.
+        let regenerate: Element<'_, Message> = if self.dynamic_request.is_some()
+            && !self.local_mode()
+        {
             button(text("Regenerate"))
                 .on_press(Message::RegenerateDynamicReaction)
                 .padding([spacing::XS, spacing::SM])
@@ -2471,7 +2541,11 @@ impl App {
             .on_press(Message::ReturnTo2d)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let regenerate: Element<'_, Message> = if self.dynamic_request.is_some() {
+        // Local Mode derivations are deterministic; regenerating would only
+        // recompute the identical result.
+        let regenerate: Element<'_, Message> = if self.dynamic_request.is_some()
+            && !self.local_mode()
+        {
             button(text("Regenerate"))
                 .on_press(Message::RegenerateDynamicReaction)
                 .padding([spacing::XS, spacing::SM])
@@ -2679,6 +2753,9 @@ impl App {
         if let Some(outcome) = &self.dynamic_static {
             let trust = match outcome.trust_tier() {
                 TrustTier::Reviewed => "REVIEWED",
+                // Local Mode claims come from the algorithmic solver, so the
+                // unreviewed tier is derived rather than model-asserted.
+                TrustTier::ModelAsserted if self.local_mode() => "DERIVED",
                 TrustTier::ModelAsserted => "MODEL ASSERTED",
             };
             let presentation = match (&self.dynamic_build, &self.dynamic_presentation) {
@@ -2961,6 +3038,7 @@ impl App {
                 }),
                 DynamicBuildState::Failed(_) => Some("Couldn’t build this result".to_owned()),
             },
+            self.local_mode(),
             compact,
         )
         .map(Message::ReactantComposer);
@@ -3006,29 +3084,41 @@ impl App {
         } else {
             space().height(Length::Shrink).into()
         };
+        // Fast/Researcher only tunes the model claim budget; Local Mode has
+        // no model, so the toggle disappears entirely.
+        let claim_mode_toggle: Element<'_, Message> = if self.local_mode() {
+            space().width(Fill).into()
+        } else {
+            row![
+                text("MODE").size(type_scale::MICRO).color(color::MUTED),
+                button(text("Fast"))
+                    .on_press_maybe(
+                        (!dynamic_busy && self.claim_mode != ClaimMode::Fast)
+                            .then_some(Message::ClaimModeSelected(ClaimMode::Fast)),
+                    )
+                    .style(if self.claim_mode == ClaimMode::Fast {
+                        theme::primary_button
+                    } else {
+                        theme::secondary_button
+                    }),
+                button(text("Researcher"))
+                    .on_press_maybe(
+                        (!dynamic_busy && self.claim_mode != ClaimMode::Researcher)
+                            .then_some(Message::ClaimModeSelected(ClaimMode::Researcher)),
+                    )
+                    .style(if self.claim_mode == ClaimMode::Researcher {
+                        theme::primary_button
+                    } else {
+                        theme::secondary_button
+                    }),
+                space().width(Fill),
+            ]
+            .spacing(spacing::XS)
+            .align_y(Center)
+            .into()
+        };
         let mode_toggle = row![
-            text("MODE").size(type_scale::MICRO).color(color::MUTED),
-            button(text("Fast"))
-                .on_press_maybe(
-                    (!dynamic_busy && self.claim_mode != ClaimMode::Fast)
-                        .then_some(Message::ClaimModeSelected(ClaimMode::Fast)),
-                )
-                .style(if self.claim_mode == ClaimMode::Fast {
-                    theme::primary_button
-                } else {
-                    theme::secondary_button
-                }),
-            button(text("Researcher"))
-                .on_press_maybe(
-                    (!dynamic_busy && self.claim_mode != ClaimMode::Researcher)
-                        .then_some(Message::ClaimModeSelected(ClaimMode::Researcher)),
-                )
-                .style(if self.claim_mode == ClaimMode::Researcher {
-                    theme::primary_button
-                } else {
-                    theme::secondary_button
-                }),
-            space().width(Fill),
+            claim_mode_toggle,
             button(text("Cancel"))
                 .on_press_maybe(
                     matches!(self.dynamic_build, DynamicBuildState::Running { .. })
@@ -3273,10 +3363,14 @@ mod tests {
     }
 
     #[test]
-    fn initial_provider_follows_codex_availability() {
-        assert_eq!(initial_provider(true), ProviderChoice::CodexSubscription);
-        assert_eq!(initial_provider(false), ProviderChoice::ApiKey);
+    fn local_mode_is_preselected_and_continues_without_codex() {
+        let mut app = App::default();
+        assert_eq!(app.provider, Some(ProviderChoice::Local));
+        assert_eq!(app.screen, Screen::ProviderSetup);
+        app.update(Message::ProviderContinue);
+        assert_eq!(app.screen, Screen::Builder);
     }
+
 
     #[test]
     fn uncatalogued_reaction_starts_generation_scoped_codex_build() {

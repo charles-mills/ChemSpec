@@ -145,6 +145,24 @@ pub trait MechanismProvider {
     }
 }
 
+/// Declines every escalation. Used when model integration is disabled, so
+/// enrichment settles on the algorithmic and reviewed-family paths only.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnsupportedMechanismProvider;
+
+impl MechanismProvider for UnsupportedMechanismProvider {
+    fn propose(
+        &mut self,
+        _request: &MechanismEscalationRequest,
+        _diagnostic: Option<&str>,
+    ) -> Result<MechanismEscalationResponse, AgentError> {
+        Err(AgentError::new(
+            "mechanism escalation",
+            "animating this mechanism is not supported without a model",
+        ))
+    }
+}
+
 /// Compiles a mechanism request only when every declaration species has a
 /// validated structural graph. Formula-only species return `Ok(None)` and
 /// remain static; no graph is fabricated.

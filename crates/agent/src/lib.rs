@@ -49,7 +49,8 @@ pub use identity::{
 };
 pub use mechanism::{
     EscalatedMechanismOutcome, MechanismContext, MechanismEscalationOutcome, MechanismProvider,
-    compile_mechanism_request, derive_mechanism, validate_escalated_response,
+    UnsupportedMechanismProvider, compile_mechanism_request, derive_mechanism,
+    validate_escalated_response,
     validate_escalated_response_with_structures,
 };
 pub use outcome::{

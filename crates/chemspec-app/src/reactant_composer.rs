@@ -225,10 +225,11 @@ pub fn view(
     state: &State,
     library_drag: Option<u8>,
     build_status: Option<String>,
+    local: bool,
     compact: bool,
 ) -> Element<'static, Message> {
     let sentence = sentence(state, library_drag, compact);
-    let actions = action_row(state, build_status);
+    let actions = action_row(state, build_status, local);
 
     container(
         column![sentence, actions]
@@ -298,7 +299,11 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
         .into()
 }
 
-fn action_row(state: &State, build_status: Option<String>) -> Element<'static, Message> {
+fn action_row(
+    state: &State,
+    build_status: Option<String>,
+    local: bool,
+) -> Element<'static, Message> {
     let active_atoms = &state.drafts[state.active.index()].atoms;
     let resolution = resolution(state);
     let run_label = match &resolution {
@@ -345,7 +350,7 @@ fn action_row(state: &State, build_status: Option<String>) -> Element<'static, M
                     | chemistry::DraftResolution::Screened(_)
             )
         })
-        .and_then(|resolution| resolution.message())
+        .and_then(|resolution| resolution.message(local))
         .map(|message| {
             text(message.to_owned())
                 .size(type_scale::CAPTION)
@@ -775,8 +780,15 @@ mod tests {
         state.drafts[1].atoms = vec![11, 9];
         assert!(can_start_reaction(&state));
         let resolution = resolution(&state);
-        assert_eq!(resolution.message(), Some("Codex will build this reaction"));
-        let _ = action_row(&state, None);
+        assert_eq!(
+            resolution.message(false),
+            Some("Codex will build this reaction")
+        );
+        assert_eq!(
+            resolution.message(true),
+            Some("Local Mode will try to derive this reaction")
+        );
+        let _ = action_row(&state, None, false);
     }
 
     #[test]
@@ -799,7 +811,7 @@ mod tests {
         assert_eq!(formula(&state.drafts[1].atoms), "NaOH");
         assert_eq!(resolution(&state), chemistry::DraftResolution::Unrecognized);
         assert!(can_start_reaction(&state));
-        let _ = action_row(&state, None);
+        let _ = action_row(&state, None, true);
     }
 
     #[test]
