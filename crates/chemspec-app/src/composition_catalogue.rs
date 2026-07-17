@@ -270,6 +270,32 @@ pub fn trusted_preview(
         .or_else(|| generated_preview(&atomic_numbers))
 }
 
+/// Preview for a draft the user named: name-keyed canonical structures
+/// (ammonium cyanate vs urea) outrank the composition lookup, which can
+/// only ever answer with one structure per inventory.
+pub fn trusted_preview_named(
+    name: &str,
+    atomic_numbers: impl IntoIterator<Item = u8>,
+) -> Option<TrustedCompositionPreview> {
+    let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
+    let named = || {
+        let mut counts = std::collections::BTreeMap::new();
+        for number in &atomic_numbers {
+            let symbol = chem_domain::ElementSymbol::new(chem_domain::symbol_of(*number)?).ok()?;
+            *counts.entry(symbol).or_insert(0_u64) += 1;
+        }
+        let inventory = chem_domain::ElementInventory::new(counts).ok()?;
+        let structure = chem_domain::generate_named_structure(
+            chem_domain::StructureId::new("generated.named-preview").ok()?,
+            name,
+            &inventory,
+        )?;
+        let formula = conventional_formula(&structure);
+        preview_from_definition(&structure, &formula)
+    };
+    named().or_else(|| trusted_preview(atomic_numbers))
+}
+
 /// Structural preview straight from the generator: no catalogue involved.
 fn generated_preview(atomic_numbers: &[u8]) -> Option<TrustedCompositionPreview> {
     let atomic_numbers = chemistry::standardize_elemental_draft(atomic_numbers);
@@ -794,6 +820,25 @@ mod tests {
         assert_eq!(magnesium_fluoride.formula, "MgF₂");
         assert!(magnesium_fluoride.covalent_bonds().is_empty());
         assert_eq!(magnesium_fluoride.ionic_links().len(), 2);
+    }
+
+    #[test]
+    fn named_previews_distinguish_the_wohler_pair() {
+        let atoms = [7, 1, 1, 1, 1, 7, 6, 8];
+        let cyanate = trusted_preview_named("ammonium cyanate", atoms)
+            .expect("named ammonium cyanate preview");
+        assert!(
+            !cyanate.ionic_links().is_empty(),
+            "ammonium cyanate previews as an ionic salt"
+        );
+        let urea = trusted_preview(atoms).expect("composition preview");
+        assert!(
+            urea.ionic_links().is_empty(),
+            "the bare CH4N2O composition previews as covalent urea"
+        );
+        // An unknown name falls back to the composition preview.
+        let fallback = trusted_preview_named("mystery compound", atoms).expect("fallback preview");
+        assert!(fallback.ionic_links().is_empty());
     }
 
     #[test]

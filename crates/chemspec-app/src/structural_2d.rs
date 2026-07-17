@@ -1338,19 +1338,43 @@ fn layout_component(
     }
 
     let adjacency = component_adjacency(frame, component);
-    let root = component
-        .iter()
-        .max_by(|left, right| {
-            adjacency
-                .get(*left)
-                .map_or(0, BTreeSet::len)
-                .cmp(&adjacency.get(*right).map_or(0, BTreeSet::len))
-                .then_with(|| right.cmp(left))
-        })
-        .expect("non-empty component");
-    positions.insert(root.clone(), center);
-    let mut seen = BTreeSet::from([root.clone()]);
-    let mut queue = VecDeque::from([(root.clone(), 0_usize, -std::f32::consts::FRAC_PI_2)]);
+    let mut seen: BTreeSet<String>;
+    let mut queue: VecDeque<(String, usize, f32)>;
+    if let Some(ring) = single_ring(&adjacency) {
+        // Ring atoms sit on a regular polygon whose edge matches the widest
+        // bond length, so no neighbouring shells are squeezed; substituents
+        // hang radially outward from their ring atom.
+        let count = ring.len();
+        let edge = (0..count)
+            .map(|index| radius_of(&ring[index]) + radius_of(&ring[(index + 1) % count]) + gap)
+            .fold(0.0_f32, f32::max);
+        let circumradius = edge / (2.0 * (std::f32::consts::PI / count as f32).sin());
+        seen = ring.iter().cloned().collect();
+        queue = VecDeque::new();
+        for (index, id) in ring.iter().enumerate() {
+            let angle =
+                -std::f32::consts::FRAC_PI_2 + std::f32::consts::TAU * index as f32 / count as f32;
+            positions.insert(
+                id.clone(),
+                center + Vector::new(angle.cos() * circumradius, angle.sin() * circumradius),
+            );
+            queue.push_back((id.clone(), 1, angle));
+        }
+    } else {
+        let root = component
+            .iter()
+            .max_by(|left, right| {
+                adjacency
+                    .get(*left)
+                    .map_or(0, BTreeSet::len)
+                    .cmp(&adjacency.get(*right).map_or(0, BTreeSet::len))
+                    .then_with(|| right.cmp(left))
+            })
+            .expect("non-empty component");
+        positions.insert(root.clone(), center);
+        seen = BTreeSet::from([root.clone()]);
+        queue = VecDeque::from([(root.clone(), 0_usize, -std::f32::consts::FRAC_PI_2)]);
+    }
     while let Some((parent, depth, parent_angle)) = queue.pop_front() {
         let children = adjacency
             .get(&parent)
@@ -1378,6 +1402,58 @@ fn layout_component(
             queue.push_back((child.clone(), depth + 1, angle));
         }
     }
+}
+
+/// The lone simple cycle of a connected component, in traversal order,
+/// when the component contains exactly one; `None` for acyclic graphs.
+/// ponytail: fused/bridged systems (edges > atoms) keep the tree fallback;
+/// add SSSR perception if polycyclics ever need honest polygons.
+fn single_ring(adjacency: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<String>> {
+    let edges = adjacency.values().map(BTreeSet::len).sum::<usize>() / 2;
+    if edges != adjacency.len() {
+        return None;
+    }
+    // Exactly one independent cycle: peel leaves until only the ring is left.
+    let mut degree = adjacency
+        .iter()
+        .map(|(id, neighbours)| (id.as_str(), neighbours.len()))
+        .collect::<BTreeMap<_, _>>();
+    let mut leaves = degree
+        .iter()
+        .filter(|(_, degree)| **degree <= 1)
+        .map(|(id, _)| *id)
+        .collect::<Vec<_>>();
+    while let Some(leaf) = leaves.pop() {
+        degree.remove(leaf);
+        for neighbour in &adjacency[leaf] {
+            if let Some(count) = degree.get_mut(neighbour.as_str()) {
+                *count -= 1;
+                if *count == 1 {
+                    leaves.push(neighbour);
+                }
+            }
+        }
+    }
+    let core = degree.keys().copied().collect::<BTreeSet<_>>();
+    if core.len() < 3 {
+        return None;
+    }
+    // Every core atom has exactly two core neighbours: walk the ring.
+    let start = *core.iter().next()?;
+    let on_ring = |id: &&str| core.contains(*id);
+    let mut ring = vec![start.to_owned()];
+    let mut previous = start;
+    let mut current = adjacency[start].iter().map(String::as_str).find(on_ring)?;
+    while current != start {
+        ring.push(current.to_owned());
+        let next = adjacency[current]
+            .iter()
+            .map(String::as_str)
+            .find(|id| core.contains(*id) && *id != previous)?;
+        previous = current;
+        current = next;
+    }
+    Some(ring)
 }
 
 /// Lays out a component that is exactly one ionic lattice group as a
@@ -3574,6 +3650,122 @@ mod tests {
             distance - 52.0 >= 22.0,
             "the bond must clear both atom shells"
         );
+    }
+
+    #[test]
+    fn benzene_ring_lays_out_as_a_regular_hexagon_with_hydrogens_outside() {
+        let carbons = (1..=6).map(|index| format!("c{index}")).collect::<Vec<_>>();
+        let hydrogens = (1..=6).map(|index| format!("h{index}")).collect::<Vec<_>>();
+        let mut atoms = Vec::new();
+        let mut covalent_bonds = Vec::new();
+        for index in 0..6 {
+            atoms.push(ion_atom(&carbons[index], "C", 0));
+            atoms.push(ion_atom(&hydrogens[index], "H", 0));
+            covalent_bonds.push(RenderBond {
+                left: carbons[index].clone(),
+                right: carbons[(index + 1) % 6].clone(),
+                order: if index % 2 == 0 { 2 } else { 1 },
+                effective_order: None,
+            });
+            covalent_bonds.push(RenderBond {
+                left: carbons[index].clone(),
+                right: hydrogens[index].clone(),
+                order: 1,
+                effective_order: None,
+            });
+        }
+        let frame = RenderFrame {
+            atoms,
+            covalent_bonds,
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let component = frame
+            .atoms
+            .iter()
+            .map(|atom| atom.id.clone())
+            .collect::<Vec<_>>();
+
+        let center = Point::new(300.0, 200.0);
+        let mut positions = BTreeMap::new();
+        layout_component(&frame, &component, center, &mut positions);
+        assert_eq!(positions.len(), 12);
+
+        // Ring atoms form a regular hexagon: equal circumradii and equal
+        // consecutive edges matching the bond-length formula.
+        let expected_edge = 2.0 * atom_visual_radius("C") + 26.0;
+        let circumradius = expected_edge; // hexagon: edge == circumradius
+        for index in 0..6 {
+            let position = positions[&carbons[index]];
+            assert!(
+                (vector_magnitude(position - center) - circumradius).abs() < 0.1,
+                "c{} off the circumcircle",
+                index + 1
+            );
+            let edge =
+                vector_magnitude(positions[&carbons[(index + 1) % 6]] - positions[&carbons[index]]);
+            assert!(
+                (edge - expected_edge).abs() < 0.1,
+                "edge {edge} vs {expected_edge}"
+            );
+        }
+        let ring_positions = carbons
+            .iter()
+            .map(|id| (positions[id].x.to_bits(), positions[id].y.to_bits()))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(ring_positions.len(), 6, "ring atoms are distinct");
+
+        // Each hydrogen hangs strictly outside its carbon.
+        for index in 0..6 {
+            assert!(
+                vector_magnitude(positions[&hydrogens[index]] - center)
+                    > vector_magnitude(positions[&carbons[index]] - center),
+                "h{} inside the ring",
+                index + 1
+            );
+        }
+    }
+
+    #[test]
+    fn acyclic_layout_keeps_the_radial_tree_shape() {
+        // Methane: no cycle, so the root-centred fan is untouched.
+        let frame = RenderFrame {
+            atoms: vec![
+                ion_atom("c", "C", 0),
+                ion_atom("h1", "H", 0),
+                ion_atom("h2", "H", 0),
+                ion_atom("h3", "H", 0),
+                ion_atom("h4", "H", 0),
+            ],
+            covalent_bonds: (1..=4)
+                .map(|index| RenderBond {
+                    left: "c".to_owned(),
+                    right: format!("h{index}"),
+                    order: 1,
+                    effective_order: None,
+                })
+                .collect(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let component = frame
+            .atoms
+            .iter()
+            .map(|atom| atom.id.clone())
+            .collect::<Vec<_>>();
+
+        let center = Point::new(120.0, 80.0);
+        let mut positions = BTreeMap::new();
+        layout_component(&frame, &component, center, &mut positions);
+        assert_eq!(positions["c"], center, "root carbon stays at the centre");
+        let spoke = atom_visual_radius("C") + atom_visual_radius("H") + 26.0;
+        for index in 1..=4 {
+            let reach = vector_magnitude(positions[&format!("h{index}")] - center);
+            assert!(
+                (reach - spoke).abs() < 0.1,
+                "h{index} reach {reach} vs {spoke}"
+            );
+        }
     }
 
     #[test]

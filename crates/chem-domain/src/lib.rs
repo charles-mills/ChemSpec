@@ -7,6 +7,7 @@ pub mod periodic;
 pub mod reaction;
 pub mod scalar;
 pub mod serialization;
+pub mod smiles;
 pub mod species;
 pub mod state;
 pub mod structural;
@@ -19,9 +20,10 @@ pub use formula::{
 };
 pub use generate::{
     activity_rank, anion_valence_charge, aqueous_cation_charge, common_cation_charge,
-    displaces_hydrogen_from_acids, electronegativity, generate_structure,
-    has_variable_cation_charge, lowest_cation_charge,
+    displaces_hydrogen_from_acids, electronegativity, generate_named_structure,
+    generate_structure, has_variable_cation_charge, lowest_cation_charge, named_molecule_smiles, named_molecules,
 };
+pub use smiles::{smiles_from_structure, structure_from_smiles, subset_valence};
 pub use identity::{
     AssumptionKindId, AssumptionKindKind, AssumptionPremiseId, AssumptionPremiseKind, AtomGroupId,
     AtomGroupKind, AtomId, AtomKind, AtomMappingId, AtomMappingKind, ClaimId, ClaimKind,

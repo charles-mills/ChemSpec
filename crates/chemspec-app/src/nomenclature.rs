@@ -87,8 +87,39 @@ pub(crate) fn product_name(
         }
     }
     ionic_pair_name(frame, product_atoms)
+        .or_else(|| organic_graph_name(frame, product_atoms))
         .or_else(|| agent::compound_name(&counts, None))
         .unwrap_or_else(|| formula_text(&counts))
+}
+
+/// Names recognised organic molecules from the product's exact bond graph;
+/// composition-based naming cannot tell isomers apart, the graph can.
+fn organic_graph_name(
+    frame: &SimulationFrame,
+    product_atoms: &BTreeSet<chem_domain::AtomId>,
+) -> Option<String> {
+    let ordered: Vec<&chem_domain::AtomId> = product_atoms.iter().collect();
+    let index_of = |target: &chem_domain::AtomId| ordered.iter().position(|atom| *atom == target);
+    let symbols = ordered
+        .iter()
+        .map(|atom| Some(frame.atoms().get(*atom)?.element.as_str()))
+        .collect::<Option<Vec<_>>>()?;
+    let bonds = frame
+        .covalent_edges()
+        .values()
+        .filter(|edge| {
+            product_atoms.contains(&edge.left) || product_atoms.contains(&edge.right)
+        })
+        .map(|edge| {
+            let order = match edge.order {
+                chem_domain::BondOrder::Single => 1,
+                chem_domain::BondOrder::Double => 2,
+                chem_domain::BondOrder::Triple => 3,
+            };
+            Some((index_of(&edge.left)?, index_of(&edge.right)?, order))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    agent::molecular_graph_name(&symbols, &bonds)
 }
 
 /// Names an ionic product from the exact cation and anion unit its

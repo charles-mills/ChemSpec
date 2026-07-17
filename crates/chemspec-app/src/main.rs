@@ -1917,6 +1917,7 @@ impl App {
 
     fn start_dynamic_build(&mut self) -> Task<Message> {
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        let names = reactant_composer::draft_names(&self.reactant_composer);
         let single_context = second.is_empty().then_some(self.dynamic_context).flatten();
         let drafts = if single_context.is_some() {
             vec![first]
@@ -1926,8 +1927,15 @@ impl App {
         let request = ReactionBuildRequest {
             reactants: drafts
                 .into_iter()
-                .map(|atoms| ReactantInput {
-                    display: reactant_composer::formula(atoms),
+                .enumerate()
+                .map(|(index, atoms)| ReactantInput {
+                    // A typed name outranks the formula: it can identify a
+                    // species the inventory alone cannot (ammonium cyanate
+                    // vs urea), and the resolver accepts either form.
+                    display: names[index].map_or_else(
+                        || reactant_composer::formula(atoms),
+                        std::borrow::ToOwned::to_owned,
+                    ),
                     // Keep the identity inventory aligned with the standard-state
                     // formula shown by the composer (H₂, N₂, O₂, P₄, S₈, ...).
                     atomic_numbers: chemistry::standardize_elemental_draft(atoms),

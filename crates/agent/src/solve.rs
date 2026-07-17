@@ -19,9 +19,10 @@ use chem_domain::{
 };
 
 use crate::{
-    ClaimDisposition, ClaimObservation, ClaimObservationPredicate, ClaimPhase, ClaimProduct,
-    OutcomeSpecies, ReactionBuildRequest, ReactionClaim, RequestIdentityResolution,
-    claim::REACTION_CLAIM_SCHEMA_VERSION, resolve_request_identities,
+    ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind, ClaimObservation,
+    ClaimObservationPredicate, ClaimPhase, ClaimProduct, OutcomeSpecies, ReactionBuildRequest,
+    ReactionClaim, RequestIdentityResolution, claim::REACTION_CLAIM_SCHEMA_VERSION, organic,
+    resolve_request_identities,
 };
 
 /// Donor elements that make a proton-donor site an acid site in practice;
@@ -74,6 +75,10 @@ pub fn solve_reaction_claim(
                 .or_else(|| solve_acid_metal(structures[1], structures[0]))
                 .or_else(|| solve_combustion(structures[0], structures[1]))
                 .or_else(|| solve_combustion(structures[1], structures[0]))
+                .or_else(|| solve_alkene_addition(structures[0], structures[1]))
+                .or_else(|| solve_alkene_addition(structures[1], structures[0]))
+                .or_else(|| solve_esterification(structures[0], structures[1]))
+                .or_else(|| solve_esterification(structures[1], structures[0]))
                 .or_else(|| solve_oxide_water(structures[0], structures[1]))
                 .or_else(|| solve_oxide_water(structures[1], structures[0]))
                 .or_else(|| solve_metal_water(structures[0], structures[1]))
@@ -542,6 +547,12 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
         }),
         "light" => photolysis(reactant),
         "heat" => {
+            if let Some(verdict) = wohler_urea_synthesis(reactant) {
+                return Some(verdict);
+            }
+            if let Some(verdict) = solve_dehydration(reactant) {
+                return Some(verdict);
+            }
             if let Some(verdict) = nitrate_decomposition(reactant) {
                 return Some(verdict);
             }
@@ -613,6 +624,151 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
         }
         _ => None,
     }
+}
+
+/// A claim product for an editable organic molecule: named when the graph
+/// matches a known molecule (a wrong name is worse than none, so the
+/// formula stands in otherwise), with its subset SMILES attached so the
+/// outcome compiler rebuilds the exact isomer.
+fn organic_product(molecule: &organic::Editable, phase: ClaimPhase) -> Option<ClaimProduct> {
+    let smiles = molecule.to_smiles()?;
+    let formula = molecule.formula_text();
+    let name = organic::recognised_name(molecule).map_or_else(|| formula.clone(), str::to_owned);
+    Some(ClaimProduct {
+        name,
+        formula,
+        phase,
+        identity_hints: vec![ClaimIdentityHint {
+            kind: ClaimIdentityHintKind::CanonicalSmiles,
+            value: smiles,
+        }],
+    })
+}
+
+fn water_product(phase: ClaimPhase) -> ClaimProduct {
+    ClaimProduct {
+        name: "Water".to_owned(),
+        formula: "H2O".to_owned(),
+        phase,
+        identity_hints: Vec::new(),
+    }
+}
+
+/// The element of a molecular diatomic reagent (H2, Cl2, Br2), when it is
+/// one the addition family knows.
+fn addition_reagent(structure: &StructureDefinition) -> Option<&str> {
+    if structure.representation() != RepresentationKind::Molecular {
+        return None;
+    }
+    let elements = structure.formula().elements();
+    let mut entries = elements.iter();
+    match (entries.next(), entries.next()) {
+        (Some((symbol, 2)), None) if matches!(symbol.as_str(), "H" | "Cl" | "Br") => {
+            Some(match symbol.as_str() {
+                "H" => "H",
+                "Cl" => "Cl",
+                _ => "Br",
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Addition across a lone C=C bond: hydrogenation to the alkane, or
+/// halogenation to the 1,2-dihalide (the bromine-water decolourisation
+/// test).
+fn solve_alkene_addition(
+    candidate: &StructureDefinition,
+    reagent: &StructureDefinition,
+) -> Option<Verdict> {
+    let molecule = organic::Editable::from_structure(candidate)?;
+    organic::single_alkene(&molecule)?;
+    let element = addition_reagent(reagent)?;
+    let product = organic::saturate_alkene(&molecule, element)?;
+    let phase = if element == "H" {
+        ClaimPhase::Gas
+    } else {
+        ClaimPhase::Liquid
+    };
+    let observations = match element {
+        "Br" => vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Colour,
+            subject: "bromine".to_owned(),
+            value: Some("the orange colour fades".to_owned()),
+        }],
+        _ => Vec::new(),
+    };
+    Some(Verdict {
+        products: vec![organic_product(&product, phase)?],
+        observations,
+    })
+}
+
+/// Fischer esterification: carboxylic acid + alcohol → ester + water.
+fn solve_esterification(
+    acid: &StructureDefinition,
+    alcohol: &StructureDefinition,
+) -> Option<Verdict> {
+    let acid = organic::Editable::from_structure(acid)?;
+    let alcohol = organic::Editable::from_structure(alcohol)?;
+    let ester = organic::esterify(&acid, &alcohol)?;
+    Some(Verdict {
+        products: vec![
+            organic_product(&ester, ClaimPhase::Liquid)?,
+            water_product(ClaimPhase::Liquid),
+        ],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Forms,
+            subject: "a sweet-smelling ester".to_owned(),
+            value: None,
+        }],
+    })
+}
+
+/// Dehydration of a simple alcohol under heat: the hydroxyl leaves with an
+/// adjacent hydrogen as water, leaving the alkene.
+fn solve_dehydration(reactant: &StructureDefinition) -> Option<Verdict> {
+    let molecule = organic::Editable::from_structure(reactant)?;
+    let alkene = organic::dehydrate(&molecule)?;
+    Some(Verdict {
+        products: vec![
+            organic_product(&alkene, ClaimPhase::Gas)?,
+            water_product(ClaimPhase::Gas),
+        ],
+        observations: Vec::new(),
+    })
+}
+
+/// Wöhler's 1828 synthesis: ammonium cyanate rearranges to urea on gentle
+/// heating, the founding reaction of organic chemistry. An ionic CH4N2O
+/// reactant can only be ammonium cyanate — the molecular representation of
+/// the same inventory is urea itself.
+fn wohler_urea_synthesis(reactant: &StructureDefinition) -> Option<Verdict> {
+    if reactant.representation() != RepresentationKind::Ionic {
+        return None;
+    }
+    let counts = reactant
+        .formula()
+        .elements()
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str(), *count))
+        .collect::<Vec<_>>();
+    if counts != [("C", 1), ("H", 4), ("N", 2), ("O", 1)] {
+        return None;
+    }
+    Some(Verdict {
+        products: vec![ClaimProduct {
+            name: "urea".to_owned(),
+            formula: "CO(NH2)2".to_owned(),
+            phase: ClaimPhase::Solid,
+            identity_hints: Vec::new(),
+        }],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Forms,
+            subject: "white crystalline urea".to_owned(),
+            value: None,
+        }],
+    })
 }
 
 /// Metal nitrates under heat: sodium-tier alkali nitrates melt to the
@@ -1493,6 +1649,145 @@ mod tests {
             .map(|product| product.formula.as_str())
             .collect::<Vec<_>>();
         assert_eq!(formulas, ["CO2", "H2O"]);
+    }
+
+    #[test]
+    fn ethene_decolourises_bromine_to_the_dibromide() {
+        let request = request(&[("ethene", &[6, 6, 1, 1, 1, 1]), ("bromine", &[35, 35])]);
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        assert_eq!(claim.products.len(), 1);
+        assert_eq!(claim.products[0].name, "1,2-dibromoethane");
+        assert_eq!(claim.products[0].formula, "C2H4Br2");
+        assert!(
+            claim.products[0]
+                .identity_hints
+                .iter()
+                .any(|hint| hint.kind == ClaimIdentityHintKind::CanonicalSmiles)
+        );
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject == "bromine")
+        );
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced");
+        let CompiledClaimOutcome::Static(outcome) = outcome else {
+            panic!("expected static outcome");
+        };
+        assert!(outcome.species_without_structure().is_empty());
+    }
+
+    #[test]
+    fn ethene_hydrogenates_to_ethane() {
+        let request = request(&[("hydrogen", &[1, 1]), ("ethene", &[6, 6, 1, 1, 1, 1])]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products.len(), 1);
+        assert_eq!(claim.products[0].name, "ethane");
+        assert_eq!(claim.products[0].formula, "C2H6");
+    }
+
+    #[test]
+    fn ethanoic_acid_and_ethanol_esterify() {
+        let acid: &[u8] = &[6, 6, 8, 8, 1, 1, 1, 1];
+        let alcohol: &[u8] = &[6, 6, 8, 1, 1, 1, 1, 1, 1];
+        for reactants in [
+            [("ethanoic acid", acid), ("ethanol", alcohol)],
+            [("ethanol", alcohol), ("ethanoic acid", acid)],
+        ] {
+            let request = request(&reactants);
+            let registry = SpeciesRegistry::default();
+            let claim = solve_reaction_claim(&request, &registry).expect("solved");
+            let names: Vec<&str> = claim
+                .products
+                .iter()
+                .map(|product| product.name.as_str())
+                .collect();
+            assert_eq!(names, ["ethyl ethanoate", "Water"]);
+            let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced");
+            let CompiledClaimOutcome::Static(outcome) = outcome else {
+                panic!("expected static outcome");
+            };
+            assert!(
+                outcome.species_without_structure().is_empty(),
+                "{:?}",
+                outcome.species_without_structure()
+            );
+        }
+    }
+
+    #[test]
+    fn ethanol_dehydrates_to_ethene_under_heat() {
+        let request = contextual("ethanol", &[6, 6, 8, 1, 1, 1, 1, 1, 1], "heat");
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let names: Vec<&str> = claim
+            .products
+            .iter()
+            .map(|product| product.name.as_str())
+            .collect();
+        assert_eq!(names, ["ethene", "Water"]);
+    }
+
+    #[test]
+    fn ethers_and_acids_do_not_dehydrate() {
+        // Dimethyl ether has no hydroxyl; ethanoic acid's is a carboxyl.
+        for (name, atoms) in [
+            ("dimethyl ether", &[6, 6, 8, 1, 1, 1, 1, 1, 1][..]),
+            ("ethanoic acid", &[6, 6, 8, 8, 1, 1, 1, 1][..]),
+        ] {
+            let request = contextual(name, atoms, "heat");
+            assert!(
+                solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none(),
+                "{name} must not dehydrate"
+            );
+        }
+    }
+
+    #[test]
+    fn ammonium_cyanate_heated_isomerizes_to_urea() {
+        let request = contextual("ammonium cyanate", &[7, 1, 1, 1, 1, 7, 6, 8], "heat");
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        assert_eq!(claim.disposition, ClaimDisposition::Reaction);
+        assert_eq!(claim.products.len(), 1);
+        assert_eq!(claim.products[0].name, "urea");
+        assert_eq!(claim.products[0].formula, "CO(NH2)2");
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
+        let CompiledClaimOutcome::Static(outcome) = outcome else {
+            panic!("expected static outcome");
+        };
+        assert!(
+            outcome.species_without_structure().is_empty(),
+            "reactant and product both carry generated structures: {:?}",
+            outcome.species_without_structure()
+        );
+        // The isomer pair stays structurally distinct end to end: ionic
+        // ammonium cyanate in, molecular urea out.
+        let representation = |species: &crate::OutcomeSpecies| match species {
+            crate::OutcomeSpecies::Resolved(resolved) => resolved
+                .structure
+                .as_ref()
+                .map(chem_domain::StructureDefinition::representation),
+            crate::OutcomeSpecies::FormulaOnly { .. } => None,
+        };
+        assert_eq!(
+            representation(&outcome.reactants()[0]),
+            Some(RepresentationKind::Ionic)
+        );
+        assert_eq!(
+            representation(&outcome.products()[0]),
+            Some(RepresentationKind::Molecular)
+        );
+    }
+
+    #[test]
+    fn heating_urea_itself_stays_unsolved() {
+        // Molecular CH4N2O is urea; the Wöhler arm only fires for the ionic
+        // salt, so urea + heat falls through to the model.
+        let request = contextual("urea", &[6, 1, 1, 1, 1, 7, 7, 8], "heat");
+        assert!(solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none());
     }
 
     #[test]

@@ -662,7 +662,7 @@ fn catalogue_formula(
         })
 }
 
-fn inventory_formula(inventory: &chem_domain::ElementInventory) -> String {
+pub(crate) fn inventory_formula(inventory: &chem_domain::ElementInventory) -> String {
     inventory
         .elements()
         .iter()

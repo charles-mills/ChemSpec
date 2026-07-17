@@ -223,7 +223,7 @@ pub fn compile_claim_outcome(
             if let Some(species) = resolve_claim_product(product, &formula, identities) {
                 Ok(OutcomeSpecies::Resolved(Box::new(species.clone())))
             } else if let Some(generated) =
-                generated_product(&product.name, &formula, claim_phase(product.phase))
+                generated_product(product, &formula, claim_phase(product.phase))
             {
                 Ok(generated)
             } else {
@@ -589,7 +589,12 @@ fn generated_outcome_species(
         ContentDigest::sha256(format!("{display_name}\0{formula_text}").as_bytes()).to_hex();
     let id = SpeciesId::from_str(&format!("generated.s{}", &digest[..24])).ok()?;
     let structure_id = StructureId::new(format!("generated.{}", &digest[..24])).ok()?;
-    let structure = generate_structure(structure_id, inventory)?;
+    // Name-keyed canonical structures first: an inventory maps to one
+    // generated structure, so a constitutional isomer of a canonical
+    // molecule (ammonium cyanate vs urea) is only reachable by name.
+    let structure =
+        chem_domain::generate_named_structure(structure_id.clone(), display_name, inventory)
+            .or_else(|| generate_structure(structure_id, inventory))?;
     let species =
         crate::identity::generated_species(&id, display_name, formula_text, phase, &structure)
             .ok()?;
@@ -606,11 +611,22 @@ fn generated_reactant(input: &crate::ReactantInput) -> Option<OutcomeSpecies> {
         *counts.entry(symbol).or_insert(0_u64) += 1;
     }
     let inventory = ElementInventory::new(counts).ok()?;
-    let formula_text = ascii_formula_key(&input.display);
+    // A display that is a species name rather than a formula ("ammonium
+    // cyanate") gets its formula text from the composed inventory instead.
+    let key = ascii_formula_key(&input.display);
+    let formula_text = if FormulaComposition::parse(&key).is_ok() {
+        key
+    } else {
+        crate::identity::inventory_formula(&inventory)
+    };
     generated_outcome_species(&input.display, &formula_text, Phase::Unknown, &inventory)
 }
 
-fn generated_product(name: &str, formula: &str, phase: Phase) -> Option<OutcomeSpecies> {
+fn generated_product(
+    product: &ClaimProduct,
+    formula: &str,
+    phase: Phase,
+) -> Option<OutcomeSpecies> {
     let composition = FormulaComposition::parse(formula).ok()?;
     let inventory = ElementInventory::new(
         composition
@@ -619,7 +635,34 @@ fn generated_product(name: &str, formula: &str, phase: Phase) -> Option<OutcomeS
             .map(|(symbol, count)| (symbol.clone(), *count)),
     )
     .ok()?;
-    generated_outcome_species(name, formula, phase, &inventory)
+    // A SMILES hint names the exact isomer; it must still agree with the
+    // claimed formula before it may stand in for generation.
+    for hint in &product.identity_hints {
+        if !matches!(
+            hint.kind,
+            ClaimIdentityHintKind::CanonicalSmiles | ClaimIdentityHintKind::IsomericSmiles
+        ) {
+            continue;
+        }
+        let digest =
+            ContentDigest::sha256(format!("{}\0{formula}", product.name).as_bytes()).to_hex();
+        let structure_id = StructureId::new(format!("generated.{}", &digest[..24])).ok()?;
+        if let Some(structure) = chem_domain::structure_from_smiles(structure_id, &hint.value)
+            && *structure.formula() == inventory
+        {
+            let id = SpeciesId::from_str(&format!("generated.s{}", &digest[..24])).ok()?;
+            let species = crate::identity::generated_species(
+                &id,
+                &product.name,
+                formula,
+                phase,
+                &structure,
+            )
+            .ok()?;
+            return Some(OutcomeSpecies::Resolved(Box::new(species)));
+        }
+    }
+    generated_outcome_species(&product.name, formula, phase, &inventory)
 }
 
 fn formula_only_reactant(input: &crate::ReactantInput) -> Result<OutcomeSpecies, AgentError> {

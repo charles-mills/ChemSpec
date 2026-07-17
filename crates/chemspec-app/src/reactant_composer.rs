@@ -49,6 +49,11 @@ impl ActiveReactant {
 #[derive(Debug, Default)]
 struct ReactantDraft {
     atoms: Vec<u8>,
+    /// The user's typed name when the draft came from name entry. Names can
+    /// identify a species its element inventory alone cannot (ammonium
+    /// cyanate vs urea), so the name travels with the draft until any
+    /// manual atom edit invalidates it.
+    name: Option<String>,
 }
 
 /// An in-flight press on a slot: a quick release clicks (select or undo),
@@ -98,6 +103,7 @@ impl Default for AmbientPlacement {
 #[derive(Debug, Default)]
 struct AmbientPresentation {
     atoms: Vec<u8>,
+    name: Option<String>,
     reveal: f32,
     placement: AmbientPlacement,
 }
@@ -206,7 +212,9 @@ pub fn update(state: &mut State, message: Message) {
                 return;
             }
             if state.active == reactant {
-                state.drafts[reactant.index()].atoms.pop();
+                let draft = &mut state.drafts[reactant.index()];
+                draft.atoms.pop();
+                draft.name = None;
             } else {
                 state.active = reactant;
             }
@@ -218,11 +226,15 @@ pub fn update(state: &mut State, message: Message) {
             }
         }
         Message::Undo => {
-            state.drafts[state.active.index()].atoms.pop();
+            let draft = &mut state.drafts[state.active.index()];
+            draft.atoms.pop();
+            draft.name = None;
             state.limit_reached = false;
         }
         Message::ClearActive => {
-            state.drafts[state.active.index()].atoms.clear();
+            let draft = &mut state.drafts[state.active.index()];
+            draft.atoms.clear();
+            draft.name = None;
             state.limit_reached = false;
         }
         Message::BeginNameEntry(reactant) => {
@@ -243,27 +255,7 @@ pub fn update(state: &mut State, message: Message) {
             state.name_feedback = None;
         }
         Message::StartReactionRequested => {}
-        Message::AnimationTick => {
-            if state
-                .ambient
-                .iter()
-                .any(|ambient| !ambient.atoms.is_empty())
-            {
-                state.orbital_phase = (state.orbital_phase + motion::ORBIT_STEP) % 1.0;
-            }
-            step_ambient_presentations(state);
-            if let Some(hold) = &mut state.holding
-                && !hold.completed
-                && !state.drafts[hold.slot.index()].atoms.is_empty()
-            {
-                hold.progress += motion::HOLD_CLEAR_STEP;
-                if hold.progress >= 1.0 {
-                    hold.completed = true;
-                    state.drafts[hold.slot.index()].atoms.clear();
-                    state.limit_reached = false;
-                }
-            }
-        }
+        Message::AnimationTick => animation_tick(state),
         Message::PromptAnimationTick => {
             if state.submit_available {
                 state.prompt_reveal = (state.prompt_reveal + motion::PROMPT_FADE_STEP).min(1.0);
@@ -273,6 +265,30 @@ pub fn update(state: &mut State, message: Message) {
         }
     }
     sync_ambient_presentations(state);
+}
+
+fn animation_tick(state: &mut State) {
+    if state
+        .ambient
+        .iter()
+        .any(|ambient| !ambient.atoms.is_empty())
+    {
+        state.orbital_phase = (state.orbital_phase + motion::ORBIT_STEP) % 1.0;
+    }
+    step_ambient_presentations(state);
+    if let Some(hold) = &mut state.holding
+        && !hold.completed
+        && !state.drafts[hold.slot.index()].atoms.is_empty()
+    {
+        hold.progress += motion::HOLD_CLEAR_STEP;
+        if hold.progress >= 1.0 {
+            hold.completed = true;
+            let draft = &mut state.drafts[hold.slot.index()];
+            draft.atoms.clear();
+            draft.name = None;
+            state.limit_reached = false;
+        }
+    }
 }
 
 /// Each motion family subscribes only while it is active. Ambient models use
@@ -310,8 +326,10 @@ fn sync_ambient_presentations(state: &mut State) {
         if !draft.atoms.is_empty() {
             appeared[index] = ambient.atoms.is_empty();
             ambient.atoms.clone_from(&draft.atoms);
+            ambient.name.clone_from(&draft.name);
         } else if ambient.reveal <= f32::EPSILON {
             ambient.atoms.clear();
+            ambient.name = None;
         }
     }
     refresh_ambient_targets(state);
@@ -606,12 +624,21 @@ fn submit_name(state: &mut State) {
     }
     let filled = match split_reactant_names(&input).as_slice() {
         [only] => resolve_named(only).map(|atoms| {
-            state.drafts[state.active.index()].atoms = atoms;
+            state.drafts[state.active.index()] = ReactantDraft {
+                atoms,
+                name: Some((*only).to_owned()),
+            };
         }),
-        [first, second] => resolve_named(first).and_then(|first| {
-            resolve_named(second).map(|second| {
-                state.drafts[0].atoms = first;
-                state.drafts[1].atoms = second;
+        [first, second] => resolve_named(first).and_then(|first_atoms| {
+            resolve_named(second).map(|second_atoms| {
+                state.drafts[0] = ReactantDraft {
+                    atoms: first_atoms,
+                    name: Some((*first).to_owned()),
+                };
+                state.drafts[1] = ReactantDraft {
+                    atoms: second_atoms,
+                    name: Some((*second).to_owned()),
+                };
             })
         }),
         _ => Err("Reactions here take at most two reactants".to_owned()),
@@ -666,12 +693,13 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
     if elements::by_atomic_number(atomic_number).is_none() {
         return;
     }
-    let atoms = &mut state.drafts[reactant.index()].atoms;
-    if atoms.len() >= MAX_ATOMS_PER_REACTANT {
+    let draft = &mut state.drafts[reactant.index()];
+    if draft.atoms.len() >= MAX_ATOMS_PER_REACTANT {
         state.limit_reached = true;
         return;
     }
-    atoms.push(atomic_number);
+    draft.atoms.push(atomic_number);
+    draft.name = None;
     state.limit_reached = false;
 }
 
@@ -689,6 +717,17 @@ pub fn resolution(state: &State) -> chemistry::DraftResolution {
 
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
+}
+
+/// The typed name behind each draft, when the draft came from name entry
+/// and survives unedited. A name can identify a species its inventory
+/// cannot (ammonium cyanate vs urea).
+#[must_use]
+pub fn draft_names(state: &State) -> [Option<&str>; 2] {
+    [
+        state.drafts[0].name.as_deref(),
+        state.drafts[1].name.as_deref(),
+    ]
 }
 
 #[must_use]
@@ -721,7 +760,7 @@ pub const fn submit_available(state: &State) -> bool {
 
 #[cfg(test)]
 pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
-    state.drafts = drafts.map(|atoms| ReactantDraft { atoms });
+    state.drafts = drafts.map(|atoms| ReactantDraft { atoms, name: None });
     state.active = ActiveReactant::First;
     state.limit_reached = false;
     state.editing = None;
@@ -738,6 +777,8 @@ pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
 pub fn ambient_view(state: &State) -> Element<'static, Message> {
     let first_atoms = state.ambient[0].atoms.clone();
     let second_atoms = state.ambient[1].atoms.clone();
+    let first_name = state.ambient[0].name.clone();
+    let second_name = state.ambient[1].name.clone();
     let first_reveal = theme::ease_in_out(state.ambient[0].reveal);
     let second_reveal = theme::ease_in_out(state.ambient[1].reveal);
     let first_anchor = state.ambient[0].placement.current;
@@ -769,6 +810,7 @@ pub fn ambient_view(state: &State) -> Element<'static, Message> {
         row![
             canvas(AmbientReactantDiagram::new(
                 first_atoms.clone(),
+                first_name.as_deref(),
                 phase,
                 first_reveal,
                 scale,
@@ -780,6 +822,7 @@ pub fn ambient_view(state: &State) -> Element<'static, Message> {
             .height(Fill),
             canvas(AmbientReactantDiagram::new(
                 second_atoms.clone(),
+                second_name.as_deref(),
                 phase + 0.31,
                 second_reveal,
                 scale,
@@ -1178,6 +1221,25 @@ mod tests {
         update(&mut state, Message::NameSubmitted);
         assert!(state.name_feedback.is_some());
         assert_eq!(reactants(&state).1, [1, 11, 8]);
+    }
+
+    #[test]
+    fn typed_names_travel_with_drafts_until_edited() {
+        let mut state = State::default();
+        update(&mut state, Message::NameInput("ammonium cyanate".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(draft_names(&state), [Some("ammonium cyanate"), None]);
+
+        // Any manual atom edit invalidates the name.
+        update(&mut state, Message::AddElement(1));
+        assert_eq!(draft_names(&state), [None, None]);
+
+        // Separator entry names both slots.
+        update(&mut state, Message::NameInput("urea + water".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(draft_names(&state), [Some("urea"), Some("water")]);
+        update(&mut state, Message::Undo);
+        assert_eq!(draft_names(&state), [None, Some("water")]);
     }
 
     #[test]

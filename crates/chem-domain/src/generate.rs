@@ -151,12 +151,12 @@ impl Slot {
 
 /// A solved covalent unit: per-slot electron states and bonds by slot index.
 #[derive(Clone)]
-struct SolvedUnit {
-    symbols: Vec<String>,
+pub(crate) struct SolvedUnit {
+    pub(crate) symbols: Vec<String>,
     /// (formal charge, non-bonding electrons) per slot.
-    states: Vec<(i16, u8)>,
+    pub(crate) states: Vec<(i16, u8)>,
     /// (left slot, right slot, order 1..=3).
-    bonds: Vec<(usize, usize, u8)>,
+    pub(crate) bonds: Vec<(usize, usize, u8)>,
 }
 
 /// Enumerates ledger-valid connected multigraphs across every candidate
@@ -897,33 +897,89 @@ fn generate_elemental_metal(
     StructureDefinition::new(id, inventory.clone(), RepresentationKind::Metallic, graph).ok()
 }
 
-/// Canonical molecules for formulas the search correctly reports as
-/// ambiguous but which have one classroom answer: C6H6 is benzene, not one
-/// of its many chain isomers. The resonance detector then marks the ring's
-/// 3/2 hybrid like any other Kekulé choice.
+/// Canonical molecules for formulas the search cannot settle correctly on
+/// its own but which have one classroom answer: C6H6 is benzene, not one
+/// of its many chain isomers, and CH4N2O is urea, not the isourea tautomer
+/// the electronegativity scoring prefers. The resonance detector then
+/// marks benzene's 3/2 hybrid like any other Kekulé choice.
+const CANONICAL_MOLECULES: [&str; 2] = ["C1=CC=CC=C1", "NC(=O)N"];
+
+#[allow(clippy::needless_pass_by_value)]
 fn generate_canonical_molecule(
     id: StructureId,
     inventory: &ElementInventory,
 ) -> Option<StructureDefinition> {
-    let counts = inventory
-        .elements()
+    CANONICAL_MOLECULES.iter().find_map(|smiles| {
+        let structure = crate::smiles::structure_from_smiles(id.clone(), smiles)?;
+        (structure.formula() == inventory).then_some(structure)
+    })
+}
+
+/// (accepted spellings, subset SMILES) for species the caller knows by
+/// name: an inventory maps to exactly one generated structure, so
+/// constitutional isomers of a canonical molecule — most organics — are
+/// only reachable by name. Spellings are matched lowercase with collapsed
+/// whitespace.
+const NAMED_MOLECULES: [(&[&str], &str); 19] = [
+    (
+        &["ammonium cyanate", "nh4ocn", "nh4cno"],
+        "[NH4+].[O-]C#N",
+    ),
+    (&["methanol", "methyl alcohol"], "CO"),
+    (&["ethanol", "ethyl alcohol"], "CCO"),
+    (&["dimethyl ether", "methoxymethane"], "COC"),
+    (&["propan-1-ol", "1-propanol", "propanol"], "CCCO"),
+    (&["propan-2-ol", "2-propanol", "isopropanol"], "CC(O)C"),
+    (&["ethene", "ethylene"], "C=C"),
+    (&["propene", "propylene"], "CC=C"),
+    (&["ethyne", "acetylene"], "C#C"),
+    (&["ethane"], "CC"),
+    (&["propane"], "CCC"),
+    (&["butane"], "CCCC"),
+    (&["methanoic acid", "formic acid"], "OC=O"),
+    (&["ethanoic acid", "acetic acid"], "CC(=O)O"),
+    (&["ethyl ethanoate", "ethyl acetate"], "CCOC(=O)C"),
+    (&["1,2-dibromoethane"], "BrCCBr"),
+    (&["1,2-dichloroethane"], "ClCCCl"),
+    (&["1,2-dibromopropane"], "CC(Br)CBr"),
+    (&["1,2-dichloropropane"], "CC(Cl)CCl"),
+];
+
+/// Every named molecule as (accepted spellings, subset SMILES); the first
+/// spelling is the display name.
+#[must_use]
+pub fn named_molecules() -> &'static [(&'static [&'static str], &'static str)] {
+    &NAMED_MOLECULES
+}
+
+/// The subset SMILES behind a recognised molecule name, if any.
+#[must_use]
+pub fn named_molecule_smiles(name: &str) -> Option<&'static str> {
+    let normalized = name
+        .trim()
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    NAMED_MOLECULES
         .iter()
-        .map(|(symbol, count)| (symbol.as_str(), *count))
-        .collect::<Vec<_>>();
-    if counts != [("C", 6), ("H", 6)] {
-        return None;
-    }
-    // Kekulé ring: carbons 0..6 alternating single/double, one hydrogen each.
-    let mut bonds = (0..6)
-        .map(|index| (index, (index + 1) % 6, if index % 2 == 0 { 2 } else { 1 }))
-        .collect::<Vec<(usize, usize, u8)>>();
-    bonds.extend((0..6).map(|index| (index, index + 6, 1)));
-    let unit = SolvedUnit {
-        symbols: [vec!["C".to_owned(); 6], vec!["H".to_owned(); 6]].concat(),
-        states: vec![(0, 0); 12],
-        bonds,
-    };
-    build_molecular(id, inventory, &unit)
+        .find(|(spellings, _)| spellings.contains(&normalized.as_str()))
+        .map(|(_, smiles)| *smiles)
+}
+
+/// The classroom structure for a species the caller knows by name. The
+/// inventory must match the named species exactly; a name never overrides
+/// the composed atoms.
+#[must_use]
+#[allow(clippy::needless_pass_by_value)]
+pub fn generate_named_structure(
+    id: StructureId,
+    name: &str,
+    inventory: &ElementInventory,
+) -> Option<StructureDefinition> {
+    let smiles = named_molecule_smiles(name)?;
+    let structure = crate::smiles::structure_from_smiles(id, smiles)?;
+    (structure.formula() == inventory).then_some(structure)
 }
 
 /// Deterministic standard-state allotropes the bond search cannot settle on
@@ -958,7 +1014,7 @@ fn generate_allotrope(
     StructureDefinition::new(id, inventory.clone(), RepresentationKind::Molecular, graph).ok()
 }
 
-fn build_molecular(
+pub(crate) fn build_molecular(
     id: StructureId,
     inventory: &ElementInventory,
     unit: &SolvedUnit,
@@ -1074,7 +1130,7 @@ fn divide_anion_units(
 /// Builds the ionic graph for a list of ion units, one group per unit.
 /// Ionic atom ids follow the catalogue's `<group>.<atom>` convention so the
 /// graph round-trips through record validation unchanged.
-fn ionic_structure(
+pub(crate) fn ionic_structure(
     id: StructureId,
     inventory: &ElementInventory,
     units: &[SolvedUnit],

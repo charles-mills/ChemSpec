@@ -141,8 +141,10 @@ pub struct AmbientReactantDiagram {
 }
 
 impl AmbientReactantDiagram {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         atoms: Vec<u8>,
+        name: Option<&str>,
         phase: f32,
         reveal: f32,
         scale: f32,
@@ -150,7 +152,12 @@ impl AmbientReactantDiagram {
         offset: Vector,
         direction: f32,
     ) -> Self {
-        let preview = crate::composition_catalogue::trusted_preview(atoms.iter().copied());
+        let preview = name.map_or_else(
+            || crate::composition_catalogue::trusted_preview(atoms.iter().copied()),
+            |name| {
+                crate::composition_catalogue::trusted_preview_named(name, atoms.iter().copied())
+            },
+        );
         let elements = atoms
             .iter()
             .filter_map(|number| crate::elements::by_atomic_number(*number).copied())

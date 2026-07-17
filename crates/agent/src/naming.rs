@@ -44,8 +44,9 @@ fn anion_root(symbol: &str) -> Option<&'static str> {
 type IonUnit = &'static [(&'static str, u64)];
 
 /// (name, one anion unit, charge) for the common polyatomic anions.
-const POLYATOMIC_ANIONS: [(&str, IonUnit, u64); 11] = [
+const POLYATOMIC_ANIONS: [(&str, IonUnit, u64); 12] = [
     ("hydroxide", &[("H", 1), ("O", 1)], 1),
+    ("cyanate", &[("C", 1), ("N", 1), ("O", 1)], 1),
     ("carbonate", &[("C", 1), ("O", 3)], 2),
     ("hydrogen carbonate", &[("C", 1), ("H", 1), ("O", 3)], 1),
     ("nitrate", &[("N", 1), ("O", 3)], 1),
@@ -226,11 +227,12 @@ pub(crate) fn binary_molecular_name(counts: &BTreeMap<String, u64>) -> Option<St
 /// and used as a last-resort display fallback, but lose to a systematic
 /// name (`HCl` gas is "hydrogen chloride"; the acid name belongs to the
 /// solution).
-const TRIVIAL_NAMES: [(&str, IonUnit, bool); 11] = [
+const TRIVIAL_NAMES: [(&str, IonUnit, bool); 12] = [
     ("water", &[("H", 2), ("O", 1)], true),
     ("ammonia", &[("N", 1), ("H", 3)], true),
     ("methane", &[("C", 1), ("H", 4)], true),
     ("benzene", &[("C", 6), ("H", 6)], true),
+    ("urea", &[("C", 1), ("H", 4), ("N", 2), ("O", 1)], true),
     ("hydrochloric acid", &[("H", 1), ("Cl", 1)], false),
     ("sulfuric acid", &[("H", 2), ("S", 1), ("O", 4)], false),
     ("sulfurous acid", &[("H", 2), ("S", 1), ("O", 3)], false),
@@ -251,12 +253,27 @@ fn trivial_name(counts: &BTreeMap<String, u64>, display_only: bool) -> Option<&'
         .map(|(name, _, _)| *name)
 }
 
+/// Display name for an explicit molecular graph (hydrogens as atoms), as
+/// animation frames carry them: recognised named molecules by exact graph
+/// match, None otherwise — a wrong name is worse than none.
+#[must_use]
+pub fn molecular_graph_name(symbols: &[&str], bonds: &[(usize, usize, u8)]) -> Option<String> {
+    let editable = crate::organic::editable_from_explicit(symbols, bonds)?;
+    crate::organic::recognised_name(&editable).map(str::to_owned)
+}
+
 /// English name for a whole validated structure: element names for
-/// elements, trivial names, salt nomenclature (using the structure's own
-/// cation charge), and prefix names for molecular binaries. None when the
-/// compound is outside these rules — a wrong name is worse than none.
+/// elements, trivial names, recognised organic molecules by graph, salt
+/// nomenclature (using the structure's own cation charge), and prefix
+/// names for molecular binaries. None when the compound is outside these
+/// rules — a wrong name is worse than none.
 #[must_use]
 pub fn structure_name(structure: &chem_domain::StructureDefinition) -> Option<String> {
+    if let Some(editable) = crate::organic::Editable::from_structure(structure)
+        && let Some(name) = crate::organic::recognised_name(&editable)
+    {
+        return Some(name.to_owned());
+    }
     let counts = structure
         .formula()
         .elements()
@@ -309,6 +326,23 @@ pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
     let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
     if let Some((_, unit, _)) = TRIVIAL_NAMES.iter().find(|(known, _, _)| *known == name) {
         return Some(scaled(unit, 1, BTreeMap::new()));
+    }
+    // Named molecules (organics, mostly) resolve through their subset
+    // SMILES: names identify isomers a composition cannot.
+    if let Some(smiles) = chem_domain::named_molecule_smiles(&name)
+        && let Some(structure) = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("named.composition").ok()?,
+            smiles,
+        )
+    {
+        return Some(
+            structure
+                .formula()
+                .elements()
+                .iter()
+                .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+                .collect(),
+        );
     }
     if let Some(symbol) = element_by_name(&name) {
         // Standard states: diatomic gases and the P4/S8 allotropes.
@@ -804,6 +838,12 @@ mod tests {
             composition("ammonium chloride").as_deref(),
             Some("Cl1 H4 N1")
         );
+        // The Wöhler pair: distinct names, one shared composition.
+        assert_eq!(
+            composition("ammonium cyanate").as_deref(),
+            Some("C1 H4 N2 O1")
+        );
+        assert_eq!(composition("urea").as_deref(), Some("C1 H4 N2 O1"));
         // Molecular binaries.
         assert_eq!(composition("carbon dioxide").as_deref(), Some("C1 O2"));
         assert_eq!(composition("carbon monoxide").as_deref(), Some("C1 O1"));
