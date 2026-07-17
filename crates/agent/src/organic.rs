@@ -525,6 +525,186 @@ pub(crate) fn unique_monosubstitution(molecule: &Editable, halogen: &str) -> Opt
     unique.map(|(_, product)| product)
 }
 
+/// Markovnikov hydrohalogenation across the single C=C bond: the hydrogen
+/// joins the carbon already richer in hydrogens, the halogen the more
+/// substituted one. Equal hydrogen counts fall back to requiring a unique
+/// product — a guessed regiochemistry is worse than none.
+pub(crate) fn hydrohalogenate(molecule: &Editable, halogen: &str) -> Option<Editable> {
+    let (left, right) = single_alkene(molecule)?;
+    let build = |hydrogen_to: usize, halogen_to: usize| {
+        let mut product = molecule.clone();
+        for bond in &mut product.bonds {
+            if (bond.0, bond.1) == (left, right) || (bond.1, bond.0) == (left, right) {
+                bond.2 = 1;
+            }
+        }
+        product.hydrogens[hydrogen_to] += 1;
+        product.symbols.push(halogen.to_owned());
+        product.hydrogens.push(0);
+        product.bonds.push((halogen_to, product.symbols.len() - 1, 1));
+        product
+    };
+    match molecule.hydrogens[left].cmp(&molecule.hydrogens[right]) {
+        std::cmp::Ordering::Greater => Some(build(left, right)),
+        std::cmp::Ordering::Less => Some(build(right, left)),
+        std::cmp::Ordering::Equal => {
+            let first = build(left, right);
+            let second = build(right, left);
+            (first.canonical_key()? == second.canonical_key()?).then_some(first)
+        }
+    }
+}
+
+/// The ester linkage of a molecule with exactly one: the bridging oxygen,
+/// its acyl (carbonyl-bearing) carbon, and its alkyl carbon.
+pub(crate) struct EsterLink {
+    pub bridge_oxygen: usize,
+    pub acyl_carbon: usize,
+}
+
+pub(crate) fn ester_link(molecule: &Editable) -> Option<EsterLink> {
+    let mut found = None;
+    for oxygen in 0..molecule.symbols.len() {
+        if molecule.symbols[oxygen] != "O" || molecule.hydrogens[oxygen] != 0 {
+            continue;
+        }
+        let ends: Vec<usize> = molecule
+            .neighbours(oxygen)
+            .filter(|(atom, order)| *order == 1 && molecule.symbols[*atom] == "C")
+            .map(|(atom, _)| atom)
+            .collect();
+        let [first, second] = ends.as_slice() else {
+            continue;
+        };
+        if molecule.neighbours(oxygen).count() != 2 {
+            continue;
+        }
+        let carbonyl = |carbon: usize| {
+            molecule
+                .neighbours(carbon)
+                .any(|(atom, order)| order == 2 && molecule.symbols[atom] == "O")
+        };
+        let acyl_carbon = match (carbonyl(*first), carbonyl(*second)) {
+            (true, false) => *first,
+            (false, true) => *second,
+            _ => continue,
+        };
+        if found.is_some() {
+            return None;
+        }
+        found = Some(EsterLink {
+            bridge_oxygen: oxygen,
+            acyl_carbon,
+        });
+    }
+    found
+}
+
+/// Hydrolyses the molecule's single ester linkage: the acyl side regains a
+/// hydroxyl (from the water) as a carboxylic acid, the bridging oxygen
+/// leaves with the alkyl side as the alcohol.
+pub(crate) fn hydrolyse_ester(molecule: &Editable) -> Option<(Editable, Editable)> {
+    let link = ester_link(molecule)?;
+    // Split the graph at the acyl-oxygen bond.
+    let mut split = molecule.clone();
+    split
+        .bonds
+        .retain(|(l, r, _)| {
+            !((*l == link.acyl_carbon && *r == link.bridge_oxygen)
+                || (*r == link.acyl_carbon && *l == link.bridge_oxygen))
+        });
+    split.hydrogens[link.bridge_oxygen] += 1;
+    let (mut acid, alcohol_side) = split_components(&split, link.acyl_carbon)?;
+    // The acid side gains the water's hydroxyl on its acyl carbon.
+    let acyl_local = acid.1;
+    acid.0.symbols.push("O".to_owned());
+    acid.0.hydrogens.push(1);
+    acid.0
+        .bonds
+        .push((acyl_local, acid.0.symbols.len() - 1, 1));
+    Some((acid.0, alcohol_side))
+}
+
+/// Splits a two-component editable graph: returns (the component holding
+/// `marker` with the marker's local index, the other component). None
+/// unless there are exactly two components.
+fn split_components(molecule: &Editable, marker: usize) -> Option<((Editable, usize), Editable)> {
+    let count = molecule.symbols.len();
+    let mut component = vec![usize::MAX; count];
+    let mut next_label = 0;
+    for start in 0..count {
+        if component[start] != usize::MAX {
+            continue;
+        }
+        let mut stack = vec![start];
+        component[start] = next_label;
+        while let Some(current) = stack.pop() {
+            for (neighbour, _) in molecule.neighbours(current) {
+                if component[neighbour] == usize::MAX {
+                    component[neighbour] = next_label;
+                    stack.push(neighbour);
+                }
+            }
+        }
+        next_label += 1;
+    }
+    if next_label != 2 {
+        return None;
+    }
+    let marker_label = component[marker];
+    let extract = |label: usize| {
+        let indices: Vec<usize> = (0..count).filter(|i| component[*i] == label).collect();
+        let local = |global: usize| indices.iter().position(|i| *i == global);
+        Editable {
+            symbols: indices.iter().map(|i| molecule.symbols[*i].clone()).collect(),
+            hydrogens: indices.iter().map(|i| molecule.hydrogens[*i]).collect(),
+            bonds: molecule
+                .bonds
+                .iter()
+                .filter_map(|(l, r, order)| Some((local(*l)?, local(*r)?, *order)))
+                .collect(),
+        }
+    };
+    let marker_component = extract(marker_label);
+    let marker_local = (0..count)
+        .filter(|i| component[*i] == marker_label)
+        .position(|i| i == marker)?;
+    let other = extract(1 - marker_label);
+    Some(((marker_component, marker_local), other))
+}
+
+/// Catalytic partial oxidation of an alcohol: a primary alcohol loses two
+/// hydrogens to become the aldehyde, a secondary one the ketone. Tertiary
+/// alcohols (no hydrogen on the carbinol carbon) and polyols stay out.
+pub(crate) fn oxidise_alcohol(molecule: &Editable) -> Option<Editable> {
+    if molecule
+        .symbols
+        .iter()
+        .filter(|symbol| *symbol == "O")
+        .count()
+        != 1
+        || !carboxyls(molecule).is_empty()
+    {
+        return None;
+    }
+    let binding = hydroxyls(molecule);
+    let [(carbon, oxygen)] = binding.as_slice() else {
+        return None;
+    };
+    if molecule.hydrogens[*carbon] == 0 {
+        return None;
+    }
+    let mut product = molecule.clone();
+    product.hydrogens[*carbon] -= 1;
+    product.hydrogens[*oxygen] -= 1;
+    for bond in &mut product.bonds {
+        if (bond.0, bond.1) == (*carbon, *oxygen) || (bond.1, bond.0) == (*carbon, *oxygen) {
+            bond.2 = 2;
+        }
+    }
+    Some(product)
+}
+
 /// The molecule with one atom (and its bonds) removed; indices above it
 /// shift down by one. Hydrogens folded on the removed atom leave with it.
 fn remove_atom(molecule: &Editable, target: usize) -> Editable {

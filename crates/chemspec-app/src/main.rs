@@ -833,16 +833,26 @@ enum DynamicRequestContext {
     Heat,
     Light,
     Electricity,
+    LimitedOxygen,
+    Catalyst,
 }
 
 impl DynamicRequestContext {
-    const ALL: [Self; 3] = [Self::Heat, Self::Light, Self::Electricity];
+    const ALL: [Self; 5] = [
+        Self::Heat,
+        Self::Light,
+        Self::Electricity,
+        Self::LimitedOxygen,
+        Self::Catalyst,
+    ];
 
     const fn value(self) -> &'static str {
         match self {
             Self::Heat => "heat",
             Self::Light => "light",
             Self::Electricity => "electricity",
+            Self::LimitedOxygen => "limited oxygen",
+            Self::Catalyst => "catalyst",
         }
     }
 
@@ -851,6 +861,8 @@ impl DynamicRequestContext {
             Self::Heat => "Heat",
             Self::Light => "Light",
             Self::Electricity => "Electricity",
+            Self::LimitedOxygen => "Limited oxygen",
+            Self::Catalyst => "Catalyst",
         }
     }
 }

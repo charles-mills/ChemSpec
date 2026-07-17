@@ -32,6 +32,7 @@ const ACIDIC_DONORS: [&str; 6] = ["O", "F", "Cl", "Br", "I", "S"];
 /// Attempts to solve the request without a model. Returns a fully formed
 /// reaction claim, or None when no deterministic family applies.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn solve_reaction_claim(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
@@ -76,8 +77,36 @@ pub fn solve_reaction_claim(
                 .or_else(|| solve_acid_base(structures[1], structures[0]))
                 .or_else(|| solve_acid_metal(structures[0], structures[1]))
                 .or_else(|| solve_acid_metal(structures[1], structures[0]))
+                .or_else(|| {
+                    solve_alcohol_oxidation(structures[0], structures[1], pair_context.as_deref())
+                })
+                .or_else(|| {
+                    solve_alcohol_oxidation(structures[1], structures[0], pair_context.as_deref())
+                })
+                .or_else(|| {
+                    solve_incomplete_combustion(
+                        structures[0],
+                        structures[1],
+                        pair_context.as_deref(),
+                    )
+                })
+                .or_else(|| {
+                    solve_incomplete_combustion(
+                        structures[1],
+                        structures[0],
+                        pair_context.as_deref(),
+                    )
+                })
                 .or_else(|| solve_combustion(structures[0], structures[1]))
                 .or_else(|| solve_combustion(structures[1], structures[0]))
+                .or_else(|| {
+                    solve_ester_hydrolysis(structures[0], structures[1], pair_context.as_deref())
+                })
+                .or_else(|| {
+                    solve_ester_hydrolysis(structures[1], structures[0], pair_context.as_deref())
+                })
+                .or_else(|| solve_hydrohalogenation(structures[0], structures[1]))
+                .or_else(|| solve_hydrohalogenation(structures[1], structures[0]))
                 .or_else(|| solve_alkene_addition(structures[0], structures[1]))
                 .or_else(|| solve_alkene_addition(structures[1], structures[0]))
                 .or_else(|| {
@@ -202,21 +231,136 @@ fn solve_acid_metal(acid: &StructureDefinition, metal: &StructureDefinition) -> 
 /// Organic fuel + oxygen → complete combustion to carbon dioxide and
 /// water. Deterministic for any C/H(/O) fuel; the balancer finds the
 /// coefficients.
-fn solve_combustion(fuel: &StructureDefinition, oxidizer: &StructureDefinition) -> Option<Verdict> {
+/// A molecular C/H(/O) fuel facing elemental oxygen.
+fn combustible_pair(fuel: &StructureDefinition, oxidizer: &StructureDefinition) -> bool {
+    let Some((oxidizer_element, _)) = single_element(oxidizer) else {
+        return false;
+    };
+    if oxidizer_element.as_str() != "O" || fuel.representation() != RepresentationKind::Molecular {
+        return false;
+    }
+    let elements = fuel.formula().elements();
+    elements
+        .keys()
+        .all(|symbol| matches!(symbol.as_str(), "C" | "H" | "O"))
+        && elements.keys().any(|symbol| symbol.as_str() == "C")
+        && elements.keys().any(|symbol| symbol.as_str() == "H")
+}
+
+/// Combustion in restricted air: the carbon only reaches carbon monoxide,
+/// with the sooty flame the classroom associates with it.
+fn solve_incomplete_combustion(
+    fuel: &StructureDefinition,
+    oxidizer: &StructureDefinition,
+    context: Option<&str>,
+) -> Option<Verdict> {
+    if context != Some("limited oxygen") || !combustible_pair(fuel, oxidizer) {
+        return None;
+    }
+    Some(Verdict {
+        products: vec![
+            ClaimProduct {
+                name: "carbon monoxide".to_owned(),
+                formula: "CO".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+            ClaimProduct {
+                name: "Water".to_owned(),
+                formula: "H2O".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Colour,
+            subject: "flame".to_owned(),
+            value: Some("sooty and yellow".to_owned()),
+        }],
+    })
+}
+
+/// Catalytic partial oxidation of an alcohol by oxygen: primary alcohols
+/// give the aldehyde, secondary the ketone, plus water.
+fn solve_alcohol_oxidation(
+    alcohol: &StructureDefinition,
+    oxidizer: &StructureDefinition,
+    context: Option<&str>,
+) -> Option<Verdict> {
+    if context != Some("catalyst") {
+        return None;
+    }
     let (oxidizer_element, _) = single_element(oxidizer)?;
     if oxidizer_element.as_str() != "O" {
         return None;
     }
-    if fuel.representation() != RepresentationKind::Molecular {
+    let molecule = organic::Editable::from_structure(alcohol)?;
+    let product = organic::oxidise_alcohol(&molecule)?;
+    Some(Verdict {
+        products: vec![
+            organic_product(&product, ClaimPhase::Liquid)?,
+            water_product(ClaimPhase::Liquid),
+        ],
+        observations: Vec::new(),
+    })
+}
+
+/// Ester + water under heat: hydrolysis back to the acid and alcohol.
+fn solve_ester_hydrolysis(
+    ester: &StructureDefinition,
+    water: &StructureDefinition,
+    context: Option<&str>,
+) -> Option<Verdict> {
+    if context != Some("heat") || !is_water(water.formula()) {
         return None;
     }
-    let elements = fuel.formula().elements();
-    let allowed = elements
-        .keys()
-        .all(|symbol| matches!(symbol.as_str(), "C" | "H" | "O"));
-    let has_carbon = elements.keys().any(|symbol| symbol.as_str() == "C");
-    let has_hydrogen = elements.keys().any(|symbol| symbol.as_str() == "H");
-    if !(allowed && has_carbon && has_hydrogen) {
+    let molecule = organic::Editable::from_structure(ester)?;
+    let (acid, alcohol) = organic::hydrolyse_ester(&molecule)?;
+    Some(Verdict {
+        products: vec![
+            organic_product(&acid, ClaimPhase::Liquid)?,
+            organic_product(&alcohol, ClaimPhase::Liquid)?,
+        ],
+        observations: Vec::new(),
+    })
+}
+
+/// Markovnikov addition of a hydrogen halide across the alkene.
+fn solve_hydrohalogenation(
+    candidate: &StructureDefinition,
+    reagent: &StructureDefinition,
+) -> Option<Verdict> {
+    if reagent.representation() != RepresentationKind::Molecular {
+        return None;
+    }
+    let elements = reagent.formula().elements();
+    let mut entries = elements.iter();
+    let halogen = match (entries.next(), entries.next(), entries.next()) {
+        (Some((first, 1)), Some((second, 1)), None) => {
+            let (hydrogen, halogen) = if first.as_str() == "H" {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            if hydrogen.as_str() != "H"
+                || !matches!(halogen.as_str(), "Cl" | "Br" | "I")
+            {
+                return None;
+            }
+            halogen.as_str().to_owned()
+        }
+        _ => return None,
+    };
+    let molecule = organic::Editable::from_structure(candidate)?;
+    let product = organic::hydrohalogenate(&molecule, &halogen)?;
+    Some(Verdict {
+        products: vec![organic_product(&product, ClaimPhase::Liquid)?],
+        observations: Vec::new(),
+    })
+}
+
+fn solve_combustion(fuel: &StructureDefinition, oxidizer: &StructureDefinition) -> Option<Verdict> {
+    if !combustible_pair(fuel, oxidizer) {
         return None;
     }
     Some(Verdict {
@@ -1852,6 +1996,146 @@ mod tests {
             panic!("expected static outcome");
         };
         assert!(outcome.equation().contains("C2H6O"), "{}", outcome.equation());
+    }
+
+    #[test]
+    fn limited_oxygen_combustion_stops_at_carbon_monoxide() {
+        let methane: &[u8] = &[6, 1, 1, 1, 1];
+        let oxygen: &[u8] = &[8, 8];
+        let limited = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "methane".to_owned(),
+                    atomic_numbers: methane.to_vec(),
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "oxygen".to_owned(),
+                    atomic_numbers: oxygen.to_vec(),
+                    species_id: None,
+                },
+            ],
+            selected_context: Some("limited oxygen".to_owned()),
+        };
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&limited, &registry).expect("solved");
+        let formulas: Vec<&str> = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect();
+        assert_eq!(formulas, ["CO", "H2O"]);
+        let outcome = compile_claim_outcome(&limited, claim, &registry).expect("balanced");
+        assert!(matches!(outcome, CompiledClaimOutcome::Static(_)));
+        // The unconditioned pair still burns completely.
+        let plain = ReactionBuildRequest {
+            selected_context: None,
+            ..limited
+        };
+        let claim = solve_reaction_claim(&plain, &registry).expect("solved");
+        assert_eq!(claim.products[0].formula, "CO2");
+    }
+
+    #[test]
+    fn esters_hydrolyse_back_to_acid_and_alcohol_under_heat() {
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "ethyl ethanoate".to_owned(),
+                    atomic_numbers: vec![6, 6, 6, 6, 8, 8, 1, 1, 1, 1, 1, 1, 1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "water".to_owned(),
+                    atomic_numbers: vec![1, 1, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: Some("heat".to_owned()),
+        };
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        let names: Vec<&str> = claim
+            .products
+            .iter()
+            .map(|product| product.name.as_str())
+            .collect();
+        assert_eq!(names, ["ethanoic acid", "ethanol"]);
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced");
+        assert!(matches!(outcome, CompiledClaimOutcome::Static(_)));
+    }
+
+    #[test]
+    fn alcohols_oxidise_with_a_catalyst_instead_of_burning() {
+        let ethanol: &[u8] = &[6, 6, 8, 1, 1, 1, 1, 1, 1];
+        let oxygen: &[u8] = &[8, 8];
+        let request = |context: Option<&str>| ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "ethanol".to_owned(),
+                    atomic_numbers: ethanol.to_vec(),
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "oxygen".to_owned(),
+                    atomic_numbers: oxygen.to_vec(),
+                    species_id: None,
+                },
+            ],
+            selected_context: context.map(str::to_owned),
+        };
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request(Some("catalyst")), &registry).expect("solved");
+        let names: Vec<&str> = claim
+            .products
+            .iter()
+            .map(|product| product.name.as_str())
+            .collect();
+        assert_eq!(names, ["ethanal", "Water"]);
+        // A secondary alcohol gives the ketone.
+        let isopropanol = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "propan-2-ol".to_owned(),
+                    atomic_numbers: vec![6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "oxygen".to_owned(),
+                    atomic_numbers: oxygen.to_vec(),
+                    species_id: None,
+                },
+            ],
+            selected_context: Some("catalyst".to_owned()),
+        };
+        let claim = solve_reaction_claim(&isopropanol, &registry).expect("solved");
+        assert_eq!(claim.products[0].name, "propanone");
+        // Without the catalyst the alcohol just burns.
+        let claim = solve_reaction_claim(&request(None), &registry).expect("solved");
+        assert_eq!(claim.products[0].formula, "CO2");
+    }
+
+    #[test]
+    fn hydrogen_halides_add_by_markovnikov() {
+        let registry = SpeciesRegistry::default();
+        // Propene + HBr: the bromine lands on the middle carbon.
+        let request = request(&[
+            ("propene", &[6, 6, 6, 1, 1, 1, 1, 1, 1]),
+            ("HBr", &[1, 35]),
+        ]);
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        assert_eq!(claim.products[0].name, "2-bromopropane");
+        // Symmetric alkene: unambiguous without the rule.
+        let symmetric = request_pair(
+            ("but-2-ene", &[6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1]),
+            ("HBr", &[1, 35]),
+        );
+        let claim = solve_reaction_claim(&symmetric, &registry).expect("solved");
+        assert_eq!(claim.products[0].name, "2-bromobutane");
+    }
+
+    fn request_pair(first: (&str, &[u8]), second: (&str, &[u8])) -> ReactionBuildRequest {
+        request(&[first, second])
     }
 
     #[test]

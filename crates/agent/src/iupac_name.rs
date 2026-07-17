@@ -85,6 +85,7 @@ fn unbranched_chain_length(molecule: &Editable, previous: usize, start: usize) -
 }
 
 /// The systematic name of an editable molecule within the subset.
+#[allow(clippy::too_many_lines)]
 pub(crate) fn systematic_name(molecule: &Editable) -> Option<String> {
     if molecule.symbols.is_empty()
         || molecule.bonds.len() + 1 != molecule.symbols.len()
@@ -121,17 +122,39 @@ pub(crate) fn systematic_name(molecule: &Editable) -> Option<String> {
     if let Some(name) = ester_name(molecule) {
         return Some(name);
     }
-    let (acid, hydroxyls) = match (acids.as_slice(), alcohols.as_slice()) {
-        ([acid], []) if heteroatom_oxygens == 2 => (Some(*acid), Vec::new()),
-        ([], polyols @ ([_] | [_, _] | [_, _, _]))
+    // A lone C=O with no hydroxyl is an aldehyde or ketone carbonyl; a
+    // carboxyl's own C=O belongs to the acid suffix, not here.
+    let carboxyl_carbons: Vec<usize> = acids.iter().map(|group| group.carbon).collect();
+    let carbonyls: Vec<(usize, usize)> = molecule
+        .bonds
+        .iter()
+        .filter_map(|(left, right, order)| {
+            if *order != 2 {
+                return None;
+            }
+            match (molecule.symbols[*left].as_str(), molecule.symbols[*right].as_str()) {
+                ("C", "O") => Some((*left, *right)),
+                ("O", "C") => Some((*right, *left)),
+                _ => None,
+            }
+        })
+        .filter(|(carbon, _)| !carboxyl_carbons.contains(carbon))
+        .collect();
+    let (acid, hydroxyls, carbonyl) = match (acids.as_slice(), alcohols.as_slice(), carbonyls.as_slice())
+    {
+        ([acid], [], []) if heteroatom_oxygens == 2 => (Some(*acid), Vec::new(), None),
+        ([], polyols @ ([_] | [_, _] | [_, _, _]), [])
             if heteroatom_oxygens == polyols.len() =>
         {
-            (None, polyols.to_vec())
+            (None, polyols.to_vec(), None)
         }
-        ([], []) if heteroatom_oxygens == 0 => (None, Vec::new()),
+        ([], [], [carbonyl]) if heteroatom_oxygens == 1 => (None, Vec::new(), Some(*carbonyl)),
+        ([], [], []) if heteroatom_oxygens == 0 => (None, Vec::new(), None),
         _ => return None,
     };
-    if multiples.len() > 1 || (acid.is_some() || !hydroxyls.is_empty()) && !multiples.is_empty() {
+    if multiples.len() > 1
+        || (acid.is_some() || !hydroxyls.is_empty() || carbonyl.is_some()) && !multiples.is_empty()
+    {
         // Mixed suffixes (enols, unsaturated acids) stay out of the subset.
         return None;
     }
@@ -140,6 +163,8 @@ pub(crate) fn systematic_name(molecule: &Editable) -> Option<String> {
     // atoms. Graphs are tiny, so enumerate paths from every carbon.
     let required: Vec<usize> = if let Some(group) = acid {
         vec![group.carbon]
+    } else if let Some((carbon, _)) = carbonyl {
+        vec![carbon]
     } else if !hydroxyls.is_empty() {
         hydroxyls.iter().map(|(carbon, _)| *carbon).collect()
     } else {
@@ -160,9 +185,14 @@ pub(crate) fn systematic_name(molecule: &Editable) -> Option<String> {
             if acid.is_some() && molecule.symbols[direction[0]] != "C" {
                 continue;
             }
-            let Some((score, name)) =
-                name_for_chain(molecule, &direction, acid, &hydroxyls, multiples.first())
-            else {
+            let Some((score, name)) = name_for_chain(
+                molecule,
+                &direction,
+                acid,
+                &hydroxyls,
+                carbonyl,
+                multiples.first(),
+            ) else {
                 continue;
             };
             let candidate = (score, name);
@@ -239,6 +269,7 @@ fn name_for_chain(
     chain: &[usize],
     acid: Option<crate::organic::Carboxyl>,
     hydroxyls: &[(usize, usize)],
+    carbonyl: Option<(usize, usize)>,
     unsaturation: Option<&(usize, usize, u8)>,
 ) -> Option<(Score, String)> {
     let position_of = |atom: usize| chain.iter().position(|entry| *entry == atom).map(|p| p + 1);
@@ -259,6 +290,18 @@ fn name_for_chain(
         .map(|(carbon, _)| position_of(*carbon))
         .collect::<Option<_>>()?;
     hydroxyl_locants.sort_unstable();
+    let carbonyl_locant = match carbonyl {
+        Some((carbon, _)) => {
+            let locant = position_of(carbon)?;
+            // Aldehydes carry the carbonyl at the chain head; ketones
+            // strictly inside it.
+            if locant != 1 && locant >= chain.len() {
+                return None;
+            }
+            Some(locant)
+        }
+        None => None,
+    };
     let unsaturation_locant = match unsaturation {
         Some((left, right, _)) => {
             let (a, b) = (position_of(*left)?, position_of(*right)?);
@@ -284,7 +327,10 @@ fn name_for_chain(
             atoms
         })
         .unwrap_or_default();
-    let hydroxyl_oxygens: Vec<usize> = hydroxyls.iter().map(|(_, oxygen)| *oxygen).collect();
+    let mut hydroxyl_oxygens: Vec<usize> = hydroxyls.iter().map(|(_, oxygen)| *oxygen).collect();
+    if let Some((_, oxygen)) = carbonyl {
+        hydroxyl_oxygens.push(oxygen);
+    }
     let mut substituents: Vec<(usize, String)> = Vec::new();
     for (position, atom) in chain.iter().enumerate() {
         for (neighbour, order) in molecule.neighbours(*atom) {
@@ -314,6 +360,14 @@ fn name_for_chain(
     let suffix = if let Some(locant) = acid_locant {
         let _ = locant;
         format!("{root}anoic acid")
+    } else if let Some(locant) = carbonyl_locant {
+        if locant == 1 {
+            format!("{root}anal")
+        } else if chain.len() == 3 {
+            format!("{root}anone")
+        } else {
+            format!("{root}an-{locant}-one")
+        }
     } else if hydroxyl_locants.len() > 1 {
         let glue = if hydroxyl_locants.len() == 2 { "diol" } else { "triol" };
         let locant_text = hydroxyl_locants
@@ -368,6 +422,8 @@ fn name_for_chain(
     let name = format!("{prefix}{suffix}");
 
     let principal = if let Some(locant) = acid_locant {
+        vec![locant]
+    } else if let Some(locant) = carbonyl_locant {
         vec![locant]
     } else if !hydroxyl_locants.is_empty() {
         hydroxyl_locants
@@ -465,6 +521,12 @@ mod tests {
             "propane-1,2,3-triol",
             "propyl ethanoate",
             "methyl butanoate",
+            "ethanal",
+            "propanal",
+            "propanone",
+            "butan-2-one",
+            "pentan-3-one",
+            "hexanal",
         ] {
             let smiles = chem_domain::smiles_for_name(name).expect(name);
             assert_eq!(

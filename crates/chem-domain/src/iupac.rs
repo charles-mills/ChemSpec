@@ -38,6 +38,8 @@ struct ChainSpec {
     /// (position, bond order) of the one allowed unsaturation.
     unsaturation: Option<(usize, u8)>,
     hydroxyls: Vec<usize>,
+    /// Position of a lone C=O: 1 for aldehydes, interior for ketones.
+    oxo: Option<usize>,
     acid: bool,
     substituents: Vec<(usize, Substituent)>,
     /// Whether the suffix carried its own locant ("but-2-ene"); a bare
@@ -120,6 +122,14 @@ fn parse(name: &str) -> Option<ChainSpec> {
         strip_root_suffix(&tail, "an", &mut spec)?
     } else if let Some(rest) = try_polyol(&tail, &mut spec) {
         rest
+    } else if let Some(rest) = tail
+        .strip_suffix("al")
+        .and_then(|rest| strip_root_suffix(rest, "an", &mut spec))
+    {
+        spec.oxo = Some(1);
+        rest
+    } else if let Some(rest) = try_ketone(&tail, &mut spec) {
+        rest
     } else if let Some(rest) = try_suffix(&tail, "ol", &mut spec) {
         rest
     } else if let Some(rest) = try_unsaturated(&tail, "ene", 2, &mut spec) {
@@ -142,6 +152,8 @@ fn parse(name: &str) -> Option<ChainSpec> {
             spec.unsaturation = Some((locant, order));
         } else if spec.hydroxyls.len() == 1 {
             spec.hydroxyls = vec![locant];
+        } else if spec.oxo.is_some() {
+            spec.oxo = Some(locant);
         } else {
             return None;
         }
@@ -177,6 +189,20 @@ fn try_suffix(tail: &str, suffix: &str, spec: &mut ChainSpec) -> Option<String> 
     let rest = strip_root_suffix(&rest, "an", spec)?;
     spec.suffix_locant_explicit = locant.is_some();
     spec.hydroxyls = vec![locant.unwrap_or(1)];
+    Some(rest)
+}
+
+/// `...an[-N-]one` / `N-...anone`: a ketone carbonyl, defaulting to
+/// position 2.
+fn try_ketone(tail: &str, spec: &mut ChainSpec) -> Option<String> {
+    let rest = tail.strip_suffix("one")?;
+    let (rest, locant) = strip_trailing_locant(&rest.strip_suffix('-').map_or_else(
+        || rest.to_owned(),
+        str::to_owned,
+    ));
+    let rest = strip_root_suffix(&rest, "an", spec)?;
+    spec.suffix_locant_explicit = locant.is_some();
+    spec.oxo = Some(locant.unwrap_or(2));
     Some(rest)
 }
 
@@ -348,7 +374,16 @@ fn validate(spec: &ChainSpec) -> bool {
         }
         (Some(_), _) => false,
     };
-    stereo_valid
+    let oxo_valid = spec.oxo.is_none_or(|position| {
+        in_chain(position)
+            && (position == 1 || (position >= 2 && position < spec.length))
+            && spec.hydroxyls.is_empty()
+            && !spec.acid
+            && spec.unsaturation.is_none()
+            && spec.stereo_cis.is_none()
+    });
+    oxo_valid
+        && stereo_valid
         && spec
             .unsaturation
             .is_none_or(|(position, _)| in_chain(position) && position < spec.length)
@@ -431,6 +466,9 @@ impl ChainSpec {
             }
             for _ in self.hydroxyls.iter().filter(|locant| **locant == position) {
                 output.push_str("(O)");
+            }
+            if self.oxo == Some(position) {
+                output.push_str("(=O)");
             }
             for (locant, group) in &self.substituents {
                 if *locant != position {
