@@ -25,7 +25,7 @@ use serde::Serialize;
 
 pub use cache::{
     DYNAMIC_CACHE_SCHEMA_VERSION, DynamicCachePresentation, LoadedDynamicCache, dynamic_cache_path,
-    load_claim_mode, load_dynamic_cache, store_claim_mode, store_dynamic_cache,
+    load_dynamic_cache, store_dynamic_cache,
 };
 pub use claim::{
     ClaimAlternative, ClaimAmbiguity, ClaimAmbiguityKind, ClaimDisposition, ClaimField,
@@ -37,7 +37,7 @@ pub use claim::{
 };
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,
-    FAST_CLAIM_TIMEOUT, MECHANISM_TIMEOUT, RESEARCHER_CLAIM_TIMEOUT,
+    FAST_CLAIM_TIMEOUT, MECHANISM_TIMEOUT,
 };
 pub use family::{
     FamilyMatchOutcome, ReviewedAnimationOutcome, ReviewedFamilyMatch, compile_reviewed_animation,

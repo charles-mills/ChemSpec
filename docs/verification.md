@@ -275,8 +275,8 @@ shows no liquid colour or product visual until such an appearance is supported
 by a trusted observation.
 
 On 2026-07-16 the rebuilt bundle also passed the dedicated Builder startup
-check with title `ChemSpec Agent Smoke — Builder`, the Fast/Researcher control,
-and the full periodic-table composer visible. This is startup evidence only;
+check with title `ChemSpec Agent Smoke — Builder` and the full periodic-table
+composer visible. This is startup evidence only;
 the required cold, cached, regenerate, ambiguity, unavailable, escalated, and
 reviewed-family dynamic journey remains a separate live gate.
 

@@ -48,8 +48,8 @@ On a catalogue miss, ChemSpec should normally produce a useful result in this
 order:
 
 1. resolve the two requested species as far as the local product domain allows;
-2. ask Codex for one small reaction claim—from model knowledge in the default
-   **Fast** mode, or with live search in the opt-in **Researcher** mode;
+2. ask Codex for one small reaction claim from model knowledge, without live
+   search on the initial path;
 3. corroborate the claim locally against bundled outcome data and reviewed
    family applicability;
 4. balance and validate the claimed outcome locally;
@@ -208,14 +208,11 @@ Conceptual wire shape:
 short claim locators, not permission to reproduce substantial copyrighted
 text.
 
-The same schema serves both modes. The builder screen exposes a
-**Fast**/**Researcher** toggle, with Fast as the default. In Fast mode the
-claim comes from model knowledge without live search and `sources` may be
-empty; Researcher mode and the verification path fill `sources` with direct
-sources. `no_reaction`, `ambiguous`, and `unsupported` behave identically in
-both modes—Fast skips citations, never the honesty states. The Fast mode name
-refers only to skipping live research; it is unrelated to the Codex
-`service_tier="fast"` setting, which stays off in both modes.
+The builder exposes one claim path. The claim comes from model knowledge
+without live search and `sources` is empty; the separate verification path may
+later fill `sources` with direct sources. Skipping citations never skips the
+`no_reaction`, `ambiguous`, or `unsupported` honesty states. This path is
+unrelated to the Codex `service_tier="fast"` setting, which remains off.
 
 The result schema and prompt must stay small enough that the model-visible
 task is dominated by chemistry research, not repository contracts. Set
@@ -374,10 +371,10 @@ must be deterministic.
 The current evidence decoder proves only schema and reciprocal links. The
 rebuild adds a bounded external check that ChemSpec actually performs—run on
 demand from **Verify with sources**, automatically before export or family
-candidacy, and inline when the user opts into Researcher mode. It does not
-block first display of a structurally validated, honestly labelled result.
+candidacy. It does not block first display of a structurally validated,
+honestly labelled result.
 
-Verifying a Fast-mode claim starts with one source-locating model call
+Verifying a claim starts with one source-locating model call
 (live search enabled) that must return direct sources for the existing claim
 without altering its products or observations; a changed claim is a typed
 conflict, not a silent correction. Each material product/context claim must
@@ -413,8 +410,7 @@ formats or an absent excerpt cause an evidence failure.
 One targeted Codex retry may request a replacement source. There is no
 three-run full-plan repair loop. On-demand verification failure never discards
 the displayed structural result: it leaves the result `ModelAsserted` with a
-visible verification-failed note, or marks it conflicted. In Researcher mode,
-failure after the retry is an honest blocked/unsupported result.
+visible verification-failed note, or marks it conflicted.
 
 ## Presentation modes
 
@@ -453,8 +449,8 @@ validation; none is fabricated.
 The progressive UI states are:
 
 ```text
-Recalling outcome (Fast) / Researching outcome (Researcher)
-Corroborating locally (Fast) / Checking source (Researcher)
+Recalling outcome
+Corroborating locally
 Balancing reaction
 Preparing structures
 Matching a reviewed reaction family
@@ -472,8 +468,8 @@ The runtime keeps the existing capability-checked subprocess adapter:
 - `codex exec` runs ephemerally in an isolated temporary directory;
 - user config and repository rules are ignored;
 - sandbox is read-only;
-- live search is disabled by default; it is enabled only for Researcher-mode
-  claims and the verification source-locating call, and never for mechanism
+- live search is disabled for initial claims; it is enabled only for the
+  verification source-locating call, and never for mechanism
   escalation or repairs;
 - reasoning is explicitly `low`;
 - `service_tier="default"` is explicit and Fast is not exposed in the UI or
@@ -654,8 +650,8 @@ Acceptance:
 
 - Evolve the composer from atom multisets to resolved species selection while
   preserving the simple element-composition interaction.
-- Add the **Fast**/**Researcher** mode toggle to the builder screen, defaulting
-  to Fast and persisting the user's choice.
+- Keep the single claim path implicit in the builder; no mode selector or
+  persisted claim-mode preference is exposed.
 - Add typed identity, claim, evidence, balance, structure, mapping, and
   presentation stages.
 - Render static, escalated-mechanism, and reviewed-family outcomes.
@@ -711,10 +707,9 @@ Acceptance:
   within 250 milliseconds on the primary development machine;
 - cold runs report time to claim, evidence, static outcome, escalated
   mechanism, and reviewed animation separately;
-- default Fast-mode cold static outcomes target p50 at or below 15 seconds
-  and p95 at or below 30 seconds; Researcher-mode and verification-inclusive
-  outcomes target p50 at or below 30 seconds and p95 at or below 60 seconds,
-  with a 90-second total deadline;
+- cold static outcomes target p50 at or below 15 seconds and p95 at or below
+  30 seconds; verification-inclusive outcomes target p50 at or below 30
+  seconds and p95 at or below 60 seconds, with a 90-second total deadline;
 - escalated mechanism animations target p50 at or below 60 seconds and p95 at
   or below 100 seconds end to end, with a 120-second total deadline for the
   escalated path;

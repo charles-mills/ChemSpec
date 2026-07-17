@@ -17,13 +17,15 @@ pub const MAX_MECHANISM_RESPONSE_BYTES: usize = 256 * 1024;
 pub const MAX_STRUCTURE_RESPONSE_BYTES: usize = 128 * 1024;
 pub const MAX_CLAIM_SOURCES: usize = 4;
 
-/// Whether the factual claim may use live source search.
+/// Fixed factual-claim policy retained in cache bindings.
+///
+/// The application exposes one low-latency path; this enum remains serialized
+/// so existing Fast cache entries retain a stable contract marker.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClaimMode {
     #[default]
     Fast,
-    Researcher,
 }
 
 /// Closed factual outcome returned by the provider.
@@ -155,7 +157,7 @@ impl ReactionClaim {
     /// Returns a typed provider-output error for oversized JSON, schema drift,
     /// contradictory disposition fields, malformed evidence, or procedural
     /// content outside `ChemSpec`'s virtual-only boundary.
-    pub fn from_json(bytes: &[u8], mode: ClaimMode) -> Result<Self, AgentError> {
+    pub fn from_json(bytes: &[u8], _mode: ClaimMode) -> Result<Self, AgentError> {
         if bytes.len() > MAX_REACTION_CLAIM_BYTES {
             return Err(AgentError::new(
                 "reaction claim",
@@ -164,11 +166,11 @@ impl ReactionClaim {
         }
         let claim: Self = serde_json::from_slice(bytes)
             .map_err(|error| AgentError::new("reaction claim", error.to_string()))?;
-        claim.validate(mode)?;
+        claim.validate()?;
         Ok(claim)
     }
 
-    fn validate(&self, mode: ClaimMode) -> Result<(), AgentError> {
+    fn validate(&self) -> Result<(), AgentError> {
         if self.schema_version != REACTION_CLAIM_SCHEMA_VERSION {
             return Err(AgentError::new(
                 "reaction claim",
@@ -212,12 +214,6 @@ impl ReactionClaim {
                     ));
                 }
             }
-        }
-        if mode == ClaimMode::Researcher && self.sources.is_empty() {
-            return Err(AgentError::new(
-                "reaction claim",
-                "Researcher mode requires at least one direct source",
-            ));
         }
         self.validate_fields()
     }

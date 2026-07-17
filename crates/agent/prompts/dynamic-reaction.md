@@ -58,9 +58,8 @@ Return one JSON object and no prose or Markdown. It has exactly these fields:
 - `sources`: direct-source records with exactly `id`, `title`, `publisher`,
   `url`, `supporting_excerpt`, and `supports`. `supports` uses only
   `products`, `required_context`, `observations`, and `no_reaction`.
-  In Researcher mode, open each source and copy a short consecutive excerpt
-  exactly from a directly fetchable static document body; never use a search
-  result snippet or a paraphrase.
+  The initial claim path does not browse; return an empty array and never
+  invent a citation.
 - `ambiguity`: `null`, except for `ambiguous`, where it has exactly `kind`,
   `summary`, and `alternatives`. Kind is `conditions`, `reactant_identity`,
   `multiple_outcomes`, or `conflicting_evidence`. Each alternative has exactly

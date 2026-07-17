@@ -166,7 +166,6 @@ const CLAIM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-reaction.md
 const MECHANISM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-mechanism.md");
 const STRUCTURE_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-structure.md");
 pub const FAST_CLAIM_TIMEOUT: Duration = Duration::from_secs(30);
-pub const RESEARCHER_CLAIM_TIMEOUT: Duration = Duration::from_secs(90);
 pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(3);
 const MAX_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024;
 const PREFLIGHT_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -306,10 +305,7 @@ impl CodexProvider {
         request: &ReactionBuildRequest,
         mode: ClaimMode,
     ) -> Result<ReactionClaim, AgentError> {
-        let timeout = match mode {
-            ClaimMode::Fast => FAST_CLAIM_TIMEOUT,
-            ClaimMode::Researcher => RESEARCHER_CLAIM_TIMEOUT,
-        };
+        let timeout = FAST_CLAIM_TIMEOUT;
         self.claim_reaction_until(request, mode, Instant::now() + timeout)
     }
 
@@ -345,7 +341,7 @@ impl CodexProvider {
                 &result_path,
                 &prompt,
                 deadline,
-                mode == ClaimMode::Researcher,
+                false,
             )?;
             match ReactionClaim::from_json(&bytes, mode) {
                 Ok(claim) => return Ok(claim),
@@ -917,16 +913,8 @@ fn build_claim_prompt(
         .map_err(|error| AgentError::new("Codex prompt", error.to_string()))?;
     let mode_name = match mode {
         ClaimMode::Fast => "Fast",
-        ClaimMode::Researcher => "Researcher",
     };
-    let source_policy = match mode {
-        ClaimMode::Fast => {
-            "Use model knowledge only. Do not browse or invent citations; return sources as an empty array."
-        }
-        ClaimMode::Researcher => {
-            "Use live search and return the smallest sufficient set of direct HTTPS sources (at most four) with short supporting excerpts and claim-level coverage."
-        }
-    };
+    let source_policy = "Use model knowledge only. Do not browse or invent citations; return sources as an empty array.";
     let mut prompt = CLAIM_PROMPT_TEMPLATE
         .replace("{{REQUEST_JSON}}", &request)
         .replace("{{MODE}}", mode_name)

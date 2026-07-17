@@ -66,53 +66,6 @@ struct DynamicCacheEnvelope {
     presentation: Option<DynamicCachePresentation>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct DynamicPreferences {
-    schema_version: u32,
-    claim_mode: ClaimMode,
-}
-
-#[must_use]
-pub fn load_claim_mode(directory: Option<&Path>) -> ClaimMode {
-    let Some(directory) = directory else {
-        return ClaimMode::Fast;
-    };
-    fs::read(directory.join("preferences-v1.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<DynamicPreferences>(&bytes).ok())
-        .filter(|preferences| preferences.schema_version == 1)
-        .map_or(ClaimMode::Fast, |preferences| preferences.claim_mode)
-}
-
-/// Persists the user-selected claim mode independently of chemistry cache
-/// entries.
-///
-/// # Errors
-///
-/// Returns a directory, serialization, or atomic-write error.
-pub fn store_claim_mode(directory: &Path, mode: ClaimMode) -> Result<(), AgentError> {
-    fs::create_dir_all(directory)
-        .map_err(|error| AgentError::new("dynamic preferences", error.to_string()))?;
-    let bytes = serde_json::to_vec(&DynamicPreferences {
-        schema_version: 1,
-        claim_mode: mode,
-    })
-    .map_err(|error| AgentError::new("dynamic preferences", error.to_string()))?;
-    let temporary = directory.join(format!(
-        ".preferences-{}-{}.tmp",
-        std::process::id(),
-        CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::write(&temporary, bytes)
-        .map_err(|error| AgentError::new("dynamic preferences", error.to_string()))?;
-    atomic_replace(
-        &temporary,
-        &directory.join("preferences-v1.json"),
-        "dynamic preferences",
-    )
-}
-
 /// Computes the cache path from stable request identities and every governing
 /// local contract.
 ///
@@ -507,18 +460,6 @@ mod tests {
             started.elapsed() < std::time::Duration::from_millis(250),
             "one validated offline replay exceeded the 250 ms local-hit budget"
         );
-        assert_ne!(
-            dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
-                .expect("fast path"),
-            dynamic_cache_path(
-                &directory,
-                &request,
-                ClaimMode::Researcher,
-                &identities,
-                &trusted
-            )
-            .expect("researcher path")
-        );
         let mut changed_context = request.clone();
         changed_context.selected_context = Some("aqueous context selected by the learner".into());
         assert_ne!(
@@ -548,9 +489,6 @@ mod tests {
             .is_none()
         );
         assert!(path.exists(), "a rejected entry must not be deleted");
-        assert_eq!(load_claim_mode(Some(&directory)), ClaimMode::Fast);
-        store_claim_mode(&directory, ClaimMode::Researcher).expect("store preference");
-        assert_eq!(load_claim_mode(Some(&directory)), ClaimMode::Researcher);
         fs::remove_dir_all(directory).expect("cleanup");
     }
 

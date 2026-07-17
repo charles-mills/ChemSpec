@@ -47,19 +47,13 @@ request clears all prior dynamic frames immediately. **Regenerate** bypasses
 cache but replaces the stored entry only after the new result crosses the same
 gates.
 
-## Claim modes
+## Claim policy
 
-The builder exposes **Fast** and **Researcher** claim modes and persists the
-choice locally.
-
-- **Fast** uses model knowledge, returns no invented citations, and targets the
-  first static result. **Verify with sources** can later locate and fetch direct
-  support.
-- **Researcher** enables source search for the claim and requires at least
-  one direct source location in the returned claim.
-
-These product modes are unrelated to the Codex Fast service tier. Release
-invocation always requests low reasoning and `service_tier="default"`.
+The builder exposes one low-latency claim path. It uses model knowledge,
+returns no invented citations, and targets the first static result. **Verify
+with sources** can later locate and fetch direct support. This product behavior
+is unrelated to the Codex Fast service tier: release invocation always requests
+low reasoning and `service_tier="default"`.
 
 ## Codex subscription provider
 
@@ -69,15 +63,15 @@ reads credential files.
 
 Each invocation is ephemeral, read-only, ignores repository/user rules and
 configuration, runs in an isolated temporary directory, and uses a strict
-output schema. Live search is enabled only for Researcher claims and
-source-location calls. Mechanism proposals and repairs never browse.
+output schema. Live search is disabled for the initial claim and enabled only
+for source-location calls. Mechanism proposals and repairs never browse.
 
 The release path fixes:
 
 - reasoning to `low`;
 - service tier to `default`;
-- Fast claim deadline to 30 seconds;
-- Researcher/source deadline to 90 seconds;
+- initial claim deadline to 30 seconds;
+- source-location deadline to 90 seconds;
 - escalated mechanism deadline to 120 seconds;
 - claim repair to one targeted correction; and
 - operation repair to at most two kernel-diagnostic corrections.
@@ -119,7 +113,7 @@ replay.
 
 One source replacement is allowed after a local check fails. A second failure
 is final. Verification failure never discards or mutates an already displayed
-structural result; Researcher mode instead remains honestly blocked.
+structural result.
 
 ## Mechanism escalation
 

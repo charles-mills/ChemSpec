@@ -277,6 +277,10 @@ pub mod type_scale {
 pub mod motion {
     /// Frame cadence for continuous interface motion.
     pub const TICK: std::time::Duration = std::time::Duration::from_millis(33);
+    /// Frame cadence for the builder prompt's opacity transition.
+    pub const PROMPT_TICK: std::time::Duration = std::time::Duration::from_millis(16);
+    /// Per-frame prompt fade progress (~400 ms to complete).
+    pub const PROMPT_FADE_STEP: f32 = 0.04;
     /// Per-tick progress of a hover reveal (~150 ms to complete).
     pub const REVEAL_STEP: f32 = 0.22;
     /// Per-tick orbital advance (one revolution ≈ 12.5 s).
@@ -293,6 +297,12 @@ pub mod motion {
 pub fn ease_out(progress: f32) -> f32 {
     let inverse = 1.0 - progress.clamp(0.0, 1.0);
     1.0 - inverse * inverse * inverse
+}
+
+/// Symmetric smoothstep easing for opacity transitions in either direction.
+pub fn ease_in_out(progress: f32) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+    progress * progress * (3.0 - 2.0 * progress)
 }
 
 /// Linear interpolation between two colours, used for fading emphasis.
@@ -550,6 +560,24 @@ pub fn secondary_button(_: &Theme, status: button::Status) -> button::Style {
         background: Some(Background::Color(background)),
         text_color,
         border: border_style(border_color, 1.0, radius::CONTROL),
+        ..button::Style::default()
+    }
+}
+
+/// Text-only submit affordance used beneath the builder question.
+///
+/// It shares the question's typography and changes only foreground colour on
+/// hover or press, while `reveal` supplies the two-way opacity transition.
+pub fn run_prompt(_: &Theme, status: button::Status, reveal: f32) -> button::Style {
+    let reveal = reveal.clamp(0.0, 1.0);
+    let text_color = match status {
+        button::Status::Active | button::Status::Disabled => color::TEXT_SOFT.scale_alpha(reveal),
+        button::Status::Hovered => color::ACCENT.scale_alpha(reveal),
+        button::Status::Pressed => color::ACCENT_HOVER.scale_alpha(reveal),
+    };
+
+    button::Style {
+        text_color,
         ..button::Style::default()
     }
 }

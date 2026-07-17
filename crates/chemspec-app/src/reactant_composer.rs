@@ -69,8 +69,11 @@ pub struct State {
     holding: Option<HoldState>,
     orbital_phase: f32,
     tooltip_reveal: f32,
+    editing: Option<ActiveReactant>,
     name_input: String,
     name_feedback: Option<String>,
+    submit_available: bool,
+    prompt_reveal: f32,
 }
 
 impl Default for State {
@@ -83,8 +86,11 @@ impl Default for State {
             holding: None,
             orbital_phase: 0.0,
             tooltip_reveal: 0.0,
+            editing: None,
             name_input: String::new(),
             name_feedback: None,
+            submit_available: false,
+            prompt_reveal: 0.0,
         }
     }
 }
@@ -99,17 +105,28 @@ pub enum Message {
     SlotHovered(Option<ActiveReactant>),
     Undo,
     ClearActive,
+    BeginNameEntry(ActiveReactant),
     NameInput(String),
     NameSubmitted,
+    NameEntryCancelled,
     StartReactionRequested,
     AnimationTick,
+    PromptAnimationTick,
 }
 
 pub fn update(state: &mut State, message: Message) {
     match message {
-        Message::AddElement(atomic_number) => add_element(state, state.active, atomic_number),
+        Message::AddElement(atomic_number) => {
+            state.editing = None;
+            state.name_input.clear();
+            state.name_feedback = None;
+            add_element(state, state.active, atomic_number);
+        }
         Message::DropElement(reactant, atomic_number) => {
             state.active = reactant;
+            state.editing = None;
+            state.name_input.clear();
+            state.name_feedback = None;
             add_element(state, reactant, atomic_number);
         }
         Message::SelectReactant(reactant) => {
@@ -154,11 +171,23 @@ pub fn update(state: &mut State, message: Message) {
             state.drafts[state.active.index()].atoms.clear();
             state.limit_reached = false;
         }
+        Message::BeginNameEntry(reactant) => {
+            state.active = reactant;
+            state.editing = Some(reactant);
+            state.holding = None;
+            state.name_input.clear();
+            state.name_feedback = None;
+        }
         Message::NameInput(value) => {
             state.name_input = value;
             state.name_feedback = None;
         }
         Message::NameSubmitted => submit_name(state),
+        Message::NameEntryCancelled => {
+            state.editing = None;
+            state.name_input.clear();
+            state.name_feedback = None;
+        }
         Message::StartReactionRequested => {}
         Message::AnimationTick => {
             if state.hovered.is_some() {
@@ -177,11 +206,19 @@ pub fn update(state: &mut State, message: Message) {
                 }
             }
         }
+        Message::PromptAnimationTick => {
+            if state.submit_available {
+                state.prompt_reveal = (state.prompt_reveal + motion::PROMPT_FADE_STEP).min(1.0);
+            } else {
+                state.prompt_reveal = (state.prompt_reveal - motion::PROMPT_FADE_STEP).max(0.0);
+            }
+        }
     }
 }
 
-/// The composer only animates while a slot tooltip is open or a hold-to-clear
-/// gesture is running, so moving the cursor away is the pause control.
+/// Each motion family subscribes only while it is active. The prompt uses a
+/// dedicated 60 fps cadence so its opacity does not inherit the coarser model
+/// tooltip timing.
 pub fn subscription(state: &State) -> Subscription<Message> {
     let tooltip_open = state
         .hovered
@@ -189,11 +226,22 @@ pub fn subscription(state: &State) -> Subscription<Message> {
     let hold_running = state
         .holding
         .is_some_and(|hold| !hold.completed && !state.drafts[hold.slot.index()].atoms.is_empty());
-    if tooltip_open || hold_running {
+    let model_motion = if tooltip_open || hold_running {
         iced::time::every(motion::TICK).map(|_| Message::AnimationTick)
     } else {
         Subscription::none()
-    }
+    };
+    let prompt_motion = if prompt_is_animating(state) {
+        iced::time::every(motion::PROMPT_TICK).map(|_| Message::PromptAnimationTick)
+    } else {
+        Subscription::none()
+    };
+    Subscription::batch([model_motion, prompt_motion])
+}
+
+fn prompt_is_animating(state: &State) -> bool {
+    (state.submit_available && state.prompt_reveal < 1.0)
+        || (!state.submit_available && state.prompt_reveal > 0.0)
 }
 
 /// Fills slots from typed compound names or formulas. A separator
@@ -218,6 +266,7 @@ fn submit_name(state: &mut State) {
     };
     match filled {
         Ok(()) => {
+            state.editing = None;
             state.name_input.clear();
             state.name_feedback = None;
             state.limit_reached = false;
@@ -290,11 +339,42 @@ pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
 
+#[must_use]
+pub const fn editing(state: &State) -> Option<ActiveReactant> {
+    state.editing
+}
+
+#[must_use]
+pub fn name_input_is_empty(state: &State) -> bool {
+    state.name_input.trim().is_empty()
+}
+
+#[must_use]
+pub fn name_input_id(reactant: ActiveReactant) -> iced::widget::Id {
+    iced::widget::Id::new(match reactant {
+        ActiveReactant::First => "reactant-name-input-first",
+        ActiveReactant::Second => "reactant-name-input-second",
+    })
+}
+
+pub fn set_submit_available(state: &mut State, available: bool) {
+    state.submit_available = available;
+}
+
+#[cfg(test)]
+#[must_use]
+pub const fn submit_available(state: &State) -> bool {
+    state.submit_available
+}
+
 #[cfg(test)]
 pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
     state.drafts = drafts.map(|atoms| ReactantDraft { atoms });
     state.active = ActiveReactant::First;
     state.limit_reached = false;
+    state.editing = None;
+    state.name_input.clear();
+    state.name_feedback = None;
 }
 
 pub fn view(
@@ -305,10 +385,10 @@ pub fn view(
     compact: bool,
 ) -> Element<'static, Message> {
     let sentence = sentence(state, library_drag, compact);
-    let actions = action_row(state, build_status, local);
+    let prompt = reaction_prompt(state, build_status, local, compact);
 
     container(
-        column![sentence, name_entry(state), actions]
+        column![sentence, prompt]
             .spacing(spacing::LG)
             .align_x(Center)
             .width(Fill),
@@ -375,41 +455,13 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
         .into()
 }
 
-fn action_row(
+fn reaction_prompt(
     state: &State,
     build_status: Option<String>,
     local: bool,
+    compact: bool,
 ) -> Element<'static, Message> {
-    let active_atoms = &state.drafts[state.active.index()].atoms;
     let resolution = resolution(state);
-    let run_label = match &resolution {
-        chemistry::DraftResolution::Multiple(_) => "Choose product  →",
-        chemistry::DraftResolution::Screened(_) => "View outcome  →",
-        chemistry::DraftResolution::ExplicitlyUnsupported(_)
-        | chemistry::DraftResolution::Uncatalogued
-        | chemistry::DraftResolution::Unrecognized => "Build reaction  →",
-        _ => "Run reaction  →",
-    };
-    let run = button(text(run_label).size(type_scale::BODY))
-        .on_press_maybe(can_start_reaction(state).then_some(Message::StartReactionRequested))
-        .padding([spacing::XS, spacing::MD])
-        .style(theme::primary_button);
-    let undo = button(text("Undo").size(type_scale::BODY))
-        .on_press_maybe((!active_atoms.is_empty()).then_some(Message::Undo))
-        .padding([spacing::XS, spacing::MD])
-        .style(theme::secondary_button);
-    let clear = button(text("Clear active").size(type_scale::BODY))
-        .on_press_maybe((!active_atoms.is_empty()).then_some(Message::ClearActive))
-        .padding([spacing::XS, spacing::MD])
-        .style(theme::secondary_button);
-
-    let controls = row![
-        run,
-        action_hint(undo, "You can also click the selected box to undo."),
-        action_hint(clear, "Clears the currently highlighted reactant."),
-    ]
-    .spacing(spacing::XS)
-    .align_y(Center);
     let both_present = state.drafts.iter().all(|draft| !draft.atoms.is_empty());
     let status_color = if resolution.is_system_error() {
         color::DANGER
@@ -432,60 +484,46 @@ fn action_row(
                 .size(type_scale::CAPTION)
                 .color(status_color)
         });
-    let mut content = column![controls].spacing(spacing::XS).align_x(Center);
-    if let Some(status) =
-        build_status.map(|message| text(message).size(type_scale::CAPTION).color(color::ACCENT))
-    {
-        content = content.push(status);
-    } else if let Some(status) = resolution_status {
-        content = content.push(status);
-    }
-    content = content.push(
-        text("⌘1 / ⌘2 select  ·  ⌘Z undo  ·  ⌘⌫ clear  ·  ⌘↩ run  ·  Esc cancel")
-            .size(type_scale::MICRO)
-            .color(color::MUTED),
-    );
-    content.into()
-}
-
-/// Typed compound entry: Enter fills the active slot from a classroom
-/// name or a formula.
-fn name_entry(state: &State) -> Element<'static, Message> {
-    let input = text_input(
-        "…or type it: “copper(II) sulfate”, CuSO4, “zinc + hydrochloric acid”",
-        &state.name_input,
-    )
-    .on_input(Message::NameInput)
-    .on_submit(Message::NameSubmitted)
-    .size(type_scale::BODY)
-    .padding([spacing::XS, spacing::SM])
-    .width(Length::Fixed(420.0))
-    .style(theme::request_input);
-    let mut entry = column![input].spacing(spacing::XXS).align_x(Center);
+    let show_prompt =
+        state.submit_available || state.prompt_reveal > 0.0 || resolution_status.is_none();
+    let mut content = column![].spacing(spacing::XS).align_x(Center);
     if let Some(feedback) = &state.name_feedback {
-        entry = entry.push(
+        content = content.push(
             text(feedback.clone())
                 .size(type_scale::CAPTION)
                 .color(color::WARNING),
         );
+    } else if let Some(message) = build_status {
+        content = content.push(text(message).size(type_scale::CAPTION).color(color::ACCENT));
+    } else if show_prompt {
+        let reveal = theme::ease_in_out(state.prompt_reveal);
+        content = content.push(
+            button(
+                text("Press spacebar to find out")
+                    .size(if compact {
+                        type_scale::BODY_LARGE
+                    } else {
+                        type_scale::TITLE
+                    })
+                    .font(SENTENCE_FONT),
+            )
+            .on_press_maybe(
+                state
+                    .submit_available
+                    .then_some(Message::StartReactionRequested),
+            )
+            .padding(0)
+            .style(move |app_theme, status| theme::run_prompt(app_theme, status, reveal)),
+        );
+    } else if let Some(status) = resolution_status {
+        content = content.push(status);
     }
-    entry.into()
-}
-
-/// A small gesture hint under an action button.
-fn action_hint(
-    control: iced::widget::Button<'static, Message>,
-    hint: &'static str,
-) -> Element<'static, Message> {
-    tooltip(
-        control,
-        text(hint).size(type_scale::CAPTION).color(color::TEXT_SOFT),
-        tooltip::Position::Bottom,
-    )
-    .gap(spacing::XS)
-    .padding(spacing::XS)
-    .style(|_| theme::tooltip_surface(1.0))
-    .into()
+    container(content)
+        .width(Fill)
+        .height(Length::Fixed(if compact { 38.0 } else { 44.0 }))
+        .center_x(Fill)
+        .center_y(Length::Fixed(if compact { 38.0 } else { 44.0 }))
+        .into()
 }
 
 fn slot(
@@ -501,6 +539,21 @@ fn slot(
     let draft_formula = formula(atoms);
 
     let empty = draft_formula.is_empty();
+    if empty && state.editing == Some(reactant) {
+        return text_input("Type a name or formula…", &state.name_input)
+            .id(name_input_id(reactant))
+            .on_input(Message::NameInput)
+            .on_submit(Message::NameSubmitted)
+            .size(if compact {
+                type_scale::BODY_LARGE
+            } else {
+                type_scale::TITLE
+            })
+            .padding([spacing::XS, spacing::SM])
+            .width(Length::Fixed(if compact { 190.0 } else { 280.0 }))
+            .style(theme::request_input)
+            .into();
+    }
     let label = text(if empty { "?".to_owned() } else { draft_formula })
         .size(if compact {
             type_scale::TITLE
@@ -531,6 +584,19 @@ fn slot(
         .into(),
         _ => chip.into(),
     };
+
+    if empty && library_drag.is_none() {
+        return mouse_area(
+            button(chip)
+                .on_press(Message::BeginNameEntry(reactant))
+                .padding(0)
+                .style(theme::bare_button),
+        )
+        .on_enter(Message::SlotHovered(Some(reactant)))
+        .on_exit(Message::SlotHovered(None))
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into();
+    }
 
     let area = mouse_area(chip)
         .on_enter(Message::SlotHovered(Some(reactant)))
@@ -870,6 +936,38 @@ mod tests {
     }
 
     #[test]
+    fn empty_slot_becomes_inline_input_and_ready_prompt_fades_both_ways() {
+        let mut state = State::default();
+        update(&mut state, Message::BeginNameEntry(ActiveReactant::First));
+        assert_eq!(editing(&state), Some(ActiveReactant::First));
+
+        update(&mut state, Message::NameInput("nickel".into()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(formula(reactants(&state).0), "Ni");
+        assert_eq!(editing(&state), None);
+
+        set_submit_available(&mut state, true);
+        assert!(state.prompt_reveal.abs() < f32::EPSILON);
+        update(&mut state, Message::PromptAnimationTick);
+        assert!(state.prompt_reveal > 0.0);
+        assert!(
+            theme::ease_in_out(state.prompt_reveal) < 0.01,
+            "the first opacity frame must not visibly pop"
+        );
+
+        set_submit_available(&mut state, false);
+        let visible = state.prompt_reveal;
+        assert!(visible > 0.0);
+        assert!(prompt_is_animating(&state));
+        update(&mut state, Message::PromptAnimationTick);
+        assert!(state.prompt_reveal < visible);
+        while state.prompt_reveal > 0.0 {
+            update(&mut state, Message::PromptAnimationTick);
+        }
+        assert!(state.prompt_reveal.abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn separators_fill_both_slots_at_once() {
         let mut state = State::default();
         update(&mut state, Message::NameInput("oxygen + water".to_owned()));
@@ -964,7 +1062,8 @@ mod tests {
             resolution.message(true),
             Some("Local Mode will try to derive this reaction")
         );
-        let _ = action_row(&state, None, false);
+        set_submit_available(&mut state, true);
+        let _ = reaction_prompt(&state, None, false, false);
     }
 
     #[test]
@@ -987,7 +1086,8 @@ mod tests {
         assert_eq!(formula(&state.drafts[1].atoms), "NaOH");
         assert_eq!(resolution(&state), chemistry::DraftResolution::Unrecognized);
         assert!(can_start_reaction(&state));
-        let _ = action_row(&state, None, true);
+        set_submit_available(&mut state, true);
+        let _ = reaction_prompt(&state, None, true, false);
     }
 
     #[test]

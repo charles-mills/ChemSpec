@@ -34,11 +34,10 @@ use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
     DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones, OutcomeSpecies,
-    RESEARCHER_CLAIM_TIMEOUT, ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest,
-    ReactionClaim, RequestIdentityResolution, TrustTier, ValidatedStaticOutcome,
-    compile_claim_outcome, enrich_static_outcome, load_claim_mode, load_dynamic_cache,
-    resolve_request_identities_with_catalogue, reviewed_species_registry, store_claim_mode,
-    store_dynamic_cache,
+    ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest, ReactionClaim,
+    RequestIdentityResolution, TrustTier, ValidatedStaticOutcome, compile_claim_outcome,
+    enrich_static_outcome, load_dynamic_cache, resolve_request_identities_with_catalogue,
+    reviewed_species_registry, store_dynamic_cache,
 };
 use chem_domain::SpeciesId;
 use chem_presentation::{
@@ -48,7 +47,7 @@ use chem_presentation::{
 };
 use iced::widget::{
     button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
-    text, text_input,
+    text, text_input, tooltip,
 };
 use iced::{Center, Element, Fill, Length, Size, Subscription, Task, Theme};
 
@@ -533,21 +532,25 @@ impl PlaybackSpeed {
 enum Message {
     WindowResized(Size),
     KeyboardEvent(iced::keyboard::Event),
+    BuilderPointerPressed,
+    BuilderInputFocusChecked {
+        reactant: reactant_composer::ActiveReactant,
+        focused: bool,
+    },
     ScreenSelected(Screen),
     ProviderSelected(ProviderChoice),
     ApiKeyChanged(String),
     ProviderContinue,
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
-    ClaimModeSelected(ClaimMode),
+    BuilderPanelToggled(BuilderPanel),
+    BuilderPanelClosed,
     DynamicContextSelected(Option<DynamicRequestContext>),
-    StartContextReaction,
     ToggleDynamicDetails,
     DynamicIdentitySelected {
         reactant_index: usize,
         species_id: SpeciesId,
     },
-    CancelDynamicWork,
     DynamicClaimFinished {
         run_id: u64,
         result: Box<Result<DynamicClaimStageResult, String>>,
@@ -573,6 +576,12 @@ enum Message {
     StructuralDrag(structural_2d::DragEvent),
     ContinueTo3d,
     ReturnTo2d,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuilderPanel {
+    Conditions,
+    Help,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -602,17 +611,26 @@ impl DynamicRequestContext {
     }
 }
 
-fn builder_keyboard_message(screen: Screen, event: iced::keyboard::Event) -> Option<Message> {
+fn builder_keyboard_message(
+    screen: Screen,
+    event: iced::keyboard::Event,
+    editor_open: bool,
+    panel_open: bool,
+    can_run: bool,
+) -> Option<Message> {
     let iced::keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
         return None;
     };
-    builder_shortcut(screen, &key, modifiers)
+    builder_shortcut(screen, &key, modifiers, editor_open, panel_open, can_run)
 }
 
 fn builder_shortcut(
     screen: Screen,
     key: &iced::keyboard::Key,
     modifiers: iced::keyboard::Modifiers,
+    editor_open: bool,
+    panel_open: bool,
+    can_run: bool,
 ) -> Option<Message> {
     use iced::keyboard::{Key, key::Named};
 
@@ -620,7 +638,21 @@ fn builder_shortcut(
         return None;
     }
     if key == &Key::Named(Named::Escape) {
-        return Some(Message::CancelDynamicWork);
+        return if editor_open {
+            Some(Message::ReactantComposer(
+                reactant_composer::Message::NameEntryCancelled,
+            ))
+        } else if panel_open {
+            Some(Message::BuilderPanelClosed)
+        } else {
+            None
+        };
+    }
+    let is_space = matches!(key.as_ref(), Key::Named(Named::Space) | Key::Character(" "));
+    if !modifiers.command() && is_space && can_run && !editor_open && !panel_open {
+        return Some(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
     }
     if !modifiers.command() {
         return None;
@@ -637,9 +669,6 @@ fn builder_shortcut(
         }
         Key::Named(Named::Backspace) => Some(Message::ReactantComposer(
             reactant_composer::Message::ClearActive,
-        )),
-        Key::Named(Named::Enter) => Some(Message::ReactantComposer(
-            reactant_composer::Message::StartReactionRequested,
         )),
         _ => None,
     }
@@ -731,8 +760,8 @@ struct App {
     dynamic_request: Option<ReactionBuildRequest>,
     dynamic_identity_choice: Option<DynamicIdentityChoice>,
     dynamic_context: Option<DynamicRequestContext>,
+    builder_panel: Option<BuilderPanel>,
     dynamic_details_open: bool,
-    claim_mode: ClaimMode,
     dynamic_build: DynamicBuildState,
     dynamic_cancellation: Option<Arc<AtomicBool>>,
     dynamic_progress: Option<CodexProgressEvent>,
@@ -751,7 +780,6 @@ impl Default for App {
     fn default() -> Self {
         let codex_available = codex_available();
         let active_request = chemistry::ReactionRequest::DEFAULT;
-        let provider_config = CodexProviderConfig::from_environment();
         Self {
             screen: Screen::ProviderSetup,
             smoke_mode: None,
@@ -772,8 +800,8 @@ impl Default for App {
             dynamic_request: None,
             dynamic_identity_choice: None,
             dynamic_context: None,
+            builder_panel: None,
             dynamic_details_open: false,
-            claim_mode: load_claim_mode(provider_config.cache_directory.as_deref()),
             dynamic_build: DynamicBuildState::Idle,
             dynamic_cancellation: None,
             dynamic_progress: None,
@@ -864,8 +892,32 @@ impl App {
         match message {
             Message::WindowResized(size) => self.ui_zoom = adaptive_zoom(size, self.ui_zoom),
             Message::KeyboardEvent(event) => {
-                if let Some(message) = builder_keyboard_message(self.screen, event) {
+                if let Some(message) = builder_keyboard_message(
+                    self.screen,
+                    event,
+                    reactant_composer::editing(&self.reactant_composer).is_some(),
+                    self.builder_panel.is_some(),
+                    self.builder_can_submit(),
+                ) {
                     return self.update_with_task(message);
+                }
+            }
+            Message::BuilderPointerPressed => {
+                let Some(reactant) = reactant_composer::editing(&self.reactant_composer) else {
+                    return Task::none();
+                };
+                return iced::widget::operation::is_focused(reactant_composer::name_input_id(
+                    reactant,
+                ))
+                .map(move |focused| Message::BuilderInputFocusChecked { reactant, focused });
+            }
+            Message::BuilderInputFocusChecked { reactant, focused } => {
+                if !focused
+                    && reactant_composer::editing(&self.reactant_composer) == Some(reactant)
+                    && reactant_composer::name_input_is_empty(&self.reactant_composer)
+                {
+                    return self
+                        .update_reactant_composer(reactant_composer::Message::NameEntryCancelled);
                 }
             }
             Message::ScreenSelected(screen) => self.screen = screen,
@@ -884,29 +936,23 @@ impl App {
             Message::PeriodicTable(message) => {
                 periodic_table::update(&mut self.periodic_table, message);
                 if let periodic_table::Message::Activated(atomic_number) = message {
-                    reactant_composer::update(
-                        &mut self.reactant_composer,
-                        reactant_composer::Message::AddElement(atomic_number),
-                    );
+                    return self.update_reactant_composer(reactant_composer::Message::AddElement(
+                        atomic_number,
+                    ));
                 }
             }
             Message::ReactantComposer(message) => {
                 return self.update_reactant_composer(message);
             }
-            Message::ClaimModeSelected(mode) => {
-                if matches!(self.dynamic_build, DynamicBuildState::Running { .. }) {
-                    return Task::none();
-                }
-                self.claim_mode = mode;
-                if let Some(directory) = CodexProviderConfig::from_environment()
-                    .cache_directory
-                    .as_deref()
-                {
-                    let _ = store_claim_mode(directory, mode);
-                }
+            Message::BuilderPanelToggled(panel) => {
+                self.builder_panel = (self.builder_panel != Some(panel)).then_some(panel);
             }
-            Message::DynamicContextSelected(context) => self.dynamic_context = context,
-            Message::StartContextReaction => return self.start_dynamic_build(),
+            Message::BuilderPanelClosed => self.builder_panel = None,
+            Message::DynamicContextSelected(context) => {
+                self.dynamic_context = context;
+                self.builder_panel = None;
+                self.sync_builder_submit_prompt();
+            }
             Message::ToggleDynamicDetails => {
                 self.dynamic_details_open = !self.dynamic_details_open;
             }
@@ -930,33 +976,6 @@ impl App {
                 let mut request = choice.request;
                 request.reactants[reactant_index].species_id = Some(species_id);
                 return self.start_dynamic_build_request(request, false);
-            }
-            Message::CancelDynamicWork => {
-                if let Some(cancellation) = self.dynamic_cancellation.take() {
-                    cancellation.store(true, Ordering::Relaxed);
-                }
-                self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
-                self.dynamic_identity_choice = None;
-                if matches!(
-                    self.dynamic_build,
-                    DynamicBuildState::Running {
-                        stage: DynamicBuildStage::Presentation,
-                        ..
-                    }
-                ) && let Some(outcome) = self.dynamic_static.clone()
-                {
-                    self.dynamic_presentation = Some(DynamicPresentationOutcome::Static {
-                        outcome: Box::new(outcome),
-                        diagnostic: "Animation enrichment was cancelled".into(),
-                        retryable: true,
-                        attempts: 0,
-                    });
-                    self.dynamic_build = DynamicBuildState::Idle;
-                } else if matches!(self.dynamic_build, DynamicBuildState::Running { .. }) {
-                    self.dynamic_build =
-                        DynamicBuildState::Failed("Cancelled by the learner".into());
-                }
-                self.dynamic_progress_receiver = None;
             }
             Message::DynamicClaimFinished { run_id, result } => {
                 if !matches!(self.dynamic_build, DynamicBuildState::Running { run_id: current, stage: DynamicBuildStage::Claim, .. } if current == run_id)
@@ -992,7 +1011,7 @@ impl App {
                         return Self::start_dynamic_presentation(
                             run_id,
                             request,
-                            self.claim_mode,
+                            ClaimMode::Fast,
                             self.local_mode(),
                             outcome,
                             self.dynamic_cancellation
@@ -1137,7 +1156,7 @@ impl App {
                 return Self::start_dynamic_presentation(
                     run_id,
                     request,
-                    self.claim_mode,
+                    ClaimMode::Fast,
                     self.local_mode(),
                     outcome,
                     cancellation,
@@ -1239,7 +1258,29 @@ impl App {
         drop(self.update_with_task(message));
     }
 
+    fn builder_can_submit(&self) -> bool {
+        if matches!(self.dynamic_build, DynamicBuildState::Running { .. })
+            || reactant_composer::editing(&self.reactant_composer).is_some()
+        {
+            return false;
+        }
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        reactant_composer::can_start_reaction(&self.reactant_composer)
+            || (!first.is_empty() && second.is_empty() && self.dynamic_context.is_some())
+    }
+
+    fn sync_builder_submit_prompt(&mut self) {
+        let available = self.builder_can_submit();
+        reactant_composer::set_submit_available(&mut self.reactant_composer, available);
+    }
+
     fn update_reactant_composer(&mut self, message: reactant_composer::Message) -> Task<Message> {
+        let focus_target = match &message {
+            reactant_composer::Message::BeginNameEntry(reactant) => {
+                Some(reactant_composer::name_input_id(*reactant))
+            }
+            _ => None,
+        };
         if matches!(message, reactant_composer::Message::StartReactionRequested)
             && matches!(self.dynamic_build, DynamicBuildState::Running { .. })
         {
@@ -1267,8 +1308,20 @@ impl App {
 
             self.dynamic_request = None;
             reactant_composer::update(&mut self.reactant_composer, message);
-            return Task::none();
+            let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+            if !second.is_empty() {
+                self.dynamic_context = None;
+            }
+            if self.builder_panel == Some(BuilderPanel::Conditions)
+                && (first.is_empty() || !second.is_empty())
+            {
+                self.builder_panel = None;
+            }
+            self.sync_builder_submit_prompt();
+            return focus_target.map_or_else(Task::none, iced::widget::operation::focus);
         }
+        reactant_composer::set_submit_available(&mut self.reactant_composer, false);
+        self.builder_panel = None;
         match reactant_composer::resolution(&self.reactant_composer) {
             chemistry::DraftResolution::Supported(request) => {
                 self.pending_requests.clear();
@@ -1353,7 +1406,7 @@ impl App {
         self.dynamic_progress_receiver = None;
         self.structural_animation = None;
         self.structural_error = None;
-        let mode = self.claim_mode;
+        let mode = ClaimMode::Fast;
         let mut config = CodexProviderConfig::from_environment();
         let catalogue = match chemistry::trusted_catalogue() {
             Ok(catalogue) => catalogue.clone(),
@@ -1408,11 +1461,7 @@ impl App {
         Task::perform(
             async move {
                 let started = Instant::now();
-                let deadline = started
-                    + match mode {
-                        ClaimMode::Fast => FAST_CLAIM_TIMEOUT,
-                        ClaimMode::Researcher => RESEARCHER_CLAIM_TIMEOUT,
-                    };
+                let deadline = started + FAST_CLAIM_TIMEOUT;
                 let mut latency = LatencyMilestones::default();
                 let provider = CodexProvider::new(config);
                 // Local Mode never reads the cache: cached claims are model
@@ -1747,8 +1796,14 @@ impl App {
             Subscription::none()
         };
 
-        let keyboard = if self.screen == Screen::Builder {
-            iced::keyboard::listen().map(Message::KeyboardEvent)
+        let input = if self.screen == Screen::Builder {
+            iced::event::listen_with(|event, _status, _window| match event {
+                iced::Event::Keyboard(event) => Some(Message::KeyboardEvent(event)),
+                iced::Event::Mouse(iced::mouse::Event::ButtonPressed(
+                    iced::mouse::Button::Left,
+                )) => Some(Message::BuilderPointerPressed),
+                _ => None,
+            })
         } else {
             Subscription::none()
         };
@@ -1768,7 +1823,7 @@ impl App {
             Subscription::none()
         };
 
-        Subscription::batch([resize, screen, dynamic_build, dynamic_theatre, keyboard])
+        Subscription::batch([resize, screen, dynamic_build, dynamic_theatre, input])
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -3025,6 +3080,172 @@ impl App {
             .into()
     }
 
+    fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
+        let conditions_selected =
+            self.builder_panel == Some(BuilderPanel::Conditions) || self.dynamic_context.is_some();
+        let conditions_color = if conditions_selected {
+            color::CANVAS
+        } else if conditions_enabled {
+            color::TEXT_SOFT
+        } else {
+            color::FAINT
+        };
+        let conditions = button(icons::atom(20.0, conditions_color))
+            .on_press_maybe(
+                conditions_enabled
+                    .then_some(Message::BuilderPanelToggled(BuilderPanel::Conditions)),
+            )
+            .padding(spacing::XS)
+            .style(if conditions_selected {
+                theme::primary_button
+            } else {
+                theme::secondary_button
+            });
+        let conditions: Element<'_, Message> = tooltip(
+            conditions,
+            text(if conditions_enabled {
+                "Reaction conditions"
+            } else {
+                "Conditions are available for a single reactant"
+            })
+            .size(type_scale::CAPTION)
+            .color(color::TEXT_SOFT),
+            tooltip::Position::Bottom,
+        )
+        .gap(spacing::XS)
+        .padding(spacing::XS)
+        .style(|_| theme::tooltip_surface(1.0))
+        .into();
+
+        let help_selected = self.builder_panel == Some(BuilderPanel::Help);
+        let help = button(icons::help(
+            20.0,
+            if help_selected {
+                color::CANVAS
+            } else {
+                color::TEXT_SOFT
+            },
+        ))
+        .on_press(Message::BuilderPanelToggled(BuilderPanel::Help))
+        .padding(spacing::XS)
+        .style(if help_selected {
+            theme::primary_button
+        } else {
+            theme::secondary_button
+        });
+        let help: Element<'_, Message> = tooltip(
+            help,
+            text("Help and shortcuts")
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
+            tooltip::Position::Bottom,
+        )
+        .gap(spacing::XS)
+        .padding(spacing::XS)
+        .style(|_| theme::tooltip_surface(1.0))
+        .into();
+
+        let settings = button(icons::settings(20.0, color::FAINT))
+            .padding(spacing::XS)
+            .style(theme::secondary_button);
+        let settings: Element<'_, Message> = tooltip(
+            settings,
+            text("Settings — coming soon")
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
+            tooltip::Position::Bottom,
+        )
+        .gap(spacing::XS)
+        .padding(spacing::XS)
+        .style(|_| theme::tooltip_surface(1.0))
+        .into();
+
+        row![space().width(Fill), conditions, help, settings,]
+            .spacing(spacing::XS)
+            .align_y(Center)
+            .into()
+    }
+
+    fn builder_toolbar_panel(&self) -> Element<'_, Message> {
+        let content: Element<'_, Message> = match self.builder_panel {
+            Some(BuilderPanel::Conditions) => {
+                let mut choices = column![
+                    text("Reaction conditions")
+                        .size(type_scale::BODY_LARGE)
+                        .color(color::TEXT),
+                    text("Use a condition when asking what happens to one reactant.")
+                        .size(type_scale::CAPTION)
+                        .color(color::MUTED),
+                    button(text("No condition").size(type_scale::BODY))
+                        .on_press(Message::DynamicContextSelected(None))
+                        .padding([spacing::XS, spacing::SM])
+                        .width(Fill)
+                        .style(if self.dynamic_context.is_none() {
+                            theme::primary_button
+                        } else {
+                            theme::secondary_button
+                        }),
+                ]
+                .spacing(spacing::XS);
+                for context in DynamicRequestContext::ALL {
+                    choices = choices.push(
+                        button(text(context.label()).size(type_scale::BODY))
+                            .on_press(Message::DynamicContextSelected(Some(context)))
+                            .padding([spacing::XS, spacing::SM])
+                            .width(Fill)
+                            .style(if self.dynamic_context == Some(context) {
+                                theme::primary_button
+                            } else {
+                                theme::secondary_button
+                            }),
+                    );
+                }
+                choices.into()
+            }
+            Some(BuilderPanel::Help) => {
+                let shortcut = |key: &'static str, description: &'static str| {
+                    row![
+                        container(
+                            text(key)
+                                .size(type_scale::CAPTION)
+                                .font(fonts::SEMIBOLD)
+                                .color(color::TEXT),
+                        )
+                        .width(Length::Fixed(92.0)),
+                        text(description)
+                            .size(type_scale::CAPTION)
+                            .color(color::TEXT_SOFT),
+                    ]
+                    .spacing(spacing::SM)
+                    .align_y(Center)
+                };
+                column![
+                    text("Help").size(type_scale::BODY_LARGE).color(color::TEXT),
+                    text(
+                        "Click an empty reactant to type a name or formula. Press Enter to use it."
+                    )
+                    .size(type_scale::CAPTION)
+                    .color(color::MUTED),
+                    rule::horizontal(1).style(theme::soft_divider),
+                    shortcut("⌘1 / ⌘2", "Select a reactant"),
+                    shortcut("Click / ⌘Z", "Undo the active reactant"),
+                    shortcut("Hold / ⌘⌫", "Clear the active reactant"),
+                    shortcut("Spacebar", "Find out when ready"),
+                    shortcut("Esc", "Close input or this panel"),
+                ]
+                .spacing(spacing::SM)
+                .into()
+            }
+            None => space().height(Length::Shrink).into(),
+        };
+
+        container(content)
+            .padding(spacing::MD)
+            .width(Length::Fixed(340.0))
+            .style(|_| theme::tooltip_surface(1.0))
+            .into()
+    }
+
     /// Stage 1: the question sentence above the full periodic table, with no
     /// chrome competing for attention.
     #[allow(clippy::too_many_lines)]
@@ -3065,84 +3286,8 @@ impl App {
 
         let dynamic_busy = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-        let context_controls: Element<'_, Message> = if !first.is_empty() && second.is_empty() {
-            let mut controls = row![
-                text("ONE REACTANT")
-                    .size(type_scale::MICRO)
-                    .color(color::MUTED)
-            ]
-            .spacing(spacing::XS)
-            .align_y(Center);
-            for context in DynamicRequestContext::ALL {
-                controls = controls.push(
-                    button(text(context.label()))
-                        .on_press_maybe(
-                            (!dynamic_busy)
-                                .then_some(Message::DynamicContextSelected(Some(context))),
-                        )
-                        .style(if self.dynamic_context == Some(context) {
-                            theme::primary_button
-                        } else {
-                            theme::secondary_button
-                        }),
-                );
-            }
-            controls = controls.push(space().width(Fill)).push(
-                button(text("Build with context  →"))
-                    .on_press_maybe(
-                        (!dynamic_busy && self.dynamic_context.is_some())
-                            .then_some(Message::StartContextReaction),
-                    )
-                    .style(theme::primary_button),
-            );
-            controls.into()
-        } else {
-            space().height(Length::Shrink).into()
-        };
-        // Fast/Researcher only tunes the model claim budget; Local Mode has
-        // no model, so the toggle disappears entirely.
-        let claim_mode_toggle: Element<'_, Message> = if self.local_mode() {
-            space().width(Fill).into()
-        } else {
-            row![
-                text("MODE").size(type_scale::MICRO).color(color::MUTED),
-                button(text("Fast"))
-                    .on_press_maybe(
-                        (!dynamic_busy && self.claim_mode != ClaimMode::Fast)
-                            .then_some(Message::ClaimModeSelected(ClaimMode::Fast)),
-                    )
-                    .style(if self.claim_mode == ClaimMode::Fast {
-                        theme::primary_button
-                    } else {
-                        theme::secondary_button
-                    }),
-                button(text("Researcher"))
-                    .on_press_maybe(
-                        (!dynamic_busy && self.claim_mode != ClaimMode::Researcher)
-                            .then_some(Message::ClaimModeSelected(ClaimMode::Researcher)),
-                    )
-                    .style(if self.claim_mode == ClaimMode::Researcher {
-                        theme::primary_button
-                    } else {
-                        theme::secondary_button
-                    }),
-                space().width(Fill),
-            ]
-            .spacing(spacing::XS)
-            .align_y(Center)
-            .into()
-        };
-        let mode_toggle = row![
-            claim_mode_toggle,
-            button(text("Cancel"))
-                .on_press_maybe(
-                    matches!(self.dynamic_build, DynamicBuildState::Running { .. })
-                        .then_some(Message::CancelDynamicWork),
-                )
-                .style(theme::secondary_button),
-        ]
-        .spacing(spacing::XS)
-        .align_y(Center);
+        let conditions_enabled = !dynamic_busy && !first.is_empty() && second.is_empty();
+        let toolbar = self.builder_toolbar(conditions_enabled);
         let result = self.dynamic_result_view();
         let identity_choice = self.dynamic_identity_choice_view();
         let build_details: Element<'_, Message> =
@@ -3172,8 +3317,7 @@ impl App {
             };
         let application = container(
             column![
-                mode_toggle,
-                context_controls,
+                toolbar,
                 composer,
                 build_details,
                 identity_choice,
@@ -3190,8 +3334,22 @@ impl App {
         .height(Fill);
         let drag_overlay =
             periodic_table::drag_overlay(&self.periodic_table, size).map(Message::PeriodicTable);
+        let toolbar_overlay: Element<'_, Message> = if self.builder_panel.is_some() {
+            container(row![space().width(Fill), self.builder_toolbar_panel()].width(Fill))
+                .padding(iced::Padding {
+                    top: 52.0,
+                    right: if compact { spacing::XS } else { spacing::SM },
+                    bottom: 0.0,
+                    left: if compact { spacing::XS } else { spacing::SM },
+                })
+                .width(Fill)
+                .height(Fill)
+                .into()
+        } else {
+            space().height(Length::Shrink).into()
+        };
 
-        stack![application, drag_overlay]
+        stack![application, drag_overlay, toolbar_overlay]
             .width(Fill)
             .height(Fill)
             .clip(false)
@@ -3497,14 +3655,17 @@ mod tests {
     }
 
     #[test]
-    fn builder_keyboard_shortcuts_cover_selection_edit_run_and_cancel() {
+    fn builder_keyboard_shortcuts_cover_selection_edit_run_and_dismissal() {
         use iced::keyboard::{Key, Modifiers, key::Named};
 
         assert!(matches!(
             builder_shortcut(
                 Screen::Builder,
                 &Key::Character("2".into()),
-                Modifiers::COMMAND
+                Modifiers::COMMAND,
+                false,
+                false,
+                false,
             ),
             Some(Message::ReactantComposer(
                 reactant_composer::Message::SelectReactant(
@@ -3516,35 +3677,118 @@ mod tests {
             builder_shortcut(
                 Screen::Builder,
                 &Key::Character("z".into()),
-                Modifiers::COMMAND
+                Modifiers::COMMAND,
+                false,
+                false,
+                false,
             ),
             Some(Message::ReactantComposer(reactant_composer::Message::Undo))
         ));
         assert!(matches!(
             builder_shortcut(
                 Screen::Builder,
-                &Key::Named(Named::Enter),
-                Modifiers::COMMAND
+                &Key::Named(Named::Space),
+                Modifiers::empty(),
+                false,
+                false,
+                true,
             ),
             Some(Message::ReactantComposer(
                 reactant_composer::Message::StartReactionRequested
+            ))
+        ));
+        assert!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Space),
+                Modifiers::empty(),
+                true,
+                false,
+                true,
+            )
+            .is_none(),
+            "Space must stay text input while inline editing is active"
+        );
+        assert!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Space),
+                Modifiers::empty(),
+                false,
+                true,
+                true,
+            )
+            .is_none(),
+            "Space must not run behind an open toolbar panel"
+        );
+        assert!(matches!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Escape),
+                Modifiers::empty(),
+                true,
+                false,
+                false,
+            ),
+            Some(Message::ReactantComposer(
+                reactant_composer::Message::NameEntryCancelled
             ))
         ));
         assert!(matches!(
             builder_shortcut(
                 Screen::Builder,
                 &Key::Named(Named::Escape),
-                Modifiers::empty()
+                Modifiers::empty(),
+                false,
+                true,
+                false,
             ),
-            Some(Message::CancelDynamicWork)
+            Some(Message::BuilderPanelClosed)
         ));
         assert!(
             builder_shortcut(
                 Screen::Structural2d,
                 &Key::Named(Named::Escape),
-                Modifiers::empty()
+                Modifiers::empty(),
+                false,
+                false,
+                false,
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn empty_inline_name_entry_closes_when_focus_moves_elsewhere() {
+        let reactant = reactant_composer::ActiveReactant::First;
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::BeginNameEntry(reactant),
+        ));
+        app.update(Message::BuilderInputFocusChecked {
+            reactant,
+            focused: false,
+        });
+        assert_eq!(reactant_composer::editing(&app.reactant_composer), None);
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::BeginNameEntry(reactant),
+        ));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::NameInput("nickel".into()),
+        ));
+        app.update(Message::BuilderInputFocusChecked {
+            reactant,
+            focused: false,
+        });
+        assert_eq!(
+            reactant_composer::editing(&app.reactant_composer),
+            Some(reactant),
+            "non-empty text should not be discarded on blur"
         );
     }
 
@@ -3824,7 +4068,7 @@ mod tests {
     }
 
     #[test]
-    fn cancelling_claim_work_terminates_generation_and_rejects_late_completion() {
+    fn editing_reactants_cancels_claim_work_and_rejects_late_completion() {
         let cancellation = Arc::new(AtomicBool::new(false));
         let mut app = App {
             dynamic_build: DynamicBuildState::Running {
@@ -3837,26 +4081,22 @@ mod tests {
             ..App::default()
         };
 
-        app.update(Message::CancelDynamicWork);
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::SelectReactant(reactant_composer::ActiveReactant::Second),
+        ));
 
         assert!(cancellation.load(Ordering::Relaxed));
-        assert!(matches!(
-            app.dynamic_build,
-            DynamicBuildState::Failed(ref error) if error == "Cancelled by the learner"
-        ));
+        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
         assert_eq!(app.next_dynamic_run_id, 11);
         app.update(Message::DynamicClaimFinished {
             run_id: 9,
             result: Box::new(Err("late completion".into())),
         });
-        assert!(matches!(
-            app.dynamic_build,
-            DynamicBuildState::Failed(ref error) if error == "Cancelled by the learner"
-        ));
+        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
     }
 
     #[test]
-    fn cancelling_optional_presentation_preserves_static_result() {
+    fn editing_reactants_invalidates_optional_presentation_and_static_result() {
         let outcome = dynamic_lithium_static();
         let cancellation = Arc::new(AtomicBool::new(false));
         let mut app = App {
@@ -3871,18 +4111,15 @@ mod tests {
             ..App::default()
         };
 
-        app.update(Message::CancelDynamicWork);
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::ClearActive,
+        ));
 
         assert!(cancellation.load(Ordering::Relaxed));
-        assert!(app.dynamic_static.is_some());
+        assert!(app.dynamic_static.is_none());
         assert!(app.validated_frames.is_none());
-        assert!(matches!(
-            app.dynamic_presentation,
-            Some(DynamicPresentationOutcome::Static {
-                retryable: true,
-                ..
-            })
-        ));
+        assert!(app.dynamic_presentation.is_none());
+        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
     }
 
     #[test]
@@ -4436,5 +4673,31 @@ mod tests {
 
         app.update(Message::ScreenSelected(Screen::Builder));
         assert_eq!(app.screen, Screen::Builder);
+    }
+
+    #[test]
+    fn periodic_table_activation_refreshes_the_ready_prompt_without_hover() {
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(
+            3,
+        )));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::SelectReactant(reactant_composer::ActiveReactant::Second),
+        ));
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(
+            1,
+        )));
+        assert_eq!(
+            reactant_composer::reactants(&app.reactant_composer),
+            (&[3_u8][..], &[1_u8][..])
+        );
+        assert!(
+            reactant_composer::submit_available(&app.reactant_composer),
+            "one H click canonicalizes to H2, so the prompt must become available immediately"
+        );
     }
 }
