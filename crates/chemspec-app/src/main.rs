@@ -237,11 +237,8 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
 
 const fn educational_scene_title(kind: EducationalSceneKind) -> &'static str {
     match kind {
-        EducationalSceneKind::Introduction => "Introduce",
         EducationalSceneKind::ReactantSetup => "Reactants",
-        EducationalSceneKind::Equation => "Equation",
         EducationalSceneKind::StructuralChange => "Explain change",
-        EducationalSceneKind::ExplanationPause => "Understand",
         EducationalSceneKind::ObservationConnection => "Observe",
         EducationalSceneKind::Summary => "Summarise",
     }
@@ -740,6 +737,9 @@ struct StructuralAnimation {
     camera: iced::Rectangle,
     /// Story-anchored homes per frame, parallel to `frames.frames()`.
     home_timeline: Vec<std::collections::BTreeMap<String, iced::Point>>,
+    /// Paused with physics and camera at rest: the tick subscription stops
+    /// so a static scene costs nothing. Any interaction clears it.
+    settled: bool,
 }
 
 struct App {
@@ -1175,6 +1175,7 @@ impl App {
             Message::StructuralPlaybackToggled => {
                 if let Some(animation) = &mut self.structural_animation {
                     animation.playing = !animation.playing;
+                    animation.settled = false;
                 }
             }
             Message::StructuralSpeedChanged => {
@@ -1185,6 +1186,7 @@ impl App {
             Message::StructuralTimelineScrubbed(progress) => {
                 if let Some(animation) = &mut self.structural_animation {
                     animation.playing = false;
+                    animation.settled = false;
                 }
                 self.seek_educational_timeline(u64::from(progress));
             }
@@ -1213,6 +1215,7 @@ impl App {
             }
             Message::StructuralDrag(event) => {
                 if let Some(animation) = &mut self.structural_animation {
+                    animation.settled = false;
                     match event {
                         structural_2d::DragEvent::Started { target, cursor } => {
                             animation.physics.begin_drag(&target, cursor);
@@ -1232,6 +1235,7 @@ impl App {
                     animation.frame_index = 0;
                     animation.real_world_playhead_ms = 0;
                     animation.playing = true;
+                    animation.settled = false;
                 }
             }
             Message::ContinueTo3d => {
@@ -1721,6 +1725,7 @@ impl App {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
+        animation.settled = false;
         if self.screen == Screen::Structural2d {
             let Some(position) = animation
                 .educational_plan
@@ -1774,7 +1779,11 @@ impl App {
                 reactant_composer::subscription(&self.reactant_composer)
                     .map(Message::ReactantComposer),
             ])
-        } else if self.screen == Screen::Structural2d
+        } else if (self.screen == Screen::Structural2d
+            && self
+                .structural_animation
+                .as_ref()
+                .is_none_or(|animation| animation.playing || !animation.settled))
             || (self.screen == Screen::Structural3d
                 && self
                     .structural_animation
@@ -2144,6 +2153,7 @@ impl App {
                 physics: structural_physics::Simulation::default(),
                 camera: structural_2d::default_camera(),
                 home_timeline,
+                settled: false,
             })
         })();
         match result {
@@ -2234,7 +2244,8 @@ impl App {
         // The camera frames the whole chapter (both endpoints), retargets
         // only when the chapter does, and glides — never chases.
         let target = structural_2d::chapter_camera(before, after, before_homes, after_homes);
-        structural_2d::ease_camera(&mut animation.camera, target);
+        let camera_moved = structural_2d::ease_camera(&mut animation.camera, target);
+        animation.settled = !animation.playing && !camera_moved && animation.physics.is_settled();
     }
 
     fn seek_educational_timeline(&mut self, elapsed_ms: u64) {
@@ -2440,12 +2451,6 @@ impl App {
                 &context_labels,
                 scene_context,
                 educational_timeline_progress(animation),
-                matches!(
-                    educational_scene.kind,
-                    EducationalSceneKind::ReactantSetup
-                        | EducationalSceneKind::StructuralChange
-                        | EducationalSceneKind::ExplanationPause
-                ),
                 animation.physics.positions(),
                 animation.camera,
             ))
@@ -4365,6 +4370,73 @@ mod tests {
             .collect::<Vec<_>>()
             .join(" ")
             .to_lowercase()
+    }
+
+    #[test]
+    fn solver_observations_reach_educational_playback() {
+        let mut observed_reactions = 0;
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let has_observations = run
+                .frames()
+                .frames()
+                .iter()
+                .any(|frame| !frame.observations().is_empty());
+            let plan = compile_educational_plan(run.frames()).expect("educational plan compiles");
+            let observation_scenes = plan
+                .scenes
+                .iter()
+                .filter(|scene| scene.kind == EducationalSceneKind::ObservationConnection)
+                .collect::<Vec<_>>();
+            if !has_observations {
+                assert!(
+                    observation_scenes.is_empty(),
+                    "{request:?} invented an observation scene"
+                );
+                continue;
+            }
+            observed_reactions += 1;
+            assert!(
+                !observation_scenes.is_empty(),
+                "{request:?} has observations but no observation scene"
+            );
+            for scene in &observation_scenes {
+                assert!(
+                    scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowObservation { .. }
+                    )),
+                    "{request:?} observation scene lacks a ShowObservation cue"
+                );
+                assert!(
+                    scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { label }
+                            if label.kind
+                                == chem_presentation::ExplanationLabelKind::ObservationExplanation
+                                // A leader line exists exactly when there are
+                                // atoms to point at (disappearances have none).
+                                && label.connector != label.target_atoms.is_empty()
+                    )),
+                    "{request:?} observation scene lacks a coherent explanation card"
+                );
+            }
+            let summary = plan.scenes.last().expect("plan ends with a summary");
+            assert_eq!(summary.kind, EducationalSceneKind::Summary);
+            assert!(
+                summary.cues.iter().any(|cue| matches!(
+                    cue,
+                    chem_presentation::EducationalCue::ShowContext { label }
+                        if label.kind
+                            == chem_presentation::ExplanationLabelKind::ObservationExplanation
+                )),
+                "{request:?} summary lacks the observation recap chips"
+            );
+        }
+        assert!(
+            observed_reactions > 0,
+            "no pinned reaction carries observations"
+        );
     }
 
     #[test]

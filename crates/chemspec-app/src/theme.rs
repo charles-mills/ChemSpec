@@ -55,15 +55,21 @@ pub struct ChemistryColorTokens {
     pub electron: Color,
     pub structural_canvas: Color,
     pub structural_panel: Color,
-    pub summary: Color,
     pub hydrogen: Color,
     pub lithium: Color,
     pub silver: Color,
     pub carbon: Color,
     pub nitrogen: Color,
     pub oxygen: Color,
+    pub fluorine: Color,
     pub sodium: Color,
+    pub phosphorus: Color,
+    pub sulfur: Color,
     pub chlorine: Color,
+    pub iron: Color,
+    pub copper: Color,
+    pub bromine: Color,
+    pub iodine: Color,
     pub element_default: Color,
     pub alkali_metal: Color,
     pub alkaline_earth: Color,
@@ -146,15 +152,21 @@ pub const LAB_DARK: ThemeTokens = ThemeTokens {
         electron: Color::from_rgb8(0xB7, 0xDB, 0xFF),
         structural_canvas: Color::from_rgb8(0x07, 0x09, 0x0C),
         structural_panel: Color::from_rgb8(0x0E, 0x13, 0x19),
-        summary: Color::from_rgb8(0xB3, 0xE0, 0xC7),
         hydrogen: Color::from_rgb8(0xE6, 0xED, 0xF5),
         lithium: Color::from_rgb8(0xB5, 0x94, 0xF5),
         silver: Color::from_rgb8(0xC7, 0xD4, 0xE0),
         carbon: Color::from_rgb8(0x63, 0x75, 0x8A),
         nitrogen: Color::from_rgb8(0x73, 0xA8, 0xF5),
         oxygen: Color::from_rgb8(0xF2, 0x66, 0x6B),
+        fluorine: Color::from_rgb8(0x9E, 0xE0, 0x66),
         sodium: Color::from_rgb8(0xAB, 0x8A, 0xF0),
+        phosphorus: Color::from_rgb8(0xF5, 0xA6, 0x55),
+        sulfur: Color::from_rgb8(0xF0, 0xD8, 0x5C),
         chlorine: Color::from_rgb8(0x7A, 0xE3, 0xB0),
+        iron: Color::from_rgb8(0xE0, 0x7A, 0x45),
+        copper: Color::from_rgb8(0xD9, 0x93, 0x4D),
+        bromine: Color::from_rgb8(0xC9, 0x6A, 0x5A),
+        iodine: Color::from_rgb8(0xA8, 0x6A, 0xD9),
         element_default: Color::from_rgb8(0x9E, 0xAD, 0xBD),
         alkali_metal: Color::from_rgb8(0xE8, 0x7D, 0xB8),
         alkaline_earth: Color::from_rgb8(0xF2, 0xB5, 0x59),
@@ -235,7 +247,6 @@ pub mod chemistry_color {
     pub const ELECTRON: Color = LAB_DARK.chemistry.electron;
     pub const STRUCTURAL_CANVAS: Color = LAB_DARK.chemistry.structural_canvas;
     pub const STRUCTURAL_PANEL: Color = LAB_DARK.chemistry.structural_panel;
-    pub const SUMMARY: Color = LAB_DARK.chemistry.summary;
 }
 
 pub mod space {

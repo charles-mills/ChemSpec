@@ -104,6 +104,18 @@ impl Simulation {
             .collect()
     }
 
+    /// True when nothing is moving: no drag in progress, every atom calm
+    /// and essentially stationary. A settled paused scene needs no ticks.
+    #[must_use]
+    pub fn is_settled(&self) -> bool {
+        self.drag.is_none()
+            && self.bodies.values().all(|body| {
+                body.excitement < 0.01
+                    && body.velocity.x.abs() < 0.05
+                    && body.velocity.y.abs() < 0.05
+            })
+    }
+
     pub fn begin_drag(&mut self, target: &DragTarget, cursor: Point) {
         let atoms: Vec<&str> = match target {
             DragTarget::Atom(atom) => vec![atom],

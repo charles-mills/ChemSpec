@@ -23,7 +23,6 @@ use iced::mouse;
 const ACCENT: Color = color::ACCENT;
 const ACCENT_BRIGHT: Color = color::ACCENT_HOVER;
 const IONIC: Color = chemistry_color::IONIC;
-const GOLD: Color = color::WARNING;
 const CANVAS: Color = chemistry_color::STRUCTURAL_CANVAS;
 const PANEL: Color = chemistry_color::STRUCTURAL_PANEL;
 const TEXT: Color = color::TEXT;
@@ -171,6 +170,13 @@ enum RenderOperation {
     AssociateIonic {
         atoms: Vec<String>,
     },
+    /// A site entering (`joining`) or leaving the shared metallic domain,
+    /// with its electrons travelling between the halo ring and its shell.
+    MetallicMembership {
+        domain: String,
+        site: String,
+        joining: bool,
+    },
     AssignProduct {
         atoms: Vec<String>,
     },
@@ -315,10 +321,20 @@ fn render_operation(
         StructuralOperationView::DissociateIonic { .. } => {
             RenderOperation::Other { atoms: Vec::new() }
         }
-        StructuralOperationView::ReleaseMetallic { site, .. }
-        | StructuralOperationView::JoinMetallic { site, .. } => RenderOperation::Other {
-            atoms: vec![site.as_str().to_owned()],
-        },
+        StructuralOperationView::ReleaseMetallic { site, domain, .. } => {
+            RenderOperation::MetallicMembership {
+                domain: domain.as_str().to_owned(),
+                site: site.as_str().to_owned(),
+                joining: false,
+            }
+        }
+        StructuralOperationView::JoinMetallic { site, domain, .. } => {
+            RenderOperation::MetallicMembership {
+                domain: domain.as_str().to_owned(),
+                site: site.as_str().to_owned(),
+                joining: true,
+            }
+        }
         StructuralOperationView::TransferElectron {
             donor,
             acceptor,
@@ -379,15 +395,15 @@ pub fn atom_visual_radius(element: &str) -> f32 {
 }
 
 /// Structural action progress for a scene: explanation beats compress the
-/// structural motion into the first 55% of the scene.
+/// structural motion into the first 75% of the scene.
 #[must_use]
 pub fn scene_action(kind: EducationalSceneKind, has_explanation: bool, progress: f32) -> f32 {
     let structural = if kind == EducationalSceneKind::StructuralChange && has_explanation {
-        (progress / 0.55).clamp(0.0, 1.0)
+        (progress / 0.75).clamp(0.0, 1.0)
     } else {
         progress
     };
-    animation_phase(structural).action
+    animation_phase(structural)
 }
 
 /// A drag interaction on the structural canvas, in virtual coordinates.
@@ -472,14 +488,14 @@ pub fn chapter_camera(
 
 /// Eases a camera toward its target with a small deadband, so micro
 /// re-framings never move the view and real chapter changes glide.
-pub fn ease_camera(camera: &mut Rectangle, target: Rectangle) {
+pub fn ease_camera(camera: &mut Rectangle, target: Rectangle) -> bool {
     let tolerance = 0.05 * target.width.max(target.height);
     if (camera.x - target.x).abs() < tolerance
         && (camera.y - target.y).abs() < tolerance
         && (camera.width - target.width).abs() < tolerance
         && (camera.height - target.height).abs() < tolerance
     {
-        return;
+        return false;
     }
     // 33ms ticks: settles in roughly 1.3 seconds, no overshoot.
     let ease = 0.075;
@@ -487,6 +503,7 @@ pub fn ease_camera(camera: &mut Rectangle, target: Rectangle) {
     camera.y += (target.y - camera.y) * ease;
     camera.width += (target.width - camera.width) * ease;
     camera.height += (target.height - camera.height) * ease;
+    true
 }
 
 fn to_screen(point: Point, fit: f32, offset: Vector) -> Point {
@@ -615,7 +632,6 @@ pub struct Diagram {
     context_labels: Vec<ContextLabel>,
     context: SceneContext,
     ambient_progress: f32,
-    show_structure_labels: bool,
     /// Live simulation positions, in virtual coordinates.
     positions: BTreeMap<String, Point>,
     /// World rectangle the view frames, in virtual coordinates.
@@ -633,7 +649,6 @@ impl Diagram {
         context_labels: &[ContextLabel],
         context: SceneContext,
         ambient_progress: f32,
-        show_structure_labels: bool,
         positions: BTreeMap<String, Point>,
         camera: Rectangle,
     ) -> Self {
@@ -654,7 +669,6 @@ impl Diagram {
             context_labels: context_labels.to_vec(),
             context,
             ambient_progress: ambient_progress.clamp(0.0, 1.0),
-            show_structure_labels,
             positions,
         }
     }
@@ -786,16 +800,16 @@ impl canvas::Program<DragEvent> for Diagram {
         let combined_learning_beat = self.context.kind == EducationalSceneKind::StructuralChange
             && self.explanation.is_some();
         let structural_progress = if combined_learning_beat {
-            (self.progress / 0.55).clamp(0.0, 1.0)
+            (self.progress / 0.75).clamp(0.0, 1.0)
         } else {
             self.progress
         };
         let explanation_progress = if combined_learning_beat {
-            ((self.progress - 0.50) / 0.50).clamp(0.0, 1.0)
+            ((self.progress - 0.45) / 0.55).clamp(0.0, 1.0)
         } else {
             self.progress
         };
-        let action = animation_phase(structural_progress).action;
+        let action = animation_phase(structural_progress);
         let positions: BTreeMap<String, Point> = self
             .positions
             .iter()
@@ -850,16 +864,6 @@ impl canvas::Program<DragEvent> for Diagram {
             );
         }
 
-        if self.show_structure_labels {
-            draw_structure_labels(
-                &mut frame,
-                &self.context_labels,
-                &positions,
-                bounds,
-                structural_progress,
-                scale,
-            );
-        }
         draw_observation_context(
             &mut frame,
             &self.context_labels,
@@ -869,9 +873,14 @@ impl canvas::Program<DragEvent> for Diagram {
             scale,
         );
         if let Some(explanation) = &self.explanation {
+            let context = self
+                .context_labels
+                .iter()
+                .find(|label| label.kind == ExplanationLabelKind::StructuralChangeExplanation);
             draw_explanation_label(
                 &mut frame,
                 explanation,
+                context,
                 &positions,
                 bounds,
                 explanation_progress,
@@ -883,22 +892,14 @@ impl canvas::Program<DragEvent> for Diagram {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct AnimationPhase {
-    action: f32,
-    context: f32,
-}
-
-fn animation_phase(progress: f32) -> AnimationPhase {
-    AnimationPhase {
-        action: smoother_step(((progress - 0.10) / 0.62).clamp(0.0, 1.0)),
-        context: smoother_step(((progress - 0.42) / 0.16).clamp(0.0, 1.0))
-            * smoother_step(((1.0 - progress) / 0.05).clamp(0.0, 1.0)),
-    }
+/// Eased structural-motion progress: a gentle lead-in, then the action
+/// spans most of the beat.
+fn animation_phase(progress: f32) -> f32 {
+    smoother_step(((progress - 0.06) / 0.72).clamp(0.0, 1.0))
 }
 
 fn smoother_step(value: f32) -> f32 {
-    value * value * value * (value * (value * 6.0 - 15.0) + 10.0)
+    (value * value * value * (value * (value * 6.0 - 15.0) + 10.0)).clamp(0.0, 1.0)
 }
 
 #[allow(
@@ -910,15 +911,17 @@ fn draw_atmosphere(frame: &mut canvas::Frame, bounds: Rectangle) {
     frame.fill_rectangle(Point::ORIGIN, bounds.size(), CANVAS);
 }
 
-#[allow(clippy::cast_precision_loss)]
-fn layout(frame: &StructuralFrame, bounds: Rectangle) -> BTreeMap<String, Point> {
-    let components = connected_components(frame);
+fn layout_ordered(
+    frame: &StructuralFrame,
+    components: &[Vec<String>],
+    bounds: Rectangle,
+) -> BTreeMap<String, Point> {
     let mut positions = BTreeMap::new();
-    for (component, (center, extent)) in components
+    for (component, center) in components
         .iter()
         .zip(component_slots(components.len(), bounds))
     {
-        layout_component(frame, component, center, extent, &mut positions);
+        layout_component(frame, component, center, &mut positions);
     }
     positions
 }
@@ -926,31 +929,118 @@ fn layout(frame: &StructuralFrame, bounds: Rectangle) -> BTreeMap<String, Point>
 /// Story-anchored homes for every frame in playback order. The first frame
 /// takes the introduction grid; each later frame settles every connected
 /// component at the centroid of where its own atoms just were, relaxed
-/// apart where footprints would overlap. Reacting partners therefore drift
-/// toward their meeting point, products settle where their ingredients met,
-/// split ions peel away from their parent, and chapter boundaries never
-/// teleport anything.
+/// apart where footprints would overlap. Components linked by the frame's
+/// active operation (or the next frame's, so partners meet before the
+/// action starts) are additionally pulled tangent, keeping transfers and
+/// forming bonds between neighbours instead of across the canvas. Reacting
+/// partners therefore drift toward their meeting point, products settle
+/// where their ingredients met, split ions peel away from their parent,
+/// and chapter boundaries never teleport anything.
 #[must_use]
 pub fn home_timeline(frames: &[SimulationFrame]) -> Vec<BTreeMap<String, Point>> {
     let bounds = virtual_rectangle();
     let mut result: Vec<BTreeMap<String, Point>> = Vec::with_capacity(frames.len());
-    for frame in frames {
+    for (index, frame) in frames.iter().enumerate() {
         let render = RenderFrame::from(frame);
         let homes = match result.last() {
-            None => layout(&render, bounds),
-            Some(previous) => flow_layout(&render, previous, bounds),
+            None => {
+                let components = interaction_ordered(connected_components(&render), frames);
+                layout_ordered(&render, &components, bounds)
+            }
+            Some(previous) => {
+                let mut linked = affinity_atoms(frame);
+                if let Some(next) = frames.get(index + 1) {
+                    linked.extend(affinity_atoms(next));
+                }
+                flow_layout(&render, previous, &linked, bounds)
+            }
         };
         result.push(homes);
     }
     result
 }
 
+/// Atoms touched by a frame's active operation: the anchors that pull
+/// their components together while that operation plays.
+fn affinity_atoms(frame: &SimulationFrame) -> BTreeSet<String> {
+    frame
+        .active_operation()
+        .map_or_else(BTreeSet::new, |active| {
+            let operation = render_operation(active.operation.view(), frame, frame);
+            active_atoms(std::slice::from_ref(&operation))
+                .iter()
+                .map(|id| (*id).to_owned())
+                .collect()
+        })
+}
+
+/// Seats introduction-grid components so that the pairs which interact
+/// earliest in the story sit next to each other, instead of in atom-id
+/// discovery order. Partners are found by scanning every frame's active
+/// operation for the first one that touches two distinct components.
+fn interaction_ordered(
+    components: Vec<Vec<String>>,
+    frames: &[SimulationFrame],
+) -> Vec<Vec<String>> {
+    let mut membership = BTreeMap::new();
+    for (index, component) in components.iter().enumerate() {
+        for id in component {
+            membership.insert(id.as_str(), index);
+        }
+    }
+    let mut pairs = Vec::new();
+    let mut paired = BTreeSet::new();
+    for frame in frames {
+        let touched = affinity_atoms(frame)
+            .iter()
+            .filter_map(|id| membership.get(id.as_str()).copied())
+            .collect::<BTreeSet<_>>();
+        let touched = touched.into_iter().collect::<Vec<_>>();
+        for (slot, first) in touched.iter().enumerate() {
+            for second in &touched[slot + 1..] {
+                if paired.insert((*first, *second)) {
+                    pairs.push((*first, *second));
+                }
+            }
+        }
+    }
+
+    let order = seat_partners(&pairs, components.len());
+    let mut slots = components.into_iter().map(Some).collect::<Vec<_>>();
+    order
+        .into_iter()
+        .filter_map(|index| slots[index].take())
+        .collect()
+}
+
+/// Greedy seating: earliest-interacting pairs sit consecutively, each
+/// component only claimed once; anything never paired keeps its original
+/// position at the end.
+fn seat_partners(pairs: &[(usize, usize)], count: usize) -> Vec<usize> {
+    let mut order = Vec::with_capacity(count);
+    let mut seated = vec![false; count];
+    for &(first, second) in pairs {
+        if !seated[first] && !seated[second] {
+            seated[first] = true;
+            seated[second] = true;
+            order.push(first);
+            order.push(second);
+        }
+    }
+    order.extend((0..count).filter(|index| !seated[*index]));
+    order
+}
+
 /// One flow step: components inherit the centroid of their atoms' previous
 /// homes, then whole components relax apart until no footprints overlap.
+/// Components containing `linked` atoms — the ones the active operation
+/// spans — are also pulled together until tangent, so the operation plays
+/// out between neighbours.
 #[allow(clippy::cast_precision_loss)]
 fn flow_layout(
     frame: &StructuralFrame,
     previous: &BTreeMap<String, Point>,
+    linked: &BTreeSet<String>,
     bounds: Rectangle,
 ) -> BTreeMap<String, Point> {
     let components = connected_components(frame);
@@ -970,7 +1060,7 @@ fn flow_layout(
                 known.iter().map(|point| point.y).sum::<f32>() / known.len() as f32,
             )
         };
-        layout_component(frame, component, center, 0.0, &mut positions);
+        layout_component(frame, component, center, &mut positions);
         centers.push(center);
     }
     let radii = components
@@ -992,39 +1082,13 @@ fn flow_layout(
         })
         .collect::<Vec<_>>();
 
-    // Relax overlapping components apart. Coincident centers (a fresh
-    // dissociation) separate along a stable per-pair angle so the push is
-    // deterministic.
+    let attracted = components
+        .iter()
+        .map(|component| component.iter().any(|id| linked.contains(id)))
+        .collect::<Vec<_>>();
+
     let mut offsets = vec![Vector::new(0.0, 0.0); components.len()];
-    for _ in 0..48 {
-        let mut moved = false;
-        for first in 0..components.len() {
-            for second in (first + 1)..components.len() {
-                let delta = centers[second] - centers[first];
-                let distance = vector_magnitude(delta);
-                let required = radii[first] + radii[second];
-                if distance >= required {
-                    continue;
-                }
-                let direction = if distance < 1.0 {
-                    let angle = -std::f32::consts::FRAC_PI_2
-                        + std::f32::consts::TAU * second as f32 / components.len().max(1) as f32;
-                    Vector::new(angle.cos(), angle.sin())
-                } else {
-                    delta * (1.0 / distance)
-                };
-                let push = (required - distance) * 0.5 + 0.5;
-                centers[first] -= direction * push;
-                centers[second] += direction * push;
-                offsets[first] -= direction * push;
-                offsets[second] += direction * push;
-                moved = true;
-            }
-        }
-        if !moved {
-            break;
-        }
-    }
+    relax_components(&mut centers, &mut offsets, &radii, &attracted);
     // Keep every footprint inside the world.
     for (index, radius) in radii.iter().enumerate() {
         let margin_x = radius.min(bounds.width * 0.5);
@@ -1049,8 +1113,60 @@ fn flow_layout(
     positions
 }
 
+/// Relax overlapping components apart, and pull operation-linked
+/// (`attracted`) pairs together until tangent. Coincident centers (a fresh
+/// dissociation) separate along a stable per-pair angle so the push is
+/// deterministic. Every move is mirrored into `offsets` so callers can
+/// carry it over to individual atom positions.
 #[allow(clippy::cast_precision_loss)]
-fn component_slots(component_count: usize, bounds: Rectangle) -> Vec<(Point, f32)> {
+fn relax_components(
+    centers: &mut [Point],
+    offsets: &mut [Vector],
+    radii: &[f32],
+    attracted: &[bool],
+) {
+    for _ in 0..48 {
+        let mut moved = false;
+        for first in 0..centers.len() {
+            for second in (first + 1)..centers.len() {
+                let delta = centers[second] - centers[first];
+                let distance = vector_magnitude(delta);
+                let required = radii[first] + radii[second];
+                if distance >= required {
+                    if attracted[first] && attracted[second] && distance > required + 1.0 {
+                        let direction = delta * (1.0 / distance.max(1.0));
+                        let pull = (distance - required) * 0.5;
+                        centers[first] += direction * pull;
+                        centers[second] -= direction * pull;
+                        offsets[first] += direction * pull;
+                        offsets[second] -= direction * pull;
+                        moved = true;
+                    }
+                    continue;
+                }
+                let direction = if distance < 1.0 {
+                    let angle = -std::f32::consts::FRAC_PI_2
+                        + std::f32::consts::TAU * second as f32 / centers.len().max(1) as f32;
+                    Vector::new(angle.cos(), angle.sin())
+                } else {
+                    delta * (1.0 / distance)
+                };
+                let push = (required - distance) * 0.5 + 0.5;
+                centers[first] -= direction * push;
+                centers[second] += direction * push;
+                offsets[first] -= direction * push;
+                offsets[second] += direction * push;
+                moved = true;
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn component_slots(component_count: usize, bounds: Rectangle) -> Vec<Point> {
     if component_count == 0 {
         return Vec::new();
     }
@@ -1075,11 +1191,10 @@ fn component_slots(component_count: usize, bounds: Rectangle) -> Vec<(Point, f32
         .map(|index| {
             let column = index % columns;
             let row = index / columns;
-            let center = Point::new(
+            Point::new(
                 safe_left + cell_width * (column as f32 + 0.5),
                 safe_top + cell_height * (row as f32 + 0.5),
-            );
-            (center, cell_width.min(cell_height))
+            )
         })
         .collect()
 }
@@ -1194,7 +1309,6 @@ fn layout_component(
     frame: &StructuralFrame,
     component: &[String],
     center: Point,
-    cell_extent: f32,
     positions: &mut BTreeMap<String, Point>,
 ) {
     if component.len() == 1 {
@@ -1206,7 +1320,6 @@ fn layout_component(
     let radius_of =
         |id: &str| atom(frame, id).map_or(24.0, |state| atom_visual_radius(&state.element));
     let gap = 26.0;
-    let _ = cell_extent;
     if component.len() == 2 {
         let span = radius_of(&component[0]) + radius_of(&component[1]) + gap;
         positions.insert(component[0].clone(), center + Vector::new(-span * 0.5, 0.0));
@@ -1606,8 +1719,13 @@ fn draw_ionic(
     scale: f32,
 ) {
     let delta = right - left;
-    for step in 1_u8..12 {
-        let t = f32::from(step) / 12.0;
+    // Dot count follows the world-space link length so long attractions
+    // don't stretch a fixed dot budget into sparse crumbs.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let count = (vector_magnitude(delta) / (16.0 * scale.max(0.01))) as u8;
+    let count = count.clamp(4, 24);
+    for step in 1..=count {
+        let t = f32::from(step) / f32::from(count + 1);
         if t > reveal {
             continue;
         }
@@ -1691,11 +1809,30 @@ fn draw_atom_transition(
             scale,
             &bond_angles,
         );
+        // The badge must clear whatever ring sits outside the atom: the
+        // pulsing active ring, or the metallic halo around a lone site.
+        let badge_clearance = {
+            let radius = atom_visual_radius(&atom.element);
+            let mut clearance = radius;
+            if active.contains(id) {
+                clearance = clearance.max(radius * 1.12 + 12.0);
+            }
+            let haloed = before
+                .metallic_domains
+                .iter()
+                .chain(&after.metallic_domains)
+                .any(|domain| domain.sites.len() == 1 && domain.sites[0] == *id);
+            if haloed {
+                clearance = clearance.max(radius + 28.0);
+            }
+            clearance
+        };
         draw_charge_transition(
             frame,
             before_atom,
             after_atom,
             position,
+            badge_clearance,
             progress,
             alpha,
             scale,
@@ -1864,6 +2001,7 @@ fn electron_state_delta(
 fn operation_moves_atom_electrons(operations: &[StructuralOperation], atom_id: &str) -> bool {
     operations.iter().any(|operation| match operation {
         StructuralOperation::TransferMetallicElectron { acceptor, .. } => acceptor == atom_id,
+        StructuralOperation::MetallicMembership { site, .. } => site == atom_id,
         StructuralOperation::CleaveCovalent { left, right, .. }
         | StructuralOperation::FormCovalent { left, right, .. } => {
             left == atom_id || right == atom_id
@@ -1983,14 +2121,15 @@ fn draw_charge_transition(
     before: Option<&AtomState>,
     after: Option<&AtomState>,
     center: Point,
+    clearance: f32,
     progress: f32,
     alpha: f32,
     scale: f32,
     bond_angles: &[f32],
 ) {
-    let element = after.or(before).map_or("O", |atom| atom.element.as_str());
-    // The badge sits just off the atom rim, in the second-largest bond-free
-    // gap so it stays clear of both bonds and the electron arc.
+    // The badge sits just off the atom rim (or its outermost ring), in the
+    // second-largest bond-free gap so it stays clear of both bonds and the
+    // electron arc.
     let gaps = angular_gaps(bond_angles);
     let angle = gaps.get(1).or_else(|| gaps.first()).map_or(
         -std::f32::consts::FRAC_PI_4,
@@ -2004,7 +2143,7 @@ fn draw_charge_transition(
             }
         },
     );
-    let offset = (atom_visual_radius(element) + 6.0) * scale;
+    let offset = (clearance + 6.0) * scale;
     let badge = center + Vector::new(angle.cos() * offset, angle.sin() * offset);
     let before_charge = before.map_or(0, |atom| atom.formal_charge);
     let after_charge = after.map_or(0, |atom| atom.formal_charge);
@@ -2089,37 +2228,10 @@ fn draw_metallic_transition(
             (false, true) => progress,
             (false, false) => 0.0,
         } * opacity;
-        let sites = domain
-            .sites
-            .iter()
-            .filter_map(|site| {
-                let position = positions.get(site).copied()?;
-                let radius = atom(after, site)
-                    .or_else(|| atom(before, site))
-                    .map_or(24.0, |state| atom_visual_radius(&state.element));
-                Some((position, radius))
-            })
-            .collect::<Vec<_>>();
-        if sites.is_empty() {
+        let Some((center, halo_radius)) = domain_halo(before, after, positions, domain, scale)
+        else {
             continue;
-        }
-        // The electron sea hugs its sites as a soft halo: a circle around a
-        // lone site, a stadium around a row of them. Delocalized electrons
-        // orbit the halo ring itself.
-        let reach = sites
-            .iter()
-            .map(|(_, radius)| radius + 22.0)
-            .fold(0.0_f32, f32::max)
-            * scale;
-        let center = Point::new(
-            sites.iter().map(|(site, _)| site.x).sum::<f32>() / sites.len() as f32,
-            sites.iter().map(|(site, _)| site.y).sum::<f32>() / sites.len() as f32,
-        );
-        let spread = sites
-            .iter()
-            .map(|(site, _)| vector_magnitude(*site - center))
-            .fold(0.0_f32, f32::max);
-        let halo_radius = spread + reach;
+        };
         let path = Path::circle(center, halo_radius);
         frame.fill(&path, ACCENT.scale_alpha(alpha * 0.07));
         frame.stroke(
@@ -2128,14 +2240,21 @@ fn draw_metallic_transition(
                 .with_color(ACCENT.scale_alpha(alpha * 0.38))
                 .with_width(1.2 * scale),
         );
-        let active_transfer = operations.iter().any(|operation| {
-            matches!(
-                operation,
-                StructuralOperation::TransferMetallicElectron { domain, .. } if domain == id
-            )
+        // While an operation moves this domain's electrons, only the ones
+        // not in flight orbit the halo; the moving dots are the routes.
+        let active_motion = operations.iter().any(|operation| match operation {
+            StructuralOperation::TransferMetallicElectron { domain, .. }
+            | StructuralOperation::MetallicMembership { domain, .. } => domain == id,
+            _ => false,
         });
-        let stationary_electrons = if active_transfer {
-            after_domain.map_or(0, |domain| domain.delocalized_electrons)
+        let stationary_electrons = if active_motion {
+            match (before_domain, after_domain) {
+                (Some(before), Some(after)) => before
+                    .delocalized_electrons
+                    .min(after.delocalized_electrons),
+                (Some(only), None) | (None, Some(only)) => only.delocalized_electrons,
+                (None, None) => 0,
+            }
         } else {
             domain.delocalized_electrons
         };
@@ -2156,6 +2275,47 @@ fn draw_metallic_transition(
             );
         }
     }
+}
+
+/// The electron sea hugs its sites as a soft halo: a circle around a lone
+/// site, a stadium around a row of them. Returns the halo's center and
+/// ring radius in screen space.
+#[allow(clippy::cast_precision_loss)]
+fn domain_halo(
+    before: &StructuralFrame,
+    after: &StructuralFrame,
+    positions: &BTreeMap<String, Point>,
+    domain: &RenderMetallicDomain,
+    scale: f32,
+) -> Option<(Point, f32)> {
+    let sites = domain
+        .sites
+        .iter()
+        .filter_map(|site| {
+            let position = positions.get(site).copied()?;
+            let radius = atom(after, site)
+                .or_else(|| atom(before, site))
+                .map_or(24.0, |state| atom_visual_radius(&state.element));
+            Some((position, radius))
+        })
+        .collect::<Vec<_>>();
+    if sites.is_empty() {
+        return None;
+    }
+    let reach = sites
+        .iter()
+        .map(|(_, radius)| radius + 22.0)
+        .fold(0.0_f32, f32::max)
+        * scale;
+    let center = Point::new(
+        sites.iter().map(|(site, _)| site.x).sum::<f32>() / sites.len() as f32,
+        sites.iter().map(|(site, _)| site.y).sum::<f32>() / sites.len() as f32,
+    );
+    let spread = sites
+        .iter()
+        .map(|(site, _)| vector_magnitude(*site - center))
+        .fold(0.0_f32, f32::max);
+    Some((center, spread + reach))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2180,6 +2340,13 @@ fn draw_operation_motion(
                 frame, before, after, donor_site, acceptor, *count, positions, progress, phase,
                 scale,
             ),
+            StructuralOperation::MetallicMembership {
+                domain,
+                site,
+                joining,
+            } => draw_metallic_membership_motion(
+                frame, before, after, domain, site, *joining, positions, progress, phase, scale,
+            ),
             operation @ (StructuralOperation::CleaveCovalent { .. }
             | StructuralOperation::FormCovalent { .. }) => {
                 draw_covalent_electron_motion(frame, operation, positions, progress, phase, scale);
@@ -2187,6 +2354,62 @@ fn draw_operation_motion(
             StructuralOperation::AssociateIonic { .. }
             | StructuralOperation::AssignProduct { .. }
             | StructuralOperation::Other { .. } => {}
+        }
+    }
+}
+
+/// Electron routes between a domain's halo ring and a site's own shell:
+/// outward from the ring into the shell when the site leaves, inward from
+/// the shell onto the ring when it joins.
+#[allow(clippy::too_many_arguments)]
+fn draw_metallic_membership_motion(
+    frame: &mut canvas::Frame,
+    before: &StructuralFrame,
+    after: &StructuralFrame,
+    domain_id: &str,
+    site: &str,
+    joining: bool,
+    positions: &BTreeMap<String, Point>,
+    progress: f32,
+    phase: f32,
+    scale: f32,
+) {
+    let Some(site_center) = positions.get(site).copied() else {
+        return;
+    };
+    // The route meets the halo the viewer actually sees, which is drawn
+    // from the after frame's domain when it still exists.
+    let Some((center, halo_radius)) = after
+        .metallic_domains
+        .iter()
+        .chain(&before.metallic_domains)
+        .find(|domain| domain.id == domain_id)
+        .and_then(|domain| domain_halo(before, after, positions, domain, scale))
+    else {
+        return;
+    };
+    let (Some(before_site), Some(after_site)) = (atom(before, site), atom(after, site)) else {
+        return;
+    };
+    let delta = electron_state_delta(Some(before_site), Some(after_site));
+    let (shell_state, moving) = if joining {
+        (before_site, delta.leaves_shell)
+    } else {
+        (after_site, delta.enters_shell)
+    };
+    let shell_dots = electron_positions(site_center, shell_state, phase, scale, &[])
+        .into_iter()
+        .skip(usize::from(delta.persistent))
+        .take(usize::from(moving));
+    for (index, dot) in shell_dots.enumerate() {
+        let outward = dot - center;
+        let magnitude = vector_magnitude(outward).max(1.0);
+        let ring_point = center + outward * (halo_radius / magnitude);
+        let bend = if index.is_multiple_of(2) { -10.0 } else { 10.0 };
+        if joining {
+            draw_electron_route(frame, dot, ring_point, progress, bend, scale);
+        } else {
+            draw_electron_route(frame, ring_point, dot, progress, bend, scale);
         }
     }
 }
@@ -2398,9 +2621,14 @@ fn draw_electron_route(
     let magnitude = vector_magnitude(direction).max(1.0);
     let perpendicular = Vector::new(-direction.y / magnitude, direction.x / magnitude);
     let control = lerp_point(start, end, 0.5) + perpendicular * bend * scale;
+    // The guide arc trails the moving dot instead of pre-drawing the whole
+    // journey: only the portion already travelled is stroked.
     let path = Path::new(|builder| {
         builder.move_to(start);
-        builder.quadratic_curve_to(control, end);
+        for step in 1..=24_u8 {
+            let t = progress * f32::from(step) / 24.0;
+            builder.line_to(quadratic_point(start, control, end, t));
+        }
     });
     frame.stroke(
         &path,
@@ -2429,112 +2657,6 @@ fn quadratic_point(start: Point, control: Point, end: Point, progress: f32) -> P
             + 2.0 * inverse * progress * control.y
             + progress * progress * end.y,
     )
-}
-
-fn draw_structure_labels(
-    frame: &mut canvas::Frame,
-    labels: &[ContextLabel],
-    positions: &BTreeMap<String, Point>,
-    bounds: Rectangle,
-    progress: f32,
-    scale: f32,
-) {
-    let reveal = animation_phase(progress).context;
-    if reveal <= 0.0 {
-        return;
-    }
-    for (index, label) in labels
-        .iter()
-        .filter(|label| label.kind != ExplanationLabelKind::ObservationExplanation)
-        .take(2)
-        .enumerate()
-    {
-        let target = average_position(label.target_atoms.iter().map(String::as_str), positions)
-            .unwrap_or_else(|| Point::new(bounds.center_x(), bounds.center_y()));
-        let direction = if index.is_multiple_of(2) { -1.0 } else { 1.0 };
-        draw_context_card(
-            frame,
-            &label.title,
-            &label.text,
-            target,
-            bounds,
-            direction,
-            explanation_color(label.kind),
-            label.connector,
-            reveal,
-            scale,
-        );
-    }
-}
-
-#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
-fn draw_context_card(
-    frame: &mut canvas::Frame,
-    title: &str,
-    body: &str,
-    target: Point,
-    bounds: Rectangle,
-    direction: f32,
-    accent: Color,
-    connector: bool,
-    reveal: f32,
-    scale: f32,
-) {
-    let width = 214.0 * scale;
-    let lines = wrap_words(body, 30);
-    let height = (42.0 + lines.len() as f32 * 16.0) * scale;
-    let preferred_x =
-        target.x + direction * 92.0 * scale - if direction < 0.0 { width } else { 0.0 };
-    let x = preferred_x.clamp(18.0, (bounds.width - width - 18.0).max(18.0));
-    let above = target.y > bounds.height * 0.48;
-    let y = if above {
-        target.y - height - 72.0 * scale
-    } else {
-        target.y + 68.0 * scale
-    }
-    .clamp(76.0, (bounds.height - height - 70.0).max(76.0));
-    let slide = (1.0 - reveal) * 12.0 * direction;
-    let rect = Rectangle::new(Point::new(x + slide, y), Size::new(width, height));
-    draw_glass_panel(frame, rect, accent, reveal, 11.0 * scale);
-    frame.fill_text(canvas::Text {
-        content: title.to_owned(),
-        position: Point::new(rect.x + 14.0 * scale, rect.y + 13.0 * scale),
-        color: accent.scale_alpha(reveal),
-        size: iced::Pixels(9.5 * scale),
-        font: fonts::REGULAR,
-        ..canvas::Text::default()
-    });
-    for (index, line) in lines.iter().enumerate() {
-        frame.fill_text(canvas::Text {
-            content: line.clone(),
-            position: Point::new(
-                rect.x + 14.0 * scale,
-                rect.y + (36.0 + index as f32 * 16.0) * scale,
-            ),
-            color: TEXT.scale_alpha(reveal),
-            size: iced::Pixels(11.5 * scale),
-            font: fonts::REGULAR,
-            ..canvas::Text::default()
-        });
-    }
-    if connector {
-        let start = Point::new(
-            if target.x < rect.x {
-                rect.x
-            } else {
-                rect.x + rect.width
-            },
-            rect.y + rect.height * 0.5,
-        );
-        let end = lerp_point(start, target, reveal);
-        frame.stroke(
-            &Path::line(start, end),
-            Stroke::default()
-                .with_color(accent.scale_alpha(reveal * 0.56))
-                .with_width(scale),
-        );
-        frame.fill(&Path::circle(end, 2.6 * scale), accent.scale_alpha(reveal));
-    }
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -2589,22 +2711,25 @@ fn draw_observation_context(
 }
 
 #[allow(clippy::cast_precision_loss)]
+/// The scene's one narration panel: the operation title as its header, the
+/// short factual line (formerly a separate floating chip) as its subtitle,
+/// and the classroom sentence as its body. One panel, one leader line.
 fn draw_explanation_label(
     frame: &mut canvas::Frame,
     label: &ExplanationLabel,
+    context: Option<&ContextLabel>,
     positions: &BTreeMap<String, Point>,
     bounds: Rectangle,
     progress: f32,
     scale: f32,
 ) {
-    if label.kind == ExplanationLabelKind::ObservationExplanation {
-        return;
-    }
     let target = average_position(label.target_atoms.iter().map(String::as_str), positions);
     let max_width = (bounds.width - 40.0).max(240.0);
     let width = (410.0 * scale).clamp(260.0, max_width.min(460.0));
     let lines = wrap_words(&label.text, if width > 390.0 { 47 } else { 33 });
-    let height = (70.0 + lines.len() as f32 * 20.0) * scale;
+    let subtitle = context.map(|context| context.text.as_str());
+    let subtitle_extent = if subtitle.is_some() { 24.0 } else { 0.0 };
+    let height = (70.0 + subtitle_extent + lines.len() as f32 * 20.0) * scale;
     let (x, base_y) = explanation_position(target, bounds, width, height);
     let enter = smoother_step(((progress - 0.04) / 0.14).clamp(0.0, 1.0));
     let alpha = enter;
@@ -2624,22 +2749,38 @@ fn draw_explanation_label(
         ),
         accent.scale_alpha(alpha),
     );
+    let title = context.map_or_else(
+        || explanation_title(label.kind).to_owned(),
+        |context| context.title.clone(),
+    );
     frame.fill_text(canvas::Text {
-        content: explanation_title(label.kind).to_owned(),
+        content: title,
         position: Point::new(rect.x + 30.0 * scale, rect.y + 22.0 * scale),
         color: accent.scale_alpha(alpha),
         size: iced::Pixels(9.5 * scale),
         font: fonts::REGULAR,
         ..canvas::Text::default()
     });
+    if let Some(subtitle) = subtitle {
+        frame.fill_text(canvas::Text {
+            content: subtitle.to_owned(),
+            position: Point::new(rect.x + 30.0 * scale, rect.y + 44.0 * scale),
+            color: TEXT.scale_alpha(alpha),
+            size: iced::Pixels(14.0 * scale),
+            font: fonts::REGULAR,
+            ..canvas::Text::default()
+        });
+    }
+    let body_top = 50.0 + subtitle_extent;
+    let body_color = if subtitle.is_some() { TEXT_SOFT } else { TEXT };
     for (index, line) in lines.iter().enumerate() {
         frame.fill_text(canvas::Text {
             content: line.clone(),
             position: Point::new(
                 rect.x + 30.0 * scale,
-                rect.y + (50.0 + index as f32 * 20.0) * scale,
+                rect.y + (body_top + index as f32 * 20.0) * scale,
             ),
-            color: TEXT.scale_alpha(alpha),
+            color: body_color.scale_alpha(alpha),
             size: iced::Pixels(13.5 * scale),
             font: fonts::REGULAR,
             ..canvas::Text::default()
@@ -2677,11 +2818,14 @@ fn explanation_position(
     height: f32,
 ) -> (f32, f32) {
     let horizontal_margin = 22.0;
+    // The card shares its subject's half of the canvas (vertically opposite
+    // so it never covers it): the leader line stays short instead of
+    // slicing corner to corner.
     let x = target.map_or((bounds.width - width) * 0.5, |point| {
         if point.x < bounds.width * 0.5 {
-            bounds.width - width - horizontal_margin
-        } else {
             horizontal_margin
+        } else {
+            bounds.width - width - horizontal_margin
         }
     });
     let y = target.map_or(bounds.height * 0.62, |point| {
@@ -2760,26 +2904,17 @@ fn rounded_rectangle(rect: Rectangle, radius: f32) -> Path {
     Path::rounded_rectangle(rect.position(), rect.size(), border::Radius::new(radius))
 }
 
-fn explanation_color(kind: ExplanationLabelKind) -> Color {
+const fn explanation_color(kind: ExplanationLabelKind) -> Color {
     match kind {
-        ExplanationLabelKind::ObservationExplanation | ExplanationLabelKind::ImportantResult => {
-            IONIC
-        }
-        ExplanationLabelKind::EquationExplanation => GOLD,
-        ExplanationLabelKind::SummaryExplanation => chemistry_color::SUMMARY,
-        ExplanationLabelKind::ConceptExplanation
-        | ExplanationLabelKind::StructuralChangeExplanation => ACCENT,
+        ExplanationLabelKind::ObservationExplanation => IONIC,
+        ExplanationLabelKind::StructuralChangeExplanation => ACCENT,
     }
 }
 
-fn explanation_title(kind: ExplanationLabelKind) -> &'static str {
+const fn explanation_title(kind: ExplanationLabelKind) -> &'static str {
     match kind {
-        ExplanationLabelKind::ConceptExplanation => "KEY CONCEPT",
         ExplanationLabelKind::StructuralChangeExplanation => "WHAT CHANGED",
         ExplanationLabelKind::ObservationExplanation => "OBSERVATION",
-        ExplanationLabelKind::EquationExplanation => "EQUATION CONTEXT",
-        ExplanationLabelKind::ImportantResult => "IMPORTANT RESULT",
-        ExplanationLabelKind::SummaryExplanation => "REACTION SUMMARY",
     }
 }
 
@@ -2828,6 +2963,7 @@ fn active_atoms(operations: &[RenderOperation]) -> BTreeSet<&str> {
                 acceptor,
                 ..
             } => vec![donor_site.as_str(), acceptor.as_str()],
+            RenderOperation::MetallicMembership { site, .. } => vec![site.as_str()],
             RenderOperation::CleaveCovalent { left, right, .. }
             | RenderOperation::FormCovalent { left, right, .. } => {
                 vec![left.as_str(), right.as_str()]
@@ -2839,16 +2975,32 @@ fn active_atoms(operations: &[RenderOperation]) -> BTreeSet<&str> {
         .collect()
 }
 
+/// CPK-flavoured colours for the common classroom elements; everything else
+/// borrows its periodic-family colour so it still matches the builder's
+/// element keys instead of collapsing to one grey.
 fn element_color(symbol: &str) -> Color {
     match symbol {
         "H" => LAB_DARK.chemistry.hydrogen,
         "Li" => LAB_DARK.chemistry.lithium,
-        "Ag" => LAB_DARK.chemistry.silver,
-        "Cl" => LAB_DARK.chemistry.chlorine,
-        "Na" => LAB_DARK.chemistry.sodium,
+        "C" => LAB_DARK.chemistry.carbon,
         "N" => LAB_DARK.chemistry.nitrogen,
         "O" => LAB_DARK.chemistry.oxygen,
-        _ => LAB_DARK.chemistry.element_default,
+        "F" => LAB_DARK.chemistry.fluorine,
+        "Na" => LAB_DARK.chemistry.sodium,
+        "P" => LAB_DARK.chemistry.phosphorus,
+        "S" => LAB_DARK.chemistry.sulfur,
+        "Cl" => LAB_DARK.chemistry.chlorine,
+        "Fe" => LAB_DARK.chemistry.iron,
+        "Cu" => LAB_DARK.chemistry.copper,
+        "Br" => LAB_DARK.chemistry.bromine,
+        "Ag" => LAB_DARK.chemistry.silver,
+        "I" => LAB_DARK.chemistry.iodine,
+        _ => elements::SUPPORTED
+            .iter()
+            .find(|element| element.symbol == symbol)
+            .map_or(LAB_DARK.chemistry.element_default, |element| {
+                crate::theme::category_color(element.category)
+            }),
     }
 }
 
@@ -2967,7 +3119,7 @@ mod tests {
         assert_eq!(connected_components(&frame).len(), 1);
 
         let bounds = Rectangle::new(Point::ORIGIN, Size::new(900.0, 600.0));
-        let positions = layout(&frame, bounds);
+        let positions = layout_ordered(&frame, &connected_components(&frame), bounds);
         assert!(vector_magnitude(positions["mn2"] - positions["mn1"]) > 50.0);
 
         let disconnected = RenderFrame {
@@ -2983,8 +3135,8 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(charge_signs, vec![-1, 1, -1, 1, -1]);
 
-        let previous = layout(&disconnected, bounds);
-        let transition_after = flow_layout(&frame, &previous, bounds);
+        let previous = layout_ordered(&disconnected, &connected_components(&disconnected), bounds);
+        let transition_after = flow_layout(&frame, &previous, &BTreeSet::new(), bounds);
         assert!(vector_magnitude(transition_after["mn2"] - transition_after["mn1"]) > 50.0);
     }
 
@@ -2993,12 +3145,24 @@ mod tests {
         let mut previous = 0.0;
         for step in 0_u8..=100 {
             let phase = animation_phase(f32::from(step) / 100.0);
-            assert!((0.0..=1.0).contains(&phase.action));
-            assert!(phase.action >= previous);
-            previous = phase.action;
+            assert!((0.0..=1.0).contains(&phase));
+            assert!(phase >= previous);
+            previous = phase;
         }
-        assert!(animation_phase(0.0).action.abs() < f32::EPSILON);
-        assert!((animation_phase(1.0).action - 1.0).abs() < f32::EPSILON);
+        assert!(animation_phase(0.0).abs() < f32::EPSILON);
+        assert!((animation_phase(1.0) - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn introduction_grid_seats_first_interacting_partners_adjacent() {
+        // Discovery order Li, Li, water, water with Li0 touching water1
+        // first, then Li1 touching water0: partners pair up in story order
+        // and nothing is seated twice.
+        assert_eq!(seat_partners(&[(0, 3), (1, 2)], 4), vec![0, 3, 1, 2]);
+        // A component whose partner is already taken falls back to the end.
+        assert_eq!(seat_partners(&[(0, 2), (1, 2)], 3), vec![0, 2, 1]);
+        // No interactions at all: original order is preserved.
+        assert_eq!(seat_partners(&[], 3), vec![0, 1, 2]);
     }
 
     #[test]
@@ -3024,7 +3188,7 @@ mod tests {
             ("b".to_owned(), Point::new(1000.0, 450.0)),
         ]
         .into();
-        let homes = flow_layout(&combined, &previous, bounds);
+        let homes = flow_layout(&combined, &previous, &BTreeSet::new(), bounds);
         let centroid = Point::new(
             f32::midpoint(homes["a"].x, homes["b"].x),
             f32::midpoint(homes["a"].y, homes["b"].y),
@@ -3047,10 +3211,43 @@ mod tests {
             ("b".to_owned(), Point::new(600.0, 450.0)),
         ]
         .into();
-        let separated = flow_layout(&split, &together, bounds);
+        let separated = flow_layout(&split, &together, &BTreeSet::new(), bounds);
         assert!(
             vector_magnitude(separated["a"] - separated["b"]) >= 96.0,
             "split fragments relax apart: {separated:?}"
+        );
+    }
+
+    #[test]
+    fn operation_linked_components_are_pulled_tangent() {
+        // Two unbonded atoms far apart whose components the active operation
+        // links (a transfer donor and acceptor): they end tangent instead of
+        // staying where their previous homes were.
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(1600.0, 900.0));
+        let frame = RenderFrame {
+            atoms: vec![atom_state("donor", 0, 0), atom_state("acceptor", 0, 0)],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: Vec::new(),
+        };
+        let previous: BTreeMap<String, Point> = [
+            ("donor".to_owned(), Point::new(200.0, 450.0)),
+            ("acceptor".to_owned(), Point::new(1200.0, 450.0)),
+        ]
+        .into();
+
+        let unlinked = flow_layout(&frame, &previous, &BTreeSet::new(), bounds);
+        let apart = vector_magnitude(unlinked["acceptor"] - unlinked["donor"]);
+        assert!(apart > 900.0, "unlinked components stay put: {apart}");
+
+        let linked = BTreeSet::from(["donor".to_owned(), "acceptor".to_owned()]);
+        let pulled = flow_layout(&frame, &previous, &linked, bounds);
+        let distance = vector_magnitude(pulled["acceptor"] - pulled["donor"]);
+        // Tangent = the two component footprints (radius 24 + 30 padding
+        // each) just touching, with the relaxation's tolerance either side.
+        assert!(
+            (96.0..=112.0).contains(&distance),
+            "linked components meet tangent: {distance}"
         );
     }
 
@@ -3072,7 +3269,6 @@ mod tests {
             &frame,
             &["left".to_owned(), "right".to_owned()],
             Point::new(100.0, 100.0),
-            120.0,
             &mut positions,
         );
 
