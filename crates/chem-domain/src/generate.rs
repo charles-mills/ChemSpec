@@ -579,6 +579,13 @@ pub fn common_cation_charge(symbol: &str) -> Option<i16> {
     facts(symbol)?.cation_charges.first().copied()
 }
 
+/// Whether a metal commonly takes more than one cation charge (and so
+/// needs a Roman numeral in salt names).
+#[must_use]
+pub fn has_variable_cation_charge(symbol: &str) -> bool {
+    facts(symbol).is_some_and(|element_facts| element_facts.cation_charges.len() > 1)
+}
+
 /// The metal activity series, most reactive first, with hydrogen as the
 /// pivot for acid reactivity. Periodic-trend knowledge, kept as code.
 const ACTIVITY_SERIES: [&str; 24] = [

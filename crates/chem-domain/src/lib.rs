@@ -15,9 +15,12 @@ pub mod unit;
 pub use acidity::{BronstedAcidProfile, ProtonDonorSite, classify_bronsted_acid};
 pub use generate::{
     activity_rank, anion_valence_charge, common_cation_charge, displaces_hydrogen_from_acids,
-    generate_structure,
+    generate_structure, has_variable_cation_charge,
 };
-pub use periodic::{ELEMENT_SYMBOLS, element_registry, symbol_of, valence_electrons_of};
+pub use periodic::{
+    ELEMENT_NAMES, ELEMENT_SYMBOLS, element_name, element_registry, symbol_of,
+    valence_electrons_of,
+};
 pub use formula::{
     Charge, ChargeSign, Count, Element, ElementId, ElementRegistry, ElementSymbol, FormulaError,
     FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,

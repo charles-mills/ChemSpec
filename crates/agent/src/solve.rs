@@ -31,7 +31,7 @@ pub fn solve_reaction_claim(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
 ) -> Option<ReactionClaim> {
-    if request.reactants.len() != 2 {
+    if !(1..=2).contains(&request.reactants.len()) {
         return None;
     }
     let Ok(RequestIdentityResolution::Resolved(species)) =
@@ -46,18 +46,23 @@ pub fn solve_reaction_claim(
             OutcomeSpecies::FormulaOnly { .. } => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    let verdict = solve_acid_base(structures[0], structures[1])
-        .or_else(|| solve_acid_base(structures[1], structures[0]))
-        .or_else(|| solve_acid_metal(structures[0], structures[1]))
-        .or_else(|| solve_acid_metal(structures[1], structures[0]))
-        .or_else(|| solve_combustion(structures[0], structures[1]))
-        .or_else(|| solve_combustion(structures[1], structures[0]))
-        .or_else(|| {
-            solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
-                products,
-                observations: Vec::new(),
-            })
-        })?;
+    let verdict = if structures.len() == 1 {
+        let context = request.selected_context.as_deref()?.trim().to_lowercase();
+        solve_decomposition(structures[0], &context)?
+    } else {
+        solve_acid_base(structures[0], structures[1])
+            .or_else(|| solve_acid_base(structures[1], structures[0]))
+            .or_else(|| solve_acid_metal(structures[0], structures[1]))
+            .or_else(|| solve_acid_metal(structures[1], structures[0]))
+            .or_else(|| solve_combustion(structures[0], structures[1]))
+            .or_else(|| solve_combustion(structures[1], structures[0]))
+            .or_else(|| {
+                solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
+                    products,
+                    observations: Vec::new(),
+                })
+            })?
+    };
     let disposition = if verdict.products.is_empty() {
         ClaimDisposition::NoReaction
     } else {
@@ -67,7 +72,10 @@ pub fn solve_reaction_claim(
         schema_version: REACTION_CLAIM_SCHEMA_VERSION,
         disposition,
         products: verdict.products,
-        required_context: String::new(),
+        required_context: request
+            .selected_context
+            .clone()
+            .unwrap_or_default(),
         observations: verdict.observations,
         sources: Vec::new(),
         ambiguity: None,
@@ -96,7 +104,7 @@ fn solve_acid_base(
             phase: ClaimPhase::Liquid,
             identity_hints: Vec::new(),
         },
-        product_from_counts(&salt, Some(&cation)),
+        product_from_counts(&salt, Some((&cation, cation_charge))),
     ];
     let mut observations = Vec::new();
     if matches!(anion_kind, BaseAnion::Carbonate | BaseAnion::Bicarbonate) {
@@ -140,7 +148,7 @@ fn solve_acid_metal(
     let salt = conjugate_salt(acid, donors, &cation, u64::try_from(charge).ok()?)?;
     Some(Verdict {
         products: vec![
-            product_from_counts(&salt, Some(&cation)),
+            product_from_counts(&salt, Some((&cation, u64::try_from(charge).ok()?))),
             ClaimProduct {
                 name: "Hydrogen".to_owned(),
                 formula: "H2".to_owned(),
@@ -200,6 +208,103 @@ fn solve_combustion(
             value: None,
         }],
     })
+}
+
+/// Cations whose carbonates and hydroxides shrug off a Bunsen flame.
+const HEAT_STABLE_CATIONS: [&str; 4] = ["Na", "K", "Rb", "Cs"];
+
+/// Single reactant + energy context. Heat decomposes carbonates,
+/// bicarbonates, and hydroxides (except the heat-stable alkali ones, a
+/// confident no-reaction); electricity electrolyses water.
+fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<Verdict> {
+    match context {
+        "electricity" if is_water(reactant.formula()) => Some(Verdict {
+            products: vec![
+                ClaimProduct {
+                    name: "Hydrogen".to_owned(),
+                    formula: "H2".to_owned(),
+                    phase: ClaimPhase::Gas,
+                    identity_hints: Vec::new(),
+                },
+                ClaimProduct {
+                    name: "Oxygen".to_owned(),
+                    formula: "O2".to_owned(),
+                    phase: ClaimPhase::Gas,
+                    identity_hints: Vec::new(),
+                },
+            ],
+            observations: vec![ClaimObservation {
+                predicate: ClaimObservationPredicate::Evolves,
+                subject: "hydrogen and oxygen gases".to_owned(),
+                value: None,
+            }],
+        }),
+        "heat" => {
+            let (cation, charge, anion_kind) = ionic_base(reactant)?;
+            let stable = HEAT_STABLE_CATIONS.contains(&cation.as_str());
+            let oxide = |cation: &str, charge: u64| {
+                let shared = gcd(charge, 2);
+                let mut counts = BTreeMap::new();
+                counts.insert(cation.to_owned(), 2 / shared);
+                *counts.entry("O".to_owned()).or_insert(0) += charge / shared;
+                counts
+            };
+            let carbon_dioxide = ClaimProduct {
+                name: "carbon dioxide".to_owned(),
+                formula: "CO2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            };
+            let water = ClaimProduct {
+                name: "Water".to_owned(),
+                formula: "H2O".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            };
+            let evolves_carbon_dioxide = ClaimObservation {
+                predicate: ClaimObservationPredicate::Evolves,
+                subject: "carbon dioxide gas".to_owned(),
+                value: None,
+            };
+            match anion_kind {
+                BaseAnion::Carbonate | BaseAnion::Hydroxide if stable => Some(Verdict {
+                    products: Vec::new(),
+                    observations: Vec::new(),
+                }),
+                BaseAnion::Carbonate => Some(Verdict {
+                    products: vec![
+                        product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
+                        carbon_dioxide,
+                    ],
+                    observations: vec![evolves_carbon_dioxide],
+                }),
+                BaseAnion::Hydroxide => Some(Verdict {
+                    products: vec![
+                        product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
+                        water,
+                    ],
+                    observations: Vec::new(),
+                }),
+                BaseAnion::Bicarbonate => {
+                    // 2 MHCO3 -> M2CO3 + H2O + CO2 (charge-balanced).
+                    let shared = gcd(charge, 2);
+                    let mut carbonate = BTreeMap::new();
+                    carbonate.insert(cation.clone(), 2 / shared);
+                    *carbonate.entry("C".to_owned()).or_insert(0) += charge / shared;
+                    *carbonate.entry("O".to_owned()).or_insert(0) += 3 * (charge / shared);
+                    Some(Verdict {
+                        products: vec![
+                            product_from_counts(&carbonate, Some((&cation, charge))),
+                            water,
+                            carbon_dioxide,
+                        ],
+                        observations: vec![evolves_carbon_dioxide],
+                    })
+                }
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Qualifying proton-donor count for a molecular acid (never water).
@@ -297,9 +402,16 @@ fn solve_synthesis(
         ]
         .into_iter()
         .collect::<BTreeMap<_, _>>();
-        let cation = (structure.representation() == RepresentationKind::Ionic)
-            .then(|| positive.as_str().to_owned());
-        return Some(vec![product_from_counts(&counts, cation.as_ref())]);
+        let cation = (structure.representation() == RepresentationKind::Ionic).then(|| {
+            (
+                positive.as_str().to_owned(),
+                u64::try_from(positive_charge).unwrap_or(1),
+            )
+        });
+        return Some(vec![product_from_counts(
+            &counts,
+            cation.as_ref().map(|(symbol, charge)| (symbol.as_str(), *charge)),
+        )]);
     }
 
     // Two nonmetals: solved only when exactly one small compound generates.
@@ -404,7 +516,10 @@ fn ionic_base(base: &StructureDefinition) -> Option<(String, u64, BaseAnion)> {
 /// Salt-style formula text: cation first, then non-O/H elements, then O,
 /// then H. Molecular formulas without a cation follow the same tail order
 /// with H promoted to the front (`H2O`, `HCl`, `H2S`).
-fn product_from_counts(counts: &BTreeMap<String, u64>, cation: Option<&String>) -> ClaimProduct {
+fn product_from_counts(
+    counts: &BTreeMap<String, u64>,
+    cation: Option<(&str, u64)>,
+) -> ClaimProduct {
     let mut formula = String::new();
     let mut append = |symbol: &str, count: u64| {
         formula.push_str(symbol);
@@ -412,10 +527,11 @@ fn product_from_counts(counts: &BTreeMap<String, u64>, cation: Option<&String>) 
             formula.push_str(&count.to_string());
         }
     };
-    if let Some(cation) = cation
-        && let Some(count) = counts.get(cation)
+    let cation_symbol = cation.map(|(symbol, _)| symbol);
+    if let Some(symbol) = cation_symbol
+        && let Some(count) = counts.get(symbol)
     {
-        append(cation, *count);
+        append(symbol, *count);
     }
     if cation.is_none()
         && let Some(count) = counts.get("H")
@@ -423,7 +539,7 @@ fn product_from_counts(counts: &BTreeMap<String, u64>, cation: Option<&String>) 
         append("H", *count);
     }
     for (symbol, count) in counts {
-        if Some(symbol) == cation || symbol == "O" || symbol == "H" {
+        if Some(symbol.as_str()) == cation_symbol || symbol == "O" || symbol == "H" {
             continue;
         }
         append(symbol, *count);
@@ -436,8 +552,12 @@ fn product_from_counts(counts: &BTreeMap<String, u64>, cation: Option<&String>) 
     {
         append("H", *count);
     }
+    let name = cation
+        .and_then(|(symbol, charge)| crate::naming::salt_name(symbol, charge, counts))
+        .or_else(|| crate::naming::binary_molecular_name(counts))
+        .unwrap_or_else(|| formula.clone());
     ClaimProduct {
-        name: formula.clone(),
+        name,
         formula,
         phase: ClaimPhase::Unknown,
         identity_hints: Vec::new(),
@@ -469,6 +589,17 @@ mod tests {
                 })
                 .collect(),
             selected_context: None,
+        }
+    }
+
+    fn contextual(display: &str, atoms: &[u8], context: &str) -> ReactionBuildRequest {
+        ReactionBuildRequest {
+            reactants: vec![ReactantInput {
+                display: display.to_owned(),
+                atomic_numbers: atoms.to_vec(),
+                species_id: None,
+            }],
+            selected_context: Some(context.to_owned()),
         }
     }
 
@@ -616,6 +747,110 @@ mod tests {
             .map(|product| product.formula.as_str())
             .collect::<Vec<_>>();
         assert_eq!(formulas, ["CO2", "H2O"]);
+    }
+
+    #[test]
+    fn carbonate_decomposition_solves_under_heat() {
+        let request = contextual("CaCO₃", &[20, 6, 8, 8, 8], "heat");
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.required_context, "heat");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["CaO", "CO2"]);
+    }
+
+    #[test]
+    fn bicarbonate_decomposition_solves_under_heat() {
+        let request = contextual("NaHCO₃", &[11, 1, 6, 8, 8, 8], "heat");
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["Na2CO3", "H2O", "CO2"]);
+    }
+
+    #[test]
+    fn hydroxide_decomposition_and_alkali_stability() {
+        let calcium = contextual("Ca(OH)₂", &[20, 8, 8, 1, 1], "heat");
+        let claim =
+            solve_reaction_claim(&calcium, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["CaO", "H2O"]);
+
+        let sodium = contextual("NaOH", &[11, 8, 1], "heat");
+        let claim =
+            solve_reaction_claim(&sodium, &SpeciesRegistry::default()).expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+
+        let sodium_carbonate = contextual("Na₂CO₃", &[11, 11, 6, 8, 8, 8], "heat");
+        let claim = solve_reaction_claim(&sodium_carbonate, &SpeciesRegistry::default())
+            .expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+    }
+
+    #[test]
+    fn water_electrolysis_solves_under_electricity() {
+        let request = contextual("H₂O", &[1, 1, 8], "electricity");
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.required_context, "electricity");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["H2", "O2"]);
+
+        // Heat alone does not electrolyse water.
+        let heated = contextual("H₂O", &[1, 1, 8], "heat");
+        assert!(solve_reaction_claim(&heated, &SpeciesRegistry::default()).is_none());
+    }
+
+    #[test]
+    fn solver_products_carry_systematic_names() {
+        let neutralization = request(&[
+            ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]),
+            ("NaOH", &[11, 8, 1]),
+        ]);
+        let claim = solve_reaction_claim(&neutralization, &SpeciesRegistry::default())
+            .expect("solved");
+        assert_eq!(claim.products[1].name, "sodium sulfate");
+
+        let displacement = request(&[("Zn", &[30]), ("HCl", &[1, 17])]);
+        let claim = solve_reaction_claim(&displacement, &SpeciesRegistry::default())
+            .expect("solved");
+        assert_eq!(claim.products[0].name, "zinc chloride");
+
+        let iron = request(&[("Fe", &[26]), ("Cl₂", &[17, 17])]);
+        let claim =
+            solve_reaction_claim(&iron, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].name, "iron(III) chloride");
+
+        let lime = contextual("CaCO₃", &[20, 6, 8, 8, 8], "heat");
+        let claim =
+            solve_reaction_claim(&lime, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].name, "calcium oxide");
+
+        let nitric = request(&[("HNO₃", &[1, 7, 8, 8, 8]), ("NaOH", &[11, 8, 1])]);
+        let claim =
+            solve_reaction_claim(&nitric, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[1].name, "sodium nitrate");
+
+        let hydride = request(&[("H₂", &[1, 1]), ("Cl₂", &[17, 17])]);
+        let claim =
+            solve_reaction_claim(&hydride, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].name, "hydrogen chloride");
     }
 
     #[test]

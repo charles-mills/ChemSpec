@@ -12,6 +12,7 @@ mod family;
 mod identity;
 mod mechanism;
 mod mechanize;
+mod naming;
 mod outcome;
 mod presentation;
 mod solve;

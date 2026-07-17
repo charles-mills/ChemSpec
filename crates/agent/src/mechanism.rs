@@ -1522,6 +1522,44 @@ mod tests {
         outcome
     }
 
+    fn static_outcome_single(
+        trusted: &TrustedCatalogue,
+        reactant: (&str, Vec<u8>),
+        context: &str,
+        products: &Value,
+    ) -> ValidatedStaticOutcome {
+        let identities = reviewed_species_registry(trusted).expect("identities");
+        let claim = json!({
+            "schema_version": 1,
+            "disposition": "reaction",
+            "products": products,
+            "required_context": context,
+            "observations": [], "sources": [], "ambiguity": null
+        });
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("claim contract");
+        let compiled = compile_claim_outcome(
+            &ReactionBuildRequest {
+                reactants: vec![ReactantInput {
+                    display: reactant.0.into(),
+                    atomic_numbers: reactant.1,
+                    species_id: None,
+                }],
+                selected_context: Some(context.to_owned()),
+            },
+            claim,
+            &identities,
+        )
+        .expect("compiled outcome");
+        let CompiledClaimOutcome::Static(outcome) = compiled else {
+            panic!("static outcome: {compiled:?}")
+        };
+        outcome
+    }
+
     fn static_outcome(trusted: &TrustedCatalogue, products: &Value) -> ValidatedStaticOutcome {
         static_outcome_for(
             trusted,
@@ -1847,6 +1885,48 @@ mod tests {
             &json!([
                 {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
                 {"name":"Water","formula":"H2O","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn carbonate_decomposition_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_single(
+            &trusted,
+            ("CaCO3", vec![20, 6, 8, 8, 8]),
+            "heat",
+            &json!([
+                {"name":"calcium oxide","formula":"CaO","phase":"solid","identity_hints":[]},
+                {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn water_electrolysis_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_single(
+            &trusted,
+            ("H2O", vec![1, 1, 8]),
+            "electricity",
+            &json!([
+                {"name":"Hydrogen","formula":"H2","phase":"gas","identity_hints":[]},
+                {"name":"Oxygen","formula":"O2","phase":"gas","identity_hints":[]}
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();
