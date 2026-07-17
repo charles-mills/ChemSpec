@@ -12,7 +12,7 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::path::Arc;
 use iced::widget::canvas::{Path, Stroke};
 use iced::widget::{
-    button, canvas, column, container, mouse_area, row, space, stack, text, tooltip,
+    button, canvas, column, container, mouse_area, row, space, stack, text, text_input, tooltip,
 };
 use iced::{
     Center, Color, Element, Fill, Font, Length, Point, Radians, Rectangle, Renderer, Subscription,
@@ -69,6 +69,8 @@ pub struct State {
     holding: Option<HoldState>,
     orbital_phase: f32,
     tooltip_reveal: f32,
+    name_input: String,
+    name_feedback: Option<String>,
 }
 
 impl Default for State {
@@ -81,11 +83,13 @@ impl Default for State {
             holding: None,
             orbital_phase: 0.0,
             tooltip_reveal: 0.0,
+            name_input: String::new(),
+            name_feedback: None,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
     AddElement(u8),
     DropElement(ActiveReactant, u8),
@@ -95,6 +99,8 @@ pub enum Message {
     SlotHovered(Option<ActiveReactant>),
     Undo,
     ClearActive,
+    NameInput(String),
+    NameSubmitted,
     StartReactionRequested,
     AnimationTick,
 }
@@ -148,6 +154,11 @@ pub fn update(state: &mut State, message: Message) {
             state.drafts[state.active.index()].atoms.clear();
             state.limit_reached = false;
         }
+        Message::NameInput(value) => {
+            state.name_input = value;
+            state.name_feedback = None;
+        }
+        Message::NameSubmitted => submit_name(state),
         Message::StartReactionRequested => {}
         Message::AnimationTick => {
             if state.hovered.is_some() {
@@ -183,6 +194,32 @@ pub fn subscription(state: &State) -> Subscription<Message> {
     } else {
         Subscription::none()
     }
+}
+
+/// Fills the active slot from a typed compound name or formula.
+fn submit_name(state: &mut State) {
+    if state.name_input.trim().is_empty() {
+        return;
+    }
+    let Some(atoms) = chemistry::atoms_from_name(&state.name_input) else {
+        state.name_feedback = Some("Not recognised — try a name like “copper(II) sulfate” or a formula like CuSO4".to_owned());
+        return;
+    };
+    if atoms.len() > MAX_ATOMS_PER_REACTANT {
+        state.name_feedback = Some("That compound has too many atoms for one reactant".to_owned());
+        return;
+    }
+    if let Some(&unknown) = atoms
+        .iter()
+        .find(|number| elements::by_atomic_number(**number).is_none())
+    {
+        state.name_feedback = Some(format!("Element {unknown} is not in the library yet"));
+        return;
+    }
+    state.drafts[state.active.index()].atoms = atoms;
+    state.name_input.clear();
+    state.name_feedback = None;
+    state.limit_reached = false;
 }
 
 fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
@@ -232,7 +269,7 @@ pub fn view(
     let actions = action_row(state, build_status, local);
 
     container(
-        column![sentence, actions]
+        column![sentence, name_entry(state), actions]
             .spacing(spacing::LG)
             .align_x(Center)
             .width(Fill),
@@ -370,6 +407,30 @@ fn action_row(
             .color(color::MUTED),
     );
     content.into()
+}
+
+/// Typed compound entry: Enter fills the active slot from a classroom
+/// name or a formula.
+fn name_entry(state: &State) -> Element<'static, Message> {
+    let input = text_input(
+        "…or type it: “copper(II) sulfate”, “oxygen”, CuSO4",
+        &state.name_input,
+    )
+    .on_input(Message::NameInput)
+    .on_submit(Message::NameSubmitted)
+    .size(type_scale::BODY)
+    .padding([spacing::XS, spacing::SM])
+    .width(Length::Fixed(420.0))
+    .style(theme::request_input);
+    let mut entry = column![input].spacing(spacing::XXS).align_x(Center);
+    if let Some(feedback) = &state.name_feedback {
+        entry = entry.push(
+            text(feedback.clone())
+                .size(type_scale::CAPTION)
+                .color(color::WARNING),
+        );
+    }
+    entry.into()
 }
 
 /// A small gesture hint under an action button.
@@ -735,6 +796,28 @@ mod tests {
     fn click_slot(state: &mut State, slot: ActiveReactant) {
         update(state, Message::SlotPressed(slot));
         update(state, Message::SlotReleased(slot));
+    }
+
+    #[test]
+    fn typed_names_fill_the_active_slot() {
+        let mut state = State::default();
+        update(&mut state, Message::NameInput("copper(II) sulfate".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state).0, [29, 8, 8, 8, 8, 16]);
+        assert!(state.name_feedback.is_none());
+        assert!(state.name_input.is_empty());
+
+        // The second slot fills once selected; formulas work too.
+        update(&mut state, Message::SelectReactant(ActiveReactant::Second));
+        update(&mut state, Message::NameInput("NaOH".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state).1, [1, 11, 8]);
+
+        // Gibberish leaves the draft alone and explains itself.
+        update(&mut state, Message::NameInput("unobtainium".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert!(state.name_feedback.is_some());
+        assert_eq!(reactants(&state).1, [1, 11, 8]);
     }
 
     #[test]

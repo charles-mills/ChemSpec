@@ -1,4 +1,5 @@
-//! Systematic names for solver products.
+//! Systematic names for solver products, and the reverse: compositions
+//! from classroom names typed by the user.
 //!
 //! Deterministic classroom nomenclature: ionic salts as cation + anion
 //! (Roman numerals for variable-charge metals, -ide roots for monatomic
@@ -8,51 +9,66 @@
 
 use std::collections::BTreeMap;
 
-use chem_domain::{element_name, has_variable_cation_charge};
+use chem_domain::{
+    FormulaComposition, anion_valence_charge, common_cation_charge, element_name,
+    has_variable_cation_charge,
+};
 
-/// -ide roots for monatomic anions.
+/// (symbol, -ide root) for monatomic anions.
+const ANION_ROOTS: [(&str, &str); 15] = [
+    ("H", "hydr"),
+    ("B", "bor"),
+    ("C", "carb"),
+    ("N", "nitr"),
+    ("O", "ox"),
+    ("F", "fluor"),
+    ("Si", "silic"),
+    ("P", "phosph"),
+    ("S", "sulf"),
+    ("Cl", "chlor"),
+    ("As", "arsen"),
+    ("Se", "selen"),
+    ("Br", "brom"),
+    ("Te", "tellur"),
+    ("I", "iod"),
+];
+
 fn anion_root(symbol: &str) -> Option<&'static str> {
-    Some(match symbol {
-        "H" => "hydr",
-        "B" => "bor",
-        "C" => "carb",
-        "N" => "nitr",
-        "O" => "ox",
-        "F" => "fluor",
-        "Si" => "silic",
-        "P" => "phosph",
-        "S" => "sulf",
-        "Cl" => "chlor",
-        "As" => "arsen",
-        "Se" => "selen",
-        "Br" => "brom",
-        "Te" => "tellur",
-        "I" => "iod",
-        _ => return None,
-    })
+    ANION_ROOTS
+        .iter()
+        .find(|(candidate, _)| *candidate == symbol)
+        .map(|(_, root)| *root)
 }
 
-/// Common polyatomic anion names, keyed by sorted element composition.
+/// Element counts of one ion unit.
+type IonUnit = &'static [(&'static str, u64)];
+
+/// (name, one anion unit, charge) for the common polyatomic anions.
+const POLYATOMIC_ANIONS: [(&str, IonUnit, u64); 11] = [
+    ("hydroxide", &[("H", 1), ("O", 1)], 1),
+    ("carbonate", &[("C", 1), ("O", 3)], 2),
+    ("hydrogen carbonate", &[("C", 1), ("H", 1), ("O", 3)], 1),
+    ("nitrate", &[("N", 1), ("O", 3)], 1),
+    ("nitrite", &[("N", 1), ("O", 2)], 1),
+    ("sulfate", &[("O", 4), ("S", 1)], 2),
+    ("sulfite", &[("O", 3), ("S", 1)], 2),
+    ("phosphate", &[("O", 4), ("P", 1)], 3),
+    ("hypochlorite", &[("Cl", 1), ("O", 1)], 1),
+    ("chlorate", &[("Cl", 1), ("O", 3)], 1),
+    ("perchlorate", &[("Cl", 1), ("O", 4)], 1),
+];
+
+/// Common polyatomic anion names, matched by element composition.
 fn polyatomic_anion(composition: &BTreeMap<&str, u64>) -> Option<&'static str> {
-    let key = composition
+    POLYATOMIC_ANIONS
         .iter()
-        .map(|(symbol, count)| format!("{symbol}{count}"))
-        .collect::<Vec<_>>()
-        .join(" ");
-    Some(match key.as_str() {
-        "H1 O1" => "hydroxide",
-        "C1 O3" => "carbonate",
-        "C1 H1 O3" => "hydrogen carbonate",
-        "N1 O3" => "nitrate",
-        "N1 O2" => "nitrite",
-        "O4 S1" => "sulfate",
-        "O3 S1" => "sulfite",
-        "O4 P1" => "phosphate",
-        "Cl1 O1" => "hypochlorite",
-        "Cl1 O3" => "chlorate",
-        "Cl1 O4" => "perchlorate",
-        _ => return None,
-    })
+        .find(|(_, unit, _)| {
+            unit.len() == composition.len()
+                && unit
+                    .iter()
+                    .all(|(symbol, count)| composition.get(symbol) == Some(count))
+        })
+        .map(|(name, _, _)| *name)
 }
 
 const ROMAN: [&str; 7] = ["I", "II", "III", "IV", "V", "VI", "VII"];
@@ -136,6 +152,180 @@ pub(crate) fn binary_molecular_name(counts: &BTreeMap<String, u64>) -> Option<St
     Some(format!("{left_prefix}{left_name} {right_prefix}{root}ide"))
 }
 
+/// Well-known names that no systematic rule covers.
+const TRIVIAL_NAMES: [(&str, &[(&str, u64)]); 8] = [
+    ("water", &[("H", 2), ("O", 1)]),
+    ("ammonia", &[("N", 1), ("H", 3)]),
+    ("methane", &[("C", 1), ("H", 4)]),
+    ("hydrochloric acid", &[("H", 1), ("Cl", 1)]),
+    ("sulfuric acid", &[("H", 2), ("S", 1), ("O", 4)]),
+    ("nitric acid", &[("H", 1), ("N", 1), ("O", 3)]),
+    ("carbonic acid", &[("H", 2), ("C", 1), ("O", 3)]),
+    ("phosphoric acid", &[("H", 3), ("P", 1), ("O", 4)]),
+];
+
+/// Element counts for a user-typed compound: a formula (`CuSO4`,
+/// `Mg(NO3)2`), an element or compound name ("oxygen", "copper(II)
+/// sulfate", "carbon dioxide", "water"), in classroom nomenclature.
+#[must_use]
+pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
+    let trimmed = input.trim();
+    // Formulas are case-sensitive; try the input verbatim first.
+    if let Ok(formula) = FormulaComposition::parse(trimmed) {
+        return Some(
+            formula
+                .elements()
+                .iter()
+                .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+                .collect(),
+        );
+    }
+    // British spellings and spaced numerals normalize away.
+    let name = trimmed
+        .to_lowercase()
+        .replace("sulph", "sulf")
+        .replace("aluminum", "aluminium")
+        .replace(" (", "(");
+    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    if let Some((_, unit)) = TRIVIAL_NAMES.iter().find(|(known, _)| *known == name) {
+        return Some(scaled(unit, 1, BTreeMap::new()));
+    }
+    if let Some(symbol) = element_by_name(&name) {
+        // Standard states: diatomic gases and the P4/S8 allotropes.
+        let count = match symbol {
+            "H" | "N" | "O" | "F" | "Cl" | "Br" | "I" => 2,
+            "P" => 4,
+            "S" => 8,
+            _ => 1,
+        };
+        return Some([(symbol.to_owned(), count)].into());
+    }
+    let words = name.split(' ').collect::<Vec<_>>();
+    salt_composition(&words).or_else(|| molecular_composition(&words))
+}
+
+fn element_by_name(name: &str) -> Option<&'static str> {
+    chem_domain::ELEMENT_NAMES
+        .iter()
+        .position(|candidate| *candidate == name)
+        .map(|index| chem_domain::ELEMENT_SYMBOLS[index])
+}
+
+fn scaled(
+    unit: &[(&str, u64)],
+    factor: u64,
+    mut counts: BTreeMap<String, u64>,
+) -> BTreeMap<String, u64> {
+    for (symbol, count) in unit {
+        *counts.entry((*symbol).to_owned()).or_insert(0) += count * factor;
+    }
+    counts
+}
+
+/// "{cation}[(numeral)] {anion}": charge-balanced ionic composition.
+fn salt_composition(words: &[&str]) -> Option<BTreeMap<String, u64>> {
+    let (first, anion_words) = words.split_first()?;
+    let (cation_name, numeral) = match first.split_once('(') {
+        Some((name, rest)) => (name, Some(rest.strip_suffix(')')?)),
+        None => (*first, None),
+    };
+    let (cation_unit, natural_charge): (Vec<(&str, u64)>, Option<i16>) =
+        if cation_name == "ammonium" {
+            (vec![("N", 1), ("H", 4)], Some(1))
+        } else {
+            let symbol = element_by_name(cation_name)?;
+            if symbol == "H" {
+                return None; // hydrogen compounds are molecular
+            }
+            (vec![(symbol, 1)], common_cation_charge(symbol))
+        };
+    let cation_charge = match numeral {
+        Some(numeral) => u64::try_from(
+            ROMAN
+                .iter()
+                .position(|candidate| candidate.eq_ignore_ascii_case(numeral))?
+                + 1,
+        )
+        .ok()?,
+        None => u64::try_from(natural_charge?).ok()?,
+    };
+    let phrase = anion_words.join(" ");
+    let phrase = if phrase == "bicarbonate" {
+        "hydrogen carbonate".to_owned()
+    } else {
+        phrase
+    };
+    let (anion_unit, anion_charge): (Vec<(&str, u64)>, u64) = if let Some((_, unit, charge)) =
+        POLYATOMIC_ANIONS.iter().find(|(known, _, _)| *known == phrase)
+    {
+        (unit.to_vec(), *charge)
+    } else {
+        let root = phrase.strip_suffix("ide")?;
+        let (symbol, _) = ANION_ROOTS.iter().find(|(_, known)| *known == root)?;
+        (vec![(*symbol, 1)], u64::from(anion_valence_charge(symbol)?))
+    };
+    let shared = crate::solve::gcd(cation_charge, anion_charge);
+    let counts = scaled(&cation_unit, anion_charge / shared, BTreeMap::new());
+    Some(scaled(&anion_unit, cation_charge / shared, counts))
+}
+
+/// Numeric multiplier prefixes, with their elided forms (mon-, tetr-).
+const NAME_PREFIXES: [(&str, u64); 6] = [
+    ("mono", 1),
+    ("mon", 1),
+    ("di", 2),
+    ("tri", 3),
+    ("tetra", 4),
+    ("tetr", 4),
+];
+
+/// "{prefix?}{element} {prefix?}{root}ide": binary molecular composition.
+fn molecular_composition(words: &[&str]) -> Option<BTreeMap<String, u64>> {
+    let [left, right] = words else {
+        return None;
+    };
+    // Prefer the un-prefixed reading so "tin(...)" never parses as tri-n.
+    let (left_symbol, left_count) = element_by_name(left).map_or_else(
+        || {
+            NAME_PREFIXES.iter().find_map(|(prefix, count)| {
+                left.strip_prefix(prefix)
+                    .and_then(element_by_name)
+                    .map(|symbol| (symbol, Some(*count)))
+            })
+        },
+        |symbol| Some((symbol, None)),
+    )?;
+    let root_symbol = |token: &str| {
+        let root = token.strip_suffix("ide")?;
+        ANION_ROOTS
+            .iter()
+            .find(|(_, known)| *known == root)
+            .map(|(symbol, _)| *symbol)
+    };
+    let (right_symbol, right_count) = root_symbol(right).map_or_else(
+        || {
+            NAME_PREFIXES.iter().find_map(|(prefix, count)| {
+                right
+                    .strip_prefix(prefix)
+                    .and_then(root_symbol)
+                    .map(|symbol| (symbol, Some(*count)))
+            })
+        },
+        |symbol| Some((symbol, None)),
+    )?;
+    // Bare hydrides take their count from the partner's valence:
+    // "hydrogen sulfide" is H2S.
+    let left_count = match (left_symbol, left_count, right_count) {
+        ("H", None, None) => u64::from(anion_valence_charge(right_symbol)?),
+        _ => left_count.unwrap_or(1),
+    };
+    Some(scaled(
+        &[(left_symbol, left_count), (right_symbol, right_count.unwrap_or(1))],
+        1,
+        BTreeMap::new(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,6 +371,47 @@ mod tests {
             salt_name("Mg", 2, &counts(&[("Mg", 3), ("N", 2)])).as_deref(),
             Some("magnesium nitride")
         );
+    }
+
+    #[test]
+    fn compositions_resolve_from_names_and_formulas() {
+        let composition = |input: &str| {
+            composition_from_name(input).map(|counts| {
+                counts
+                    .into_iter()
+                    .map(|(symbol, count)| format!("{symbol}{count}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+        };
+        // Formulas, verbatim and parenthesized.
+        assert_eq!(composition("CuSO4").as_deref(), Some("Cu1 O4 S1"));
+        assert_eq!(composition("Mg(NO3)2").as_deref(), Some("Mg1 N2 O6"));
+        // Elements in their standard states.
+        assert_eq!(composition("oxygen").as_deref(), Some("O2"));
+        assert_eq!(composition("copper").as_deref(), Some("Cu1"));
+        assert_eq!(composition("sulfur").as_deref(), Some("S8"));
+        // Trivial names.
+        assert_eq!(composition("water").as_deref(), Some("H2 O1"));
+        assert_eq!(composition("Sulfuric Acid").as_deref(), Some("H2 O4 S1"));
+        // Salts, with and without numerals, including British spelling.
+        assert_eq!(composition("sodium chloride").as_deref(), Some("Cl1 Na1"));
+        assert_eq!(composition("copper(II) sulphate").as_deref(), Some("Cu1 O4 S1"));
+        assert_eq!(composition("iron (III) chloride").as_deref(), Some("Cl3 Fe1"));
+        assert_eq!(composition("magnesium nitrate").as_deref(), Some("Mg1 N2 O6"));
+        assert_eq!(
+            composition("sodium bicarbonate").as_deref(),
+            Some("C1 H1 Na1 O3")
+        );
+        assert_eq!(composition("ammonium chloride").as_deref(), Some("Cl1 H4 N1"));
+        // Molecular binaries.
+        assert_eq!(composition("carbon dioxide").as_deref(), Some("C1 O2"));
+        assert_eq!(composition("carbon monoxide").as_deref(), Some("C1 O1"));
+        assert_eq!(composition("dinitrogen monoxide").as_deref(), Some("N2 O1"));
+        assert_eq!(composition("hydrogen sulfide").as_deref(), Some("H2 S1"));
+        // Refusals: gibberish and bare hydrogen-cation salts.
+        assert_eq!(composition("unobtainium nitrate"), None);
+        assert_eq!(composition(""), None);
     }
 
     #[test]

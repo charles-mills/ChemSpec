@@ -59,6 +59,7 @@ pub use outcome::{
     TrustTier, ValidatedStaticOutcome, compile_claim_outcome, resolve_request_identities,
     resolve_request_identities_with_catalogue, resolve_request_species,
 };
+pub use naming::composition_from_name;
 pub use presentation::{DynamicPresentationOutcome, enrich_static_outcome};
 pub use solve::solve_reaction_claim;
 pub use structure::{

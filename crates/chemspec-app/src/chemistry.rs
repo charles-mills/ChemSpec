@@ -1019,6 +1019,22 @@ fn standard_state_count(atomic_number: u8) -> usize {
     }
 }
 
+/// Atomic numbers for a user-typed compound name or formula (`copper(II)
+/// sulfate`, `CuSO4`, `oxygen`). None outside the nomenclature rules.
+#[must_use]
+pub fn atoms_from_name(input: &str) -> Option<Vec<u8>> {
+    let counts = agent::composition_from_name(input)?;
+    let mut atoms = Vec::new();
+    for (symbol, count) in &counts {
+        let index = chem_domain::ELEMENT_SYMBOLS
+            .iter()
+            .position(|candidate| candidate == symbol)?;
+        let atomic_number = u8::try_from(index + 1).ok()?;
+        atoms.extend(std::iter::repeat_n(atomic_number, usize::try_from(*count).ok()?));
+    }
+    Some(atoms)
+}
+
 /// A single periodic-table selection denotes the element in its catalogue
 /// standard state. Explicit multi-atom compounds are otherwise preserved.
 #[must_use]
