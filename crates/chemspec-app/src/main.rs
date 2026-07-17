@@ -65,6 +65,7 @@ fn elapsed_millis(started: Instant) -> u64 {
 fn reviewed_outcome_choice(
     request: chemistry::ReactionRequest,
     compact: bool,
+    keyboard_selected: bool,
 ) -> Element<'static, Message> {
     let labels = column![
         text(request.name())
@@ -96,7 +97,7 @@ fn reviewed_outcome_choice(
         .on_press(Message::OutcomeSelected(request))
         .padding(spacing::MD)
         .width(Fill)
-        .style(theme::secondary_button)
+        .style(move |_, status| theme::provider_button(keyboard_selected, status))
         .into()
 }
 
@@ -753,8 +754,11 @@ impl PlaybackSpeed {
 #[derive(Debug, Clone)]
 enum Message {
     WindowResized(Size),
-    KeyboardEvent(iced::keyboard::Event),
-    BuilderPointerPressed,
+    KeyboardEvent {
+        event: iced::keyboard::Event,
+        status: iced::event::Status,
+    },
+    PointerPressed,
     BuilderInputFocusChecked {
         reactant: reactant_composer::ActiveReactant,
         focused: bool,
@@ -793,6 +797,7 @@ enum Message {
     StructuralTimelineScrubbed(u32),
     StructuralRealWorldTimelineScrubbed(u32),
     StructuralChapterChanged(i8),
+    StructuralSkipRequested(i8),
     StructuralRestarted,
     StructuralTick,
     StructuralDrag(structural_2d::DragEvent),
@@ -800,6 +805,8 @@ enum Message {
     ContinueToSummary,
     ReturnTo2d,
     ReturnTo3d,
+    OutcomeChoiceMoved(i8),
+    OutcomeChoiceConfirmed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -838,6 +845,7 @@ impl DynamicRequestContext {
 fn builder_keyboard_message(
     screen: Screen,
     event: iced::keyboard::Event,
+    status: iced::event::Status,
     editor_open: bool,
     panel_open: bool,
     can_run: bool,
@@ -845,6 +853,12 @@ fn builder_keyboard_message(
     let iced::keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
         return None;
     };
+    if status == iced::event::Status::Captured
+        && editor_open
+        && key != iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape)
+    {
+        return None;
+    }
     builder_shortcut(screen, &key, modifiers, editor_open, panel_open, can_run)
 }
 
@@ -878,6 +892,26 @@ fn builder_shortcut(
             reactant_composer::Message::StartReactionRequested,
         ));
     }
+    if !modifiers.command() && !editor_open && !panel_open {
+        match key.as_ref() {
+            Key::Named(Named::ArrowLeft) => {
+                return Some(Message::ReactantComposer(
+                    reactant_composer::Message::SelectReactant(
+                        reactant_composer::ActiveReactant::First,
+                    ),
+                ));
+            }
+            Key::Named(Named::ArrowRight) => {
+                return Some(Message::ReactantComposer(
+                    reactant_composer::Message::SelectReactant(
+                        reactant_composer::ActiveReactant::Second,
+                    ),
+                ));
+            }
+            Key::Character("?") => return Some(Message::BuilderPanelToggled(BuilderPanel::Help)),
+            _ => {}
+        }
+    }
     if !modifiers.command() {
         return None;
     }
@@ -895,6 +929,140 @@ fn builder_shortcut(
             reactant_composer::Message::ClearActive,
         )),
         _ => None,
+    }
+}
+
+fn provider_keyboard_message(
+    event: iced::keyboard::Event,
+    status: iced::event::Status,
+    provider: Option<ProviderChoice>,
+    codex_available: bool,
+) -> Option<Message> {
+    use iced::keyboard::{Key, key::Named};
+
+    if status == iced::event::Status::Captured {
+        return None;
+    }
+    let iced::keyboard::Event::KeyPressed {
+        key,
+        modifiers,
+        repeat,
+        ..
+    } = event
+    else {
+        return None;
+    };
+    if modifiers.command() || modifiers.alt() {
+        return None;
+    }
+
+    let available = if codex_available {
+        [
+            Some(ProviderChoice::Local),
+            Some(ProviderChoice::CodexSubscription),
+            Some(ProviderChoice::ApiKey),
+        ]
+    } else {
+        [
+            Some(ProviderChoice::Local),
+            Some(ProviderChoice::ApiKey),
+            None,
+        ]
+    };
+    let choices = available.into_iter().flatten().collect::<Vec<_>>();
+    match key.as_ref() {
+        Key::Named(Named::ArrowUp | Named::ArrowLeft) => {
+            let current = choices
+                .iter()
+                .position(|choice| Some(*choice) == provider)
+                .unwrap_or(0);
+            let next = current
+                .checked_sub(1)
+                .unwrap_or(choices.len().saturating_sub(1));
+            Some(Message::ProviderSelected(choices[next]))
+        }
+        Key::Named(Named::ArrowDown | Named::ArrowRight) => {
+            let current = choices
+                .iter()
+                .position(|choice| Some(*choice) == provider)
+                .unwrap_or(0);
+            Some(Message::ProviderSelected(
+                choices[(current + 1) % choices.len()],
+            ))
+        }
+        Key::Named(Named::Enter) if !repeat => Some(Message::ProviderContinue),
+        Key::Character("1") if !repeat => Some(Message::ProviderSelected(ProviderChoice::Local)),
+        Key::Character("2") if !repeat && codex_available => {
+            Some(Message::ProviderSelected(ProviderChoice::CodexSubscription))
+        }
+        Key::Character("3") if !repeat => Some(Message::ProviderSelected(ProviderChoice::ApiKey)),
+        _ => None,
+    }
+}
+
+fn screen_keyboard_message(
+    screen: Screen,
+    event: iced::keyboard::Event,
+    status: iced::event::Status,
+) -> Option<Message> {
+    use iced::keyboard::{Key, key::Named};
+
+    if status == iced::event::Status::Captured {
+        return None;
+    }
+    let iced::keyboard::Event::KeyPressed {
+        key,
+        modifiers,
+        repeat,
+        ..
+    } = event
+    else {
+        return None;
+    };
+    if modifiers.command() || modifiers.alt() || modifiers.control() {
+        return None;
+    }
+
+    match screen {
+        Screen::OutcomeChoice => match key.as_ref() {
+            Key::Named(Named::ArrowUp | Named::ArrowLeft) => Some(Message::OutcomeChoiceMoved(-1)),
+            Key::Named(Named::ArrowDown | Named::ArrowRight) => {
+                Some(Message::OutcomeChoiceMoved(1))
+            }
+            Key::Named(Named::Enter) if !repeat => Some(Message::OutcomeChoiceConfirmed),
+            Key::Named(Named::Escape) if !repeat => Some(Message::ScreenSelected(Screen::Builder)),
+            _ => None,
+        },
+        Screen::Structural2d | Screen::Structural3d => match key.as_ref() {
+            Key::Named(Named::Space) | Key::Character(" ") if !repeat => {
+                Some(Message::StructuralPlaybackToggled)
+            }
+            Key::Named(Named::ArrowLeft) => Some(Message::StructuralSkipRequested(-1)),
+            Key::Named(Named::ArrowRight) => Some(Message::StructuralSkipRequested(1)),
+            Key::Character(value) if !repeat && value.eq_ignore_ascii_case("r") => {
+                Some(Message::StructuralRestarted)
+            }
+            Key::Character(value) if !repeat && value.eq_ignore_ascii_case("s") => {
+                Some(Message::StructuralSpeedChanged)
+            }
+            Key::Named(Named::Enter) if !repeat && screen == Screen::Structural2d => {
+                Some(Message::ContinueTo3d)
+            }
+            Key::Named(Named::Enter) if !repeat => Some(Message::ContinueToSummary),
+            Key::Named(Named::Escape) if !repeat && screen == Screen::Structural2d => {
+                Some(Message::ScreenSelected(Screen::Builder))
+            }
+            Key::Named(Named::Escape) if !repeat => Some(Message::ReturnTo2d),
+            _ => None,
+        },
+        Screen::ProductSummary => match key.as_ref() {
+            Key::Named(Named::Escape | Named::ArrowLeft) if !repeat => Some(Message::ReturnTo3d),
+            Key::Character(value) if !repeat && value.eq_ignore_ascii_case("n") => {
+                Some(Message::ScreenSelected(Screen::Builder))
+            }
+            _ => None,
+        },
+        Screen::ProviderSetup | Screen::Builder => None,
     }
 }
 
@@ -972,6 +1140,10 @@ struct StructuralAnimation {
 
 struct App {
     screen: Screen,
+    /// Keyboard-only selection and shortcut hints stay hidden until a
+    /// recognized key is used, then disappear on the next pointer press.
+    keyboard_navigation_active: bool,
+    keyboard_outcome_index: Option<usize>,
     smoke_mode: Option<SmokeMode>,
     codex_available: bool,
     provider: Option<ProviderChoice>,
@@ -1012,6 +1184,8 @@ impl Default for App {
         let trusted_run = chemistry::run(active_request).ok();
         Self {
             screen: Screen::ProviderSetup,
+            keyboard_navigation_active: false,
+            keyboard_outcome_index: None,
             smoke_mode: None,
             codex_available,
             provider: Some(ProviderChoice::Local),
@@ -1127,18 +1301,35 @@ impl App {
                 self.ui_zoom = adaptive_zoom(size, self.ui_zoom);
                 reactant_composer::resize_ambient(&mut self.reactant_composer, size);
             }
-            Message::KeyboardEvent(event) => {
-                if let Some(message) = builder_keyboard_message(
-                    self.screen,
-                    event,
-                    reactant_composer::editing(&self.reactant_composer).is_some(),
-                    self.builder_panel.is_some(),
-                    self.builder_can_submit(),
-                ) {
+            Message::KeyboardEvent { event, status } => {
+                let message = match self.screen {
+                    Screen::Builder => builder_keyboard_message(
+                        self.screen,
+                        event,
+                        status,
+                        reactant_composer::editing(&self.reactant_composer).is_some(),
+                        self.builder_panel.is_some(),
+                        self.builder_can_submit(),
+                    ),
+                    Screen::ProviderSetup => provider_keyboard_message(
+                        event,
+                        status,
+                        self.provider,
+                        self.codex_available,
+                    ),
+                    Screen::OutcomeChoice
+                    | Screen::Structural2d
+                    | Screen::Structural3d
+                    | Screen::ProductSummary => screen_keyboard_message(self.screen, event, status),
+                };
+                if let Some(message) = message {
+                    self.keyboard_navigation_active = true;
                     return self.update_with_task(message);
                 }
             }
-            Message::BuilderPointerPressed => {
+            Message::PointerPressed => {
+                self.keyboard_navigation_active = false;
+                self.keyboard_outcome_index = None;
                 let Some(reactant) = reactant_composer::editing(&self.reactant_composer) else {
                     return Task::none();
                 };
@@ -1156,7 +1347,10 @@ impl App {
                         .update_reactant_composer(reactant_composer::Message::NameEntryCancelled);
                 }
             }
-            Message::ScreenSelected(screen) => self.screen = screen,
+            Message::ScreenSelected(screen) => {
+                self.screen = screen;
+                self.keyboard_outcome_index = None;
+            }
             Message::ProviderSelected(provider) => self.provider = Some(provider),
             Message::ApiKeyChanged(api_key) => self.api_key = api_key,
             Message::ProviderContinue => {
@@ -1407,6 +1601,21 @@ impl App {
             }
             Message::StructuralPlaybackToggled => {
                 if let Some(animation) = &mut self.structural_animation {
+                    if !animation.playing
+                        && self.screen == Screen::Structural2d
+                        && animation.educational_playhead_ms
+                            == animation.educational_plan.duration_ms()
+                    {
+                        animation.educational_playhead_ms = 0;
+                        sync_educational_frame(animation);
+                    } else if !animation.playing
+                        && self.screen == Screen::Structural3d
+                        && animation.real_world_playhead_ms
+                            == animation.real_world_plan.timeline.duration_ms()
+                    {
+                        animation.real_world_playhead_ms = 0;
+                        animation.frame_index = 0;
+                    }
                     animation.playing = !animation.playing;
                     animation.settled = false;
                 }
@@ -1430,6 +1639,23 @@ impl App {
                 self.seek_real_world_timeline(u64::from(progress));
             }
             Message::StructuralChapterChanged(delta) => self.change_structural_frame(delta),
+            Message::StructuralSkipRequested(delta) => {
+                if self.screen == Screen::Structural2d {
+                    self.change_structural_frame(delta);
+                } else if self.screen == Screen::Structural3d {
+                    let Some(animation) = &mut self.structural_animation else {
+                        return Task::none();
+                    };
+                    animation.playing = false;
+                    let playhead = animation.real_world_playhead_ms;
+                    let target = if delta < 0 {
+                        playhead.saturating_sub(5_000)
+                    } else {
+                        playhead.saturating_add(5_000)
+                    };
+                    self.seek_real_world_timeline(target);
+                }
+            }
             Message::StructuralTick => {
                 let (elapsed, playing) = self
                     .structural_animation
@@ -1507,6 +1733,29 @@ impl App {
             }
             Message::ReturnTo2d => self.screen = Screen::Structural2d,
             Message::ReturnTo3d => self.screen = Screen::Structural3d,
+            Message::OutcomeChoiceMoved(delta) => {
+                if self.pending_requests.is_empty() {
+                    return Task::none();
+                }
+                let len = self.pending_requests.len();
+                self.keyboard_outcome_index = Some(match self.keyboard_outcome_index {
+                    Some(current) if delta < 0 => current.checked_sub(1).unwrap_or(len - 1),
+                    Some(current) => (current + 1) % len,
+                    None if delta < 0 => len - 1,
+                    None => 0,
+                });
+            }
+            Message::OutcomeChoiceConfirmed => {
+                let Some(request) = self
+                    .keyboard_outcome_index
+                    .or((self.pending_requests.len() == 1).then_some(0))
+                    .and_then(|index| self.pending_requests.get(index))
+                    .copied()
+                else {
+                    return Task::none();
+                };
+                return self.update_with_task(Message::OutcomeSelected(request));
+            }
         }
         Task::none()
     }
@@ -2065,17 +2314,13 @@ impl App {
             Subscription::none()
         };
 
-        let input = if self.screen == Screen::Builder {
-            iced::event::listen_with(|event, _status, _window| match event {
-                iced::Event::Keyboard(event) => Some(Message::KeyboardEvent(event)),
-                iced::Event::Mouse(iced::mouse::Event::ButtonPressed(
-                    iced::mouse::Button::Left,
-                )) => Some(Message::BuilderPointerPressed),
-                _ => None,
-            })
-        } else {
-            Subscription::none()
-        };
+        let input = iced::event::listen_with(|event, status, _window| match event {
+            iced::Event::Keyboard(event) => Some(Message::KeyboardEvent { event, status }),
+            iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
+                Some(Message::PointerPressed)
+            }
+            _ => None,
+        });
 
         let dynamic_theatre = if self.screen == Screen::Builder
             && self.dynamic_static.is_some()
@@ -2106,6 +2351,7 @@ impl App {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn outcome_choice_view(&self, size: Size) -> Element<'_, Message> {
         use chem_catalogue::{OxygenOutcome, StructuralSupport};
 
@@ -2118,9 +2364,21 @@ impl App {
 
         let content: Element<'_, Message> = if !self.pending_requests.is_empty() {
             let mut choices = column![].spacing(spacing::SM).width(Fill);
-            for request in &self.pending_requests {
-                choices = choices.push(reviewed_outcome_choice(*request, compact));
+            for (index, request) in self.pending_requests.iter().enumerate() {
+                choices = choices.push(reviewed_outcome_choice(
+                    *request,
+                    compact,
+                    self.keyboard_navigation_active && self.keyboard_outcome_index == Some(index),
+                ));
             }
+            let keyboard_hint: Element<'_, Message> = if self.keyboard_navigation_active {
+                text("↑ ↓ choose  ·  Enter open  ·  Esc reactants")
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT)
+                    .into()
+            } else {
+                space().height(Length::Shrink).into()
+            };
             column![
                 row![
                     back,
@@ -2134,6 +2392,7 @@ impl App {
                 ]
                 .spacing(spacing::SM)
                 .align_y(Center),
+                keyboard_hint,
                 scrollable(choices).width(Fill).height(Fill),
             ]
             .spacing(spacing::MD)
@@ -2354,6 +2613,14 @@ impl App {
         }
 
         sections.push(action);
+        if self.keyboard_navigation_active {
+            sections.push(
+                text("↑ ↓ choose  ·  1–3 select  ·  Enter continue")
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT)
+                    .into(),
+            );
+        }
 
         let content = container(column(sections).spacing(spacing::LG))
             .width(Fill)
@@ -2788,7 +3055,9 @@ impl App {
                         ))
                         .size(type_scale::MICRO)
                         .color(color::ACCENT),
-                        text(if compact {
+                        text(if self.keyboard_navigation_active {
+                            "Space play/pause · ← → chapters · R restart · S speed · Enter continue"
+                        } else if compact {
                             "Drag to inspect"
                         } else {
                             "Drag the timeline to inspect any moment · arrows move between chapters"
@@ -2928,7 +3197,7 @@ impl App {
             .map(|effect| macroscopic_effect_label(effect.effect))
             .collect::<Vec<_>>()
             .join("  ·  ");
-        let mut annotation = active_annotation.map_or_else(
+        let annotation = active_annotation.map_or_else(
             || {
                 column![
                     text("REVIEWED SCENE")
@@ -2959,17 +3228,12 @@ impl App {
                 content
             },
         );
-        let product_visible = real_world_plan.objects.iter().any(|object| {
-            object.role == chem_presentation::SceneRole::Product
-                && object.visible_from_ordinal <= moment.ordinal
-        });
-        if product_visible && let Some(preview) = &animation.product_preview {
-            annotation = annotation.push(
-                text(format!("Molecular model · {}", preview.formula))
-                    .size(type_scale::MICRO)
-                    .color(color::TEXT_SOFT),
-            );
-        }
+        let inset_preview = structural_3d::active_molecular_preview(
+            real_world_plan,
+            moment.ordinal,
+            &animation.reactant_previews,
+            animation.product_preview.as_ref(),
+        );
         let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
             real_world_plan,
             moment,
@@ -2982,6 +3246,26 @@ impl App {
             "VIRTUAL MODEL · NOT A LAB PROCEDURE"
         } else {
             "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
+        };
+        // The caption sits directly above the renderer's molecular inset;
+        // both derive their size from the same shared function.
+        let inset_caption: Element<'_, Message> = match inset_preview {
+            Some(preview) if !compact => {
+                let inset_side = structural_3d::molecular_inset_side(size.width, size.height);
+                column![
+                    container(
+                        text(format!("MOLECULAR MODEL · {}", preview.formula))
+                            .size(type_scale::MICRO)
+                            .color(color::TEXT_SOFT),
+                    )
+                    .style(theme::media_bar)
+                    .padding([spacing::XXS, spacing::XS]),
+                    space().height(Length::Fixed(inset_side + 6.0)),
+                ]
+                .align_x(iced::Right)
+                .into()
+            }
+            _ => space().width(Length::Shrink).into(),
         };
         let annotation_layer = container(
             column![
@@ -2997,10 +3281,16 @@ impl App {
                 ]
                 .width(Fill),
                 space().height(Fill),
-                container(annotation)
-                    .style(theme::media_bar)
-                    .padding([spacing::SM, spacing::MD])
-                    .width(if compact { Fill } else { Length::Fixed(440.0) }),
+                row![
+                    container(annotation)
+                        .style(theme::media_bar)
+                        .padding([spacing::SM, spacing::MD])
+                        .width(if compact { Fill } else { Length::Fixed(440.0) }),
+                    space().width(Fill),
+                    inset_caption,
+                ]
+                .align_y(iced::Bottom)
+                .width(Fill),
             ]
             .height(Fill),
         )
@@ -3066,6 +3356,13 @@ impl App {
                     .color(color::TEXT_SOFT),
                 ]
                 .align_y(Center),
+                if self.keyboard_navigation_active {
+                    text("Space play/pause · ← → skip 5s · R restart · S speed · Enter continue")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT)
+                } else {
+                    text("").size(type_scale::MICRO)
+                },
             ]
             .spacing(spacing::XXS),
         )
@@ -3521,9 +3818,11 @@ impl App {
                     .color(color::MUTED),
                     rule::horizontal(1).style(theme::soft_divider),
                     shortcut("⌘1 / ⌘2", "Select a reactant"),
+                    shortcut("← / →", "Move between reactants"),
                     shortcut("Click / ⌘Z", "Undo the active reactant"),
                     shortcut("Hold / ⌘⌫", "Clear the active reactant"),
                     shortcut("Spacebar", "Find out when ready"),
+                    shortcut("?", "Open this help panel"),
                     shortcut("Esc", "Close input or this panel"),
                 ]
                 .spacing(spacing::SM)
@@ -3654,15 +3953,24 @@ impl App {
             .height(Fill)
             .into()
         };
+        let footer_help = if self.keyboard_navigation_active {
+            "Esc / ← macroscopic view · N build another reaction"
+        } else {
+            "Representative explanatory geometry · validated composition and relationships"
+        };
 
         container(
             column![
                 header,
                 body,
                 row![
-                    text("Representative explanatory geometry · validated composition and relationships")
-                        .size(type_scale::MICRO)
-                        .color(color::TEXT_SOFT),
+                    text(footer_help).size(type_scale::MICRO).color(
+                        if self.keyboard_navigation_active {
+                            color::ACCENT
+                        } else {
+                            color::TEXT_SOFT
+                        }
+                    ),
                     space().width(Fill),
                     text("SOURCE · CURRENT .CHEMS + TRUSTED FRAME + ELEMENT CATALOGUE")
                         .size(type_scale::MICRO)
@@ -3795,6 +4103,20 @@ mod tests {
     use super::*;
 
     type DraftCase = (&'static str, &'static [u8], &'static [u8]);
+
+    fn key_pressed(key: iced::keyboard::Key, repeat: bool) -> iced::keyboard::Event {
+        iced::keyboard::Event::KeyPressed {
+            modified_key: key.clone(),
+            key,
+            physical_key: iced::keyboard::key::Physical::Unidentified(
+                iced::keyboard::key::NativeCode::Unidentified,
+            ),
+            location: iced::keyboard::Location::Standard,
+            modifiers: iced::keyboard::Modifiers::empty(),
+            text: None,
+            repeat,
+        }
+    }
 
     // Independently authored UI fixtures. These deliberately do not use
     // ReactionRequest::participants(), so a wrong production mapping cannot
@@ -4088,6 +4410,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn builder_keyboard_shortcuts_cover_selection_edit_run_and_dismissal() {
         use iced::keyboard::{Key, Modifiers, key::Named};
 
@@ -4189,6 +4512,106 @@ mod tests {
             )
             .is_none()
         );
+        assert!(matches!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::ArrowRight),
+                Modifiers::empty(),
+                false,
+                false,
+                false,
+            ),
+            Some(Message::ReactantComposer(
+                reactant_composer::Message::SelectReactant(
+                    reactant_composer::ActiveReactant::Second
+                )
+            ))
+        ));
+    }
+
+    #[test]
+    fn screen_keyboard_shortcuts_are_scoped_and_repeat_safe() {
+        use iced::keyboard::{Key, key::Named};
+
+        assert!(matches!(
+            screen_keyboard_message(
+                Screen::Structural2d,
+                key_pressed(Key::Named(Named::Space), false),
+                iced::event::Status::Ignored,
+            ),
+            Some(Message::StructuralPlaybackToggled)
+        ));
+        assert!(
+            screen_keyboard_message(
+                Screen::Structural2d,
+                key_pressed(Key::Named(Named::Space), true),
+                iced::event::Status::Ignored,
+            )
+            .is_none(),
+            "key repeat must not flap playback state"
+        );
+        assert!(matches!(
+            screen_keyboard_message(
+                Screen::Structural3d,
+                key_pressed(Key::Named(Named::ArrowRight), true),
+                iced::event::Status::Ignored,
+            ),
+            Some(Message::StructuralSkipRequested(1))
+        ));
+        assert!(matches!(
+            screen_keyboard_message(
+                Screen::ProductSummary,
+                key_pressed(Key::Named(Named::Escape), false),
+                iced::event::Status::Ignored,
+            ),
+            Some(Message::ReturnTo3d)
+        ));
+        assert!(
+            screen_keyboard_message(
+                Screen::Structural2d,
+                key_pressed(Key::Named(Named::ArrowRight), false),
+                iced::event::Status::Captured,
+            )
+            .is_none(),
+            "captured widget input must win over screen shortcuts"
+        );
+    }
+
+    #[test]
+    fn keyboard_navigation_activates_on_use_and_pointer_input_clears_it() {
+        use iced::keyboard::{Key, key::Named};
+
+        let mut app = App {
+            codex_available: false,
+            ..App::default()
+        };
+        assert!(!app.keyboard_navigation_active);
+
+        app.update(Message::KeyboardEvent {
+            event: key_pressed(Key::Named(Named::ArrowDown), false),
+            status: iced::event::Status::Ignored,
+        });
+        assert!(app.keyboard_navigation_active);
+        assert_eq!(app.provider, Some(ProviderChoice::ApiKey));
+
+        app.update(Message::PointerPressed);
+        assert!(!app.keyboard_navigation_active);
+        assert_eq!(app.keyboard_outcome_index, None);
+    }
+
+    #[test]
+    fn outcome_keyboard_selection_wraps_without_auto_selecting() {
+        let mut app = App {
+            screen: Screen::OutcomeChoice,
+            pending_requests: chemistry::ReactionRequest::ALL[..2].to_vec(),
+            ..App::default()
+        };
+        assert_eq!(app.keyboard_outcome_index, None);
+
+        app.update(Message::OutcomeChoiceMoved(-1));
+        assert_eq!(app.keyboard_outcome_index, Some(1));
+        app.update(Message::OutcomeChoiceMoved(1));
+        assert_eq!(app.keyboard_outcome_index, Some(0));
     }
 
     #[test]
@@ -4914,6 +5337,27 @@ mod tests {
         app.update(Message::StructuralRestarted);
         let animation = app.structural_animation.as_ref().expect("animation exists");
         assert_eq!(animation.educational_playhead_ms, 0);
+        assert_eq!(animation.real_world_playhead_ms, 0);
+        assert_eq!(animation.frame_index, 0);
+        assert!(animation.playing);
+    }
+
+    #[test]
+    fn keyboard_skip_seeks_macroscopic_playback_and_play_restarts_at_the_end() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.screen = Screen::Structural3d;
+        app.seek_real_world_timeline(6_000);
+
+        app.update(Message::StructuralSkipRequested(-1));
+        let animation = app.structural_animation.as_ref().expect("animation exists");
+        assert_eq!(animation.real_world_playhead_ms, 1_000);
+        assert!(!animation.playing);
+
+        let duration = animation.real_world_plan.timeline.duration_ms();
+        app.seek_real_world_timeline(duration);
+        app.update(Message::StructuralPlaybackToggled);
+        let animation = app.structural_animation.as_ref().expect("animation exists");
         assert_eq!(animation.real_world_playhead_ms, 0);
         assert_eq!(animation.frame_index, 0);
         assert!(animation.playing);
