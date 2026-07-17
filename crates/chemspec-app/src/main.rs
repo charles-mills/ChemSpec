@@ -457,15 +457,6 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
     }
 }
 
-const fn educational_scene_title(kind: EducationalSceneKind) -> &'static str {
-    match kind {
-        EducationalSceneKind::ReactantSetup => "Reactants",
-        EducationalSceneKind::StructuralChange => "Explain change",
-        EducationalSceneKind::ObservationConnection => "Observe",
-        EducationalSceneKind::Summary => "Summarise",
-    }
-}
-
 /// The window size the interface's fixed pixel tokens were designed against;
 /// larger windows zoom the whole interface up instead of stretching layouts.
 const DESIGN_SIZE: Size = Size::new(1_440.0, 900.0);
@@ -510,12 +501,21 @@ fn main() -> iced::Result {
 /// Resize events report sizes already divided by the active zoom, so the new
 /// factor is computed from zoom-invariant design units. Windows at or below
 /// the design size keep the 1:1 layout.
-fn adaptive_zoom(reported: Size, current_zoom: f32) -> f32 {
+///
+/// The zoom is quantized so the total device pixel ratio (monitor scale ×
+/// zoom) stays an integer. A continuous zoom puts every glyph baseline and
+/// quad edge on fractional device rows, where the text renderer's Y-axis
+/// pixel snapping visibly floats labels above the centre of buttons.
+fn adaptive_zoom(reported: Size, current_zoom: f32, monitor_scale: f32) -> f32 {
     let width = reported.width * current_zoom;
     let height = reported.height * current_zoom;
-    (width / DESIGN_SIZE.width)
-        .min(height / DESIGN_SIZE.height)
-        .clamp(1.0, MAX_UI_ZOOM)
+    let desired = (width / DESIGN_SIZE.width).min(height / DESIGN_SIZE.height);
+    let scale = if monitor_scale.is_finite() && monitor_scale >= 1.0 {
+        monitor_scale
+    } else {
+        1.0
+    };
+    ((desired * scale).floor() / scale).clamp(1.0, MAX_UI_ZOOM)
 }
 
 fn codex_available() -> bool {
@@ -569,6 +569,8 @@ fn dynamic_presentation_profile(
 
 fn launch_state() -> App {
     let mut app = App::default();
+    app.dump_frame_path = std::env::args()
+        .find_map(|argument| argument.strip_prefix("--dump-frame=").map(Into::into));
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
     let smoke_from_start = std::env::args().any(|argument| argument == "--smoke-from-start");
     let smoke_request =
@@ -754,6 +756,9 @@ impl PlaybackSpeed {
 #[derive(Debug, Clone)]
 enum Message {
     WindowResized(Size),
+    MonitorScaleMeasured(f32),
+    DumpFrame,
+    FrameCaptured(iced::window::Screenshot),
     KeyboardEvent {
         event: iced::keyboard::Event,
         status: iced::event::Status,
@@ -1175,6 +1180,13 @@ struct App {
     structural_error: Option<String>,
     /// Interface zoom applied on top of the system scale factor.
     ui_zoom: f32,
+    /// Debug harness: dump one frame to this path, then keep running.
+    dump_frame_path: Option<std::path::PathBuf>,
+    frame_dumped: bool,
+    /// The active monitor's scale factor, used to quantize `ui_zoom`.
+    monitor_scale: f32,
+    /// Last window size in zoom-invariant design units.
+    window_design_size: Size,
 }
 
 impl Default for App {
@@ -1220,6 +1232,10 @@ impl Default for App {
             structural_animation: None,
             structural_error: None,
             ui_zoom: 1.0,
+            dump_frame_path: None,
+            frame_dumped: false,
+            monitor_scale: 1.0,
+            window_design_size: DESIGN_SIZE,
         }
     }
 }
@@ -1298,8 +1314,43 @@ impl App {
     fn update_with_task(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowResized(size) => {
-                self.ui_zoom = adaptive_zoom(size, self.ui_zoom);
+                self.window_design_size =
+                    Size::new(size.width * self.ui_zoom, size.height * self.ui_zoom);
+                self.ui_zoom = adaptive_zoom(size, self.ui_zoom, self.monitor_scale);
                 reactant_composer::resize_ambient(&mut self.reactant_composer, size);
+                // The quantization step depends on the monitor's own scale
+                // factor, which can change when the window switches displays.
+                return iced::window::latest()
+                    .and_then(iced::window::scale_factor)
+                    .map(Message::MonitorScaleMeasured);
+            }
+            Message::DumpFrame => {
+                if !self.frame_dumped {
+                    self.frame_dumped = true;
+                    return iced::window::latest()
+                        .and_then(iced::window::screenshot)
+                        .map(Message::FrameCaptured);
+                }
+            }
+            Message::FrameCaptured(shot) => {
+                if let Some(path) = &self.dump_frame_path {
+                    let mut ppm = format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height)
+                        .into_bytes();
+                    for pixel in shot.rgba.chunks_exact(4) {
+                        ppm.extend_from_slice(&pixel[..3]);
+                    }
+                    let _ = std::fs::write(path, ppm);
+                    let _ = std::fs::write(
+                        path.with_extension("meta"),
+                        format!("scale_factor={}\nui_zoom={}\n", shot.scale_factor, self.ui_zoom),
+                    );
+                }
+            }
+            Message::MonitorScaleMeasured(scale) => {
+                if (scale - self.monitor_scale).abs() > f32::EPSILON {
+                    self.monitor_scale = scale;
+                    self.ui_zoom = adaptive_zoom(self.window_design_size, 1.0, scale);
+                }
             }
             Message::KeyboardEvent { event, status } => {
                 let message = match self.screen {
@@ -1703,31 +1754,21 @@ impl App {
                 }
             }
             Message::ContinueTo3d => {
-                if self.structural_animation.as_ref().is_some_and(|animation| {
-                    animation
-                        .educational_plan
-                        .locate(animation.educational_playhead_ms)
-                        .is_some_and(|position| {
-                            position.scene_index + 1 == animation.educational_plan.scenes.len()
-                        })
-                }) {
-                    if let Some(animation) = &mut self.structural_animation {
-                        animation.frame_index = 0;
-                        animation.real_world_playhead_ms = 0;
-                        animation.playing = true;
-                    }
+                // The 3D model is always reachable from the 2D explanation;
+                // entering it restarts the macroscopic playback.
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.frame_index = 0;
+                    animation.real_world_playhead_ms = 0;
+                    animation.playing = true;
                     self.screen = Screen::Structural3d;
                 }
             }
             Message::ContinueToSummary => {
-                if self.structural_animation.as_ref().is_some_and(|animation| {
-                    animation.real_world_playhead_ms
-                        == animation.real_world_plan.timeline.duration_ms()
-                }) {
-                    if let Some(animation) = &mut self.structural_animation {
-                        animation.summary_elapsed_ms = 0;
-                        animation.playing = false;
-                    }
+                // The product summary is always reachable from the 3D model,
+                // mirroring the free 2D ⇄ 3D navigation.
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.summary_elapsed_ms = 0;
+                    animation.playing = false;
                     self.screen = Screen::ProductSummary;
                 }
             }
@@ -2277,6 +2318,11 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         let resize = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
+        let frame_dump = if self.dump_frame_path.is_some() && !self.frame_dumped {
+            iced::time::every(std::time::Duration::from_millis(1_200)).map(|_| Message::DumpFrame)
+        } else {
+            Subscription::none()
+        };
         let screen = if self.screen == Screen::Builder {
             Subscription::batch([
                 periodic_table::subscription(&self.periodic_table).map(Message::PeriodicTable),
@@ -2337,7 +2383,7 @@ impl App {
             Subscription::none()
         };
 
-        Subscription::batch([resize, screen, dynamic_build, dynamic_theatre, input])
+        Subscription::batch([resize, frame_dump, screen, dynamic_build, dynamic_theatre, input])
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -2937,7 +2983,7 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let exit = button(text("← Reactants"))
+        let exit = button(text("← Return"))
             .on_press(Message::ScreenSelected(Screen::Builder))
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
@@ -2953,16 +2999,10 @@ impl App {
             } else {
                 space().width(Length::Shrink).into()
             };
-        let continue_3d: Element<'_, Message> =
-            if timeline_position.scene_index + 1 == animation.educational_plan.scenes.len() {
-                button(text("View 3D model  →"))
-                    .on_press(Message::ContinueTo3d)
-                    .padding([spacing::XS, spacing::MD])
-                    .style(theme::primary_button)
-                    .into()
-            } else {
-                space().width(Length::Shrink).into()
-            };
+        let continue_3d = button(text("View 3D model  →"))
+            .on_press(Message::ContinueTo3d)
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
 
         let equation = plan_equation(animation).map(nomenclature::display_equation);
         let scene_context = structural_2d::SceneContext::new(
@@ -3018,12 +3058,19 @@ impl App {
         ]
         .width(Fill)
         .height(Length::Fixed(28.0));
+        let elapsed = text(format!(
+            "{}  /  {}",
+            format_media_time(animation.educational_playhead_ms),
+            format_media_time(duration_ms)
+        ))
+        .size(type_scale::CAPTION)
+        .color(color::TEXT_SOFT);
         let transport: Element<'_, Message> = if compact {
             column![
                 row![playback, previous, next, speed]
                     .spacing(spacing::XS)
                     .align_y(Center),
-                row![restart, space().width(Fill), continue_3d]
+                row![restart, space().width(Fill), elapsed]
                     .spacing(spacing::XS)
                     .align_y(Center),
             ]
@@ -3037,76 +3084,45 @@ impl App {
                 restart,
                 speed,
                 space().width(Fill),
-                continue_3d,
+                elapsed,
             ]
             .spacing(spacing::XS)
             .align_y(Center)
             .into()
         };
-        let controls = container(
-            column![
-                transport,
-                row![
-                    column![
-                        text(format!(
-                            "CHAPTER {:02}  ·  {}",
-                            timeline_position.scene_index + 1,
-                            educational_scene_title(educational_scene.kind)
-                        ))
-                        .size(type_scale::MICRO)
-                        .color(color::ACCENT),
-                        text(if self.keyboard_navigation_active {
-                            "Space play/pause · ← → chapters · R restart · S speed · Enter continue"
-                        } else if compact {
-                            "Drag to inspect"
-                        } else {
-                            "Drag the timeline to inspect any moment · arrows move between chapters"
-                        })
-                        .size(type_scale::MICRO)
-                        .color(color::MUTED),
-                    ]
-                    .spacing(spacing::XXS),
-                    space().width(Fill),
-                    text(format!(
-                        "{}  /  {}",
-                        format_media_time(animation.educational_playhead_ms),
-                        format_media_time(duration_ms)
-                    ))
-                    .size(type_scale::CAPTION)
-                    .color(color::TEXT_SOFT),
-                ]
+        let controls = container(column![transport, timeline].spacing(spacing::XXS))
+            .style(theme::media_bar)
+            .padding([spacing::XS, spacing::SM]);
+
+        // The buttons form the stack's base layer: a stack sizes itself to
+        // its first child, so the row must set the height or the buttons get
+        // squeezed and their labels overflow off-centre.
+        let header = stack![
+            row![exit, regenerate, space().width(Fill), continue_3d]
+                .spacing(spacing::XS)
                 .align_y(Center),
-                timeline,
-            ]
-            .spacing(spacing::XXS),
-        )
-        .style(theme::media_bar)
-        .padding([spacing::XS, spacing::SM]);
+            container(
+                text(
+                    equation
+                        .clone()
+                        .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
+                )
+                .size(if compact {
+                    type_scale::BODY_LARGE
+                } else {
+                    type_scale::TITLE
+                })
+                .color(color::TEXT),
+            )
+            .center_x(Fill)
+            .center_y(Fill),
+        ]
+        .width(Fill);
 
         container(
-            column![
-                row![
-                    exit,
-                    regenerate,
-                    text(
-                        equation
-                            .clone()
-                            .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
-                    )
-                    .size(if compact {
-                        type_scale::BODY_LARGE
-                    } else {
-                        type_scale::TITLE
-                    })
-                    .color(color::TEXT),
-                    space().width(Fill),
-                ]
-                .align_y(Center),
-                diagram,
-                controls,
-            ]
-            .spacing(spacing::XS)
-            .height(Fill),
+            column![header, diagram, controls]
+                .spacing(spacing::XS)
+                .height(Fill),
         )
         .style(theme::frame)
         .padding(spacing::SM)
@@ -3148,7 +3164,7 @@ impl App {
         else {
             return Self::structural_unavailable_view("The macroscopic timeline is unavailable");
         };
-        let back = button(text("← 2D explanation"))
+        let back = button(text("← Return"))
             .on_press(Message::ReturnTo2d)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
@@ -3176,15 +3192,10 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let at_end = animation.real_world_playhead_ms == real_world_plan.timeline.duration_ms();
-        let review_products = button(text(if at_end {
-            "Review products  →"
-        } else {
-            "Complete simulation to review"
-        }))
-        .on_press_maybe(at_end.then_some(Message::ContinueToSummary))
-        .padding([spacing::XS, spacing::SM])
-        .style(theme::primary_button);
+        let review_products = button(text("Review products  →"))
+            .on_press(Message::ContinueToSummary)
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
         let active_annotation = real_world_plan.annotations.iter().rfind(|annotation| {
             annotation.start_ordinal <= moment.ordinal && moment.ordinal <= annotation.end_ordinal
         });
@@ -3320,9 +3331,16 @@ impl App {
         .height(28.0)
         .width(Fill)
         .style(theme::timeline_slider);
+        let elapsed = text(format!(
+            "{}  /  {}",
+            format_media_time(animation.real_world_playhead_ms),
+            format_media_time(duration_ms)
+        ))
+        .size(type_scale::CAPTION)
+        .color(color::TEXT_SOFT);
         let transport: Element<'_, Message> = if compact {
             column![
-                row![playback, restart, speed, review_products]
+                row![playback, restart, speed, space().width(Fill), elapsed]
                     .spacing(spacing::XS)
                     .align_y(Center),
                 scrubber,
@@ -3330,76 +3348,37 @@ impl App {
             .spacing(spacing::XXS)
             .into()
         } else {
-            row![playback, restart, speed, scrubber, review_products]
+            row![playback, restart, speed, scrubber, elapsed]
                 .spacing(spacing::XS)
                 .align_y(Center)
                 .into()
         };
-        let controls = container(
-            column![
-                transport,
-                row![
-                    text(format!(
-                        "SCENE {:02} / {:02}  ·  FIXED 2.5D VIEW",
-                        moment.beat_index + 1,
-                        real_world_plan.timeline.beats.len()
-                    ))
-                    .size(type_scale::MICRO)
-                    .color(color::ACCENT),
-                    space().width(Fill),
-                    text(format!(
-                        "{}  /  {}",
-                        format_media_time(animation.real_world_playhead_ms),
-                        format_media_time(duration_ms)
-                    ))
-                    .size(type_scale::CAPTION)
-                    .color(color::TEXT_SOFT),
-                ]
+        let controls = container(transport)
+            .style(theme::media_bar)
+            .padding([spacing::XS, spacing::SM]);
+        // Buttons first: the stack sizes itself to its base layer, so the
+        // row must set the height (see the 2D header).
+        let header = stack![
+            row![back, regenerate, space().width(Fill), review_products]
+                .spacing(spacing::XS)
                 .align_y(Center),
-                if self.keyboard_navigation_active {
-                    text("Space play/pause · ← → skip 5s · R restart · S speed · Enter continue")
-                        .size(type_scale::MICRO)
-                        .color(color::ACCENT)
-                } else {
-                    text("").size(type_scale::MICRO)
-                },
-            ]
-            .spacing(spacing::XXS),
-        )
-        .style(theme::media_bar)
-        .padding([spacing::XS, spacing::SM]);
-        container(
-            column![
-                row![
-                    back,
-                    regenerate,
-                    column![
-                        text("VALIDATED 3D MODEL")
-                            .size(type_scale::MICRO)
-                            .color(color::ACCENT),
-                        text("Illustrative molecular and macroscopic view")
-                            .size(if compact {
-                                type_scale::BODY_LARGE
-                            } else {
-                                type_scale::TITLE
-                            })
-                            .color(color::TEXT),
-                    ],
-                    space().width(Fill),
-                    if compact {
-                        text("").size(type_scale::MICRO)
+            container(
+                text(nomenclature::display_equation(&real_world_plan.equation))
+                    .size(if compact {
+                        type_scale::BODY_LARGE
                     } else {
-                        text("FIXED ORTHOGRAPHIC 2.5D CAMERA")
-                            .size(type_scale::MICRO)
-                            .color(color::MUTED)
-                    },
-                ]
-                .align_y(Center),
-                scene,
-                controls,
-            ]
-            .spacing(spacing::XS)
-            .height(Fill),
+                        type_scale::TITLE
+                    })
+                    .color(color::TEXT),
+            )
+            .center_x(Fill)
+            .center_y(Fill),
+        ]
+        .width(Fill);
+        container(
+            column![header, scene, controls]
+                .spacing(spacing::XS)
+                .height(Fill),
         )
         .style(theme::frame)
         .padding(spacing::SM)
@@ -5056,15 +5035,32 @@ mod tests {
     #[test]
     fn adaptive_zoom_scales_windows_beyond_the_design_size() {
         // At or below the design size the layout stays 1:1.
-        assert!((adaptive_zoom(DESIGN_SIZE, 1.0) - 1.0).abs() < f32::EPSILON);
-        assert!((adaptive_zoom(Size::new(560.0, 760.0), 1.0) - 1.0).abs() < f32::EPSILON);
+        assert!((adaptive_zoom(DESIGN_SIZE, 1.0, 2.0) - 1.0).abs() < f32::EPSILON);
+        assert!((adaptive_zoom(Size::new(560.0, 760.0), 1.0, 2.0) - 1.0).abs() < f32::EPSILON);
 
-        // A 32in 4K-class window zooms by its most constrained axis (height).
-        let zoom = adaptive_zoom(Size::new(2_650.0, 1_490.0), 1.0);
-        assert!((zoom - 1_490.0 / DESIGN_SIZE.height).abs() < 0.001);
+        // A 32in 4K-class window zooms by its most constrained axis (height:
+        // 1490 / 900 = 1.655…), quantized down to an integer total device
+        // pixel ratio (1.5 x 2.0 = 3).
+        let zoom = adaptive_zoom(Size::new(2_650.0, 1_490.0), 1.0, 2.0);
+        assert!((zoom - 1.5).abs() < f32::EPSILON);
 
         // Zoom never exceeds the cap, however large the window.
-        assert!((adaptive_zoom(Size::new(7_680.0, 4_320.0), 1.0) - MAX_UI_ZOOM).abs() < 0.001);
+        assert!((adaptive_zoom(Size::new(7_680.0, 4_320.0), 1.0, 2.0) - MAX_UI_ZOOM).abs() < 0.001);
+    }
+
+    #[test]
+    fn adaptive_zoom_quantizes_to_integer_device_pixel_ratios() {
+        // 1997x1359 on a 1x monitor wants zoom 1.387; fractional totals put
+        // glyphs on fractional device rows, so it settles on 1.0.
+        assert!((adaptive_zoom(Size::new(1_997.0, 1_359.0), 1.0, 1.0) - 1.0).abs() < f32::EPSILON);
+        // The same window on a 2x monitor can afford half steps (total 2).
+        let retina = adaptive_zoom(Size::new(1_997.0, 1_359.0), 1.0, 2.0);
+        assert!((retina - 1.0).abs() < f32::EPSILON);
+        // A taller window on 2x reaches the next clean total (1.5 x 2 = 3).
+        let larger = adaptive_zoom(Size::new(2_400.0, 1_400.0), 1.0, 2.0);
+        assert!((larger - 1.5).abs() < f32::EPSILON);
+        // An undefined monitor scale falls back to integer zoom steps.
+        assert!((adaptive_zoom(Size::new(2_400.0, 1_400.0), 1.0, 0.0) - 1.0).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -5072,9 +5068,9 @@ mod tests {
         // Resize events report design units (physical over total scale), so a
         // window that settled on a zoom keeps it: 2880x1800 physical reads as
         // 1440x900 under zoom 2.0 and recomputes to exactly 2.0 again.
-        let settled = adaptive_zoom(Size::new(2_880.0, 1_800.0), 1.0);
+        let settled = adaptive_zoom(Size::new(2_880.0, 1_800.0), 1.0, 2.0);
         assert!((settled - 2.0).abs() < f32::EPSILON);
-        let recomputed = adaptive_zoom(Size::new(1_440.0, 900.0), settled);
+        let recomputed = adaptive_zoom(Size::new(1_440.0, 900.0), settled, 2.0);
         assert!((recomputed - settled).abs() < f32::EPSILON);
     }
 
@@ -5430,21 +5426,17 @@ mod tests {
     }
 
     #[test]
-    fn completed_macroscopic_playback_opens_the_animated_product_summary() {
+    fn product_summary_is_always_reachable_and_animates_from_zero() {
         let mut app = App::default();
+        app.update(Message::ContinueToSummary);
+        assert_eq!(
+            app.screen,
+            Screen::ProviderSetup,
+            "without an animation the summary stays unreachable"
+        );
+
         app.open_structural_animation();
         app.screen = Screen::Structural3d;
-        app.update(Message::ContinueToSummary);
-        assert_eq!(app.screen, Screen::Structural3d);
-
-        let duration = app
-            .structural_animation
-            .as_ref()
-            .expect("animation exists")
-            .real_world_plan
-            .timeline
-            .duration_ms();
-        app.seek_real_world_timeline(duration);
         app.update(Message::ContinueToSummary);
         assert_eq!(app.screen, Screen::ProductSummary);
         assert_eq!(
