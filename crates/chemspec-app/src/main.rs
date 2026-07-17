@@ -707,6 +707,10 @@ struct StructuralAnimation {
     playing: bool,
     playback_speed: PlaybackSpeed,
     physics: structural_physics::Simulation,
+    /// Smoothed 2D camera rectangle, in virtual world coordinates.
+    camera: iced::Rectangle,
+    /// Story-anchored homes per frame, parallel to `frames.frames()`.
+    home_timeline: Vec<std::collections::BTreeMap<String, iced::Point>>,
 }
 
 struct App {
@@ -2066,6 +2070,7 @@ impl App {
                 };
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
+            let home_timeline = structural_2d::home_timeline(frames.frames());
             Ok::<_, String>(StructuralAnimation {
                 frames,
                 educational_plan,
@@ -2079,6 +2084,8 @@ impl App {
                 playing: true,
                 playback_speed: PlaybackSpeed::Normal,
                 physics: structural_physics::Simulation::default(),
+                camera: structural_2d::default_camera(),
+                home_timeline,
             })
         })();
         match result {
@@ -2133,16 +2140,24 @@ impl App {
             return;
         };
         let frames = animation.frames.frames();
-        let Some(after) = frames
+        let Some(after_index) = frames
             .iter()
-            .find(|candidate| candidate.trace().state_digest == scene.end_frame)
+            .position(|candidate| candidate.trace().state_digest == scene.end_frame)
         else {
             return;
         };
-        let before = frames
+        let before_index = frames
             .iter()
-            .find(|candidate| candidate.trace().state_digest == scene.start_frame)
-            .unwrap_or(after);
+            .position(|candidate| candidate.trace().state_digest == scene.start_frame)
+            .unwrap_or(after_index);
+        let after = &frames[after_index];
+        let before = &frames[before_index];
+        let (Some(before_homes), Some(after_homes)) = (
+            animation.home_timeline.get(before_index),
+            animation.home_timeline.get(after_index),
+        ) else {
+            return;
+        };
         #[allow(clippy::cast_precision_loss)]
         let scene_progress = if scene.duration_ms == 0 {
             1.0
@@ -2156,8 +2171,12 @@ impl App {
             )
         });
         let action = structural_2d::scene_action(scene.kind, has_explanation, scene_progress);
-        let spec = structural_2d::world_spec(before, after, action);
+        let spec = structural_2d::world_spec(before, after, action, before_homes, after_homes);
         animation.physics.step(&spec);
+        // The camera frames the whole chapter (both endpoints), retargets
+        // only when the chapter does, and glides — never chases.
+        let target = structural_2d::chapter_camera(before, after, before_homes, after_homes);
+        structural_2d::ease_camera(&mut animation.camera, target);
     }
 
     fn seek_educational_timeline(&mut self, elapsed_ms: u64) {
@@ -2370,6 +2389,7 @@ impl App {
                         | EducationalSceneKind::ExplanationPause
                 ),
                 animation.physics.positions(),
+                animation.camera,
             ))
             .width(Fill)
             .height(Fill)
