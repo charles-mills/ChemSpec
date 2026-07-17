@@ -3781,44 +3781,20 @@ fn parse_instance(value: &str) -> Option<(&str, u32)> {
 }
 
 fn parse_formula_inventory(source: &str) -> Result<ElementInventory, CatalogueError> {
-    let bytes = source.as_bytes();
-    let mut index = 0;
-    let mut elements = BTreeMap::new();
-    while index < bytes.len() {
-        if !bytes[index].is_ascii_uppercase() {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidStructure,
-                format!("invalid formula summary `{source}`"),
-            ));
-        }
-        let start = index;
-        index += 1;
-        if index < bytes.len() && bytes[index].is_ascii_lowercase() {
-            index += 1;
-        }
-        let element = ElementSymbol::new(&source[start..index]).map_err(structure_error)?;
-        let count_start = index;
-        while index < bytes.len() && bytes[index].is_ascii_digit() {
-            index += 1;
-        }
-        let count = if count_start == index {
-            1
-        } else {
-            source[count_start..index].parse::<u64>().map_err(|_| {
-                CatalogueError::new(
-                    CatalogueErrorCode::InvalidStructure,
-                    format!("invalid formula count in `{source}`"),
-                )
-            })?
-        };
-        if count == 0 || elements.insert(element.clone(), count).is_some() {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidStructure,
-                format!("non-normalized formula summary `{source}`"),
-            ));
-        }
-    }
-    ElementInventory::new(elements).map_err(structure_error)
+    // The domain formula parser understands grouped units like Ca(OH)2.
+    let composition = chem_domain::FormulaComposition::parse(source).map_err(|_| {
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidStructure,
+            format!("invalid formula summary `{source}`"),
+        )
+    })?;
+    ElementInventory::new(
+        composition
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.clone(), *count)),
+    )
+    .map_err(structure_error)
 }
 
 fn canonical_document(document: &CatalogueDocument) -> Result<Vec<u8>, CatalogueError> {

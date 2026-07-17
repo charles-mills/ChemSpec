@@ -56,6 +56,8 @@ pub fn solve_reaction_claim(
             .or_else(|| solve_acid_metal(structures[1], structures[0]))
             .or_else(|| solve_combustion(structures[0], structures[1]))
             .or_else(|| solve_combustion(structures[1], structures[0]))
+            .or_else(|| solve_oxide_water(structures[0], structures[1]))
+            .or_else(|| solve_oxide_water(structures[1], structures[0]))
             .or_else(|| solve_single_displacement(structures[0], structures[1]))
             .or_else(|| solve_single_displacement(structures[1], structures[0]))
             .or_else(|| solve_double_displacement(structures[0], structures[1]))
@@ -91,8 +93,8 @@ struct Verdict {
     observations: Vec<ClaimObservation>,
 }
 
-/// Acid + ionic base (hydroxide, carbonate, or bicarbonate) → salt + water,
-/// with carbon dioxide evolution for the carbonates.
+/// Acid + ionic base (oxide, hydroxide, carbonate, or bicarbonate) → salt
+/// + water, with carbon dioxide evolution for the carbonates.
 fn solve_acid_base(
     acid: &StructureDefinition,
     base: &StructureDefinition,
@@ -213,6 +215,97 @@ fn solve_combustion(
     })
 }
 
+/// One anhydride entry: gcd-reduced composition, oxoacid formula, name.
+type Anhydride = (&'static [(&'static str, u64)], &'static str, &'static str);
+
+/// Acid anhydrides: gcd-reduced nonmetal oxide compositions and the
+/// oxoacid each one hydrates into.
+const ACID_ANHYDRIDES: [Anhydride; 6] = [
+    (&[("C", 1), ("O", 2)], "H2CO3", "carbonic acid"),
+    (&[("O", 2), ("S", 1)], "H2SO3", "sulfurous acid"),
+    (&[("O", 3), ("S", 1)], "H2SO4", "sulfuric acid"),
+    (&[("N", 2), ("O", 3)], "HNO2", "nitrous acid"),
+    (&[("N", 2), ("O", 5)], "HNO3", "nitric acid"),
+    (&[("O", 5), ("P", 2)], "H3PO4", "phosphoric acid"),
+];
+
+/// Metal cations whose oxides slake to hydroxides in water.
+const SLAKING_CATIONS: [&str; 10] = [
+    "Li", "Na", "K", "Rb", "Cs", "Fr", "Ca", "Sr", "Ba", "Ra",
+];
+
+/// Oxide + water. Acid anhydrides hydrate to their oxoacid, reactive metal
+/// oxides slake to hydroxides, and other known metal oxides confidently do
+/// nothing. Borderline oxides (`MgO` reacts slowly, amphoterics passivate,
+/// `NO2` disproportionates) fall to the model.
+fn solve_oxide_water(
+    oxide: &StructureDefinition,
+    water: &StructureDefinition,
+) -> Option<Verdict> {
+    if !is_water(water.formula()) || is_water(oxide.formula()) {
+        return None;
+    }
+    if oxide.representation() == RepresentationKind::Molecular {
+        let elements = oxide.formula().elements();
+        let shared = elements.values().fold(0, |acc, count| gcd(acc, *count));
+        let reduced = elements
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str(), count / shared))
+            .collect::<Vec<_>>();
+        let (_, formula, name) = ACID_ANHYDRIDES
+            .iter()
+            .find(|(anhydride, _, _)| *anhydride == reduced.as_slice())?;
+        return Some(Verdict {
+            products: vec![ClaimProduct {
+                name: (*name).to_owned(),
+                formula: (*formula).to_owned(),
+                phase: ClaimPhase::Aqueous,
+                identity_hints: Vec::new(),
+            }],
+            observations: vec![ClaimObservation {
+                predicate: ClaimObservationPredicate::Forms,
+                subject: "an acidic solution".to_owned(),
+                value: None,
+            }],
+        });
+    }
+    let salt = ionic_salt(oxide)?;
+    if !(salt.anion.len() == 1 && salt.anion.get("O") == Some(&1)) {
+        return None;
+    }
+    if SLAKING_CATIONS.contains(&salt.cation.as_str()) {
+        let hydroxide = Salt {
+            cation: String::new(),
+            cation_charge: 0,
+            anion: [("H".to_owned(), 1), ("O".to_owned(), 1)].into(),
+            anion_charge: 1,
+        };
+        let product = exchanged_salt(
+            &salt.cation,
+            salt.cation_charge,
+            &hydroxide,
+            salt_solubility(&salt.cation, &hydroxide.anion),
+        );
+        return Some(Verdict {
+            products: vec![product],
+            observations: vec![ClaimObservation {
+                predicate: ClaimObservationPredicate::Forms,
+                subject: "an alkaline solution".to_owned(),
+                value: None,
+            }],
+        });
+    }
+    if matches!(salt.cation.as_str(), "Mg" | "Be" | "Al" | "Zn" | "Pb" | "Sn") {
+        return None;
+    }
+    // Any other recognised metal oxide just sits in water.
+    chem_domain::common_cation_charge(&salt.cation)?;
+    Some(Verdict {
+        products: Vec::new(),
+        observations: Vec::new(),
+    })
+}
+
 /// Cations whose carbonates and hydroxides shrug off a Bunsen flame.
 const HEAT_STABLE_CATIONS: [&str; 4] = ["Na", "K", "Rb", "Cs"];
 
@@ -270,6 +363,9 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
                 value: None,
             };
             match anion_kind {
+                // Most metal oxides shrug off heat, but HgO and Ag2O
+                // genuinely decompose; no confident verdict either way.
+                BaseAnion::Oxide => None,
                 BaseAnion::Carbonate | BaseAnion::Hydroxide if stable => Some(Verdict {
                     products: Vec::new(),
                     observations: Vec::new(),
@@ -459,6 +555,7 @@ fn is_water(inventory: &ElementInventory) -> bool {
 /// one element or an O-H hydroxide unit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BaseAnion {
+    Oxide,
     Hydroxide,
     Carbonate,
     Bicarbonate,
@@ -466,6 +563,7 @@ enum BaseAnion {
 
 fn base_anion_kind(sorted_elements: &[&str]) -> Option<BaseAnion> {
     match sorted_elements {
+        ["O"] => Some(BaseAnion::Oxide),
         ["H", "O"] => Some(BaseAnion::Hydroxide),
         ["C", "O", "O", "O"] => Some(BaseAnion::Carbonate),
         ["C", "H", "O", "O", "O"] => Some(BaseAnion::Bicarbonate),
@@ -1265,6 +1363,87 @@ mod tests {
             ("Na₂SO₄", &[11, 11, 16, 8, 8, 8, 8]),
         ]);
         assert!(solve_reaction_claim(&borderline, &SpeciesRegistry::default()).is_none());
+    }
+
+    #[test]
+    fn metal_oxides_neutralize_acids() {
+        let copper = request(&[
+            ("CuO", &[29, 8]),
+            ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["H2O", "CuSO4"]);
+        assert_eq!(claim.products[1].name, "copper(II) sulfate");
+
+        let soda = request(&[("HCl", &[1, 17]), ("Na₂O", &[11, 11, 8])]);
+        let claim =
+            solve_reaction_claim(&soda, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["H2O", "NaCl"]);
+    }
+
+    #[test]
+    fn acid_anhydrides_hydrate_to_oxoacids() {
+        let sulfur_trioxide = request(&[("SO₃", &[16, 8, 8, 8]), ("H₂O", &[1, 1, 8])]);
+        let claim = solve_reaction_claim(&sulfur_trioxide, &SpeciesRegistry::default())
+            .expect("solved");
+        assert_eq!(claim.products.len(), 1);
+        assert_eq!(claim.products[0].formula, "H2SO4");
+        assert_eq!(claim.products[0].name, "sulfuric acid");
+
+        let carbon_dioxide = request(&[("H₂O", &[1, 1, 8]), ("CO₂", &[6, 8, 8])]);
+        let claim = solve_reaction_claim(&carbon_dioxide, &SpeciesRegistry::default())
+            .expect("solved");
+        assert_eq!(claim.products[0].formula, "H2CO3");
+        assert_eq!(claim.products[0].name, "carbonic acid");
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject.contains("acidic"))
+        );
+    }
+
+    #[test]
+    fn reactive_metal_oxides_slake_and_noble_ones_sit_still() {
+        let quicklime = request(&[("CaO", &[20, 8]), ("H₂O", &[1, 1, 8])]);
+        let claim =
+            solve_reaction_claim(&quicklime, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products.len(), 1);
+        assert_eq!(claim.products[0].formula, "Ca(OH)2");
+        assert_eq!(claim.products[0].name, "calcium hydroxide");
+
+        let soda = request(&[("Na₂O", &[11, 11, 8]), ("H₂O", &[1, 1, 8])]);
+        let claim =
+            solve_reaction_claim(&soda, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "NaOH");
+
+        let copper = request(&[("CuO", &[29, 8]), ("H₂O", &[1, 1, 8])]);
+        let claim =
+            solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+
+        // MgO reacts slowly and NO2 disproportionates: no confident verdict.
+        let magnesia = request(&[("MgO", &[12, 8]), ("H₂O", &[1, 1, 8])]);
+        assert!(solve_reaction_claim(&magnesia, &SpeciesRegistry::default()).is_none());
+        let dioxide = request(&[("NO₂", &[7, 8, 8]), ("H₂O", &[1, 1, 8])]);
+        assert!(solve_reaction_claim(&dioxide, &SpeciesRegistry::default()).is_none());
+    }
+
+    #[test]
+    fn metal_oxides_do_not_claim_heat_decomposition() {
+        let heated = contextual("CuO", &[29, 8], "heat");
+        assert!(solve_reaction_claim(&heated, &SpeciesRegistry::default()).is_none());
     }
 
     #[test]

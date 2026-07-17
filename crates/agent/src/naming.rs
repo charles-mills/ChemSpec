@@ -153,13 +153,15 @@ pub(crate) fn binary_molecular_name(counts: &BTreeMap<String, u64>) -> Option<St
 }
 
 /// Well-known names that no systematic rule covers.
-const TRIVIAL_NAMES: [(&str, &[(&str, u64)]); 8] = [
+const TRIVIAL_NAMES: [(&str, &[(&str, u64)]); 10] = [
     ("water", &[("H", 2), ("O", 1)]),
     ("ammonia", &[("N", 1), ("H", 3)]),
     ("methane", &[("C", 1), ("H", 4)]),
     ("hydrochloric acid", &[("H", 1), ("Cl", 1)]),
     ("sulfuric acid", &[("H", 2), ("S", 1), ("O", 4)]),
+    ("sulfurous acid", &[("H", 2), ("S", 1), ("O", 3)]),
     ("nitric acid", &[("H", 1), ("N", 1), ("O", 3)]),
+    ("nitrous acid", &[("H", 1), ("N", 1), ("O", 2)]),
     ("carbonic acid", &[("H", 2), ("C", 1), ("O", 3)]),
     ("phosphoric acid", &[("H", 3), ("P", 1), ("O", 4)]),
 ];

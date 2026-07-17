@@ -1879,6 +1879,45 @@ mod tests {
     }
 
     #[test]
+    fn metal_oxide_neutralization_animates_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("CuO", vec![29, 8]), ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8])],
+            &json!([
+                {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
+                {"name":"copper(II) sulfate","formula":"CuSO4","phase":"aqueous","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn quicklime_slaking_animates_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("CaO", vec![20, 8]), ("Water", vec![1, 1, 8])],
+            &json!([
+                {"name":"calcium hydroxide","formula":"Ca(OH)2","phase":"unknown","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
     fn precipitation_animates_algorithmically_without_any_model() {
         let trusted = trusted();
         let outcome = static_outcome_for(
