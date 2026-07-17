@@ -58,6 +58,8 @@ pub fn solve_reaction_claim(
             .or_else(|| solve_combustion(structures[1], structures[0]))
             .or_else(|| solve_oxide_water(structures[0], structures[1]))
             .or_else(|| solve_oxide_water(structures[1], structures[0]))
+            .or_else(|| solve_metal_water(structures[0], structures[1]))
+            .or_else(|| solve_metal_water(structures[1], structures[0]))
             .or_else(|| solve_single_displacement(structures[0], structures[1]))
             .or_else(|| solve_single_displacement(structures[1], structures[0]))
             .or_else(|| solve_double_displacement(structures[0], structures[1]))
@@ -229,10 +231,28 @@ const ACID_ANHYDRIDES: [Anhydride; 6] = [
     (&[("O", 5), ("P", 2)], "H3PO4", "phosphoric acid"),
 ];
 
-/// Metal cations whose oxides slake to hydroxides in water.
-const SLAKING_CATIONS: [&str; 10] = [
+/// Metals reactive enough that both they and their oxides turn water into
+/// the hydroxide (the alkali and heavy alkaline-earth metals).
+const WATER_REACTIVE_METALS: [&str; 10] = [
     "Li", "Na", "K", "Rb", "Cs", "Fr", "Ca", "Sr", "Ba", "Ra",
 ];
+
+/// The hydroxide of one cation, conventionally formatted and phased by
+/// solubility.
+fn hydroxide_salt(cation: &str, charge: u64) -> ClaimProduct {
+    let hydroxide = Salt {
+        cation: String::new(),
+        cation_charge: 0,
+        anion: [("H".to_owned(), 1), ("O".to_owned(), 1)].into(),
+        anion_charge: 1,
+    };
+    exchanged_salt(
+        cation,
+        charge,
+        &hydroxide,
+        salt_solubility(cation, &hydroxide.anion),
+    )
+}
 
 /// Oxide + water. Acid anhydrides hydrate to their oxoacid, reactive metal
 /// oxides slake to hydroxides, and other known metal oxides confidently do
@@ -273,21 +293,9 @@ fn solve_oxide_water(
     if !(salt.anion.len() == 1 && salt.anion.get("O") == Some(&1)) {
         return None;
     }
-    if SLAKING_CATIONS.contains(&salt.cation.as_str()) {
-        let hydroxide = Salt {
-            cation: String::new(),
-            cation_charge: 0,
-            anion: [("H".to_owned(), 1), ("O".to_owned(), 1)].into(),
-            anion_charge: 1,
-        };
-        let product = exchanged_salt(
-            &salt.cation,
-            salt.cation_charge,
-            &hydroxide,
-            salt_solubility(&salt.cation, &hydroxide.anion),
-        );
+    if WATER_REACTIVE_METALS.contains(&salt.cation.as_str()) {
         return Some(Verdict {
-            products: vec![product],
+            products: vec![hydroxide_salt(&salt.cation, salt.cation_charge)],
             observations: vec![ClaimObservation {
                 predicate: ClaimObservationPredicate::Forms,
                 subject: "an alkaline solution".to_owned(),
@@ -304,6 +312,53 @@ fn solve_oxide_water(
         products: Vec::new(),
         observations: Vec::new(),
     })
+}
+
+/// Elemental metal + water: the very reactive metals form their hydroxide
+/// and hydrogen; metals below hydrogen in the activity series confidently
+/// do nothing. The steam-only band (Mg through Pb) falls to the model.
+fn solve_metal_water(
+    metal: &StructureDefinition,
+    water: &StructureDefinition,
+) -> Option<Verdict> {
+    if metal.representation() != RepresentationKind::Metallic || !is_water(water.formula()) {
+        return None;
+    }
+    let (element, _) = single_element(metal)?;
+    if WATER_REACTIVE_METALS.contains(&element.as_str()) {
+        let charge = u64::try_from(chem_domain::common_cation_charge(element.as_str())?).ok()?;
+        return Some(Verdict {
+            products: vec![
+                hydroxide_salt(element.as_str(), charge),
+                ClaimProduct {
+                    name: "Hydrogen".to_owned(),
+                    formula: "H2".to_owned(),
+                    phase: ClaimPhase::Gas,
+                    identity_hints: Vec::new(),
+                },
+            ],
+            observations: vec![
+                ClaimObservation {
+                    predicate: ClaimObservationPredicate::Evolves,
+                    subject: "hydrogen gas".to_owned(),
+                    value: None,
+                },
+                ClaimObservation {
+                    predicate: ClaimObservationPredicate::Forms,
+                    subject: "an alkaline solution".to_owned(),
+                    value: None,
+                },
+            ],
+        });
+    }
+    if !chem_domain::displaces_hydrogen_from_acids(element.as_str())? {
+        // Below the hydrogen pivot nothing happens, even to steam.
+        return Some(Verdict {
+            products: Vec::new(),
+            observations: Vec::new(),
+        });
+    }
+    None
 }
 
 /// Cations whose carbonates and hydroxides shrug off a Bunsen flame.
@@ -1438,6 +1493,43 @@ mod tests {
         assert!(solve_reaction_claim(&magnesia, &SpeciesRegistry::default()).is_none());
         let dioxide = request(&[("NO₂", &[7, 8, 8]), ("H₂O", &[1, 1, 8])]);
         assert!(solve_reaction_claim(&dioxide, &SpeciesRegistry::default()).is_none());
+    }
+
+    #[test]
+    fn reactive_metals_turn_water_into_hydroxide_and_hydrogen() {
+        let sodium = request(&[("Na", &[11]), ("H₂O", &[1, 1, 8])]);
+        let claim =
+            solve_reaction_claim(&sodium, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["NaOH", "H2"]);
+        assert_eq!(claim.products[0].name, "sodium hydroxide");
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject.contains("hydrogen"))
+        );
+
+        // Order-independent, and Ca(OH)2 formats conventionally.
+        let calcium = request(&[("H₂O", &[1, 1, 8]), ("Ca", &[20])]);
+        let claim =
+            solve_reaction_claim(&calcium, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "Ca(OH)2");
+
+        let copper = request(&[("Cu", &[29]), ("H₂O", &[1, 1, 8])]);
+        let claim =
+            solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+
+        // The steam-only band has no cold-water verdict.
+        let magnesium = request(&[("Mg", &[12]), ("H₂O", &[1, 1, 8])]);
+        assert!(solve_reaction_claim(&magnesium, &SpeciesRegistry::default()).is_none());
+        let iron = request(&[("Fe", &[26]), ("H₂O", &[1, 1, 8])]);
+        assert!(solve_reaction_claim(&iron, &SpeciesRegistry::default()).is_none());
     }
 
     #[test]

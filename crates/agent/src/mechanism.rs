@@ -1918,6 +1918,26 @@ mod tests {
     }
 
     #[test]
+    fn sodium_and_water_animate_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("Na", vec![11]), ("Water", vec![1, 1, 8])],
+            &json!([
+                {"name":"sodium hydroxide","formula":"NaOH","phase":"aqueous","identity_hints":[]},
+                {"name":"Hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
     fn precipitation_animates_algorithmically_without_any_model() {
         let trusted = trusted();
         let outcome = static_outcome_for(
