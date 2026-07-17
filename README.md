@@ -13,6 +13,8 @@ animation pipeline — the model is a fallback, never a shortcut.
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
 
+<img alt="image" src="https://github.com/user-attachments/assets/adbbfc91-d12c-4244-b28d-2f04f31b82e8" />
+
 ## Product contract
 
 ```text
