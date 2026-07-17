@@ -1148,6 +1148,7 @@ struct StructuralAnimation {
     settled: bool,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 struct App {
     screen: Screen,
     /// Keyboard-only selection and shortcut hints stay hidden until a
@@ -4453,14 +4454,15 @@ mod tests {
 
 
     /// Catalogue graphs pack all cations of one kind into a single atom
-    /// group (both Na+ of Na2CO3 share one group), which used to defeat
+    /// group (both `Na+` of `Na2CO3` share one group), which used to defeat
     /// `ionic_salt`'s one-atom-per-cation-group assumption and return None
     /// for every polyprotic acid + carbonate pair.
     #[test]
     fn polyprotic_acids_neutralize_catalogue_carbonates_and_hydroxides() {
+        type PolyproticCase = (&'static str, Vec<u8>, &'static str, Vec<u8>, &'static str);
         let catalogue = chemistry::trusted_catalogue().expect("catalogue");
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
-        let cases: [(&str, Vec<u8>, &str, Vec<u8>, &str); 5] = [
+        let cases: [PolyproticCase; 5] = [
             // Monoprotic control: this already worked before the fix.
             ("HCl", vec![1, 17], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "NaCl"),
             ("H\u{2082}SO\u{2084}", vec![1, 1, 16, 8, 8, 8, 8], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "Na2SO4"),
@@ -4499,6 +4501,115 @@ mod tests {
                 outcome.equation()
             );
         }
+    }
+
+    #[test]
+    fn ambient_animation_ticks_do_not_cancel_or_clear_dynamic_builds() {
+        // The composer emits AnimationTick every 33ms while ambient models
+        // are on screen; treating those as edits silently cancelled every
+        // Tier B/C build the moment it started.
+        let mut app = App {
+            provider: Some(ProviderChoice::Local),
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![17]]);
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { .. }
+        ));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::AnimationTick,
+        ));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::PromptAnimationTick,
+        ));
+        assert!(
+            matches!(app.dynamic_build, DynamicBuildState::Running { .. }),
+            "presentation ticks must not cancel a running build"
+        );
+        app.dynamic_build = DynamicBuildState::Idle;
+        app.dynamic_static = Some(dynamic_lithium_static());
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::AnimationTick,
+        ));
+        assert!(
+            app.dynamic_static.is_some(),
+            "presentation ticks must not clear a finished result"
+        );
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::AddElement(8),
+        ));
+        assert!(
+            app.dynamic_static.is_none(),
+            "a real draft edit still invalidates the result"
+        );
+    }
+
+    #[test]
+    fn derived_copper_displacement_plays_through_both_timelines() {
+        // Fe + CuSO4 crashed mid-animation once (metallic acceptor with an
+        // empty shell delta); the full derived pipeline must build and play
+        // both timelines to completion.
+        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let identities = agent::reviewed_species_registry(catalogue).expect("registry");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "CuSO\u{2084}".to_owned(),
+                    atomic_numbers: vec![29, 16, 8, 8, 8, 8],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "Fe".to_owned(),
+                    atomic_numbers: vec![26],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = agent::solve_reaction_claim(&request, &identities).expect("solved");
+        let outcome = compile_claim_outcome(&request, claim, &identities).expect("outcome");
+        let CompiledClaimOutcome::Static(static_outcome) = outcome else {
+            panic!("expected static outcome");
+        };
+        let mut provider = CodexProvider::new(CodexProviderConfig::from_environment());
+        let presentation = enrich_static_outcome(static_outcome, catalogue, &mut provider)
+            .expect("presentation enriches");
+        let mut app = App {
+            provider: Some(ProviderChoice::Local),
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        app.dynamic_request = Some(request);
+        app.finish_dynamic_presentation(presentation);
+        assert_eq!(app.screen, Screen::Structural2d);
+        assert!(app.structural_animation.is_some());
+        assert!(app.structural_error.is_none());
+
+        let mut guard = 0;
+        while let Some(animation) = &app.structural_animation {
+            if !animation.playing || guard > 100_000 {
+                break;
+            }
+            guard += 1;
+            app.update(Message::StructuralTick);
+        }
+        assert!((1..100_000).contains(&guard), "2D playback terminates");
+        app.update(Message::ContinueTo3d);
+        assert_eq!(app.screen, Screen::Structural3d);
+        let mut guard = 0;
+        while let Some(animation) = &app.structural_animation {
+            if !animation.playing || guard > 100_000 {
+                break;
+            }
+            guard += 1;
+            app.update(Message::StructuralTick);
+        }
+        assert!((1..100_000).contains(&guard), "3D playback terminates");
     }
 
     #[test]

@@ -527,14 +527,24 @@ pub fn world_spec(
     let before_frame = RenderFrame::from(before);
     let after_frame = RenderFrame::from(after);
 
-    let mut atoms = BTreeMap::new();
-    for atom in before_frame.atoms.iter().chain(&after_frame.atoms) {
-        atoms.insert(atom.id.clone(), atom.element.clone());
+    // Per-atom element plus formal charge at both endpoints, so the physics
+    // can blend electrostatics across the transition.
+    let mut atoms = BTreeMap::<String, (String, f32, f32)>::new();
+    for atom in &before_frame.atoms {
+        let charge = f32::from(atom.formal_charge);
+        atoms.insert(atom.id.clone(), (atom.element.clone(), charge, charge));
+    }
+    for atom in &after_frame.atoms {
+        let charge = f32::from(atom.formal_charge);
+        atoms
+            .entry(atom.id.clone())
+            .and_modify(|(_, _, after)| *after = charge)
+            .or_insert((atom.element.clone(), charge, charge));
     }
     let radius_of = |id: &str| {
         atoms
             .get(id)
-            .map_or(24.0, |element| atom_visual_radius(element))
+            .map_or(24.0, |(element, ..)| atom_visual_radius(element))
     };
     let home_of = |id: &str| {
         let start = before_homes.get(id).or_else(|| after_homes.get(id));
@@ -565,17 +575,15 @@ pub fn world_spec(
     add_bonds(&before_frame, 1.0 - action);
     add_bonds(&after_frame, action);
 
-    // Ionic partners attract loosely between their charged anchor atoms.
+    // Ionic partners attract loosely between their charged anchor atoms;
+    // same-substance formula units share one lattice topology, so their
+    // springs hold the giant ionic structure together.
     let mut add_ionic = |frame: &RenderFrame, weight: f32| {
-        for association in &frame.ionic_associations {
-            let render = RenderIonicAssociation {
-                id: association.id.clone(),
-                components: association.components.clone(),
-            };
-            for (left, right) in ionic_component_pairs(&render) {
+        for group in lattice_groups(frame) {
+            for (left, right) in &group.pairs {
                 let (Some(anchor_left), Some(anchor_right)) = (
-                    ionic_anchor_id(&association.components[left], frame),
-                    ionic_anchor_id(&association.components[right], frame),
+                    ionic_anchor_id(member_component(frame, group.members[*left]), frame),
+                    ionic_anchor_id(member_component(frame, group.members[*right]), frame),
                 ) else {
                     continue;
                 };
@@ -596,10 +604,11 @@ pub fn world_spec(
 
     let spec_atoms = atoms
         .iter()
-        .filter_map(|(id, element)| {
+        .filter_map(|(id, (element, before_charge, after_charge))| {
             home_of(id).map(|home| AtomSpec {
                 id: id.clone(),
                 radius: atom_visual_radius(element),
+                charge: before_charge + (after_charge - before_charge) * action,
                 seed: home,
             })
         })
@@ -1216,9 +1225,7 @@ fn connected_components(frame: &StructuralFrame) -> Vec<Vec<String>> {
     for bond in &frame.covalent_bonds {
         link(&bond.left, &bond.right);
     }
-    for association in &frame.ionic_associations {
-        link_ionic_components(association, frame, &mut link);
-    }
+    link_ionic(frame, &mut link);
     for domain in &frame.metallic_domains {
         if let Some(first) = domain.sites.first() {
             for site in domain.sites.iter().skip(1) {
@@ -1311,6 +1318,9 @@ fn layout_component(
     center: Point,
     positions: &mut BTreeMap<String, Point>,
 ) {
+    if layout_lattice(frame, component, center, positions) {
+        return;
+    }
     if component.len() == 1 {
         positions.insert(component[0].clone(), center);
         return;
@@ -1370,6 +1380,76 @@ fn layout_component(
     }
 }
 
+/// Lays out a component that is exactly one ionic lattice group as a
+/// charge-alternating grid centred on `center`; returns false for anything
+/// else so the caller falls back to the tree layout. Each ion keeps its own
+/// internal geometry and occupies one uniformly sized cell, so no two ions
+/// can overlap regardless of stoichiometry.
+#[allow(clippy::cast_precision_loss)]
+fn layout_lattice(
+    frame: &StructuralFrame,
+    component: &[String],
+    center: Point,
+    positions: &mut BTreeMap<String, Point>,
+) -> bool {
+    let wanted = component
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let Some(group) = lattice_groups(frame).into_iter().find(|group| {
+        group.members.len() >= 2
+            && !group.pairs.is_empty()
+            && group
+                .members
+                .iter()
+                .flat_map(|member| member_component(frame, *member).atoms.iter())
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>()
+                == wanted
+    }) else {
+        return false;
+    };
+
+    // Lay each ion out around the origin to measure its footprint, then
+    // stamp it into its grid cell.
+    let radius_of =
+        |id: &str| atom(frame, id).map_or(24.0, |state| atom_visual_radius(&state.element));
+    let mut internal = Vec::with_capacity(group.members.len());
+    let mut footprint = 0.0_f32;
+    for member in &group.members {
+        let mut ion = member_component(frame, *member).atoms.clone();
+        ion.sort();
+        let mut local = BTreeMap::new();
+        layout_component(frame, &ion, Point::ORIGIN, &mut local);
+        for (id, position) in &local {
+            footprint = footprint.max(vector_magnitude(*position - Point::ORIGIN) + radius_of(id));
+        }
+        internal.push(local);
+    }
+
+    let spacing = footprint * 2.0 + 34.0;
+    let columns = group.columns;
+    let rows = group.members.len().div_ceil(columns);
+    for (index, local) in internal.iter().enumerate() {
+        let row = index / columns;
+        let along = index % columns;
+        let column = if row % 2 == 0 {
+            along
+        } else {
+            columns - 1 - along
+        };
+        let cell = center
+            + Vector::new(
+                (column as f32 - (columns - 1) as f32 * 0.5) * spacing,
+                (row as f32 - (rows - 1) as f32 * 0.5) * spacing,
+            );
+        for (id, offset) in local {
+            positions.insert(id.clone(), cell + (*offset - Point::ORIGIN));
+        }
+    }
+    true
+}
+
 #[allow(clippy::cast_precision_loss)]
 fn root_child_angle(index: usize, count: usize) -> f32 {
     match count {
@@ -1403,9 +1483,7 @@ fn component_adjacency(
     for bond in &frame.covalent_bonds {
         link(&bond.left, &bond.right);
     }
-    for association in &frame.ionic_associations {
-        link_ionic_components(association, frame, &mut link);
-    }
+    link_ionic(frame, &mut link);
     for domain in &frame.metallic_domains {
         if let Some(first) = domain.sites.first() {
             for site in domain.sites.iter().skip(1) {
@@ -1479,28 +1557,52 @@ fn draw_relationship_transition(
 
     let before_ionic = ionic_map(before);
     let after_ionic = ionic_map(after);
-    for key in before_ionic
-        .keys()
-        .chain(after_ionic.keys())
-        .cloned()
-        .collect::<BTreeSet<_>>()
-    {
-        let association = after_ionic.get(&key).or_else(|| before_ionic.get(&key));
-        let Some(association) = association else {
-            continue;
-        };
-        let in_before = before_ionic.contains_key(&key);
-        let in_after = after_ionic.contains_key(&key);
-        let reveal = match (in_before, in_after) {
-            (true, true) => 1.0,
-            (false, true) => progress,
-            (true, false) => 1.0 - progress,
-            (false, false) => 0.0,
-        };
-        for (left, right) in ionic_component_pairs(association) {
+    // One union frame keeps the full lattice topology while individual
+    // formula units fade with their own association's reveal.
+    let mut union_frame = after.clone();
+    for association in &before.ionic_associations {
+        if !after_ionic.contains_key(&association.id) {
+            union_frame.ionic_associations.push(association.clone());
+        }
+    }
+    for atom in &before.atoms {
+        if union_frame
+            .atoms
+            .iter()
+            .all(|existing| existing.id != atom.id)
+        {
+            union_frame.atoms.push(atom.clone());
+        }
+    }
+    let reveal_of = |id: &str| match (
+        before_ionic.contains_key(id),
+        after_ionic.contains_key(id),
+    ) {
+        (true, true) => 1.0,
+        (false, true) => progress,
+        (true, false) => 1.0 - progress,
+        (false, false) => 0.0,
+    };
+    for group in lattice_groups(&union_frame) {
+        for (left, right) in &group.pairs {
+            let left = group.members[*left];
+            let right = group.members[*right];
+            let reveal = reveal_of(&union_frame.ionic_associations[left.0].id)
+                .min(reveal_of(&union_frame.ionic_associations[right.0].id));
+            if reveal <= 0.0 {
+                continue;
+            }
             let (Some(left), Some(right)) = (
-                ionic_component_position(&association.components[left], after, positions),
-                ionic_component_position(&association.components[right], after, positions),
+                ionic_component_position(
+                    member_component(&union_frame, left),
+                    &union_frame,
+                    positions,
+                ),
+                ionic_component_position(
+                    member_component(&union_frame, right),
+                    &union_frame,
+                    positions,
+                ),
             ) else {
                 continue;
             };
@@ -1533,67 +1635,156 @@ fn ionic_map(frame: &StructuralFrame) -> BTreeMap<String, RenderIonicAssociation
         .collect()
 }
 
-fn link_ionic_components(
-    association: &RenderIonicAssociation,
-    frame: &StructuralFrame,
-    link: &mut impl FnMut(&str, &str),
-) {
-    for component in &association.components {
-        if let Some(first) = component.atoms.first() {
-            for atom in component.atoms.iter().skip(1) {
-                link(first, atom);
+/// Links atoms within every ion of every association, then anchor atoms
+/// across lattice-neighbour ions — fusing same-substance formula units into
+/// one connected crystal.
+fn link_ionic(frame: &StructuralFrame, link: &mut impl FnMut(&str, &str)) {
+    for association in &frame.ionic_associations {
+        for component in &association.components {
+            if let Some(first) = component.atoms.first() {
+                for atom in component.atoms.iter().skip(1) {
+                    link(first, atom);
+                }
             }
         }
     }
-    let anchors = association
-        .components
-        .iter()
-        .map(|component| ionic_anchor_id(component, frame))
-        .collect::<Vec<_>>();
-    for (left, right) in ionic_component_pairs(association) {
-        if let (Some(left), Some(right)) = (anchors[left], anchors[right]) {
-            link(left, right);
+    for group in lattice_groups(frame) {
+        for (left, right) in &group.pairs {
+            if let (Some(left), Some(right)) = (
+                ionic_anchor_id(member_component(frame, group.members[*left]), frame),
+                ionic_anchor_id(member_component(frame, group.members[*right]), frame),
+            ) {
+                link(left, right);
+            }
         }
     }
 }
 
-/// Returns a deterministic, connected bipartite topology for an ionic
-/// association. Catalogue component order is an identity concern, not a
-/// presentation topology: linking adjacent records could place cation beside
-/// cation and anion beside anion. This tree alternates charge signs and then
-/// attaches any surplus ions only to oppositely charged components.
-fn ionic_component_pairs(association: &RenderIonicAssociation) -> Vec<(usize, usize)> {
-    let positive = association
-        .components
+/// Ionic associations of the same substance, fused into one crystal.
+///
+/// Ionic compounds have no molecules: catalogue component order is an
+/// identity concern, not a presentation topology, and separate formula
+/// units are a bookkeeping artefact. All charged ions of a substance are
+/// interleaved into a charge-alternating sequence and wrapped boustrophedon
+/// into a near-square grid, so consecutive sequence entries are always
+/// grid-adjacent and every horizontal and vertical neighbour pair carries
+/// opposite signs wherever the stoichiometry allows.
+struct LatticeGroup {
+    /// `(association index, component index)` in grid sequence order.
+    members: Vec<(usize, usize)>,
+    columns: usize,
+    /// Opposite-charge grid-neighbour pairs, as indices into `members`.
+    pairs: Vec<(usize, usize)>,
+}
+
+fn member_component(
+    frame: &StructuralFrame,
+    member: (usize, usize),
+) -> &RenderIonicComponent {
+    &frame.ionic_associations[member.0].components[member.1]
+}
+
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+fn lattice_groups(frame: &StructuralFrame) -> Vec<LatticeGroup> {
+    let elements: BTreeMap<&str, &str> = frame
+        .atoms
         .iter()
-        .enumerate()
-        .filter_map(|(index, component)| (component.charge > 0).then_some(index))
-        .collect::<Vec<_>>();
-    let negative = association
-        .components
-        .iter()
-        .enumerate()
-        .filter_map(|(index, component)| (component.charge < 0).then_some(index))
-        .collect::<Vec<_>>();
-    if positive.is_empty() || negative.is_empty() {
-        return Vec::new();
+        .map(|atom| (atom.id.as_str(), atom.element.as_str()))
+        .collect();
+    // Substance identity is structural: the multiset of (charge, element
+    // multiset) over an association's ions. Same signature, same salt.
+    let mut by_signature: BTreeMap<Vec<(i64, Vec<&str>)>, Vec<usize>> = BTreeMap::new();
+    for (index, association) in frame.ionic_associations.iter().enumerate() {
+        let mut signature = association
+            .components
+            .iter()
+            .map(|component| {
+                let mut atoms = component
+                    .atoms
+                    .iter()
+                    .map(|id| elements.get(id.as_str()).copied().unwrap_or(""))
+                    .collect::<Vec<_>>();
+                atoms.sort_unstable();
+                (component.charge, atoms)
+            })
+            .collect::<Vec<_>>();
+        signature.sort();
+        by_signature.entry(signature).or_default().push(index);
     }
 
-    let shared = positive.len().min(negative.len());
-    let mut pairs = Vec::with_capacity(positive.len() + negative.len() - 1);
-    for index in 0..shared {
-        pairs.push((positive[index], negative[index]));
-        if index + 1 < shared {
-            pairs.push((negative[index], positive[index + 1]));
-        }
-    }
-    for (offset, component) in positive.iter().copied().skip(shared).enumerate() {
-        pairs.push((component, negative[offset % negative.len()]));
-    }
-    for (offset, component) in negative.iter().copied().skip(shared).enumerate() {
-        pairs.push((component, positive[offset % positive.len()]));
-    }
-    pairs
+    by_signature
+        .into_values()
+        .map(|associations| {
+            let mut positive = Vec::new();
+            let mut negative = Vec::new();
+            for &index in &associations {
+                for (slot, component) in frame.ionic_associations[index]
+                    .components
+                    .iter()
+                    .enumerate()
+                {
+                    match component.charge.signum() {
+                        1 => positive.push((index, slot)),
+                        -1 => negative.push((index, slot)),
+                        _ => {}
+                    }
+                }
+            }
+            // Interleave with the majority sign first, so alternation runs
+            // as long as the stoichiometry allows and leftovers sit at the
+            // end of the sequence.
+            let (major, minor, major_sign) = if negative.len() > positive.len() {
+                (&negative, &positive, -1_i64)
+            } else {
+                (&positive, &negative, 1_i64)
+            };
+            let mut members = Vec::with_capacity(positive.len() + negative.len());
+            let mut signs = Vec::with_capacity(members.capacity());
+            for index in 0..major.len().max(minor.len()) {
+                if let Some(member) = major.get(index) {
+                    members.push(*member);
+                    signs.push(major_sign);
+                }
+                if let Some(member) = minor.get(index) {
+                    members.push(*member);
+                    signs.push(-major_sign);
+                }
+            }
+
+            let columns = ((members.len() as f32).sqrt().ceil() as usize).max(1);
+            let mut pairs = Vec::new();
+            for index in 0..members.len() {
+                // Consecutive sequence entries are grid-adjacent by the
+                // boustrophedon wrap.
+                if index + 1 < members.len() && signs[index] != signs[index + 1] {
+                    pairs.push((index, index + 1));
+                }
+                // The cell directly below, skipping row-turn duplicates.
+                let row = index / columns;
+                let along = index % columns;
+                let column = if row.is_multiple_of(2) {
+                    along
+                } else {
+                    columns - 1 - along
+                };
+                let below = (row + 1) * columns
+                    + if (row + 1).is_multiple_of(2) {
+                        column
+                    } else {
+                        columns - 1 - column
+                    };
+                if below < members.len() && below != index + 1 && signs[index] != signs[below] {
+                    pairs.push((index, below));
+                }
+            }
+            LatticeGroup {
+                members,
+                columns,
+                pairs,
+            }
+        })
+        .collect()
 }
 
 fn ionic_component_position(
@@ -2436,19 +2627,29 @@ fn draw_metallic_electron_transfer(
     else {
         return;
     };
-    let delta = electron_state_delta(Some(before_acceptor), Some(after_acceptor));
-    let targets = electron_positions(*acceptor_center, after_acceptor, phase, scale, &[])
-        .into_iter()
-        .skip(usize::from(delta.persistent))
-        .take(usize::from(delta.enters_shell))
-        .collect::<Vec<_>>();
-    debug_assert_eq!(targets.len(), usize::from(count));
-
     let direction = *acceptor_center - *donor;
     let magnitude = vector_magnitude(direction).max(1.0);
     let along = direction / magnitude;
     let perpendicular = Vector::new(-along.y, along.x);
-    for (index, target) in targets.into_iter().enumerate() {
+    let delta = electron_state_delta(Some(before_acceptor), Some(after_acceptor));
+    let mut targets = electron_positions(*acceptor_center, after_acceptor, phase, scale, &[])
+        .into_iter()
+        .skip(usize::from(delta.persistent))
+        .take(usize::from(delta.enters_shell))
+        .collect::<Vec<_>>();
+    // A metallic acceptor keeps its gained electrons in the shared sea, so
+    // the shell delta can be empty (Fe + CuSO₄ deposits onto Cu like this).
+    // The transfer still needs a destination: land the remaining electrons
+    // on the acceptor's rim facing the donor instead of asserting shell
+    // growth — choreography degrades, the app never panics.
+    for index in targets.len()..usize::from(count) {
+        let offset =
+            f32::from(u8::try_from(index).unwrap_or(u8::MAX)) - (f32::from(count) - 1.0) * 0.5;
+        targets.push(
+            *acceptor_center - along * 26.0 * scale + perpendicular * offset * 9.0 * scale,
+        );
+    }
+    for (index, target) in targets.into_iter().enumerate().take(usize::from(count)) {
         let index = u8::try_from(index).unwrap_or(u8::MAX);
         let offset = f32::from(index) - (f32::from(count) - 1.0) * 0.5;
         let source = *donor + along * 33.0 * scale + perpendicular * offset * 7.0 * scale;
@@ -3110,11 +3311,14 @@ mod tests {
             metallic_domains: Vec::new(),
         };
 
-        let pairs = ionic_component_pairs(&association);
-        assert_eq!(pairs.len(), association.components.len() - 1);
-        assert!(pairs.iter().all(|(left, right)| {
-            association.components[*left].charge.signum()
-                != association.components[*right].charge.signum()
+        let groups = lattice_groups(&frame);
+        assert_eq!(groups.len(), 1);
+        let group = &groups[0];
+        assert_eq!(group.members.len(), association.components.len());
+        assert!(group.pairs.len() >= association.components.len() - 1);
+        assert!(group.pairs.iter().all(|(left, right)| {
+            member_component(&frame, group.members[*left]).charge.signum()
+                != member_component(&frame, group.members[*right]).charge.signum()
         }));
         assert_eq!(connected_components(&frame).len(), 1);
 
@@ -3138,6 +3342,98 @@ mod tests {
         let previous = layout_ordered(&disconnected, &connected_components(&disconnected), bounds);
         let transition_after = flow_layout(&frame, &previous, &BTreeSet::new(), bounds);
         assert!(vector_magnitude(transition_after["mn2"] - transition_after["mn1"]) > 50.0);
+    }
+
+    fn ion_atom(id: &str, element: &str, formal_charge: i16) -> RenderAtom {
+        RenderAtom {
+            id: id.to_owned(),
+            element: element.to_owned(),
+            formal_charge,
+            non_bonding_electrons: 0,
+            unpaired_electrons: 0,
+        }
+    }
+
+    fn salt_unit(id: &str, cation: &str, anion: &str) -> RenderIonicAssociation {
+        RenderIonicAssociation {
+            id: id.to_owned(),
+            components: vec![
+                RenderIonicComponent {
+                    atoms: vec![cation.to_owned()],
+                    charge: 1,
+                },
+                RenderIonicComponent {
+                    atoms: vec![anion.to_owned()],
+                    charge: -1,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn same_salt_units_fuse_into_an_alternating_lattice() {
+        let frame = RenderFrame {
+            atoms: vec![
+                ion_atom("na1", "Na", 1),
+                ion_atom("cl1", "Cl", -1),
+                ion_atom("na2", "Na", 1),
+                ion_atom("cl2", "Cl", -1),
+            ],
+            covalent_bonds: Vec::new(),
+            ionic_associations: vec![
+                salt_unit("ionic[1].salt", "na1", "cl1"),
+                salt_unit("ionic[2].salt", "na2", "cl2"),
+            ],
+            metallic_domains: Vec::new(),
+        };
+
+        let groups = lattice_groups(&frame);
+        assert_eq!(groups.len(), 1, "same substance fuses into one lattice");
+        assert_eq!(groups[0].members.len(), 4);
+        // A 2x2 checkerboard closes into a ring of four opposite-charge
+        // neighbour links.
+        assert_eq!(groups[0].pairs.len(), 4);
+        assert_eq!(connected_components(&frame).len(), 1);
+
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(1600.0, 900.0));
+        let positions = layout_ordered(&frame, &connected_components(&frame), bounds);
+        // Every sodium's nearest neighbours are chlorides: like charges sit
+        // on the diagonal, never adjacent.
+        let na_gap = vector_magnitude(positions["na2"] - positions["na1"]);
+        let cl_gap = vector_magnitude(positions["cl2"] - positions["cl1"]);
+        for (sodium, chloride) in [
+            ("na1", "cl1"),
+            ("na1", "cl2"),
+            ("na2", "cl1"),
+            ("na2", "cl2"),
+        ] {
+            let gap = vector_magnitude(positions[chloride] - positions[sodium]);
+            assert!(
+                gap < na_gap && gap < cl_gap,
+                "{sodium}-{chloride} gap {gap} vs Na-Na {na_gap} / Cl-Cl {cl_gap}"
+            );
+        }
+    }
+
+    #[test]
+    fn different_salts_keep_separate_lattices() {
+        let frame = RenderFrame {
+            atoms: vec![
+                ion_atom("na1", "Na", 1),
+                ion_atom("cl1", "Cl", -1),
+                ion_atom("k1", "K", 1),
+                ion_atom("br1", "Br", -1),
+            ],
+            covalent_bonds: Vec::new(),
+            ionic_associations: vec![
+                salt_unit("ionic[1].salt", "na1", "cl1"),
+                salt_unit("ionic[2].other", "k1", "br1"),
+            ],
+            metallic_domains: Vec::new(),
+        };
+
+        assert_eq!(lattice_groups(&frame).len(), 2);
+        assert_eq!(connected_components(&frame).len(), 2);
     }
 
     #[test]
