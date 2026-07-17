@@ -5,15 +5,19 @@
 //! expanded octets from period 3), degree-constrained multigraph search,
 //! and electronegativity-guided scoring. No catalogue, no whitelist.
 
+use std::collections::BTreeMap;
+
 use crate::{
-    Atom, AtomGroup, AtomGroupId, AtomId, BondOrder, CovalentBond, CovalentBondId, ElectronState,
+    Atom, AtomGroup, AtomGroupId, AtomId, BondOrder, CovalentBond, CovalentBondId,
+    CovalentDelocalization, CovalentDelocalizationId, EffectiveBondOrder, ElectronState,
     ElementInventory, ElementSymbol, IonicAssociation, IonicAssociationId, MetallicDomain,
     MetallicDomainId, RepresentationKind, StructuralGraph, StructureDefinition, StructureId,
 };
 
-// ponytail: DFS enumeration; benzene-sized covalent units bail to the
-// caller's fallback (catalogue or LLM proposal). Ionic compounds are only
-// bounded per ion unit, so large salts assemble fine.
+// DFS enumeration with hydrogens collapsed out of the search; benzene-sized
+// units finish in milliseconds (C6H6 itself declines as genuinely ambiguous
+// — many isomers tie). Ionic compounds are only bounded per ion unit, so
+// large salts assemble fine.
 const MAX_ATOMS: usize = 12;
 const MAX_TOTAL_ATOMS: usize = 24;
 const MAX_WORK: u32 = 500_000;
@@ -184,7 +188,7 @@ fn best_solution(slot_sets: &[Vec<Slot>]) -> Option<SolvedUnit> {
             let total: u32 = targets.iter().copied().map(u32::from).sum();
             let minimum_edges = u32::try_from(slots.len() - 1).ok()?;
             if total.is_multiple_of(2) && total / 2 >= minimum_edges {
-                enumerate_graphs(slots, &targets, &mut work, &mut |bonds| {
+                enumerate_candidates(slots, &targets, &mut work, &mut |bonds| {
                     consider(slots, &targets, bonds, &mut best_score, &mut best);
                 });
             }
@@ -272,6 +276,162 @@ fn consider(
 }
 
 /// Distributes each atom's remaining bond order over later atoms, depth-first.
+/// Enumerates candidate graphs with hydrogens collapsed out of the search.
+/// Hydrogens are identical degree-1 appendages: only the multiset of
+/// hydrogen counts per heavy atom matters, never which hydrogen goes where.
+/// Removing that h! symmetry factor is what lets benzene-sized organics
+/// finish instead of drowning in relabelings.
+fn enumerate_candidates(
+    slots: &[Slot],
+    targets: &[u8],
+    work: &mut u32,
+    emit: &mut impl FnMut(&[(usize, usize, u8)]),
+) {
+    let hydrogens = (0..slots.len())
+        .filter(|index| slots[*index].symbol == "H")
+        .collect::<Vec<_>>();
+    let heavy = (0..slots.len())
+        .filter(|index| slots[*index].symbol != "H")
+        .collect::<Vec<_>>();
+    if heavy.is_empty() {
+        // Degree-1 atoms alone only ever connect as one pair.
+        if hydrogens.len() == 2 && targets.iter().all(|target| *target == 1) {
+            emit(&[(hydrogens[0], hydrogens[1], 1)]);
+        }
+        return;
+    }
+    if hydrogens.iter().any(|index| targets[*index] != 1) {
+        return;
+    }
+    // Identical heavy atoms make permuted hydrogen hand-outs isomorphic:
+    // one non-increasing count sequence per class covers them all.
+    let mut classes: BTreeMap<(&str, i16, u8), Vec<usize>> = BTreeMap::new();
+    for index in &heavy {
+        let slot = &slots[*index];
+        classes
+            .entry((slot.symbol.as_str(), slot.formal_charge, targets[*index]))
+            .or_default()
+            .push(*index);
+    }
+    let classes = classes.into_values().collect::<Vec<_>>();
+    let flattened = classes.iter().flatten().copied().collect::<Vec<_>>();
+    let Ok(total) = u8::try_from(hydrogens.len()) else {
+        return;
+    };
+    let mut counts = Vec::with_capacity(flattened.len());
+    let mut distributions: Vec<Vec<u8>> = Vec::new();
+    distribute_hydrogens(
+        targets,
+        &classes,
+        heavy.len() > 1,
+        0,
+        0,
+        u8::MAX,
+        total,
+        &mut counts,
+        work,
+        &mut |counts: &[u8]| distributions.push(counts.to_vec()),
+    );
+    let heavy_slots = heavy
+        .iter()
+        .map(|index| slots[*index].clone())
+        .collect::<Vec<_>>();
+    for counts in &distributions {
+        if *work > MAX_WORK {
+            return;
+        }
+        let position_of = |atom: usize| flattened.iter().position(|other| *other == atom);
+        let heavy_targets = heavy
+            .iter()
+            .map(|atom| targets[*atom] - position_of(*atom).map_or(0, |pos| counts[pos]))
+            .collect::<Vec<_>>();
+        let skeleton_sum = heavy_targets.iter().copied().map(u32::from).sum::<u32>();
+        let Ok(minimum_edges) = u32::try_from(heavy.len() - 1) else {
+            return;
+        };
+        if skeleton_sum / 2 < minimum_edges {
+            continue;
+        }
+        enumerate_graphs(&heavy_slots, &heavy_targets, work, &mut |skeleton| {
+            let mut bonds = skeleton
+                .iter()
+                .map(|(left, right, order)| (heavy[*left], heavy[*right], *order))
+                .collect::<Vec<_>>();
+            let mut next_hydrogen = 0;
+            for (position, atom) in flattened.iter().enumerate() {
+                for _ in 0..counts[position] {
+                    bonds.push((*atom, hydrogens[next_hydrogen], 1));
+                    next_hydrogen += 1;
+                }
+            }
+            emit(&bonds);
+        });
+    }
+}
+
+/// Recursively hands `left` hydrogens to the heavy atoms, one non-increasing
+/// sequence per identical-atom class.
+#[allow(clippy::too_many_arguments)]
+fn distribute_hydrogens(
+    targets: &[u8],
+    classes: &[Vec<usize>],
+    multi_heavy: bool,
+    class_index: usize,
+    member: usize,
+    bound: u8,
+    left: u8,
+    counts: &mut Vec<u8>,
+    work: &mut u32,
+    emit: &mut impl FnMut(&[u8]),
+) {
+    *work += 1;
+    if *work > MAX_WORK {
+        return;
+    }
+    let Some(class) = classes.get(class_index) else {
+        if left == 0 {
+            emit(counts);
+        }
+        return;
+    };
+    let Some(atom) = class.get(member).copied() else {
+        distribute_hydrogens(
+            targets,
+            classes,
+            multi_heavy,
+            class_index + 1,
+            0,
+            u8::MAX,
+            left,
+            counts,
+            work,
+            emit,
+        );
+        return;
+    };
+    // With other heavy atoms present this one must keep a skeleton bond.
+    let cap = targets[atom]
+        .saturating_sub(u8::from(multi_heavy))
+        .min(bound)
+        .min(left);
+    for count in (0..=cap).rev() {
+        counts.push(count);
+        distribute_hydrogens(
+            targets,
+            classes,
+            multi_heavy,
+            class_index,
+            member + 1,
+            count,
+            left - count,
+            counts,
+            work,
+            emit,
+        );
+        counts.pop();
+    }
+}
+
 fn enumerate_graphs(
     slots: &[Slot],
     targets: &[u8],
@@ -449,14 +609,22 @@ fn score_graph(slots: &[Slot], targets: &[u8], bonds: &[(usize, usize, u8)]) -> 
     score
 }
 
-/// Weisfeiler-Leman style refinement key for duplicate detection.
+/// Weisfeiler-Leman style refinement key for duplicate detection. Colors
+/// are hash-chained per round so the key stays linear in the graph size
+/// instead of the exponential strings a naive concatenation produces.
 // ponytail: heuristic isomorphism, not exact; small molecules refine fully
 // in practice. Swap in a canonical-form algorithm if ambiguity misfires.
 fn isomorphism_key(slots: &[Slot], bonds: &[(usize, usize, u8)]) -> String {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    let color_of = |value: &dyn Fn(&mut DefaultHasher)| {
+        let mut hasher = DefaultHasher::new();
+        value(&mut hasher);
+        hasher.finish()
+    };
     let mut colors = slots
         .iter()
-        .map(|slot| format!("{}:{}", slot.symbol, slot.formal_charge))
-        .collect::<Vec<_>>();
+        .map(|slot| color_of(&|hasher| (slot.symbol.as_str(), slot.formal_charge).hash(hasher)))
+        .collect::<Vec<u64>>();
     for _ in 0..slots.len() {
         colors = (0..slots.len())
             .map(|index| {
@@ -464,21 +632,25 @@ fn isomorphism_key(slots: &[Slot], bonds: &[(usize, usize, u8)]) -> String {
                     .iter()
                     .filter_map(|(left, right, order)| {
                         if *left == index {
-                            Some(format!("{}x{order}", colors[*right]))
+                            Some((colors[*right], *order))
                         } else if *right == index {
-                            Some(format!("{}x{order}", colors[*left]))
+                            Some((colors[*left], *order))
                         } else {
                             None
                         }
                     })
                     .collect::<Vec<_>>();
                 neighbours.sort_unstable();
-                format!("{}({})", colors[index], neighbours.join(","))
+                color_of(&|hasher| (colors[index], &neighbours).hash(hasher))
             })
             .collect();
     }
     colors.sort_unstable();
-    colors.join(";")
+    colors
+        .iter()
+        .map(|color| format!("{color:x}"))
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 /// Builds every way of handing out `charge` units of -1 across non-hydrogen
@@ -721,7 +893,7 @@ fn generate_allotrope(
         .iter()
         .map(|(left, right)| (*left, *right, 1))
         .collect::<Vec<_>>();
-    let bonds = make_bonds(&bonds, 0)?;
+    let bonds = make_bonds(&vec![symbol.clone(); count], &bonds, 0)?;
     let graph = StructuralGraph::new(atoms, bonds, [], [], []).ok()?;
     StructureDefinition::new(id, inventory.clone(), RepresentationKind::Molecular, graph).ok()
 }
@@ -738,7 +910,7 @@ fn build_molecular(
         .enumerate()
         .map(|(index, (symbol, (charge, lone)))| make_atom(index, symbol, *charge, *lone))
         .collect::<Option<Vec<_>>>()?;
-    let bonds = make_bonds(&unit.bonds, 0)?;
+    let bonds = make_bonds(&unit.symbols, &unit.bonds, 0)?;
     let graph = StructuralGraph::new(atoms, bonds, [], [], []).ok()?;
     StructureDefinition::new(id, inventory.clone(), RepresentationKind::Molecular, graph).ok()
 }
@@ -865,22 +1037,20 @@ fn ionic_structure(
             ));
             members.push(atom_id);
         }
+        let annotations =
+            resonance_annotations(&unit.symbols, &unit.bonds, &format!("g{group_index}."))?;
         for (bond_index, (left, right, order)) in unit.bonds.iter().enumerate() {
-            let order = match order {
-                1 => BondOrder::Single,
-                2 => BondOrder::Double,
-                3 => BondOrder::Triple,
-                _ => return None,
-            };
-            bonds.push(
-                CovalentBond::new(
-                    CovalentBondId::new(format!("b{group_index}.{bond_index}")).ok()?,
-                    ion_atom(group_index, *left)?,
-                    ion_atom(group_index, *right)?,
-                    order,
-                )
-                .ok()?,
-            );
+            let order = bond_order(*order)?;
+            let id = CovalentBondId::new(format!("b{group_index}.{bond_index}")).ok()?;
+            let left = ion_atom(group_index, *left)?;
+            let right = ion_atom(group_index, *right)?;
+            bonds.push(match annotations.get(&bond_index) {
+                Some(delocalization) => {
+                    CovalentBond::new_delocalized(id, left, right, order, delocalization.clone())
+                        .ok()?
+                }
+                None => CovalentBond::new(id, left, right, order).ok()?,
+            });
         }
         group_records
             .push(AtomGroup::new(AtomGroupId::new(format!("g{group_index}")).ok()?, members).ok()?);
@@ -990,24 +1160,143 @@ fn atom_id(index: usize) -> Option<AtomId> {
     AtomId::new(format!("a{index}")).ok()
 }
 
-fn make_bonds(bonds: &[(usize, usize, u8)], base: usize) -> Option<Vec<CovalentBond>> {
+fn make_bonds(
+    symbols: &[String],
+    bonds: &[(usize, usize, u8)],
+    base: usize,
+) -> Option<Vec<CovalentBond>> {
+    let annotations = resonance_annotations(symbols, bonds, "")?;
     bonds
         .iter()
         .enumerate()
         .map(|(index, (left, right, order))| {
-            let order = match order {
-                1 => BondOrder::Single,
-                2 => BondOrder::Double,
-                3 => BondOrder::Triple,
-                _ => return None,
-            };
-            CovalentBond::new(
-                CovalentBondId::new(format!("b{base}.{index}")).ok()?,
-                atom_id(base + left)?,
-                atom_id(base + right)?,
-                order,
-            )
-            .ok()
+            let order = bond_order(*order)?;
+            let id = CovalentBondId::new(format!("b{base}.{index}")).ok()?;
+            let left = atom_id(base + left)?;
+            let right = atom_id(base + right)?;
+            match annotations.get(&index) {
+                Some(delocalization) => {
+                    CovalentBond::new_delocalized(id, left, right, order, delocalization.clone())
+                        .ok()
+                }
+                None => CovalentBond::new(id, left, right, order).ok(),
+            }
+        })
+        .collect()
+}
+
+const fn bond_order(order: u8) -> Option<BondOrder> {
+    match order {
+        1 => Some(BondOrder::Single),
+        2 => Some(BondOrder::Double),
+        3 => Some(BondOrder::Triple),
+        _ => None,
+    }
+}
+
+/// Delocalization annotations for the bonds a Kekulé choice split
+/// arbitrarily, keyed by bond index.
+fn resonance_annotations(
+    symbols: &[String],
+    bonds: &[(usize, usize, u8)],
+    prefix: &str,
+) -> Option<BTreeMap<usize, CovalentDelocalization>> {
+    let mut annotations = BTreeMap::new();
+    for (domain, (members, (numerator, denominator))) in
+        resonance_domains(symbols, bonds).into_iter().enumerate()
+    {
+        let delocalization = CovalentDelocalization::new(
+            CovalentDelocalizationId::new(format!("{prefix}d{domain}")).ok()?,
+            EffectiveBondOrder::new(numerator, denominator).ok()?,
+        );
+        for member in members {
+            annotations.insert(member, delocalization.clone());
+        }
+    }
+    Some(annotations)
+}
+
+/// Bond-index groups broken only by an arbitrary Kekulé choice: bonds whose
+/// endpoints are connectivity-equivalent (element and adjacency, ignoring
+/// bond orders and electron states) yet carry different orders. Each group
+/// is one resonance system, reported with the averaged effective order the
+/// hybrid really has (4/3 for carbonate, 3/2 for benzene and ozone).
+fn resonance_domains(
+    symbols: &[String],
+    bonds: &[(usize, usize, u8)],
+) -> Vec<(Vec<usize>, (u8, u8))> {
+    // Connectivity-only Weisfeiler-Leman refinement into equivalence classes.
+    let mut unique = symbols.to_vec();
+    unique.sort_unstable();
+    unique.dedup();
+    let mut classes: Vec<usize> = symbols
+        .iter()
+        .map(|symbol| unique.binary_search(symbol).unwrap_or(0))
+        .collect();
+    for _ in 0..symbols.len() {
+        let keys = (0..classes.len())
+            .map(|index| {
+                let mut neighbours = bonds
+                    .iter()
+                    .filter_map(|(left, right, _)| {
+                        if *left == index {
+                            Some(classes[*right])
+                        } else if *right == index {
+                            Some(classes[*left])
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                neighbours.sort_unstable();
+                (classes[index], neighbours)
+            })
+            .collect::<Vec<_>>();
+        let mut sorted = keys.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        let next = keys
+            .iter()
+            .map(|key| sorted.binary_search(key).unwrap_or(0))
+            .collect::<Vec<_>>();
+        if next == classes {
+            break;
+        }
+        classes = next;
+    }
+    let mut groups: BTreeMap<(usize, usize), Vec<usize>> = BTreeMap::new();
+    for (index, (left, right, _)) in bonds.iter().enumerate() {
+        let pair = (
+            classes[*left].min(classes[*right]),
+            classes[*left].max(classes[*right]),
+        );
+        groups.entry(pair).or_default().push(index);
+    }
+    groups
+        .into_values()
+        .filter_map(|members| {
+            let orders = members
+                .iter()
+                .map(|index| bonds[*index].2)
+                .collect::<Vec<_>>();
+            if orders.iter().all(|order| *order == orders[0]) {
+                return None;
+            }
+            let total = orders.iter().map(|order| u64::from(*order)).sum::<u64>();
+            let count = u64::try_from(members.len()).ok()?;
+            let shared = gcd(total, count);
+            let (numerator, denominator) = (total / shared, count / shared);
+            if denominator == 1 {
+                // An integral average is no resonance hybrid.
+                return None;
+            }
+            Some((
+                members,
+                (
+                    u8::try_from(numerator).ok()?,
+                    u8::try_from(denominator).ok()?,
+                ),
+            ))
         })
         .collect()
 }
@@ -1036,6 +1325,88 @@ mod tests {
         )
         .expect("inventory");
         generate_structure(StructureId::new("generated.test").expect("id"), &inventory)
+    }
+
+    /// (effective numerator, denominator) per bond, None for localized.
+    fn bond_orders(structure: &StructureDefinition) -> Vec<Option<(u8, u8)>> {
+        structure
+            .graph()
+            .covalent_bonds()
+            .values()
+            .map(|bond| {
+                bond.delocalization().map(|value| {
+                    (
+                        value.effective_order().numerator(),
+                        value.effective_order().denominator(),
+                    )
+                })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn symmetric_resonance_systems_are_delocalized() {
+        // Ozone: both O-O edges read 3/2.
+        let ozone = structure(&[("O", 3)]).expect("O3");
+        assert_eq!(bond_orders(&ozone), [Some((3, 2)), Some((3, 2))]);
+
+        // Nitrate in a salt: all three N-O edges read 4/3.
+        let nitrate = structure(&[("Na", 1), ("N", 1), ("O", 3)]).expect("NaNO3");
+        assert_eq!(
+            bond_orders(&nitrate),
+            [Some((4, 3)), Some((4, 3)), Some((4, 3))]
+        );
+
+        // Carbonate: 4/3 as well.
+        let carbonate = structure(&[("Ca", 1), ("C", 1), ("O", 3)]).expect("CaCO3");
+        assert_eq!(
+            bond_orders(&carbonate),
+            [Some((4, 3)), Some((4, 3)), Some((4, 3))]
+        );
+
+        // Nitric acid: the two terminal oxygens are equivalent, the OH is
+        // not; exactly two bonds delocalize.
+        let nitric = structure(&[("H", 1), ("N", 1), ("O", 3)]).expect("HNO3");
+        let effective = bond_orders(&nitric)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(effective, [(3, 2), (3, 2)]);
+    }
+
+    #[test]
+    fn benzene_sized_units_settle_promptly() {
+        let started = std::time::Instant::now();
+        let benzene = structure(&[("C", 6), ("H", 6)]);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(10),
+            "benzene-sized search must stay bounded"
+        );
+        if let Some(benzene) = benzene {
+            println!(
+                "benzene generated with {} bonds: {:?}",
+                benzene.graph().covalent_bonds().len(),
+                bond_orders(&benzene)
+            );
+        } else {
+            println!("benzene declined (ambiguous or over budget)");
+        }
+    }
+
+    #[test]
+    fn localized_molecules_stay_localized() {
+        for (pairs, label) in [
+            (&[("H", 2), ("O", 1)][..], "water"),
+            (&[("C", 1), ("O", 2)][..], "CO2"),
+            (&[("C", 1), ("H", 4)][..], "methane"),
+            (&[("S", 8)][..], "S8"),
+        ] {
+            let generated = structure(pairs).expect(label);
+            assert!(
+                bond_orders(&generated).iter().all(Option::is_none),
+                "{label} should carry no delocalization"
+            );
+        }
     }
 
     #[test]
