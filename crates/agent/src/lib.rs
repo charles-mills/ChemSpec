@@ -53,7 +53,7 @@ pub use mechanism::{
     UnsupportedMechanismProvider, compile_mechanism_request, derive_mechanism,
     validate_escalated_response, validate_escalated_response_with_structures,
 };
-pub use naming::composition_from_name;
+pub use naming::{composition_from_name, structure_name};
 pub use outcome::{
     CompiledClaimOutcome, OutcomeSpecies, ReactantIdentityAmbiguity, RequestIdentityResolution,
     TrustTier, ValidatedStaticOutcome, compile_claim_outcome, resolve_request_identities,

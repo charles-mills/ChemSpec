@@ -651,9 +651,16 @@ fn draft_body(state: &State, reactant: ActiveReactant, reveal: f32) -> Element<'
     let phase = state.orbital_phase;
 
     if let Some(preview) = composition_catalogue::trusted_preview(atoms.iter().copied()) {
-        let standardized = chemistry::standardize_elemental_draft(atoms);
-        let name = composition_catalogue::recognize(standardized)
-            .map_or_else(|| preview.formula.clone(), |known| known.name.to_owned());
+        // Sentence-case the derived name for the card ("Sodium chloride").
+        let name = preview.name.clone().map_or_else(
+            || preview.formula.clone(),
+            |name| {
+                let mut characters = name.chars();
+                characters.next().map_or(name.clone(), |first| {
+                    first.to_uppercase().collect::<String>() + characters.as_str()
+                })
+            },
+        );
         let model = canvas(CompoundAtomicDiagram::new(preview, phase).with_reveal(reveal))
             .width(Length::Fixed(200.0))
             .height(Length::Fixed(110.0));
@@ -840,7 +847,10 @@ mod tests {
     #[test]
     fn typed_names_fill_the_active_slot() {
         let mut state = State::default();
-        update(&mut state, Message::NameInput("copper(II) sulfate".to_owned()));
+        update(
+            &mut state,
+            Message::NameInput("copper(II) sulfate".to_owned()),
+        );
         update(&mut state, Message::NameSubmitted);
         assert_eq!(reactants(&state).0, [29, 8, 8, 8, 8, 16]);
         assert!(state.name_feedback.is_none());
@@ -868,20 +878,39 @@ mod tests {
         assert!(state.name_input.is_empty());
 
         // "and" and commas separate too.
-        update(&mut state, Message::NameInput("zinc and hydrochloric acid".to_owned()));
+        update(
+            &mut state,
+            Message::NameInput("zinc and hydrochloric acid".to_owned()),
+        );
         update(&mut state, Message::NameSubmitted);
         assert_eq!(reactants(&state), (&[30_u8][..], &[17_u8, 1][..]));
 
         // One bad half fails the whole submission and names the culprit.
-        update(&mut state, Message::NameInput("oxygen + unobtainium".to_owned()));
+        update(
+            &mut state,
+            Message::NameInput("oxygen + unobtainium".to_owned()),
+        );
         update(&mut state, Message::NameSubmitted);
-        assert!(state.name_feedback.as_deref().is_some_and(|f| f.contains("unobtainium")));
+        assert!(
+            state
+                .name_feedback
+                .as_deref()
+                .is_some_and(|f| f.contains("unobtainium"))
+        );
         assert_eq!(reactants(&state), (&[30_u8][..], &[17_u8, 1][..]));
 
         // Three reactants is one too many.
-        update(&mut state, Message::NameInput("iron, sulfur, oxygen".to_owned()));
+        update(
+            &mut state,
+            Message::NameInput("iron, sulfur, oxygen".to_owned()),
+        );
         update(&mut state, Message::NameSubmitted);
-        assert!(state.name_feedback.as_deref().is_some_and(|f| f.contains("two")));
+        assert!(
+            state
+                .name_feedback
+                .as_deref()
+                .is_some_and(|f| f.contains("two"))
+        );
     }
 
     #[test]

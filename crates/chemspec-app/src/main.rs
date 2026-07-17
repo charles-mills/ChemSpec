@@ -16,8 +16,8 @@ mod periodic_table;
 mod reactant_composer;
 mod scene_registry;
 mod structural_2d;
-mod structural_physics;
 mod structural_3d;
+mod structural_physics;
 mod theme;
 
 use std::{
@@ -33,12 +33,12 @@ use std::{
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
-    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT,
-    LatencyMilestones, OutcomeSpecies, RESEARCHER_CLAIM_TIMEOUT, ReactantIdentityAmbiguity,
-    ReactantInput, ReactionBuildRequest, ReactionClaim, RequestIdentityResolution, TrustTier,
-    ValidatedStaticOutcome, compile_claim_outcome, enrich_static_outcome, load_claim_mode,
-    load_dynamic_cache, resolve_request_identities_with_catalogue, reviewed_species_registry,
-    store_claim_mode, store_dynamic_cache,
+    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones, OutcomeSpecies,
+    RESEARCHER_CLAIM_TIMEOUT, ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest,
+    ReactionClaim, RequestIdentityResolution, TrustTier, ValidatedStaticOutcome,
+    compile_claim_outcome, enrich_static_outcome, load_claim_mode, load_dynamic_cache,
+    resolve_request_identities_with_catalogue, reviewed_species_registry, store_claim_mode,
+    store_dynamic_cache,
 };
 use chem_domain::SpeciesId;
 use chem_presentation::{
@@ -1465,7 +1465,9 @@ impl App {
                 }
                 // Algorithmic claims are recomputed instantly; only model
                 // claims are worth caching.
-                if !algorithmic && let Some(directory) = provider.config().cache_directory.as_deref() {
+                if !algorithmic
+                    && let Some(directory) = provider.config().cache_directory.as_deref()
+                {
                     let _ = store_dynamic_cache(
                         directory,
                         &request,
@@ -2127,11 +2129,7 @@ impl App {
         else {
             return;
         };
-        let Some(scene) = animation
-            .educational_plan
-            .scenes
-            .get(position.scene_index)
-        else {
+        let Some(scene) = animation.educational_plan.scenes.get(position.scene_index) else {
             return;
         };
         let frames = animation.frames.frames();
@@ -2327,17 +2325,16 @@ impl App {
             .style(theme::secondary_button);
         // Local Mode derivations are deterministic; regenerating would only
         // recompute the identical result.
-        let regenerate: Element<'_, Message> = if self.dynamic_request.is_some()
-            && !self.local_mode()
-        {
-            button(text("Regenerate"))
-                .on_press(Message::RegenerateDynamicReaction)
-                .padding([spacing::XS, spacing::SM])
-                .style(theme::secondary_button)
-                .into()
-        } else {
-            space().width(Length::Shrink).into()
-        };
+        let regenerate: Element<'_, Message> =
+            if self.dynamic_request.is_some() && !self.local_mode() {
+                button(text("Regenerate"))
+                    .on_press(Message::RegenerateDynamicReaction)
+                    .padding([spacing::XS, spacing::SM])
+                    .style(theme::secondary_button)
+                    .into()
+            } else {
+                space().width(Length::Shrink).into()
+            };
         let continue_3d: Element<'_, Message> =
             if timeline_position.scene_index + 1 == animation.educational_plan.scenes.len() {
                 button(text("View 3D model  →"))
@@ -2356,8 +2353,8 @@ impl App {
             animation.educational_plan.scenes.len(),
         )
         .with_equation(equation.clone());
-        let diagram_canvas: Element<'_, structural_2d::DragEvent> = canvas(
-            structural_2d::Diagram::new(
+        let diagram_canvas: Element<'_, structural_2d::DragEvent> =
+            canvas(structural_2d::Diagram::new(
                 before_frame,
                 frame,
                 &operation_transitions,
@@ -2373,11 +2370,10 @@ impl App {
                         | EducationalSceneKind::ExplanationPause
                 ),
                 animation.physics.positions(),
-            ),
-        )
-        .width(Fill)
-        .height(Fill)
-        .into();
+            ))
+            .width(Fill)
+            .height(Fill)
+            .into();
         let diagram = container(diagram_canvas.map(Message::StructuralDrag))
             .style(theme::inset)
             .width(Fill)
@@ -2543,17 +2539,16 @@ impl App {
             .style(theme::secondary_button);
         // Local Mode derivations are deterministic; regenerating would only
         // recompute the identical result.
-        let regenerate: Element<'_, Message> = if self.dynamic_request.is_some()
-            && !self.local_mode()
-        {
-            button(text("Regenerate"))
-                .on_press(Message::RegenerateDynamicReaction)
-                .padding([spacing::XS, spacing::SM])
-                .style(theme::secondary_button)
-                .into()
-        } else {
-            space().width(Length::Shrink).into()
-        };
+        let regenerate: Element<'_, Message> =
+            if self.dynamic_request.is_some() && !self.local_mode() {
+                button(text("Regenerate"))
+                    .on_press(Message::RegenerateDynamicReaction)
+                    .padding([spacing::XS, spacing::SM])
+                    .style(theme::secondary_button)
+                    .into()
+            } else {
+                space().width(Length::Shrink).into()
+            };
         let playback = button(text(if animation.playing { "Pause" } else { "Play" }))
             .on_press(Message::StructuralPlaybackToggled)
             .padding([spacing::XS, spacing::SM])
@@ -3370,7 +3365,6 @@ mod tests {
         app.update(Message::ProviderContinue);
         assert_eq!(app.screen, Screen::Builder);
     }
-
 
     #[test]
     fn uncatalogued_reaction_starts_generation_scoped_codex_build() {

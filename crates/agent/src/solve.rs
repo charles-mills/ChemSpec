@@ -789,15 +789,15 @@ fn ionic_base(base: &StructureDefinition) -> Option<(String, u64, BaseAnion)> {
 
 /// A simple ionic salt: one kind of single-atom cation, one kind of anion.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Salt {
-    cation: String,
-    cation_charge: u64,
+pub(crate) struct Salt {
+    pub(crate) cation: String,
+    pub(crate) cation_charge: u64,
     /// Element counts of one anion unit.
-    anion: BTreeMap<String, u64>,
-    anion_charge: u64,
+    pub(crate) anion: BTreeMap<String, u64>,
+    pub(crate) anion_charge: u64,
 }
 
-fn ionic_salt(structure: &StructureDefinition) -> Option<Salt> {
+pub(crate) fn ionic_salt(structure: &StructureDefinition) -> Option<Salt> {
     if structure.representation() != RepresentationKind::Ionic {
         return None;
     }
@@ -1271,6 +1271,21 @@ mod tests {
     #[test]
     fn ethanol_combustion_solves() {
         let request = request(&[("C₂H₆O", &[6, 6, 8, 1, 1, 1, 1, 1, 1]), ("O₂", &[8, 8])]);
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let formulas = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(formulas, ["CO2", "H2O"]);
+    }
+
+    #[test]
+    fn benzene_combustion_solves() {
+        let request = request(&[
+            ("C₆H₆", &[6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1]),
+            ("O₂", &[8, 8]),
+        ]);
         let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products

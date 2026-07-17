@@ -155,10 +155,11 @@ pub(crate) fn binary_molecular_name(counts: &BTreeMap<String, u64>) -> Option<St
 }
 
 /// Well-known names that no systematic rule covers.
-const TRIVIAL_NAMES: [(&str, &[(&str, u64)]); 10] = [
+const TRIVIAL_NAMES: [(&str, &[(&str, u64)]); 11] = [
     ("water", &[("H", 2), ("O", 1)]),
     ("ammonia", &[("N", 1), ("H", 3)]),
     ("methane", &[("C", 1), ("H", 4)]),
+    ("benzene", &[("C", 6), ("H", 6)]),
     ("hydrochloric acid", &[("H", 1), ("Cl", 1)]),
     ("sulfuric acid", &[("H", 2), ("S", 1), ("O", 4)]),
     ("sulfurous acid", &[("H", 2), ("S", 1), ("O", 3)]),
@@ -167,6 +168,37 @@ const TRIVIAL_NAMES: [(&str, &[(&str, u64)]); 10] = [
     ("carbonic acid", &[("H", 2), ("C", 1), ("O", 3)]),
     ("phosphoric acid", &[("H", 3), ("P", 1), ("O", 4)]),
 ];
+
+/// English name for a whole validated structure: element names for
+/// elements, trivial names, salt nomenclature (using the structure's own
+/// cation charge), and prefix names for molecular binaries. None when the
+/// compound is outside these rules — a wrong name is worse than none.
+#[must_use]
+pub fn structure_name(structure: &chem_domain::StructureDefinition) -> Option<String> {
+    let counts = structure
+        .formula()
+        .elements()
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+        .collect::<BTreeMap<String, u64>>();
+    if let Some((name, _)) = TRIVIAL_NAMES
+        .iter()
+        .find(|(_, unit)| scaled(unit, 1, BTreeMap::new()) == counts)
+    {
+        return Some((*name).to_owned());
+    }
+    if counts.len() == 1 {
+        return element_name(counts.keys().next()?).map(str::to_owned);
+    }
+    match structure.representation() {
+        chem_domain::RepresentationKind::Ionic => {
+            let salt = crate::solve::ionic_salt(structure)?;
+            salt_name(&salt.cation, salt.cation_charge, &counts)
+        }
+        chem_domain::RepresentationKind::Molecular => binary_molecular_name(&counts),
+        _ => None,
+    }
+}
 
 /// Element counts for a user-typed compound: a formula (`CuSO4`,
 /// `Mg(NO3)2`), an element or compound name ("oxygen", "copper(II)
@@ -380,6 +412,45 @@ mod tests {
             salt_name("Mg", 2, &counts(&[("Mg", 3), ("N", 2)])).as_deref(),
             Some("magnesium nitride")
         );
+    }
+
+    #[test]
+    fn structures_name_themselves() {
+        let named = |pairs: &[(&str, u64)]| {
+            let inventory = chem_domain::ElementInventory::new(
+                pairs
+                    .iter()
+                    .map(|(symbol, count)| {
+                        (
+                            chem_domain::ElementSymbol::new(*symbol).expect("symbol"),
+                            *count,
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>(),
+            )
+            .expect("inventory");
+            let structure = chem_domain::generate_structure(
+                chem_domain::StructureId::new("generated.naming").expect("id"),
+                &inventory,
+            )?;
+            structure_name(&structure)
+        };
+        assert_eq!(named(&[("H", 2), ("O", 1)]).as_deref(), Some("water"));
+        assert_eq!(named(&[("O", 2)]).as_deref(), Some("oxygen"));
+        assert_eq!(named(&[("Cu", 1)]).as_deref(), Some("copper"));
+        assert_eq!(
+            named(&[("Na", 1), ("Cl", 1)]).as_deref(),
+            Some("sodium chloride")
+        );
+        assert_eq!(
+            named(&[("Cu", 1), ("S", 1), ("O", 4)]).as_deref(),
+            Some("copper(II) sulfate")
+        );
+        assert_eq!(
+            named(&[("C", 1), ("O", 2)]).as_deref(),
+            Some("carbon dioxide")
+        );
+        assert_eq!(named(&[("C", 6), ("H", 6)]).as_deref(), Some("benzene"));
     }
 
     #[test]

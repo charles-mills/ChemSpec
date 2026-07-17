@@ -5,11 +5,11 @@ use std::{
 };
 
 use chem_catalogue::{
-    CatalogueDocument, CatalogueEnvelope, CreationMetadata,
-    ElementCategoryRecord, ElementRecord, EvidenceSource, GeneralizedReactionRuleRecord,
-    GraphPatternRecord, PremiseRecord, PublicationKind, ReactionRuleRecord, ReviewStatus,
-    StructuralTraitDefinitionRecord, StructureRecord, StructureTemplateApplicationRecord,
-    StructureTemplateRecord, ValencePremiseRecord, ValidatedCatalogueBundle,
+    CatalogueDocument, CatalogueEnvelope, CreationMetadata, ElementCategoryRecord, ElementRecord,
+    EvidenceSource, GeneralizedReactionRuleRecord, GraphPatternRecord, PremiseRecord,
+    PublicationKind, ReactionRuleRecord, ReviewStatus, StructuralTraitDefinitionRecord,
+    StructureRecord, StructureTemplateApplicationRecord, StructureTemplateRecord,
+    ValencePremiseRecord, ValidatedCatalogueBundle,
 };
 use chem_domain::ContentDigest;
 use chem_kernel::{

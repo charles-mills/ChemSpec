@@ -570,7 +570,6 @@ impl ValidatedCatalogueBundle {
     pub const fn rules(&self) -> &BTreeMap<ReactionRuleId, ValidatedReactionRule> {
         &self.rules
     }
-
 }
 
 /// The built-in catalogue library. Nothing about it is "trusted" in an

@@ -612,9 +612,7 @@ impl Diagram {
                 continue;
             };
             let distance = segment_distance(point, *left, *right);
-            if distance <= 14.0
-                && best_bond.is_none_or(|(closest, _)| distance < closest)
-            {
+            if distance <= 14.0 && best_bond.is_none_or(|(closest, _)| distance < closest) {
                 best_bond = Some((distance, (&bond.left, &bond.right)));
             }
         }
@@ -628,8 +626,7 @@ fn segment_distance(point: Point, start: Point, end: Point) -> f32 {
     if length_squared <= f32::EPSILON {
         return point.distance(start);
     }
-    let t = (((point.x - start.x) * segment.x + (point.y - start.y) * segment.y)
-        / length_squared)
+    let t = (((point.x - start.x) * segment.x + (point.y - start.y) * segment.y) / length_squared)
         .clamp(0.0, 1.0);
     point.distance(Point::new(start.x + segment.x * t, start.y + segment.y * t))
 }
@@ -687,9 +684,7 @@ impl canvas::Program<DragEvent> for Diagram {
         cursor
             .position_in(bounds)
             .and_then(|point| self.hit_test(to_virtual(point, fit, offset)))
-            .map_or(mouse::Interaction::default(), |_| {
-                mouse::Interaction::Grab
-            })
+            .map_or(mouse::Interaction::default(), |_| mouse::Interaction::Grab)
     }
 
     fn draw(
@@ -1801,9 +1796,10 @@ fn angular_gaps(bond_angles: &[f32]) -> Vec<(f32, f32)> {
     angles.sort_by(f32::total_cmp);
     let mut gaps = Vec::with_capacity(angles.len());
     for (index, start) in angles.iter().enumerate() {
-        let end = angles.get(index + 1).copied().unwrap_or(
-            angles.first().copied().unwrap_or(0.0) + std::f32::consts::TAU,
-        );
+        let end = angles
+            .get(index + 1)
+            .copied()
+            .unwrap_or(angles.first().copied().unwrap_or(0.0) + std::f32::consts::TAU);
         gaps.push((*start, (end - start).max(0.0)));
     }
     gaps.sort_by(|left, right| right.1.total_cmp(&left.1));
@@ -1825,7 +1821,10 @@ fn electron_positions(
     // Domains spread across the largest bond-free arc so dots never sit on
     // a bond line; with no bonds they keep the classic four-way cross.
     let gaps = angular_gaps(bond_angles);
-    let (gap_start, gap_span) = gaps.first().copied().unwrap_or((0.0, std::f32::consts::TAU));
+    let (gap_start, gap_span) = gaps
+        .first()
+        .copied()
+        .unwrap_or((0.0, std::f32::consts::TAU));
     let domain_count = occupancies.len().max(1) as f32;
     let mut positions = Vec::with_capacity(usize::from(atom.non_bonding_electrons.min(8)));
     for (domain, occupancy) in occupancies.into_iter().enumerate() {

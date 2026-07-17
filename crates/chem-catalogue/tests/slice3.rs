@@ -1,9 +1,8 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_catalogue::{
-    CatalogueEnvelope, CatalogueErrorCode,
-    ObservationCompatibilityRecord, ObservationPredicate, PublicationKind, ReviewStatus,
-    ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
+    CatalogueEnvelope, CatalogueErrorCode, ObservationCompatibilityRecord, ObservationPredicate,
+    PublicationKind, ReviewStatus, ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
 };
 use chem_domain::{PremiseId, ReactionRuleId, RepresentationKind, StructureId};
 use serde_json::Value;

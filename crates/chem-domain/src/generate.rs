@@ -823,6 +823,9 @@ pub fn generate_structure(
         if let Some(structure) = generate_allotrope(id.clone(), inventory, &nonmetals) {
             return Some(structure);
         }
+        if let Some(structure) = generate_canonical_molecule(id.clone(), inventory) {
+            return Some(structure);
+        }
         let mut slots = charged_slot_sets(&nonmetals, 0, 0);
         // Charge-separated neutrals (CO, HNO3, ozone) join the pool; the
         // separation penalty keeps plain octet solutions ahead when both
@@ -864,6 +867,35 @@ fn generate_elemental_metal(
     .ok()?;
     let graph = StructuralGraph::new([atom], [], [], [], [domain]).ok()?;
     StructureDefinition::new(id, inventory.clone(), RepresentationKind::Metallic, graph).ok()
+}
+
+/// Canonical molecules for formulas the search correctly reports as
+/// ambiguous but which have one classroom answer: C6H6 is benzene, not one
+/// of its many chain isomers. The resonance detector then marks the ring's
+/// 3/2 hybrid like any other Kekulé choice.
+fn generate_canonical_molecule(
+    id: StructureId,
+    inventory: &ElementInventory,
+) -> Option<StructureDefinition> {
+    let counts = inventory
+        .elements()
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str(), *count))
+        .collect::<Vec<_>>();
+    if counts != [("C", 6), ("H", 6)] {
+        return None;
+    }
+    // Kekulé ring: carbons 0..6 alternating single/double, one hydrogen each.
+    let mut bonds = (0..6)
+        .map(|index| (index, (index + 1) % 6, if index % 2 == 0 { 2 } else { 1 }))
+        .collect::<Vec<(usize, usize, u8)>>();
+    bonds.extend((0..6).map(|index| (index, index + 6, 1)));
+    let unit = SolvedUnit {
+        symbols: [vec!["C".to_owned(); 6], vec!["H".to_owned(); 6]].concat(),
+        states: vec![(0, 0); 12],
+        bonds,
+    };
+    build_molecular(id, inventory, &unit)
 }
 
 /// Deterministic standard-state allotropes the bond search cannot settle on
@@ -1375,22 +1407,28 @@ mod tests {
     }
 
     #[test]
-    fn benzene_sized_units_settle_promptly() {
+    fn benzene_is_the_canonical_delocalized_ring() {
         let started = std::time::Instant::now();
-        let benzene = structure(&[("C", 6), ("H", 6)]);
+        let benzene = structure(&[("C", 6), ("H", 6)]).expect("benzene");
         assert!(
             started.elapsed() < std::time::Duration::from_secs(10),
             "benzene-sized search must stay bounded"
         );
-        if let Some(benzene) = benzene {
-            println!(
-                "benzene generated with {} bonds: {:?}",
-                benzene.graph().covalent_bonds().len(),
-                bond_orders(&benzene)
-            );
-        } else {
-            println!("benzene declined (ambiguous or over budget)");
-        }
+        let orders = bond_orders(&benzene);
+        assert_eq!(orders.len(), 12, "six ring bonds and six C-H bonds");
+        assert_eq!(
+            orders
+                .iter()
+                .filter(|order| **order == Some((3, 2)))
+                .count(),
+            6,
+            "the ring reads as the 3/2 hybrid: {orders:?}"
+        );
+        assert_eq!(
+            orders.iter().filter(|order| order.is_none()).count(),
+            6,
+            "C-H bonds stay localized"
+        );
     }
 
     #[test]

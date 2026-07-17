@@ -201,8 +201,7 @@ impl Simulation {
                     } else {
                         1.0
                     };
-                    let push =
-                        contact * REPULSION * (desired * desired) / (distance * distance);
+                    let push = contact * REPULSION * (desired * desired) / (distance * distance);
                     let direction = delta * (1.0 / distance);
                     add(&mut forces, a, direction * push);
                     add(&mut forces, b, direction * -push);
@@ -253,8 +252,7 @@ impl Simulation {
             let body = self.bodies.get_mut(id).expect("body exists");
             // Heavier atoms accelerate less: mass grows with drawn area.
             let mass = (body.radius / 24.0).powi(2).max(0.2);
-            let damping =
-                CALM_DAMPING + (EXCITED_DAMPING - CALM_DAMPING) * body.excitement;
+            let damping = CALM_DAMPING + (EXCITED_DAMPING - CALM_DAMPING) * body.excitement;
             let mut velocity = (body.velocity + force * (DT / mass)) * damping;
             let speed = length(velocity);
             if speed > MAX_SPEED {
@@ -374,13 +372,19 @@ mod tests {
         for _ in 0..200 {
             simulation.step(&world);
         }
-        simulation.begin_drag(&DragTarget::Atom("a".to_owned()), simulation.positions()["a"]);
+        simulation.begin_drag(
+            &DragTarget::Atom("a".to_owned()),
+            simulation.positions()["a"],
+        );
         simulation.move_drag(Point::new(500.0, 300.0));
         for _ in 0..200 {
             simulation.step(&world);
         }
         let dragged = simulation.positions()["a"];
-        assert!(dragged.distance(Point::new(500.0, 300.0)) < 30.0, "{dragged:?}");
+        assert!(
+            dragged.distance(Point::new(500.0, 300.0)) < 30.0,
+            "{dragged:?}"
+        );
         simulation.end_drag();
         for _ in 0..600 {
             simulation.step(&world);

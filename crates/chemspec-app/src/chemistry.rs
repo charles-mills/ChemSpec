@@ -1030,7 +1030,10 @@ pub fn atoms_from_name(input: &str) -> Option<Vec<u8>> {
             .iter()
             .position(|candidate| candidate == symbol)?;
         let atomic_number = u8::try_from(index + 1).ok()?;
-        atoms.extend(std::iter::repeat_n(atomic_number, usize::try_from(*count).ok()?));
+        atoms.extend(std::iter::repeat_n(
+            atomic_number,
+            usize::try_from(*count).ok()?,
+        ));
     }
     Some(atoms)
 }
@@ -1173,8 +1176,11 @@ pub fn oxygen_assessment_for_drafts(first: &[u8], second: &[u8]) -> Option<Oxyge
         });
     }
     let composition = composition_catalogue::recognize(subject.iter().copied())?;
+    let name = composition_catalogue::trusted_preview(subject.iter().copied())
+        .and_then(|preview| preview.name)
+        .unwrap_or_else(|| composition.formula.to_owned());
     Some(OxygenAssessment {
-        subject: composition.name.to_owned(),
+        subject: name,
         outcome: screening.compound(composition.formula)?.clone(),
     })
 }

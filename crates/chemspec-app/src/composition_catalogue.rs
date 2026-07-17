@@ -1,7 +1,9 @@
-//! Curated composition previews for the Stage 2 reaction workspace.
+//! Composition previews for the Stage 2 reaction workspace.
 //!
-//! These patterns improve composition feedback, but they are not validation
-//! results. The chemistry engine remains the only authority that may turn a
+//! Names and structures are derived programmatically (naming module +
+//! structure generator). The small curated table below only routes drafts
+//! to their reviewed catalogue experiences; it is not a naming authority,
+//! and the chemistry engine remains the only authority that may turn a
 //! request into trusted chemical meaning.
 
 use std::collections::BTreeMap;
@@ -45,7 +47,6 @@ pub enum CompositionId {
 pub struct CompositionPreview {
     pub id: CompositionId,
     pub formula: &'static str,
-    pub name: &'static str,
     pub(crate) atoms: &'static [(u8, u8)],
 }
 
@@ -72,157 +73,131 @@ pub const SUPPORTED: &[CompositionPreview] = &[
     CompositionPreview {
         id: CompositionId::Hydrogen,
         formula: "H₂",
-        name: "Hydrogen",
         atoms: &[(1, 2)],
     },
     CompositionPreview {
         id: CompositionId::Oxygen,
         formula: "O₂",
-        name: "Oxygen",
         atoms: &[(8, 2)],
     },
     CompositionPreview {
         id: CompositionId::Water,
         formula: "H₂O",
-        name: "Water",
         atoms: &[(1, 2), (8, 1)],
     },
     CompositionPreview {
         id: CompositionId::LithiumHydroxide,
         formula: "LiOH",
-        name: "Lithium hydroxide",
         atoms: &[(1, 1), (3, 1), (8, 1)],
     },
     CompositionPreview {
         id: CompositionId::SodiumHydroxide,
         formula: "NaOH",
-        name: "Sodium hydroxide",
         atoms: &[(1, 1), (8, 1), (11, 1)],
     },
     CompositionPreview {
         id: CompositionId::PotassiumHydroxide,
         formula: "KOH",
-        name: "Potassium hydroxide",
         atoms: &[(1, 1), (8, 1), (19, 1)],
     },
     CompositionPreview {
         id: CompositionId::SodiumFluoride,
         formula: "NaF",
-        name: "Sodium fluoride",
         atoms: &[(9, 1), (11, 1)],
     },
     CompositionPreview {
         id: CompositionId::SodiumChloride,
         formula: "NaCl",
-        name: "Sodium chloride",
         atoms: &[(11, 1), (17, 1)],
     },
     CompositionPreview {
         id: CompositionId::SodiumBromide,
         formula: "NaBr",
-        name: "Sodium bromide",
         atoms: &[(11, 1), (35, 1)],
     },
     CompositionPreview {
         id: CompositionId::SodiumIodide,
         formula: "NaI",
-        name: "Sodium iodide",
         atoms: &[(11, 1), (53, 1)],
     },
     CompositionPreview {
         id: CompositionId::SilverNitrate,
         formula: "AgNO₃",
-        name: "Silver nitrate",
         atoms: &[(7, 1), (8, 3), (47, 1)],
     },
     CompositionPreview {
         id: CompositionId::CarbonDioxide,
         formula: "CO₂",
-        name: "Carbon dioxide",
         atoms: &[(6, 1), (8, 2)],
     },
     CompositionPreview {
         id: CompositionId::HydrogenFluoride,
         formula: "HF",
-        name: "Hydrogen fluoride",
         atoms: &[(1, 1), (9, 1)],
     },
     CompositionPreview {
         id: CompositionId::HydrogenChloride,
         formula: "HCl",
-        name: "Hydrogen chloride",
         atoms: &[(1, 1), (17, 1)],
     },
     CompositionPreview {
         id: CompositionId::HydrogenBromide,
         formula: "HBr",
-        name: "Hydrogen bromide",
         atoms: &[(1, 1), (35, 1)],
     },
     CompositionPreview {
         id: CompositionId::HydrogenIodide,
         formula: "HI",
-        name: "Hydrogen iodide",
         atoms: &[(1, 1), (53, 1)],
     },
     CompositionPreview {
         id: CompositionId::LithiumCarbonate,
         formula: "Li₂CO₃",
-        name: "Lithium carbonate",
         atoms: &[(3, 2), (6, 1), (8, 3)],
     },
     CompositionPreview {
         id: CompositionId::SodiumCarbonate,
         formula: "Na₂CO₃",
-        name: "Sodium carbonate",
         atoms: &[(6, 1), (8, 3), (11, 2)],
     },
     CompositionPreview {
         id: CompositionId::PotassiumCarbonate,
         formula: "K₂CO₃",
-        name: "Potassium carbonate",
         atoms: &[(6, 1), (8, 3), (19, 2)],
     },
     CompositionPreview {
         id: CompositionId::LithiumBicarbonate,
         formula: "LiHCO₃",
-        name: "Lithium bicarbonate",
         atoms: &[(1, 1), (3, 1), (6, 1), (8, 3)],
     },
     CompositionPreview {
         id: CompositionId::SodiumBicarbonate,
         formula: "NaHCO₃",
-        name: "Sodium bicarbonate",
         atoms: &[(1, 1), (6, 1), (8, 3), (11, 1)],
     },
     CompositionPreview {
         id: CompositionId::PotassiumBicarbonate,
         formula: "KHCO₃",
-        name: "Potassium bicarbonate",
         atoms: &[(1, 1), (6, 1), (8, 3), (19, 1)],
     },
     CompositionPreview {
         id: CompositionId::Fluorine,
         formula: "F₂",
-        name: "Fluorine",
         atoms: &[(9, 2)],
     },
     CompositionPreview {
         id: CompositionId::Chlorine,
         formula: "Cl₂",
-        name: "Chlorine",
         atoms: &[(17, 2)],
     },
     CompositionPreview {
         id: CompositionId::Bromine,
         formula: "Br₂",
-        name: "Bromine",
         atoms: &[(35, 2)],
     },
     CompositionPreview {
         id: CompositionId::Iodine,
         formula: "I₂",
-        name: "Iodine",
         atoms: &[(53, 2)],
     },
 ];
@@ -236,12 +211,15 @@ pub fn recognize(atomic_numbers: impl IntoIterator<Item = u8>) -> Option<Composi
         .find(|preview| preview.matches(atomic_numbers.iter().copied()))
 }
 
-/// A preview projected from one unambiguous graph in the host-pinned catalogue.
-/// It is deliberately separate from the small curated naming table above.
+/// A preview projected from one unambiguous graph in the host-pinned
+/// catalogue or from the structure generator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustedCompositionPreview {
     pub structure_id: String,
     pub formula: String,
+    /// Systematic or trivial name derived from the structure itself; None
+    /// when the compound is outside the nomenclature rules.
+    pub name: Option<String>,
     pub atoms: Vec<PreviewAtom>,
     covalent_bonds: Vec<PreviewCovalentBond>,
     ionic_links: Vec<PreviewIonicLink>,
@@ -532,6 +510,7 @@ fn preview_from_definition(
     Some(TrustedCompositionPreview {
         structure_id: definition.id().as_str().to_owned(),
         formula: display_formula(formula),
+        name: agent::structure_name(definition),
         atoms,
         covalent_bonds,
         ionic_links,
@@ -829,8 +808,7 @@ mod tests {
         assert_eq!(methane.formula, "CH₄");
         assert_eq!(methane.covalent_bonds().len(), 4);
 
-        let sodium_sulfate =
-            trusted_preview([11, 11, 16, 8, 8, 8, 8]).expect("generated Na2SO4");
+        let sodium_sulfate = trusted_preview([11, 11, 16, 8, 8, 8, 8]).expect("generated Na2SO4");
         assert_eq!(sodium_sulfate.formula, "Na₂SO₄");
         assert!(!sodium_sulfate.ionic_links().is_empty());
     }
