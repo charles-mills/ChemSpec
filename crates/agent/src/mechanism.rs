@@ -1877,6 +1877,29 @@ mod tests {
     }
 
     #[test]
+    fn precipitation_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [
+                ("AgNO3", vec![47, 7, 8, 8, 8]),
+                ("sodium chloride", vec![11, 17]),
+            ],
+            &json!([
+                {"name":"silver chloride","formula":"AgCl","phase":"solid","identity_hints":[]},
+                {"name":"sodium nitrate","formula":"NaNO3","phase":"aqueous","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
     fn methane_combustion_animates_algorithmically_without_any_model() {
         let trusted = trusted();
         let outcome = static_outcome_for(

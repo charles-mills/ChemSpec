@@ -56,6 +56,7 @@ pub fn solve_reaction_claim(
             .or_else(|| solve_acid_metal(structures[1], structures[0]))
             .or_else(|| solve_combustion(structures[0], structures[1]))
             .or_else(|| solve_combustion(structures[1], structures[0]))
+            .or_else(|| solve_double_displacement(structures[0], structures[1]))
             .or_else(|| {
                 solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
                     products,
@@ -473,44 +474,209 @@ fn base_anion_kind(sorted_elements: &[&str]) -> Option<BaseAnion> {
 /// One ionic base: every group is either a single-atom cation of one
 /// element, or one consistent basic anion (hydroxide/carbonate/bicarbonate).
 fn ionic_base(base: &StructureDefinition) -> Option<(String, u64, BaseAnion)> {
-    if base.representation() != RepresentationKind::Ionic {
+    let salt = ionic_salt(base)?;
+    let sorted = salt
+        .anion
+        .iter()
+        .flat_map(|(symbol, count)| {
+            std::iter::repeat_n(symbol.as_str(), usize::try_from(*count).unwrap_or(0))
+        })
+        .collect::<Vec<_>>();
+    let kind = base_anion_kind(&sorted)?;
+    Some((salt.cation, salt.cation_charge, kind))
+}
+
+/// A simple ionic salt: one kind of single-atom cation, one kind of anion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Salt {
+    cation: String,
+    cation_charge: u64,
+    /// Element counts of one anion unit.
+    anion: BTreeMap<String, u64>,
+    anion_charge: u64,
+}
+
+fn ionic_salt(structure: &StructureDefinition) -> Option<Salt> {
+    if structure.representation() != RepresentationKind::Ionic {
         return None;
     }
-    let graph = base.graph();
+    let graph = structure.graph();
     let mut cation: Option<(String, u64)> = None;
-    let mut anion_kind: Option<BaseAnion> = None;
+    let mut anion: Option<(BTreeMap<String, u64>, u64)> = None;
     for group in graph.groups().values() {
         let members = group
             .atoms()
             .iter()
             .map(|id| &graph.atoms()[id])
             .collect::<Vec<_>>();
-        let elements = members
+        let charge = members
             .iter()
-            .map(|atom| atom.element().as_str())
-            .collect::<Vec<_>>();
-        match elements.as_slice() {
-            [only] if members[0].electrons().formal_charge() > 0 => {
-                let found = (
-                    (*only).to_owned(),
-                    u64::from(members[0].electrons().formal_charge().unsigned_abs()),
-                );
-                if cation.get_or_insert_with(|| found.clone()) != &found {
-                    return None;
-                }
+            .map(|atom| i64::from(atom.electrons().formal_charge()))
+            .sum::<i64>();
+        if members.len() == 1 && charge > 0 {
+            let found = (
+                members[0].element().as_str().to_owned(),
+                charge.unsigned_abs(),
+            );
+            if cation.get_or_insert_with(|| found.clone()) != &found {
+                return None;
             }
-            _ => {
-                let mut sorted = elements.clone();
-                sorted.sort_unstable();
-                let kind = base_anion_kind(&sorted)?;
-                if *anion_kind.get_or_insert(kind) != kind {
-                    return None;
-                }
+        } else if charge < 0 {
+            let mut counts = BTreeMap::new();
+            for atom in &members {
+                *counts.entry(atom.element().as_str().to_owned()).or_insert(0) += 1;
             }
+            let found = (counts, charge.unsigned_abs());
+            if anion.get_or_insert_with(|| found.clone()) != &found {
+                return None;
+            }
+        } else {
+            return None;
         }
     }
-    let (cation, charge) = cation?;
-    Some((cation, charge, anion_kind?))
+    let (cation, cation_charge) = cation?;
+    let (anion, anion_charge) = anion?;
+    Some(Salt {
+        cation,
+        cation_charge,
+        anion,
+        anion_charge,
+    })
+}
+
+/// Classroom solubility rules for salts in water: Some(true) dissolves,
+/// Some(false) precipitates, None is outside the table (borderline cases
+/// like `CaSO4` and `Ca(OH)2` stay with the model).
+fn salt_solubility(cation: &str, anion: &BTreeMap<String, u64>) -> Option<bool> {
+    if ["Li", "Na", "K", "Rb", "Cs", "Fr"].contains(&cation) {
+        return Some(true);
+    }
+    let key = if anion.len() == 1 && anion.values().all(|count| *count == 1) {
+        anion.keys().next()?.clone()
+    } else {
+        anion
+            .iter()
+            .map(|(symbol, count)| format!("{symbol}{count}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    match key.as_str() {
+        // Nitrates and acetates always dissolve.
+        "N1 O3" | "C2 H3 O2" => Some(true),
+        "Cl" | "Br" | "I" => Some(!matches!(cation, "Ag" | "Pb" | "Hg")),
+        "O4 S1" => match cation {
+            "Ba" | "Sr" | "Pb" => Some(false),
+            "Ca" | "Ag" => None,
+            _ => Some(true),
+        },
+        // Alkali metals returned above; everyone else precipitates.
+        "C1 O3" | "O4 P1" | "O3 S1" => Some(false),
+        "H1 O1" => match cation {
+            "Ba" | "Sr" => Some(true),
+            "Ca" => None,
+            _ => Some(false),
+        },
+        "S" => Some(matches!(cation, "Be" | "Mg" | "Ca" | "Sr" | "Ba")),
+        _ => None,
+    }
+}
+
+/// Two soluble ionic salts exchange partners when a product precipitates;
+/// both products soluble is a confident no-reaction. Any solubility outside
+/// the table, or a redox-prone ion pairing, falls to the model.
+fn solve_double_displacement(
+    left: &StructureDefinition,
+    right: &StructureDefinition,
+) -> Option<Verdict> {
+    let first = ionic_salt(left)?;
+    let second = ionic_salt(right)?;
+    if first.cation == second.cation || first.anion == second.anion {
+        return None;
+    }
+    // Oxidising cations turn iodide exchanges into redox (2Fe³⁺ + 2I⁻ →
+    // 2Fe²⁺ + I₂); those never follow the exchange rule.
+    let oxidising =
+        |salt: &Salt| matches!((salt.cation.as_str(), salt.cation_charge), ("Fe", 3) | ("Cu", 2));
+    let iodide = |salt: &Salt| salt.anion.len() == 1 && salt.anion.contains_key("I");
+    if (oxidising(&first) && iodide(&second)) || (oxidising(&second) && iodide(&first)) {
+        return None;
+    }
+    // Both reactants must dissolve for their ions to meet at all.
+    if !(salt_solubility(&first.cation, &first.anion)?
+        && salt_solubility(&second.cation, &second.anion)?)
+    {
+        return None;
+    }
+    let first_soluble = salt_solubility(&first.cation, &second.anion)?;
+    let second_soluble = salt_solubility(&second.cation, &first.anion)?;
+    if first_soluble && second_soluble {
+        return Some(Verdict {
+            products: Vec::new(),
+            observations: Vec::new(),
+        });
+    }
+    let products = vec![
+        exchanged_salt(&first, &second, first_soluble),
+        exchanged_salt(&second, &first, second_soluble),
+    ];
+    let observations = products
+        .iter()
+        .filter(|product| product.phase == ClaimPhase::Solid)
+        .map(|product| ClaimObservation {
+            predicate: ClaimObservationPredicate::Forms,
+            subject: format!("a precipitate of {}", product.name),
+            value: None,
+        })
+        .collect();
+    Some(Verdict {
+        products,
+        observations,
+    })
+}
+
+/// Charge-balanced salt of one salt's cation with the other salt's anion.
+fn exchanged_salt(cation: &Salt, anion: &Salt, soluble: bool) -> ClaimProduct {
+    let shared = gcd(cation.cation_charge, anion.anion_charge);
+    let cation_count = anion.anion_charge / shared;
+    let anion_multiplicity = cation.cation_charge / shared;
+    let mut counts = BTreeMap::new();
+    counts.insert(cation.cation.clone(), cation_count);
+    for (symbol, count) in &anion.anion {
+        *counts.entry(symbol.clone()).or_insert(0) += count * anion_multiplicity;
+    }
+    let mut product =
+        product_from_counts(&counts, Some((&cation.cation, cation.cation_charge)));
+    if anion_multiplicity > 1 && anion.anion.values().sum::<u64>() > 1 {
+        // Repeated polyatomic units read conventionally: Mg(NO3)2, Cu(OH)2.
+        let mut unit = String::new();
+        let mut append = |symbol: &str, count: u64| {
+            unit.push_str(symbol);
+            if count > 1 {
+                unit.push_str(&count.to_string());
+            }
+        };
+        for (symbol, count) in &anion.anion {
+            if symbol != "O" && symbol != "H" {
+                append(symbol, *count);
+            }
+        }
+        for tail in ["O", "H"] {
+            if let Some(count) = anion.anion.get(tail) {
+                append(tail, *count);
+            }
+        }
+        let mut formula = cation.cation.clone();
+        if cation_count > 1 {
+            formula.push_str(&cation_count.to_string());
+        }
+        product.formula = format!("{formula}({unit}){anion_multiplicity}");
+    }
+    product.phase = if soluble {
+        ClaimPhase::Aqueous
+    } else {
+        ClaimPhase::Solid
+    };
+    product
 }
 
 /// Salt-style formula text: cation first, then non-O/H elements, then O,
@@ -564,7 +730,7 @@ fn product_from_counts(
     }
 }
 
-const fn gcd(mut left: u64, mut right: u64) -> u64 {
+pub(crate) const fn gcd(mut left: u64, mut right: u64) -> u64 {
     while right != 0 {
         let swap = left % right;
         left = right;
@@ -851,6 +1017,122 @@ mod tests {
         let claim =
             solve_reaction_claim(&hydride, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].name, "hydrogen chloride");
+    }
+
+    #[test]
+    fn silver_nitrate_and_sodium_chloride_precipitate_silver_chloride() {
+        let request = request(&[
+            ("AgNO₃", &[47, 7, 8, 8, 8]),
+            ("NaCl", &[11, 17]),
+        ]);
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        assert_eq!(claim.disposition, ClaimDisposition::Reaction);
+        let products = claim
+            .products
+            .iter()
+            .map(|product| (product.formula.as_str(), product.phase))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            products,
+            [("AgCl", ClaimPhase::Solid), ("NaNO3", ClaimPhase::Aqueous)]
+        );
+        assert_eq!(claim.products[0].name, "silver chloride");
+        assert!(
+            claim
+                .observations
+                .iter()
+                .any(|observation| observation.subject.contains("precipitate"))
+        );
+        let outcome =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
+        let CompiledClaimOutcome::Static(outcome) = outcome else {
+            panic!("expected static outcome");
+        };
+        assert!(
+            outcome.species_without_structure().is_empty(),
+            "every species should carry a generated structure: {:?}",
+            outcome.species_without_structure()
+        );
+    }
+
+    #[test]
+    fn barium_chloride_and_sodium_sulfate_precipitate_barium_sulfate() {
+        let request = request(&[
+            ("BaCl₂", &[56, 17, 17]),
+            ("Na₂SO₄", &[11, 11, 16, 8, 8, 8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let products = claim
+            .products
+            .iter()
+            .map(|product| (product.formula.as_str(), product.phase))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            products,
+            [("BaSO4", ClaimPhase::Solid), ("NaCl", ClaimPhase::Aqueous)]
+        );
+        assert_eq!(claim.products[0].name, "barium sulfate");
+    }
+
+    #[test]
+    fn copper_sulfate_and_sodium_hydroxide_precipitate_the_hydroxide() {
+        let request = request(&[
+            ("CuSO₄", &[29, 16, 8, 8, 8, 8]),
+            ("NaOH", &[11, 8, 1]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let precipitate = &claim.products[0];
+        assert_eq!(precipitate.formula, "Cu(OH)2");
+        assert_eq!(precipitate.name, "copper(II) hydroxide");
+        assert_eq!(precipitate.phase, ClaimPhase::Solid);
+        assert_eq!(claim.products[1].formula, "Na2SO4");
+    }
+
+    #[test]
+    fn lead_nitrate_and_potassium_iodide_precipitate_lead_iodide() {
+        let request = request(&[
+            ("Pb(NO₃)₂", &[82, 7, 8, 8, 8, 7, 8, 8, 8]),
+            ("KI", &[19, 53]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let precipitate = &claim.products[0];
+        assert_eq!(precipitate.formula, "PbI2");
+        assert_eq!(precipitate.name, "lead(II) iodide");
+        assert_eq!(precipitate.phase, ClaimPhase::Solid);
+        assert_eq!(claim.products[1].formula, "KNO3");
+    }
+
+    #[test]
+    fn fully_soluble_exchange_is_a_confident_no_reaction() {
+        let request = request(&[
+            ("NaCl", &[11, 17]),
+            ("KNO₃", &[19, 7, 8, 8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+        assert!(claim.products.is_empty());
+    }
+
+    #[test]
+    fn redox_prone_and_borderline_exchanges_fall_to_the_model() {
+        // Fe³⁺ oxidises iodide instead of exchanging.
+        let redox = request(&[
+            ("FeCl₃", &[26, 17, 17, 17]),
+            ("KI", &[19, 53]),
+        ]);
+        assert!(solve_reaction_claim(&redox, &SpeciesRegistry::default()).is_none());
+
+        // CaSO4 is borderline soluble; no confident verdict either way.
+        let borderline = request(&[
+            ("CaCl₂", &[20, 17, 17]),
+            ("Na₂SO₄", &[11, 11, 16, 8, 8, 8, 8]),
+        ]);
+        assert!(solve_reaction_claim(&borderline, &SpeciesRegistry::default()).is_none());
     }
 
     #[test]

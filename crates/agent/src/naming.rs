@@ -75,7 +75,13 @@ pub(crate) fn salt_name(
         // Monatomic anions regardless of multiplicity: CaCl2 is a chloride.
         format!("{}ide", anion_root(anion.keys().next()?)?)
     } else {
-        polyatomic_anion(&anion)?.to_owned()
+        // Reduce repeated units so Mg(NO3)2's N2O6 still reads as nitrate.
+        let shared = anion.values().fold(0, |acc, count| crate::solve::gcd(acc, *count));
+        let reduced = anion
+            .iter()
+            .map(|(symbol, count)| (*symbol, count / shared))
+            .collect::<BTreeMap<_, _>>();
+        polyatomic_anion(&reduced)?.to_owned()
     };
     let metal = element_name(cation)?;
     let cation_name = if has_variable_cation_charge(cation) {
