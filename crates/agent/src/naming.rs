@@ -73,6 +73,46 @@ fn polyatomic_anion(composition: &BTreeMap<&str, u64>) -> Option<&'static str> {
 
 const ROMAN: [&str; 7] = ["I", "II", "III", "IV", "V", "VI", "VII"];
 
+/// The cation's name, with a Roman numeral for variable-charge metals.
+fn cation_name(cation: &str, cation_charge: u64) -> Option<String> {
+    let metal = element_name(cation)?;
+    if has_variable_cation_charge(cation) {
+        let numeral = ROMAN.get(usize::try_from(cation_charge).ok()?.checked_sub(1)?)?;
+        Some(format!("{metal}({numeral})"))
+    } else {
+        Some(metal.to_owned())
+    }
+}
+
+/// Name of one anion unit. With a known charge, dioxygen units resolve to
+/// peroxide or superoxide; counts-only callers read O as plain oxide.
+fn anion_unit_name(unit: &BTreeMap<&str, u64>, charge: Option<u64>) -> Option<String> {
+    if unit.len() == 1 {
+        let (symbol, count) = unit.iter().next()?;
+        if *symbol == "O" && *count == 2 {
+            return Some(
+                match charge {
+                    Some(1) => "superoxide",
+                    Some(2) => "peroxide",
+                    _ => "oxide",
+                }
+                .to_owned(),
+            );
+        }
+        // Monatomic anions regardless of multiplicity: CaCl2 is a chloride.
+        return Some(format!("{}ide", anion_root(symbol)?));
+    }
+    // Reduce repeated units so Mg(NO3)2's N2O6 still reads as nitrate.
+    let shared = unit
+        .values()
+        .fold(0, |acc, count| crate::solve::gcd(acc, *count));
+    let reduced = unit
+        .iter()
+        .map(|(symbol, count)| (*symbol, count / shared))
+        .collect::<BTreeMap<_, _>>();
+    polyatomic_anion(&reduced).map(str::to_owned)
+}
+
 /// Name for an ionic salt of one metal cation and one anion.
 #[must_use]
 pub(crate) fn salt_name(
@@ -87,31 +127,58 @@ pub(crate) fn salt_name(
         }
         anion.insert(symbol.as_str(), *count);
     }
-    let anion_name = if anion.len() == 1 {
-        // Monatomic anions regardless of multiplicity: CaCl2 is a chloride.
-        format!("{}ide", anion_root(anion.keys().next()?)?)
-    } else {
-        // Reduce repeated units so Mg(NO3)2's N2O6 still reads as nitrate.
-        let shared = anion
-            .values()
-            .fold(0, |acc, count| crate::solve::gcd(acc, *count));
-        let reduced = anion
-            .iter()
-            .map(|(symbol, count)| (*symbol, count / shared))
-            .collect::<BTreeMap<_, _>>();
-        polyatomic_anion(&reduced)?.to_owned()
-    };
-    let metal = element_name(cation)?;
-    let cation_name = if has_variable_cation_charge(cation) {
-        let numeral = ROMAN.get(usize::try_from(cation_charge).ok()?.checked_sub(1)?)?;
-        format!("{metal}({numeral})")
-    } else {
-        metal.to_owned()
-    };
-    Some(format!("{cation_name} {anion_name}"))
+    let anion_name = anion_unit_name(&anion, None)?;
+    Some(format!(
+        "{} {anion_name}",
+        cation_name(cation, cation_charge)?
+    ))
 }
 
-const PREFIXES: [&str; 4] = ["mono", "di", "tri", "tetra"];
+/// Name for one exact cation-anion pairing where the anion unit and its
+/// charge are known (frames and structures know them; peroxide and
+/// superoxide are distinguishable only by charge).
+#[must_use]
+pub fn ion_pair_name(
+    cation: &str,
+    cation_charge: u64,
+    anion_unit: &BTreeMap<String, u64>,
+    anion_charge: u64,
+) -> Option<String> {
+    let unit = anion_unit
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str(), *count))
+        .collect::<BTreeMap<_, _>>();
+    let anion_name = anion_unit_name(&unit, Some(anion_charge))?;
+    Some(format!(
+        "{} {anion_name}",
+        cation_name(cation, cation_charge)?
+    ))
+}
+
+/// English name for a compound given by element counts plus an optional
+/// cation: trivial names first, then elements, salts, and molecular
+/// binaries. None outside the rules — a wrong name is worse than none.
+#[must_use]
+pub fn compound_name(
+    counts: &BTreeMap<String, u64>,
+    cation: Option<(&str, u64)>,
+) -> Option<String> {
+    if let Some(name) = trivial_name(counts, true) {
+        return Some(name.to_owned());
+    }
+    if counts.len() == 1 {
+        return element_name(counts.keys().next()?).map(str::to_owned);
+    }
+    let systematic = match cation {
+        Some((symbol, charge)) => salt_name(symbol, charge, counts),
+        None => binary_molecular_name(counts),
+    };
+    systematic.or_else(|| trivial_name(counts, false).map(str::to_owned))
+}
+
+const PREFIXES: [&str; 10] = [
+    "mono", "di", "tri", "tetra", "penta", "hexa", "hepta", "octa", "nona", "deca",
+];
 
 /// Prefix name for a binary molecular compound ("carbon dioxide",
 /// "dinitrogen monoxide"), with hydride and ammonia conventions.
@@ -124,16 +191,16 @@ pub(crate) fn binary_molecular_name(counts: &BTreeMap<String, u64>) -> Option<St
         .iter()
         .map(|(symbol, count)| (symbol.as_str(), *count));
     let (first, second) = (entries.next()?, entries.next()?);
-    // Less electronegative element first: hydrogen leads, oxygen trails,
-    // alphabetical order is otherwise already conventional.
     if (first, second) == (("H", 3), ("N", 1)) {
         return Some("ammonia".to_owned());
     }
-    let (left, right) = if first.0 == "O" || second.0 == "H" {
-        (second, first)
-    } else {
-        (first, second)
-    };
+    // The less electronegative element leads; the other takes the -ide.
+    let (left, right) =
+        if chem_domain::electronegativity(first.0)? <= chem_domain::electronegativity(second.0)? {
+            (first, second)
+        } else {
+            (second, first)
+        };
     if left.0 == "H" && right.1 == 1 {
         // Binary hydrides read as plain "hydrogen ...ide".
         return Some(format!("hydrogen {}ide", anion_root(right.0)?));
@@ -154,20 +221,35 @@ pub(crate) fn binary_molecular_name(counts: &BTreeMap<String, u64>) -> Option<St
     Some(format!("{left_prefix}{left_name} {right_prefix}{root}ide"))
 }
 
-/// Well-known names that no systematic rule covers.
-const TRIVIAL_NAMES: [(&str, &[(&str, u64)]); 11] = [
-    ("water", &[("H", 2), ("O", 1)]),
-    ("ammonia", &[("N", 1), ("H", 3)]),
-    ("methane", &[("C", 1), ("H", 4)]),
-    ("benzene", &[("C", 6), ("H", 6)]),
-    ("hydrochloric acid", &[("H", 1), ("Cl", 1)]),
-    ("sulfuric acid", &[("H", 2), ("S", 1), ("O", 4)]),
-    ("sulfurous acid", &[("H", 2), ("S", 1), ("O", 3)]),
-    ("nitric acid", &[("H", 1), ("N", 1), ("O", 3)]),
-    ("nitrous acid", &[("H", 1), ("N", 1), ("O", 2)]),
-    ("carbonic acid", &[("H", 2), ("C", 1), ("O", 3)]),
-    ("phosphoric acid", &[("H", 3), ("P", 1), ("O", 4)]),
+/// Well-known names that no systematic rule covers. The `bool` marks
+/// preferred display names; `false` entries are accepted as typed input
+/// and used as a last-resort display fallback, but lose to a systematic
+/// name (`HCl` gas is "hydrogen chloride"; the acid name belongs to the
+/// solution).
+const TRIVIAL_NAMES: [(&str, IonUnit, bool); 11] = [
+    ("water", &[("H", 2), ("O", 1)], true),
+    ("ammonia", &[("N", 1), ("H", 3)], true),
+    ("methane", &[("C", 1), ("H", 4)], true),
+    ("benzene", &[("C", 6), ("H", 6)], true),
+    ("hydrochloric acid", &[("H", 1), ("Cl", 1)], false),
+    ("sulfuric acid", &[("H", 2), ("S", 1), ("O", 4)], false),
+    ("sulfurous acid", &[("H", 2), ("S", 1), ("O", 3)], false),
+    ("nitric acid", &[("H", 1), ("N", 1), ("O", 3)], false),
+    ("nitrous acid", &[("H", 1), ("N", 1), ("O", 2)], false),
+    ("carbonic acid", &[("H", 2), ("C", 1), ("O", 3)], false),
+    ("phosphoric acid", &[("H", 3), ("P", 1), ("O", 4)], false),
 ];
+
+/// Trivial-name lookup by exact composition, optionally restricted to
+/// preferred display names.
+fn trivial_name(counts: &BTreeMap<String, u64>, display_only: bool) -> Option<&'static str> {
+    TRIVIAL_NAMES
+        .iter()
+        .find(|(_, unit, display)| {
+            (!display_only || *display) && scaled(unit, 1, BTreeMap::new()) == *counts
+        })
+        .map(|(name, _, _)| *name)
+}
 
 /// English name for a whole validated structure: element names for
 /// elements, trivial names, salt nomenclature (using the structure's own
@@ -181,22 +263,20 @@ pub fn structure_name(structure: &chem_domain::StructureDefinition) -> Option<St
         .iter()
         .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
         .collect::<BTreeMap<String, u64>>();
-    if let Some((name, _)) = TRIVIAL_NAMES
-        .iter()
-        .find(|(_, unit)| scaled(unit, 1, BTreeMap::new()) == counts)
-    {
-        return Some((*name).to_owned());
-    }
-    if counts.len() == 1 {
-        return element_name(counts.keys().next()?).map(str::to_owned);
-    }
     match structure.representation() {
         chem_domain::RepresentationKind::Ionic => {
             let salt = crate::solve::ionic_salt(structure)?;
-            salt_name(&salt.cation, salt.cation_charge, &counts)
+            ion_pair_name(
+                &salt.cation,
+                salt.cation_charge,
+                &salt.anion,
+                salt.anion_charge,
+            )
         }
-        chem_domain::RepresentationKind::Molecular => binary_molecular_name(&counts),
-        _ => None,
+        chem_domain::RepresentationKind::Molecular | chem_domain::RepresentationKind::Metallic => {
+            compound_name(&counts, None)
+        }
+        chem_domain::RepresentationKind::Ion => None,
     }
 }
 
@@ -223,7 +303,7 @@ pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
         .replace("aluminum", "aluminium")
         .replace(" (", "(");
     let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
-    if let Some((_, unit)) = TRIVIAL_NAMES.iter().find(|(known, _)| *known == name) {
+    if let Some((_, unit, _)) = TRIVIAL_NAMES.iter().find(|(known, _, _)| *known == name) {
         return Some(scaled(unit, 1, BTreeMap::new()));
     }
     if let Some(symbol) = element_by_name(&name) {
@@ -451,6 +531,58 @@ mod tests {
             Some("carbon dioxide")
         );
         assert_eq!(named(&[("C", 6), ("H", 6)]).as_deref(), Some("benzene"));
+    }
+
+    #[test]
+    fn ion_pairs_name_charge_aware_anions() {
+        let dioxygen = counts(&[("O", 2)]);
+        assert_eq!(
+            ion_pair_name("Na", 1, &dioxygen, 2).as_deref(),
+            Some("sodium peroxide")
+        );
+        assert_eq!(
+            ion_pair_name("K", 1, &dioxygen, 1).as_deref(),
+            Some("potassium superoxide")
+        );
+        assert_eq!(
+            ion_pair_name("Ca", 2, &counts(&[("O", 1)]), 2).as_deref(),
+            Some("calcium oxide")
+        );
+        assert_eq!(
+            ion_pair_name("Fe", 2, &counts(&[("O", 4), ("S", 1)]), 2).as_deref(),
+            Some("iron(II) sulfate")
+        );
+    }
+
+    #[test]
+    fn compound_names_prefer_systematic_over_acid_aliases() {
+        // HCl gas is hydrogen chloride; the acid name belongs to solution.
+        assert_eq!(
+            compound_name(&counts(&[("H", 1), ("Cl", 1)]), None).as_deref(),
+            Some("hydrogen chloride")
+        );
+        // Sulfuric acid has no systematic binary name; the alias holds.
+        assert_eq!(
+            compound_name(&counts(&[("H", 2), ("S", 1), ("O", 4)]), None).as_deref(),
+            Some("sulfuric acid")
+        );
+        assert_eq!(
+            compound_name(&counts(&[("H", 2), ("O", 1)]), None).as_deref(),
+            Some("water")
+        );
+        // Large prefixes and electronegativity ordering.
+        assert_eq!(
+            binary_molecular_name(&counts(&[("I", 1), ("F", 7)])).as_deref(),
+            Some("iodine heptafluoride")
+        );
+        assert_eq!(
+            binary_molecular_name(&counts(&[("C", 1), ("S", 2)])).as_deref(),
+            Some("carbon disulfide")
+        );
+        assert_eq!(
+            binary_molecular_name(&counts(&[("P", 2), ("O", 5)])).as_deref(),
+            Some("diphosphorus pentoxide")
+        );
     }
 
     #[test]

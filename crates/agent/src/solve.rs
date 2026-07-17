@@ -1220,10 +1220,7 @@ fn product_from_counts(
     {
         append("H", *count);
     }
-    let name = cation
-        .and_then(|(symbol, charge)| crate::naming::salt_name(symbol, charge, counts))
-        .or_else(|| crate::naming::binary_molecular_name(counts))
-        .unwrap_or_else(|| formula.clone());
+    let name = crate::naming::compound_name(counts, cation).unwrap_or_else(|| formula.clone());
     ClaimProduct {
         name,
         formula,

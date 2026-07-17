@@ -765,6 +765,14 @@ pub fn aqueous_cation_charge(symbol: &str) -> Option<i16> {
     lowest_cation_charge(symbol)
 }
 
+/// Pauling electronegativity ×100, when tabulated (0 marks untabulated
+/// noble gases).
+#[must_use]
+pub fn electronegativity(symbol: &str) -> Option<u16> {
+    let value = facts(symbol)?.electronegativity;
+    (value > 0).then_some(value)
+}
+
 /// Whether a metal commonly takes more than one cation charge (and so
 /// needs a Roman numeral in salt names).
 #[must_use]
