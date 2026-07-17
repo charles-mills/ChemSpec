@@ -5,11 +5,13 @@
 ChemSpec turns a theoretical chemistry question into a rule-supported,
 structurally validated, and visually explainable reaction outcome.
 
-Deterministic catalogue rules first identify a supported outcome. An AI agent
-then supplies evidence-backed qualitative observations and concise `.chems 1`
-source. The engine expands the selected rule into an atom-mapped structural
-certificate, validates every graph state, and drives paired observation and
-structural-change simulations.
+Deterministic catalogue rules first provide a fast path for known outcomes. On
+a catalogue miss, an AI agent returns a compact factual claim. ChemSpec resolves
+stable species identities, balances the outcome exactly, and displays an
+honestly labelled static result. Evidence verification and structural
+presentation are separate optional stages: reviewed families or bounded
+model-proposed operations must cross the same deterministic kernel before any
+simulation can run.
 
 ## Audience
 
@@ -41,15 +43,17 @@ After a supported reaction, a learner should be able to explain:
 
 ## Product boundary
 
-ChemSpec shows a representative structural outcome of a known reviewed
-reaction. It is not a laboratory instruction system, bulk solution simulator,
-kinetics engine, molecular-dynamics system, or universal reaction predictor.
+ChemSpec shows a representative structural outcome that its deterministic
+engine can validate. It is not a laboratory instruction system, bulk solution
+simulator, kinetics engine, molecular-dynamics system, or automatic mechanism
+proof.
 
 The authored language deliberately excludes quantities, apparatus, vessels,
 timed steps, and physical preparation. Context needed to decide whether a
-supported outcome applies belongs to the reviewed catalogue rule. The UI keeps
-that applicability premise and the representative/explanatory model disclosure
-visible.
+supported outcome applies belongs to the reviewed rule or the checked factual
+claim. A runtime claim never becomes a catalogue rule. The UI keeps the
+representative/explanatory model disclosure visible without turning provenance
+tiers into the main product message.
 
 ## Chemistry scope
 
@@ -59,11 +63,14 @@ polyatomic ions, ionic assemblies, metallic domains, reviewed groups, and
 atom-mapped transformations. Aromatic bonding remains outside the closed
 domain.
 
-Initial shipped chemistry is closed-world and fixture-led. Broader inorganic or
-A-Level organic coverage is added only through explicitly AI-reviewed,
-digest-pinned
-structures and rules. Missing coverage is Unsupported; the agent does not fill
-trusted-model gaps.
+The language and deterministic chemistry engine remain closed over explicit
+representations and invariants, but the shipped catalogue is not the product
+ceiling. Missing catalogue coverage invokes Codex for a factual claim, never a
+trusted graph or rule. Formula-only products remain static. When all structures
+are locally resolved, a reviewed-family match or model-proposed mechanism may
+become displayable only after identical deterministic structural validation.
+Digest-pinned catalogue promotion remains a deliberate source-controlled
+optimization.
 
 The first complete reaction is lithium with water because it exercises
 covalent, ionic, metallic, electron-transfer, observation, and mapping
@@ -77,20 +84,23 @@ unlock animation until a reviewed structural transformation also exists.
 
 ## Canonical journey
 
-1. **Ask.** The learner asks what happens when lithium reacts with water.
-2. **Resolve.** The engine resolves identities and uniquely selects the AI-reviewed
-   `AlkaliMetalWithWater` rule.
-3. **Research.** The agent obtains typed qualitative observation claims and
-   claim-level evidence.
-4. **Author.** The agent writes concise `.chems 1` using catalogue identities
-   and binds the reviewed rule.
-5. **Expand.** The engine deterministically creates instances, atom mapping,
-   structural operations, and an inspectable certificate.
-6. **Validate.** Every mapping, graph step, valence, charge, electron,
-   association, metallic domain, conservation, and product invariant passes.
-7. **Simulate.** Observation and representative structural views play together.
-8. **Explain.** The agent connects visible observations to validated changes
-   without presenting a real-world method.
+1. **Ask.** The learner asks what happens when two reactants interact.
+2. **Resolve.** The application uses the host-pinned catalogue when an exact
+   supported request is available.
+3. **Reuse on repeat.** A cache-v3 envelope for the same stable identities,
+   context, and governing contract digests is decoded and fully revalidated;
+   it never bypasses the chemistry boundary. The learner can explicitly
+   regenerate it.
+4. **Build on miss.** Otherwise Codex returns a closed factual claim.
+5. **Compile static meaning.** ChemSpec resolves identities, proves request
+   binding, balances exactly, and constructs a checked `ReactionDeclaration`.
+6. **Display early.** The first valid static outcome appears without playback.
+7. **Verify when requested.** Hostile source retrieval can upgrade the same
+   result from `ModelAsserted` to `EvidenceBacked` without replacing it.
+8. **Enrich presentation.** A local reviewed family or bounded model-proposed
+   mapping/operation sequence crosses expansion, kernel, and frame validation.
+9. **Simulate and explain.** Observation and representative structural views
+   play together with accurate reviewed/model-proposed disclosure.
 
 ## Product states
 
@@ -99,8 +109,9 @@ unlock animation until a reviewed structural transformation also exists.
 - **Validated with assumptions** — validation passes with visible theoretical
   model disclosures attached; this is the initial language's successful
   result.
-- **Unsupported** — the catalogue lacks a reviewed identity, rule, state, or
-  applicability premise.
+- **Unsupported** — the request is unsafe, materially ambiguous, or cannot be
+  represented or validated by the current language and chemistry engine after
+  bounded construction/repair.
 - **Invalid** — source or derived structure contradicts the language or trusted
   premises.
 - **System error** — trusted data or runtime infrastructure is corrupt.
@@ -120,8 +131,9 @@ Persistent disclosure:
 
 The product succeeds when a learner can:
 
-1. ask about a supported reaction outcome;
-2. distinguish pinned catalogue applicability from runtime AI-supplied observations;
+1. ask about any sufficiently specified reaction outcome;
+2. receive a fast catalogue result or a Codex-built result through the same
+   validation boundary;
 3. inspect concise authored source and exact expanded structure;
 4. follow stable atoms from reactants to products;
 5. distinguish covalent, ionic, and metallic representations;

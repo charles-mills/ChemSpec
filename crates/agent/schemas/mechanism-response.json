@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mapping", "operations"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "mapping": {
+      "type": "array", "minItems": 1, "maxItems": 512,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["reactant", "product"],
+        "properties": {
+          "reactant": {"type": "string", "minLength": 1, "maxLength": 160},
+          "product": {"type": "string", "minLength": 1, "maxLength": 160}
+        }
+      }
+    },
+    "operations": {
+      "type": "array", "minItems": 1, "maxItems": 512,
+      "items": {
+        "anyOf": [
+          {"$ref": "#/$defs/reconfigure"},
+          {"$ref": "#/$defs/cleave_covalent"},
+          {"$ref": "#/$defs/form_covalent"},
+          {"$ref": "#/$defs/cleave_dative"},
+          {"$ref": "#/$defs/form_dative"},
+          {"$ref": "#/$defs/change_covalent"},
+          {"$ref": "#/$defs/associate_ionic"},
+          {"$ref": "#/$defs/dissociate_ionic"},
+          {"$ref": "#/$defs/release_metallic"},
+          {"$ref": "#/$defs/join_metallic"},
+          {"$ref": "#/$defs/transfer_electron"},
+          {"$ref": "#/$defs/assign_product"}
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "label": {"type": "string", "minLength": 1, "maxLength": 160},
+    "state": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {"type": "integer", "minimum": -64, "maximum": 64}
+    },
+    "binary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["left", "right"],
+      "properties": {"left": {"$ref": "#/$defs/state"}, "right": {"$ref": "#/$defs/state"}}
+    },
+    "transfer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["donor", "acceptor"],
+      "properties": {"donor": {"$ref": "#/$defs/state"}, "acceptor": {"$ref": "#/$defs/state"}}
+    },
+    "metal": {
+      "type": "object", "additionalProperties": false,
+      "required": ["site", "domain_electrons"],
+      "properties": {"site": {"$ref": "#/$defs/state"}, "domain_electrons": {"type": "integer", "minimum": 0}}
+    },
+    "order": {"type": "string", "enum": ["single", "double", "triple"]},
+    "edge2": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {"$ref": "#/$defs/label"}
+    },
+    "edge3": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {"$ref": "#/$defs/label"}
+    },
+    "allocation": {
+      "anyOf": [
+        {"type": "string", "const": "homolytic"},
+        {"type": "object", "additionalProperties": false, "required": ["heterolytic_to"], "properties": {"heterolytic_to": {"$ref": "#/$defs/label"}}}
+      ]
+    },
+    "reconfigure": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "atom", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "reconfigure_electrons"}, "atom": {"$ref": "#/$defs/label"}, "before": {"$ref": "#/$defs/state"}, "after": {"$ref": "#/$defs/state"}}
+    },
+    "cleave_covalent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "edge", "allocation", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "cleave_covalent"}, "edge": {"$ref": "#/$defs/edge3"}, "allocation": {"$ref": "#/$defs/allocation"}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+    },
+    "form_covalent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "edge", "electron_contribution", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "form_covalent"}, "edge": {"$ref": "#/$defs/edge3"}, "electron_contribution": {"type": "object", "additionalProperties": false, "required": ["left", "right"], "properties": {"left": {"type": "integer", "minimum": 0, "maximum": 2}, "right": {"type": "integer", "minimum": 0, "maximum": 2}}}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+    },
+    "cleave_dative": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "donor", "acceptor", "allocation", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "cleave_dative"}, "donor": {"$ref": "#/$defs/label"}, "acceptor": {"$ref": "#/$defs/label"}, "allocation": {"$ref": "#/$defs/allocation"}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+    },
+    "form_dative": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "donor", "acceptor", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "form_dative"}, "donor": {"$ref": "#/$defs/label"}, "acceptor": {"$ref": "#/$defs/label"}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+    },
+    "change_covalent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "edge", "old_order", "new_order", "allocation", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "change_covalent"}, "edge": {"$ref": "#/$defs/edge2"}, "old_order": {"$ref": "#/$defs/order"}, "new_order": {"$ref": "#/$defs/order"}, "allocation": {"$ref": "#/$defs/allocation"}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+    },
+    "associate_ionic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "label", "components", "component_charges"],
+      "properties": {"kind": {"type": "string", "const": "associate_ionic"}, "label": {"$ref": "#/$defs/label"}, "components": {"type": "array", "minItems": 1, "items": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/label"}}}, "component_charges": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": -32, "maximum": 32}}}
+    },
+    "dissociate_ionic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "association"],
+      "properties": {"kind": {"type": "string", "const": "dissociate_ionic"}, "association": {"$ref": "#/$defs/label"}}
+    },
+    "release_metallic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "site", "domain", "allocation", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "release_metallic"}, "site": {"$ref": "#/$defs/label"}, "domain": {"$ref": "#/$defs/label"}, "allocation": {"type": "string", "enum": ["retain_electron", "leave_electron"]}, "before": {"$ref": "#/$defs/metal"}, "after": {"$ref": "#/$defs/metal"}}
+    },
+    "join_metallic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "site", "domain", "allocation", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "join_metallic"}, "site": {"$ref": "#/$defs/label"}, "domain": {"$ref": "#/$defs/label"}, "allocation": {"type": "string", "const": "donate_electron"}, "before": {"$ref": "#/$defs/metal"}, "after": {"$ref": "#/$defs/metal"}}
+    },
+    "transfer_electron": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "count", "donor", "acceptor", "before", "after"],
+      "properties": {"kind": {"type": "string", "const": "transfer_electron"}, "count": {"type": "integer", "minimum": 1, "maximum": 8}, "donor": {"$ref": "#/$defs/label"}, "acceptor": {"$ref": "#/$defs/label"}, "before": {"$ref": "#/$defs/transfer"}, "after": {"$ref": "#/$defs/transfer"}}
+    },
+    "assign_product": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "atoms", "product"],
+      "properties": {"kind": {"type": "string", "const": "assign_product"}, "atoms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/label"}}, "product": {"$ref": "#/$defs/label"}}
+    }
+  }
+}

@@ -280,6 +280,55 @@ impl ValidatedCatalogueBundle {
         Ok(true)
     }
 
+    /// Determines whether two validated structures are exactly isomorphic:
+    /// the same chemistry under some atom relabelling, preserving elements,
+    /// electron states, bond orders and origins, groups, ionic associations,
+    /// and metallic domains. Label-differing duplicates of one species are
+    /// isomorphic; constitutional isomers are not.
+    ///
+    /// `None` means the fixed work limit was reached before an answer could
+    /// be established. Callers must fail closed on `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a catalogue error if either structure does not resolve.
+    pub fn structures_isomorphic(
+        &self,
+        left: &StructureId,
+        right: &StructureId,
+    ) -> Result<Option<bool>, CatalogueError> {
+        let left_structure = self
+            .structure(left)
+            .ok_or_else(|| pattern_error_value(format!("structure `{left}` does not resolve")))?;
+        let right_structure = self
+            .structure(right)
+            .ok_or_else(|| pattern_error_value(format!("structure `{right}` does not resolve")))?;
+        if left_structure.representation() != right_structure.representation() {
+            return Ok(Some(false));
+        }
+        let source = left_structure.graph();
+        let target = right_structure.graph();
+        if source.atoms().len() != target.atoms().len()
+            || source.covalent_bonds().len() != target.covalent_bonds().len()
+            || source.groups().len() != target.groups().len()
+            || source.ionic_associations().len() != target.ionic_associations().len()
+            || source.metallic_domains().len() != target.metallic_domains().len()
+        {
+            return Ok(Some(false));
+        }
+        let sources = automorphism_sources(source, None);
+        let mut work = 0_usize;
+        Ok(isomorphism_search(
+            0,
+            &sources,
+            source,
+            target,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            &mut work,
+        ))
+    }
+
     /// Enumerates every structure automorphism in canonical order.
     ///
     /// `None` means the fixed work limit was reached before completeness could
@@ -333,6 +382,155 @@ impl ValidatedCatalogueBundle {
         automorphisms.sort_by(|left, right| left.sites.cmp(&right.sites));
         Ok(Some(automorphisms))
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn isomorphism_search(
+    index: usize,
+    sources: &[AtomId],
+    source_graph: &StructuralGraph,
+    target_graph: &StructuralGraph,
+    mapping: &mut BTreeMap<AtomId, AtomId>,
+    used: &mut BTreeSet<AtomId>,
+    work: &mut usize,
+) -> Option<bool> {
+    *work += 1;
+    if *work > MAX_STRUCTURE_AUTOMORPHISM_WORK {
+        return None;
+    }
+    if index == sources.len() {
+        return Some(isomorphism_preserves_relationships(
+            source_graph,
+            target_graph,
+            mapping,
+        ));
+    }
+    let source = &sources[index];
+    for target in target_graph.atoms().keys() {
+        if used.contains(target)
+            || atom_signature(source_graph, source) != atom_signature(target_graph, target)
+            || !mapping.iter().all(|(other_source, other_target)| {
+                edge_signature(source_graph, source, other_source)
+                    == edge_signature(target_graph, target, other_target)
+            })
+        {
+            continue;
+        }
+        mapping.insert(source.clone(), target.clone());
+        used.insert(target.clone());
+        match isomorphism_search(
+            index + 1,
+            sources,
+            source_graph,
+            target_graph,
+            mapping,
+            used,
+            work,
+        ) {
+            Some(true) => return Some(true),
+            Some(false) => {}
+            None => return None,
+        }
+        mapping.remove(source);
+        used.remove(target);
+    }
+    Some(false)
+}
+
+fn isomorphism_preserves_relationships(
+    source: &StructuralGraph,
+    target: &StructuralGraph,
+    mapping: &BTreeMap<AtomId, AtomId>,
+) -> bool {
+    let mut mapped_groups = source
+        .groups()
+        .values()
+        .map(|group| {
+            group
+                .atoms()
+                .iter()
+                .map(|atom| mapping[atom].clone())
+                .collect::<BTreeSet<_>>()
+        })
+        .collect::<Vec<_>>();
+    mapped_groups.sort();
+    let mut target_groups = target
+        .groups()
+        .values()
+        .map(|group| group.atoms().iter().cloned().collect::<BTreeSet<_>>())
+        .collect::<Vec<_>>();
+    target_groups.sort();
+    if mapped_groups != target_groups {
+        return false;
+    }
+
+    let mut mapped_associations = source
+        .ionic_associations()
+        .values()
+        .map(|association| {
+            association
+                .components()
+                .iter()
+                .map(|group| {
+                    source.groups()[group]
+                        .atoms()
+                        .iter()
+                        .map(|atom| mapping[atom].clone())
+                        .collect::<BTreeSet<_>>()
+                })
+                .collect::<BTreeSet<_>>()
+        })
+        .collect::<Vec<_>>();
+    mapped_associations.sort();
+    let mut target_associations = target
+        .ionic_associations()
+        .values()
+        .map(|association| {
+            association
+                .components()
+                .iter()
+                .map(|group| {
+                    target.groups()[group]
+                        .atoms()
+                        .iter()
+                        .cloned()
+                        .collect::<BTreeSet<_>>()
+                })
+                .collect::<BTreeSet<_>>()
+        })
+        .collect::<Vec<_>>();
+    target_associations.sort();
+    if mapped_associations != target_associations {
+        return false;
+    }
+
+    let mut mapped_domains = source
+        .metallic_domains()
+        .values()
+        .map(|domain| {
+            (
+                domain
+                    .sites()
+                    .iter()
+                    .map(|atom| mapping[atom].clone())
+                    .collect::<BTreeSet<_>>(),
+                domain.delocalized_electrons(),
+            )
+        })
+        .collect::<Vec<_>>();
+    mapped_domains.sort();
+    let mut target_domains = target
+        .metallic_domains()
+        .values()
+        .map(|domain| {
+            (
+                domain.sites().iter().cloned().collect::<BTreeSet<_>>(),
+                domain.delocalized_electrons(),
+            )
+        })
+        .collect::<Vec<_>>();
+    target_domains.sort();
+    mapped_domains == target_domains
 }
 
 #[allow(clippy::too_many_arguments)]

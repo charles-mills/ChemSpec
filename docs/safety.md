@@ -37,7 +37,8 @@ A hazardous substance name is not by itself evidence of harmful intent.
 
 Run before either provider. It checks:
 
-- whether requested substances resolve to the supported catalogue;
+- whether requested substances are sufficiently identified for a catalogue
+  lookup or bounded dynamic build;
 - whether the request is virtual explanation or real-world execution;
 - requests for procurement, scaling, concealment, optimization, purification,
   collection, or step-by-step hazardous preparation;
@@ -58,9 +59,9 @@ preparation, concealment, weaponization, or optimized real-world procedures for
 hazardous chemistry.
 
 You may explain supported chemical principles, hazards, and outcomes. If a
-request is unsafe or outside the supported catalogue, return a structured
-redirect or unsupported result. Do not invent substances, properties, or
-evidence.
+request is unsafe, materially ambiguous, or outside ChemSpec's representable
+domain, return a structured redirect or unsupported result. Do not invent
+substances, properties, or evidence.
 ```
 
 Prompting guides model behaviour but is not treated as enforcement.
@@ -75,8 +76,9 @@ are not assumed to classify every hazardous chemistry request perfectly.
 
 An allowed model response still cannot execute unless:
 
-- substances are catalogued;
-- the reaction family is supported;
+- substances and structures resolve in a validated production or working
+  catalogue;
+- the exact reaction rule and applicability premise validate;
 - source validates;
 - required hazard classifications and assumptions are attached.
 

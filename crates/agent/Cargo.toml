@@ -1,0 +1,20 @@
+[package]
+name = "agent"
+description = "Provider-neutral dynamic reaction construction for ChemSpec"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+chem-catalogue = { path = "../chem-catalogue" }
+chem-domain = { path = "../chem-domain" }
+chem-kernel = { path = "../chem-kernel" }
+chems-lang = { path = "../chems-lang" }
+num-bigint.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -2,9 +2,13 @@
 
 ## Outcome
 
-Ship one polished native ChemSpec journey demonstrating the reviewed lithium
-and water outcome from request through evidence, concise `.chems 1`, expanded
-structural validation, paired simulation, and explanation.
+Ship a polished native ChemSpec experience demonstrating both paths: immediate
+reviewed catalogue chemistry and broadly uncatalogued reactions researched by
+Codex and compiled by ChemSpec. Authored catalogue source crosses `.chems 1`;
+dynamic outcomes cross the equivalent checked `ReactionDeclaration`. Both
+retain expanded structural validation, the strongest honest presentation
+capability, and explanation. The lithium/water journey is the first release
+gate, not a scope ceiling.
 
 ## Milestone 1 — definitive structural language
 
@@ -23,14 +27,20 @@ Exit evidence:
 
 ## Milestone 2 — provider journey
 
-Implement provider-neutral workflow events and fake-provider integration, then
-Codex subscription and direct Responses API providers.
+Implement the Codex subscription catalogue-miss vertical first, then the
+[dynamic reaction outcome rebuild](dynamic-reaction-rebuild-plan.md): compact
+claims, canonical identity, fetched evidence, exact outcome compilation,
+progressive structural capabilities, bounded repair/cancellation, cache reuse,
+and fake-provider integration. Codex binary remains the default live provider;
+no hosted backend or direct API implementation is required.
 
 Exit evidence:
 
 - startup selector and accurate preflight states;
 - live-search observation research with claim-level evidence;
-- strict structured source/evidence output;
+- strict compact claim output and locally compiled typed declarations;
+- fetched claim-level evidence snapshots;
+- reviewed-family, net-transformation, and static presentation modes;
 - visible bounded repair; and
 - explicit provider failure states.
 
@@ -64,7 +74,7 @@ Exit evidence:
 
 If time becomes constrained, cut in this order:
 
-1. catalogue breadth beyond lithium and water;
+1. catalogue promotion breadth beyond the core fast path;
 2. custom shaders and decorative motion;
 3. advanced editor features;
 4. secondary-platform installers while retaining build evidence; and

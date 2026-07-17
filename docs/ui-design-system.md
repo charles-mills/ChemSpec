@@ -101,9 +101,35 @@ transition into the macroscopic view.
 
 The subsequent 3D page is a separate illustrative scale. It consumes a scene
 plan containing reusable visual assets and observation-gated effects, not the
-structural atom graph. Orbit, zoom, camera motion, timing, and fluid/effect
-motion are presentation controls and carry a persistent virtual-model
-disclosure.
+structural atom graph. Its elevated near-isometric camera is orthographic and
+fixed: there is no orbit, pan, zoom, shake, or cinematic camera motion. Timing
+and fluid/effect motion remain illustrative and carry a persistent
+virtual-model disclosure.
+
+Completing the macroscopic timeline unlocks a final product record. On desktop,
+the page uses an even split: the left side is a full-height, continuously
+rotating perspective 3D product model, while the right side presents molecule
+properties as a staggered typewriter readout. The model is compiled from
+final-frame product membership, atoms, formal charges, and covalent
+relationships; ionic products use an association enclosure instead of fake
+bonds. Covalent lines and their multiplicity come only from validated edges;
+generic VSEPR-informed geometry uses connectivity and non-bonding-electron
+counts to keep bonded atoms legible without reaction-specific layout code.
+Formulae, composition, structure class, atom and bond counts,
+net formal charge, and exact-decimal reference molar mass are deterministic
+local presentation values. The renderer never selects a product by reaction
+name.
+
+The result screen keeps the established instrument language: nested near-black
+surfaces, one-pixel borders, compact uppercase eyebrows, restrained green and
+blue accents, broad model whitespace, and explicit validation wording. Below
+1080 pixels the model and properties stack in the same information order inside
+one vertical scroll region. Property rows switch to a vertical label-value
+composition, and the desktop record uses height-aware density plus its own
+scroll boundary so long values and short viewports do not clip. The 3D product
+completes one 360-degree revolution in roughly 18 seconds, while property rows
+reveal sequentially with a visible cursor and
+stable row geometry.
 
 ## Tokens
 
@@ -152,6 +178,12 @@ tail, like a released key, ticking only while the fade runs. Playback ticks
 run only while the trusted frame sequence is playing. Native hover, press,
 focus, selected, and disabled feedback requires no unconditional
 subscription.
+
+The product record is the one intentional post-playback continuous view: its
+subscription advances the user-requested rotating 3D model and deterministic
+typewriter reveal only while that screen is visible. Leaving the screen removes
+the subscription. The same elapsed value reconstructs the same model angle and
+text state.
 
 ## Responsive composition
 

@@ -1,11 +1,11 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_catalogue::{
-    CatalogueEnvelope, CatalogueErrorCode, CatalogueReviewAttestation,
-    ObservationCompatibilityRecord, ObservationPredicate, PublicationKind, ReviewStatus,
-    ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
+    CatalogueEnvelope, CatalogueErrorCode, MacroscopicMaterialContextRecord,
+    MacroscopicMaterialRecord, ObservationCompatibilityRecord, ObservationPredicate,
+    PublicationKind, ReviewStatus, ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
 };
-use chem_domain::{EvidenceSourceId, PremiseId, ReactionRuleId, RepresentationKind, StructureId};
+use chem_domain::{Phase, PremiseId, ReactionRuleId, RepresentationKind, StructureId};
 use serde_json::Value;
 
 fn workspace_root() -> PathBuf {
@@ -119,97 +119,155 @@ fn canonical_fixture_matches_schema_digest_and_closed_domain() {
 }
 
 #[test]
-fn canonical_ai_attestation_is_digest_bound() {
-    let root = workspace_root();
-    let review_bytes = fs::read(root.join("catalogue/trusted/core-chemistry/review.json")).unwrap();
-    let attestation: CatalogueReviewAttestation = serde_json::from_slice(&review_bytes).unwrap();
-    assert_eq!(attestation.reviewer, "OpenAI Codex (AI)");
-    assert_eq!(
-        attestation.canonical_digest().unwrap().to_string(),
-        chem_catalogue::PINNED_CANONICAL_REVIEW_DIGEST
-    );
-    let trusted = TrustedCatalogue::from_canonical_json(&trusted_catalogue_bytes(), &review_bytes)
-        .expect("the exact host-selected AI attestation should promote the canonical catalogue");
+fn built_in_catalogue_loads_without_any_attestation() {
+    let trusted = TrustedCatalogue::from_canonical_json(&trusted_catalogue_bytes())
+        .expect("a validated bundle needs no review ceremony");
     assert_eq!(trusted.document().elements.len(), 118);
     assert_eq!(trusted.document().generalized_rules.len(), 75);
 }
 
 #[test]
-fn self_asserted_reviews_cannot_extend_the_host_trust_root() {
-    let mut invented = envelope();
-    invented.bundle.publication = PublicationKind::Production;
-    for premise in &mut invented.bundle.premises {
-        premise.review.status = ReviewStatus::Reviewed;
-        premise.review.reviewers = vec![ReviewerRecord {
-            reviewer: "Invented runtime agent".to_owned(),
-            reviewed_on: "2026-07-14".to_owned(),
-            reference: "self-asserted".to_owned(),
-            notes: None,
-        }];
-    }
-    invented = rebound(invented);
-    let attestation = CatalogueReviewAttestation {
-        schema_version: 1,
-        id: "review.invented".to_owned(),
-        catalogue_digest: invented.digest,
-        reviewer: "Invented runtime agent".to_owned(),
-        reviewed_on: "2026-07-14".to_owned(),
-        scope: "invented".to_owned(),
-        method: "invented".to_owned(),
-        sources: [
-            EvidenceSourceId::from_str("evidence.iupac.goldbook").unwrap(),
-            EvidenceSourceId::from_str("evidence.openstax.chemistry-2e").unwrap(),
-        ]
-        .into_iter()
-        .collect(),
-        premises: invented
-            .bundle
-            .premises
-            .iter()
-            .map(|premise| premise.id.clone())
-            .collect(),
-        coverage_conclusion: "invented".to_owned(),
-        limitation: "invented".to_owned(),
-    };
-    let mut reordered_review = serde_json::to_value(&attestation).unwrap();
-    reordered_review["sources"]
-        .as_array_mut()
-        .unwrap()
-        .reverse();
-    reordered_review["premises"]
-        .as_array_mut()
-        .unwrap()
-        .reverse();
-    let reordered_review: CatalogueReviewAttestation =
-        serde_json::from_value(reordered_review).unwrap();
-    assert_eq!(
-        attestation.canonical_digest().unwrap(),
-        reordered_review.canonical_digest().unwrap()
-    );
-    let mut changed_review = attestation.clone();
-    changed_review.coverage_conclusion = "materially changed conclusion".to_owned();
-    assert_ne!(
-        attestation.canonical_digest().unwrap(),
-        changed_review.canonical_digest().unwrap()
-    );
-    for field in ["sources", "premises"] {
-        let mut duplicate_review = serde_json::to_value(&attestation).unwrap();
-        let duplicate = duplicate_review[field][0].clone();
-        duplicate_review[field]
-            .as_array_mut()
-            .unwrap()
-            .push(duplicate);
-        assert!(
-            serde_json::from_value::<CatalogueReviewAttestation>(duplicate_review).is_err(),
-            "duplicate `{field}` entry must be rejected before hashing"
-        );
-    }
-    let error = TrustedCatalogue::from_canonical_json(
-        &serde_json::to_vec(&invented).unwrap(),
-        &serde_json::to_vec(&attestation).unwrap(),
+fn optional_macroscopic_materials_are_backward_compatible_and_role_aware() {
+    let legacy = ValidatedCatalogueBundle::from_json(&fixture_bytes())
+        .expect("legacy schema-1 catalogue remains valid");
+    let lithium = StructureId::from_str("LithiumMetal").unwrap();
+    assert!(legacy.macroscopic_material(&lithium, None).is_none());
+
+    let mut enriched = envelope();
+    let rule = ReactionRuleId::from_str("Rules.AlkaliMetalWithWater").unwrap();
+    let premise = PremiseId::from_str("premise.structure.lithium-metal").unwrap();
+    enriched.bundle.macroscopic_materials.extend([
+        MacroscopicMaterialRecord {
+            structure: lithium.clone(),
+            context: MacroscopicMaterialContextRecord::Standard,
+            phase: Phase::Solid,
+            premise_ids: [premise.clone()].into_iter().collect(),
+        },
+        MacroscopicMaterialRecord {
+            structure: lithium.clone(),
+            context: MacroscopicMaterialContextRecord::ReactionRole {
+                rule: rule.clone(),
+                role: "metal".to_owned(),
+            },
+            phase: Phase::Solid,
+            premise_ids: [premise].into_iter().collect(),
+        },
+    ]);
+    let enriched = rebound(enriched);
+    let schema: Value = serde_json::from_slice(
+        &fs::read(workspace_root().join("schemas/chem-catalogue-1.schema.json")).unwrap(),
     )
-    .unwrap_err();
-    assert_eq!(error.code(), CatalogueErrorCode::InvalidReview);
+    .unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    let serialized = serde_json::to_value(&enriched).unwrap();
+    assert!(
+        validator.is_valid(&serialized),
+        "macroscopic catalogue schema errors: {:?}",
+        validator.iter_errors(&serialized).collect::<Vec<_>>()
+    );
+    let enriched =
+        ValidatedCatalogueBundle::validate(enriched).expect("reviewed phase records validate");
+    assert_eq!(
+        enriched.macroscopic_material(&lithium, None).unwrap().phase,
+        Phase::Solid
+    );
+    let contextual = enriched
+        .macroscopic_material(&lithium, Some((&rule, "metal")))
+        .unwrap();
+    assert_eq!(contextual.phase, Phase::Solid);
+    assert!(matches!(
+        contextual.context,
+        MacroscopicMaterialContextRecord::ReactionRole { .. }
+    ));
+}
+
+#[test]
+fn invalid_macroscopic_role_is_rejected_with_a_typed_error() {
+    let mut invalid = envelope();
+    invalid
+        .bundle
+        .macroscopic_materials
+        .push(MacroscopicMaterialRecord {
+            structure: StructureId::from_str("LithiumMetal").unwrap(),
+            context: MacroscopicMaterialContextRecord::ReactionRole {
+                rule: ReactionRuleId::from_str("Rules.AlkaliMetalWithWater").unwrap(),
+                role: "inventedRole".to_owned(),
+            },
+            phase: Phase::Solid,
+            premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
+                .into_iter()
+                .collect(),
+        });
+    assert_eq!(
+        rebound_error(invalid),
+        CatalogueErrorCode::InvalidMacroscopicMaterial
+    );
+
+    let mut unknown_rule = envelope();
+    unknown_rule
+        .bundle
+        .macroscopic_materials
+        .push(MacroscopicMaterialRecord {
+            structure: StructureId::from_str("LithiumMetal").unwrap(),
+            context: MacroscopicMaterialContextRecord::ReactionRole {
+                rule: ReactionRuleId::from_str("Rules.Invented").unwrap(),
+                role: "metal".to_owned(),
+            },
+            phase: Phase::Solid,
+            premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
+                .into_iter()
+                .collect(),
+        });
+    assert_eq!(
+        rebound_error(unknown_rule),
+        CatalogueErrorCode::InvalidMacroscopicMaterial
+    );
+
+    let mut unknown_structure = envelope();
+    unknown_structure
+        .bundle
+        .macroscopic_materials
+        .push(MacroscopicMaterialRecord {
+            structure: StructureId::from_str("InventedMaterial").unwrap(),
+            context: MacroscopicMaterialContextRecord::Standard,
+            phase: Phase::Solid,
+            premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
+                .into_iter()
+                .collect(),
+        });
+    assert_eq!(
+        rebound_error(unknown_structure),
+        CatalogueErrorCode::InvalidMacroscopicMaterial
+    );
+
+    let valid_record = MacroscopicMaterialRecord {
+        structure: StructureId::from_str("LithiumMetal").unwrap(),
+        context: MacroscopicMaterialContextRecord::Standard,
+        phase: Phase::Solid,
+        premise_ids: [PremiseId::from_str("premise.structure.lithium-metal").unwrap()]
+            .into_iter()
+            .collect(),
+    };
+    let mut unknown_premise = envelope();
+    let mut missing_evidence = valid_record.clone();
+    missing_evidence.premise_ids = [PremiseId::from_str("premise.invented").unwrap()]
+        .into_iter()
+        .collect();
+    unknown_premise
+        .bundle
+        .macroscopic_materials
+        .push(missing_evidence);
+    assert_eq!(
+        rebound_error(unknown_premise),
+        CatalogueErrorCode::InvalidMacroscopicMaterial
+    );
+
+    let mut duplicate = envelope();
+    duplicate.bundle.macroscopic_materials = vec![valid_record.clone(), valid_record];
+    assert_eq!(
+        rebound_error(duplicate),
+        CatalogueErrorCode::InvalidMacroscopicMaterial
+    );
 }
 
 #[test]

@@ -13,25 +13,28 @@ use chem_catalogue::{
     ValidatedCatalogueBundle,
 };
 use chem_domain::{
-    AtomGroup, AtomGroupId, AtomId, AtomMapping, AtomMappingId, BondOrder, ClaimId, ContentDigest,
-    CovalentDelocalization, CovalentDelocalizationId, EffectiveBondOrder, ElectronAllocation,
-    ElectronState, ElectronTransition, ElementSymbol, IonicAssociation, IonicAssociationId,
-    MetallicDomainId, MetallicJoinAllocation, MetallicReleaseAllocation, PremiseId, ReactionRuleId,
-    ReactionSide, RepresentationKind, StructuralOperation, StructuralOperationId,
+    AtomGroup, AtomGroupId, AtomId, AtomMapping, AtomMappingId, BondOrder, Charge, ChargeSign,
+    ClaimId, ContentDigest, CovalentDelocalization, CovalentDelocalizationId, EffectiveBondOrder,
+    ElectronAllocation, ElectronState, ElectronTransition, ElementSymbol, FormulaComposition,
+    IonicAssociation, IonicAssociationId, MetallicDomainId, MetallicJoinAllocation,
+    MetallicReleaseAllocation, Phase, PremiseId, ReactionDeclaration, ReactionRuleId, ReactionSide,
+    RepresentationKind, SpeciesId, StructuralOperation, StructuralOperationId,
     StructuralOperationInput, StructureDefinition, StructureId, StructureInstance,
-    StructureInstanceId,
+    StructureInstanceId, UnbalancedReactionTerm, reaction_term,
 };
 use chems_lang::{
-    ByteSpan, SourceAst, SourceEquationTerm, SourceObservation, SourceReaction,
-    SourceRepresentationKind, SourceStructureBinding, parse_source,
+    ByteSpan, SourceAst, SourceEquationTerm, SourceEventModel, SourceModel, SourceObservation,
+    SourceReaction, SourceRepresentationKind, SourceRuleApplication, SourceRuleBinding,
+    SourceSequenceModel, SourceStructureBinding, parse_source,
 };
+use num_bigint::BigUint;
 use serde_json::Value;
 
 use crate::{
-    CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidencePredicate,
-    EvidenceTrust, ExpandedElectronContribution, ExpandedInstance, ExpandedIonicComponent,
-    ExpandedOperation, ExpandedStructuralReaction, ExpansionError, Provenance, ReactionSideKind,
-    ResolvedApplicability, ResolvedEquationTerm, ResolvedEvidence,
+    CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidencePacketReference,
+    EvidencePredicate, EvidenceTrust, ExpandedElectronContribution, ExpandedInstance,
+    ExpandedIonicComponent, ExpandedOperation, ExpandedStructuralReaction, ExpansionError,
+    Provenance, ReactionSideKind, ResolvedApplicability, ResolvedEquationTerm, ResolvedEvidence,
     ResolvedGeneralizedRuleApplication, ResolvedModel, ResolvedObservation, ResolvedReactionClaim,
     ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin,
     SourceReference, TrustedExpandedStructuralReaction, ValidatedEvidencePacket,
@@ -82,6 +85,374 @@ pub fn expand_trusted(
         &evidence,
     )?;
     Ok(TrustedExpandedStructuralReaction { expanded })
+}
+
+/// Expands one checked declaration through a locally matched reviewed family
+/// without serializing or reparsing generated `.chems` source.
+///
+/// `role_species` binds every concrete rule role to one declaration species.
+/// The selected generalized rule has already been matched locally and remains
+/// catalogue-authored; provider hints cannot reach this boundary.
+///
+/// # Errors
+///
+/// Returns a typed expansion error for incomplete role binding, declaration /
+/// family disagreement, stale catalogue structures, or structural expansion
+/// failure.
+#[allow(clippy::too_many_lines)]
+pub fn expand_reviewed_declaration(
+    reaction_name: &str,
+    declaration: &ReactionDeclaration,
+    role_species: &BTreeMap<String, SpeciesId>,
+    selected: &ElaboratedGeneralizedRule,
+    catalogue: &TrustedCatalogue,
+) -> Result<TrustedExpandedStructuralReaction, ExpansionError> {
+    let expanded = expand_typed_declaration(
+        reaction_name,
+        declaration,
+        role_species,
+        &selected.rule,
+        Some(selected),
+        catalogue,
+        CatalogueTrust::Trusted,
+    )?;
+    Ok(TrustedExpandedStructuralReaction { expanded })
+}
+
+/// Expands a checked model-proposed mapping and operation rule through the
+/// review-candidate boundary. The caller must still execute kernel validation
+/// and may never promote this expansion into the trusted catalogue.
+///
+/// # Errors
+///
+/// Returns a typed error for role, structure, mapping, operation, or catalogue
+/// disagreement.
+pub fn expand_proposed_declaration(
+    reaction_name: &str,
+    declaration: &ReactionDeclaration,
+    role_species: &BTreeMap<String, SpeciesId>,
+    rule: &ReactionRuleRecord,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Result<ExpandedStructuralReaction, ExpansionError> {
+    expand_typed_declaration(
+        reaction_name,
+        declaration,
+        role_species,
+        rule,
+        None,
+        catalogue,
+        CatalogueTrust::ReviewCandidate,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn expand_typed_declaration(
+    reaction_name: &str,
+    declaration: &ReactionDeclaration,
+    role_species: &BTreeMap<String, SpeciesId>,
+    rule: &ReactionRuleRecord,
+    selected: Option<&ElaboratedGeneralizedRule>,
+    catalogue: &ValidatedCatalogueBundle,
+    trust: CatalogueTrust,
+) -> Result<ExpandedStructuralReaction, ExpansionError> {
+    let source_span = ByteSpan::new(0, 0);
+    let source_name = "dynamic-typed-declaration";
+    if role_species.keys().collect::<BTreeSet<_>>() != rule.roles.keys().collect::<BTreeSet<_>>() {
+        return Err(ExpansionError::invalid(
+            "CHEMS-X012",
+            "typed declaration role binding is incomplete",
+            None,
+        ));
+    }
+    let mut definitions = BTreeMap::new();
+    let mut reactants = BTreeMap::new();
+    let mut products = BTreeMap::new();
+    let mut source_reactants = Vec::new();
+    let mut source_products = Vec::new();
+    for (role, schema) in &rule.roles {
+        let species = &role_species[role];
+        let (side, term) = declaration
+            .reactants()
+            .iter()
+            .find(|term| term.species() == species)
+            .map(|term| (ReactionSideKind::Reactant, term))
+            .or_else(|| {
+                declaration
+                    .products()
+                    .iter()
+                    .find(|term| term.species() == species)
+                    .map(|term| (ReactionSideKind::Product, term))
+            })
+            .ok_or_else(|| {
+                ExpansionError::invalid(
+                    "CHEMS-X012",
+                    format!("role `{role}` references a species absent from the declaration"),
+                    None,
+                )
+            })?;
+        let expected_side = match schema.side {
+            RuleSideRecord::Reactant => ReactionSideKind::Reactant,
+            RuleSideRecord::Product => ReactionSideKind::Product,
+        };
+        if side != expected_side {
+            return Err(ExpansionError::invalid(
+                "CHEMS-X013",
+                format!("role `{role}` disagrees with declaration side or coefficient"),
+                None,
+            ));
+        }
+        let pattern = pattern_for_role(rule, role).ok_or_else(|| {
+            ExpansionError::system("CHEMS-X092", format!("role `{role}` has no pattern"))
+        })?;
+        let structure = catalogue.structure(&pattern.structure_id).ok_or_else(|| {
+            ExpansionError::system(
+                "CHEMS-X091",
+                format!("matched structure `{}` disappeared", pattern.structure_id),
+            )
+        })?;
+        if structure.representation() != catalogue_representation(schema.representation)
+            || pattern.coefficient != term.coefficient()
+        {
+            return Err(ExpansionError::invalid(
+                "CHEMS-X013",
+                format!("role `{role}` structure shape disagrees with declaration"),
+                None,
+            ));
+        }
+        let formula = structure
+            .formula()
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.to_string(), *count))
+            .collect::<BTreeMap<_, _>>();
+        let structure_premises = catalogue
+            .structure_premises(&pattern.structure_id)
+            .ok_or_else(|| {
+                ExpansionError::system(
+                    "CHEMS-X091",
+                    format!(
+                        "matched structure `{}` has no premise closure",
+                        pattern.structure_id
+                    ),
+                )
+            })?;
+        let provenance = Provenance::derived(
+            [source_origin(
+                source_name,
+                source_span,
+                format!("typed declaration binding {role}"),
+            )],
+            [catalogue_origin(
+                catalogue.digest(),
+                format!("structure {}", pattern.structure_id),
+                structure_premises.iter().cloned(),
+            )],
+            [],
+        );
+        let binding = ResolvedStructureBinding {
+            side,
+            name: role.clone(),
+            coefficient: term.coefficient(),
+            structure: pattern.structure_id.clone(),
+            formula,
+            representation: structure.representation(),
+            provenance,
+        };
+        let source_binding = SourceStructureBinding {
+            name: role.clone(),
+            coefficient: term.coefficient().to_string(),
+            structure: pattern.structure_id.to_string(),
+            span: source_span,
+        };
+        definitions.insert(role.clone(), structure);
+        match side {
+            ReactionSideKind::Reactant => {
+                source_reactants.push(source_binding);
+                reactants.insert(role.clone(), binding);
+            }
+            ReactionSideKind::Product => {
+                source_products.push(source_binding);
+                products.insert(role.clone(), binding);
+            }
+        }
+    }
+    let application = SourceRuleApplication {
+        rule: rule.id.to_string(),
+        bindings: rule
+            .roles
+            .keys()
+            .map(|role| SourceRuleBinding {
+                role: role.clone(),
+                value: role.clone(),
+                span: source_span,
+            })
+            .collect(),
+        span: source_span,
+    };
+    let reaction = SourceReaction {
+        name: reaction_name.to_owned(),
+        span: source_span,
+        reactants: source_reactants,
+        products: source_products,
+        equation: None,
+        model: Some(SourceModel {
+            event: SourceEventModel::Representative,
+            sequence: SourceSequenceModel::Explanatory,
+            span: source_span,
+        }),
+        observations: None,
+        rule_application: Some(application.clone()),
+    };
+    let resolved_rule = resolve_rule(
+        source_name,
+        &application,
+        &rule.id,
+        rule,
+        &reactants,
+        &products,
+        catalogue.digest(),
+        selected,
+    )?;
+    validate_applicability(rule, &reactants)?;
+    let model = resolve_model(source_name, &reaction, rule, catalogue.digest())?;
+    let evidence_digest =
+        ContentDigest::sha256(b"typed reviewed family without external observations");
+    let resolved_evidence = ResolvedEvidence {
+        packet: EvidencePacketReference::parse("Evidence.DynamicTyped@1")
+            .map_err(|error| ExpansionError::system("CHEMS-X095", error.to_string()))?,
+        digest: evidence_digest,
+        trust: EvidenceTrust::ExternalUntrusted,
+        observations: Vec::new(),
+    };
+    let equation = reactants
+        .values()
+        .map(|binding| equation_term(binding, ReactionSideKind::Reactant))
+        .chain(
+            products
+                .values()
+                .map(|binding| equation_term(binding, ReactionSideKind::Product)),
+        )
+        .collect();
+    let reactant_instances = expand_instances(&reactants, &definitions, catalogue.digest())?;
+    let product_instances = expand_instances(&products, &definitions, catalogue.digest())?;
+    let reactant_side = ReactionSide::new(
+        reactant_instances
+            .values()
+            .map(|instance| instance.instance.clone()),
+    )
+    .map_err(system_structural)?;
+    let product_side = ReactionSide::new(
+        product_instances
+            .values()
+            .map(|instance| instance.instance.clone()),
+    )
+    .map_err(system_structural)?;
+    let (mapping, mapping_entry_provenance) = expand_mapping(
+        &reaction,
+        rule,
+        &resolved_rule.bindings,
+        &reactant_side,
+        &product_side,
+        catalogue.digest(),
+    )?;
+    let operations = expand_operations(
+        source_name,
+        &reaction,
+        rule,
+        &resolved_rule.bindings,
+        catalogue.digest(),
+    )?;
+    let atom_provenance = reactant_instances
+        .values()
+        .chain(product_instances.values())
+        .flat_map(|instance| {
+            instance
+                .instance
+                .graph()
+                .atoms()
+                .keys()
+                .map(|atom| (atom.clone(), instance.provenance.clone()))
+        })
+        .collect();
+    let mapping_premises = rule
+        .mapping_template
+        .iter()
+        .flat_map(|entry| entry.premise_ids.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    let mapping_provenance = Provenance::derived(
+        resolved_rule
+            .bindings
+            .values()
+            .flat_map(|binding| binding.provenance.source.iter().cloned()),
+        [catalogue_origin(
+            catalogue.digest(),
+            format!("rule {} atom mapping template", rule.id),
+            mapping_premises,
+        )],
+        [],
+    );
+    let premises = rule.premise_ids.clone();
+    let premise_provenance = premises
+        .iter()
+        .map(|premise| {
+            (
+                premise.clone(),
+                catalogue_origin(
+                    catalogue.digest(),
+                    format!("catalogue premise {premise}"),
+                    [premise.clone()],
+                ),
+            )
+        })
+        .collect();
+    let expanded = ExpandedStructuralReaction {
+        schema_version: 1,
+        claim: ResolvedReactionClaim {
+            source: SourceReference {
+                name: source_name.to_owned(),
+                bytes_digest: declaration.digest(),
+                semantic_digest: declaration.digest(),
+            },
+            catalogue: CatalogueReference {
+                name: catalogue.document().name.clone(),
+                version: catalogue.document().version.clone(),
+                digest: catalogue.digest(),
+                trust,
+            },
+            reaction: reaction_name.to_owned(),
+            reactants,
+            products,
+            equation,
+            declaration: declaration.clone(),
+            model,
+            evidence: resolved_evidence,
+            rule: resolved_rule,
+        },
+        reactant_instances,
+        product_instances,
+        atom_provenance,
+        mapping,
+        mapping_entry_provenance,
+        mapping_provenance,
+        operations,
+        premises,
+        premise_provenance,
+    };
+    Ok(expanded)
+}
+
+fn equation_term(
+    binding: &ResolvedStructureBinding,
+    side: ReactionSideKind,
+) -> ResolvedEquationTerm {
+    ResolvedEquationTerm {
+        side,
+        coefficient: binding.coefficient,
+        formula: binding.formula.clone(),
+        representation: binding.representation,
+        binding: binding.name.clone(),
+        provenance: binding.provenance.clone(),
+    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -268,6 +639,7 @@ fn expand(
             )
         })
         .collect();
+    let declaration = reaction_declaration(&reactants, &products, &resolved_rule, catalogue)?;
     let claim = ResolvedReactionClaim {
         source: source_reference,
         catalogue: CatalogueReference {
@@ -280,6 +652,7 @@ fn expand(
         reactants,
         products,
         equation,
+        declaration,
         model,
         evidence: resolved_evidence,
         rule: resolved_rule,
@@ -1656,6 +2029,83 @@ fn strip_spans(value: &mut Value) {
         }
         _ => {}
     }
+}
+
+fn reaction_declaration(
+    reactants: &BTreeMap<String, ResolvedStructureBinding>,
+    products: &BTreeMap<String, ResolvedStructureBinding>,
+    rule: &ResolvedRuleApplication,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Result<ReactionDeclaration, ExpansionError> {
+    let terms = |bindings: &BTreeMap<String, ResolvedStructureBinding>| {
+        bindings
+            .values()
+            .map(|binding| {
+                let structure = catalogue.structure(&binding.structure).ok_or_else(|| {
+                    ExpansionError::system(
+                        "CHEMS-X036",
+                        format!("resolved structure `{}` disappeared", binding.structure),
+                    )
+                })?;
+                let net_charge = structure.graph().system_net_charge();
+                let charge = if net_charge == 0 {
+                    Charge::neutral()
+                } else {
+                    Charge::from_magnitude(
+                        BigUint::from(net_charge.unsigned_abs()),
+                        if net_charge.is_positive() {
+                            ChargeSign::Positive
+                        } else {
+                            ChargeSign::Negative
+                        },
+                    )
+                    .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?
+                };
+                let formula = FormulaComposition::new(
+                    binding
+                        .formula
+                        .iter()
+                        .map(|(symbol, count)| {
+                            ElementSymbol::from_str(symbol)
+                                .map(|element| (element, *count))
+                                .map_err(|error| {
+                                    ExpansionError::invalid("CHEMS-X005", error.to_string(), None)
+                                })
+                        })
+                        .collect::<Result<Vec<_>, ExpansionError>>()?,
+                )
+                .map_err(|error| ExpansionError::invalid("CHEMS-X005", error.to_string(), None))?;
+                let formula_text = binding
+                    .formula
+                    .iter()
+                    .map(|(symbol, count)| {
+                        if *count == 1 {
+                            symbol.clone()
+                        } else {
+                            format!("{symbol}{count}")
+                        }
+                    })
+                    .collect::<String>();
+                let unbalanced = UnbalancedReactionTerm {
+                    species: SpeciesId::from_str(&format!("catalogue.{}", binding.structure))
+                        .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?,
+                    display_name: binding.name.clone(),
+                    formula_text,
+                    formula,
+                    charge,
+                    phase: Phase::Unknown,
+                };
+                reaction_term(unbalanced, binding.coefficient)
+                    .map_err(|error| ExpansionError::invalid("CHEMS-X006", error.to_string(), None))
+            })
+            .collect::<Result<Vec<_>, ExpansionError>>()
+    };
+    ReactionDeclaration::from_balanced(
+        terms(reactants)?,
+        terms(products)?,
+        rule.applicability.required_context.clone(),
+    )
+    .map_err(|error| ExpansionError::invalid("CHEMS-X006", error.to_string(), None))
 }
 
 fn parse_formula(source: &str, span: ByteSpan) -> Result<BTreeMap<String, u64>, ExpansionError> {

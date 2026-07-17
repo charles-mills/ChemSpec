@@ -36,7 +36,7 @@ Table-driven experiments include at least:
 | `HCl + NaOH` | Neutralization |
 | `HCl + NaHCO3` | Gas formation |
 | `KNO3 + NaCl` | No net reaction |
-| Unknown or out-of-domain chemistry | Unsupported |
+| Unknown or out-of-domain chemistry | Dynamic build, then validated or Unsupported |
 
 Every validated result is checked for:
 
@@ -67,35 +67,36 @@ Every catalogue build checks:
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
 
+Dynamic claims cannot construct catalogue trust. Exact static compilation must
+prove stable request identity, formula/charge conservation, deterministic
+smallest-integer coefficients, and checked `ReactionDeclaration` construction.
+Reviewed-family and model-proposed animation recipes must then cross the same
+review-candidate expansion, kernel validation, and frame projection before
+presentation.
+
 ## Agent evaluation
 
-Use a fixed prompt corpus covering:
+The algorithmic paths are the primary evaluation surface and are covered by
+ordinary workspace tests:
 
-- straightforward supported questions;
-- names versus formulas;
-- missing quantities;
-- ambiguous commercial materials;
-- no-reaction cases;
-- unsupported chemistry;
-- incorrect user assumptions;
-- prompt injection;
-- hazardous procedural requests;
-- repairable source errors.
-
-Record by provider and model:
-
-- structured-output success rate;
-- parse success rate;
-- first-pass validation rate;
-- repair success rate;
-- citation completeness;
-- correct unsupported and redirected behaviour;
-- attempt count;
-- time to first visible workflow event;
-- total completion time.
+- solver family tests: every reaction family asserts its products, phases,
+  observations, systematic names, and — equally important — its honest
+  declines (borderline solubility, redox-prone pairings, steam-only metals,
+  ambiguous oxides);
+- confident no-reaction tests: noble gases, metal pairs, identical
+  closed-shell reactants, and displacement reversals answer instantly;
+- generator tests: structures derive from element multisets alone, resonance
+  systems delocalize (nitrate 4/3, benzene 3/2), and genuinely ambiguous
+  formulas decline rather than guess;
+- end-to-end animation tests: each solved family drives structure
+  generation, graph-diff mechanism derivation, kernel validation, and frame
+  projection while asserting **zero model calls**;
+- provider-path tests with fakes: structured-output failure, bounded repair,
+  escalated mechanism validation, and cache-v3 replay.
 
 A failed generation that becomes an explicit invalid or unsupported result is
-acceptable. Invalid source reaching simulation is not.
+acceptable. Invalid source reaching simulation is not, and a confident wrong
+verdict is worse than a decline to the model.
 
 ## Simulation verification
 
@@ -122,26 +123,31 @@ Drive Iced update logic through fake providers and deterministic messages:
 - Codex signed out or using the wrong auth method;
 - API key absent or rejected;
 - normal event progression;
-- cancellation and timeout;
+- cancellation, child termination, and timeout;
 - malformed or unknown JSONL events;
 - structured-output failure;
-- validation failure and repair;
-- repair limit reached;
+- unresolved prompt-template placeholders or accidental repository-path
+  dependencies in packaged-provider prompts;
+- claim/source failure and one targeted retry;
+- mechanism diagnostics and two-operation-repair limit;
+- cache-v3 offline replay and digest staleness;
 - source edits invalidating the simulation;
 - switching providers without losing the experiment;
 - stale asynchronous results being ignored.
 
-Normal tests never consume subscription or API usage. Live Codex and Responses
-API checks are explicit opt-in smoke tests.
+Normal tests never consume subscription, API usage, or network. Live provider
+checks remain explicit opt-in smoke tests and must record provider/model
+versions; they are never part of the normal workspace gate.
 
 Reaction-builder presentation tests additionally check that shell counts and
 outer-electron counts come from curated element metadata, grouped atomic
 layouts are deterministic, reduced motion disables orbital ticks, and forming
 a composition retains exactly one model for each member atom. Stage 4 tests
-check exact, order-independent reaction-candidate matching; unsupported and
-extra reactants remain disabled; and repeated triggering cannot create a second
-queue event. These checks do not confer validation or authorize simulation
-playback.
+check exact, order-independent reaction-candidate matching; unrecognised inputs
+remain disabled; recognized catalogue misses stay enabled with the exact
+**Codex will build this reaction** status; and stale completions cannot replace
+a newer generation. These checks do not confer validation or authorize
+simulation playback.
 
 Stage 5 tests prove that both plans derive from the same current trusted
 `SimulationFrames` generation; source edits stale both pages immediately; and
@@ -174,7 +180,7 @@ Educational narration tests cover the complete trust path. They prove that:
   humanizes `species.*` or atom IDs, or selects reaction-specific copy.
 
 The 3D suite requires a deterministic `ScenePlan` compiled only from the current
-trusted frames and host-selected presentation profile. It covers display
+validated frames and selected presentation profile. It covers display
 equation and typed-observation annotations, variable-duration macroscopic beat
 generation, reaction-independent asset/effect/camera registry resolution,
 distinct effect profiles, actual XYZ geometry, and use of the existing
@@ -184,18 +190,86 @@ gate.
 
 Renderer-side 3D tests cover role-based scene anchors, vessels grounded on the
 bench, liquid and reaction-interface bounds, full translation/rotation/scale
-application, stable object-ID variation seeds, and camera interpolation by beat
-progress. Mesh tests require separate non-overlapping opaque and transparent
+application, stable object-ID variation seeds, deterministic liquid-surface
+deformation, connected low-poly gas volume generation, deterministic faceted
+solid-shard generation, and fixed-camera
+automatic framing by vessel scale. The camera state must contain no user orbit,
+pan, or zoom offsets, and its angle must not change with beat progress. Mesh
+tests require separate non-overlapping opaque, alpha-blended, and additive
 index ranges. Live GPU smoke tests verify the opaque depth-writing pass is drawn
-before the alpha-blended liquid/effect/glass pass, both use the same depth-tested
-Iced target, and clear glass does not incorrectly hide opaque scene geometry.
+before the alpha-blended liquid/effect/glass pass and the bounded additive flame
+core pass, all use the same depth-tested Iced target, and clear glass does not
+incorrectly hide opaque scene geometry.
 
 Reusable motion tests additionally require continuous absolute effect phase
 across ordinal boundaries, deterministic seeded particle variation, smooth
 attack and release for transient effects, persistence for accumulated effects,
-and a shared reaction-surface anchor. Seeking the same position must reconstruct
-the same geometry and camera pose without reaction-name branches or hidden
-mutable particle state.
+and a shared reaction-surface anchor. `ReactionVisualInputs` tests require
+typed-effect-only inference, conservative zero defaults for unavailable
+properties, bounded normalized values, and identical channel selection across
+different reaction families using the same effect profiles. Seeking the same
+position must reconstruct the same geometry and fixed camera pose without
+reaction-name branches or hidden mutable particle state.
+
+Neutralization regression tests require its trusted disappearance and formation
+observations to authorize deterministic liquid mixing and surface motion. The
+same test prohibits gas, bubbles, precipitate, flame, and product-phase assets,
+and requires the colourless material to remain less blue and more transparent
+than the stylised water material.
+
+Colour tests require named and exact `Rgb.HexRRGGBB` values to resolve
+deterministically, malformed or observation-mismatched values to fail with a
+typed plan error, and the same validated target to work for liquid, solid, and
+gas assets. Intermediate samples must differ from both endpoints, final samples
+must reach the exact requested RGB value, phase alpha must remain unchanged,
+and seeking the same sample must reproduce identical vertex colours.
+
+State-transition tests additionally require the reactant approach to remain in
+motion across later setup ordinals, meet the first effect boundary with matching
+position and rotation on both sides, and avoid an intermediate idle hold.
+Product formation must be zero before and at the start of its trusted visibility
+boundary, interpolate during the active ordinal, and reach full scale smoothly.
+Natural-motion tests require the seeded drop to begin over the vessel centre,
+fall farther during each successive interval under gravity, reach the exact
+contact point, produce a damped plunge-and-rebound response, and reproduce
+exactly for the same seed. Terminal
+rise, drag distance, formation response, and curl-like flow must be non-linear,
+bounded at their endpoints, deterministic, and varied between parcel seeds.
+
+Container-vibration tests require deterministic seeded motion, a strict
+sub-percent displacement bound, zero displacement without dynamic effects, and
+an unchanged fixed-camera pose. Persistent precipitate alone must not invent
+violent motion.
+
+Solid-physics tests require deterministic flat-shaded shard geometry rather
+than spheres, acceleration during the precipitate fall, exact floor contact, a
+bounded damped rebound, settled endpoints, and seeded drag-limited rotation.
+These tests operate on absolute playhead samples so replay and seeking cannot
+accumulate integration error or cross a trusted observation boundary.
+
+Macroscopic plan validation also rejects phase/predicate mismatches:
+precipitate and clouding effects require `forms`, disappearance controls
+require `disappears`, and gas effects cannot use `disappears`. Gas assets and
+gas expansion may use `evolves`, or `forms` only when the phase-driven compiler
+received a separate reviewed gas-phase catalogue fact. Acid-base profiles with
+no gas or precipitation observation must remain free of those assets and
+effects.
+
+Catalogue macroscopic-material tests require omission to preserve old schema-1
+catalogue parsing and canonical digests, rule-role context to override standard
+context, unknown structure/rule/role and premise references to fail with
+`CHEMS-C024`, and duplicate contexts to fail deterministically. Generic
+phase-combination tests cover solid + gas -> gas without bubbles, gas + gas ->
+liquid without precipitate, and aqueous reactants -> solid with settling
+precipitate. The compiler input contains bindings and phases but no reaction
+name.
+
+Flame tests additionally require deterministic faceted plume geometry, separate
+alpha body and additive core/spark batches, palette preservation, and a smooth
+bounded lifecycle. The reviewed alkali-water profile test must prove that
+potassium selects a strong lilac generic flame emitter at the trusted gas
+observation while lithium and sodium remain flame-free. A flame-test colour
+alone is not ignition metadata.
 
 Educational timeline tests additionally cover variable-duration totals, exact
 scene boundaries, zero-duration scenes, end clamping, and position-to-elapsed
@@ -212,15 +286,32 @@ label placement, and Canvas motion because those properties require the real
 Iced renderer.
 
 Macroscopic timeline tests similarly cover exact beat boundaries, duration
-totals, end clamping, playhead-to-ordinal synchronization, stable camera motion,
-and pause-on-scrub. Annotation tests prove event text comes from typed
+totals, end clamping, playhead-to-ordinal synchronization, stable fixed-camera
+framing, pause-on-scrub, a sub-second default reactant entry, and the ordering
+that strong activity resolves faster than moderate or subtle activity.
+Annotation tests prove event text comes from typed
 observations, never internal IDs or renderer-authored chemistry wording.
 
-Live vessel checks additionally require an initial camera pitch above the rim,
+Live vessel checks additionally require a fixed camera pitch above the rim,
 a grounded vessel, liquid contained below its rim, a visible liquid top
-surface, readable key/fill lighting, automatic progression without stage-button
+surface and meniscus, connected cloud-like gas without a visible bead field,
+readable key/fill lighting, automatic progression without stage-button
 input, stable geometry while seeking, and macroscopic effects whose presence is
 authorized by the reviewed scene plan.
+
+Post-simulation product-record tests require the macroscopic timeline to reach
+its exact end before navigation unlocks. They compile products only from final
+trusted membership, group duplicate instances deterministically, preserve
+covalent bond orders and ionic distinction, use exact decimal element masses,
+and reconstruct the same 3D layout and typewriter state for the same elapsed
+time. Responsive composition tests must build the split desktop and stacked
+compact views without hiding either the model or the property table. The
+macroscopic environment test additionally proves the floor remains while no
+rear wall geometry is emitted.
+
+Product geometry tests require distinct covalent components to remain spatially
+legible, ionic components to remain separated without invented bonds, and
+lone-pair-bearing two-bond centres to produce a deterministic bent geometry.
 
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised
@@ -231,7 +322,9 @@ handoff tests prove every trusted family can open both the 2D sequence and its
 macroscopic profile. Profile tests compile all 205 experiences against
 their active trusted observations, reject premature effects and mismatched
 values, and separately preserve the validated white, cream, and yellow
-silver-halide appearances through scene geometry. Effect-free profiles are
+silver-halide appearances through scene geometry. The alkali-water comparison
+separately verifies reviewed potassium ignition against lithium and sodium
+non-ignition without a renderer identity branch. Effect-free profiles are
 checked for a single liquid volume without transparent overdraw. The complete
 application-path tests cover the original 36 independently authored request
 fixtures plus representative single- and multi-outcome registry routes. They
@@ -268,6 +361,12 @@ the expected family equation and scene. The displacement profile intentionally
 shows no liquid colour or product visual until such an appearance is supported
 by a trusted observation.
 
+On 2026-07-16 the rebuilt bundle also passed the dedicated Builder startup
+check with title `ChemSpec Agent Smoke — Builder` and the full periodic-table
+composer visible. This is startup evidence only;
+the required cold, cached, regenerate, ambiguity, unavailable, escalated, and
+reviewed-family dynamic journey remains a separate live gate.
+
 ## Release gate
 
 A releasable build satisfies:
@@ -275,7 +374,7 @@ A releasable build satisfies:
 1. Every bundled chemistry fixture produces its independently reviewed result.
 2. No invalid or stale source can enter the simulation.
 3. Every displayed empirical claim resolves to provenance.
-4. Unsupported chemistry remains distinct from invalid chemistry.
+4. Catalogue misses remain distinct from invalid or ultimately unsupported chemistry.
 5. Unsafe requests terminate or redirect transparently.
 6. Provider failures cannot masquerade as chemistry results.
 7. The application can complete the canonical journey from a packaged build.
@@ -287,10 +386,13 @@ verify:
 
 - provider preflight;
 - canonical request;
-- visible research and source generation;
+- immediate static outcome before optional enrichment;
+- optional source verification and in-place trust upgrade;
 - validation and assumptions;
 - particle simulation;
 - source/evidence inspection;
-- a deliberate invalid edit and visible diagnostic;
-- bounded agent repair;
-- restart from the repaired validated source.
+- reviewed-family and disclosed model-proposed animation;
+- mechanism-unavailable static fallback and retry;
+- cached repeat and transactional regeneration;
+- identity ambiguity selection without losing the request; and
+- cancellation/timeout without stale completion.

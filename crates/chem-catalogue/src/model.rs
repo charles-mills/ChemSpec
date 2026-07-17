@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chem_domain::{
-    ContentDigest, DeclaredId, ElementSymbol, EvidenceSourceId, IdKind, PremiseId, ReactionRuleId,
-    StructureId,
+    ContentDigest, DeclaredId, ElementSymbol, EvidenceSourceId, IdKind, Phase, PremiseId,
+    ReactionRuleId, StructureId,
 };
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 
@@ -43,6 +43,37 @@ pub struct CatalogueDocument {
     pub graph_patterns: Vec<GraphPatternRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub generalized_rules: Vec<GeneralizedReactionRuleRecord>,
+    /// Reviewed macroscopic state facts used by presentation. These facts are
+    /// optional so schema-1 catalogues produced before the visual layer remain
+    /// byte-for-byte compatible after canonical normalization.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub macroscopic_materials: Vec<MacroscopicMaterialRecord>,
+}
+
+/// Context in which a reviewed material phase applies.
+///
+/// A pure substance's ambient phase is not always its phase in a reaction
+/// medium. Rule-role overrides therefore take precedence over `Standard` when
+/// the presentation adapter resolves a validated rule application.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MacroscopicMaterialContextRecord {
+    Standard,
+    ReactionRole { rule: ReactionRuleId, role: String },
+}
+
+/// One evidence-backed macroscopic phase fact for a catalogue structure.
+///
+/// This record describes presentation state only. It cannot create a product,
+/// authorize a reaction, or alter a validated structural derivation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MacroscopicMaterialRecord {
+    pub structure: StructureId,
+    pub context: MacroscopicMaterialContextRecord,
+    pub phase: Phase,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premise_ids: BTreeSet<PremiseId>,
 }
 
 #[derive(Debug)]
@@ -1275,24 +1306,6 @@ pub enum MetallicJoinAllocationRecord {
 pub struct ElectronContributionRecord {
     pub left: u8,
     pub right: u8,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CatalogueReviewAttestation {
-    pub schema_version: u32,
-    pub id: String,
-    pub catalogue_digest: ContentDigest,
-    pub reviewer: String,
-    pub reviewed_on: String,
-    pub scope: String,
-    pub method: String,
-    #[serde(deserialize_with = "deserialize_unique_set")]
-    pub sources: BTreeSet<EvidenceSourceId>,
-    #[serde(deserialize_with = "deserialize_unique_set")]
-    pub premises: BTreeSet<PremiseId>,
-    pub coverage_conclusion: String,
-    pub limitation: String,
 }
 
 fn deserialize_unique_set<'de, D, T>(deserializer: D) -> Result<BTreeSet<T>, D::Error>

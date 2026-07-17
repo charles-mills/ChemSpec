@@ -7,9 +7,11 @@ language. Detailed language execution is governed by the fixed seven-slice
 [`.chems` implementation plan](chems-implementation-plan.md). Product tasks may
 consume those contracts but must not invent alternate language semantics.
 
-The submission deadline is **Tuesday, 21 July 2026 at 17:00 PDT**. Delivery
-therefore prioritizes one complete trustworthy reaction over broad but shallow
-chemistry coverage.
+The submission deadline is **Tuesday, 21 July 2026 at 17:00 PDT**. The canonical
+reaction remains the integration gate, not the product ceiling. The dynamic
+outcome rebuild, canonical identity system, structural capability ladder, and
+breadth corpus target the strongest end-state architecture rather than a
+throwaway demo path.
 
 ## Target outcome
 
@@ -19,7 +21,8 @@ The release candidate completes this loop from a packaged desktop build:
 reaction request
   -> reviewed-rule applicability
   -> visible observation research and evidence
-  -> concise generated .chems 1
+  -> checked typed reaction declaration
+  -> optional deterministic .chems 1 authoring/export
   -> deterministic structural expansion
   -> validation derivation
   -> paired observation and structural-change simulation
@@ -27,9 +30,10 @@ reaction request
 ```
 
 The canonical reaction is lithium with water. Its exact fixture is bound to a
-host-selected AI review attestation and exercises molecular covalent, ionic, metallic,
-atom-mapping, electron-transfer, observation, and provider boundaries in one
-closed target.
+host-selected AI review attestation and exercises molecular covalent, ionic,
+metallic, atom-mapping, electron-transfer, observation, and provider boundaries
+in one closed integration target. Broad dynamic coverage then proceeds through
+`DYN-104`–`DYN-112` without weakening that gate.
 
 ## Workstreams
 
@@ -47,11 +51,13 @@ review decision committed with the application.
 ## P0 submission boundary
 
 - canonical request-to-simulation journey;
-- visible concise source and expanded certificate;
+- visible concise source where authored, plus checked declaration and expanded
+  certificate;
 - deterministic derivation and explicit model disclosure;
 - visible observation evidence and provenance;
-- startup choice between Codex subscription and API key;
-- capability-checked Codex CLI and direct Responses API providers;
+- capability-checked Codex CLI as the default live provider;
+- a provider-neutral boundary that may admit a future BYOK/API backup without
+  requiring it for the release;
 - bounded visible repair loop;
 - safe refusal of real-world harmful procedures;
 - native packaged demo on the primary platform; and
@@ -112,16 +118,75 @@ bound to the exact host-pinned attestation digest.
 
 ## Agent and provider tasks
 
+### Dynamic coverage (`DYN`)
+
+The end-state dynamic rebuild is governed by the
+[dynamic reaction outcome rebuild plan](dynamic-reaction-rebuild-plan.md).
+
+1. **DYN-101 — Codex catalogue-miss vertical.** Recognized misses remain
+   actionable; Codex runs with live search, an ephemeral read-only sandbox, and
+   a strict compact-plan result schema. A self-contained prompt is embedded, so
+   packaged apps require no repository checkout. ChemSpec compiles the returned
+   plan into working catalogue, evidence, and source artifacts, which cross
+   deterministic validation into `ValidatedDynamicFrames` before presentation.
+   Late completions are rejected by run ID. Explicit low reasoning is used.
+   This ledger-heavy contract is superseded by `DYN-104` and remains only until
+   the compact claim cutover crosses validation. **Implemented, superseded.**
+2. **DYN-102 — Visible workflow and bounded repair.** Stream normalized events,
+   expose validation diagnostics, terminate the child on cancellation/timeout,
+   and allow at most three compact-plan repair attempts. Three bounded repairs, a
+   five-minute total deadline, child termination on deadline, and an elapsed UI
+   status are implemented. Event streaming, detailed diagnostics, repair diffs,
+   and user cancellation remain. The rebuild replaces full-plan repair with one
+   targeted claim/source correction. **Partial, superseded in part.**
+3. **DYN-103 — Local cache and regeneration foundation.** Digest-bound
+   on-device reuse and explicit regeneration are implemented. `DYN-110`
+   replaces the current cache identity and envelope. **Implemented foundation.**
+4. **DYN-104 — Compact claim contract.** Codex answers only the factual outcome,
+   observations, ambiguity, context, and source locations. **Implemented.**
+5. **DYN-105 — Canonical species identity.** Resolve stable species identities,
+   graphs, aliases, external identifiers, and ambiguity. **Implemented local
+   identity/cache contract and validated external-adapter seam; a concrete
+   public resolver and its packaged capability evidence remain optional release
+   integration work.**
+6. **DYN-106 — Exact outcome compiler.** Balance exactly and converge parsed
+   `.chems` and dynamic compilation on checked `ReactionDeclaration`.
+   **Implemented.**
+7. **DYN-107 — Evidence acquisition.** Fetch, snapshot, and adjudicate
+   claim-level external evidence as hostile data. **Implemented.**
+8. **DYN-108 — Structural capability ladder.** Choose reviewed-family
+   animation, validated model-proposed mechanism, or honest static
+   presentation. **Implemented.**
+9. **DYN-109 — Progressive application.** Surface identity, research, evidence,
+   compilation, mapping, presentation, cancellation, and regeneration states.
+   **Implemented progressive result path, disambiguation, stale-result gates,
+   child-process cancellation, and transactional regeneration.**
+10. **DYN-110 — Cache v3.** Persist and revalidate identity, evidence,
+    declaration, and presentation capabilities offline. **Implemented.**
+11. **DYN-111 — Codex hardening.** Keep Codex binary as default, explicit low
+    reasoning and normal service, one repair, progress events, and measured
+    latency budgets. **Implemented hardening, cached capability probes,
+    milestone instrumentation, and deterministic percentile/default-selection
+    reporting; live model observations remain release evidence.**
+12. **DYN-112 — Breadth proof.** Validate at least 250 diverse and adversarial
+    requests across factual, identity, structural, and performance boundaries.
+    **Implemented 266 unique requests, 76 adversarial mutations, separated
+    metrics, and a 25-case all-category ignored live harness; independent oracle
+    review, live execution, and three-platform packaging remain release
+    evidence.**
+
+The catalogue remains the fast path and cacheable trust root; it is no longer
+the product's chemistry ceiling.
+
 1. Freeze provider-neutral events, evidence, source, repair, and overview
    envelopes against the canonical fixture.
 2. Implement Codex preflight and capability detection without reading auth
    files.
 3. Invoke `codex exec` with read-only sandbox, live search, structured output,
    ignored user configuration/rules, ephemeral state, and cancellation.
-4. Implement dependency-free direct Responses API mode with in-memory key by
-   default and optional OS credential storage.
-5. Implement at most three visible source-repair attempts.
-6. Evaluate identity selection, evidence completeness, source validity,
+4. Implement one targeted claim/source correction after deterministic
+   diagnostics.
+5. Evaluate identity selection, evidence completeness, source validity,
    unsupported behavior, and provider failures with fake providers.
 
 ## Application and simulation tasks
@@ -168,13 +233,18 @@ attestation and both exact digests committed to the trust root.
   associations, metallic domains, operations, observations, and product
   membership. The depth-tested wgpu renderer consumes only reusable visual
   profiles and observation-gated effects, never an atom graph.
-- Startup probes `codex --version` and offers Codex subscription or an in-memory
-  API-key mode before entering the builder.
+- Startup capability-probes Codex version, login, live-search support, and every
+  non-interactive flag used by the runtime. Recognized catalogue misses show
+  **Codex will build this reaction**, launch a generation-scoped Iced task, and
+  compile a closed claim into an exactly balanced static outcome before
+  optional evidence and 2D/3D presentation enrichment.
 - UI-local hydrogen/oxygen, carbon/oxygen, and silver-chloride outcomes have
-  been removed. Those inputs remain Unsupported until catalogue coverage exists.
+  been removed; known outcomes still come through the catalogue fast path.
 - Editable source invalidates downstream frames and can be revalidated through
-  the trusted boundary. Provider-neutral events, live Codex/API invocation, and
-  richer certificate/derivation inspectors remain the next product work.
+  the trusted boundary. The claim/evidence/mechanism rebuild is implemented;
+  live model benchmarking, child-aware user cancellation, external identity
+  integration, independent corpus review, and cross-platform release evidence
+  remain.
 
 ## Next catalogue breadth
 
@@ -222,4 +292,5 @@ and demo rehearsal pass.
 - Use a plain source editor before advanced language-service UI.
 - Retain primary-platform packaging plus CI build evidence if secondary
   installers are delayed.
-- Stop honestly at Unsupported rather than adding unreviewed chemistry.
+- Stop honestly at Unsupported when bounded dynamic construction cannot produce
+  a valid, safe, representable result.

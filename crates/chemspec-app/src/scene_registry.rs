@@ -3,7 +3,7 @@
 //! Registry entries are reaction-agnostic. Reviewed scene plans select these
 //! typed profiles and the renderer instantiates their shared mesh recipes.
 
-use chem_presentation::{AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile};
+use chem_presentation::{AssetProfile, EffectIntensity, EffectProfile};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssetGeometry {
@@ -11,25 +11,20 @@ pub enum AssetGeometry {
     CylindricalVessel,
     LiquidCylinder,
     LowPolyChunk,
-    ParticleCluster,
+    ShardCluster,
     GasCluster,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectGeometry {
-    ParticleCloud,
+    SettlingShards,
     RisingBubbles,
     EscapingGas,
     SurfaceRipples,
+    MixingCurrents,
     SplashDroplets,
+    FlamePlume,
     PresentationOnly,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CameraPose {
-    pub yaw: f32,
-    pub pitch: f32,
-    pub zoom: f32,
 }
 
 /// Reaction-agnostic motion parameters for one reviewed effect profile.
@@ -45,7 +40,6 @@ pub struct EffectDynamics {
     pub turbulence: f32,
     pub fade_in: f32,
     pub fade_out: f32,
-    pub camera_energy: f32,
 }
 
 pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
@@ -61,7 +55,7 @@ pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
         AssetProfile::MetalChunk | AssetProfile::MetalStrip => AssetGeometry::LowPolyChunk,
         AssetProfile::PrecipitateCloud
         | AssetProfile::CrystalCluster
-        | AssetProfile::PowderPile => AssetGeometry::ParticleCluster,
+        | AssetProfile::PowderPile => AssetGeometry::ShardCluster,
         AssetProfile::GasCloud => AssetGeometry::GasCluster,
     }
 }
@@ -69,12 +63,14 @@ pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
 pub const fn effect_geometry(profile: EffectProfile) -> EffectGeometry {
     match profile {
         EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
-            EffectGeometry::ParticleCloud
+            EffectGeometry::SettlingShards
         }
         EffectProfile::BubbleEmitter => EffectGeometry::RisingBubbles,
         EffectProfile::GasRelease => EffectGeometry::EscapingGas,
         EffectProfile::SurfaceDisturbance => EffectGeometry::SurfaceRipples,
+        EffectProfile::LiquidMixing => EffectGeometry::MixingCurrents,
         EffectProfile::SplashEmitter => EffectGeometry::SplashDroplets,
+        EffectProfile::FlameEmitter(_) => EffectGeometry::FlamePlume,
         EffectProfile::ObjectShrinkage
         | EffectProfile::ColourTransition
         | EffectProfile::HeatDistortion => EffectGeometry::PresentationOnly,
@@ -101,7 +97,6 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             turbulence: 0.16,
             fade_in: 0.20,
             fade_out: 0.0,
-            camera_energy: 0.08,
         },
         EffectProfile::BubbleEmitter => EffectDynamics {
             particle_count,
@@ -111,7 +106,6 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             turbulence: 0.20,
             fade_in: 0.14,
             fade_out: 0.18,
-            camera_energy: 0.16,
         },
         EffectProfile::GasRelease => EffectDynamics {
             particle_count,
@@ -121,7 +115,6 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             turbulence: 0.34,
             fade_in: 0.16,
             fade_out: 0.26,
-            camera_energy: 0.09,
         },
         EffectProfile::SurfaceDisturbance => EffectDynamics {
             particle_count: particle_count.min(13),
@@ -131,7 +124,15 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             turbulence: 0.24,
             fade_in: 0.12,
             fade_out: 0.22,
-            camera_energy: 0.18,
+        },
+        EffectProfile::LiquidMixing => EffectDynamics {
+            particle_count: particle_count.min(9),
+            rate: 0.64,
+            spread: 0.62,
+            lift: 0.26,
+            turbulence: 0.34,
+            fade_in: 0.10,
+            fade_out: 0.30,
         },
         EffectProfile::SplashEmitter => EffectDynamics {
             particle_count: particle_count.min(15),
@@ -141,7 +142,15 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             turbulence: 0.28,
             fade_in: 0.10,
             fade_out: 0.24,
-            camera_energy: 0.28,
+        },
+        EffectProfile::FlameEmitter(_) => EffectDynamics {
+            particle_count,
+            rate: 1.18,
+            spread: 0.25,
+            lift: 0.82,
+            turbulence: 0.44,
+            fade_in: 0.08,
+            fade_out: 0.22,
         },
         EffectProfile::ObjectShrinkage
         | EffectProfile::ColourTransition
@@ -153,57 +162,20 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             turbulence: 0.10,
             fade_in: 0.16,
             fade_out: 0.18,
-            camera_energy: 0.10,
         },
     };
     dynamics.rate *= intensity_scale;
     dynamics.spread *= intensity_scale;
     dynamics.lift *= intensity_scale;
     dynamics.turbulence *= intensity_scale;
-    dynamics.camera_energy *= intensity_scale;
     dynamics
-}
-
-pub const fn camera_pose(behaviour: CameraBehaviour) -> CameraPose {
-    match behaviour {
-        CameraBehaviour::WideEstablishingShot => CameraPose {
-            yaw: -0.78,
-            pitch: -0.64,
-            zoom: 7.2,
-        },
-        CameraBehaviour::SlowPushIn => CameraPose {
-            yaw: -0.70,
-            pitch: -0.69,
-            zoom: 6.3,
-        },
-        CameraBehaviour::ReactionFocus => CameraPose {
-            yaw: -0.60,
-            pitch: -0.74,
-            zoom: 5.8,
-        },
-        CameraBehaviour::ObservationCloseUp => CameraPose {
-            yaw: -0.50,
-            pitch: -0.78,
-            zoom: 5.4,
-        },
-        CameraBehaviour::SlowPullBack => CameraPose {
-            yaw: -0.64,
-            pitch: -0.68,
-            zoom: 6.5,
-        },
-        CameraBehaviour::FinalHeroShot => CameraPose {
-            yaw: -0.72,
-            pitch: -0.70,
-            zoom: 5.9,
-        },
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use chem_presentation::{AssetProfile, CameraBehaviour, EffectIntensity, EffectProfile};
+    use chem_presentation::{AssetProfile, EffectIntensity, EffectProfile, FlamePalette};
 
-    use super::{asset_geometry, camera_pose, effect_dynamics, effect_geometry};
+    use super::{asset_geometry, effect_dynamics, effect_geometry};
 
     #[test]
     fn reusable_profiles_resolve_without_reaction_identity() {
@@ -215,11 +187,8 @@ mod tests {
         let strong = effect_dynamics(EffectProfile::BubbleEmitter, EffectIntensity::Strong);
         assert!(strong.particle_count > subtle.particle_count);
         assert!(strong.rate > subtle.rate);
-        assert!(strong.camera_energy > subtle.camera_energy);
-        assert!(camera_pose(CameraBehaviour::WideEstablishingShot).zoom > 0.0);
-        assert!(
-            camera_pose(CameraBehaviour::WideEstablishingShot).pitch < -0.5,
-            "the default vessel camera must begin above the reaction surface"
-        );
+        let flame = EffectProfile::FlameEmitter(FlamePalette::Lilac);
+        assert_eq!(effect_geometry(flame), super::EffectGeometry::FlamePlume);
+        assert!(effect_dynamics(flame, EffectIntensity::Strong).lift > strong.lift);
     }
 }

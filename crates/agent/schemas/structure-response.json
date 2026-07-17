@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "structures"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "structures": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "items": {
+        "anyOf": [
+          {"$ref": "#/$defs/molecular"},
+          {"$ref": "#/$defs/ion"},
+          {"$ref": "#/$defs/ionic"},
+          {"$ref": "#/$defs/metallic"}
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 120},
+    "atom": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "label", "element", "formal_charge",
+        "non_bonding_electrons", "unpaired_electrons"
+      ],
+      "properties": {
+        "label": {"$ref": "#/$defs/identifier"},
+        "element": {"type": "string", "minLength": 1, "maxLength": 3},
+        "formal_charge": {"type": "integer", "minimum": -8, "maximum": 8},
+        "non_bonding_electrons": {"type": "integer", "minimum": 0, "maximum": 64},
+        "unpaired_electrons": {"type": "integer", "minimum": 0, "maximum": 16}
+      }
+    },
+    "bond": {
+      "type": "object", "additionalProperties": false,
+      "required": ["left", "right", "order"],
+      "properties": {
+        "left": {"$ref": "#/$defs/identifier"},
+        "right": {"$ref": "#/$defs/identifier"},
+        "order": {"type": "string", "enum": ["single", "double", "triple"]}
+      }
+    },
+    "group": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "atoms"],
+      "properties": {
+        "label": {"$ref": "#/$defs/identifier"},
+        "atoms": {"type": "array", "items": {"$ref": "#/$defs/identifier"}, "maxItems": 64}
+      }
+    },
+    "component": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "atoms", "bonds", "groups"],
+      "properties": {
+        "label": {"$ref": "#/$defs/identifier"},
+        "atoms": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/atom"}},
+        "bonds": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/bond"}},
+        "groups": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/group"}}
+      }
+    },
+    "association": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "components"],
+      "properties": {
+        "label": {"$ref": "#/$defs/identifier"},
+        "components": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/identifier"}}
+      }
+    },
+    "domain": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "sites", "delocalized_electrons"],
+      "properties": {
+        "label": {"$ref": "#/$defs/identifier"},
+        "sites": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/identifier"}},
+        "delocalized_electrons": {"type": "integer", "minimum": 0, "maximum": 4096}
+      }
+    },
+    "molecular": {
+      "type": "object", "additionalProperties": false,
+      "required": ["representation", "id", "formula", "atoms", "bonds", "groups"],
+      "properties": {
+        "representation": {"type": "string", "const": "molecular"},
+        "id": {"$ref": "#/$defs/identifier"},
+        "formula": {"type": "string", "minLength": 1, "maxLength": 200},
+        "atoms": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"$ref": "#/$defs/atom"}},
+        "bonds": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/bond"}},
+        "groups": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/group"}}
+      }
+    },
+    "ion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["representation", "id", "formula", "atoms", "bonds", "groups"],
+      "properties": {
+        "representation": {"type": "string", "const": "ion"},
+        "id": {"$ref": "#/$defs/identifier"},
+        "formula": {"type": "string", "minLength": 1, "maxLength": 200},
+        "atoms": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"$ref": "#/$defs/atom"}},
+        "bonds": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/bond"}},
+        "groups": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/group"}}
+      }
+    },
+    "ionic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["representation", "id", "formula", "components", "associations"],
+      "properties": {
+        "representation": {"type": "string", "const": "ionic"},
+        "id": {"$ref": "#/$defs/identifier"},
+        "formula": {"type": "string", "minLength": 1, "maxLength": 200},
+        "components": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/component"}},
+        "associations": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/association"}}
+      }
+    },
+    "metallic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["representation", "id", "formula", "sites", "domains"],
+      "properties": {
+        "representation": {"type": "string", "const": "metallic"},
+        "id": {"$ref": "#/$defs/identifier"},
+        "formula": {"type": "string", "minLength": 1, "maxLength": 200},
+        "sites": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/atom"}},
+        "domains": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "#/$defs/domain"}}
+      }
+    }
+  }
+}

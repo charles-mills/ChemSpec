@@ -6,7 +6,8 @@ use std::{
 use chem_catalogue::{EventModel, ObservationPredicate, RequestRelation, SequenceModel};
 use chem_domain::{
     AtomGroup, AtomId, AtomMapping, ClaimId, ContentDigest, EvidenceSourceId, PremiseId,
-    ReactionRuleId, RepresentationKind, StructuralOperation, StructureId, StructureInstance,
+    ReactionDeclaration, ReactionRuleId, RepresentationKind, StructuralOperation, StructureId,
+    StructureInstance,
 };
 use chems_lang::ByteSpan;
 use serde::Serialize;
@@ -247,6 +248,8 @@ pub struct ResolvedReactionClaim {
     pub reactants: BTreeMap<String, ResolvedStructureBinding>,
     pub products: BTreeMap<String, ResolvedStructureBinding>,
     pub equation: Vec<ResolvedEquationTerm>,
+    #[serde(skip_serializing)]
+    pub declaration: ReactionDeclaration,
     pub model: ResolvedModel,
     pub evidence: ResolvedEvidence,
     pub rule: ResolvedRuleApplication,

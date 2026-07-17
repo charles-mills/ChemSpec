@@ -55,15 +55,21 @@ pub struct ChemistryColorTokens {
     pub electron: Color,
     pub structural_canvas: Color,
     pub structural_panel: Color,
-    pub summary: Color,
     pub hydrogen: Color,
     pub lithium: Color,
     pub silver: Color,
     pub carbon: Color,
     pub nitrogen: Color,
     pub oxygen: Color,
+    pub fluorine: Color,
     pub sodium: Color,
+    pub phosphorus: Color,
+    pub sulfur: Color,
     pub chlorine: Color,
+    pub iron: Color,
+    pub copper: Color,
+    pub bromine: Color,
+    pub iodine: Color,
     pub element_default: Color,
     pub alkali_metal: Color,
     pub alkaline_earth: Color,
@@ -146,15 +152,21 @@ pub const LAB_DARK: ThemeTokens = ThemeTokens {
         electron: Color::from_rgb8(0xB7, 0xDB, 0xFF),
         structural_canvas: Color::from_rgb8(0x07, 0x09, 0x0C),
         structural_panel: Color::from_rgb8(0x0E, 0x13, 0x19),
-        summary: Color::from_rgb8(0xB3, 0xE0, 0xC7),
         hydrogen: Color::from_rgb8(0xE6, 0xED, 0xF5),
         lithium: Color::from_rgb8(0xB5, 0x94, 0xF5),
         silver: Color::from_rgb8(0xC7, 0xD4, 0xE0),
         carbon: Color::from_rgb8(0x63, 0x75, 0x8A),
         nitrogen: Color::from_rgb8(0x73, 0xA8, 0xF5),
         oxygen: Color::from_rgb8(0xF2, 0x66, 0x6B),
+        fluorine: Color::from_rgb8(0x9E, 0xE0, 0x66),
         sodium: Color::from_rgb8(0xAB, 0x8A, 0xF0),
+        phosphorus: Color::from_rgb8(0xF5, 0xA6, 0x55),
+        sulfur: Color::from_rgb8(0xF0, 0xD8, 0x5C),
         chlorine: Color::from_rgb8(0x7A, 0xE3, 0xB0),
+        iron: Color::from_rgb8(0xE0, 0x7A, 0x45),
+        copper: Color::from_rgb8(0xD9, 0x93, 0x4D),
+        bromine: Color::from_rgb8(0xC9, 0x6A, 0x5A),
+        iodine: Color::from_rgb8(0xA8, 0x6A, 0xD9),
         element_default: Color::from_rgb8(0x9E, 0xAD, 0xBD),
         alkali_metal: Color::from_rgb8(0xE8, 0x7D, 0xB8),
         alkaline_earth: Color::from_rgb8(0xF2, 0xB5, 0x59),
@@ -235,7 +247,6 @@ pub mod chemistry_color {
     pub const ELECTRON: Color = LAB_DARK.chemistry.electron;
     pub const STRUCTURAL_CANVAS: Color = LAB_DARK.chemistry.structural_canvas;
     pub const STRUCTURAL_PANEL: Color = LAB_DARK.chemistry.structural_panel;
-    pub const SUMMARY: Color = LAB_DARK.chemistry.summary;
 }
 
 pub mod space {
@@ -277,8 +288,10 @@ pub mod type_scale {
 pub mod motion {
     /// Frame cadence for continuous interface motion.
     pub const TICK: std::time::Duration = std::time::Duration::from_millis(33);
-    /// Per-tick progress of a hover reveal (~150 ms to complete).
-    pub const REVEAL_STEP: f32 = 0.22;
+    /// Frame cadence for the builder prompt's opacity transition.
+    pub const PROMPT_TICK: std::time::Duration = std::time::Duration::from_millis(16);
+    /// Per-frame prompt fade progress (~400 ms to complete).
+    pub const PROMPT_FADE_STEP: f32 = 0.04;
     /// Per-tick orbital advance (one revolution ≈ 12.5 s).
     pub const ORBIT_STEP: f32 = 0.002_6;
     /// Per-tick progress of a hold-to-clear gesture (~650 ms to complete).
@@ -289,10 +302,10 @@ pub mod motion {
     pub const HOVER_RELEASE_STEP: f32 = 0.18;
 }
 
-/// Ease-out cubic for reveal progress: fast start, gentle settle.
-pub fn ease_out(progress: f32) -> f32 {
-    let inverse = 1.0 - progress.clamp(0.0, 1.0);
-    1.0 - inverse * inverse * inverse
+/// Symmetric smoothstep easing for opacity transitions in either direction.
+pub fn ease_in_out(progress: f32) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+    progress * progress * (3.0 - 2.0 * progress)
 }
 
 /// Linear interpolation between two colours, used for fading emphasis.
@@ -366,6 +379,76 @@ pub fn media_bar(_: &Theme) -> container::Style {
             offset: Vector::new(0.0, 5.0),
             blur_radius: 18.0,
         })
+}
+
+pub fn summary_visual_panel(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(chemistry_color::STRUCTURAL_CANVAS)
+        .border(border_style(color::LINE_STRONG, 1.0, radius::PANEL))
+        .shadow(Shadow {
+            color: color::SHADOW.scale_alpha(0.28),
+            offset: Vector::new(0.0, 8.0),
+            blur_radius: 24.0,
+        })
+}
+
+pub fn summary_properties_panel(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::CANVAS_RAISED)
+        .border(border_style(color::LINE_STRONG, 1.0, radius::PANEL))
+        .shadow(Shadow {
+            color: color::SHADOW.scale_alpha(0.30),
+            offset: Vector::new(0.0, 10.0),
+            blur_radius: 28.0,
+        })
+}
+
+pub fn summary_product_heading(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::ACCENT_FAINT.scale_alpha(0.72))
+        .border(border_style(
+            color::ACCENT.scale_alpha(0.36),
+            1.0,
+            radius::CONTROL,
+        ))
+}
+
+pub fn summary_property_row(started: bool, active: bool) -> container::Style {
+    let background = if active {
+        color::ACCENT_FAINT.scale_alpha(0.74)
+    } else if started {
+        color::SURFACE.scale_alpha(0.66)
+    } else {
+        color::CANVAS.scale_alpha(0.44)
+    };
+    let border = if active {
+        color::ACCENT.scale_alpha(0.62)
+    } else {
+        color::LINE.scale_alpha(0.82)
+    };
+    container::Style::default()
+        .background(background)
+        .border(border_style(border, 1.0, radius::CONTROL))
+}
+
+pub fn summary_trust_strip(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::SUCCESS.scale_alpha(0.07))
+        .border(border_style(
+            color::SUCCESS.scale_alpha(0.32),
+            1.0,
+            radius::CONTROL,
+        ))
+}
+
+pub fn summary_badge(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::SUCCESS.scale_alpha(0.10))
+        .border(border_style(
+            color::SUCCESS.scale_alpha(0.42),
+            1.0,
+            radius::PILL,
+        ))
 }
 
 pub fn timeline_slider(_: &Theme, status: slider::Status) -> slider::Style {
@@ -485,10 +568,28 @@ pub fn provider_button(selected: bool, status: button::Status) -> button::Style 
     }
 }
 
+pub fn soft_divider(_: &Theme) -> rule::Style {
+    rule::Style {
+        color: color::LINE,
+        radius: border::Radius::default(),
+        fill_mode: rule::FillMode::Full,
+        snap: true,
+    }
+}
+
 pub fn danger_divider(_: &Theme) -> rule::Style {
     rule::Style {
         color: color::DANGER,
         radius: border::Radius::default(),
+        fill_mode: rule::FillMode::Full,
+        snap: true,
+    }
+}
+
+pub fn soft_rule(_: &Theme) -> rule::Style {
+    rule::Style {
+        color: color::LINE,
+        radius: border::Radius::new(radius::PILL),
         fill_mode: rule::FillMode::Full,
         snap: true,
     }
@@ -541,6 +642,24 @@ pub fn secondary_button(_: &Theme, status: button::Status) -> button::Style {
         background: Some(Background::Color(background)),
         text_color,
         border: border_style(border_color, 1.0, radius::CONTROL),
+        ..button::Style::default()
+    }
+}
+
+/// Text-only submit affordance used beneath the builder question.
+///
+/// It shares the question's typography and changes only foreground colour on
+/// hover or press, while `reveal` supplies the two-way opacity transition.
+pub fn run_prompt(_: &Theme, status: button::Status, reveal: f32) -> button::Style {
+    let reveal = reveal.clamp(0.0, 1.0);
+    let text_color = match status {
+        button::Status::Active | button::Status::Disabled => color::TEXT_SOFT.scale_alpha(reveal),
+        button::Status::Hovered => color::ACCENT.scale_alpha(reveal),
+        button::Status::Pressed => color::ACCENT_HOVER.scale_alpha(reveal),
+    };
+
+    button::Style {
+        text_color,
         ..button::Style::default()
     }
 }

@@ -31,22 +31,6 @@ pub use model::*;
 pub use oxygen::*;
 pub use pattern::*;
 
-/// Host-controlled trust root for the one closed production catalogue.
-///
-/// This value is intentionally compiled into the application. A runtime agent
-/// can validate newly generated JSON, but cannot promote its digest into the
-/// trusted catalogue type.
-pub const PINNED_CANONICAL_CATALOGUE_DIGEST: &str =
-    "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
-
-/// Host-controlled digest of the exact chemist review attestation selected for the
-/// canonical educational catalogue.
-///
-/// The attestation is explicit about its scope and limitations. Runtime
-/// data cannot populate or override this compiled trust decision.
-pub const PINNED_CANONICAL_REVIEW_DIGEST: &str =
-    "224c84ccc7651c056d7b41ffbea23dbb5150002cece40d5d071316d402ff28ec";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogueErrorCode {
     InvalidJson,
@@ -72,6 +56,7 @@ pub enum CatalogueErrorCode {
     InvalidGraphPattern,
     InvalidGeneralizedRule,
     InvalidGeneralizedCase,
+    InvalidMacroscopicMaterial,
 }
 
 impl CatalogueErrorCode {
@@ -101,6 +86,7 @@ impl CatalogueErrorCode {
             Self::InvalidGraphPattern => "CHEMS-C021",
             Self::InvalidGeneralizedRule => "CHEMS-C022",
             Self::InvalidGeneralizedCase => "CHEMS-C023",
+            Self::InvalidMacroscopicMaterial => "CHEMS-C024",
         }
     }
 }
@@ -219,6 +205,7 @@ pub struct ValidatedCatalogueBundle {
     structure_application_provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
     graph_patterns: BTreeMap<GraphPatternId, usize>,
     generalized_rules: BTreeMap<ReactionRuleId, ValidatedGeneralizedRule>,
+    macroscopic_materials: BTreeMap<(StructureId, MacroscopicMaterialContextRecord), usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,31 +242,6 @@ impl CatalogueEnvelope {
     /// Returns an error when canonical JSON serialization fails.
     pub fn computed_digest(&self) -> Result<ContentDigest, CatalogueError> {
         digest_document(&self.bundle)
-    }
-}
-
-impl CatalogueReviewAttestation {
-    /// Returns canonical JSON bytes for the external review semantics.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when conversion to canonical JSON fails.
-    pub fn canonical_json(&self) -> Result<Vec<u8>, CatalogueError> {
-        let value = serde_json::to_value(self).map_err(|error| {
-            CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
-        })?;
-        canonical_json(&value).map_err(|error| {
-            CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
-        })
-    }
-
-    /// Returns the canonical semantic digest of this review attestation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when canonical serialization fails.
-    pub fn canonical_digest(&self) -> Result<ContentDigest, CatalogueError> {
-        Ok(ContentDigest::sha256(&self.canonical_json()?))
     }
 }
 
@@ -395,6 +357,14 @@ impl ValidatedCatalogueBundle {
             &premises,
         )?;
         ensure_rule_namespaces_disjoint(&rules, &generalized_rules)?;
+        let macroscopic_materials = validate_macroscopic_materials(
+            &document.macroscopic_materials,
+            &structures,
+            &rules,
+            &generalized_rules,
+            &document.generalized_rules,
+            &premises,
+        )?;
 
         Ok(Self {
             digest: envelope.digest,
@@ -417,6 +387,7 @@ impl ValidatedCatalogueBundle {
             structure_application_provenance: g1.provenance,
             graph_patterns,
             generalized_rules,
+            macroscopic_materials,
         })
     }
 
@@ -612,108 +583,52 @@ impl ValidatedCatalogueBundle {
         &self.rules
     }
 
-    /// Validates a digest-bound host-selected chemistry review attestation.
-    ///
-    /// # Errors
-    ///
-    /// Rejects the wrong schema or digest, empty fields, malformed dates,
-    /// unresolved evidence, or a reviewer absent from bound premise reviews.
-    pub fn validate_attestation(
+    /// Resolves reviewed macroscopic state for a structure. A matching
+    /// rule-role fact wins over the standard-context fallback.
+    #[must_use]
+    pub fn macroscopic_material(
         &self,
-        attestation: &CatalogueReviewAttestation,
-    ) -> Result<(), CatalogueError> {
-        if attestation.schema_version != CATALOGUE_SCHEMA_VERSION
-            || attestation.catalogue_digest != self.digest
-            || !valid_declared_text_id(&attestation.id)
-            || !valid_date(&attestation.reviewed_on)
-            || [
-                attestation.reviewer.as_str(),
-                attestation.scope.as_str(),
-                attestation.method.as_str(),
-                attestation.coverage_conclusion.as_str(),
-                attestation.limitation.as_str(),
-            ]
-            .iter()
-            .any(|value| value.trim().is_empty())
-        {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "review attestation metadata or digest is invalid",
-            ));
-        }
-        if attestation.sources.is_empty()
-            || attestation
-                .sources
-                .iter()
-                .any(|source| !self.evidence.contains_key(source))
-        {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "review attestation evidence does not resolve",
-            ));
-        }
-        let expected_premises = self
-            .document
-            .premises
-            .iter()
-            .map(|premise| premise.id.clone())
-            .collect::<BTreeSet<_>>();
-        if attestation.premises != expected_premises {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "attestation is not bound to every exact catalogue premise",
-            ));
-        }
-        Ok(())
+        structure: &StructureId,
+        rule_role: Option<(&ReactionRuleId, &str)>,
+    ) -> Option<&MacroscopicMaterialRecord> {
+        let role_record = rule_role.and_then(|(rule, role)| {
+            self.macroscopic_materials
+                .get(&(
+                    structure.clone(),
+                    MacroscopicMaterialContextRecord::ReactionRole {
+                        rule: rule.clone(),
+                        role: role.to_owned(),
+                    },
+                ))
+                .map(|index| &self.document.macroscopic_materials[*index])
+        });
+        role_record.or_else(|| {
+            self.macroscopic_materials
+                .get(&(
+                    structure.clone(),
+                    MacroscopicMaterialContextRecord::Standard,
+                ))
+                .map(|index| &self.document.macroscopic_materials[*index])
+        })
     }
 }
 
-/// Host-trusted immutable catalogue. Construction is possible only for the
-/// compiled canonical digest with an exact host-selected review attestation.
+/// The built-in catalogue library. Nothing about it is "trusted" in an
+/// attestation sense anymore: it is ordinary validated data, kept as a
+/// convenient library of structures and reviewed reaction rules.
 #[derive(Debug, Clone)]
 pub struct TrustedCatalogue {
     validated: ValidatedCatalogueBundle,
 }
 
 impl TrustedCatalogue {
-    /// Loads the one host-pinned production catalogue and trust attestation.
+    /// Loads a catalogue bundle from canonical JSON.
     ///
     /// # Errors
     ///
-    /// Rejects invalid catalogue data, a digest other than the compiled trust
-    /// root, or an attestation whose canonical semantic digest is not
-    /// host-pinned and bound to every premise in the exact bundle.
-    pub fn from_canonical_json(
-        catalogue_json: &[u8],
-        attestation_json: &[u8],
-    ) -> Result<Self, CatalogueError> {
+    /// Rejects invalid catalogue data.
+    pub fn from_canonical_json(catalogue_json: &[u8]) -> Result<Self, CatalogueError> {
         let validated = ValidatedCatalogueBundle::from_json(catalogue_json)?;
-        let pinned =
-            ContentDigest::from_str(PINNED_CANONICAL_CATALOGUE_DIGEST).map_err(|error| {
-                CatalogueError::new(CatalogueErrorCode::InvalidMetadata, error.to_string())
-            })?;
-        if validated.digest != pinned {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "catalogue digest is not in the host-controlled trust root",
-            ));
-        }
-        let attestation: CatalogueReviewAttestation = serde_json::from_slice(attestation_json)
-            .map_err(|error| {
-                CatalogueError::new(CatalogueErrorCode::InvalidReview, error.to_string())
-            })?;
-        let actual_review_digest = attestation.canonical_digest()?;
-        let expected_review_digest = ContentDigest::from_str(PINNED_CANONICAL_REVIEW_DIGEST)
-            .map_err(|error| {
-                CatalogueError::new(CatalogueErrorCode::InvalidMetadata, error.to_string())
-            })?;
-        if actual_review_digest != expected_review_digest {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidReview,
-                "review attestation does not match the host-controlled trust digest",
-            ));
-        }
-        validated.validate_attestation(&attestation)?;
         Ok(Self { validated })
     }
 }
@@ -749,6 +664,72 @@ fn validate_metadata(document: &CatalogueDocument) -> Result<(), CatalogueError>
         ));
     }
     Ok(())
+}
+
+fn validate_macroscopic_materials(
+    records: &[MacroscopicMaterialRecord],
+    structures: &BTreeMap<StructureId, StructureDefinition>,
+    rules: &BTreeMap<ReactionRuleId, ValidatedReactionRule>,
+    generalized_rules: &BTreeMap<ReactionRuleId, ValidatedGeneralizedRule>,
+    generalized_rule_records: &[GeneralizedReactionRuleRecord],
+    premises: &BTreeMap<PremiseId, usize>,
+) -> Result<BTreeMap<(StructureId, MacroscopicMaterialContextRecord), usize>, CatalogueError> {
+    let mut index = BTreeMap::new();
+    for (position, record) in records.iter().enumerate() {
+        if !structures.contains_key(&record.structure) {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidMacroscopicMaterial,
+                format!(
+                    "macroscopic material references unknown structure `{}`",
+                    record.structure
+                ),
+            ));
+        }
+        if record.premise_ids.is_empty()
+            || record
+                .premise_ids
+                .iter()
+                .any(|premise| !premises.contains_key(premise))
+        {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidMacroscopicMaterial,
+                format!(
+                    "macroscopic material `{}` lacks resolvable premises",
+                    record.structure
+                ),
+            ));
+        }
+        if let MacroscopicMaterialContextRecord::ReactionRole { rule, role } = &record.context {
+            let legacy_role_exists = rules
+                .get(rule)
+                .is_some_and(|validated| validated.record().roles.contains_key(role));
+            let generalized_role_exists = generalized_rules.contains_key(rule)
+                && generalized_rule_records
+                    .iter()
+                    .find(|record| record.id == *rule)
+                    .is_some_and(|record| record.roles.contains_key(role));
+            if role.trim().is_empty() || (!legacy_role_exists && !generalized_role_exists) {
+                return Err(CatalogueError::new(
+                    CatalogueErrorCode::InvalidMacroscopicMaterial,
+                    format!(
+                        "macroscopic material `{}` references unknown role `{role}` on `{rule}`",
+                        record.structure
+                    ),
+                ));
+            }
+        }
+        let key = (record.structure.clone(), record.context.clone());
+        if index.insert(key, position).is_some() {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::InvalidMacroscopicMaterial,
+                format!(
+                    "duplicate macroscopic material context for `{}`",
+                    record.structure
+                ),
+            ));
+        }
+    }
+    Ok(index)
 }
 
 fn index_evidence(
@@ -3906,44 +3887,20 @@ fn parse_instance(value: &str) -> Option<(&str, u32)> {
 }
 
 fn parse_formula_inventory(source: &str) -> Result<ElementInventory, CatalogueError> {
-    let bytes = source.as_bytes();
-    let mut index = 0;
-    let mut elements = BTreeMap::new();
-    while index < bytes.len() {
-        if !bytes[index].is_ascii_uppercase() {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidStructure,
-                format!("invalid formula summary `{source}`"),
-            ));
-        }
-        let start = index;
-        index += 1;
-        if index < bytes.len() && bytes[index].is_ascii_lowercase() {
-            index += 1;
-        }
-        let element = ElementSymbol::new(&source[start..index]).map_err(structure_error)?;
-        let count_start = index;
-        while index < bytes.len() && bytes[index].is_ascii_digit() {
-            index += 1;
-        }
-        let count = if count_start == index {
-            1
-        } else {
-            source[count_start..index].parse::<u64>().map_err(|_| {
-                CatalogueError::new(
-                    CatalogueErrorCode::InvalidStructure,
-                    format!("invalid formula count in `{source}`"),
-                )
-            })?
-        };
-        if count == 0 || elements.insert(element.clone(), count).is_some() {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::InvalidStructure,
-                format!("non-normalized formula summary `{source}`"),
-            ));
-        }
-    }
-    ElementInventory::new(elements).map_err(structure_error)
+    // The domain formula parser understands grouped units like Ca(OH)2.
+    let composition = chem_domain::FormulaComposition::parse(source).map_err(|_| {
+        CatalogueError::new(
+            CatalogueErrorCode::InvalidStructure,
+            format!("invalid formula summary `{source}`"),
+        )
+    })?;
+    ElementInventory::new(
+        composition
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.clone(), *count)),
+    )
+    .map_err(structure_error)
 }
 
 fn canonical_document(document: &CatalogueDocument) -> Result<Vec<u8>, CatalogueError> {
@@ -4049,6 +4006,9 @@ fn normalize_document(document: &mut CatalogueDocument) {
         .graph_patterns
         .sort_by(|left, right| left.id.cmp(&right.id));
     normalize_generalized_rules(&mut document.generalized_rules);
+    document.macroscopic_materials.sort_by(|left, right| {
+        (&left.structure, &left.context).cmp(&(&right.structure, &right.context))
+    });
 }
 
 fn normalize_generalized_rules(rules: &mut [GeneralizedReactionRuleRecord]) {

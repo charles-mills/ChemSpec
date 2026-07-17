@@ -445,4 +445,5 @@ pub enum Phase {
     Solid,
     Liquid,
     Gas,
+    Unknown,
 }

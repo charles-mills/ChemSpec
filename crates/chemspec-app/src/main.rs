@@ -2,7 +2,8 @@
 //!
 //! Opens on the Stage 1 builder: the learner's question, composed from two
 //! reactant drafts over the full periodic table. Chemistry is supplied only
-//! through the host-pinned language/kernel boundary.
+//! through the catalogue fast path or a staged dynamic claim whose static and
+//! animated capabilities cross separate deterministic validation boundaries.
 
 mod chemistry;
 mod composition_catalogue;
@@ -12,26 +13,53 @@ mod icons;
 mod nomenclature;
 mod particle_visualization;
 mod periodic_table;
+mod product_summary;
 mod reactant_composer;
 mod scene_registry;
 mod structural_2d;
 mod structural_3d;
+mod structural_physics;
 mod theme;
 
+use std::{
+    ops::Deref,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, Sender},
+    },
+    time::Instant,
+};
+
+use agent::{
+    ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
+    CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
+    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones, OutcomeSpecies,
+    ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest, ReactionClaim,
+    RequestIdentityResolution, TrustTier, ValidatedStaticOutcome, compile_claim_outcome,
+    enrich_static_outcome, load_dynamic_cache, resolve_request_identities_with_catalogue,
+    reviewed_species_registry, store_dynamic_cache,
+};
+use chem_domain::SpeciesId;
 use chem_presentation::{
-    EducationalPlan, EducationalSceneKind, EffectProfile, ScenePlan, TimelinePosition,
-    compile_educational_plan, compile_real_world_plan,
+    AppearanceProfile, AssetProfile, EducationalPlan, EducationalSceneKind, EffectProfile,
+    PresentationObject, PresentationProfile, PresentationTransform, ScenePlan, SceneRole,
+    TimelinePosition, compile_educational_plan, compile_real_world_plan,
 };
 use iced::widget::{
     button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
-    text, text_input,
+    text, text_input, tooltip,
 };
-use iced::{Center, Element, Fill, Length, Size, Subscription, Theme};
+use iced::{Center, Element, Fill, FillPortion, Length, Size, Subscription, Task, Theme};
 
 use theme::{breakpoint, color, space as spacing, type_scale};
 
 fn plan_equation(animation: &StructuralAnimation) -> Option<&str> {
     (!animation.equation.is_empty()).then_some(animation.equation.as_str())
+}
+
+fn elapsed_millis(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 fn reviewed_outcome_choice(
@@ -72,6 +100,97 @@ fn reviewed_outcome_choice(
         .into()
 }
 
+fn dynamic_species_theatre_card(
+    species: &OutcomeSpecies,
+    term: &chem_domain::ReactionTerm,
+    phase: f32,
+) -> Element<'static, Message> {
+    let acid_sites = species
+        .bronsted_acid_profile()
+        .map_or(0, |profile| profile.proton_donor_sites().len());
+    let (model, capability): (Element<'static, Message>, &'static str) = match species {
+        OutcomeSpecies::Resolved(species) => species
+            .structure
+            .as_ref()
+            .and_then(|structure| {
+                composition_catalogue::preview_from_validated_structure(
+                    structure,
+                    term.formula_text(),
+                )
+            })
+            .map_or_else(
+                || (formula_inventory_theatre(term, phase), "FORMULA INVENTORY"),
+                |preview| {
+                    (
+                        canvas(particle_visualization::CompoundAtomicDiagram::new(
+                            preview, phase,
+                        ))
+                        .width(Fill)
+                        .height(Length::Fixed(76.0))
+                        .into(),
+                        "VALIDATED GRAPH",
+                    )
+                },
+            ),
+        OutcomeSpecies::FormulaOnly { .. } => {
+            (formula_inventory_theatre(term, phase), "FORMULA INVENTORY")
+        }
+    };
+    let capability = if acid_sites == 0 {
+        capability.to_owned()
+    } else {
+        format!("{capability} · {acid_sites} PROTON-DONOR SITE(S)")
+    };
+    container(
+        column![
+            model,
+            text(nomenclature::display_equation(term.formula_text()))
+                .size(type_scale::CAPTION)
+                .color(color::TEXT),
+            text(capability).size(type_scale::MICRO).color(color::MUTED),
+        ]
+        .spacing(spacing::XXS)
+        .align_x(Center),
+    )
+    .style(theme::frame)
+    .padding(spacing::XXS)
+    .width(Fill)
+    .into()
+}
+
+fn formula_inventory_theatre(
+    term: &chem_domain::ReactionTerm,
+    phase: f32,
+) -> Element<'static, Message> {
+    let mut models = row![].spacing(spacing::XXS).align_y(Center);
+    for (symbol, count) in term.formula().elements() {
+        let Some(element) = elements::SUPPORTED
+            .iter()
+            .find(|candidate| candidate.symbol == symbol.as_str())
+            .copied()
+        else {
+            continue;
+        };
+        models = models.push(
+            column![
+                canvas(particle_visualization::AtomDiagram::new(element, phase))
+                    .width(Length::Fixed(44.0))
+                    .height(Length::Fixed(44.0)),
+                text(format!("{} ×{count}", element.symbol))
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+            ]
+            .spacing(spacing::XXS)
+            .align_x(Center),
+        );
+    }
+    container(models)
+        .width(Fill)
+        .height(Length::Fixed(76.0))
+        .center(Fill)
+        .into()
+}
+
 #[allow(clippy::cast_precision_loss)]
 fn educational_timeline_progress(animation: &StructuralAnimation) -> f32 {
     let total = animation.educational_plan.duration_ms().max(1);
@@ -81,6 +200,224 @@ fn educational_timeline_progress(animation: &StructuralAnimation) -> f32 {
 fn format_media_time(milliseconds: u64) -> String {
     let seconds = milliseconds / 1_000;
     format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+fn typewriter_value(value: &str, line: usize, elapsed_ms: u64) -> (String, bool, bool) {
+    const INTRO_DELAY_MS: u64 = 520;
+    const LINE_STAGGER_MS: u64 = 330;
+    const CHARACTER_MS: u64 = 24;
+    let start = INTRO_DELAY_MS.saturating_add(
+        u64::try_from(line)
+            .unwrap_or(u64::MAX)
+            .saturating_mul(LINE_STAGGER_MS),
+    );
+    if elapsed_ms < start {
+        return (String::new(), false, false);
+    }
+    let visible =
+        usize::try_from(elapsed_ms.saturating_sub(start) / CHARACTER_MS).unwrap_or(usize::MAX);
+    let total = value.chars().count();
+    let complete = visible >= total;
+    let mut rendered = value.chars().take(visible).collect::<String>();
+    if !complete && (elapsed_ms / 260).is_multiple_of(2) {
+        rendered.push('▌');
+    }
+    (rendered, true, complete)
+}
+
+#[allow(clippy::too_many_lines)]
+fn product_properties_view(
+    summary: &product_summary::SummaryData,
+    elapsed_ms: u64,
+    compact: bool,
+    dense: bool,
+) -> Element<'static, Message> {
+    let pulse = (elapsed_ms / 420).is_multiple_of(2);
+    let panel_spacing = if dense { spacing::XS } else { spacing::SM };
+    let row_padding = if dense {
+        [spacing::XXS, spacing::XS]
+    } else {
+        [spacing::XS, spacing::SM]
+    };
+    let mut content = column![
+        row![
+            column![
+                text("MOLECULAR PROPERTIES")
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT),
+                text("Validated product record")
+                    .size(if dense {
+                        type_scale::BODY_LARGE
+                    } else {
+                        type_scale::TITLE
+                    })
+                    .font(fonts::SEMIBOLD)
+                    .color(color::TEXT),
+            ]
+            .spacing(spacing::XXS),
+            space().width(Fill),
+            row![
+                text(if pulse { "●" } else { "○" })
+                    .size(type_scale::CAPTION)
+                    .color(color::ACCENT),
+                text("READING")
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+            ]
+            .spacing(spacing::XXS)
+            .align_y(Center),
+        ]
+        .align_y(Center),
+        rule::horizontal(1).style(theme::soft_rule),
+        text("Properties are compiled locally from the trusted final frame and bundled element metadata.")
+            .size(type_scale::CAPTION)
+            .color(color::TEXT_SOFT),
+    ]
+    .spacing(panel_spacing);
+    let mut line = 0_usize;
+    for product in &summary.products {
+        let product_start =
+            260_u64.saturating_add(u64::try_from(line).unwrap_or(u64::MAX).saturating_mul(330));
+        let product_visible = elapsed_ms >= product_start;
+        let heading = container(
+            row![
+                column![
+                    text(product.display_name())
+                        .size(type_scale::BODY_LARGE)
+                        .font(fonts::SEMIBOLD)
+                        .color(if product_visible {
+                            color::TEXT
+                        } else {
+                            color::FAINT
+                        }),
+                    text(if product_visible {
+                        product.classification
+                    } else {
+                        "Awaiting validated structure…"
+                    })
+                    .size(type_scale::MICRO)
+                    .color(if product_visible {
+                        color::ACCENT
+                    } else {
+                        color::MUTED
+                    }),
+                ]
+                .spacing(spacing::XXS)
+                .width(FillPortion(3)),
+                text(if product_visible {
+                    product.formula.clone()
+                } else {
+                    "···".to_owned()
+                })
+                .size(type_scale::TITLE)
+                .font(fonts::SEMIBOLD)
+                .color(if product_visible {
+                    color::TEXT
+                } else {
+                    color::FAINT
+                })
+                .width(FillPortion(2))
+                .align_x(iced::Right),
+            ]
+            .spacing(panel_spacing)
+            .align_y(Center),
+        )
+        .style(theme::summary_product_heading)
+        .padding(row_padding);
+        content = content.push(heading);
+        for (label, value) in product.property_rows() {
+            let (typed, started, complete) = typewriter_value(&value, line, elapsed_ms);
+            let active = started && !complete;
+            let label = text(label)
+                .size(if dense {
+                    type_scale::MICRO
+                } else {
+                    type_scale::CAPTION
+                })
+                .color(if started {
+                    color::TEXT_SOFT
+                } else {
+                    color::MUTED
+                });
+            let value = text(if started { typed } else { "—".to_owned() })
+                .size(if dense {
+                    type_scale::CAPTION
+                } else {
+                    type_scale::BODY
+                })
+                .font(if active {
+                    fonts::MEDIUM
+                } else {
+                    fonts::REGULAR
+                })
+                .color(if active {
+                    color::ACCENT_HOVER
+                } else if complete {
+                    color::TEXT
+                } else {
+                    color::FAINT
+                });
+            let row_content: Element<'static, Message> = if compact {
+                column![label, value]
+                    .spacing(spacing::XXS)
+                    .width(Fill)
+                    .into()
+            } else {
+                row![
+                    label.width(FillPortion(2)),
+                    value.width(FillPortion(3)).align_x(iced::Right),
+                ]
+                .spacing(panel_spacing)
+                .align_y(Center)
+                .width(Fill)
+                .into()
+            };
+            let row = container(row_content)
+                .style(move |_| theme::summary_property_row(started, active))
+                .padding(row_padding);
+            content = content.push(row);
+            line += 1;
+        }
+    }
+    content = content.push(
+        container(
+            row![
+                text("TRUST BOUNDARY")
+                    .size(type_scale::MICRO)
+                    .color(color::SUCCESS),
+                space().width(Fill),
+                text("DETERMINISTIC · OFFLINE")
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+            ]
+            .align_y(Center),
+        )
+        .style(theme::summary_trust_strip)
+        .padding(row_padding),
+    );
+    let content: Element<'static, Message> = if compact {
+        content.into()
+    } else {
+        let scroll_content = container(content)
+            .padding(iced::Padding {
+                right: spacing::MD,
+                ..iced::Padding::ZERO
+            })
+            .width(Fill);
+        scrollable(scroll_content).height(Fill).into()
+    };
+    container(content)
+        .style(theme::summary_properties_panel)
+        .padding(if dense {
+            spacing::XS
+        } else if compact {
+            spacing::SM
+        } else {
+            spacing::MD
+        })
+        .width(Fill)
+        .height(if compact { Length::Shrink } else { Fill })
+        .into()
 }
 
 fn sync_educational_frame(animation: &mut StructuralAnimation) {
@@ -108,22 +445,21 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
         EffectProfile::BubbleEmitter => "Interface bubbles",
         EffectProfile::GasRelease => "Gas release",
         EffectProfile::SurfaceDisturbance => "Surface motion",
+        EffectProfile::LiquidMixing => "Liquid mixing",
         EffectProfile::ObjectShrinkage => "Reactant consumption",
         EffectProfile::PrecipitateFormation => "Precipitate formation",
         EffectProfile::Clouding => "Solution clouding",
         EffectProfile::ColourTransition => "Colour transition",
         EffectProfile::SplashEmitter => "Fine droplets",
         EffectProfile::HeatDistortion => "Heat distortion",
+        EffectProfile::FlameEmitter(_) => "Flame plume",
     }
 }
 
 const fn educational_scene_title(kind: EducationalSceneKind) -> &'static str {
     match kind {
-        EducationalSceneKind::Introduction => "Introduce",
         EducationalSceneKind::ReactantSetup => "Reactants",
-        EducationalSceneKind::Equation => "Equation",
         EducationalSceneKind::StructuralChange => "Explain change",
-        EducationalSceneKind::ExplanationPause => "Understand",
         EducationalSceneKind::ObservationConnection => "Observe",
         EducationalSceneKind::Summary => "Summarise",
     }
@@ -151,7 +487,7 @@ fn main() -> iced::Result {
         eprintln!("{error}");
         std::process::exit(2);
     }
-    iced::application(launch_state, App::update, App::view)
+    iced::application(launch_state, App::update_with_task, App::view)
         .title(App::title)
         .subscription(App::subscription)
         .theme(App::theme)
@@ -182,23 +518,58 @@ fn adaptive_zoom(reported: Size, current_zoom: f32) -> f32 {
 }
 
 fn codex_available() -> bool {
-    std::process::Command::new("codex")
-        .arg("--version")
-        .output()
-        .is_ok_and(|output| output.status.success())
+    CodexProvider::new(CodexProviderConfig::from_environment())
+        .preflight()
+        .is_ok_and(|preflight| preflight.authenticated)
 }
 
-const fn initial_provider(codex_available: bool) -> ProviderChoice {
-    if codex_available {
-        ProviderChoice::CodexSubscription
-    } else {
-        ProviderChoice::ApiKey
+fn dynamic_presentation_profile(
+    _frames: &chem_kernel::SimulationFrames,
+    equation: &str,
+) -> PresentationProfile {
+    let transform = |translation, scale| PresentationTransform {
+        translation,
+        rotation: [0, 0, 0],
+        scale,
+    };
+    PresentationProfile {
+        id: "dynamic-validated".to_owned(),
+        environment: AssetProfile::LaboratoryBench,
+        objects: vec![
+            PresentationObject {
+                id: "vessel".to_owned(),
+                asset: AssetProfile::Beaker,
+                semantic_identity: "virtual reaction vessel".to_owned(),
+                appearance: AppearanceProfile::ClearGlass,
+                role: SceneRole::Vessel,
+                transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
+                visible_from_ordinal: 0,
+                observation: None,
+                colour_transition: None,
+            },
+            PresentationObject {
+                id: "contents".to_owned(),
+                asset: AssetProfile::LiquidVolume,
+                semantic_identity: "representative reaction contents".to_owned(),
+                appearance: AppearanceProfile::AqueousColourless,
+                role: SceneRole::Contents,
+                transform: transform([0, -150, 0], [1_000, 850, 1_000]),
+                visible_from_ordinal: 0,
+                observation: None,
+                colour_transition: None,
+            },
+        ],
+        effects: Vec::new(),
+        camera: Vec::new(),
+        equation: equation.to_owned(),
+        disclosure: "Representative virtual presentation.".to_owned(),
     }
 }
 
 fn launch_state() -> App {
     let mut app = App::default();
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
+    let smoke_from_start = std::env::args().any(|argument| argument == "--smoke-from-start");
     let smoke_request =
         std::env::args().find_map(|argument| smoke_request_from_argument(&argument));
     if let Some(smoke_mode) = smoke_mode {
@@ -221,7 +592,7 @@ fn launch_state() -> App {
         if let Some(animation) = &mut app.structural_animation {
             let three_dimensional = smoke_mode == SmokeMode::Structural3d;
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
-            if three_dimensional {
+            if three_dimensional && !smoke_from_start {
                 let plan = &animation.real_world_plan;
                 animation.real_world_playhead_ms =
                     plan.timeline.duration_ms().saturating_mul(2) / 3;
@@ -251,7 +622,7 @@ fn launch_state() -> App {
                         .unwrap_or(0);
                 }
             }
-            animation.playing = false;
+            animation.playing = smoke_from_start;
             app.screen = if three_dimensional {
                 Screen::Structural3d
             } else {
@@ -310,6 +681,7 @@ enum Screen {
     OutcomeChoice,
     Structural2d,
     Structural3d,
+    ProductSummary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -340,6 +712,7 @@ impl SmokeMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProviderChoice {
+    Local,
     CodexSubscription,
     ApiKey,
 }
@@ -380,12 +753,40 @@ impl PlaybackSpeed {
 #[derive(Debug, Clone)]
 enum Message {
     WindowResized(Size),
+    KeyboardEvent(iced::keyboard::Event),
+    BuilderPointerPressed,
+    BuilderInputFocusChecked {
+        reactant: reactant_composer::ActiveReactant,
+        focused: bool,
+    },
     ScreenSelected(Screen),
     ProviderSelected(ProviderChoice),
     ApiKeyChanged(String),
     ProviderContinue,
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
+    BuilderPanelToggled(BuilderPanel),
+    BuilderPanelClosed,
+    DynamicContextSelected(Option<DynamicRequestContext>),
+    ToggleDynamicDetails,
+    DynamicIdentitySelected {
+        reactant_index: usize,
+        species_id: SpeciesId,
+    },
+    DynamicClaimFinished {
+        run_id: u64,
+        result: Box<Result<DynamicClaimStageResult, String>>,
+    },
+    DynamicPresentationFinished {
+        run_id: u64,
+        result: Box<Result<DynamicPresentationOutcome, String>>,
+    },
+    DynamicBuildTick {
+        run_id: u64,
+    },
+    DynamicTheatreTick,
+    RegenerateDynamicReaction,
+    RetryDynamicPresentation,
     OutcomeSelected(chemistry::ReactionRequest),
     StructuralPlaybackToggled,
     StructuralSpeedChanged,
@@ -394,13 +795,160 @@ enum Message {
     StructuralChapterChanged(i8),
     StructuralRestarted,
     StructuralTick,
+    StructuralDrag(structural_2d::DragEvent),
     ContinueTo3d,
+    ContinueToSummary,
     ReturnTo2d,
+    ReturnTo3d,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuilderPanel {
+    Conditions,
+    Help,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DynamicRequestContext {
+    Heat,
+    Light,
+    Electricity,
+}
+
+impl DynamicRequestContext {
+    const ALL: [Self; 3] = [Self::Heat, Self::Light, Self::Electricity];
+
+    const fn value(self) -> &'static str {
+        match self {
+            Self::Heat => "heat",
+            Self::Light => "light",
+            Self::Electricity => "electricity",
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Heat => "Heat",
+            Self::Light => "Light",
+            Self::Electricity => "Electricity",
+        }
+    }
+}
+
+fn builder_keyboard_message(
+    screen: Screen,
+    event: iced::keyboard::Event,
+    editor_open: bool,
+    panel_open: bool,
+    can_run: bool,
+) -> Option<Message> {
+    let iced::keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
+        return None;
+    };
+    builder_shortcut(screen, &key, modifiers, editor_open, panel_open, can_run)
+}
+
+fn builder_shortcut(
+    screen: Screen,
+    key: &iced::keyboard::Key,
+    modifiers: iced::keyboard::Modifiers,
+    editor_open: bool,
+    panel_open: bool,
+    can_run: bool,
+) -> Option<Message> {
+    use iced::keyboard::{Key, key::Named};
+
+    if screen != Screen::Builder {
+        return None;
+    }
+    if key == &Key::Named(Named::Escape) {
+        return if editor_open {
+            Some(Message::ReactantComposer(
+                reactant_composer::Message::NameEntryCancelled,
+            ))
+        } else if panel_open {
+            Some(Message::BuilderPanelClosed)
+        } else {
+            None
+        };
+    }
+    let is_space = matches!(key.as_ref(), Key::Named(Named::Space) | Key::Character(" "));
+    if !modifiers.command() && is_space && can_run && !editor_open && !panel_open {
+        return Some(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+    }
+    if !modifiers.command() {
+        return None;
+    }
+    match key.as_ref() {
+        Key::Character("1") => Some(Message::ReactantComposer(
+            reactant_composer::Message::SelectReactant(reactant_composer::ActiveReactant::First),
+        )),
+        Key::Character("2") => Some(Message::ReactantComposer(
+            reactant_composer::Message::SelectReactant(reactant_composer::ActiveReactant::Second),
+        )),
+        Key::Character(value) if value.eq_ignore_ascii_case("z") => {
+            Some(Message::ReactantComposer(reactant_composer::Message::Undo))
+        }
+        Key::Named(Named::Backspace) => Some(Message::ReactantComposer(
+            reactant_composer::Message::ClearActive,
+        )),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone)]
+enum RenderableFrames {
+    Catalogue(chem_kernel::SimulationFrames),
+    Dynamic(chem_kernel::ValidatedDynamicFrames),
+}
+
+impl Deref for RenderableFrames {
+    type Target = chem_kernel::SimulationFrames;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Catalogue(frames) => frames,
+            Self::Dynamic(frames) => frames,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+enum DynamicBuildState {
+    #[default]
+    Idle,
+    Running {
+        run_id: u64,
+        elapsed_seconds: u64,
+        stage: DynamicBuildStage,
+    },
+    Failed(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DynamicBuildStage {
+    Claim,
+    Presentation,
+}
+
+#[derive(Debug, Clone)]
+struct DynamicClaimStageResult {
+    outcome: CompiledClaimOutcome,
+    presentation: Option<DynamicPresentationOutcome>,
+    latency: LatencyMilestones,
+}
+
+#[derive(Debug, Clone)]
+struct DynamicIdentityChoice {
+    request: ReactionBuildRequest,
+    ambiguity: ReactantIdentityAmbiguity,
 }
 
 #[derive(Debug)]
 struct StructuralAnimation {
-    frames: chem_kernel::SimulationFrames,
+    frames: RenderableFrames,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
     reactant_previews: Vec<composition_catalogue::TrustedCompositionPreview>,
@@ -409,8 +957,17 @@ struct StructuralAnimation {
     educational_playhead_ms: u64,
     frame_index: usize,
     real_world_playhead_ms: u64,
+    summary_elapsed_ms: u64,
     playing: bool,
     playback_speed: PlaybackSpeed,
+    physics: structural_physics::Simulation,
+    /// Smoothed 2D camera rectangle, in virtual world coordinates.
+    camera: iced::Rectangle,
+    /// Story-anchored homes per frame, parallel to `frames.frames()`.
+    home_timeline: Vec<std::collections::BTreeMap<String, iced::Point>>,
+    /// Paused with physics and camera at rest: the tick subscription stops
+    /// so a static scene costs nothing. Any interaction clears it.
+    settled: bool,
 }
 
 struct App {
@@ -424,7 +981,24 @@ struct App {
     pending_requests: Vec<chemistry::ReactionRequest>,
     oxygen_assessment: Option<chemistry::OxygenAssessment>,
     active_request: chemistry::ReactionRequest,
-    validated_frames: Option<chem_kernel::SimulationFrames>,
+    validated_frames: Option<RenderableFrames>,
+    validated_macroscopic: Option<chem_presentation::MacroscopicReaction>,
+    dynamic_claim: Option<ReactionClaim>,
+    dynamic_static: Option<ValidatedStaticOutcome>,
+    dynamic_presentation: Option<DynamicPresentationOutcome>,
+    dynamic_request: Option<ReactionBuildRequest>,
+    dynamic_identity_choice: Option<DynamicIdentityChoice>,
+    dynamic_context: Option<DynamicRequestContext>,
+    builder_panel: Option<BuilderPanel>,
+    dynamic_details_open: bool,
+    dynamic_build: DynamicBuildState,
+    dynamic_cancellation: Option<Arc<AtomicBool>>,
+    dynamic_progress: Option<CodexProgressEvent>,
+    dynamic_progress_receiver: Option<Receiver<CodexProgressEvent>>,
+    dynamic_started_at: Option<Instant>,
+    dynamic_latency: LatencyMilestones,
+    dynamic_theatre_phase: f32,
+    next_dynamic_run_id: u64,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
     /// Interface zoom applied on top of the system scale factor.
@@ -435,20 +1009,40 @@ impl Default for App {
     fn default() -> Self {
         let codex_available = codex_available();
         let active_request = chemistry::ReactionRequest::DEFAULT;
+        let trusted_run = chemistry::run(active_request).ok();
         Self {
             screen: Screen::ProviderSetup,
             smoke_mode: None,
             codex_available,
-            provider: Some(initial_provider(codex_available)),
+            provider: Some(ProviderChoice::Local),
             api_key: String::new(),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
             pending_requests: Vec::new(),
             oxygen_assessment: None,
             active_request,
-            validated_frames: chemistry::run(active_request)
-                .ok()
-                .map(|run| run.frames().clone()),
+            validated_frames: trusted_run
+                .as_ref()
+                .map(|run| RenderableFrames::Catalogue(run.frames().clone())),
+            validated_macroscopic: trusted_run
+                .as_ref()
+                .and_then(|run| run.macroscopic().cloned()),
+            dynamic_claim: None,
+            dynamic_static: None,
+            dynamic_presentation: None,
+            dynamic_request: None,
+            dynamic_identity_choice: None,
+            dynamic_context: None,
+            builder_panel: None,
+            dynamic_details_open: false,
+            dynamic_build: DynamicBuildState::Idle,
+            dynamic_cancellation: None,
+            dynamic_progress: None,
+            dynamic_progress_receiver: None,
+            dynamic_started_at: None,
+            dynamic_latency: LatencyMilestones::default(),
+            dynamic_theatre_phase: 0.0,
+            next_dynamic_run_id: 1,
             structural_animation: None,
             structural_error: None,
             ui_zoom: 1.0,
@@ -456,6 +1050,7 @@ impl Default for App {
     }
 }
 
+#[cfg(test)]
 fn api_key_format_is_valid(api_key: &str) -> bool {
     let Some(secret) = api_key.strip_prefix("sk-") else {
         return false;
@@ -468,25 +1063,107 @@ fn api_key_format_is_valid(api_key: &str) -> bool {
 }
 
 impl App {
+    /// Local Mode is a state for the whole app: no model integration, no
+    /// model-facing copy, and anything only a model could do is unsupported.
+    fn local_mode(&self) -> bool {
+        self.provider == Some(ProviderChoice::Local)
+    }
+
     fn title(&self) -> String {
-        self.smoke_mode.map_or_else(
+        let base = self.smoke_mode.map_or_else(
             || "ChemSpec — reaction builder".to_owned(),
             |mode| format!("ChemSpec Agent Smoke — {}", mode.title()),
-        )
+        );
+        self.builder_accessibility_summary()
+            .map_or(base.clone(), |summary| format!("{base} — {summary}"))
+    }
+
+    fn builder_accessibility_summary(&self) -> Option<String> {
+        if self.screen != Screen::Builder {
+            return None;
+        }
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        if first.is_empty() && second.is_empty() && self.dynamic_static.is_none() {
+            return None;
+        }
+        let first = if first.is_empty() {
+            "empty".to_owned()
+        } else {
+            reactant_composer::formula(first)
+        };
+        let second = if second.is_empty() {
+            "empty".to_owned()
+        } else {
+            reactant_composer::formula(second)
+        };
+        let reactants = format!("Reactants {first} + {second}");
+        let state = if let Some(outcome) = &self.dynamic_static {
+            let capability = match &self.dynamic_presentation {
+                Some(
+                    DynamicPresentationOutcome::ReviewedFamily(_)
+                    | DynamicPresentationOutcome::Escalated(_),
+                ) => "animation ready",
+                Some(DynamicPresentationOutcome::Static { .. }) => "static result only",
+                None => "static result ready",
+            };
+            format!("{}; {capability}", outcome.equation())
+        } else {
+            match &self.dynamic_build {
+                DynamicBuildState::Idle => "idle".to_owned(),
+                DynamicBuildState::Running { stage, .. } => match stage {
+                    DynamicBuildStage::Claim => "building factual outcome".to_owned(),
+                    DynamicBuildStage::Presentation => "building presentation".to_owned(),
+                },
+                DynamicBuildState::Failed(_) => "build failed".to_owned(),
+            }
+        };
+        Some(format!("{reactants}; {state}"))
     }
 
     #[allow(clippy::too_many_lines)]
-    fn update(&mut self, message: Message) {
+    fn update_with_task(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::WindowResized(size) => self.ui_zoom = adaptive_zoom(size, self.ui_zoom),
+            Message::WindowResized(size) => {
+                self.ui_zoom = adaptive_zoom(size, self.ui_zoom);
+                reactant_composer::resize_ambient(&mut self.reactant_composer, size);
+            }
+            Message::KeyboardEvent(event) => {
+                if let Some(message) = builder_keyboard_message(
+                    self.screen,
+                    event,
+                    reactant_composer::editing(&self.reactant_composer).is_some(),
+                    self.builder_panel.is_some(),
+                    self.builder_can_submit(),
+                ) {
+                    return self.update_with_task(message);
+                }
+            }
+            Message::BuilderPointerPressed => {
+                let Some(reactant) = reactant_composer::editing(&self.reactant_composer) else {
+                    return Task::none();
+                };
+                return iced::widget::operation::is_focused(reactant_composer::name_input_id(
+                    reactant,
+                ))
+                .map(move |focused| Message::BuilderInputFocusChecked { reactant, focused });
+            }
+            Message::BuilderInputFocusChecked { reactant, focused } => {
+                if !focused
+                    && reactant_composer::editing(&self.reactant_composer) == Some(reactant)
+                    && reactant_composer::name_input_is_empty(&self.reactant_composer)
+                {
+                    return self
+                        .update_reactant_composer(reactant_composer::Message::NameEntryCancelled);
+                }
+            }
             Message::ScreenSelected(screen) => self.screen = screen,
             Message::ProviderSelected(provider) => self.provider = Some(provider),
             Message::ApiKeyChanged(api_key) => self.api_key = api_key,
             Message::ProviderContinue => {
                 let ready = match self.provider {
+                    Some(ProviderChoice::Local) => true,
                     Some(ProviderChoice::CodexSubscription) => self.codex_available,
-                    Some(ProviderChoice::ApiKey) => api_key_format_is_valid(&self.api_key),
-                    None => false,
+                    Some(ProviderChoice::ApiKey) | None => false,
                 };
                 if ready {
                     self.screen = Screen::Builder;
@@ -495,14 +1172,232 @@ impl App {
             Message::PeriodicTable(message) => {
                 periodic_table::update(&mut self.periodic_table, message);
                 if let periodic_table::Message::Activated(atomic_number) = message {
-                    reactant_composer::update(
-                        &mut self.reactant_composer,
-                        reactant_composer::Message::AddElement(atomic_number),
-                    );
+                    return self.update_reactant_composer(reactant_composer::Message::AddElement(
+                        atomic_number,
+                    ));
                 }
             }
             Message::ReactantComposer(message) => {
-                self.update_reactant_composer(message);
+                return self.update_reactant_composer(message);
+            }
+            Message::BuilderPanelToggled(panel) => {
+                self.builder_panel = (self.builder_panel != Some(panel)).then_some(panel);
+            }
+            Message::BuilderPanelClosed => self.builder_panel = None,
+            Message::DynamicContextSelected(context) => {
+                self.dynamic_context = context;
+                self.builder_panel = None;
+                self.sync_builder_submit_prompt();
+            }
+            Message::ToggleDynamicDetails => {
+                self.dynamic_details_open = !self.dynamic_details_open;
+            }
+            Message::DynamicIdentitySelected {
+                reactant_index,
+                species_id,
+            } => {
+                let Some(choice) = self.dynamic_identity_choice.take() else {
+                    return Task::none();
+                };
+                if choice.ambiguity.reactant_index != reactant_index
+                    || !choice
+                        .ambiguity
+                        .alternatives
+                        .iter()
+                        .any(|species| species.id == species_id)
+                {
+                    self.dynamic_identity_choice = Some(choice);
+                    return Task::none();
+                }
+                let mut request = choice.request;
+                request.reactants[reactant_index].species_id = Some(species_id);
+                return self.start_dynamic_build_request(request, false);
+            }
+            Message::DynamicClaimFinished { run_id, result } => {
+                if !matches!(self.dynamic_build, DynamicBuildState::Running { run_id: current, stage: DynamicBuildStage::Claim, .. } if current == run_id)
+                {
+                    return Task::none();
+                }
+                match *result {
+                    Ok(DynamicClaimStageResult {
+                        outcome: CompiledClaimOutcome::Static(outcome),
+                        presentation,
+                        latency,
+                    }) => {
+                        self.dynamic_latency = latency;
+                        self.dynamic_claim = Some(outcome.claim().clone());
+                        self.dynamic_static = Some(outcome.clone());
+                        self.dynamic_presentation = None;
+                        if let Some(presentation) = presentation {
+                            self.dynamic_cancellation = None;
+                            self.dynamic_progress_receiver = None;
+                            self.finish_dynamic_presentation(presentation);
+                            return Task::none();
+                        }
+                        self.dynamic_build = DynamicBuildState::Running {
+                            run_id,
+                            elapsed_seconds: 0,
+                            stage: DynamicBuildStage::Presentation,
+                        };
+                        let request = self
+                            .dynamic_request
+                            .clone()
+                            .expect("a dynamic run retains its request");
+                        let progress = self.reset_dynamic_progress_channel();
+                        return Self::start_dynamic_presentation(
+                            run_id,
+                            request,
+                            ClaimMode::Fast,
+                            self.local_mode(),
+                            outcome,
+                            self.dynamic_cancellation
+                                .clone()
+                                .expect("a running build retains cancellation"),
+                            progress,
+                        );
+                    }
+                    Ok(DynamicClaimStageResult {
+                        outcome:
+                            CompiledClaimOutcome::NoReaction(claim)
+                            | CompiledClaimOutcome::Ambiguous(claim)
+                            | CompiledClaimOutcome::Unsupported(claim),
+                        presentation: _,
+                        latency,
+                    }) => {
+                        self.dynamic_latency = latency;
+                        self.dynamic_claim = Some(claim);
+                        self.dynamic_static = None;
+                        self.dynamic_presentation = None;
+                        self.validated_frames = None;
+                        self.dynamic_build = DynamicBuildState::Idle;
+                        self.dynamic_cancellation = None;
+                        self.dynamic_progress_receiver = None;
+                    }
+                    Err(error) => {
+                        self.validated_frames = None;
+                        self.dynamic_claim = None;
+                        self.dynamic_static = None;
+                        self.dynamic_presentation = None;
+                        self.dynamic_build = DynamicBuildState::Failed(error);
+                        self.dynamic_cancellation = None;
+                        self.dynamic_progress_receiver = None;
+                    }
+                }
+            }
+            Message::DynamicPresentationFinished { run_id, result } => {
+                if !matches!(self.dynamic_build, DynamicBuildState::Running { run_id: current, stage: DynamicBuildStage::Presentation, .. } if current == run_id)
+                {
+                    return Task::none();
+                }
+                match *result {
+                    Ok(presentation) => {
+                        let elapsed = self.dynamic_started_at.map_or(0, elapsed_millis);
+                        match &presentation {
+                            DynamicPresentationOutcome::ReviewedFamily(_) => {
+                                self.dynamic_latency.reviewed_animation_ms = Some(elapsed);
+                            }
+                            DynamicPresentationOutcome::Escalated(_) => {
+                                self.dynamic_latency.mechanism_ms = Some(elapsed);
+                            }
+                            DynamicPresentationOutcome::Static { .. } => {}
+                        }
+                        self.finish_dynamic_presentation(presentation);
+                    }
+                    Err(error) => {
+                        // Presentation enrichment cannot invalidate or discard
+                        // an already displayed static outcome.
+                        self.validated_frames = None;
+                        self.dynamic_presentation = Some(DynamicPresentationOutcome::Static {
+                            outcome: Box::new(
+                                self.dynamic_static
+                                    .clone()
+                                    .expect("presentation starts only after a static outcome"),
+                            ),
+                            diagnostic: error,
+                            retryable: true,
+                            attempts: 0,
+                        });
+                        self.dynamic_build = DynamicBuildState::Idle;
+                        self.dynamic_cancellation = None;
+                        self.dynamic_progress_receiver = None;
+                    }
+                }
+            }
+            Message::DynamicBuildTick { run_id } => {
+                let current = matches!(
+                    self.dynamic_build,
+                    DynamicBuildState::Running { run_id: current, .. } if current == run_id
+                );
+                if let DynamicBuildState::Running {
+                    run_id: current,
+                    elapsed_seconds,
+                    ..
+                } = &mut self.dynamic_build
+                    && *current == run_id
+                {
+                    *elapsed_seconds = elapsed_seconds.saturating_add(1);
+                }
+                if current {
+                    self.drain_dynamic_progress();
+                }
+            }
+            Message::DynamicTheatreTick => {
+                if matches!(
+                    self.dynamic_build,
+                    DynamicBuildState::Running {
+                        stage: DynamicBuildStage::Presentation,
+                        ..
+                    }
+                ) && self.dynamic_static.is_some()
+                {
+                    self.dynamic_theatre_phase = (self.dynamic_theatre_phase + 0.006).fract();
+                }
+            }
+            Message::RegenerateDynamicReaction => {
+                let Some(request) = self.dynamic_request.clone() else {
+                    return Task::none();
+                };
+                self.screen = Screen::Builder;
+                return self.start_dynamic_build_request(request, true);
+            }
+            Message::RetryDynamicPresentation => {
+                // Re-run only the presentation enrichment (structure and
+                // mechanism escalation); the validated static outcome and its
+                // claim stay untouched.
+                if !matches!(
+                    self.dynamic_presentation,
+                    Some(DynamicPresentationOutcome::Static {
+                        retryable: true,
+                        ..
+                    })
+                ) || matches!(self.dynamic_build, DynamicBuildState::Running { .. })
+                {
+                    return Task::none();
+                }
+                let (Some(request), Some(outcome)) =
+                    (self.dynamic_request.clone(), self.dynamic_static.clone())
+                else {
+                    return Task::none();
+                };
+                let run_id = self.next_dynamic_run_id;
+                self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
+                let cancellation = Arc::new(AtomicBool::new(false));
+                self.dynamic_cancellation = Some(cancellation.clone());
+                self.dynamic_build = DynamicBuildState::Running {
+                    run_id,
+                    elapsed_seconds: 0,
+                    stage: DynamicBuildStage::Presentation,
+                };
+                let progress = self.reset_dynamic_progress_channel();
+                return Self::start_dynamic_presentation(
+                    run_id,
+                    request,
+                    ClaimMode::Fast,
+                    self.local_mode(),
+                    outcome,
+                    cancellation,
+                    progress,
+                );
             }
             Message::OutcomeSelected(request) => {
                 self.pending_requests.clear();
@@ -513,6 +1408,7 @@ impl App {
             Message::StructuralPlaybackToggled => {
                 if let Some(animation) = &mut self.structural_animation {
                     animation.playing = !animation.playing;
+                    animation.settled = false;
                 }
             }
             Message::StructuralSpeedChanged => {
@@ -523,6 +1419,7 @@ impl App {
             Message::StructuralTimelineScrubbed(progress) => {
                 if let Some(animation) = &mut self.structural_animation {
                     animation.playing = false;
+                    animation.settled = false;
                 }
                 self.seek_educational_timeline(u64::from(progress));
             }
@@ -534,14 +1431,40 @@ impl App {
             }
             Message::StructuralChapterChanged(delta) => self.change_structural_frame(delta),
             Message::StructuralTick => {
-                let elapsed = self
+                let (elapsed, playing) = self
                     .structural_animation
                     .as_ref()
-                    .map_or(33, |animation| animation.playback_speed.scale_millis(33));
-                if self.screen == Screen::Structural3d {
+                    .map_or((33, false), |animation| {
+                        (animation.playback_speed.scale_millis(33), animation.playing)
+                    });
+                if self.screen == Screen::ProductSummary {
+                    if let Some(animation) = &mut self.structural_animation {
+                        animation.summary_elapsed_ms =
+                            animation.summary_elapsed_ms.saturating_add(33);
+                    }
+                } else if self.screen == Screen::Structural3d {
                     self.advance_real_world_playback(elapsed);
                 } else {
-                    self.advance_educational_playback(elapsed);
+                    if playing {
+                        self.advance_educational_playback(elapsed);
+                    }
+                    self.step_structural_physics();
+                }
+            }
+            Message::StructuralDrag(event) => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.settled = false;
+                    match event {
+                        structural_2d::DragEvent::Started { target, cursor } => {
+                            animation.physics.begin_drag(&target, cursor);
+                        }
+                        structural_2d::DragEvent::Moved { cursor } => {
+                            animation.physics.move_drag(cursor);
+                        }
+                        structural_2d::DragEvent::Ended => {
+                            animation.physics.end_drag();
+                        }
+                    }
                 }
             }
             Message::StructuralRestarted => {
@@ -550,6 +1473,7 @@ impl App {
                     animation.frame_index = 0;
                     animation.real_world_playhead_ms = 0;
                     animation.playing = true;
+                    animation.settled = false;
                 }
             }
             Message::ContinueTo3d => {
@@ -569,44 +1493,485 @@ impl App {
                     self.screen = Screen::Structural3d;
                 }
             }
+            Message::ContinueToSummary => {
+                if self.structural_animation.as_ref().is_some_and(|animation| {
+                    animation.real_world_playhead_ms
+                        == animation.real_world_plan.timeline.duration_ms()
+                }) {
+                    if let Some(animation) = &mut self.structural_animation {
+                        animation.summary_elapsed_ms = 0;
+                        animation.playing = false;
+                    }
+                    self.screen = Screen::ProductSummary;
+                }
+            }
             Message::ReturnTo2d => self.screen = Screen::Structural2d,
+            Message::ReturnTo3d => self.screen = Screen::Structural3d,
         }
+        Task::none()
     }
 
-    fn update_reactant_composer(&mut self, message: reactant_composer::Message) {
-        if !matches!(message, reactant_composer::Message::StartReactionRequested) {
-            reactant_composer::update(&mut self.reactant_composer, message);
-            return;
+    #[cfg(test)]
+    fn update(&mut self, message: Message) {
+        drop(self.update_with_task(message));
+    }
+
+    fn builder_can_submit(&self) -> bool {
+        if matches!(self.dynamic_build, DynamicBuildState::Running { .. })
+            || reactant_composer::editing(&self.reactant_composer).is_some()
+        {
+            return false;
         }
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        reactant_composer::can_start_reaction(&self.reactant_composer)
+            || (!first.is_empty() && second.is_empty() && self.dynamic_context.is_some())
+    }
+
+    fn sync_builder_submit_prompt(&mut self) {
+        let available = self.builder_can_submit();
+        reactant_composer::set_submit_available(&mut self.reactant_composer, available);
+    }
+
+    fn update_reactant_composer(&mut self, message: reactant_composer::Message) -> Task<Message> {
+        let focus_target = match &message {
+            reactant_composer::Message::BeginNameEntry(reactant) => {
+                Some(reactant_composer::name_input_id(*reactant))
+            }
+            _ => None,
+        };
+        if matches!(message, reactant_composer::Message::StartReactionRequested)
+            && matches!(self.dynamic_build, DynamicBuildState::Running { .. })
+        {
+            return Task::none();
+        }
+        if !matches!(message, reactant_composer::Message::StartReactionRequested) {
+            if let Some(cancellation) = self.dynamic_cancellation.take() {
+                cancellation.store(true, Ordering::Relaxed);
+            }
+            self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
+            self.dynamic_build = DynamicBuildState::Idle;
+            self.dynamic_identity_choice = None;
+            self.dynamic_started_at = None;
+            self.dynamic_latency = LatencyMilestones::default();
+            self.dynamic_progress = None;
+            self.dynamic_progress_receiver = None;
+            if self.dynamic_static.take().is_some()
+                || self.dynamic_claim.take().is_some()
+                || self.dynamic_presentation.take().is_some()
+                || matches!(&self.validated_frames, Some(RenderableFrames::Dynamic(_)))
+            {
+                self.validated_frames = None;
+                self.structural_animation = None;
+            }
+
+            self.dynamic_request = None;
+            reactant_composer::update(&mut self.reactant_composer, message);
+            let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+            if !second.is_empty() {
+                self.dynamic_context = None;
+            }
+            if self.builder_panel == Some(BuilderPanel::Conditions)
+                && (first.is_empty() || !second.is_empty())
+            {
+                self.builder_panel = None;
+            }
+            self.sync_builder_submit_prompt();
+            return focus_target.map_or_else(Task::none, iced::widget::operation::focus);
+        }
+        reactant_composer::set_submit_available(&mut self.reactant_composer, false);
+        self.builder_panel = None;
         match reactant_composer::resolution(&self.reactant_composer) {
             chemistry::DraftResolution::Supported(request) => {
                 self.pending_requests.clear();
                 self.oxygen_assessment = None;
                 self.select_request(request);
                 self.open_structural_animation();
+                Task::none()
             }
             chemistry::DraftResolution::Multiple(requests) => {
                 self.pending_requests = requests;
                 self.oxygen_assessment = None;
                 self.screen = Screen::OutcomeChoice;
+                Task::none()
             }
             chemistry::DraftResolution::Screened(assessment) => {
                 self.pending_requests.clear();
                 self.oxygen_assessment = Some(assessment);
                 self.screen = Screen::OutcomeChoice;
+                Task::none()
             }
             chemistry::DraftResolution::ExplicitlyUnsupported(_)
             | chemistry::DraftResolution::Uncatalogued
-            | chemistry::DraftResolution::Unrecognized
-            | chemistry::DraftResolution::SystemError(_) => {}
+            | chemistry::DraftResolution::Unrecognized => self.start_dynamic_build(),
+            chemistry::DraftResolution::SystemError(_) => Task::none(),
         }
+    }
+
+    fn start_dynamic_build(&mut self) -> Task<Message> {
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        let single_context = second.is_empty().then_some(self.dynamic_context).flatten();
+        let drafts = if single_context.is_some() {
+            vec![first]
+        } else {
+            vec![first, second]
+        };
+        let request = ReactionBuildRequest {
+            reactants: drafts
+                .into_iter()
+                .map(|atoms| ReactantInput {
+                    display: reactant_composer::formula(atoms),
+                    // Keep the identity inventory aligned with the standard-state
+                    // formula shown by the composer (H₂, N₂, O₂, P₄, S₈, ...).
+                    atomic_numbers: chemistry::standardize_elemental_draft(atoms),
+                    species_id: None,
+                })
+                .collect(),
+            selected_context: single_context.map(|context| context.value().to_owned()),
+        };
+        self.start_dynamic_build_request(request, false)
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn start_dynamic_build_request(
+        &mut self,
+        mut request: ReactionBuildRequest,
+        regenerate: bool,
+    ) -> Task<Message> {
+        let local = self.local_mode();
+        if !local && !matches!(self.provider, Some(ProviderChoice::CodexSubscription)) {
+            self.dynamic_build = DynamicBuildState::Failed(
+                "Direct API reaction building is not available yet; choose Codex subscription."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        if let Some(cancellation) = self.dynamic_cancellation.take() {
+            cancellation.store(true, Ordering::Relaxed);
+        }
+        let run_id = self.next_dynamic_run_id;
+        self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
+        self.validated_frames = None;
+        self.dynamic_claim = None;
+        self.dynamic_static = None;
+        self.dynamic_presentation = None;
+
+        self.dynamic_identity_choice = None;
+        self.dynamic_details_open = false;
+        self.dynamic_started_at = None;
+        self.dynamic_latency = LatencyMilestones::default();
+        self.dynamic_theatre_phase = 0.0;
+        self.dynamic_progress = None;
+        self.dynamic_progress_receiver = None;
+        self.structural_animation = None;
+        self.structural_error = None;
+        let mode = ClaimMode::Fast;
+        let mut config = CodexProviderConfig::from_environment();
+        let catalogue = match chemistry::trusted_catalogue() {
+            Ok(catalogue) => catalogue.clone(),
+            Err(error) => {
+                self.dynamic_build = DynamicBuildState::Failed(error.to_owned());
+                return Task::none();
+            }
+        };
+        let identities = match reviewed_species_registry(&catalogue) {
+            Ok(identities) => identities,
+            Err(error) => {
+                self.dynamic_build = DynamicBuildState::Failed(error.to_string());
+                return Task::none();
+            }
+        };
+        match resolve_request_identities_with_catalogue(&request, &identities, &catalogue) {
+            Ok(RequestIdentityResolution::Resolved(resolved)) => {
+                for (input, species) in request.reactants.iter_mut().zip(resolved) {
+                    // Generated identities are rebuilt deterministically on
+                    // each resolution, so only registry-pinned ids persist.
+                    if let agent::OutcomeSpecies::Resolved(species) = species
+                        && identities.get(&species.id).is_some()
+                    {
+                        input.species_id = Some(species.id);
+                    }
+                }
+            }
+            Ok(RequestIdentityResolution::Ambiguous(ambiguity)) => {
+                self.dynamic_request = Some(request.clone());
+                self.dynamic_identity_choice = Some(DynamicIdentityChoice { request, ambiguity });
+                self.dynamic_build = DynamicBuildState::Idle;
+                return Task::none();
+            }
+            Err(error) => {
+                self.dynamic_request = Some(request);
+                self.dynamic_build = DynamicBuildState::Failed(error.to_string());
+                return Task::none();
+            }
+        }
+        self.dynamic_request = Some(request.clone());
+        self.dynamic_started_at = Some(Instant::now());
+        self.dynamic_latency = LatencyMilestones::default();
+        self.dynamic_build = DynamicBuildState::Running {
+            run_id,
+            elapsed_seconds: 0,
+            stage: DynamicBuildStage::Claim,
+        };
+        let cancellation = Arc::new(AtomicBool::new(false));
+        config.cancellation = Some(cancellation.clone());
+        config.progress = Some(self.reset_dynamic_progress_channel());
+        self.dynamic_cancellation = Some(cancellation);
+        Task::perform(
+            async move {
+                let started = Instant::now();
+                let deadline = started + FAST_CLAIM_TIMEOUT;
+                let mut latency = LatencyMilestones::default();
+                let provider = CodexProvider::new(config);
+                // Local Mode never reads the cache: cached claims are model
+                // output, and Local Mode is purely programmatic.
+                if !regenerate
+                    && !local
+                    && let Some(cached) = load_dynamic_cache(
+                        provider.config().cache_directory.as_deref(),
+                        &request,
+                        mode,
+                        &identities,
+                        &catalogue,
+                    )
+                {
+                    let elapsed = elapsed_millis(started);
+                    latency.static_outcome_ms = Some(elapsed);
+                    match &cached.presentation {
+                        Some(DynamicPresentationOutcome::ReviewedFamily(_)) => {
+                            latency.reviewed_animation_ms = Some(elapsed);
+                        }
+                        Some(DynamicPresentationOutcome::Escalated(_)) => {
+                            latency.mechanism_ms = Some(elapsed);
+                        }
+                        Some(DynamicPresentationOutcome::Static { .. }) | None => {}
+                    }
+                    return Ok(DynamicClaimStageResult {
+                        outcome: cached.outcome,
+                        presentation: cached.presentation,
+                        latency,
+                    });
+                }
+                // Algorithmic solving comes first: deterministic reaction
+                // families never need the model at all.
+                let solved = agent::solve_reaction_claim(&request, &identities);
+                let algorithmic = solved.is_some();
+                let claim = match solved {
+                    Some(claim) => claim,
+                    None if local => {
+                        return Err(
+                            "This reaction isn't supported in Local Mode — ChemSpec couldn't \
+                             derive it programmatically. Switch to an AI mode to research it."
+                                .to_owned(),
+                        );
+                    }
+                    None => provider
+                        .claim_reaction_until(&request, mode, deadline)
+                        .map_err(|error| error.to_string())?,
+                };
+                latency.claim_ms = Some(elapsed_millis(started));
+                let outcome = compile_claim_outcome(&request, claim.clone(), &identities)
+                    .map_err(|error| error.to_string())?;
+                if matches!(outcome, CompiledClaimOutcome::Static(_)) {
+                    latency.static_outcome_ms = Some(elapsed_millis(started));
+                }
+                // Algorithmic claims are recomputed instantly; only model
+                // claims are worth caching.
+                if !algorithmic
+                    && let Some(directory) = provider.config().cache_directory.as_deref()
+                {
+                    let _ = store_dynamic_cache(
+                        directory,
+                        &request,
+                        mode,
+                        &identities,
+                        &catalogue,
+                        &claim,
+                        None,
+                        "codex_subscription",
+                        provider.model_name(),
+                    );
+                }
+                Ok(DynamicClaimStageResult {
+                    outcome,
+                    presentation: None,
+                    latency,
+                })
+            },
+            move |result| Message::DynamicClaimFinished {
+                run_id,
+                result: Box::new(result),
+            },
+        )
+    }
+
+    fn start_dynamic_presentation(
+        run_id: u64,
+        request: ReactionBuildRequest,
+        mode: ClaimMode,
+        local: bool,
+        outcome: ValidatedStaticOutcome,
+        cancellation: Arc<AtomicBool>,
+        progress: Sender<CodexProgressEvent>,
+    ) -> Task<Message> {
+        let mut config = CodexProviderConfig::from_environment();
+        config.cancellation = Some(cancellation);
+        config.progress = Some(progress);
+        let catalogue = match chemistry::trusted_catalogue() {
+            Ok(catalogue) => catalogue.clone(),
+            Err(error) => {
+                return Task::done(Message::DynamicPresentationFinished {
+                    run_id,
+                    result: Box::new(Err(error.to_owned())),
+                });
+            }
+        };
+        Task::perform(
+            async move {
+                if local {
+                    // Reviewed-family and algorithmic mechanisms only; model
+                    // escalation is explicitly unsupported, so a static
+                    // settle is final rather than retryable.
+                    let presentation = enrich_static_outcome(
+                        outcome,
+                        &catalogue,
+                        &mut agent::UnsupportedMechanismProvider,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    return Ok(match presentation {
+                        DynamicPresentationOutcome::Static {
+                            outcome,
+                            diagnostic,
+                            attempts,
+                            retryable: _,
+                        } => DynamicPresentationOutcome::Static {
+                            outcome,
+                            diagnostic,
+                            attempts,
+                            retryable: false,
+                        },
+                        animated => animated,
+                    });
+                }
+                let mut provider = CodexProvider::new(config);
+                let claim = outcome.claim().clone();
+                let presentation = enrich_static_outcome(outcome, &catalogue, &mut provider)
+                    .map_err(|error| error.to_string())?;
+                let recipe = match &presentation {
+                    DynamicPresentationOutcome::ReviewedFamily(outcome) => {
+                        Some(DynamicCachePresentation::ReviewedFamily {
+                            rule_id: outcome.family_rule().clone(),
+                        })
+                    }
+                    // An escalation with no retained model response was
+                    // derived algorithmically; it recomputes instantly and
+                    // is not worth caching.
+                    DynamicPresentationOutcome::Escalated(_) => provider
+                        .take_last_mechanism_response()
+                        .map(|response| DynamicCachePresentation::Escalated {
+                            response,
+                            structures: provider.take_last_structure_response(),
+                        }),
+                    DynamicPresentationOutcome::Static {
+                        diagnostic,
+                        retryable,
+                        ..
+                    } => Some(DynamicCachePresentation::Static {
+                        diagnostic: diagnostic.clone(),
+                        retryable: *retryable,
+                    }),
+                };
+                if let (Some(recipe), Some(directory)) =
+                    (recipe, provider.config().cache_directory.as_deref())
+                {
+                    let identities =
+                        reviewed_species_registry(&catalogue).map_err(|error| error.to_string())?;
+                    let _ = store_dynamic_cache(
+                        directory,
+                        &request,
+                        mode,
+                        &identities,
+                        &catalogue,
+                        &claim,
+                        Some(recipe),
+                        "codex_subscription",
+                        provider.model_name(),
+                    );
+                }
+                Ok(presentation)
+            },
+            move |result| Message::DynamicPresentationFinished {
+                run_id,
+                result: Box::new(result),
+            },
+        )
+    }
+
+    fn finish_dynamic_presentation(&mut self, presentation: DynamicPresentationOutcome) {
+        self.dynamic_static = Some(presentation.static_outcome().clone());
+        self.validated_frames = match &presentation {
+            DynamicPresentationOutcome::ReviewedFamily(outcome) => {
+                Some(RenderableFrames::Catalogue(outcome.frames().clone()))
+            }
+            DynamicPresentationOutcome::Escalated(outcome) => {
+                Some(RenderableFrames::Dynamic(outcome.frames().clone()))
+            }
+            DynamicPresentationOutcome::Static { .. } => None,
+        };
+        let animated = self.validated_frames.is_some();
+        self.dynamic_presentation = Some(presentation);
+        self.dynamic_build = DynamicBuildState::Idle;
+        self.dynamic_cancellation = None;
+        self.dynamic_progress_receiver = None;
+        self.structural_animation = None;
+        self.structural_error = None;
+        if animated {
+            self.open_structural_animation();
+        }
+    }
+
+    fn reset_dynamic_progress_channel(&mut self) -> Sender<CodexProgressEvent> {
+        let (sender, receiver) = mpsc::channel();
+        self.dynamic_progress = None;
+        self.dynamic_progress_receiver = Some(receiver);
+        sender
+    }
+
+    fn drain_dynamic_progress(&mut self) {
+        let Some(receiver) = &self.dynamic_progress_receiver else {
+            return;
+        };
+        while let Ok(event) = receiver.try_recv() {
+            self.dynamic_progress = Some(event);
+        }
+    }
+
+    fn dynamic_progress_label(&self) -> Option<&'static str> {
+        self.dynamic_progress.map(|event| match event.stage {
+            CodexProgressStage::Started => "preparing the virtual model",
+            CodexProgressStage::Working => "working out where the electrons go",
+            CodexProgressStage::SearchingSources => "checking the supporting evidence",
+            CodexProgressStage::Completed => "the next view is ready",
+            CodexProgressStage::Failed => "this pass needs another try",
+        })
     }
 
     // The offline fixture crosses the same trusted language/kernel boundary
     // that live provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
         self.active_request = request;
-        self.validated_frames = chemistry::run(request).ok().map(|run| run.frames().clone());
+        let trusted_run = chemistry::run(request).ok();
+        self.validated_frames = trusted_run
+            .as_ref()
+            .map(|run| RenderableFrames::Catalogue(run.frames().clone()));
+        self.validated_macroscopic = trusted_run
+            .as_ref()
+            .and_then(|run| run.macroscopic().cloned());
+        self.dynamic_claim = None;
+        self.dynamic_static = None;
+        self.dynamic_presentation = None;
+
+        self.dynamic_request = None;
+        self.dynamic_build = DynamicBuildState::Idle;
         self.structural_animation = None;
         self.structural_error = None;
     }
@@ -615,6 +1980,7 @@ impl App {
         let Some(animation) = &mut self.structural_animation else {
             return;
         };
+        animation.settled = false;
         if self.screen == Screen::Structural2d {
             let Some(position) = animation
                 .educational_plan
@@ -668,18 +2034,65 @@ impl App {
                 reactant_composer::subscription(&self.reactant_composer)
                     .map(Message::ReactantComposer),
             ])
-        } else if matches!(self.screen, Screen::Structural2d | Screen::Structural3d)
+        } else if (self.screen == Screen::Structural2d
             && self
                 .structural_animation
                 .as_ref()
-                .is_some_and(|animation| animation.playing)
+                .is_none_or(|animation| animation.playing || !animation.settled))
+            || (self.screen == Screen::Structural3d
+                && self
+                    .structural_animation
+                    .as_ref()
+                    .is_some_and(|animation| animation.playing))
         {
             iced::time::every(std::time::Duration::from_millis(33)).map(|_| Message::StructuralTick)
+        } else if self.screen == Screen::ProductSummary {
+            iced::time::every(theme::motion::TICK).map(|_| Message::StructuralTick)
         } else {
             Subscription::none()
         };
 
-        Subscription::batch([resize, screen])
+        let dynamic_build = if self.screen == Screen::Builder {
+            match &self.dynamic_build {
+                DynamicBuildState::Running { run_id, .. } => {
+                    iced::time::every(std::time::Duration::from_secs(1))
+                        .with(*run_id)
+                        .map(|(run_id, _)| Message::DynamicBuildTick { run_id })
+                }
+                DynamicBuildState::Idle | DynamicBuildState::Failed(_) => Subscription::none(),
+            }
+        } else {
+            Subscription::none()
+        };
+
+        let input = if self.screen == Screen::Builder {
+            iced::event::listen_with(|event, _status, _window| match event {
+                iced::Event::Keyboard(event) => Some(Message::KeyboardEvent(event)),
+                iced::Event::Mouse(iced::mouse::Event::ButtonPressed(
+                    iced::mouse::Button::Left,
+                )) => Some(Message::BuilderPointerPressed),
+                _ => None,
+            })
+        } else {
+            Subscription::none()
+        };
+
+        let dynamic_theatre = if self.screen == Screen::Builder
+            && self.dynamic_static.is_some()
+            && matches!(
+                self.dynamic_build,
+                DynamicBuildState::Running {
+                    stage: DynamicBuildStage::Presentation,
+                    ..
+                }
+            ) {
+            iced::time::every(std::time::Duration::from_millis(33))
+                .map(|_| Message::DynamicTheatreTick)
+        } else {
+            Subscription::none()
+        };
+
+        Subscription::batch([resize, screen, dynamic_build, dynamic_theatre, input])
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -689,6 +2102,7 @@ impl App {
             Screen::OutcomeChoice => responsive(|size| self.outcome_choice_view(size)).into(),
             Screen::Structural2d => responsive(|size| self.structural_2d_view(size)).into(),
             Screen::Structural3d => responsive(|size| self.structural_3d_view(size)).into(),
+            Screen::ProductSummary => responsive(|size| self.product_summary_view(size)).into(),
         }
     }
 
@@ -795,8 +2209,22 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn provider_setup_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
+        let local_selected = self.provider == Some(ProviderChoice::Local);
         let codex_selected = self.provider == Some(ProviderChoice::CodexSubscription);
         let api_selected = self.provider == Some(ProviderChoice::ApiKey);
+
+        let local = button(
+            row![
+                icons::chip(20.0, color::ACCENT),
+                text("Local Mode").size(type_scale::BODY_LARGE),
+            ]
+            .spacing(spacing::SM)
+            .align_y(Center),
+        )
+        .on_press(Message::ProviderSelected(ProviderChoice::Local))
+        .padding([spacing::SM, spacing::MD])
+        .width(Fill)
+        .style(move |_, status| theme::provider_button(local_selected, status));
 
         let codex_icon_color = if self.codex_available {
             color::ACCENT
@@ -833,11 +2261,22 @@ impl App {
         .width(Fill)
         .style(move |_, status| theme::provider_button(api_selected, status));
 
-        let choices: Element<'_, Message> = column![codex, api].spacing(spacing::SM).into();
-        let ready = (codex_selected && self.codex_available)
-            || (api_selected && api_key_format_is_valid(&self.api_key));
-        let continue_label = if api_selected {
-            "Continue with API key"
+        let choices: Element<'_, Message> = column![
+            local,
+            rule::horizontal(1).style(theme::soft_divider),
+            text("Supercharge ChemSpec with AI")
+                .size(type_scale::BODY)
+                .color(color::MUTED),
+            codex,
+            api,
+        ]
+        .spacing(spacing::SM)
+        .into();
+        let ready = local_selected || (codex_selected && self.codex_available);
+        let continue_label = if local_selected {
+            "Continue with Local Mode"
+        } else if api_selected {
+            "API provider coming next"
         } else {
             "Continue with Codex"
         };
@@ -890,6 +2329,7 @@ impl App {
                 })
                 .color(color::TEXT)
                 .into(),
+            choices,
         ];
 
         if !self.codex_available {
@@ -913,7 +2353,7 @@ impl App {
             );
         }
 
-        sections.extend([choices, action]);
+        sections.push(action);
 
         let content = container(column(sections).spacing(spacing::LG))
             .width(Fill)
@@ -933,31 +2373,61 @@ impl App {
             let frames = self
                 .validated_frames
                 .as_ref()
-                .ok_or_else(|| "trusted frames are unavailable".to_owned())?
+                .ok_or_else(|| "validated frames are unavailable".to_owned())?
                 .clone();
             let educational_plan =
                 compile_educational_plan(&frames).map_err(|error| error.to_string())?;
-            let profile = chemistry::presentation_profile(self.active_request, &frames)?;
+            let (profile, reactant_previews, product_preview, equation) =
+                if let Some(dynamic) = &self.dynamic_static {
+                    (
+                        dynamic_presentation_profile(&frames, dynamic.equation()),
+                        Vec::new(),
+                        None,
+                        dynamic.equation().to_owned(),
+                    )
+                } else {
+                    (
+                        chemistry::presentation_profile_with_catalogue(
+                            self.active_request,
+                            &frames,
+                            self.validated_macroscopic.as_ref(),
+                        )?,
+                        self.active_request.reactant_previews(),
+                        self.active_request.product_preview(),
+                        self.active_request.equation(),
+                    )
+                };
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
+            let home_timeline = structural_2d::home_timeline(frames.frames());
             Ok::<_, String>(StructuralAnimation {
                 frames,
                 educational_plan,
                 real_world_plan,
-                reactant_previews: self.active_request.reactant_previews(),
-                product_preview: self.active_request.product_preview(),
-                equation: self.active_request.equation(),
+                reactant_previews,
+                product_preview,
+                equation,
                 educational_playhead_ms: 0,
                 frame_index: 0,
                 real_world_playhead_ms: 0,
+                summary_elapsed_ms: 0,
                 playing: true,
                 playback_speed: PlaybackSpeed::Normal,
+                physics: structural_physics::Simulation::default(),
+                camera: structural_2d::default_camera(),
+                home_timeline,
+                settled: false,
             })
         })();
         match result {
             Ok(animation) => {
                 self.structural_animation = Some(animation);
                 self.structural_error = None;
+                // Seed the simulation so the first paint has settled-ish
+                // positions instead of an empty canvas.
+                for _ in 0..24 {
+                    self.step_structural_physics();
+                }
             }
             Err(error) => {
                 self.structural_animation = None;
@@ -984,6 +2454,61 @@ impl App {
             animation.playing = false;
         }
         sync_educational_frame(animation);
+    }
+
+    /// Advances the 2D force simulation against the current scene's world.
+    fn step_structural_physics(&mut self) {
+        let Some(animation) = &mut self.structural_animation else {
+            return;
+        };
+        let Some(position) = animation
+            .educational_plan
+            .locate(animation.educational_playhead_ms)
+        else {
+            return;
+        };
+        let Some(scene) = animation.educational_plan.scenes.get(position.scene_index) else {
+            return;
+        };
+        let frames = animation.frames.frames();
+        let Some(after_index) = frames
+            .iter()
+            .position(|candidate| candidate.trace().state_digest == scene.end_frame)
+        else {
+            return;
+        };
+        let before_index = frames
+            .iter()
+            .position(|candidate| candidate.trace().state_digest == scene.start_frame)
+            .unwrap_or(after_index);
+        let after = &frames[after_index];
+        let before = &frames[before_index];
+        let (Some(before_homes), Some(after_homes)) = (
+            animation.home_timeline.get(before_index),
+            animation.home_timeline.get(after_index),
+        ) else {
+            return;
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let scene_progress = if scene.duration_ms == 0 {
+            1.0
+        } else {
+            (position.scene_elapsed_ms as f32 / scene.duration_ms as f32).clamp(0.0, 1.0)
+        };
+        let has_explanation = scene.cues.iter().any(|cue| {
+            matches!(
+                cue,
+                chem_presentation::EducationalCue::ShowExplanation { .. }
+            )
+        });
+        let action = structural_2d::scene_action(scene.kind, has_explanation, scene_progress);
+        let spec = structural_2d::world_spec(before, after, action, before_homes, after_homes);
+        animation.physics.step(&spec);
+        // The camera frames the whole chapter (both endpoints), retargets
+        // only when the chapter does, and glides — never chases.
+        let target = structural_2d::chapter_camera(before, after, before_homes, after_homes);
+        let camera_moved = structural_2d::ease_camera(&mut animation.camera, target);
+        animation.settled = !animation.playing && !camera_moved && animation.physics.is_settled();
     }
 
     fn seek_educational_timeline(&mut self, elapsed_ms: u64) {
@@ -1149,6 +2674,18 @@ impl App {
             .on_press(Message::ScreenSelected(Screen::Builder))
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
+        // Local Mode derivations are deterministic; regenerating would only
+        // recompute the identical result.
+        let regenerate: Element<'_, Message> =
+            if self.dynamic_request.is_some() && !self.local_mode() {
+                button(text("Regenerate"))
+                    .on_press(Message::RegenerateDynamicReaction)
+                    .padding([spacing::XS, spacing::SM])
+                    .style(theme::secondary_button)
+                    .into()
+            } else {
+                space().width(Length::Shrink).into()
+            };
         let continue_3d: Element<'_, Message> =
             if timeline_position.scene_index + 1 == animation.educational_plan.scenes.len() {
                 button(text("View 3D model  →"))
@@ -1167,7 +2704,7 @@ impl App {
             animation.educational_plan.scenes.len(),
         )
         .with_equation(equation.clone());
-        let diagram = container(
+        let diagram_canvas: Element<'_, structural_2d::DragEvent> =
             canvas(structural_2d::Diagram::new(
                 before_frame,
                 frame,
@@ -1177,19 +2714,16 @@ impl App {
                 &context_labels,
                 scene_context,
                 educational_timeline_progress(animation),
-                matches!(
-                    educational_scene.kind,
-                    EducationalSceneKind::ReactantSetup
-                        | EducationalSceneKind::StructuralChange
-                        | EducationalSceneKind::ExplanationPause
-                ),
+                animation.physics.positions(),
+                animation.camera,
             ))
             .width(Fill)
-            .height(Fill),
-        )
-        .style(theme::inset)
-        .width(Fill)
-        .height(Fill);
+            .height(Fill)
+            .into();
+        let diagram = container(diagram_canvas.map(Message::StructuralDrag))
+            .style(theme::inset)
+            .width(Fill)
+            .height(Fill);
 
         let duration_ms = animation.educational_plan.duration_ms();
         let slider_duration = u32::try_from(duration_ms).unwrap_or(u32::MAX).max(1);
@@ -1284,33 +2818,19 @@ impl App {
             column![
                 row![
                     exit,
-                    column![
-                        text("VALIDATED 2D EXPLANATION")
-                            .size(type_scale::MICRO)
-                            .color(color::ACCENT),
-                        text(
-                            equation
-                                .clone()
-                                .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
-                        )
-                        .size(if compact {
-                            type_scale::BODY_LARGE
-                        } else {
-                            type_scale::TITLE
-                        })
-                        .color(color::TEXT),
-                    ]
-                    .spacing(spacing::XXS),
+                    regenerate,
+                    text(
+                        equation
+                            .clone()
+                            .unwrap_or_else(|| "Reviewed equation unavailable".to_owned())
+                    )
+                    .size(if compact {
+                        type_scale::BODY_LARGE
+                    } else {
+                        type_scale::TITLE
+                    })
+                    .color(color::TEXT),
                     space().width(Fill),
-                    column![
-                        text("VALIDATED WITH MODEL ASSUMPTIONS")
-                            .size(type_scale::MICRO)
-                            .color(color::SUCCESS),
-                        text("VIRTUAL MODEL")
-                            .size(type_scale::MICRO)
-                            .color(color::WARNING),
-                    ]
-                    .spacing(spacing::XXS),
                 ]
                 .align_y(Center),
                 diagram,
@@ -1363,6 +2883,18 @@ impl App {
             .on_press(Message::ReturnTo2d)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
+        // Local Mode derivations are deterministic; regenerating would only
+        // recompute the identical result.
+        let regenerate: Element<'_, Message> =
+            if self.dynamic_request.is_some() && !self.local_mode() {
+                button(text("Regenerate"))
+                    .on_press(Message::RegenerateDynamicReaction)
+                    .padding([spacing::XS, spacing::SM])
+                    .style(theme::secondary_button)
+                    .into()
+            } else {
+                space().width(Length::Shrink).into()
+            };
         let playback = button(text(if animation.playing { "Pause" } else { "Play" }))
             .on_press(Message::StructuralPlaybackToggled)
             .padding([spacing::XS, spacing::SM])
@@ -1375,6 +2907,15 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
+        let at_end = animation.real_world_playhead_ms == real_world_plan.timeline.duration_ms();
+        let review_products = button(text(if at_end {
+            "Review products  →"
+        } else {
+            "Complete simulation to review"
+        }))
+        .on_press_maybe(at_end.then_some(Message::ContinueToSummary))
+        .padding([spacing::XS, spacing::SM])
+        .style(theme::primary_button);
         let active_annotation = real_world_plan.annotations.iter().rfind(|annotation| {
             annotation.start_ordinal <= moment.ordinal && moment.ordinal <= annotation.end_ordinal
         });
@@ -1437,8 +2978,24 @@ impl App {
         ))
         .width(Fill)
         .height(Fill);
+        let model_disclosure = if compact {
+            "VIRTUAL MODEL · NOT A LAB PROCEDURE"
+        } else {
+            "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
+        };
         let annotation_layer = container(
             column![
+                row![
+                    space().width(Fill),
+                    container(
+                        text(model_disclosure)
+                            .size(type_scale::MICRO)
+                            .color(color::TEXT_SOFT),
+                    )
+                    .style(theme::media_bar)
+                    .padding([spacing::XXS, spacing::XS]),
+                ]
+                .width(Fill),
                 space().height(Fill),
                 container(annotation)
                     .style(theme::media_bar)
@@ -1475,7 +3032,7 @@ impl App {
         .style(theme::timeline_slider);
         let transport: Element<'_, Message> = if compact {
             column![
-                row![playback, restart, speed]
+                row![playback, restart, speed, review_products]
                     .spacing(spacing::XS)
                     .align_y(Center),
                 scrubber,
@@ -1483,7 +3040,7 @@ impl App {
             .spacing(spacing::XXS)
             .into()
         } else {
-            row![playback, restart, speed, scrubber]
+            row![playback, restart, speed, scrubber, review_products]
                 .spacing(spacing::XS)
                 .align_y(Center)
                 .into()
@@ -1493,7 +3050,7 @@ impl App {
                 transport,
                 row![
                     text(format!(
-                        "SCENE {:02} / {:02}  ·  CINEMATIC TIMELINE",
+                        "SCENE {:02} / {:02}  ·  FIXED 2.5D VIEW",
                         moment.beat_index + 1,
                         real_world_plan.timeline.beats.len()
                     ))
@@ -1518,6 +3075,7 @@ impl App {
             column![
                 row![
                     back,
+                    regenerate,
                     column![
                         text("VALIDATED 3D MODEL")
                             .size(type_scale::MICRO)
@@ -1534,7 +3092,7 @@ impl App {
                     if compact {
                         text("").size(type_scale::MICRO)
                     } else {
-                        text("DRAG TO ORBIT · SCROLL TO ZOOM")
+                        text("FIXED ORTHOGRAPHIC 2.5D CAMERA")
                             .size(type_scale::MICRO)
                             .color(color::MUTED)
                     },
@@ -1542,9 +3100,6 @@ impl App {
                 .align_y(Center),
                 scene,
                 controls,
-                text(real_world_plan.virtual_only_disclosure.as_str())
-                    .size(type_scale::MICRO)
-                    .color(color::WARNING),
             ]
             .spacing(spacing::XS)
             .height(Fill),
@@ -1556,32 +3111,678 @@ impl App {
         .into()
     }
 
+    #[allow(clippy::too_many_lines)]
+    fn dynamic_result_view(&self) -> Element<'_, Message> {
+        if let Some(outcome) = &self.dynamic_static {
+            let trust = match outcome.trust_tier() {
+                TrustTier::Reviewed => "REVIEWED",
+                // Local Mode claims come from the algorithmic solver, so the
+                // unreviewed tier is derived rather than model-asserted.
+                TrustTier::ModelAsserted if self.local_mode() => "DERIVED",
+                TrustTier::ModelAsserted => "MODEL ASSERTED",
+            };
+            let presentation = match (&self.dynamic_build, &self.dynamic_presentation) {
+                (
+                    DynamicBuildState::Running {
+                        stage: DynamicBuildStage::Presentation,
+                        ..
+                    },
+                    _,
+                ) => "Balanced static result ready · mechanism pending".to_owned(),
+                (_, Some(DynamicPresentationOutcome::ReviewedFamily(outcome))) => {
+                    format!("Reviewed family animation · {}", outcome.family_rule())
+                }
+                (_, Some(DynamicPresentationOutcome::Escalated(_))) => {
+                    "Validated mechanism ready".to_owned()
+                }
+                (_, Some(DynamicPresentationOutcome::Static { retryable, .. })) => {
+                    if *retryable {
+                        "Animation is not available yet · retry available".to_owned()
+                    } else {
+                        "Validated static result".to_owned()
+                    }
+                }
+                (_, None) => "Validated static result".to_owned(),
+            };
+            let retry: Element<'_, Message> = if matches!(
+                (&self.dynamic_presentation, &self.dynamic_build),
+                (
+                    Some(DynamicPresentationOutcome::Static {
+                        retryable: true,
+                        ..
+                    }),
+                    DynamicBuildState::Idle | DynamicBuildState::Failed(_),
+                )
+            ) {
+                button(text("Retry mechanism"))
+                    .on_press(Message::RetryDynamicPresentation)
+                    .style(theme::secondary_button)
+                    .into()
+            } else {
+                space().height(Length::Shrink).into()
+            };
+            let mut species = row![].spacing(spacing::XXS).align_y(Center).width(Fill);
+            for (species_capability, term) in outcome
+                .reactants()
+                .iter()
+                .zip(outcome.declaration().reactants())
+                .chain(
+                    outcome
+                        .products()
+                        .iter()
+                        .zip(outcome.declaration().products()),
+                )
+            {
+                species = species.push(dynamic_species_theatre_card(
+                    species_capability,
+                    term,
+                    self.dynamic_theatre_phase,
+                ));
+            }
+            let observation_copy = outcome
+                .claim()
+                .observations
+                .iter()
+                .map(|observation| {
+                    let action = match observation.predicate {
+                        agent::ClaimObservationPredicate::Evolves => "evolves",
+                        agent::ClaimObservationPredicate::Disappears => "disappears",
+                        agent::ClaimObservationPredicate::Forms => "forms",
+                        agent::ClaimObservationPredicate::Colour => "colour",
+                    };
+                    observation.value.as_ref().map_or_else(
+                        || format!("{} {action}", observation.subject),
+                        |value| format!("{} {action}: {value}", observation.subject),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("  ·  ");
+            let diagnostic = match &self.dynamic_presentation {
+                Some(DynamicPresentationOutcome::Static { diagnostic, .. }) => {
+                    Some(format!("Presentation: {diagnostic}"))
+                }
+                _ => match &self.dynamic_build {
+                    DynamicBuildState::Failed(error) => Some(format!("Build: {error}")),
+                    _ => None,
+                },
+            };
+            let details_button: Element<'_, Message> = diagnostic.as_ref().map_or_else(
+                || space().height(Length::Shrink).into(),
+                |_| {
+                    button(text(if self.dynamic_details_open {
+                        "Hide details"
+                    } else {
+                        "Details"
+                    }))
+                    .on_press(Message::ToggleDynamicDetails)
+                    .style(theme::secondary_button)
+                    .into()
+                },
+            );
+            let details: Element<'_, Message> = if self.dynamic_details_open {
+                diagnostic.map_or_else(
+                    || space().height(Length::Shrink).into(),
+                    |diagnostic| {
+                        text(diagnostic)
+                            .size(type_scale::MICRO)
+                            .color(color::MUTED)
+                            .into()
+                    },
+                )
+            } else {
+                space().height(Length::Shrink).into()
+            };
+            return container(
+                column![
+                    row![
+                        text(trust).size(type_scale::MICRO).color(color::SUCCESS),
+                        space().width(Fill),
+                        text("VIRTUAL MODEL")
+                            .size(type_scale::MICRO)
+                            .color(color::WARNING),
+                    ],
+                    text(nomenclature::display_equation(outcome.equation()))
+                        .size(type_scale::BODY_LARGE)
+                        .color(color::TEXT),
+                    text(outcome.claim().required_context.as_str())
+                        .size(type_scale::CAPTION)
+                        .color(color::MUTED),
+                    species,
+                    text(observation_copy)
+                        .size(type_scale::CAPTION)
+                        .color(color::TEXT_SOFT),
+                    text(presentation)
+                        .size(type_scale::CAPTION)
+                        .color(color::TEXT_SOFT),
+                    text(self.dynamic_latency_summary())
+                        .size(type_scale::MICRO)
+                        .color(color::MUTED),
+                    retry,
+                    details_button,
+                    details,
+                ]
+                .spacing(spacing::XXS),
+            )
+            .style(theme::inset)
+            .padding(spacing::SM)
+            .width(Fill)
+            .into();
+        }
+        if let Some(claim) = &self.dynamic_claim {
+            let (title, detail) = match claim.disposition {
+                ClaimDisposition::NoReaction => {
+                    ("No supported reaction", claim.required_context.as_str())
+                }
+                ClaimDisposition::Ambiguous => (
+                    "More detail is needed",
+                    claim
+                        .ambiguity
+                        .as_ref()
+                        .map_or(claim.required_context.as_str(), |value| {
+                            value.summary.as_str()
+                        }),
+                ),
+                ClaimDisposition::Unsupported => (
+                    "Outside the current chemistry capability",
+                    claim.required_context.as_str(),
+                ),
+                ClaimDisposition::Reaction => ("Outcome claim", claim.required_context.as_str()),
+            };
+            return container(
+                column![
+                    text(title).size(type_scale::BODY_LARGE).color(color::TEXT),
+                    text(detail).size(type_scale::CAPTION).color(color::MUTED),
+                ]
+                .spacing(spacing::XXS),
+            )
+            .style(theme::inset)
+            .padding(spacing::SM)
+            .width(Fill)
+            .into();
+        }
+        space().height(Length::Shrink).into()
+    }
+
+    fn dynamic_latency_summary(&self) -> String {
+        let mut milestones = Vec::new();
+        for (label, value) in [
+            ("claim", self.dynamic_latency.claim_ms),
+            ("static", self.dynamic_latency.static_outcome_ms),
+            ("evidence", self.dynamic_latency.evidence_ms),
+            ("mechanism", self.dynamic_latency.mechanism_ms),
+            (
+                "reviewed animation",
+                self.dynamic_latency.reviewed_animation_ms,
+            ),
+        ] {
+            if let Some(milliseconds) = value {
+                milestones.push(format!("{label} {milliseconds} ms"));
+            }
+        }
+        if milestones.is_empty() {
+            "Timing pending".into()
+        } else {
+            milestones.join(" · ")
+        }
+    }
+
+    fn dynamic_identity_choice_view(&self) -> Element<'_, Message> {
+        let Some(choice) = &self.dynamic_identity_choice else {
+            return space().height(Length::Shrink).into();
+        };
+        let input = &choice.request.reactants[choice.ambiguity.reactant_index];
+        let mut alternatives = column![
+            text(format!("Choose the identity for {}", input.display))
+                .size(type_scale::BODY_LARGE)
+                .color(color::TEXT),
+            text("The request is preserved; ChemSpec will not guess between these structures.")
+                .size(type_scale::CAPTION)
+                .color(color::MUTED),
+        ]
+        .spacing(spacing::XXS);
+        for species in &choice.ambiguity.alternatives {
+            alternatives = alternatives.push(
+                button(
+                    column![
+                        text(species.display_name.as_str())
+                            .size(type_scale::BODY)
+                            .color(color::TEXT),
+                        text(format!(
+                            "{} · charge {} · {:?}",
+                            species.formula_text,
+                            species.charge.value(),
+                            species.phase
+                        ))
+                        .size(type_scale::MICRO)
+                        .color(color::MUTED),
+                    ]
+                    .spacing(spacing::XXS),
+                )
+                .on_press(Message::DynamicIdentitySelected {
+                    reactant_index: choice.ambiguity.reactant_index,
+                    species_id: species.id.clone(),
+                })
+                .style(theme::secondary_button)
+                .width(Fill),
+            );
+        }
+        container(alternatives)
+            .style(theme::inset)
+            .padding(spacing::SM)
+            .width(Fill)
+            .into()
+    }
+
+    fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
+        let conditions_selected =
+            self.builder_panel == Some(BuilderPanel::Conditions) || self.dynamic_context.is_some();
+        let conditions_color = if conditions_selected {
+            color::CANVAS
+        } else if conditions_enabled {
+            color::TEXT_SOFT
+        } else {
+            color::FAINT
+        };
+        let conditions = button(icons::atom(20.0, conditions_color))
+            .on_press_maybe(
+                conditions_enabled
+                    .then_some(Message::BuilderPanelToggled(BuilderPanel::Conditions)),
+            )
+            .padding(spacing::XS)
+            .style(if conditions_selected {
+                theme::primary_button
+            } else {
+                theme::secondary_button
+            });
+        let conditions: Element<'_, Message> = tooltip(
+            conditions,
+            text(if conditions_enabled {
+                "Reaction conditions"
+            } else {
+                "Conditions are available for a single reactant"
+            })
+            .size(type_scale::CAPTION)
+            .color(color::TEXT_SOFT),
+            tooltip::Position::Bottom,
+        )
+        .gap(spacing::XS)
+        .padding(spacing::XS)
+        .style(|_| theme::tooltip_surface(1.0))
+        .into();
+
+        let help_selected = self.builder_panel == Some(BuilderPanel::Help);
+        let help = button(icons::help(
+            20.0,
+            if help_selected {
+                color::CANVAS
+            } else {
+                color::TEXT_SOFT
+            },
+        ))
+        .on_press(Message::BuilderPanelToggled(BuilderPanel::Help))
+        .padding(spacing::XS)
+        .style(if help_selected {
+            theme::primary_button
+        } else {
+            theme::secondary_button
+        });
+        let help: Element<'_, Message> = tooltip(
+            help,
+            text("Help and shortcuts")
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
+            tooltip::Position::Bottom,
+        )
+        .gap(spacing::XS)
+        .padding(spacing::XS)
+        .style(|_| theme::tooltip_surface(1.0))
+        .into();
+
+        let settings = button(icons::settings(20.0, color::FAINT))
+            .padding(spacing::XS)
+            .style(theme::secondary_button);
+        let settings: Element<'_, Message> = tooltip(
+            settings,
+            text("Settings — coming soon")
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
+            tooltip::Position::Bottom,
+        )
+        .gap(spacing::XS)
+        .padding(spacing::XS)
+        .style(|_| theme::tooltip_surface(1.0))
+        .into();
+
+        row![space().width(Fill), conditions, help, settings,]
+            .spacing(spacing::XS)
+            .align_y(Center)
+            .into()
+    }
+
+    fn builder_toolbar_panel(&self) -> Element<'_, Message> {
+        let content: Element<'_, Message> = match self.builder_panel {
+            Some(BuilderPanel::Conditions) => {
+                let mut choices = column![
+                    text("Reaction conditions")
+                        .size(type_scale::BODY_LARGE)
+                        .color(color::TEXT),
+                    text("Use a condition when asking what happens to one reactant.")
+                        .size(type_scale::CAPTION)
+                        .color(color::MUTED),
+                    button(text("No condition").size(type_scale::BODY))
+                        .on_press(Message::DynamicContextSelected(None))
+                        .padding([spacing::XS, spacing::SM])
+                        .width(Fill)
+                        .style(if self.dynamic_context.is_none() {
+                            theme::primary_button
+                        } else {
+                            theme::secondary_button
+                        }),
+                ]
+                .spacing(spacing::XS);
+                for context in DynamicRequestContext::ALL {
+                    choices = choices.push(
+                        button(text(context.label()).size(type_scale::BODY))
+                            .on_press(Message::DynamicContextSelected(Some(context)))
+                            .padding([spacing::XS, spacing::SM])
+                            .width(Fill)
+                            .style(if self.dynamic_context == Some(context) {
+                                theme::primary_button
+                            } else {
+                                theme::secondary_button
+                            }),
+                    );
+                }
+                choices.into()
+            }
+            Some(BuilderPanel::Help) => {
+                let shortcut = |key: &'static str, description: &'static str| {
+                    row![
+                        container(
+                            text(key)
+                                .size(type_scale::CAPTION)
+                                .font(fonts::SEMIBOLD)
+                                .color(color::TEXT),
+                        )
+                        .width(Length::Fixed(92.0)),
+                        text(description)
+                            .size(type_scale::CAPTION)
+                            .color(color::TEXT_SOFT),
+                    ]
+                    .spacing(spacing::SM)
+                    .align_y(Center)
+                };
+                column![
+                    text("Help").size(type_scale::BODY_LARGE).color(color::TEXT),
+                    text(
+                        "Click an empty reactant to type a name or formula. Press Enter to use it."
+                    )
+                    .size(type_scale::CAPTION)
+                    .color(color::MUTED),
+                    rule::horizontal(1).style(theme::soft_divider),
+                    shortcut("⌘1 / ⌘2", "Select a reactant"),
+                    shortcut("Click / ⌘Z", "Undo the active reactant"),
+                    shortcut("Hold / ⌘⌫", "Clear the active reactant"),
+                    shortcut("Spacebar", "Find out when ready"),
+                    shortcut("Esc", "Close input or this panel"),
+                ]
+                .spacing(spacing::SM)
+                .into()
+            }
+            None => space().height(Length::Shrink).into(),
+        };
+
+        container(content)
+            .padding(spacing::MD)
+            .width(Length::Fixed(340.0))
+            .style(|_| theme::tooltip_surface(1.0))
+            .into()
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn product_summary_view(&self, size: Size) -> Element<'_, Message> {
+        let Some(animation) = &self.structural_animation else {
+            return Self::structural_unavailable_view("Trusted product frames are unavailable");
+        };
+        let Some(summary) = product_summary::SummaryData::from_frames(&animation.frames) else {
+            return Self::structural_unavailable_view(
+                "Validated product membership is unavailable",
+            );
+        };
+        let compact = size.width < 1_080.0;
+        let dense = size.height < 820.0 || size.width < 1_280.0;
+        let elapsed_ms = animation.summary_elapsed_ms;
+        let back = button(text("← Macroscopic view"))
+            .on_press(Message::ReturnTo3d)
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
+        let new_reaction = button(text("Build another reaction  →"))
+            .on_press(Message::ScreenSelected(Screen::Builder))
+            .padding([spacing::XS, spacing::SM])
+            .style(theme::secondary_button);
+        let header = row![
+            back,
+            column![
+                row![
+                    text("VALIDATED PRODUCT RECORD")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
+                    container(text("FINAL").size(type_scale::MICRO).color(color::SUCCESS))
+                        .style(theme::summary_badge)
+                        .padding([spacing::XXS, spacing::XS]),
+                ]
+                .spacing(spacing::XS)
+                .align_y(Center),
+                text("What the reaction produced")
+                    .size(if compact {
+                        type_scale::TITLE
+                    } else {
+                        type_scale::DISPLAY
+                    })
+                    .font(fonts::SEMIBOLD)
+                    .color(color::TEXT),
+            ]
+            .spacing(spacing::XXS),
+            space().width(Fill),
+            if compact {
+                text("").size(type_scale::MICRO)
+            } else {
+                text(animation.equation.as_str())
+                    .size(type_scale::CAPTION)
+                    .color(color::TEXT_SOFT)
+            },
+            new_reaction,
+        ]
+        .spacing(spacing::SM)
+        .align_y(Center);
+
+        let three_dimensional = container(
+            column![
+                row![
+                    column![
+                        text("PRODUCT SPACE")
+                            .size(type_scale::MICRO)
+                            .color(color::SELECTION),
+                        text("Rotating 3D products")
+                            .size(type_scale::BODY_LARGE)
+                            .font(fonts::SEMIBOLD)
+                            .color(color::TEXT),
+                    ]
+                    .spacing(spacing::XXS),
+                    space().width(Fill),
+                    row![
+                        text("●").size(type_scale::MICRO).color(color::ACCENT),
+                        text("LIVE · 360°")
+                            .size(type_scale::MICRO)
+                            .color(color::TEXT_SOFT),
+                    ]
+                    .spacing(spacing::XXS),
+                ]
+                .align_y(Center),
+                canvas(product_summary::Product3dScene::new(
+                    summary.clone(),
+                    elapsed_ms,
+                ))
+                .width(Fill)
+                .height(if compact {
+                    Length::Fixed((size.height * 0.48).clamp(300.0, 480.0))
+                } else {
+                    Fill
+                }),
+            ]
+            .spacing(spacing::XS),
+        )
+        .style(theme::summary_visual_panel)
+        .padding(spacing::SM)
+        .width(Fill)
+        .height(if compact { Length::Shrink } else { Fill });
+
+        let properties = product_properties_view(&summary, elapsed_ms, compact, dense);
+        let body: Element<'_, Message> = if compact {
+            scrollable(column![three_dimensional, properties].spacing(spacing::SM))
+                .width(Fill)
+                .height(Fill)
+                .into()
+        } else {
+            row![
+                container(three_dimensional)
+                    .width(FillPortion(1))
+                    .height(Fill),
+                container(properties).width(FillPortion(1)).height(Fill),
+            ]
+            .spacing(spacing::SM)
+            .height(Fill)
+            .into()
+        };
+
+        container(
+            column![
+                header,
+                body,
+                row![
+                    text("Representative explanatory geometry · validated composition and relationships")
+                        .size(type_scale::MICRO)
+                        .color(color::TEXT_SOFT),
+                    space().width(Fill),
+                    text("SOURCE · CURRENT .CHEMS + TRUSTED FRAME + ELEMENT CATALOGUE")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
+                ]
+                .align_y(Center),
+            ]
+            .spacing(spacing::SM)
+            .height(Fill),
+        )
+        .style(theme::frame)
+        .padding(spacing::SM)
+        .width(Fill)
+        .height(Fill)
+        .into()
+    }
+
     /// Stage 1: the question sentence above the full periodic table, with no
     /// chrome competing for attention.
+    #[allow(clippy::too_many_lines)]
     fn builder_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
+        let progress = self
+            .dynamic_progress_label()
+            .map_or_else(String::new, |label| format!(" · {label}"));
 
         let composer = reactant_composer::view(
             &self.reactant_composer,
             periodic_table::dragging_atomic_number(&self.periodic_table),
+            match &self.dynamic_build {
+                DynamicBuildState::Idle => None,
+                DynamicBuildState::Running {
+                    elapsed_seconds,
+                    stage,
+                    ..
+                } => Some(match stage {
+                    DynamicBuildStage::Claim => format!(
+                        "Checking the outcome claim{progress}… {elapsed_seconds}s"
+                    ),
+                    DynamicBuildStage::Presentation => format!(
+                        "The balanced result is ready; checking animation capability{progress}… {elapsed_seconds}s"
+                    ),
+                }),
+                DynamicBuildState::Failed(_) => Some("Couldn’t build this result".to_owned()),
+            },
+            self.local_mode(),
             compact,
         )
         .map(Message::ReactantComposer);
-        let library = container(
-            periodic_table::view(&self.periodic_table, compact).map(Message::PeriodicTable),
-        )
+        let ambient_models =
+            reactant_composer::ambient_view(&self.reactant_composer).map(Message::ReactantComposer);
+        let element_library =
+            periodic_table::view(&self.periodic_table, compact).map(Message::PeriodicTable);
+        let library = container(element_library).width(Fill).height(Fill);
+
+        let dynamic_busy = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        let conditions_enabled = !dynamic_busy && !first.is_empty() && second.is_empty();
+        let toolbar = self.builder_toolbar(conditions_enabled);
+        let result = self.dynamic_result_view();
+        let identity_choice = self.dynamic_identity_choice_view();
+        let build_details: Element<'_, Message> =
+            if let DynamicBuildState::Failed(error) = &self.dynamic_build {
+                let detail: Element<'_, Message> = if self.dynamic_details_open {
+                    text(error)
+                        .size(type_scale::MICRO)
+                        .color(color::MUTED)
+                        .into()
+                } else {
+                    space().height(Length::Shrink).into()
+                };
+                column![
+                    button(text(if self.dynamic_details_open {
+                        "Hide details"
+                    } else {
+                        "Details"
+                    }))
+                    .on_press(Message::ToggleDynamicDetails)
+                    .style(theme::secondary_button),
+                    detail,
+                ]
+                .spacing(spacing::XXS)
+                .into()
+            } else {
+                space().height(Length::Shrink).into()
+            };
+        let foreground = column![
+            toolbar,
+            composer,
+            build_details,
+            identity_choice,
+            result,
+            library
+        ]
+        .spacing(spacing::XS)
         .width(Fill)
         .height(Fill);
-
-        let application = container(column![composer, library].width(Fill).height(Fill))
+        let application = container(stack![ambient_models, foreground].width(Fill).height(Fill))
             .style(theme::app_background)
             .padding(if compact { spacing::XS } else { spacing::SM })
             .width(Fill)
             .height(Fill);
         let drag_overlay =
             periodic_table::drag_overlay(&self.periodic_table, size).map(Message::PeriodicTable);
+        let toolbar_overlay: Element<'_, Message> = if self.builder_panel.is_some() {
+            container(row![space().width(Fill), self.builder_toolbar_panel()].width(Fill))
+                .padding(iced::Padding {
+                    top: 52.0,
+                    right: if compact { spacing::XS } else { spacing::SM },
+                    bottom: 0.0,
+                    left: if compact { spacing::XS } else { spacing::SM },
+                })
+                .width(Fill)
+                .height(Fill)
+                .into()
+        } else {
+            space().height(Length::Shrink).into()
+        };
 
-        stack![application, drag_overlay]
+        stack![application, drag_overlay, toolbar_overlay]
             .width(Fill)
             .height(Fill)
             .clip(false)
@@ -1725,10 +3926,708 @@ mod tests {
         ("halogen-displacement-bromine-iodide", &[35, 35], &[11, 53]),
     ];
 
+    fn dynamic_lithium_static() -> ValidatedStaticOutcome {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let claim = serde_json::json!({
+            "schema_version": 1,
+            "disposition": "reaction",
+            "products": [
+                {"name":"lithium hydroxide","formula":"LiOH","phase":"aqueous","identity_hints":[]},
+                {"name":"hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
+            ],
+            "required_context":"representative educational outcome under the reviewed standard-outcome premise",
+            "observations":[], "sources":[], "ambiguity":null
+        });
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let request = ReactionBuildRequest {
+            reactants: [
+                ReactantInput {
+                    display: "LithiumMetal".into(),
+                    atomic_numbers: vec![3],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "H2O".into(),
+                    atomic_numbers: vec![1, 1, 8],
+                    species_id: None,
+                },
+            ]
+            .to_vec(),
+            selected_context: None,
+        };
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &identities).expect("compiled")
+        else {
+            panic!("static outcome")
+        };
+        outcome
+    }
+
     #[test]
-    fn initial_provider_follows_codex_availability() {
-        assert_eq!(initial_provider(true), ProviderChoice::CodexSubscription);
-        assert_eq!(initial_provider(false), ProviderChoice::ApiKey);
+    fn local_mode_is_preselected_and_continues_without_codex() {
+        let mut app = App::default();
+        assert_eq!(app.provider, Some(ProviderChoice::Local));
+        assert_eq!(app.screen, Screen::ProviderSetup);
+        app.update(Message::ProviderContinue);
+        assert_eq!(app.screen, Screen::Builder);
+    }
+
+    #[test]
+    fn uncatalogued_reaction_starts_generation_scoped_codex_build() {
+        let mut app = App {
+            provider: Some(ProviderChoice::CodexSubscription),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![20], vec![1, 1, 8]]);
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+
+        assert!(
+            matches!(
+                app.dynamic_build,
+                DynamicBuildState::Running { run_id: 1, .. }
+            ),
+            "state: {:?}, identity choice: {:?}",
+            app.dynamic_build,
+            app.dynamic_identity_choice
+        );
+        assert!(app.validated_frames.is_none());
+        assert!(app.dynamic_request.is_some());
+        assert!(app.dynamic_identity_choice.is_none());
+    }
+
+    #[test]
+    fn uncatalogued_sulfuric_acid_pair_starts_a_dynamic_build_with_generated_identities() {
+        let mut app = App {
+            provider: Some(ProviderChoice::CodexSubscription),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(
+            &mut app.reactant_composer,
+            [vec![1, 1, 16, 8, 8, 8, 8], vec![11, 8, 1]],
+        );
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { run_id: 1, .. }
+        ));
+        let request = app.dynamic_request.as_ref().expect("dynamic request");
+        assert_eq!(request.reactants.len(), 2);
+        assert_eq!(request.reactants[0].display, "H₂SO₄");
+        assert_eq!(request.reactants[1].display, "NaOH");
+        assert!(request.reactants[0].species_id.is_none());
+        assert!(request.reactants[1].species_id.is_some());
+    }
+
+    #[test]
+    fn dynamic_handoff_uses_the_same_elemental_standard_state_as_the_display() {
+        for (atomic_number, count) in [
+            (1, 2),
+            (7, 2),
+            (8, 2),
+            (9, 2),
+            (15, 4),
+            (16, 8),
+            (17, 2),
+            (35, 2),
+            (53, 2),
+        ] {
+            let mut app = App {
+                provider: Some(ProviderChoice::CodexSubscription),
+                ..App::default()
+            };
+            reactant_composer::replace_reactants(
+                &mut app.reactant_composer,
+                [vec![37], vec![atomic_number]],
+            );
+
+            let _ = app.start_dynamic_build();
+
+            let request = app.dynamic_request.as_ref().expect("captured request");
+            assert_eq!(
+                request.reactants[1].atomic_numbers,
+                vec![atomic_number; count],
+                "standard-state mismatch for atomic number {atomic_number}"
+            );
+        }
+    }
+
+    #[test]
+    fn equivalent_reviewed_hydrogen_records_do_not_create_a_user_facing_choice() {
+        let mut app = App {
+            provider: Some(ProviderChoice::CodexSubscription),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![37], vec![1]]);
+
+        let _ = app.start_dynamic_build();
+
+        assert!(app.dynamic_identity_choice.is_none());
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running {
+                stage: DynamicBuildStage::Claim,
+                ..
+            }
+        ));
+        assert_eq!(
+            app.dynamic_request.as_ref().expect("request").reactants[1].atomic_numbers,
+            vec![1, 1]
+        );
+    }
+
+    #[test]
+    fn builder_keyboard_shortcuts_cover_selection_edit_run_and_dismissal() {
+        use iced::keyboard::{Key, Modifiers, key::Named};
+
+        assert!(matches!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Character("2".into()),
+                Modifiers::COMMAND,
+                false,
+                false,
+                false,
+            ),
+            Some(Message::ReactantComposer(
+                reactant_composer::Message::SelectReactant(
+                    reactant_composer::ActiveReactant::Second
+                )
+            ))
+        ));
+        assert!(matches!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Character("z".into()),
+                Modifiers::COMMAND,
+                false,
+                false,
+                false,
+            ),
+            Some(Message::ReactantComposer(reactant_composer::Message::Undo))
+        ));
+        assert!(matches!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Space),
+                Modifiers::empty(),
+                false,
+                false,
+                true,
+            ),
+            Some(Message::ReactantComposer(
+                reactant_composer::Message::StartReactionRequested
+            ))
+        ));
+        assert!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Space),
+                Modifiers::empty(),
+                true,
+                false,
+                true,
+            )
+            .is_none(),
+            "Space must stay text input while inline editing is active"
+        );
+        assert!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Space),
+                Modifiers::empty(),
+                false,
+                true,
+                true,
+            )
+            .is_none(),
+            "Space must not run behind an open toolbar panel"
+        );
+        assert!(matches!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Escape),
+                Modifiers::empty(),
+                true,
+                false,
+                false,
+            ),
+            Some(Message::ReactantComposer(
+                reactant_composer::Message::NameEntryCancelled
+            ))
+        ));
+        assert!(matches!(
+            builder_shortcut(
+                Screen::Builder,
+                &Key::Named(Named::Escape),
+                Modifiers::empty(),
+                false,
+                true,
+                false,
+            ),
+            Some(Message::BuilderPanelClosed)
+        ));
+        assert!(
+            builder_shortcut(
+                Screen::Structural2d,
+                &Key::Named(Named::Escape),
+                Modifiers::empty(),
+                false,
+                false,
+                false,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn empty_inline_name_entry_closes_when_focus_moves_elsewhere() {
+        let reactant = reactant_composer::ActiveReactant::First;
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::BeginNameEntry(reactant),
+        ));
+        app.update(Message::BuilderInputFocusChecked {
+            reactant,
+            focused: false,
+        });
+        assert_eq!(reactant_composer::editing(&app.reactant_composer), None);
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::BeginNameEntry(reactant),
+        ));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::NameInput("nickel".into()),
+        ));
+        app.update(Message::BuilderInputFocusChecked {
+            reactant,
+            focused: false,
+        });
+        assert_eq!(
+            reactant_composer::editing(&app.reactant_composer),
+            Some(reactant),
+            "non-empty text should not be discarded on blur"
+        );
+    }
+
+    #[test]
+    fn native_window_title_exposes_builder_state_without_changing_initial_smoke_title() {
+        let mut app = App {
+            smoke_mode: Some(SmokeMode::Builder),
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Builder");
+
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![37], vec![1]]);
+
+        let title = app.title();
+        assert!(title.starts_with("ChemSpec Agent Smoke — Builder"));
+        assert!(title.contains("Reactants Rb + H₂; idle"));
+    }
+
+    #[test]
+    fn static_completion_is_visible_before_presentation_enrichment() {
+        let outcome = dynamic_lithium_static();
+        let mut app = App {
+            validated_frames: None,
+            dynamic_request: Some(ReactionBuildRequest {
+                reactants: [
+                    ReactantInput {
+                        display: "LithiumMetal".into(),
+                        atomic_numbers: vec![3],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "H2O".into(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ]
+                .to_vec(),
+                selected_context: None,
+            }),
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 4,
+                elapsed_seconds: 2,
+                stage: DynamicBuildStage::Claim,
+            },
+            dynamic_cancellation: Some(Arc::new(AtomicBool::new(false))),
+            ..App::default()
+        };
+
+        app.update(Message::DynamicClaimFinished {
+            run_id: 4,
+            result: Box::new(Ok(DynamicClaimStageResult {
+                outcome: CompiledClaimOutcome::Static(outcome),
+                presentation: None,
+                latency: LatencyMilestones {
+                    claim_ms: Some(1_200),
+                    static_outcome_ms: Some(1_250),
+                    ..LatencyMilestones::default()
+                },
+            })),
+        });
+
+        assert!(app.dynamic_static.is_some());
+        assert_eq!(app.dynamic_latency.static_outcome_ms, Some(1_250));
+        assert!(app.validated_frames.is_none());
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running {
+                run_id: 4,
+                stage: DynamicBuildStage::Presentation,
+                ..
+            }
+        ));
+
+        app.update(Message::DynamicClaimFinished {
+            run_id: 4,
+            result: Box::new(Err("duplicate completion".into())),
+        });
+        assert!(app.dynamic_static.is_some());
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running {
+                stage: DynamicBuildStage::Presentation,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn wait_as_show_motion_runs_only_while_presentation_is_pending() {
+        let mut app = App {
+            screen: Screen::Builder,
+            dynamic_static: Some(dynamic_lithium_static()),
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 4,
+                elapsed_seconds: 0,
+                stage: DynamicBuildStage::Presentation,
+            },
+            ..App::default()
+        };
+
+        {
+            let _view = app.dynamic_result_view();
+        }
+        app.update(Message::DynamicTheatreTick);
+        assert!(app.dynamic_theatre_phase > 0.0);
+
+        app.dynamic_build = DynamicBuildState::Idle;
+        let stopped = app.dynamic_theatre_phase;
+        app.update(Message::DynamicTheatreTick);
+        assert!((app.dynamic_theatre_phase - stopped).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn retryable_static_presentation_relaunches_only_enrichment() {
+        let outcome = dynamic_lithium_static();
+        let mut app = App {
+            provider: Some(ProviderChoice::CodexSubscription),
+            dynamic_request: Some(ReactionBuildRequest {
+                reactants: [
+                    ReactantInput {
+                        display: "LithiumMetal".into(),
+                        atomic_numbers: vec![3],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "H2O".into(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ]
+                .to_vec(),
+                selected_context: None,
+            }),
+            dynamic_static: Some(outcome.clone()),
+            dynamic_presentation: Some(DynamicPresentationOutcome::Static {
+                outcome: Box::new(outcome),
+                diagnostic: "structure proposal remained invalid".into(),
+                retryable: true,
+                attempts: 3,
+            }),
+            ..App::default()
+        };
+
+        app.update(Message::RetryDynamicPresentation);
+
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running {
+                stage: DynamicBuildStage::Presentation,
+                ..
+            }
+        ));
+        assert!(
+            app.dynamic_static.is_some(),
+            "retry must not discard the validated static outcome"
+        );
+
+        // A non-retryable presentation must not relaunch.
+        let outcome = dynamic_lithium_static();
+        let mut blocked = App {
+            provider: Some(ProviderChoice::CodexSubscription),
+            dynamic_static: Some(outcome.clone()),
+            dynamic_presentation: Some(DynamicPresentationOutcome::Static {
+                outcome: Box::new(outcome),
+                diagnostic: "multiple reviewed families remain applicable".into(),
+                retryable: false,
+                attempts: 0,
+            }),
+            ..App::default()
+        };
+        blocked.update(Message::RetryDynamicPresentation);
+        assert!(matches!(blocked.dynamic_build, DynamicBuildState::Idle));
+    }
+
+    #[test]
+    fn regenerate_bypasses_cache_in_a_new_generation() {
+        let request = ReactionBuildRequest {
+            reactants: [
+                ReactantInput {
+                    display: "Rb".to_owned(),
+                    atomic_numbers: vec![37],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "H2O".to_owned(),
+                    atomic_numbers: vec![1, 1, 8],
+                    species_id: None,
+                },
+            ]
+            .to_vec(),
+            selected_context: None,
+        };
+        let mut app = App {
+            screen: Screen::Structural2d,
+            provider: Some(ProviderChoice::CodexSubscription),
+            dynamic_request: Some(request.clone()),
+            ..App::default()
+        };
+
+        app.update(Message::RegenerateDynamicReaction);
+
+        assert_eq!(app.screen, Screen::Builder);
+        let rebuilt = app.dynamic_request.as_ref().expect("retained request");
+        assert_eq!(rebuilt.reactants[0].display, request.reactants[0].display);
+        assert_eq!(
+            rebuilt.reactants[0].atomic_numbers,
+            request.reactants[0].atomic_numbers
+        );
+        assert!(
+            rebuilt
+                .reactants
+                .iter()
+                .all(|reactant| reactant.species_id.is_some())
+        );
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { run_id: 1, .. }
+        ));
+    }
+
+    #[test]
+    fn stale_dynamic_completion_cannot_replace_current_build() {
+        let mut app = App {
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 9,
+                elapsed_seconds: 12,
+                stage: DynamicBuildStage::Claim,
+            },
+            ..App::default()
+        };
+
+        app.update(Message::DynamicClaimFinished {
+            run_id: 8,
+            result: Box::new(Err("stale failure".to_owned())),
+        });
+
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { run_id: 9, .. }
+        ));
+    }
+
+    #[test]
+    fn normalized_provider_progress_is_generation_scoped_and_visible() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = App {
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 9,
+                elapsed_seconds: 0,
+                stage: DynamicBuildStage::Claim,
+            },
+            dynamic_progress_receiver: Some(receiver),
+            ..App::default()
+        };
+        sender
+            .send(CodexProgressEvent {
+                stage: CodexProgressStage::SearchingSources,
+                elapsed_ms: 42,
+            })
+            .expect("progress event");
+
+        app.update(Message::DynamicBuildTick { run_id: 8 });
+        assert!(app.dynamic_progress.is_none());
+        app.update(Message::DynamicBuildTick { run_id: 9 });
+        assert_eq!(
+            app.dynamic_progress_label(),
+            Some("checking the supporting evidence")
+        );
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running {
+                elapsed_seconds: 1,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn editing_reactants_cancels_claim_work_and_rejects_late_completion() {
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let mut app = App {
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 9,
+                elapsed_seconds: 3,
+                stage: DynamicBuildStage::Claim,
+            },
+            dynamic_cancellation: Some(cancellation.clone()),
+            next_dynamic_run_id: 10,
+            ..App::default()
+        };
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::SelectReactant(reactant_composer::ActiveReactant::Second),
+        ));
+
+        assert!(cancellation.load(Ordering::Relaxed));
+        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+        assert_eq!(app.next_dynamic_run_id, 11);
+        app.update(Message::DynamicClaimFinished {
+            run_id: 9,
+            result: Box::new(Err("late completion".into())),
+        });
+        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+    }
+
+    #[test]
+    fn editing_reactants_invalidates_optional_presentation_and_static_result() {
+        let outcome = dynamic_lithium_static();
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let mut app = App {
+            dynamic_static: Some(outcome),
+            validated_frames: None,
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 4,
+                elapsed_seconds: 1,
+                stage: DynamicBuildStage::Presentation,
+            },
+            dynamic_cancellation: Some(cancellation.clone()),
+            ..App::default()
+        };
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::ClearActive,
+        ));
+
+        assert!(cancellation.load(Ordering::Relaxed));
+        assert!(app.dynamic_static.is_none());
+        assert!(app.validated_frames.is_none());
+        assert!(app.dynamic_presentation.is_none());
+        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+    }
+
+    #[test]
+    fn selecting_identity_preserves_request_and_starts_the_same_build() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let lithium = identities
+            .records()
+            .values()
+            .find(|species| species.formula_text == "Li")
+            .expect("lithium")
+            .clone();
+        let sodium = identities
+            .records()
+            .values()
+            .find(|species| species.formula_text == "Na")
+            .expect("sodium")
+            .clone();
+        let water = identities
+            .records()
+            .values()
+            .find(|species| species.formula_text == "H2O")
+            .expect("water")
+            .clone();
+        let request = ReactionBuildRequest {
+            reactants: [
+                ReactantInput {
+                    display: "Li".into(),
+                    atomic_numbers: vec![3],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "H2O".into(),
+                    atomic_numbers: vec![1, 1, 8],
+                    species_id: Some(water.id),
+                },
+            ]
+            .to_vec(),
+            selected_context: None,
+        };
+        let lithium_id = lithium.id.clone();
+        let mut app = App {
+            provider: Some(ProviderChoice::CodexSubscription),
+            dynamic_request: Some(request.clone()),
+            dynamic_identity_choice: Some(DynamicIdentityChoice {
+                request,
+                ambiguity: ReactantIdentityAmbiguity {
+                    reactant_index: 0,
+                    query: chem_domain::SpeciesQuery {
+                        name: None,
+                        formula: Some("Li".into()),
+                        charge: None,
+                        phase: None,
+                        external_identifier: None,
+                    },
+                    alternatives: vec![lithium, sodium],
+                },
+            }),
+            ..App::default()
+        };
+
+        app.update(Message::DynamicIdentitySelected {
+            reactant_index: 0,
+            species_id: lithium_id.clone(),
+        });
+
+        assert!(app.dynamic_identity_choice.is_none());
+        assert_eq!(
+            app.dynamic_request.as_ref().unwrap().reactants[0].species_id,
+            Some(lithium_id)
+        );
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { .. }
+        ));
     }
 
     #[test]
@@ -1809,7 +4708,7 @@ mod tests {
     }
 
     #[test]
-    fn api_key_provider_requires_an_in_memory_key_before_continuing() {
+    fn api_key_provider_remains_blocked_until_dynamic_api_is_connected() {
         let mut app = App::default();
         assert_eq!(app.screen, Screen::ProviderSetup);
         app.update(Message::ProviderSelected(ProviderChoice::ApiKey));
@@ -1819,7 +4718,7 @@ mod tests {
             "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789".to_owned(),
         ));
         app.update(Message::ProviderContinue);
-        assert_eq!(app.screen, Screen::Builder);
+        assert_eq!(app.screen, Screen::ProviderSetup);
     }
 
     #[test]
@@ -1897,6 +4796,73 @@ mod tests {
             .collect::<Vec<_>>()
             .join(" ")
             .to_lowercase()
+    }
+
+    #[test]
+    fn solver_observations_reach_educational_playback() {
+        let mut observed_reactions = 0;
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let has_observations = run
+                .frames()
+                .frames()
+                .iter()
+                .any(|frame| !frame.observations().is_empty());
+            let plan = compile_educational_plan(run.frames()).expect("educational plan compiles");
+            let observation_scenes = plan
+                .scenes
+                .iter()
+                .filter(|scene| scene.kind == EducationalSceneKind::ObservationConnection)
+                .collect::<Vec<_>>();
+            if !has_observations {
+                assert!(
+                    observation_scenes.is_empty(),
+                    "{request:?} invented an observation scene"
+                );
+                continue;
+            }
+            observed_reactions += 1;
+            assert!(
+                !observation_scenes.is_empty(),
+                "{request:?} has observations but no observation scene"
+            );
+            for scene in &observation_scenes {
+                assert!(
+                    scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowObservation { .. }
+                    )),
+                    "{request:?} observation scene lacks a ShowObservation cue"
+                );
+                assert!(
+                    scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { label }
+                            if label.kind
+                                == chem_presentation::ExplanationLabelKind::ObservationExplanation
+                                // A leader line exists exactly when there are
+                                // atoms to point at (disappearances have none).
+                                && label.connector != label.target_atoms.is_empty()
+                    )),
+                    "{request:?} observation scene lacks a coherent explanation card"
+                );
+            }
+            let summary = plan.scenes.last().expect("plan ends with a summary");
+            assert_eq!(summary.kind, EducationalSceneKind::Summary);
+            assert!(
+                summary.cues.iter().any(|cue| matches!(
+                    cue,
+                    chem_presentation::EducationalCue::ShowContext { label }
+                        if label.kind
+                            == chem_presentation::ExplanationLabelKind::ObservationExplanation
+                )),
+                "{request:?} summary lacks the observation recap chips"
+            );
+        }
+        assert!(
+            observed_reactions > 0,
+            "no pinned reaction carries observations"
+        );
     }
 
     #[test]
@@ -2016,6 +4982,44 @@ mod tests {
         let duration = animation.educational_plan.duration_ms();
         app.seek_educational_timeline(duration);
         app.update(Message::ContinueTo3d);
+        assert_eq!(app.screen, Screen::Structural3d);
+    }
+
+    #[test]
+    fn completed_macroscopic_playback_opens_the_animated_product_summary() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.screen = Screen::Structural3d;
+        app.update(Message::ContinueToSummary);
+        assert_eq!(app.screen, Screen::Structural3d);
+
+        let duration = app
+            .structural_animation
+            .as_ref()
+            .expect("animation exists")
+            .real_world_plan
+            .timeline
+            .duration_ms();
+        app.seek_real_world_timeline(duration);
+        app.update(Message::ContinueToSummary);
+        assert_eq!(app.screen, Screen::ProductSummary);
+        assert_eq!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation remains available")
+                .summary_elapsed_ms,
+            0
+        );
+
+        app.update(Message::StructuralTick);
+        assert_eq!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation remains available")
+                .summary_elapsed_ms,
+            33
+        );
+        app.update(Message::ReturnTo3d);
         assert_eq!(app.screen, Screen::Structural3d);
     }
 
@@ -2145,7 +5149,8 @@ mod tests {
 
     #[test]
     fn all_responsive_compositions_build() {
-        let app = App::default();
+        let mut app = App::default();
+        app.open_structural_animation();
 
         let choice_app = App {
             pending_requests: chemistry::requests_for_drafts(&[53], &[9]),
@@ -2161,6 +5166,9 @@ mod tests {
             let _ = app.builder_view(size);
             let _ = app.provider_setup_view(size);
             let _ = choice_app.outcome_choice_view(size);
+            let _ = app.structural_2d_view(size);
+            let _ = app.structural_3d_view(size);
+            let _ = app.product_summary_view(size);
         }
     }
 
@@ -2207,5 +5215,31 @@ mod tests {
 
         app.update(Message::ScreenSelected(Screen::Builder));
         assert_eq!(app.screen, Screen::Builder);
+    }
+
+    #[test]
+    fn periodic_table_activation_refreshes_the_ready_prompt_without_hover() {
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(
+            3,
+        )));
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::SelectReactant(reactant_composer::ActiveReactant::Second),
+        ));
+        app.update(Message::PeriodicTable(periodic_table::Message::Activated(
+            1,
+        )));
+        assert_eq!(
+            reactant_composer::reactants(&app.reactant_composer),
+            (&[3_u8][..], &[1_u8][..])
+        );
+        assert!(
+            reactant_composer::submit_available(&app.reactant_composer),
+            "one H click canonicalizes to H2, so the prompt must become available immediately"
+        );
     }
 }

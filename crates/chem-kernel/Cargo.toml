@@ -16,7 +16,6 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-chems-conformance = { path = "../chems-conformance" }
 jsonschema.workspace = true
 
 [lints]

@@ -1,149 +1,157 @@
 # Agent workflow and providers
 
-## Role of the agent
+## Role and trust boundary
 
-The agent is an identity assistant, observation researcher, concise `.chems 1`
-author, repair assistant, and explainer—not a chemistry authority.
+The agent crate answers algorithmically first; the model supplies text only
+for genuine unknowns and is never a chemistry authority. On a reviewed
+catalogue miss the solver attempts the claim itself; on a solver miss, Codex
+may provide two narrowly separated untrusted artefacts:
 
-The deterministic engine resolves catalogue identities and selects a unique
-reviewed reaction rule before observation research. The agent then:
+1. a compact factual `ReactionClaim`; and
+2. only when neither the graph-diff deriver nor local reviewed-family
+   matching can animate the outcome, a mapping and ordered operation
+   proposal over host-labelled structures.
 
-1. researches typed qualitative observations with claim-level evidence;
-2. authors concise source using resolved identities and the selected rule;
-3. receives parsing, binding, expansion, and structural diagnostics;
-4. proposes a bounded visible patch when repair is possible; and
-5. supplies a concise evidence-linked overview after playback.
+Codex does not author `.chems`, catalogues, structures, valence states,
+coefficients, internal IDs, or trusted capabilities. Stable species identity,
+structure generation, exact balancing, typed declarations, family
+applicability, kernel validation, frame projection, and cache revalidation
+are local responsibilities. No provider result can bypass the next
+downstream gate.
 
-The agent never authors the atom-map or operation templates already owned by
-the rule and never supplies a real-world laboratory method.
-
-## Visible workflow
+## Progressive result path
 
 ```text
-✓ Identified lithium and water
-✓ Selected reviewed AlkaliMetalWithWater rule
-✓ Researched qualitative observations
-✓ Generated LithiumAndWater.chems
-✓ Expanded 4 reactant and 3 product instances
-✗ Validation: observation claim R2 has the wrong subject
-↻ Correcting the .chems source
-✓ Structural validation passed
+request
+  -> reviewed catalogue fast path
+  -> stable reactant identity + generated structures
+  -> algorithmic solver claim (families, confident no-reactions)
+     -> miss: cache v3 replay, then provider compact claim
+  -> exact balance + checked ReactionDeclaration
+  -> immediate static outcome
+  -> algorithmic graph-diff mechanism
+     or local reviewed-family match
+     or bounded model-proposed mechanism escalation
+     or labelled mechanism-unavailable static outcome
 ```
 
-These are checkable product events, not hidden chain-of-thought.
+The application commits the first valid static result before mapping or
+animation work. Static results have no frame or playback capability. Solved,
+reviewed-family, and escalated animations cross the same expansion, kernel,
+and frame-validation boundary. An escalated sequence is always disclosed as
+model-proposed.
 
-## Provider selection
+Every claim, verification, and presentation task carries a monotonically
+changing generation ID. Late or duplicate completions are ignored. Editing the
+request clears all prior dynamic frames immediately. **Regenerate** bypasses
+cache but replaces the stored entry only after the new result crosses the same
+gates.
 
-Startup exposes two provider cards.
+## Claim policy
 
-### Codex subscription
+The builder exposes one low-latency claim path. It uses model knowledge,
+returns no invented citations, and targets the first static result. **Verify
+with sources** can later locate and fetch direct support. This product behavior
+is unrelated to the Codex Fast service tier: release invocation always requests
+low reasoning and `service_tier="default"`.
+
+## Codex subscription provider
 
 Preflight locates `codex`/`codex.exe`, checks `codex --version`, reads
 `codex login status`, and capability-probes `codex exec --help`. ChemSpec never
-reads credential files directly.
+reads credential files.
 
-Required capabilities are non-interactive execution, JSONL events, output
-schema, ephemeral runs, ignored user configuration, read-only sandbox, live
-search, working-directory selection, and cancellation. Capability detection is
-authoritative; no arbitrary minimum version is assumed.
+Each invocation is ephemeral, read-only, ignores repository/user rules and
+configuration, runs in an isolated temporary directory, and uses a strict
+output schema. Live search is disabled for the initial claim and enabled only
+for source-location calls. Mechanism proposals and repairs never browse.
 
-Conceptual invocation:
+The release path fixes:
 
-```text
-codex exec
-  --json
-  --output-schema <result-schema.json>
-  --sandbox read-only
-  --search
-  --ephemeral
-  --ignore-user-config
-  --ignore-rules
-  --skip-git-repo-check
-  -C <empty-run-directory>
-  -
-```
+- reasoning to `low`;
+- service tier to `default`;
+- initial claim deadline to 30 seconds;
+- source-location deadline to 90 seconds;
+- escalated mechanism deadline to 120 seconds;
+- claim repair to one targeted correction; and
+- operation repair to at most two kernel-diagnostic corrections.
 
-The provider chooses a currently available Codex model independently of the
-direct API provider. It must not assume the same model identifier is valid on
-both surfaces. The prompt is supplied through stdin. ChemSpec parses stdout
-JSONL, captures stderr separately, terminates the child on cancellation, and
-writes returned source only after validating the structured envelope.
+`CHEMSPEC_CODEX_MODEL` remains a development benchmark override. Promoting a
+different release-default model slug is a deliberate decision backed by
+benchmark evidence, not an ambient configuration change.
 
-Never use sandbox-bypass flags.
+Codex JSONL is normalized to closed product events: started, working, searching
+sources, completed, and failed, each with elapsed time. Model text and hidden
+reasoning are discarded. Failure, timeout, and authentication states never
+become chemistry results.
 
-### OpenAI API key
+## Compact claim contract
 
-API-key mode calls the Responses API directly and has no Codex binary
-dependency. It does not mutate shared Codex authentication.
+`ReactionClaim` is a closed schema containing only disposition, products,
+required context, qualitative observations, direct source locations, and typed
+ambiguity. Disposition is one of `reaction`, `no_reaction`, `ambiguous`, or
+`unsupported`. Unknown fields, missing required fields, unsafe procedural
+content, oversize output, and inconsistent dispositions fail closed.
 
-The key stays in memory by default and may be persisted only through the
-operating-system credential manager after explicit choice. It appears only in
-the authorization header and never in prompts, logs, provenance, `.chems`, or
-child environments.
+The source-locating call receives an immutable displayed claim and may change
+only its `sources` array. Any product, observation, context, disposition, or
+ambiguity change is a typed conflict.
 
-The provider uses a separately configured supported Responses API model, hosted
-web search, moderation, and strict structured output. Model identifiers remain
-provider-specific and capability/configuration driven.
+## Evidence verification
 
-## Provider-neutral interface
+Evidence fetching treats remote bytes as hostile. The curl adapter allows only
+HTTPS, same-host bounded redirects, strict time/byte/decompression limits, and
+HTML, plain text, or text-extractable PDF. It forwards no credentials, executes
+no scripts, and creates no persistent cookies.
 
-```text
-AgentProvider
-  preflight()
-  observations(resolved_rule, event_sink)
-  author_source(resolved_rule, observations, event_sink)
-  repair(previous_result, diagnostics, event_sink)
-  overview(validated_reaction, event_sink)
-  cancel(run_id)
-```
+Every accepted excerpt must exist after deterministic normalization of fetched
+bytes. A separate non-browsing adjudicator checks that mapped product or
+observation fields occur in the supporting region. It can reject a mapping but
+cannot confer trust. Complete fetched claim-level coverage upgrades the static
+outcome to `EvidenceBacked` and stores a digest-bound snapshot for offline
+replay.
 
-Both providers emit the same normalized events and result envelopes. Parsing,
-catalogue resolution, expansion, validation, and simulation are provider
-independent.
+One source replacement is allowed after a local check fails. A second failure
+is final. Verification failure never discards or mutates an already displayed
+structural result.
 
-## Evidence packet
+## Mechanism escalation
 
-Research is claim-oriented:
+The local compiler supplies labelled resolved structures, exact coefficients,
+and a closed operation vocabulary. Codex may return only a total atom mapping
+and ordered operations over those labels. It cannot introduce species,
+structures, coefficients, atoms, or operation variants.
 
-```text
-Evidence.LithiumAndWater@1
-  R1
-    subject: hydrogen product
-    predicate: gas evolves
-    sources: [S1, S2]
-  R2
-    subject: lithium reactant
-    predicate: disappears
-    sources: [S1]
-```
+Returned proposals cross the same expansion, kernel, and frame projection as a
+reviewed family. At most two operation-level repairs receive bounded kernel
+diagnostics. Exhaustion preserves the static outcome and exposes a retry
+affordance. Formula-only products never enter escalation because ChemSpec does
+not fabricate unknown graphs.
 
-Sources preserve title, URL, publisher, retrieval time, and supported claim
-IDs. Search snippets are not evidence. Conflicts remain visible rather than
-being silently averaged.
+## Cache v3
 
-The evidence packet is immutable and digest-bearing. Source references claim
-IDs; editing evidence invalidates downstream validation through its digest.
+The cache key binds canonical request identities and context, claim/mode
+contracts, identity snapshot, trusted catalogue digest, compiler contract, and
+mechanism contract. Its envelope stores untrusted claim bytes, provider/model
+provenance, and an optional presentation recipe. It never serializes a
+trusted capability.
 
-## Structured output
+Every load recompiles request binding and exact balance and revalidates
+reviewed-family or escalated presentation through the kernel. Corrupt and old
+entries are misses and are not deleted. Cache lookup precedes Codex
+preflight, preserving offline replay.
 
-Provider output contains resolved source text plus the evidence packet and
-provenance envelope. Strict parsing rejects unknown fields, missing claims,
-invalid IDs, source/evidence disagreement, or provider prose outside the
-declared schema.
+The default location is the platform cache directory (`Library/Caches` on
+macOS, `LOCALAPPDATA` on Windows, and `XDG_CACHE_HOME` or `.cache` on Linux).
+`CHEMSPEC_CACHE_DIR` overrides it.
 
-## Repair loop
+## Provider-neutral boundary
 
-A repair request contains the original request, selected reviewed rule, current
-evidence packet, current source, and stable diagnostics. It instructs the agent
-to patch only invalid authored fields; catalogue facts, rule templates, and
-validator configuration are unavailable for modification.
+The current live implementation uses the signed-in Codex binary. BYOK/API is a
+reserved provider-neutral direction only; no direct OpenAI HTTP call, API-key
+persistence, hosted backend, account system, billing, or deployment is part of
+this rebuild.
 
-Allow at most three repair attempts. Every patch is shown as a diff and remains
-undoable. After the limit, stop with a transparent invalid or unsupported
-result.
-
-## Failure behavior
-
-Provider unavailable, authentication required, cancellation, timeout, refusal,
-malformed structured result, incomplete evidence, and repair-limit exhaustion
-are explicit workflow states. None is reinterpreted as a chemistry result.
+Normal tests use fake providers and consume no subscription or network. Live
+Codex runs are explicit ignored smoke tests and must record provider, model,
+and provider version.

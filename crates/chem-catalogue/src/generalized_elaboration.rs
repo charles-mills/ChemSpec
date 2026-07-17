@@ -196,6 +196,156 @@ impl ValidatedCatalogueBundle {
         }
         elaborate_supported(self, rule, case, &binding, &by_role)
     }
+
+    /// Derives the reviewed product role inputs a generalized rule would
+    /// produce for the given reactant bindings, without requiring the caller
+    /// to know the product structures in advance. The parameter binding is
+    /// inferred purely from the reactant selectors; the selected supported
+    /// case then determines exactly one reviewed structure per product role.
+    ///
+    /// # Errors
+    ///
+    /// Returns a catalogue error only if already validated catalogue state is
+    /// internally inconsistent. Request-level failures are returned as typed
+    /// invalid, unsupported, or ambiguous outcomes.
+    #[allow(clippy::too_many_lines)]
+    pub fn derive_generalized_products(
+        &self,
+        id: &ReactionRuleId,
+        reactants: &[GeneralizedRoleInput],
+    ) -> Result<Result<Vec<GeneralizedRoleInput>, GeneralizedElaborationFailure>, CatalogueError>
+    {
+        let Some(rule) = self.generalized_rule(id) else {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Unsupported,
+                format!("generalized rule `{id}` does not resolve"),
+            )));
+        };
+        let by_role = reactants
+            .iter()
+            .map(|input| (input.role.clone(), input))
+            .collect::<BTreeMap<_, _>>();
+        let reactant_roles = rule
+            .roles
+            .iter()
+            .filter(|(_, schema)| schema.side == RuleSideRecord::Reactant)
+            .map(|(role, _)| role)
+            .collect::<BTreeSet<_>>();
+        if by_role.len() != reactants.len()
+            || by_role.keys().collect::<BTreeSet<_>>() != reactant_roles
+        {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::InvalidSource,
+                "generalized reactant role binding is incomplete or duplicated",
+            )));
+        }
+        for (role, input) in &by_role {
+            let schema = &rule.roles[role];
+            if input.coefficient != schema.coefficient
+                || input.side != schema.side
+                || input.representation != schema.representation
+            {
+                return Ok(Err(failure(
+                    GeneralizedElaborationFailureClass::InvalidSource,
+                    format!("role `{role}` shape does not match generalized rule"),
+                )));
+            }
+        }
+        let domains = self.generalized_parameter_domains(id).ok_or_else(|| {
+            CatalogueError::new(
+                super::CatalogueErrorCode::InvalidGeneralizedRule,
+                format!("generalized rule `{id}` lost its validated parameter domains"),
+            )
+        })?;
+        let mut binding = BTreeMap::new();
+        for (role, selector) in &rule.reactants {
+            if let Err(result) = infer_selector_binding(
+                self,
+                selector,
+                &by_role[role].structure,
+                &mut binding,
+                domains,
+            ) {
+                return Ok(Err(result));
+            }
+        }
+        for (parameter, domain) in domains {
+            if !binding.contains_key(parameter) {
+                if domain.len() != 1 {
+                    return Ok(Err(failure(
+                        GeneralizedElaborationFailureClass::Ambiguous,
+                        format!("parameter `{parameter}` is not uniquely induced by source roles"),
+                    )));
+                }
+                let Some(value) = domain.first() else {
+                    return Err(CatalogueError::new(
+                        super::CatalogueErrorCode::InvalidGeneralizedRule,
+                        format!("generalized parameter `{parameter}` lost its finite domain"),
+                    ));
+                };
+                binding.insert(parameter.clone(), value.clone());
+            }
+        }
+        let Some(selection) = self.select_generalized_case(id, &binding)? else {
+            return Ok(Err(failure(
+                GeneralizedElaborationFailureClass::Unsupported,
+                format!("rule `{id}` has no reviewed case for the inferred parameter binding"),
+            )));
+        };
+        let case = match selection {
+            GeneralizedCaseSelection::Unsupported(case) => {
+                let GeneralizedReactionCaseRecord::Unsupported {
+                    required_feature,
+                    explanation,
+                    ..
+                } = case
+                else {
+                    return Err(CatalogueError::new(
+                        super::CatalogueErrorCode::InvalidGeneralizedCase,
+                        "generalized case selection has the wrong status",
+                    ));
+                };
+                return Ok(Err(GeneralizedElaborationFailure {
+                    class: GeneralizedElaborationFailureClass::Unsupported,
+                    message: explanation.clone(),
+                    required_feature: Some(required_feature.clone()),
+                }));
+            }
+            GeneralizedCaseSelection::Supported(case) => case,
+        };
+        let GeneralizedReactionCaseRecord::Supported { products, .. } = case else {
+            return Err(CatalogueError::new(
+                super::CatalogueErrorCode::InvalidGeneralizedCase,
+                "generalized case selection has the wrong status",
+            ));
+        };
+        let mut derived = Vec::new();
+        for (role, selector) in products {
+            let resolved = super::generalized::resolve_selector(
+                selector,
+                &binding,
+                self.structures(),
+                &self.structure_traits,
+                &self.document().structure_applications,
+            )?;
+            let mut resolved = resolved.into_iter();
+            let (Some(structure), None) = (resolved.next(), resolved.next()) else {
+                return Ok(Err(failure(
+                    GeneralizedElaborationFailureClass::Ambiguous,
+                    format!("product role `{role}` does not resolve to exactly one structure"),
+                )));
+            };
+            let schema = &rule.roles[role];
+            derived.push(GeneralizedRoleInput {
+                role: role.clone(),
+                structure,
+                coefficient: schema.coefficient,
+                side: schema.side,
+                representation: schema.representation,
+            });
+        }
+        Ok(Ok(derived))
+    }
 }
 
 fn infer_selector_binding(

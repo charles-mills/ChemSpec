@@ -12,18 +12,18 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::path::Arc;
 use iced::widget::canvas::{Path, Stroke};
 use iced::widget::{
-    button, canvas, column, container, mouse_area, row, space, stack, text, tooltip,
+    button, canvas, column, container, mouse_area, responsive, row, stack, text, text_input,
 };
 use iced::{
-    Center, Color, Element, Fill, Font, Length, Point, Radians, Rectangle, Renderer, Subscription,
-    Theme,
+    Center, Color, Element, Fill, Font, Length, Point, Radians, Rectangle, Renderer, Size,
+    Subscription, Theme, Vector,
 };
 
 use crate::chemistry;
 use crate::composition_catalogue;
-use crate::elements::{self, ElementSpec};
+use crate::elements;
 use crate::fonts;
-use crate::particle_visualization::{AtomDiagram, CompoundAtomicDiagram};
+use crate::particle_visualization::{AmbientReactantDiagram, ambient_footprint};
 use crate::theme::{self, color, motion, space as spacing, type_scale};
 
 const MAX_ATOMS_PER_REACTANT: usize = 12;
@@ -60,15 +60,62 @@ struct HoldState {
     completed: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct AmbientResize {
+    current: Size,
+    target: Size,
+    velocity: Vector,
+}
+
+impl Default for AmbientResize {
+    fn default() -> Self {
+        Self {
+            current: Size::ZERO,
+            target: Size::ZERO,
+            velocity: Vector::new(0.0, 0.0),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AmbientPlacement {
+    current: Point,
+    target: Point,
+    velocity: Vector,
+}
+
+impl Default for AmbientPlacement {
+    fn default() -> Self {
+        let anchor = Point::new(0.5, 0.42);
+        Self {
+            current: anchor,
+            target: anchor,
+            velocity: Vector::new(0.0, 0.0),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct AmbientPresentation {
+    atoms: Vec<u8>,
+    reveal: f32,
+    placement: AmbientPlacement,
+}
+
 #[derive(Debug)]
 pub struct State {
     drafts: [ReactantDraft; 2],
     active: ActiveReactant,
     limit_reached: bool,
-    hovered: Option<ActiveReactant>,
     holding: Option<HoldState>,
     orbital_phase: f32,
-    tooltip_reveal: f32,
+    ambient: [AmbientPresentation; 2],
+    ambient_resize: AmbientResize,
+    editing: Option<ActiveReactant>,
+    name_input: String,
+    name_feedback: Option<String>,
+    submit_available: bool,
+    prompt_reveal: f32,
 }
 
 impl Default for State {
@@ -77,33 +124,59 @@ impl Default for State {
             drafts: [ReactantDraft::default(), ReactantDraft::default()],
             active: ActiveReactant::First,
             limit_reached: false,
-            hovered: None,
             holding: None,
             orbital_phase: 0.0,
-            tooltip_reveal: 0.0,
+            ambient: [
+                AmbientPresentation::default(),
+                AmbientPresentation::default(),
+            ],
+            ambient_resize: AmbientResize::default(),
+            editing: None,
+            name_input: String::new(),
+            name_feedback: None,
+            submit_available: false,
+            prompt_reveal: 0.0,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
     AddElement(u8),
     DropElement(ActiveReactant, u8),
+    SelectReactant(ActiveReactant),
     SlotPressed(ActiveReactant),
     SlotReleased(ActiveReactant),
-    SlotHovered(Option<ActiveReactant>),
+    SlotExited(ActiveReactant),
     Undo,
     ClearActive,
+    BeginNameEntry(ActiveReactant),
+    NameInput(String),
+    NameSubmitted,
+    NameEntryCancelled,
     StartReactionRequested,
     AnimationTick,
+    PromptAnimationTick,
 }
 
 pub fn update(state: &mut State, message: Message) {
     match message {
-        Message::AddElement(atomic_number) => add_element(state, state.active, atomic_number),
+        Message::AddElement(atomic_number) => {
+            state.editing = None;
+            state.name_input.clear();
+            state.name_feedback = None;
+            add_element(state, state.active, atomic_number);
+        }
         Message::DropElement(reactant, atomic_number) => {
             state.active = reactant;
+            state.editing = None;
+            state.name_input.clear();
+            state.name_feedback = None;
             add_element(state, reactant, atomic_number);
+        }
+        Message::SelectReactant(reactant) => {
+            state.active = reactant;
+            state.holding = None;
         }
         Message::SlotPressed(reactant) => {
             state.holding = Some(HoldState {
@@ -128,12 +201,10 @@ pub fn update(state: &mut State, message: Message) {
             }
             state.limit_reached = false;
         }
-        Message::SlotHovered(hovered) => {
-            if state.hovered != hovered {
-                state.tooltip_reveal = 0.0;
+        Message::SlotExited(reactant) => {
+            if state.holding.is_some_and(|hold| hold.slot == reactant) {
                 state.holding = None;
             }
-            state.hovered = hovered;
         }
         Message::Undo => {
             state.drafts[state.active.index()].atoms.pop();
@@ -143,12 +214,33 @@ pub fn update(state: &mut State, message: Message) {
             state.drafts[state.active.index()].atoms.clear();
             state.limit_reached = false;
         }
+        Message::BeginNameEntry(reactant) => {
+            state.active = reactant;
+            state.editing = Some(reactant);
+            state.holding = None;
+            state.name_input.clear();
+            state.name_feedback = None;
+        }
+        Message::NameInput(value) => {
+            state.name_input = value;
+            state.name_feedback = None;
+        }
+        Message::NameSubmitted => submit_name(state),
+        Message::NameEntryCancelled => {
+            state.editing = None;
+            state.name_input.clear();
+            state.name_feedback = None;
+        }
         Message::StartReactionRequested => {}
         Message::AnimationTick => {
-            if state.hovered.is_some() {
+            if state
+                .ambient
+                .iter()
+                .any(|ambient| !ambient.atoms.is_empty())
+            {
                 state.orbital_phase = (state.orbital_phase + motion::ORBIT_STEP) % 1.0;
-                state.tooltip_reveal = (state.tooltip_reveal + motion::REVEAL_STEP).min(1.0);
             }
+            step_ambient_presentations(state);
             if let Some(hold) = &mut state.holding
                 && !hold.completed
                 && !state.drafts[hold.slot.index()].atoms.is_empty()
@@ -161,23 +253,402 @@ pub fn update(state: &mut State, message: Message) {
                 }
             }
         }
+        Message::PromptAnimationTick => {
+            if state.submit_available {
+                state.prompt_reveal = (state.prompt_reveal + motion::PROMPT_FADE_STEP).min(1.0);
+            } else {
+                state.prompt_reveal = (state.prompt_reveal - motion::PROMPT_FADE_STEP).max(0.0);
+            }
+        }
     }
+    sync_ambient_presentations(state);
 }
 
-/// The composer only animates while a slot tooltip is open or a hold-to-clear
-/// gesture is running, so moving the cursor away is the pause control.
+/// Each motion family subscribes only while it is active. Ambient models use
+/// the calmer 30 fps cadence; the prompt keeps a dedicated 60 fps fade.
 pub fn subscription(state: &State) -> Subscription<Message> {
-    let tooltip_open = state
-        .hovered
-        .is_some_and(|slot| !state.drafts[slot.index()].atoms.is_empty());
     let hold_running = state
         .holding
         .is_some_and(|hold| !hold.completed && !state.drafts[hold.slot.index()].atoms.is_empty());
-    if tooltip_open || hold_running {
+    let ambient_active = state
+        .ambient
+        .iter()
+        .any(|ambient| !ambient.atoms.is_empty())
+        || ambient_resize_is_settling(&state.ambient_resize);
+    let model_motion = if ambient_active || hold_running {
         iced::time::every(motion::TICK).map(|_| Message::AnimationTick)
     } else {
         Subscription::none()
+    };
+    let prompt_motion = if prompt_is_animating(state) {
+        iced::time::every(motion::PROMPT_TICK).map(|_| Message::PromptAnimationTick)
+    } else {
+        Subscription::none()
+    };
+    Subscription::batch([model_motion, prompt_motion])
+}
+
+fn prompt_is_animating(state: &State) -> bool {
+    (state.submit_available && state.prompt_reveal < 1.0)
+        || (!state.submit_available && state.prompt_reveal > 0.0)
+}
+
+fn sync_ambient_presentations(state: &mut State) {
+    let mut appeared = [false; 2];
+    for (index, (draft, ambient)) in state.drafts.iter().zip(&mut state.ambient).enumerate() {
+        if !draft.atoms.is_empty() {
+            appeared[index] = ambient.atoms.is_empty();
+            ambient.atoms.clone_from(&draft.atoms);
+        } else if ambient.reveal <= f32::EPSILON {
+            ambient.atoms.clear();
+        }
     }
+    refresh_ambient_targets(state);
+    for (index, appeared) in appeared.into_iter().enumerate() {
+        if appeared {
+            state.ambient[index].placement.current = state.ambient[index].placement.target;
+            state.ambient[index].placement.velocity = Vector::new(0.0, 0.0);
+        }
+    }
+}
+
+fn step_ambient_presentations(state: &mut State) {
+    refresh_ambient_targets(state);
+    for (draft, ambient) in state.drafts.iter().zip(&mut state.ambient) {
+        let reveal_target = if draft.atoms.is_empty() { 0.0 } else { 1.0 };
+        if ambient.reveal < reveal_target {
+            ambient.reveal = (ambient.reveal + 0.08).min(reveal_target);
+        } else if ambient.reveal > reveal_target {
+            ambient.reveal = (ambient.reveal - 0.08).max(reveal_target);
+        }
+
+        let placement_delta = Vector::new(
+            ambient.placement.target.x - ambient.placement.current.x,
+            ambient.placement.target.y - ambient.placement.current.y,
+        );
+        ambient.placement.velocity = (ambient.placement.velocity + placement_delta * 0.14) * 0.74;
+        ambient.placement.current += ambient.placement.velocity;
+        if placement_delta.x.abs() < 0.000_5 && ambient.placement.velocity.x.abs() < 0.000_5 {
+            ambient.placement.current.x = ambient.placement.target.x;
+            ambient.placement.velocity.x = 0.0;
+        }
+        if placement_delta.y.abs() < 0.000_5 && ambient.placement.velocity.y.abs() < 0.000_5 {
+            ambient.placement.current.y = ambient.placement.target.y;
+            ambient.placement.velocity.y = 0.0;
+        }
+    }
+    step_ambient_resize(&mut state.ambient_resize);
+}
+
+fn refresh_ambient_targets(state: &mut State) {
+    let viewport = state.ambient_resize.target;
+    if viewport.width <= 0.0 || viewport.height <= 0.0 {
+        return;
+    }
+    for (index, ambient) in state.ambient.iter_mut().enumerate() {
+        if !ambient.atoms.is_empty() {
+            let side = if index == 0 {
+                ActiveReactant::First
+            } else {
+                ActiveReactant::Second
+            };
+            ambient.placement.target = solve_ambient_anchor(&ambient.atoms, side, viewport);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OccupiedZone {
+    bounds: Rectangle,
+    weight: f32,
+    table: bool,
+}
+
+fn solve_ambient_anchor(atoms: &[u8], side: ActiveReactant, viewport: Size) -> Point {
+    if atoms.is_empty() || viewport.width <= 0.0 || viewport.height <= 0.0 {
+        return Point::new(0.5, 0.42);
+    }
+
+    let half_viewport = Size::new(viewport.width * 0.5, viewport.height);
+    let footprint = ambient_footprint(atoms.len(), half_viewport, 1.0);
+    let width = (footprint.width / half_viewport.width).clamp(0.08, 0.86);
+    let height = (footprint.height / half_viewport.height).clamp(0.06, 0.72);
+    let table_top = (300.0 / viewport.height).clamp(0.36, 0.54);
+    let table_bottom = 0.96;
+    let table_row = (table_bottom - table_top) / 9.0;
+    let ideal_y = (table_top - height * 0.22).clamp(height / 2.0 + 0.035, 0.58);
+    let zones = ambient_occupied_zones(side, table_top, table_bottom, table_row);
+    let min_x = width / 2.0 + 0.035;
+    let max_x = 1.0 - min_x;
+    let min_y = height / 2.0 + 0.035;
+    let max_y = (0.72_f32).min(1.0 - height / 2.0 - 0.035);
+    let x_candidates: [f32; 5] = [0.30, 0.40, 0.50, 0.60, 0.70];
+    let y_candidates: [f32; 4] = [
+        ideal_y - 0.09,
+        ideal_y - 0.03,
+        ideal_y + 0.04,
+        ideal_y + 0.10,
+    ];
+
+    let mut best = Point::new(0.5_f32.clamp(min_x, max_x), ideal_y.clamp(min_y, max_y));
+    let mut best_score = f32::INFINITY;
+    for (x, y) in x_candidates
+        .into_iter()
+        .flat_map(|x| y_candidates.into_iter().map(move |y| (x, y)))
+    {
+        let candidate = Point::new(x.clamp(min_x, max_x), y.clamp(min_y, max_y));
+        let model = Rectangle {
+            x: candidate.x - width / 2.0,
+            y: candidate.y - height / 2.0,
+            width,
+            height,
+        };
+        let model_area = (width * height).max(0.001);
+        let mut protected_overlap = 0.0;
+        let mut table_overlap = 0.0;
+        for zone in zones {
+            let overlap = rectangle_overlap_area(model, zone.bounds) / model_area;
+            if zone.table {
+                table_overlap += overlap;
+            } else {
+                protected_overlap += overlap * zone.weight;
+            }
+        }
+        let table_overlap = table_overlap.clamp(0.0, 1.0);
+        let desired_table_overlap = if atoms.len() == 1 { 0.16 } else { 0.12 };
+        let score = protected_overlap * 8.0
+            + (table_overlap - desired_table_overlap).powi(2) * 2.2
+            + (candidate.y - ideal_y).abs() * 0.20
+            + (candidate.x - 0.5).abs() * 0.035;
+        if score < best_score {
+            best = candidate;
+            best_score = score;
+        }
+    }
+    best
+}
+
+fn ambient_occupied_zones(
+    side: ActiveReactant,
+    table_top: f32,
+    table_bottom: f32,
+    row: f32,
+) -> [OccupiedZone; 5] {
+    let question = match side {
+        ActiveReactant::First => Rectangle {
+            x: 0.42,
+            y: 0.08,
+            width: 0.58,
+            height: 0.27,
+        },
+        ActiveReactant::Second => Rectangle {
+            x: 0.0,
+            y: 0.08,
+            width: 0.58,
+            height: 0.27,
+        },
+    };
+    let toolbar = match side {
+        ActiveReactant::First => Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+        },
+        ActiveReactant::Second => Rectangle {
+            x: 0.76,
+            y: 0.0,
+            width: 0.24,
+            height: 0.17,
+        },
+    };
+    let (upper_block, middle_block, lower_block) = match side {
+        ActiveReactant::First => (
+            Rectangle {
+                x: 0.08,
+                y: table_top,
+                width: 0.24,
+                height: table_bottom - table_top,
+            },
+            Rectangle {
+                x: 0.28,
+                y: table_top + row * 3.0,
+                width: 0.72,
+                height: row * 4.2,
+            },
+            Rectangle {
+                x: 0.38,
+                y: table_top + row * 7.1,
+                width: 0.62,
+                height: table_bottom - (table_top + row * 7.1),
+            },
+        ),
+        ActiveReactant::Second => (
+            Rectangle {
+                x: 0.28,
+                y: table_top,
+                width: 0.66,
+                height: row * 6.2,
+            },
+            Rectangle {
+                x: 0.0,
+                y: table_top + row * 3.0,
+                width: 0.30,
+                height: row * 4.2,
+            },
+            Rectangle {
+                x: 0.0,
+                y: table_top + row * 7.1,
+                width: 0.94,
+                height: table_bottom - (table_top + row * 7.1),
+            },
+        ),
+    };
+    [
+        OccupiedZone {
+            bounds: question,
+            weight: 1.0,
+            table: false,
+        },
+        OccupiedZone {
+            bounds: toolbar,
+            weight: 1.0,
+            table: false,
+        },
+        OccupiedZone {
+            bounds: upper_block,
+            weight: 1.0,
+            table: true,
+        },
+        OccupiedZone {
+            bounds: middle_block,
+            weight: 1.0,
+            table: true,
+        },
+        OccupiedZone {
+            bounds: lower_block,
+            weight: 1.0,
+            table: true,
+        },
+    ]
+}
+
+fn rectangle_overlap_area(left: Rectangle, right: Rectangle) -> f32 {
+    let width = (left.x + left.width).min(right.x + right.width) - left.x.max(right.x);
+    let height = (left.y + left.height).min(right.y + right.height) - left.y.max(right.y);
+    width.max(0.0) * height.max(0.0)
+}
+
+fn step_ambient_resize(resize: &mut AmbientResize) {
+    if !ambient_resize_is_settling(resize) {
+        return;
+    }
+
+    let delta = Vector::new(
+        resize.target.width - resize.current.width,
+        resize.target.height - resize.current.height,
+    );
+    resize.velocity = (resize.velocity + delta * 0.13) * 0.72;
+    resize.current.width = (resize.current.width + resize.velocity.x).max(1.0);
+    resize.current.height = (resize.current.height + resize.velocity.y).max(1.0);
+
+    if delta.x.abs() < 0.08 && resize.velocity.x.abs() < 0.08 {
+        resize.current.width = resize.target.width;
+        resize.velocity.x = 0.0;
+    }
+    if delta.y.abs() < 0.08 && resize.velocity.y.abs() < 0.08 {
+        resize.current.height = resize.target.height;
+        resize.velocity.y = 0.0;
+    }
+}
+
+fn ambient_resize_is_settling(resize: &AmbientResize) -> bool {
+    (resize.current.width - resize.target.width).abs() >= 0.08
+        || (resize.current.height - resize.target.height).abs() >= 0.08
+        || resize.velocity.x.abs() >= 0.08
+        || resize.velocity.y.abs() >= 0.08
+}
+
+/// Updates the spring destination without disturbing its current position or
+/// velocity. A stream of live-resize events therefore moves one continuous
+/// target instead of stacking fresh impulses on every pointer movement.
+pub fn resize_ambient(state: &mut State, size: Size) {
+    if size.width <= 0.0 || size.height <= 0.0 {
+        return;
+    }
+    if state.ambient_resize.current.width <= 0.0 || state.ambient_resize.current.height <= 0.0 {
+        state.ambient_resize.current = size;
+        state.ambient_resize.target = size;
+        state.ambient_resize.velocity = Vector::new(0.0, 0.0);
+    } else {
+        state.ambient_resize.target = size;
+    }
+}
+
+/// Fills slots from typed compound names or formulas. A separator
+/// ("oxygen + water", "zinc, hydrochloric acid", "iron and sulfur")
+/// fills both boxes at once; a single compound fills the active one.
+fn submit_name(state: &mut State) {
+    let input = state.name_input.trim().to_owned();
+    if input.is_empty() {
+        return;
+    }
+    let filled = match split_reactant_names(&input).as_slice() {
+        [only] => resolve_named(only).map(|atoms| {
+            state.drafts[state.active.index()].atoms = atoms;
+        }),
+        [first, second] => resolve_named(first).and_then(|first| {
+            resolve_named(second).map(|second| {
+                state.drafts[0].atoms = first;
+                state.drafts[1].atoms = second;
+            })
+        }),
+        _ => Err("Reactions here take at most two reactants".to_owned()),
+    };
+    match filled {
+        Ok(()) => {
+            state.editing = None;
+            state.name_input.clear();
+            state.name_feedback = None;
+            state.limit_reached = false;
+        }
+        Err(feedback) => state.name_feedback = Some(feedback),
+    }
+}
+
+fn split_reactant_names(input: &str) -> Vec<&str> {
+    let symbols = input
+        .split(['+', ','])
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if symbols.len() > 1 {
+        return symbols;
+    }
+    let words = input
+        .split(" and ")
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if words.len() > 1 { words } else { vec![input] }
+}
+
+fn resolve_named(input: &str) -> Result<Vec<u8>, String> {
+    let Some(atoms) = chemistry::atoms_from_name(input) else {
+        return Err(format!(
+            "“{input}” isn’t recognised — try a name like “copper(II) sulfate” or a formula like CuSO4"
+        ));
+    };
+    if atoms.len() > MAX_ATOMS_PER_REACTANT {
+        return Err(format!("“{input}” has too many atoms for one reactant"));
+    }
+    if let Some(&unknown) = atoms
+        .iter()
+        .find(|number| elements::by_atomic_number(**number).is_none())
+    {
+        return Err(format!("Element {unknown} is not in the library yet"));
+    }
+    Ok(atoms)
 }
 
 fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
@@ -194,21 +665,47 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
 }
 
 pub fn can_start_reaction(state: &State) -> bool {
-    matches!(
-        resolution(state),
-        chemistry::DraftResolution::Supported(_)
-            | chemistry::DraftResolution::Multiple(_)
-            | chemistry::DraftResolution::Screened(_)
-    )
+    state.drafts.iter().all(|draft| !draft.atoms.is_empty())
+        && !matches!(
+            resolution(state),
+            chemistry::DraftResolution::SystemError(_)
+        )
 }
 
 pub fn resolution(state: &State) -> chemistry::DraftResolution {
     chemistry::resolve_drafts(&state.drafts[0].atoms, &state.drafts[1].atoms)
 }
 
-#[cfg(test)]
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
+}
+
+#[must_use]
+pub const fn editing(state: &State) -> Option<ActiveReactant> {
+    state.editing
+}
+
+#[must_use]
+pub fn name_input_is_empty(state: &State) -> bool {
+    state.name_input.trim().is_empty()
+}
+
+#[must_use]
+pub fn name_input_id(reactant: ActiveReactant) -> iced::widget::Id {
+    iced::widget::Id::new(match reactant {
+        ActiveReactant::First => "reactant-name-input-first",
+        ActiveReactant::Second => "reactant-name-input-second",
+    })
+}
+
+pub fn set_submit_available(state: &mut State, available: bool) {
+    state.submit_available = available;
+}
+
+#[cfg(test)]
+#[must_use]
+pub const fn submit_available(state: &State) -> bool {
+    state.submit_available
 }
 
 #[cfg(test)]
@@ -216,14 +713,100 @@ pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
     state.drafts = drafts.map(|atoms| ReactantDraft { atoms });
     state.active = ActiveReactant::First;
     state.limit_reached = false;
+    state.editing = None;
+    state.name_input.clear();
+    state.name_feedback = None;
+    for ambient in &mut state.ambient {
+        *ambient = AmbientPresentation::default();
+    }
+    sync_ambient_presentations(state);
 }
 
-pub fn view(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'static, Message> {
+/// Two independently clipped, non-interactive model surfaces for the library
+/// background. Each Canvas receives exactly one half of the available width.
+pub fn ambient_view(state: &State) -> Element<'static, Message> {
+    let first_atoms = state.ambient[0].atoms.clone();
+    let second_atoms = state.ambient[1].atoms.clone();
+    let first_reveal = theme::ease_in_out(state.ambient[0].reveal);
+    let second_reveal = theme::ease_in_out(state.ambient[1].reveal);
+    let first_anchor = state.ambient[0].placement.current;
+    let second_anchor = state.ambient[1].placement.current;
+    let resize_current = state.ambient_resize.current;
+    let resize_target = state.ambient_resize.target;
+    let phase = state.orbital_phase;
+
+    responsive(move |size| {
+        let resize_delta = if resize_current.width > 0.0 && resize_target.width > 0.0 {
+            Vector::new(
+                resize_current.width - resize_target.width,
+                resize_current.height - resize_target.height,
+            )
+        } else {
+            Vector::new(0.0, 0.0)
+        };
+        let visual_size = Size::new(
+            (size.width + resize_delta.x).max(1.0),
+            (size.height + resize_delta.y).max(1.0),
+        );
+        let scale =
+            (ambient_layout_extent(visual_size) / ambient_layout_extent(size)).clamp(0.82, 1.18);
+        let vertical_offset = (resize_delta.y * 0.42).clamp(-64.0, 64.0);
+        let first_offset = Vector::new((resize_delta.x * 0.25).clamp(-96.0, 96.0), vertical_offset);
+        let second_offset =
+            Vector::new((resize_delta.x * 0.75).clamp(-96.0, 96.0), vertical_offset);
+
+        row![
+            canvas(AmbientReactantDiagram::new(
+                first_atoms.clone(),
+                phase,
+                first_reveal,
+                scale,
+                first_anchor,
+                first_offset,
+                -1.0,
+            ))
+            .width(Fill)
+            .height(Fill),
+            canvas(AmbientReactantDiagram::new(
+                second_atoms.clone(),
+                phase + 0.31,
+                second_reveal,
+                scale,
+                second_anchor,
+                second_offset,
+                1.0,
+            ))
+            .width(Fill)
+            .height(Fill),
+        ]
+        .width(Fill)
+        .height(Fill)
+        .into()
+    })
+    .width(Fill)
+    .height(Fill)
+    .into()
+}
+
+fn ambient_layout_extent(size: Size) -> f32 {
+    let short_side = (size.width * 0.5).min(size.height).max(24.0);
+    (short_side * 0.54)
+        .clamp(96.0, 300.0)
+        .min((short_side - 12.0).max(24.0))
+}
+
+pub fn view(
+    state: &State,
+    library_drag: Option<u8>,
+    build_status: Option<String>,
+    local: bool,
+    compact: bool,
+) -> Element<'static, Message> {
     let sentence = sentence(state, library_drag, compact);
-    let actions = action_row(state);
+    let prompt = reaction_prompt(state, build_status, local, compact);
 
     container(
-        column![sentence, actions]
+        column![sentence, prompt]
             .spacing(spacing::LG)
             .align_x(Center)
             .width(Fill),
@@ -290,41 +873,20 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
         .into()
 }
 
-fn action_row(state: &State) -> Element<'static, Message> {
-    let active_atoms = &state.drafts[state.active.index()].atoms;
+fn reaction_prompt(
+    state: &State,
+    build_status: Option<String>,
+    local: bool,
+    compact: bool,
+) -> Element<'static, Message> {
     let resolution = resolution(state);
-    let run_label = match &resolution {
-        chemistry::DraftResolution::Multiple(_) => "Choose product  →",
-        chemistry::DraftResolution::Screened(_) => "View outcome  →",
-        _ => "Run reaction  →",
-    };
-    let run = button(text(run_label).size(type_scale::BODY))
-        .on_press_maybe(can_start_reaction(state).then_some(Message::StartReactionRequested))
-        .padding([spacing::XS, spacing::MD])
-        .style(theme::primary_button);
-    let undo = button(text("Undo").size(type_scale::BODY))
-        .on_press_maybe((!active_atoms.is_empty()).then_some(Message::Undo))
-        .padding([spacing::XS, spacing::MD])
-        .style(theme::secondary_button);
-    let clear = button(text("Clear active").size(type_scale::BODY))
-        .on_press_maybe((!active_atoms.is_empty()).then_some(Message::ClearActive))
-        .padding([spacing::XS, spacing::MD])
-        .style(theme::secondary_button);
-
-    let controls = row![
-        run,
-        action_hint(undo, "You can also click the selected box to undo."),
-        action_hint(clear, "Clears the currently highlighted reactant."),
-    ]
-    .spacing(spacing::XS)
-    .align_y(Center);
     let both_present = state.drafts.iter().all(|draft| !draft.atoms.is_empty());
     let status_color = if resolution.is_system_error() {
         color::DANGER
     } else {
         color::WARNING
     };
-    let status = both_present
+    let resolution_status = both_present
         .then_some(&resolution)
         .filter(|resolution| {
             !matches!(
@@ -334,33 +896,52 @@ fn action_row(state: &State) -> Element<'static, Message> {
                     | chemistry::DraftResolution::Screened(_)
             )
         })
-        .and_then(|resolution| resolution.message())
+        .and_then(|resolution| resolution.message(local))
         .map(|message| {
             text(message.to_owned())
                 .size(type_scale::CAPTION)
                 .color(status_color)
         });
-    let mut content = column![controls].spacing(spacing::XS).align_x(Center);
-    if let Some(status) = status {
+    let show_prompt =
+        state.submit_available || state.prompt_reveal > 0.0 || resolution_status.is_none();
+    let mut content = column![].spacing(spacing::XS).align_x(Center);
+    if let Some(feedback) = &state.name_feedback {
+        content = content.push(
+            text(feedback.clone())
+                .size(type_scale::CAPTION)
+                .color(color::WARNING),
+        );
+    } else if let Some(message) = build_status {
+        content = content.push(text(message).size(type_scale::CAPTION).color(color::ACCENT));
+    } else if show_prompt {
+        let reveal = theme::ease_in_out(state.prompt_reveal);
+        content = content.push(
+            button(
+                text("Press spacebar to find out")
+                    .size(if compact {
+                        type_scale::BODY_LARGE
+                    } else {
+                        type_scale::TITLE
+                    })
+                    .font(SENTENCE_FONT),
+            )
+            .on_press_maybe(
+                state
+                    .submit_available
+                    .then_some(Message::StartReactionRequested),
+            )
+            .padding(0)
+            .style(move |app_theme, status| theme::run_prompt(app_theme, status, reveal)),
+        );
+    } else if let Some(status) = resolution_status {
         content = content.push(status);
     }
-    content.into()
-}
-
-/// A small gesture hint under an action button.
-fn action_hint(
-    control: iced::widget::Button<'static, Message>,
-    hint: &'static str,
-) -> Element<'static, Message> {
-    tooltip(
-        control,
-        text(hint).size(type_scale::CAPTION).color(color::TEXT_SOFT),
-        tooltip::Position::Bottom,
-    )
-    .gap(spacing::XS)
-    .padding(spacing::XS)
-    .style(|_| theme::tooltip_surface(1.0))
-    .into()
+    container(content)
+        .width(Fill)
+        .height(Length::Fixed(if compact { 38.0 } else { 44.0 }))
+        .center_x(Fill)
+        .center_y(Length::Fixed(if compact { 38.0 } else { 44.0 }))
+        .into()
 }
 
 fn slot(
@@ -371,11 +952,25 @@ fn slot(
 ) -> Element<'static, Message> {
     let atoms = &state.drafts[reactant.index()].atoms;
     let selected = state.active == reactant;
-    let hovered = state.hovered == Some(reactant);
     let state_color = slot_state_color(atoms);
     let draft_formula = formula(atoms);
 
     let empty = draft_formula.is_empty();
+    if empty && state.editing == Some(reactant) {
+        return text_input("Type a name or formula…", &state.name_input)
+            .id(name_input_id(reactant))
+            .on_input(Message::NameInput)
+            .on_submit(Message::NameSubmitted)
+            .size(if compact {
+                type_scale::BODY_LARGE
+            } else {
+                type_scale::TITLE
+            })
+            .padding([spacing::XS, spacing::SM])
+            .width(Length::Fixed(if compact { 190.0 } else { 280.0 }))
+            .style(theme::request_input)
+            .into();
+    }
     let label = text(if empty { "?".to_owned() } else { draft_formula })
         .size(if compact {
             type_scale::TITLE
@@ -386,7 +981,7 @@ fn slot(
         .color(if empty { color::MUTED } else { color::TEXT });
 
     let chip = container(label)
-        .style(move |_| theme::slot_chip(state_color, selected, hovered))
+        .style(move |_| theme::slot_chip(state_color, selected, false))
         .padding([spacing::XS, spacing::LG])
         .center_y(Length::Fixed(if compact { 44.0 } else { 58.0 }));
 
@@ -407,9 +1002,20 @@ fn slot(
         _ => chip.into(),
     };
 
+    if empty && library_drag.is_none() {
+        return mouse_area(
+            button(chip)
+                .on_press(Message::BeginNameEntry(reactant))
+                .padding(0)
+                .style(theme::bare_button),
+        )
+        .on_exit(Message::SlotExited(reactant))
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into();
+    }
+
     let area = mouse_area(chip)
-        .on_enter(Message::SlotHovered(Some(reactant)))
-        .on_exit(Message::SlotHovered(None))
+        .on_exit(Message::SlotExited(reactant))
         .interaction(iced::mouse::Interaction::Pointer);
     let area: Element<'static, Message> = if let Some(atomic_number) = library_drag {
         area.on_release(Message::DropElement(reactant, atomic_number))
@@ -420,25 +1026,10 @@ fn slot(
             .into()
     };
 
-    // An empty slot has no model to explain, so it carries no tooltip.
-    if atoms.is_empty() {
-        return area;
-    }
-
-    let reveal = theme::ease_out(state.tooltip_reveal);
-    tooltip(
-        area,
-        model_card(state, reactant, reveal),
-        tooltip::Position::Bottom,
-    )
-    .gap(spacing::SM)
-    .padding(spacing::SM)
-    .style(move |_| theme::tooltip_surface(reveal))
-    .into()
+    area
 }
 
-/// The draft state each slot border colour communicates; the matching words
-/// live in the slot tooltip.
+/// The draft state each slot border colour communicates.
 fn slot_state_color(atoms: &[u8]) -> Color {
     if atoms.is_empty() {
         color::LINE_STRONG
@@ -499,166 +1090,7 @@ impl<Message> iced::widget::canvas::Program<Message> for HoldWheel {
     }
 }
 
-/// The hover tooltip: the atomic or compound model, its chemical name, the
-/// state the slot border colour stands for, and the click/hold affordances.
-fn model_card(state: &State, reactant: ActiveReactant, reveal: f32) -> Element<'static, Message> {
-    let mut card = column![draft_body(state, reactant, reveal)].spacing(spacing::XS);
-    if state.limit_reached && state.active == reactant {
-        card = card.push(
-            row![
-                text("●")
-                    .size(type_scale::MICRO)
-                    .color(color::WARNING.scale_alpha(reveal)),
-                text("Atom limit reached — undo or clear")
-                    .size(type_scale::CAPTION)
-                    .color(color::WARNING.scale_alpha(reveal)),
-            ]
-            .spacing(spacing::XXS)
-            .align_y(Center),
-        );
-    }
-    card.into()
-}
-
-/// The model row of a non-empty slot tooltip.
-fn draft_body(state: &State, reactant: ActiveReactant, reveal: f32) -> Element<'static, Message> {
-    let atoms = &state.drafts[reactant.index()].atoms;
-    let phase = state.orbital_phase;
-
-    if let Some(preview) = composition_catalogue::trusted_preview(atoms.iter().copied()) {
-        let standardized = chemistry::standardize_elemental_draft(atoms);
-        let name = composition_catalogue::recognize(standardized)
-            .map_or_else(|| preview.formula.clone(), |known| known.name.to_owned());
-        let model = canvas(CompoundAtomicDiagram::new(preview, phase).with_reveal(reveal))
-            .width(Length::Fixed(200.0))
-            .height(Length::Fixed(110.0));
-        return column![
-            model,
-            text(name)
-                .size(type_scale::BODY_LARGE)
-                .font(FORMULA_FONT)
-                .color(color::TEXT.scale_alpha(reveal)),
-            text("Trusted structure")
-                .size(type_scale::MICRO)
-                .color(color::SUCCESS.scale_alpha(reveal)),
-        ]
-        .spacing(spacing::XXS)
-        .align_x(Center)
-        .into();
-    }
-
-    if let [atomic_number] = atoms.as_slice()
-        && let Some(element) = elements::by_atomic_number(*atomic_number)
-    {
-        return element_card(*element, phase, reveal);
-    }
-
-    let (model, name, status, status_color): (
-        Element<'static, Message>,
-        Option<String>,
-        &'static str,
-        _,
-    ) = (
-        draft_model_grid(atoms, phase, reveal),
-        None,
-        "Unrecognised draft",
-        color::WARNING,
-    );
-
-    let mut details = column![].spacing(spacing::XXS);
-    if let Some(name) = name {
-        details = details.push(
-            text(name)
-                .size(type_scale::BODY_LARGE)
-                .font(FORMULA_FONT)
-                .color(color::TEXT.scale_alpha(reveal)),
-        );
-    }
-    details = details.push(
-        row![
-            text("●")
-                .size(type_scale::MICRO)
-                .color(status_color.scale_alpha(reveal)),
-            text(status)
-                .size(type_scale::CAPTION)
-                .color(status_color.scale_alpha(reveal)),
-        ]
-        .spacing(spacing::XXS)
-        .align_y(Center),
-    );
-
-    row![model, details]
-        .spacing(spacing::SM)
-        .align_y(Center)
-        .into()
-}
-
-fn element_card(element: ElementSpec, phase: f32, reveal: f32) -> Element<'static, Message> {
-    let family_color = theme::category_color(element.category);
-    let details = column![
-        row![
-            text(element.name)
-                .size(type_scale::BODY_LARGE)
-                .font(FORMULA_FONT)
-                .color(color::TEXT.scale_alpha(reveal)),
-            text(format!("· {}", element.atomic_number))
-                .size(type_scale::CAPTION)
-                .color(color::MUTED.scale_alpha(reveal)),
-        ]
-        .spacing(spacing::XS)
-        .align_y(Center),
-        row![
-            text("■")
-                .size(type_scale::MICRO)
-                .color(family_color.scale_alpha(reveal)),
-            text(element.category.label())
-                .size(type_scale::CAPTION)
-                .color(color::TEXT_SOFT.scale_alpha(reveal)),
-        ]
-        .spacing(spacing::XXS)
-        .align_y(Center),
-    ]
-    .spacing(spacing::XXS);
-
-    row![
-        canvas(AtomDiagram::new(element, phase).with_reveal(reveal))
-            .width(Length::Fixed(92.0))
-            .height(Length::Fixed(92.0)),
-        details,
-    ]
-    .spacing(spacing::SM)
-    .align_y(Center)
-    .into()
-}
-
-/// Unrecognised drafts show every member atom's shell model in a small grid.
-fn draft_model_grid(atoms: &[u8], phase: f32, reveal: f32) -> Element<'static, Message> {
-    atoms
-        .chunks(4)
-        .take(3)
-        .fold(column![].spacing(spacing::XXS), |models, chunk| {
-            models.push(
-                chunk
-                    .iter()
-                    .fold(row![].spacing(spacing::XXS), |model_row, number| {
-                        let model: Element<'static, Message> = elements::by_atomic_number(*number)
-                            .map_or_else(
-                                || space().into(),
-                                |element| {
-                                    canvas(AtomDiagram::new(*element, phase).with_reveal(reveal))
-                                        .width(Length::Fixed(48.0))
-                                        .height(Length::Fixed(48.0))
-                                        .into()
-                                },
-                            );
-                        model_row.push(model)
-                    }),
-            )
-        })
-        .into()
-}
-
-fn formula(atoms: &[u8]) -> String {
+pub fn formula(atoms: &[u8]) -> String {
     let atoms = chemistry::standardize_elemental_draft(atoms);
     let mut order = Vec::new();
     let mut counts = BTreeMap::<u8, usize>::new();
@@ -713,6 +1145,107 @@ mod tests {
     }
 
     #[test]
+    fn typed_names_fill_the_active_slot() {
+        let mut state = State::default();
+        update(
+            &mut state,
+            Message::NameInput("copper(II) sulfate".to_owned()),
+        );
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state).0, [29, 8, 8, 8, 8, 16]);
+        assert!(state.name_feedback.is_none());
+        assert!(state.name_input.is_empty());
+
+        // The second slot fills once selected; formulas work too.
+        update(&mut state, Message::SelectReactant(ActiveReactant::Second));
+        update(&mut state, Message::NameInput("NaOH".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state).1, [1, 11, 8]);
+
+        // Gibberish leaves the draft alone and explains itself.
+        update(&mut state, Message::NameInput("unobtainium".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert!(state.name_feedback.is_some());
+        assert_eq!(reactants(&state).1, [1, 11, 8]);
+    }
+
+    #[test]
+    fn empty_slot_becomes_inline_input_and_ready_prompt_fades_both_ways() {
+        let mut state = State::default();
+        update(&mut state, Message::BeginNameEntry(ActiveReactant::First));
+        assert_eq!(editing(&state), Some(ActiveReactant::First));
+
+        update(&mut state, Message::NameInput("nickel".into()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(formula(reactants(&state).0), "Ni");
+        assert_eq!(editing(&state), None);
+
+        set_submit_available(&mut state, true);
+        assert!(state.prompt_reveal.abs() < f32::EPSILON);
+        update(&mut state, Message::PromptAnimationTick);
+        assert!(state.prompt_reveal > 0.0);
+        assert!(
+            theme::ease_in_out(state.prompt_reveal) < 0.01,
+            "the first opacity frame must not visibly pop"
+        );
+
+        set_submit_available(&mut state, false);
+        let visible = state.prompt_reveal;
+        assert!(visible > 0.0);
+        assert!(prompt_is_animating(&state));
+        update(&mut state, Message::PromptAnimationTick);
+        assert!(state.prompt_reveal < visible);
+        while state.prompt_reveal > 0.0 {
+            update(&mut state, Message::PromptAnimationTick);
+        }
+        assert!(state.prompt_reveal.abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn separators_fill_both_slots_at_once() {
+        let mut state = State::default();
+        update(&mut state, Message::NameInput("oxygen + water".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state), (&[8_u8, 8][..], &[1_u8, 1, 8][..]));
+        assert!(state.name_input.is_empty());
+
+        // "and" and commas separate too.
+        update(
+            &mut state,
+            Message::NameInput("zinc and hydrochloric acid".to_owned()),
+        );
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(reactants(&state), (&[30_u8][..], &[17_u8, 1][..]));
+
+        // One bad half fails the whole submission and names the culprit.
+        update(
+            &mut state,
+            Message::NameInput("oxygen + unobtainium".to_owned()),
+        );
+        update(&mut state, Message::NameSubmitted);
+        assert!(
+            state
+                .name_feedback
+                .as_deref()
+                .is_some_and(|f| f.contains("unobtainium"))
+        );
+        assert_eq!(reactants(&state), (&[30_u8][..], &[17_u8, 1][..]));
+
+        // Three reactants is one too many.
+        update(
+            &mut state,
+            Message::NameInput("iron, sulfur, oxygen".to_owned()),
+        );
+        update(&mut state, Message::NameSubmitted);
+        assert!(
+            state
+                .name_feedback
+                .as_deref()
+                .is_some_and(|f| f.contains("two"))
+        );
+    }
+
+    #[test]
     fn progressive_selection_builds_the_annotated_carbon_dioxide_flow() {
         let mut state = State::default();
         update(&mut state, Message::AddElement(6));
@@ -737,11 +1270,12 @@ mod tests {
 
         assert_eq!(formula(reactants(&state).0), "Rb");
         assert_eq!(formula(reactants(&state).1), "Li");
-        assert!(!can_start_reaction(&state));
+        assert!(can_start_reaction(&state));
+        assert_eq!(resolution(&state), chemistry::DraftResolution::Uncatalogued);
     }
 
     #[test]
-    fn broader_trusted_pairs_enable_run_and_unsupported_pairs_explain_the_block() {
+    fn catalogue_pairs_run_immediately_and_missing_pairs_offer_codex() {
         let mut state = State::default();
         state.drafts[0].atoms = vec![47, 7, 8, 8, 8];
         state.drafts[1].atoms = vec![11, 17];
@@ -752,14 +1286,18 @@ mod tests {
         ));
 
         state.drafts[1].atoms = vec![11, 9];
-        assert!(!can_start_reaction(&state));
+        assert!(can_start_reaction(&state));
         let resolution = resolution(&state);
-        assert!(
-            resolution
-                .message()
-                .is_some_and(|message| message.starts_with("Silver fluoride is soluble"))
+        assert_eq!(
+            resolution.message(false),
+            Some("Codex will build this reaction")
         );
-        let _ = action_row(&state);
+        assert_eq!(
+            resolution.message(true),
+            Some("Local Mode will try to derive this reaction")
+        );
+        set_submit_available(&mut state, true);
+        let _ = reaction_prompt(&state, None, false, false);
     }
 
     #[test]
@@ -773,28 +1311,97 @@ mod tests {
     }
 
     #[test]
-    fn model_motion_runs_only_while_a_slot_tooltip_is_hovered() {
+    fn two_unrecognised_compounds_can_enter_dynamic_structure_resolution() {
         let mut state = State::default();
-        update(&mut state, Message::AddElement(8));
+        state.drafts[0].atoms = vec![1, 1, 16, 8, 8, 8, 8];
+        state.drafts[1].atoms = vec![11, 8, 1];
 
-        // No hover: ticks are inert.
+        assert_eq!(formula(&state.drafts[0].atoms), "H₂SO₄");
+        assert_eq!(formula(&state.drafts[1].atoms), "NaOH");
+        assert_eq!(resolution(&state), chemistry::DraftResolution::Unrecognized);
+        assert!(can_start_reaction(&state));
+        set_submit_available(&mut state, true);
+        let _ = reaction_prompt(&state, None, true, false);
+    }
+
+    #[test]
+    fn ambient_model_motion_runs_while_a_reactant_is_present() {
+        let mut state = State::default();
         update(&mut state, Message::AnimationTick);
         assert!(state.orbital_phase.abs() < f32::EPSILON);
 
-        update(
-            &mut state,
-            Message::SlotHovered(Some(ActiveReactant::First)),
-        );
+        update(&mut state, Message::AddElement(8));
         update(&mut state, Message::AnimationTick);
         assert!(state.orbital_phase > 0.0);
-        assert!(state.tooltip_reveal > 0.0);
+        assert!(state.ambient[0].reveal > 0.0);
 
-        // Leaving the slot resets the reveal so the next open fades in again.
-        update(&mut state, Message::SlotHovered(None));
-        assert!(state.tooltip_reveal.abs() < f32::EPSILON);
-        let frozen = state.orbital_phase;
+        update(&mut state, Message::ClearActive);
+        for _ in 0..16 {
+            update(&mut state, Message::AnimationTick);
+        }
+        assert!(state.ambient[0].atoms.is_empty());
+        assert!(state.ambient[0].reveal.abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn ambient_resize_keeps_one_continuous_spring_across_live_events() {
+        let mut state = State::default();
+        update(&mut state, Message::AddElement(2));
+        resize_ambient(&mut state, Size::new(1_200.0, 800.0));
+        resize_ambient(&mut state, Size::new(760.0, 620.0));
+
+        assert!((state.ambient_resize.current.width - 1_200.0).abs() < f32::EPSILON);
+        assert!((state.ambient_resize.target.width - 760.0).abs() < f32::EPSILON);
         update(&mut state, Message::AnimationTick);
-        assert!((state.orbital_phase - frozen).abs() < f32::EPSILON);
+        assert!(state.ambient_resize.current.width < 1_200.0);
+        let velocity = state.ambient_resize.velocity;
+
+        // A new drag event updates only the destination. It does not reset or
+        // add another impulse to the spring already in flight.
+        resize_ambient(&mut state, Size::new(800.0, 640.0));
+        assert!((state.ambient_resize.velocity.x - velocity.x).abs() < f32::EPSILON);
+        assert!((state.ambient_resize.velocity.y - velocity.y).abs() < f32::EPSILON);
+
+        for _ in 0..80 {
+            update(&mut state, Message::AnimationTick);
+        }
+        assert!((state.ambient_resize.current.width - 800.0).abs() < 0.2);
+        assert!((state.ambient_resize.current.height - 640.0).abs() < 0.2);
+    }
+
+    #[test]
+    fn ambient_solver_adapts_to_footprint_viewport_and_screen_side() {
+        let helium = [2];
+        let water = [1, 1, 8];
+        let large = [53, 9, 9, 9, 9, 9, 9, 9];
+
+        for viewport in [Size::new(760.0, 620.0), Size::new(1_188.0, 768.0)] {
+            for atoms in [&helium[..], &water[..], &large[..]] {
+                for side in [ActiveReactant::First, ActiveReactant::Second] {
+                    let anchor = solve_ambient_anchor(atoms, side, viewport);
+                    let footprint = ambient_footprint(
+                        atoms.len(),
+                        Size::new(viewport.width * 0.5, viewport.height),
+                        1.0,
+                    );
+                    let half_width = footprint.width / viewport.width;
+                    let half_height = footprint.height / viewport.height / 2.0;
+                    assert!(anchor.x - half_width >= 0.02);
+                    assert!(anchor.x + half_width <= 0.98);
+                    assert!(anchor.y - half_height >= 0.02);
+                    assert!(anchor.y + half_height <= 0.74);
+                }
+            }
+        }
+
+        let viewport = Size::new(1_188.0, 768.0);
+        let water_left = solve_ambient_anchor(&water, ActiveReactant::First, viewport);
+        let water_right = solve_ambient_anchor(&water, ActiveReactant::Second, viewport);
+        assert!(
+            (water_left.x - water_right.x).abs() > 0.05
+                || (water_left.y - water_right.y).abs() > 0.05,
+            "asymmetric table blocks must produce side-specific placement"
+        );
     }
 
     #[test]
@@ -823,7 +1430,7 @@ mod tests {
         // Leaving the slot cancels an in-flight hold.
         update(&mut state, Message::SlotPressed(ActiveReactant::Second));
         update(&mut state, Message::AnimationTick);
-        update(&mut state, Message::SlotHovered(None));
+        update(&mut state, Message::SlotExited(ActiveReactant::Second));
         update(&mut state, Message::AnimationTick);
         assert_eq!(reactants(&state).1, &[1, 1]);
     }

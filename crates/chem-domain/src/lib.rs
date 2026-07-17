@@ -1,15 +1,26 @@
+pub mod acidity;
 pub mod formula;
+pub mod generate;
 pub mod identity;
 pub mod material;
+pub mod periodic;
+pub mod reaction;
 pub mod scalar;
 pub mod serialization;
+pub mod species;
 pub mod state;
 pub mod structural;
 pub mod unit;
 
+pub use acidity::{BronstedAcidProfile, ProtonDonorSite, classify_bronsted_acid};
 pub use formula::{
     Charge, ChargeSign, Count, Element, ElementId, ElementRegistry, ElementSymbol, FormulaError,
     FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,
+};
+pub use generate::{
+    activity_rank, anion_valence_charge, aqueous_cation_charge, common_cation_charge,
+    displaces_hydrogen_from_acids, electronegativity, generate_structure,
+    has_variable_cation_charge, lowest_cation_charge,
 };
 pub use identity::{
     AssumptionKindId, AssumptionKindKind, AssumptionPremiseId, AssumptionPremiseKind, AtomGroupId,
@@ -28,10 +39,24 @@ pub use identity::{
 };
 pub use material::{
     AnalyticalComponent, DerivedInput, DerivedQuantity, DerivedQuantityRule, Material,
-    MaterialForm, PreparedComponent, QuantityDerivation, ResolvedSpecies,
+    MaterialForm, PreparedComponent, QuantityDerivation, ResolvedSpecies, ResolvedSpeciesInput,
+};
+pub use periodic::{
+    ELEMENT_NAMES, ELEMENT_SYMBOLS, element_name, element_registry, is_metal, symbol_of,
+    valence_electrons_of,
+};
+pub use reaction::{
+    FormulaComposition, ReactionDeclaration, ReactionDeclarationError, ReactionTerm,
+    UnbalancedReactionTerm, reaction_term,
 };
 pub use scalar::{ExactScalar, ScalarError, SourceDecimal, SourceDecimalError, WrittenPrecision};
 pub use serialization::{CanonicalJsonError, canonical_json, lowercase_hex, sha256};
+pub use species::{
+    CachedIdentityRecord, CanonicalSpeciesSerialization, ExternalIdentifier, IdentityCacheEnvelope,
+    IdentityConfidence, IdentityProvenance, ProtonationPolicy, SpeciesAmbiguity,
+    SpeciesIdentityError, SpeciesQuery, SpeciesRegistry, SpeciesResolution, StereochemistryPolicy,
+    TautomerPolicy,
+};
 pub use state::{
     ClosureState, ContactRule, InventoryLocation, InventoryPortion, LedgerEntry, MixingState,
     OpportunityTrigger, PhasePartition, ReactionCandidate, ReactionOpportunity, ReactionRuleFamily,

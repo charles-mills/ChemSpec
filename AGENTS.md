@@ -9,6 +9,12 @@ project's central trust boundary:
 No layer may bypass the layer immediately downstream of it. In particular,
 unvalidated or stale source must never reach the simulation.
 
+Chemistry is derived programmatically first — the reaction solver, structure
+generator, and graph-diff mechanism deriver answer whatever they can, and a
+model is consulted only when they decline. Both paths cross the identical
+kernel validation, and both must be equally rich (structures, mechanisms,
+animations). A confident wrong answer is worse than an honest decline.
+
 ## Start with the relevant source of truth
 
 Read only the documents needed for the task, but read the governing document
@@ -29,8 +35,7 @@ before changing a contract:
 - `grammar/chems.ebnf` — normative grammar.
 - `docs/chems-implementation-plan.md` — language implementation slices and
   acceptance criteria.
-- `conformance/README.md`, `conformance/requirements.json`, and
-  `conformance/manifest.json` — executable language and domain contract.
+- `conformance/README.md` — shared language and kernel test fixtures.
 - `docs/implementation-plan.md` and `docs/delivery-plan.md` — task IDs,
   dependencies, integration gates, and delivery cut line.
 
@@ -50,8 +55,9 @@ to `1.96.1`; do not write against a newer API by accident.
   networking, Iced, or GPU dependencies.
 - `crates/chems-lang`: lossless source frontend, diagnostics, and formatting.
   It parses syntax; it does not decide whether chemistry is supported.
-- `crates/chems-conformance`: validates the repository's executable
-  specification and reports coverage.
+- `crates/agent`: the algorithmic reaction solver, naming, mechanism
+  derivation, and provider contracts. Provider code returns claims, never
+  trusted chemistry.
 - `crates/chemspec-app`: Iced composition and presentation. It may display
   validation but may not confer it.
 - `fixtures`: reviewed integration artifacts. Expected chemistry must be
@@ -80,8 +86,9 @@ types into domain, language, validator, provider, or simulation contracts.
   catalogue digests, fixtures, and simulation seeds must be reproducible.
 - Treat diagnostic codes, severities, and byte spans as compatibility
   surfaces. Update their conformance cases deliberately.
-- Keep source provenance separate from `.chems` source and map evidence to
-  claims, not merely to a general bibliography.
+- Derive outcomes programmatically where an algorithm can decide; reserve
+  model calls for genuine unknowns, and never let either path skip exact
+  balancing or kernel validation.
 - Never expose hidden model reasoning. UI workflow entries are concise product
   events, evidence, and diagnostics.
 - Never read credential files, log secrets, place them in prompts, or weaken a
@@ -226,7 +233,6 @@ that match CI:
 cargo fmt --all --check
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
-cargo run -p chems-conformance -- validate
 ```
 
 Useful focused commands include:
@@ -234,17 +240,14 @@ Useful focused commands include:
 ```sh
 cargo test -p chem-domain
 cargo test -p chems-lang
-cargo test -p chems-conformance
+cargo test -p agent
 cargo check -p chemspec-app
 cargo run -p chemspec-app
-cargo run -p chems-conformance -- report
 ```
 
-`chems-conformance report` is a coverage report and intentionally exits with
-status 3 while requirements remain uncovered; do not describe that expected
-status as a green release gate. GUI startup, live providers, platform
-packaging, credential storage, and GPU initialization require explicit smoke
-tests and must not be claimed from unit tests alone.
+GUI startup, live providers, platform packaging, credential storage, and GPU
+initialization require explicit smoke tests and must not be claimed from unit
+tests alone.
 
 When handing work off, state the exact commands run, what passed, and any
 boundary that still needs live, GPU, network, credential, or cross-platform

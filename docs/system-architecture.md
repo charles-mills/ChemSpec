@@ -4,36 +4,36 @@
 
 ChemSpec has four distinct authorities:
 
-> The catalogue supplies reviewed chemistry; the agent proposes source and
-> observations; the kernel produces trust and structural meaning; the
-> application produces the experience.
+> The agent produces text; the validator produces trust; the
+> chemistry engine produces meaning; the application produces the experience.
 
-No downstream component may synthesize chemistry omitted by the component
-upstream of its trust boundary.
+No layer may bypass the layer immediately downstream of it. In particular, raw
+or stale provider output never reaches the simulation.
 
 ## Runtime flow
 
 ```text
-natural-language reaction request
-  -> catalogue identity resolution
-  -> reviewed-rule applicability
-     -> unsupported / no reaction / ambiguous / invalid: stop honestly
-     -> unique supported outcome: continue
-  -> provider researches typed observations
-  -> provider authors concise structural .chems 1
-  -> chems-lang parses source
-  -> chem-kernel resolves and expands reviewed rule
-  -> chem-kernel validates immutable structural derivation
-  -> ValidatedStructuralReaction
+structured reaction request
+  -> host-pinned catalogue fast path
+     -> hit: selected production rule
+     -> miss: stable identity resolution + generated structures
+        -> algorithmic reaction solver (families, confident no-reactions)
+           -> miss: cache-v3 lookup, then provider ReactionClaim
+        -> exact local balance + checked ReactionDeclaration
+        -> private ValidatedStaticOutcome (no frames)
+        -> algorithmic graph-diff mechanism derivation
+           -> miss: reviewed-family match or bounded model proposal
+  -> chem-kernel validates every animated structural derivation
+  -> ValidatedStructuralReaction or ValidatedDynamicFrames
   -> paired structural and observation frames
   -> chem-presentation guided and macroscopic plans
   -> Iced Canvas/wgpu presentation
-  -> provider supplies post-playback overview
 ```
 
-The simulation does not parse `.chems`; the agent does not construct trusted
+The simulation does not parse `.chems`; the agent does not construct validated
 domain values; the renderer does not infer bonds; and the application cannot
-mark a reaction valid.
+mark a reaction valid. Dynamic frames retain `review_candidate` provenance even
+after deterministic validation makes them renderer-readable.
 
 ## Workspace boundaries
 
@@ -67,7 +67,10 @@ source only and cannot decide chemical support.
 Owns immutable reviewed structure entries, groups, valence/electron premises,
 reaction applicability, product/map/operation templates, observation
 compatibility, provenance, review attestations, schema versions, semantic
-digests, validation, and deterministic indexes.
+digests, validation, and deterministic indexes. Optional evidence-backed
+macroscopic material records attach `Phase` to a structure in a standard or
+exact rule-role context. They are presentation facts only and cannot authorize
+a reaction or construct a product.
 
 The implemented generalized-rules design extends this boundary with an
 element registry, derived reviewed categories, checked structural traits,
@@ -87,16 +90,24 @@ before graph-state validation begins.
 
 ### `agent`
 
-Owns provider preflight, observation research, evidence packets, concise source
-proposal, bounded repair, post-simulation overview, cancellation, timeouts, and
-normalized workflow events. It returns claims and text, never trusted chemistry.
+Owns the algorithmic reaction solver (classroom families, solubility and
+activity tables, confident no-reactions), systematic naming in both
+directions (product names and typed-name input), graph-diff mechanism
+derivation, provider preflight, closed claim and mechanism wire contracts,
+reviewed identity projection, exact outcome compilation, reviewed-family
+matching, bounded mechanism escalation, cache v3, timeouts, and normalized
+progress. Cached, solved, and fresh artefacts cross the same
+identity/balance/kernel gates. It never constructs host-pinned catalogue
+trust.
 
 ### `chem-presentation`
 
-Compiles trusted kernel frames into deterministic educational scenes and binds
-host-selected macroscopic styling into a scene plan. Effects require matching
-validated observation predicates. It cannot parse source, expand rules, alter
-frames, or construct chemical state.
+Compiles validated kernel frames into deterministic educational scenes and binds
+host-selected or generic phase-driven macroscopic styling into a scene plan.
+The generic compiler accepts catalogue-resolved material roles/phases and typed
+observations, never reaction names. Effects require matching validated
+observation predicates. It cannot parse source, expand rules, alter frames, or
+construct chemical state.
 
 ### `chemspec-app`
 
@@ -115,15 +126,15 @@ structural-rule and kernel boundary.
 
 ## Shared contracts
 
-### `ResolvedReactionClaim`
+### `ReactionClaim`
 
 ```text
-source hash and catalogue version/digest
-declared reactants, products, coefficients, and equation
-model disclosures
-evidence packet and typed observation references
-selected rule and complete role binding
-source origins
+closed disposition
+factual product names, formulae, and phases
+required context and typed qualitative observations
+direct source locations and claim-field mappings
+typed ambiguity alternatives
+no structures, coefficients, mapping, operations, or internal trust
 ```
 
 ### `ExpandedStructuralReaction`
@@ -162,12 +173,31 @@ active operation
 explanatory disclosure
 ```
 
+### Structure-derived acid capability
+
+Acid identity is not a formula or name whitelist. Any reviewed, cached, or
+model-proposed structure that has crossed the normal graph validator may be
+inspected for Brønsted-Lowry proton-donor sites. A site exists only when a
+shared single X-H bond can be heterolytically cleaved to X through the exact
+structural-operation electron ledger. The result identifies a possible proton
+donor; acid strength, solvent behaviour, equilibrium, and applicability of a
+complete-dissociation reaction family remain separate premise-bound facts.
+
+Formula-only species receive no acid classification. This preserves isomer and
+protonation ambiguity while allowing inorganic, organic, weak, and polyprotic
+acids to remain valid compounds once their structures validate.
+
 ## Persistence and staleness
 
-The `.chems` file is the human-readable authored artifact. Evidence,
-certificate, derivation, and frames remain separate and bind to source,
-catalogue, and evidence digests. Editing source or changing either trusted
-digest invalidates every downstream value.
+The `.chems` file is the human-readable authored artifact. Certificate,
+derivation, and frames remain separate and bind to source and catalogue
+digests. Editing source or changing a trusted digest invalidates every
+downstream value.
+
+Dynamic cache v3 is separate from authored `.chems`. It binds stable request
+identities, context, identity/catalogue snapshots, and claim/compiler/mechanism
+contract versions. It stores only untrusted claim/presentation recipes;
+offline load reconstructs every capability through current validators.
 
 ## Platform decision
 
