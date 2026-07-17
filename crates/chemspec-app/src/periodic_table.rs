@@ -429,18 +429,21 @@ enum TileEmphasis {
 
 fn tile_style(category: Category, emphasis: TileEmphasis) -> container::Style {
     let accent = theme::category_color(category);
+    // The keycaps remain fully legible while allowing the quiet reactant
+    // models beneath the library to show through as atmosphere.
+    let resting_surface = color::SURFACE.scale_alpha(0.88);
 
     // A hovered key wakes up in its own family colour: the surface and
     // border lift toward it and the tick brightens. No drop shadow — at key
     // size on a dark canvas it reads as smear, not depth.
-    let hover_background = theme::mix(color::SURFACE, accent, 0.10);
+    let hover_background = theme::mix(resting_surface, accent.scale_alpha(0.92), 0.10);
     let hover_border = theme::mix(color::LINE, accent, 0.60);
 
     let (background, border_color, border_width, shadow) = match emphasis {
-        TileEmphasis::Idle => (color::SURFACE, color::LINE, 1.0, Shadow::default()),
+        TileEmphasis::Idle => (resting_surface, color::LINE, 1.0, Shadow::default()),
         TileEmphasis::Hovered => (hover_background, hover_border, 1.0, Shadow::default()),
         TileEmphasis::HoverFading(intensity) => (
-            theme::mix(color::SURFACE, hover_background, intensity),
+            theme::mix(resting_surface, hover_background, intensity),
             theme::mix(color::LINE, hover_border, intensity),
             1.0,
             Shadow::default(),
@@ -450,7 +453,7 @@ fn tile_style(category: Category, emphasis: TileEmphasis) -> container::Style {
             let (base_background, base_border) = if hovered {
                 (hover_background, hover_border)
             } else {
-                (color::SURFACE, color::LINE)
+                (resting_surface, color::LINE)
             };
             (
                 theme::mix(base_background, accent, 0.18 * intensity),

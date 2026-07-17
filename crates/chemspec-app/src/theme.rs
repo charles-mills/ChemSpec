@@ -281,8 +281,6 @@ pub mod motion {
     pub const PROMPT_TICK: std::time::Duration = std::time::Duration::from_millis(16);
     /// Per-frame prompt fade progress (~400 ms to complete).
     pub const PROMPT_FADE_STEP: f32 = 0.04;
-    /// Per-tick progress of a hover reveal (~150 ms to complete).
-    pub const REVEAL_STEP: f32 = 0.22;
     /// Per-tick orbital advance (one revolution ≈ 12.5 s).
     pub const ORBIT_STEP: f32 = 0.002_6;
     /// Per-tick progress of a hold-to-clear gesture (~650 ms to complete).
@@ -291,12 +289,6 @@ pub mod motion {
     pub const KEY_RELEASE_STEP: f32 = 0.03;
     /// Per-tick progress of a hover state's release fade (~180 ms).
     pub const HOVER_RELEASE_STEP: f32 = 0.18;
-}
-
-/// Ease-out cubic for reveal progress: fast start, gentle settle.
-pub fn ease_out(progress: f32) -> f32 {
-    let inverse = 1.0 - progress.clamp(0.0, 1.0);
-    1.0 - inverse * inverse * inverse
 }
 
 /// Symmetric smoothstep easing for opacity transitions in either direction.

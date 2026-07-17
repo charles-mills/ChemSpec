@@ -17,23 +17,6 @@ pub enum Category {
     Actinide,
 }
 
-impl Category {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::AlkaliMetal => "Alkali metal",
-            Self::AlkalineEarth => "Alkaline earth",
-            Self::TransitionMetal => "Transition metal",
-            Self::PostTransitionMetal => "Post-transition metal",
-            Self::Metalloid => "Metalloid",
-            Self::ReactiveNonmetal => "Reactive nonmetal",
-            Self::Halogen => "Halogen",
-            Self::NobleGas => "Noble gas",
-            Self::Lanthanide => "Lanthanide",
-            Self::Actinide => "Actinide",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElementSpec {
     pub atomic_number: u8,

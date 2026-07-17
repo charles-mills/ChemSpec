@@ -8,7 +8,7 @@ use std::f32::consts::TAU;
 use iced::alignment;
 use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
-use iced::{Color, Point, Rectangle, Renderer, Theme, Vector};
+use iced::{Color, Point, Rectangle, Renderer, Size, Theme, Vector};
 
 use crate::composition_catalogue::TrustedCompositionPreview;
 use crate::elements::ElementSpec;
@@ -35,12 +35,6 @@ impl AtomDiagram {
             phase,
             reveal: 1.0,
         }
-    }
-
-    /// Fades the whole diagram with a 0..=1 reveal progress.
-    pub const fn with_reveal(mut self, reveal: f32) -> Self {
-        self.reveal = reveal;
-        self
     }
 }
 
@@ -96,12 +90,6 @@ impl CompoundAtomicDiagram {
         }
     }
 
-    /// Fades the whole diagram with a 0..=1 reveal progress.
-    pub const fn with_reveal(mut self, reveal: f32) -> Self {
-        self.reveal = reveal;
-        self
-    }
-
     /// Uses a compact ball-and-stick treatment for selection cards where a
     /// full shell model would make larger molecules illegible.
     pub const fn structure_only(mut self) -> Self {
@@ -122,42 +110,221 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let atoms = arranged_atoms(&self.preview, &self.elements, bounds);
-        for bond in self.preview.covalent_bonds() {
-            if let (Some((_, start)), Some((_, end))) = (atoms.get(bond.start), atoms.get(bond.end))
-            {
-                draw_shared_pairs(&mut frame, *start, *end, bond.order, self.reveal);
-            }
+        draw_compound(
+            &mut frame,
+            &self.preview,
+            &self.elements,
+            bounds,
+            self.phase,
+            self.reveal,
+            self.show_shells,
+        );
+
+        vec![frame.into_geometry()]
+    }
+}
+
+/// A quiet, non-interactive reactant model intended to sit behind the element
+/// library. Its drawing envelope is normalized independently from atom count,
+/// so a single helium atom remains legible while larger compounds stay bounded.
+#[derive(Debug, Clone)]
+pub struct AmbientReactantDiagram {
+    atoms: Vec<u8>,
+    preview: Option<TrustedCompositionPreview>,
+    elements: Vec<ElementSpec>,
+    phase: f32,
+    reveal: f32,
+    scale: f32,
+    anchor: Point,
+    offset: Vector,
+    direction: f32,
+}
+
+impl AmbientReactantDiagram {
+    pub fn new(
+        atoms: Vec<u8>,
+        phase: f32,
+        reveal: f32,
+        scale: f32,
+        anchor: Point,
+        offset: Vector,
+        direction: f32,
+    ) -> Self {
+        let preview = crate::composition_catalogue::trusted_preview(atoms.iter().copied());
+        let elements = atoms
+            .iter()
+            .filter_map(|number| crate::elements::by_atomic_number(*number).copied())
+            .collect();
+
+        Self {
+            atoms,
+            preview,
+            elements,
+            phase,
+            reveal,
+            scale,
+            anchor,
+            offset,
+            direction,
         }
-        for link in self.preview.ionic_links() {
-            if let (Some((_, start)), Some((_, end))) = (atoms.get(link.start), atoms.get(link.end))
-            {
-                frame.stroke(
-                    &Path::line(*start, *end),
-                    Stroke::default()
-                        .with_color(chemistry_color::IONIC.scale_alpha(0.35 * self.reveal))
-                        .with_width(2.0),
-                );
-            }
+    }
+}
+
+impl<Message> canvas::Program<Message> for AmbientReactantDiagram {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        _theme: &Theme,
+        bounds: Rectangle,
+        _cursor: Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        if self.atoms.is_empty() || self.elements.is_empty() || self.reveal <= 0.0 {
+            return vec![frame.into_geometry()];
         }
-        for (element, position) in atoms {
-            let radius =
-                compound_atom_radius(element).min(layout_atom_radius(bounds, self.elements.len()));
-            if self.show_shells {
-                draw_atomic_model_revealed(
+
+        let count = self.elements.len();
+        let scale = self.scale.clamp(0.78, 1.18);
+        let footprint = ambient_footprint(count, bounds.size(), scale);
+        let drift = Vector::new(
+            (self.phase * TAU).sin() * 5.0 * self.direction,
+            (self.phase * TAU * 0.73).cos() * 4.0,
+        );
+        // Most of the model floats in the open air above the key grid; its
+        // lower edge is the part that passes behind the periodic table.
+        let center = Point::new(bounds.width * self.anchor.x, bounds.height * self.anchor.y)
+            + self.offset
+            + drift;
+        // The low alpha keeps the model atmospheric behind the key grid, not
+        // a second foreground control. Reveal is animated by the composer.
+        let reveal = self.reveal.clamp(0.0, 1.0) * 0.20;
+
+        if count == 1 {
+            draw_atomic_model_revealed(
+                &mut frame,
+                self.elements[0],
+                center,
+                footprint.width / 2.0,
+                self.phase,
+                reveal,
+            );
+        } else {
+            let model_bounds = Rectangle {
+                x: center.x - footprint.width / 2.0,
+                y: center.y - footprint.height / 2.0,
+                width: footprint.width,
+                height: footprint.height,
+            };
+
+            if let Some(preview) = &self.preview {
+                draw_compound(
                     &mut frame,
-                    element,
-                    position,
-                    radius,
+                    preview,
+                    &self.elements,
+                    model_bounds,
                     self.phase,
-                    self.reveal,
+                    reveal,
+                    false,
                 );
             } else {
-                draw_structure_atom(&mut frame, element, position, radius, self.reveal);
+                draw_draft_structure(&mut frame, &self.elements, model_bounds, reveal);
             }
         }
 
         vec![frame.into_geometry()]
+    }
+}
+
+fn ambient_base_extent(bounds: Rectangle) -> f32 {
+    let short_side = bounds.width.min(bounds.height).max(0.0);
+    (short_side * 0.54)
+        .clamp(96.0, 300.0)
+        .min((short_side - 12.0).max(24.0))
+}
+
+/// Pixel footprint used by both the Canvas renderer and the builder's ambient
+/// placement solver. Keeping one measurement prevents layout decisions from
+/// drifting away from what is actually drawn.
+pub(crate) fn ambient_footprint(atom_count: usize, bounds: Size, scale: f32) -> Size {
+    let bounds = Rectangle::new(Point::ORIGIN, bounds);
+    let base_extent = ambient_base_extent(bounds);
+    let scale = scale.clamp(0.78, 1.18);
+    if atom_count <= 1 {
+        let diameter = base_extent * 0.86 * scale;
+        Size::new(diameter, diameter)
+    } else {
+        let complexity = match atom_count {
+            0..=2 => 1.4,
+            3..=4 => 2.0,
+            5..=8 => 2.8,
+            _ => 3.5,
+        };
+        Size::new(
+            (base_extent * (1.08 + complexity * 0.10) * scale).min(bounds.width * 0.78),
+            (base_extent * 0.82 * scale).min(bounds.height * 0.68),
+        )
+    }
+}
+
+fn draw_compound(
+    frame: &mut canvas::Frame,
+    preview: &TrustedCompositionPreview,
+    elements: &[ElementSpec],
+    bounds: Rectangle,
+    phase: f32,
+    reveal: f32,
+    show_shells: bool,
+) {
+    let atoms = arranged_atoms(preview, elements, bounds);
+    for bond in preview.covalent_bonds() {
+        if let (Some((_, start)), Some((_, end))) = (atoms.get(bond.start), atoms.get(bond.end)) {
+            draw_shared_pairs(frame, *start, *end, bond.order, reveal);
+        }
+    }
+    for link in preview.ionic_links() {
+        if let (Some((_, start)), Some((_, end))) = (atoms.get(link.start), atoms.get(link.end)) {
+            frame.stroke(
+                &Path::line(*start, *end),
+                Stroke::default()
+                    .with_color(chemistry_color::IONIC.scale_alpha(0.35 * reveal))
+                    .with_width(2.0),
+            );
+        }
+    }
+    for (element, position) in atoms {
+        let radius = compound_atom_radius(element).min(layout_atom_radius(bounds, elements.len()));
+        if show_shells {
+            draw_atomic_model_revealed(frame, element, position, radius, phase, reveal);
+        } else {
+            draw_structure_atom(frame, element, position, radius, reveal);
+        }
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn draw_draft_structure(
+    frame: &mut canvas::Frame,
+    elements: &[ElementSpec],
+    bounds: Rectangle,
+    reveal: f32,
+) {
+    let columns = elements.len().min(4);
+    let rows = elements.len().div_ceil(columns);
+    let cell_width = bounds.width / columns as f32;
+    let cell_height = bounds.height / rows as f32;
+    let radius = (cell_width.min(cell_height) * 0.24).clamp(9.0, 18.0);
+
+    for (index, element) in elements.iter().copied().enumerate() {
+        let column = index % columns;
+        let row = index / columns;
+        let position = Point::new(
+            bounds.x + (column as f32 + 0.5) * cell_width,
+            bounds.y + (row as f32 + 0.5) * cell_height,
+        );
+        draw_structure_atom(frame, element, position, radius, reveal);
     }
 }
 
@@ -240,7 +407,10 @@ fn arranged_atoms(
     elements: &[ElementSpec],
     bounds: Rectangle,
 ) -> Vec<(ElementSpec, Point)> {
-    let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
+    let center = Point::new(
+        bounds.x + bounds.width / 2.0,
+        bounds.y + bounds.height / 2.0,
+    );
     if elements.is_empty() {
         return Vec::new();
     }
@@ -509,5 +679,17 @@ mod tests {
                 .all(|bond| bond.start == iodine || bond.end == iodine)
         );
         assert_eq!(atoms[iodine].1, Point::new(110.0, 75.0));
+    }
+
+    #[test]
+    fn ambient_extent_keeps_small_atoms_legible_and_large_models_bounded() {
+        let compact = Rectangle::new(Point::ORIGIN, iced::Size::new(240.0, 180.0));
+        let desktop = Rectangle::new(Point::ORIGIN, iced::Size::new(760.0, 520.0));
+        let huge = Rectangle::new(Point::ORIGIN, iced::Size::new(2_000.0, 1_400.0));
+
+        assert!(ambient_base_extent(compact) >= 96.0);
+        assert!(ambient_base_extent(desktop) >= 240.0);
+        assert!((ambient_base_extent(huge) - 300.0).abs() < f32::EPSILON);
+        assert!(ambient_base_extent(compact) <= compact.height - 12.0);
     }
 }

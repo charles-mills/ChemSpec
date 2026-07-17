@@ -890,7 +890,10 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn update_with_task(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::WindowResized(size) => self.ui_zoom = adaptive_zoom(size, self.ui_zoom),
+            Message::WindowResized(size) => {
+                self.ui_zoom = adaptive_zoom(size, self.ui_zoom);
+                reactant_composer::resize_ambient(&mut self.reactant_composer, size);
+            }
             Message::KeyboardEvent(event) => {
                 if let Some(message) = builder_keyboard_message(
                     self.screen,
@@ -3278,11 +3281,11 @@ impl App {
             compact,
         )
         .map(Message::ReactantComposer);
-        let library = container(
-            periodic_table::view(&self.periodic_table, compact).map(Message::PeriodicTable),
-        )
-        .width(Fill)
-        .height(Fill);
+        let ambient_models =
+            reactant_composer::ambient_view(&self.reactant_composer).map(Message::ReactantComposer);
+        let element_library =
+            periodic_table::view(&self.periodic_table, compact).map(Message::PeriodicTable);
+        let library = container(element_library).width(Fill).height(Fill);
 
         let dynamic_busy = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
@@ -3315,23 +3318,22 @@ impl App {
             } else {
                 space().height(Length::Shrink).into()
             };
-        let application = container(
-            column![
-                toolbar,
-                composer,
-                build_details,
-                identity_choice,
-                result,
-                library
-            ]
-            .spacing(spacing::XS)
-            .width(Fill)
-            .height(Fill),
-        )
-        .style(theme::app_background)
-        .padding(if compact { spacing::XS } else { spacing::SM })
+        let foreground = column![
+            toolbar,
+            composer,
+            build_details,
+            identity_choice,
+            result,
+            library
+        ]
+        .spacing(spacing::XS)
         .width(Fill)
         .height(Fill);
+        let application = container(stack![ambient_models, foreground].width(Fill).height(Fill))
+            .style(theme::app_background)
+            .padding(if compact { spacing::XS } else { spacing::SM })
+            .width(Fill)
+            .height(Fill);
         let drag_overlay =
             periodic_table::drag_overlay(&self.periodic_table, size).map(Message::PeriodicTable);
         let toolbar_overlay: Element<'_, Message> = if self.builder_panel.is_some() {
