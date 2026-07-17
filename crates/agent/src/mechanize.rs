@@ -580,6 +580,83 @@ fn expand_side(species: &[MechanismSpecies]) -> Option<Side> {
 /// First pass pairs identical local signatures (preserved fragments), the
 /// second prefers candidates that keep already-mapped bonds intact, the
 /// remainder match by element alone.
+/// Instance ordinal from an expanded path ("reactant1[2].a3" is copy 2).
+fn instance_ordinal(path: &str) -> u32 {
+    path.split('[')
+        .nth(1)
+        .and_then(|rest| rest.split(']').next())
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0)
+}
+
+/// Adjacency as (neighbour atom index, bond order) per atom.
+fn adjacency(side: &Side) -> Vec<Vec<(usize, u8)>> {
+    let index_of = side
+        .atoms
+        .iter()
+        .enumerate()
+        .map(|(index, atom)| (atom.path.as_str(), index))
+        .collect::<BTreeMap<_, _>>();
+    let mut result = vec![Vec::new(); side.atoms.len()];
+    for bond in &side.bonds {
+        if let (Some(&left), Some(&right)) = (
+            index_of.get(bond.left.as_str()),
+            index_of.get(bond.right.as_str()),
+        ) {
+            result[left].push((right, bond.order));
+            result[right].push((left, bond.order));
+        }
+    }
+    result
+}
+
+/// Least-action score for one candidate assignment, to maximize: preserved
+/// bonds first (every unpreserved bond is a cleave plus a form), then the
+/// fewest electron transfers, then instances staying with their own copies.
+fn mapping_action(
+    reactants: &Side,
+    products: &Side,
+    reactant_adjacency: &[Vec<(usize, u8)>],
+    assignment: &[Option<usize>],
+) -> (i64, i64, i64) {
+    let mut preserved = 0_i64;
+    for bond in &products.bonds {
+        let index_of = |path: &str| products.atoms.iter().position(|atom| atom.path == path);
+        let (Some(left), Some(right)) = (index_of(&bond.left), index_of(&bond.right)) else {
+            continue;
+        };
+        if let (Some(mapped_left), Some(mapped_right)) = (assignment[left], assignment[right])
+            && reactant_adjacency[mapped_left]
+                .iter()
+                .any(|(neighbour, order)| *neighbour == mapped_right && *order == bond.order)
+        {
+            preserved += 1;
+        }
+    }
+    let mut charge_mismatch = 0_i64;
+    let mut instance_distance = 0_i64;
+    for (product_index, reactant_index) in assignment.iter().enumerate() {
+        let Some(reactant_index) = reactant_index else {
+            continue;
+        };
+        let reactant = &reactants.atoms[*reactant_index];
+        let product = &products.atoms[product_index];
+        charge_mismatch +=
+            i64::from((i32::from(reactant.state.charge) - i32::from(product.state.charge)).abs());
+        instance_distance +=
+            i64::from(instance_ordinal(&reactant.path).abs_diff(instance_ordinal(&product.path)));
+    }
+    (preserved, -charge_mismatch, -instance_distance)
+}
+
+/// Element-preserving bijection from reactant atoms to product atoms,
+/// chosen for least chemical action: preserved fragments pair exactly
+/// (nearest copy first), the remainder grows outward from already-mapped
+/// neighbours so bond-preservation scoring has context, and a bounded
+/// 2-opt pass removes gratuitous swaps. Fewer unpreserved bonds and
+/// transfers mean fewer operations and calmer animation; the kernel
+/// validates the result identically either way.
+#[allow(clippy::too_many_lines)]
 fn map_atoms(reactants: &Side, products: &Side) -> Option<BTreeMap<String, String>> {
     let signature = |side: &Side, atom: &SideAtom| {
         let mut neighbours = side
@@ -618,69 +695,110 @@ fn map_atoms(reactants: &Side, products: &Side) -> Option<BTreeMap<String, Strin
         .iter()
         .map(|atom| signature(products, atom))
         .collect::<Vec<_>>();
+    let reactant_adjacency = adjacency(reactants);
+    let product_adjacency = adjacency(products);
 
-    let mut mapping = BTreeMap::<String, String>::new();
+    let mut assignment: Vec<Option<usize>> = vec![None; products.atoms.len()];
     let mut used = vec![false; reactants.atoms.len()];
-    let mut assigned = vec![false; products.atoms.len()];
 
-    // Pass 1: exact local-environment matches.
+    // Pass 1: exact local-environment matches, nearest copy first.
     for (product_index, product) in products.atoms.iter().enumerate() {
-        if let Some(reactant_index) = reactants.atoms.iter().enumerate().position(|(index, _)| {
-            !used[index] && reactant_signatures[index] == product_signatures[product_index]
-        }) {
-            used[reactant_index] = true;
-            assigned[product_index] = true;
-            mapping.insert(
-                reactants.atoms[reactant_index].path.clone(),
-                product.path.clone(),
-            );
+        let candidate = (0..reactants.atoms.len())
+            .filter(|index| {
+                !used[*index] && reactant_signatures[*index] == product_signatures[product_index]
+            })
+            .min_by_key(|index| {
+                (
+                    instance_ordinal(&reactants.atoms[*index].path)
+                        .abs_diff(instance_ordinal(&product.path)),
+                    *index,
+                )
+            });
+        if let Some(index) = candidate {
+            used[index] = true;
+            assignment[product_index] = Some(index);
         }
     }
-    // Pass 2: prefer candidates that preserve bonds to already-mapped atoms.
-    let inverse_of = |mapping: &BTreeMap<String, String>, product_path: &str| {
-        mapping
-            .iter()
-            .find(|(_, mapped)| mapped.as_str() == product_path)
-            .map(|(reactant, _)| reactant.clone())
-    };
-    for (product_index, product) in products.atoms.iter().enumerate() {
-        if assigned[product_index] {
-            continue;
-        }
-        let bonded_reactant_partners = products
-            .bonds
-            .iter()
-            .filter_map(|bond| {
-                let other = if bond.left == product.path {
-                    &bond.right
-                } else if bond.right == product.path {
-                    &bond.left
-                } else {
-                    return None;
-                };
-                inverse_of(&mapping, other)
-            })
-            .collect::<Vec<_>>();
-        let score = |candidate: &SideAtom| {
-            reactants
-                .bonds
+
+    // Pass 2: grow outward from mapped atoms; the frontier atom with the
+    // most already-mapped neighbours goes first so its score has context.
+    loop {
+        let mapped_neighbours = |product_index: usize| {
+            product_adjacency[product_index]
                 .iter()
-                .filter(|bond| {
-                    (bond.left == candidate.path && bonded_reactant_partners.contains(&bond.right))
-                        || (bond.right == candidate.path
-                            && bonded_reactant_partners.contains(&bond.left))
+                .filter(|(neighbour, _)| assignment[*neighbour].is_some())
+                .count()
+        };
+        let Some(product_index) = (0..products.atoms.len())
+            .filter(|index| assignment[*index].is_none())
+            .max_by_key(|index| (mapped_neighbours(*index), std::cmp::Reverse(*index)))
+        else {
+            break;
+        };
+        let product = &products.atoms[product_index];
+        let preserved_with = |candidate: usize| {
+            product_adjacency[product_index]
+                .iter()
+                .filter(|(neighbour, order)| {
+                    assignment[*neighbour].is_some_and(|mapped| {
+                        reactant_adjacency[candidate]
+                            .iter()
+                            .any(|(other, other_order)| *other == mapped && other_order == order)
+                    })
                 })
                 .count()
         };
-        let best = reactants
-            .atoms
-            .iter()
-            .enumerate()
-            .filter(|(index, candidate)| !used[*index] && candidate.element == product.element)
-            .max_by_key(|(_, candidate)| score(candidate))?;
-        used[best.0] = true;
-        assigned[product_index] = true;
-        mapping.insert(best.1.path.clone(), product.path.clone());
+        let best = (0..reactants.atoms.len())
+            .filter(|index| !used[*index] && reactants.atoms[*index].element == product.element)
+            .max_by_key(|index| {
+                (
+                    preserved_with(*index),
+                    std::cmp::Reverse(
+                        instance_ordinal(&reactants.atoms[*index].path)
+                            .abs_diff(instance_ordinal(&product.path)),
+                    ),
+                    std::cmp::Reverse(*index),
+                )
+            })?;
+        used[best] = true;
+        assignment[product_index] = Some(best);
     }
+
+    // 2-opt: swap same-element destinations while the action improves.
+    let mut action = mapping_action(reactants, products, &reactant_adjacency, &assignment);
+    for _ in 0..6 {
+        let mut improved = false;
+        for first in 0..assignment.len() {
+            for second in (first + 1)..assignment.len() {
+                if products.atoms[first].element != products.atoms[second].element {
+                    continue;
+                }
+                assignment.swap(first, second);
+                let swapped = mapping_action(reactants, products, &reactant_adjacency, &assignment);
+                if swapped > action {
+                    action = swapped;
+                    improved = true;
+                } else {
+                    assignment.swap(first, second);
+                }
+            }
+        }
+        if !improved {
+            break;
+        }
+    }
+
+    let mapping = assignment
+        .iter()
+        .enumerate()
+        .map(|(product_index, reactant_index)| {
+            reactant_index.map(|index| {
+                (
+                    reactants.atoms[index].path.clone(),
+                    products.atoms[product_index].path.clone(),
+                )
+            })
+        })
+        .collect::<Option<BTreeMap<_, _>>>()?;
     (mapping.len() == reactants.atoms.len() && used.iter().all(|flag| *flag)).then_some(mapping)
 }

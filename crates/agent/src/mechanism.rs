@@ -1809,6 +1809,94 @@ mod tests {
         assert_eq!(provider.mechanism_calls, 0, "no model in the path");
     }
 
+    /// The derived mechanism for the given outcome, straight from the
+    /// algorithmic deriver.
+    fn derived_response(
+        trusted: &TrustedCatalogue,
+        outcome: &ValidatedStaticOutcome,
+    ) -> crate::MechanismEscalationResponse {
+        let augmented =
+            crate::structure::bundle_with_outcome_structures(outcome, trusted).expect("bundle");
+        let context = compile_mechanism_request(outcome, &augmented)
+            .expect("request")
+            .expect("structures");
+        crate::mechanize::derive_algorithmic_mechanism(&context.request).expect("derived")
+    }
+
+    #[test]
+    fn neutralization_mapping_keeps_the_sulfate_intact() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [
+                ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]),
+                ("NaOH", vec![11, 8, 1]),
+            ],
+            &json!([
+                {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
+                {"name":"sodium sulfate","formula":"Na2SO4","phase":"aqueous","identity_hints":[]}
+            ]),
+        );
+        let response = derived_response(&trusted, &outcome);
+        let cleaves = response
+            .operations
+            .iter()
+            .filter(|operation| matches!(operation, MechanismOperation::CleaveCovalent { .. }))
+            .count();
+        let forms = response
+            .operations
+            .iter()
+            .filter(|operation| matches!(operation, MechanismOperation::FormCovalent { .. }))
+            .count();
+        // Least action: only the two acid O-H bonds break, only the two
+        // water O-H bonds form. The sulfate skeleton passes through intact.
+        assert_eq!((cleaves, forms), (2, 2), "ops: {:?}", response.operations);
+    }
+
+    #[test]
+    fn sodium_and_water_mapping_never_swaps_hydrogens_between_copies() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("Na", vec![11]), ("Water", vec![1, 1, 8])],
+            &json!([
+                {"name":"sodium hydroxide","formula":"NaOH","phase":"aqueous","identity_hints":[]},
+                {"name":"Hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let response = derived_response(&trusted, &outcome);
+        // Each product hydroxide keeps its O-H pair from a single water
+        // copy — hydrogens never swap between waters. (The H2 molecule is
+        // exempt: it genuinely combines hydrogens from two waters.)
+        let mut sources: BTreeMap<String, (bool, BTreeSet<String>)> = BTreeMap::new();
+        for entry in &response.mapping {
+            let (Some(product_instance), Some(reactant_instance)) = (
+                entry.product.split('.').next(),
+                entry.reactant.split('.').next(),
+            ) else {
+                continue;
+            };
+            if !reactant_instance.starts_with("reactant2[") {
+                continue;
+            }
+            let group = sources.entry(product_instance.to_owned()).or_default();
+            group.0 |= entry.reactant.split('.').next_back() == Some("o");
+            group.1.insert(reactant_instance.to_owned());
+        }
+        let hydroxides = sources
+            .values()
+            .filter(|(has_oxygen, _)| *has_oxygen)
+            .collect::<Vec<_>>();
+        assert_eq!(hydroxides.len(), 2, "mapping: {:?}", response.mapping);
+        for (_, waters) in hydroxides {
+            assert_eq!(
+                waters.len(),
+                1,
+                "a hydroxide draws from several waters: {waters:?}"
+            );
+        }
+    }
+
     #[test]
     fn lithium_arsenide_animates_algorithmically_without_any_model() {
         let trusted = trusted();
