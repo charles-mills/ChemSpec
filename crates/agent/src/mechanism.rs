@@ -40,6 +40,7 @@ pub struct MechanismContext {
     reactant_atoms: BTreeMap<String, String>,
     product_atoms: BTreeMap<String, String>,
     reactant_domains: BTreeSet<String>,
+    product_domains: BTreeSet<String>,
     reactant_associations: BTreeSet<String>,
     product_instances: BTreeSet<String>,
 }
@@ -198,6 +199,7 @@ pub fn compile_mechanism_request(
     let mut reactant_atoms = BTreeMap::new();
     let mut product_atoms = BTreeMap::new();
     let mut reactant_domains = BTreeSet::new();
+    let mut product_domains = BTreeSet::new();
     let mut reactant_associations = BTreeSet::new();
     let mut product_instances = BTreeSet::new();
     for (side, terms) in [
@@ -256,6 +258,13 @@ pub fn compile_mechanism_request(
                             .map(|association| format!("{role}[{instance}].{}", association.id())),
                     );
                 } else {
+                    product_domains.extend(
+                        structure
+                            .graph()
+                            .metallic_domains()
+                            .values()
+                            .map(|domain| format!("{role}[{instance}].{}", domain.id())),
+                    );
                     product_instances.insert(format!("{role}[{instance}]"));
                 }
             }
@@ -332,6 +341,7 @@ pub fn compile_mechanism_request(
         reactant_atoms,
         product_atoms,
         reactant_domains,
+        product_domains,
         reactant_associations,
         product_instances,
     }))
@@ -728,12 +738,8 @@ fn provisional_mechanism_bundle(
         }
         provisional.insert(record);
     }
-    let provisional_metallic = derive_provisional_metallic_operation_states(
-        context,
-        response,
-        catalogue,
-        &reviewed_metallic,
-    )?;
+    let provisional_metallic =
+        derive_provisional_metallic_operation_states(context, response, &reviewed_metallic)?;
     if provisional.is_empty() && provisional_metallic.is_empty() {
         return Ok(None);
     }
@@ -822,24 +828,34 @@ fn provisional_mechanism_bundle(
 fn derive_provisional_metallic_operation_states(
     context: &MechanismContext,
     response: &MechanismEscalationResponse,
-    catalogue: &ValidatedCatalogueBundle,
     reviewed: &BTreeSet<MetallicValenceStateRecord>,
 ) -> Result<BTreeSet<MetallicValenceStateRecord>, AgentError> {
     let mut provisional = BTreeSet::new();
     for operation in &response.operations {
-        let (site, domain, state, site_delta) = match operation {
+        // The in-domain endpoint state (before a release, after a join);
+        // the op's own electron delta is that site's delocalized share,
+        // independent of how far a multi-site sequence has progressed.
+        let (site, state, share) = match operation {
             MechanismOperation::ReleaseMetallic {
                 site,
-                domain,
                 before,
-                ..
-            } => (site, domain, before, 0_i8),
-            MechanismOperation::JoinMetallic {
-                site,
-                domain,
                 after,
                 ..
-            } => (site, domain, after, 1_i8),
+            } => (
+                site,
+                before,
+                before.domain_electrons.abs_diff(after.domain_electrons),
+            ),
+            MechanismOperation::JoinMetallic {
+                site,
+                before,
+                after,
+                ..
+            } => (
+                site,
+                after,
+                before.domain_electrons.abs_diff(after.domain_electrons),
+            ),
             _ => continue,
         };
         if state.site.1 != 0 {
@@ -848,54 +864,10 @@ fn derive_provisional_metallic_operation_states(
                 format!("metallic site `{site}` must have zero local electrons in-domain"),
             ));
         }
-        let role = domain.split('[').next().ok_or_else(|| {
-            AgentError::new("provisional valence", "metallic domain has no role prefix")
-        })?;
-        let domain_label = domain
-            .split_once("].")
-            .map(|(_, label)| label)
-            .ok_or_else(|| {
-                AgentError::new("provisional valence", "metallic domain path is malformed")
-            })?;
-        let role = context.roles.get(role).ok_or_else(|| {
-            AgentError::new(
-                "provisional valence",
-                "metallic domain role does not resolve",
-            )
-        })?;
-        let structure = catalogue.structures().get(&role.structure).ok_or_else(|| {
-            AgentError::new("provisional valence", "metallic structure does not resolve")
-        })?;
-        let domain = structure
-            .graph()
-            .metallic_domains()
-            .values()
-            .find(|candidate| candidate.id().as_str() == domain_label)
-            .ok_or_else(|| {
-                AgentError::new(
-                    "provisional valence",
-                    "metallic domain label does not resolve",
-                )
-            })?;
-        let base_count = u32::try_from(domain.sites().len())
-            .map_err(|_| AgentError::new("provisional valence", "metallic site count overflow"))?;
-        let site_count = if site_delta == 0 {
-            base_count
-        } else {
-            base_count.checked_add(1).ok_or_else(|| {
-                AgentError::new("provisional valence", "metallic site count overflow")
-            })?
-        };
-        if site_count == 0
-            || state.domain_electrons == 0
-            || state.domain_electrons % site_count != 0
-        {
+        if share == 0 {
             return Err(AgentError::new(
                 "provisional valence",
-                format!(
-                    "metallic domain `{}` has inconsistent site electrons",
-                    domain.id()
-                ),
+                format!("metallic operation on `{site}` moves no electrons"),
             ));
         }
         let element = context.reactant_atoms.get(site).ok_or_else(|| {
@@ -908,7 +880,7 @@ fn derive_provisional_metallic_operation_states(
             element: element.clone(),
             site_formal_charge: state.site.0,
             site_local_electrons: state.site.1,
-            delocalized_electrons_per_site: state.domain_electrons / site_count,
+            delocalized_electrons_per_site: share,
         };
         if !reviewed.contains(&record) {
             provisional.insert(record);
@@ -1120,8 +1092,7 @@ fn validate_operation_labels(
                 ))
             }
         }
-        MechanismOperation::ReleaseMetallic { site, domain, .. }
-        | MechanismOperation::JoinMetallic { site, domain, .. } => {
+        MechanismOperation::ReleaseMetallic { site, domain, .. } => {
             atom(site)?;
             if context.reactant_domains.contains(domain) {
                 Ok(())
@@ -1129,6 +1100,17 @@ fn validate_operation_labels(
                 Err(AgentError::new(
                     "mechanism operation",
                     format!("unknown metallic domain `{domain}`"),
+                ))
+            }
+        }
+        MechanismOperation::JoinMetallic { site, domain, .. } => {
+            atom(site)?;
+            if context.product_domains.contains(domain) {
+                Ok(())
+            } else {
+                Err(AgentError::new(
+                    "mechanism operation",
+                    format!("unknown product metallic domain `{domain}`"),
                 ))
             }
         }
@@ -1865,6 +1847,26 @@ mod tests {
             &json!([
                 {"name":"zinc chloride","formula":"ZnCl2","phase":"aqueous","identity_hints":[]},
                 {"name":"Hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
+            ]),
+        );
+        let mut provider = MechanismOnlyProvider::default();
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected algorithmic animation: {result:?}")
+        };
+        assert!(!animated.frames().frames().is_empty());
+        assert_eq!(provider.mechanism_calls, 0, "no model in the path");
+    }
+
+    #[test]
+    fn displacement_animates_algorithmically_without_any_model() {
+        let trusted = trusted();
+        let outcome = static_outcome_for(
+            &trusted,
+            [("Zn", vec![30]), ("CuSO4", vec![29, 16, 8, 8, 8, 8])],
+            &json!([
+                {"name":"zinc sulfate","formula":"ZnSO4","phase":"aqueous","identity_hints":[]},
+                {"name":"copper","formula":"Cu","phase":"solid","identity_hints":[]}
             ]),
         );
         let mut provider = MechanismOnlyProvider::default();

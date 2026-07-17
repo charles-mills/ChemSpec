@@ -13,7 +13,8 @@ use std::collections::BTreeMap;
 
 use chem_catalogue::{
     BinaryElectronStateRecord, BondOrderRecord, ElectronContributionRecord, ElectronStateRecord,
-    MetallicElectronStateRecord, MetallicReleaseAllocationRecord, TransferElectronStateRecord,
+    MetallicElectronStateRecord, MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord,
+    TransferElectronStateRecord,
 };
 
 use crate::claim::{
@@ -82,11 +83,6 @@ pub(crate) fn derive_algorithmic_mechanism(
 ) -> Option<MechanismEscalationResponse> {
     let reactants = expand_side(&request.reactants)?;
     let products = expand_side(&request.products)?;
-    // ponytail: metallic products (displacement onto a metal) are left to
-    // the model until join_metallic conventions are exercised by a test.
-    if !products.domains.is_empty() {
-        return None;
-    }
     let mapping = map_atoms(&reactants, &products)?;
     let inverse = mapping
         .iter()
@@ -107,6 +103,23 @@ pub(crate) fn derive_algorithmic_mechanism(
         .map(|atom| (atom.path.clone(), atom.state))
         .collect();
     let mut operations = Vec::new();
+
+    // Product metallic domains: each joining site must first acquire its
+    // electron share (through the transfers below) and then donate it.
+    let mut join_share: BTreeMap<String, u8> = BTreeMap::new();
+    let mut joins = Vec::new();
+    for domain in &products.domains {
+        let share = u8::try_from(domain.electrons / u32::try_from(domain.sites.len()).ok()?).ok()?;
+        let sites = domain
+            .sites
+            .iter()
+            .map(|site| inverse.get(site).cloned())
+            .collect::<Option<Vec<_>>>()?;
+        for site in &sites {
+            join_share.insert(site.clone(), share);
+        }
+        joins.push((domain.path.clone(), sites, share));
+    }
 
     // 1. Every reactant ionic association dissociates.
     for association in &reactants.associations {
@@ -192,7 +205,10 @@ pub(crate) fn derive_algorithmic_mechanism(
     for atom in &reactants.atoms {
         let current = *ledger.get(&atom.path)?;
         let delta = i32::from(target(&atom.path)?.charge) - i32::from(current.charge);
-        match delta {
+        // A joining site's charge rises by its donated share at the join,
+        // so the transfers must deliver it that many extra electrons.
+        let give = delta - i32::from(join_share.get(&atom.path).copied().unwrap_or(0));
+        match give {
             0 => {}
             gain if gain > 0 => donors.push((atom.path.clone(), u8::try_from(gain).ok()?)),
             loss => acceptors.push((atom.path.clone(), u8::try_from(-loss).ok()?)),
@@ -310,6 +326,50 @@ pub(crate) fn derive_algorithmic_mechanism(
         });
         ledger.insert(left.clone(), left_after);
         ledger.insert(right.clone(), right_after);
+    }
+
+    // 5b. Sites join product metallic domains, donating their acquired
+    // share as unpaired electrons (pairs are broken open first).
+    for (domain_path, sites, share) in &joins {
+        let mut pooled = 0_u32;
+        for site in sites {
+            let state = *ledger.get(site)?;
+            if state.unpaired < *share {
+                let unpaired = if (state.lone.checked_sub(*share)?) % 2 == 0 {
+                    *share
+                } else {
+                    share.checked_add(1)?
+                };
+                let opened = State { unpaired, ..state };
+                operations.push(MechanismOperation::ReconfigureElectrons {
+                    atom: site.clone(),
+                    before: state.record(),
+                    after: opened.record(),
+                });
+                ledger.insert(site.clone(), opened);
+            }
+            let before = *ledger.get(site)?;
+            let after = State {
+                charge: before.charge.checked_add(i16::from(*share))?,
+                lone: before.lone.checked_sub(*share)?,
+                unpaired: before.unpaired.checked_sub(*share)?,
+            };
+            operations.push(MechanismOperation::JoinMetallic {
+                site: site.clone(),
+                domain: domain_path.clone(),
+                allocation: MetallicJoinAllocationRecord::DonateElectron,
+                before: MetallicElectronStateRecord {
+                    site: before.record(),
+                    domain_electrons: pooled,
+                },
+                after: MetallicElectronStateRecord {
+                    site: after.record(),
+                    domain_electrons: pooled + u32::from(*share),
+                },
+            });
+            pooled += u32::from(*share);
+            ledger.insert(site.clone(), after);
+        }
     }
 
     // 6. Close pure spin-pairing gaps: a donor that gave from its d-shell

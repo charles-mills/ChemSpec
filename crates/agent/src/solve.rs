@@ -56,6 +56,8 @@ pub fn solve_reaction_claim(
             .or_else(|| solve_acid_metal(structures[1], structures[0]))
             .or_else(|| solve_combustion(structures[0], structures[1]))
             .or_else(|| solve_combustion(structures[1], structures[0]))
+            .or_else(|| solve_single_displacement(structures[0], structures[1]))
+            .or_else(|| solve_single_displacement(structures[1], structures[0]))
             .or_else(|| solve_double_displacement(structures[0], structures[1]))
             .or_else(|| {
                 solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
@@ -616,8 +618,8 @@ fn solve_double_displacement(
         });
     }
     let products = vec![
-        exchanged_salt(&first, &second, first_soluble),
-        exchanged_salt(&second, &first, second_soluble),
+        exchanged_salt(&first.cation, first.cation_charge, &second, Some(first_soluble)),
+        exchanged_salt(&second.cation, second.cation_charge, &first, Some(second_soluble)),
     ];
     let observations = products
         .iter()
@@ -634,18 +636,22 @@ fn solve_double_displacement(
     })
 }
 
-/// Charge-balanced salt of one salt's cation with the other salt's anion.
-fn exchanged_salt(cation: &Salt, anion: &Salt, soluble: bool) -> ClaimProduct {
-    let shared = gcd(cation.cation_charge, anion.anion_charge);
+/// Charge-balanced salt of a cation with another salt's anion.
+fn exchanged_salt(
+    cation: &str,
+    cation_charge: u64,
+    anion: &Salt,
+    soluble: Option<bool>,
+) -> ClaimProduct {
+    let shared = gcd(cation_charge, anion.anion_charge);
     let cation_count = anion.anion_charge / shared;
-    let anion_multiplicity = cation.cation_charge / shared;
+    let anion_multiplicity = cation_charge / shared;
     let mut counts = BTreeMap::new();
-    counts.insert(cation.cation.clone(), cation_count);
+    counts.insert(cation.to_owned(), cation_count);
     for (symbol, count) in &anion.anion {
         *counts.entry(symbol.clone()).or_insert(0) += count * anion_multiplicity;
     }
-    let mut product =
-        product_from_counts(&counts, Some((&cation.cation, cation.cation_charge)));
+    let mut product = product_from_counts(&counts, Some((cation, cation_charge)));
     if anion_multiplicity > 1 && anion.anion.values().sum::<u64>() > 1 {
         // Repeated polyatomic units read conventionally: Mg(NO3)2, Cu(OH)2.
         let mut unit = String::new();
@@ -665,18 +671,76 @@ fn exchanged_salt(cation: &Salt, anion: &Salt, soluble: bool) -> ClaimProduct {
                 append(tail, *count);
             }
         }
-        let mut formula = cation.cation.clone();
+        let mut formula = cation.to_owned();
         if cation_count > 1 {
             formula.push_str(&cation_count.to_string());
         }
         product.formula = format!("{formula}({unit}){anion_multiplicity}");
     }
-    product.phase = if soluble {
-        ClaimPhase::Aqueous
-    } else {
-        ClaimPhase::Solid
+    product.phase = match soluble {
+        Some(true) => ClaimPhase::Aqueous,
+        Some(false) => ClaimPhase::Solid,
+        None => ClaimPhase::Unknown,
     };
     product
+}
+
+/// Elemental metal + dissolved salt of a less active metal: the activity
+/// series decides. A less active metal is a confident no-reaction unless
+/// the cation sits above its lowest common charge (Cu + `FeCl3` etches
+/// copper despite the series), where redox falls to the model.
+fn solve_single_displacement(
+    metal: &StructureDefinition,
+    salt: &StructureDefinition,
+) -> Option<Verdict> {
+    if metal.representation() != RepresentationKind::Metallic {
+        return None;
+    }
+    let (element, _) = single_element(metal)?;
+    let salt = ionic_salt(salt)?;
+    if element.as_str() == salt.cation {
+        return None;
+    }
+    let metal_rank = chem_domain::activity_rank(element.as_str())?;
+    let cation_rank = chem_domain::activity_rank(&salt.cation)?;
+    // Displacement chemistry happens in solution.
+    if salt_solubility(&salt.cation, &salt.anion) != Some(true) {
+        return None;
+    }
+    if metal_rank > cation_rank {
+        let lowest = chem_domain::lowest_cation_charge(&salt.cation)?;
+        if i16::try_from(salt.cation_charge).ok()? != lowest {
+            return None;
+        }
+        return Some(Verdict {
+            products: Vec::new(),
+            observations: Vec::new(),
+        });
+    }
+    let charge = u64::try_from(chem_domain::common_cation_charge(element.as_str())?).ok()?;
+    let displaced = ClaimProduct {
+        name: chem_domain::element_name(&salt.cation)?.to_owned(),
+        formula: salt.cation.clone(),
+        phase: ClaimPhase::Solid,
+        identity_hints: Vec::new(),
+    };
+    let observations = vec![ClaimObservation {
+        predicate: ClaimObservationPredicate::Forms,
+        subject: format!("solid {}", displaced.name),
+        value: None,
+    }];
+    Some(Verdict {
+        products: vec![
+            exchanged_salt(
+                element.as_str(),
+                charge,
+                &salt,
+                salt_solubility(element.as_str(), &salt.anion),
+            ),
+            displaced,
+        ],
+        observations,
+    })
 }
 
 /// Salt-style formula text: cation first, then non-O/H elements, then O,
@@ -1104,6 +1168,74 @@ mod tests {
         assert_eq!(precipitate.name, "lead(II) iodide");
         assert_eq!(precipitate.phase, ClaimPhase::Solid);
         assert_eq!(claim.products[1].formula, "KNO3");
+    }
+
+    #[test]
+    fn zinc_displaces_copper_from_its_sulfate() {
+        let request = request(&[
+            ("Zn", &[30]),
+            ("CuSO₄", &[29, 16, 8, 8, 8, 8]),
+        ]);
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        let products = claim
+            .products
+            .iter()
+            .map(|product| (product.formula.as_str(), product.name.as_str(), product.phase))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            products,
+            [
+                ("ZnSO4", "zinc sulfate", ClaimPhase::Aqueous),
+                ("Cu", "copper", ClaimPhase::Solid),
+            ]
+        );
+        let outcome =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
+        let CompiledClaimOutcome::Static(outcome) = outcome else {
+            panic!("expected static outcome");
+        };
+        assert!(
+            outcome.species_without_structure().is_empty(),
+            "every species should carry a generated structure: {:?}",
+            outcome.species_without_structure()
+        );
+    }
+
+    #[test]
+    fn copper_displaces_silver_from_its_nitrate() {
+        let request = request(&[
+            ("Cu", &[29]),
+            ("AgNO₃", &[47, 7, 8, 8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        assert_eq!(claim.products[0].formula, "Cu(NO3)2");
+        assert_eq!(claim.products[0].name, "copper(II) nitrate");
+        assert_eq!(claim.products[1].formula, "Ag");
+        assert_eq!(claim.products[1].phase, ClaimPhase::Solid);
+    }
+
+    #[test]
+    fn less_active_metal_and_salt_is_a_confident_no_reaction() {
+        let request = request(&[
+            ("Cu", &[29]),
+            ("ZnSO₄", &[30, 16, 8, 8, 8, 8]),
+        ]);
+        let claim =
+            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+        assert!(claim.products.is_empty());
+    }
+
+    #[test]
+    fn copper_and_iron_iii_chloride_falls_to_the_model() {
+        // The series says no reaction, but Fe3+ etches copper anyway.
+        let request = request(&[
+            ("Cu", &[29]),
+            ("FeCl₃", &[26, 17, 17, 17]),
+        ]);
+        assert!(solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none());
     }
 
     #[test]

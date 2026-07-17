@@ -579,6 +579,13 @@ pub fn common_cation_charge(symbol: &str) -> Option<i16> {
     facts(symbol)?.cation_charges.first().copied()
 }
 
+/// The smallest common cation charge. Cations above it (Fe3+, Cu2+ vs Cu+)
+/// can oxidise where the lowest state would not.
+#[must_use]
+pub fn lowest_cation_charge(symbol: &str) -> Option<i16> {
+    facts(symbol)?.cation_charges.iter().copied().min()
+}
+
 /// Whether a metal commonly takes more than one cation charge (and so
 /// needs a Roman numeral in salt names).
 #[must_use]
@@ -677,8 +684,11 @@ fn generate_elemental_metal(
     let [(symbol, element_facts, 1)] = metals else {
         return None;
     };
-    let charge = *element_facts.cation_charges.first()?;
-    let electrons = u32::try_from(charge).ok()?;
+    element_facts.cation_charges.first()?;
+    // Every valence electron joins the domain, the same convention the
+    // reviewed catalogue uses, so metallic and ionic electron books agree.
+    let charge = i16::from(element_facts.valence);
+    let electrons = u32::from(element_facts.valence);
     let atom = make_atom(0, symbol, charge, 0)?;
     let domain = MetallicDomain::new(
         MetallicDomainId::new("metallic").ok()?,
@@ -794,7 +804,6 @@ fn assemble_ionic(
     for ((symbol, element_facts, count), charge) in metals.iter().zip(charges) {
         for _ in 0..*count {
             let lone = u8::try_from((i16::from(element_facts.valence) - charge).max(0)).ok()?;
-            let lone = lone - (lone % 2);
             units.push(SolvedUnit {
                 symbols: vec![symbol.clone()],
                 states: vec![(*charge, lone)],
@@ -854,7 +863,9 @@ fn ionic_structure(
             atoms.push(Atom::new(
                 atom_id.clone(),
                 ElementSymbol::new(symbol).ok()?,
-                ElectronState::new(charge, lone, 0).ok()?,
+                // Odd non-bonding counts (d9 cations like Cu2+) necessarily
+                // leave one electron unpaired.
+                ElectronState::new(charge, lone, lone % 2).ok()?,
             ));
             members.push(atom_id);
         }
