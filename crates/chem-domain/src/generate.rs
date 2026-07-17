@@ -245,6 +245,20 @@ fn consider(
             return;
         }
     }
+    // Not every enumerated target combination leaves a satisfiable electron
+    // ledger — odd-electron inventories (C₃H₅, CH₃) have none at all. An
+    // unsatisfiable candidate invalidates the candidate, never the process.
+    let Some(states) = targets
+        .iter()
+        .zip(slots)
+        .map(|(bond_sum, slot)| {
+            slot.lone_electrons_for(*bond_sum)
+                .map(|lone| (slot.formal_charge, lone))
+        })
+        .collect::<Option<Vec<_>>>()
+    else {
+        return;
+    };
     let score = score_graph(slots, targets, bonds);
     if score > *best_score {
         return;
@@ -257,16 +271,6 @@ fn consider(
     if best.iter().any(|(_, existing)| *existing == key) {
         return;
     }
-    let states = targets
-        .iter()
-        .zip(slots)
-        .map(|(bond_sum, slot)| {
-            (
-                slot.formal_charge,
-                slot.lone_electrons_for(*bond_sum).expect("validated"),
-            )
-        })
-        .collect();
     best.push((
         SolvedUnit {
             symbols: slots.iter().map(|slot| slot.symbol.clone()).collect(),
@@ -1381,6 +1385,23 @@ mod tests {
         )
         .expect("inventory");
         generate_structure(StructureId::new("generated.test").expect("id"), &inventory)
+    }
+
+    #[test]
+    fn odd_electron_inventories_fail_gracefully_instead_of_panicking() {
+        // Radicals have no closed-shell structure; the generator must reach
+        // "no solution" without panicking (C3H5 crashed the app once).
+        for (label, pairs) in [
+            ("C3H5", vec![("C", 3), ("H", 5)]),
+            ("CH3", vec![("C", 1), ("H", 3)]),
+            ("C2H5", vec![("C", 2), ("H", 5)]),
+            ("HO2", vec![("H", 1), ("O", 2)]),
+        ] {
+            assert!(structure(&pairs).is_none(), "{label} has no valid structure");
+        }
+        // The sibling even-electron compounds still resolve.
+        assert!(structure(&[("C", 3), ("H", 6)]).is_some(), "propene");
+        assert!(structure(&[("C", 2), ("H", 6)]).is_some(), "ethane");
     }
 
     /// (effective numerator, denominator) per bond, None for localized.

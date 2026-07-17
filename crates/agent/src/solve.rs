@@ -923,39 +923,34 @@ pub(crate) fn ionic_salt(structure: &StructureDefinition) -> Option<Salt> {
         return None;
     }
     let graph = structure.graph();
+    let mut adjacency: BTreeMap<&chem_domain::AtomId, Vec<&chem_domain::AtomId>> = BTreeMap::new();
+    for bond in graph.covalent_bonds().values() {
+        adjacency.entry(bond.left()).or_default().push(bond.right());
+        adjacency.entry(bond.right()).or_default().push(bond.left());
+    }
     let mut cation: Option<(String, u64)> = None;
     let mut anion: Option<(BTreeMap<String, u64>, u64)> = None;
     for group in graph.groups().values() {
-        let members = group
-            .atoms()
-            .iter()
-            .map(|id| &graph.atoms()[id])
-            .collect::<Vec<_>>();
-        let charge = members
-            .iter()
-            .map(|atom| i64::from(atom.electrons().formal_charge()))
-            .sum::<i64>();
-        if members.len() == 1 && charge > 0 {
-            let found = (
-                members[0].element().as_str().to_owned(),
-                charge.unsigned_abs(),
-            );
-            if cation.get_or_insert_with(|| found.clone()) != &found {
-                return None;
+        // One group may pack several ions of the same kind (a catalogue
+        // Na2CO3 keeps both Na+ in a single group); covalent connectivity
+        // splits it back into the actual ion units.
+        let atoms = group.atoms();
+        let mut visited = std::collections::BTreeSet::new();
+        for start in atoms {
+            if !visited.insert(start) {
+                continue;
             }
-        } else if charge < 0 {
-            let mut counts = BTreeMap::new();
-            for atom in &members {
-                *counts
-                    .entry(atom.element().as_str().to_owned())
-                    .or_insert(0) += 1;
+            let mut component = vec![start];
+            let mut queue = vec![start];
+            while let Some(current) = queue.pop() {
+                for neighbour in adjacency.get(current).into_iter().flatten() {
+                    if atoms.contains(*neighbour) && visited.insert(*neighbour) {
+                        component.push(*neighbour);
+                        queue.push(*neighbour);
+                    }
+                }
             }
-            let found = (counts, charge.unsigned_abs());
-            if anion.get_or_insert_with(|| found.clone()) != &found {
-                return None;
-            }
-        } else {
-            return None;
+            classify_ion_unit(graph, &component, &mut cation, &mut anion)?;
         }
     }
     let (cation, cation_charge) = cation?;
@@ -966,6 +961,47 @@ pub(crate) fn ionic_salt(structure: &StructureDefinition) -> Option<Salt> {
         anion,
         anion_charge,
     })
+}
+
+/// Folds one bonded ion unit into the running cation/anion consensus;
+/// None on a mixed, neutral, or inconsistent unit.
+fn classify_ion_unit(
+    graph: &chem_domain::StructuralGraph,
+    component: &[&chem_domain::AtomId],
+    cation: &mut Option<(String, u64)>,
+    anion: &mut Option<(BTreeMap<String, u64>, u64)>,
+) -> Option<()> {
+    let members = component
+        .iter()
+        .map(|id| &graph.atoms()[*id])
+        .collect::<Vec<_>>();
+    let charge = members
+        .iter()
+        .map(|atom| i64::from(atom.electrons().formal_charge()))
+        .sum::<i64>();
+    if members.len() == 1 && charge > 0 {
+        let found = (
+            members[0].element().as_str().to_owned(),
+            charge.unsigned_abs(),
+        );
+        if cation.get_or_insert_with(|| found.clone()) != &found {
+            return None;
+        }
+    } else if charge < 0 {
+        let mut counts = BTreeMap::new();
+        for atom in &members {
+            *counts
+                .entry(atom.element().as_str().to_owned())
+                .or_insert(0) += 1;
+        }
+        let found = (counts, charge.unsigned_abs());
+        if anion.get_or_insert_with(|| found.clone()) != &found {
+            return None;
+        }
+    } else {
+        return None;
+    }
+    Some(())
 }
 
 /// Classroom solubility rules for salts in water: Some(true) dissolves,

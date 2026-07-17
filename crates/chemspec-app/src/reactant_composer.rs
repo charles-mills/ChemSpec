@@ -159,6 +159,17 @@ pub enum Message {
     PromptAnimationTick,
 }
 
+impl Message {
+    /// Presentation-only messages animate the composer without changing any
+    /// draft content. The app must not treat them as edits: edits cancel an
+    /// in-flight dynamic build and clear its result, and these fire on a
+    /// timer whenever ambient models are on screen.
+    #[must_use]
+    pub const fn is_presentation_only(&self) -> bool {
+        matches!(self, Self::AnimationTick | Self::PromptAnimationTick)
+    }
+}
+
 pub fn update(state: &mut State, message: Message) {
     match message {
         Message::AddElement(atomic_number) => {
@@ -1311,14 +1322,14 @@ mod tests {
     }
 
     #[test]
-    fn two_unrecognised_compounds_can_enter_dynamic_structure_resolution() {
+    fn two_generated_compounds_resolve_as_uncatalogued_derivation_input() {
         let mut state = State::default();
         state.drafts[0].atoms = vec![1, 1, 16, 8, 8, 8, 8];
         state.drafts[1].atoms = vec![11, 8, 1];
 
         assert_eq!(formula(&state.drafts[0].atoms), "H₂SO₄");
         assert_eq!(formula(&state.drafts[1].atoms), "NaOH");
-        assert_eq!(resolution(&state), chemistry::DraftResolution::Unrecognized);
+        assert_eq!(resolution(&state), chemistry::DraftResolution::Uncatalogued);
         assert!(can_start_reaction(&state));
         set_submit_available(&mut state, true);
         let _ = reaction_prompt(&state, None, true, false);

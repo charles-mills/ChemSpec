@@ -1241,7 +1241,21 @@ pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
         return DraftResolution::Uncatalogued;
     }
 
+    // A draft the structure generator can build is understood chemistry that
+    // simply has no reviewed catalogue experience: route it to derivation as
+    // Uncatalogued instead of claiming the compounds are unrecognized.
+    if draft_is_understood(first) && draft_is_understood(second) {
+        return DraftResolution::Uncatalogued;
+    }
+
     DraftResolution::Unrecognized
+}
+
+
+/// Whether one draft names chemistry the app understands: a bare element or
+/// any composition the catalogue or structure generator can realize.
+fn draft_is_understood(atoms: &[u8]) -> bool {
+    matches!(atoms, [_]) || composition_catalogue::trusted_preview(atoms.iter().copied()).is_some()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

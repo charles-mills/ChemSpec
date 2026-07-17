@@ -47,8 +47,8 @@ use chem_presentation::{
     TimelinePosition, compile_educational_plan, compile_real_world_plan,
 };
 use iced::widget::{
-    button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
-    text, text_input, tooltip,
+    button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
+    space, stack, text, text_input, tooltip,
 };
 use iced::{Center, Element, Fill, FillPortion, Length, Size, Subscription, Task, Theme};
 
@@ -568,9 +568,11 @@ fn dynamic_presentation_profile(
 }
 
 fn launch_state() -> App {
-    let mut app = App::default();
-    app.dump_frame_path = std::env::args()
-        .find_map(|argument| argument.strip_prefix("--dump-frame=").map(Into::into));
+    let mut app = App {
+        dump_frame_path: std::env::args()
+            .find_map(|argument| argument.strip_prefix("--dump-frame=").map(Into::into)),
+        ..App::default()
+    };
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
     let smoke_from_start = std::env::args().any(|argument| argument == "--smoke-from-start");
     let smoke_request =
@@ -758,7 +760,10 @@ enum Message {
     WindowResized(Size),
     MonitorScaleMeasured(f32),
     DumpFrame,
-    FrameCaptured(iced::window::Screenshot),
+    FrameCaptured(std::path::PathBuf, iced::window::Screenshot),
+    DynamicOverlayDismissed,
+    /// Swallows clicks on the overlay panel so they miss the scrim.
+    Noop,
     KeyboardEvent {
         event: iced::keyboard::Event,
         status: iced::event::Status,
@@ -1180,9 +1185,10 @@ struct App {
     structural_error: Option<String>,
     /// Interface zoom applied on top of the system scale factor.
     ui_zoom: f32,
+    /// The user closed the dynamic-build overlay; completion events reopen it.
+    dynamic_overlay_dismissed: bool,
     /// Debug harness: dump one frame to this path, then keep running.
     dump_frame_path: Option<std::path::PathBuf>,
-    frame_dumped: bool,
     /// The active monitor's scale factor, used to quantize `ui_zoom`.
     monitor_scale: f32,
     /// Last window size in zoom-invariant design units.
@@ -1232,8 +1238,8 @@ impl Default for App {
             structural_animation: None,
             structural_error: None,
             ui_zoom: 1.0,
+            dynamic_overlay_dismissed: false,
             dump_frame_path: None,
-            frame_dumped: false,
             monitor_scale: 1.0,
             window_design_size: DESIGN_SIZE,
         }
@@ -1325,27 +1331,28 @@ impl App {
                     .map(Message::MonitorScaleMeasured);
             }
             Message::DumpFrame => {
-                if !self.frame_dumped {
-                    self.frame_dumped = true;
+                if let Some(path) = self.dump_frame_path.take() {
                     return iced::window::latest()
                         .and_then(iced::window::screenshot)
-                        .map(Message::FrameCaptured);
+                        .map(move |shot| Message::FrameCaptured(path.clone(), shot));
                 }
             }
-            Message::FrameCaptured(shot) => {
-                if let Some(path) = &self.dump_frame_path {
-                    let mut ppm = format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height)
-                        .into_bytes();
-                    for pixel in shot.rgba.chunks_exact(4) {
-                        ppm.extend_from_slice(&pixel[..3]);
-                    }
-                    let _ = std::fs::write(path, ppm);
-                    let _ = std::fs::write(
-                        path.with_extension("meta"),
-                        format!("scale_factor={}\nui_zoom={}\n", shot.scale_factor, self.ui_zoom),
-                    );
+            Message::FrameCaptured(path, shot) => {
+                let mut ppm = format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height)
+                    .into_bytes();
+                for pixel in shot.rgba.chunks_exact(4) {
+                    ppm.extend_from_slice(&pixel[..3]);
                 }
+                let _ = std::fs::write(&path, ppm);
+                let _ = std::fs::write(
+                    path.with_extension("meta"),
+                    format!("scale_factor={}\nui_zoom={}\n", shot.scale_factor, self.ui_zoom),
+                );
             }
+            Message::DynamicOverlayDismissed => {
+                self.dynamic_overlay_dismissed = true;
+            }
+            Message::Noop => {}
             Message::MonitorScaleMeasured(scale) => {
                 if (scale - self.monitor_scale).abs() > f32::EPSILON {
                     self.monitor_scale = scale;
@@ -1463,6 +1470,7 @@ impl App {
                 {
                     return Task::none();
                 }
+                self.dynamic_overlay_dismissed = false;
                 match *result {
                     Ok(DynamicClaimStageResult {
                         outcome: CompiledClaimOutcome::Static(outcome),
@@ -1534,6 +1542,7 @@ impl App {
                 {
                     return Task::none();
                 }
+                self.dynamic_overlay_dismissed = false;
                 match *result {
                     Ok(presentation) => {
                         let elapsed = self.dynamic_started_at.map_or(0, elapsed_millis);
@@ -1633,6 +1642,7 @@ impl App {
                     elapsed_seconds: 0,
                     stage: DynamicBuildStage::Presentation,
                 };
+                self.dynamic_overlay_dismissed = false;
                 let progress = self.reset_dynamic_progress_channel();
                 return Self::start_dynamic_presentation(
                     run_id,
@@ -1835,6 +1845,13 @@ impl App {
             return Task::none();
         }
         if !matches!(message, reactant_composer::Message::StartReactionRequested) {
+            // Presentation-only motion (ambient orbit and prompt fades) must
+            // never cancel a running build or wipe a finished result; only
+            // actual draft edits invalidate dynamic state.
+            if message.is_presentation_only() {
+                reactant_composer::update(&mut self.reactant_composer, message);
+                return Task::none();
+            }
             if let Some(cancellation) = self.dynamic_cancellation.take() {
                 cancellation.store(true, Ordering::Relaxed);
             }
@@ -1947,6 +1964,7 @@ impl App {
 
         self.dynamic_identity_choice = None;
         self.dynamic_details_open = false;
+        self.dynamic_overlay_dismissed = false;
         self.dynamic_started_at = None;
         self.dynamic_latency = LatencyMilestones::default();
         self.dynamic_theatre_phase = 0.0;
@@ -2214,6 +2232,9 @@ impl App {
         self.dynamic_progress_receiver = None;
         self.structural_animation = None;
         self.structural_error = None;
+        // Auto-navigating into the animation replaces the overlay; a
+        // static-only result surfaces it on the builder instead.
+        self.dynamic_overlay_dismissed = animated;
         if animated {
             self.open_structural_animation();
         }
@@ -2318,7 +2339,7 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         let resize = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
-        let frame_dump = if self.dump_frame_path.is_some() && !self.frame_dumped {
+        let frame_dump = if self.dump_frame_path.is_some() {
             iced::time::every(std::time::Duration::from_millis(1_200)).map(|_| Message::DumpFrame)
         } else {
             Subscription::none()
@@ -3388,195 +3409,354 @@ impl App {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn dynamic_result_view(&self) -> Element<'_, Message> {
-        if let Some(outcome) = &self.dynamic_static {
-            let trust = match outcome.trust_tier() {
+    /// Trust-tier chip for the current dynamic outcome.
+    fn dynamic_trust_label(&self) -> &'static str {
+        self.dynamic_static
+            .as_ref()
+            .map_or("", |outcome| match outcome.trust_tier() {
                 TrustTier::Reviewed => "REVIEWED",
                 // Local Mode claims come from the algorithmic solver, so the
                 // unreviewed tier is derived rather than model-asserted.
                 TrustTier::ModelAsserted if self.local_mode() => "DERIVED",
                 TrustTier::ModelAsserted => "MODEL ASSERTED",
-            };
-            let presentation = match (&self.dynamic_build, &self.dynamic_presentation) {
-                (
-                    DynamicBuildState::Running {
-                        stage: DynamicBuildStage::Presentation,
-                        ..
-                    },
-                    _,
-                ) => "Balanced static result ready · mechanism pending".to_owned(),
-                (_, Some(DynamicPresentationOutcome::ReviewedFamily(outcome))) => {
-                    format!("Reviewed family animation · {}", outcome.family_rule())
+            })
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn dynamic_result_body(&self) -> Element<'_, Message> {
+        let Some(outcome) = &self.dynamic_static else {
+            return space().height(Length::Shrink).into();
+        };
+        let presentation = match (&self.dynamic_build, &self.dynamic_presentation) {
+            (
+                DynamicBuildState::Running {
+                    stage: DynamicBuildStage::Presentation,
+                    ..
+                },
+                _,
+            ) => "Balanced static result ready · mechanism pending".to_owned(),
+            (_, Some(DynamicPresentationOutcome::ReviewedFamily(outcome))) => {
+                format!("Reviewed family animation · {}", outcome.family_rule())
+            }
+            (_, Some(DynamicPresentationOutcome::Escalated(_))) => {
+                "Validated mechanism ready".to_owned()
+            }
+            (_, Some(DynamicPresentationOutcome::Static { retryable, .. })) => {
+                if *retryable {
+                    "Animation is not available yet · retry available".to_owned()
+                } else {
+                    "Validated static result".to_owned()
                 }
-                (_, Some(DynamicPresentationOutcome::Escalated(_))) => {
-                    "Validated mechanism ready".to_owned()
-                }
-                (_, Some(DynamicPresentationOutcome::Static { retryable, .. })) => {
-                    if *retryable {
-                        "Animation is not available yet · retry available".to_owned()
-                    } else {
-                        "Validated static result".to_owned()
-                    }
-                }
-                (_, None) => "Validated static result".to_owned(),
-            };
-            let retry: Element<'_, Message> = if matches!(
-                (&self.dynamic_presentation, &self.dynamic_build),
-                (
-                    Some(DynamicPresentationOutcome::Static {
-                        retryable: true,
-                        ..
-                    }),
-                    DynamicBuildState::Idle | DynamicBuildState::Failed(_),
-                )
-            ) {
-                button(text("Retry mechanism"))
-                    .on_press(Message::RetryDynamicPresentation)
-                    .style(theme::secondary_button)
-                    .into()
-            } else {
-                space().height(Length::Shrink).into()
-            };
-            let mut species = row![].spacing(spacing::XXS).align_y(Center).width(Fill);
-            for (species_capability, term) in outcome
-                .reactants()
-                .iter()
-                .zip(outcome.declaration().reactants())
-                .chain(
-                    outcome
-                        .products()
-                        .iter()
-                        .zip(outcome.declaration().products()),
-                )
-            {
-                species = species.push(dynamic_species_theatre_card(
+            }
+            (_, None) => "Validated static result".to_owned(),
+        };
+        let mut species = row![].spacing(spacing::XS).align_y(Center);
+        for (species_capability, term) in outcome
+            .reactants()
+            .iter()
+            .zip(outcome.declaration().reactants())
+            .chain(
+                outcome
+                    .products()
+                    .iter()
+                    .zip(outcome.declaration().products()),
+            )
+        {
+            species = species.push(
+                container(dynamic_species_theatre_card(
                     species_capability,
                     term,
                     self.dynamic_theatre_phase,
-                ));
-            }
-            let observation_copy = outcome
-                .claim()
-                .observations
-                .iter()
-                .map(|observation| {
-                    let action = match observation.predicate {
-                        agent::ClaimObservationPredicate::Evolves => "evolves",
-                        agent::ClaimObservationPredicate::Disappears => "disappears",
-                        agent::ClaimObservationPredicate::Forms => "forms",
-                        agent::ClaimObservationPredicate::Colour => "colour",
-                    };
-                    observation.value.as_ref().map_or_else(
-                        || format!("{} {action}", observation.subject),
-                        |value| format!("{} {action}: {value}", observation.subject),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("  ·  ");
-            let diagnostic = match &self.dynamic_presentation {
-                Some(DynamicPresentationOutcome::Static { diagnostic, .. }) => {
-                    Some(format!("Presentation: {diagnostic}"))
-                }
-                _ => match &self.dynamic_build {
-                    DynamicBuildState::Failed(error) => Some(format!("Build: {error}")),
-                    _ => None,
-                },
-            };
-            let details_button: Element<'_, Message> = diagnostic.as_ref().map_or_else(
-                || space().height(Length::Shrink).into(),
-                |_| {
-                    button(text(if self.dynamic_details_open {
-                        "Hide details"
-                    } else {
-                        "Details"
-                    }))
-                    .on_press(Message::ToggleDynamicDetails)
-                    .style(theme::secondary_button)
-                    .into()
-                },
+                ))
+                .width(Length::Fixed(132.0)),
             );
-            let details: Element<'_, Message> = if self.dynamic_details_open {
-                diagnostic.map_or_else(
-                    || space().height(Length::Shrink).into(),
-                    |diagnostic| {
-                        text(diagnostic)
-                            .size(type_scale::MICRO)
-                            .color(color::MUTED)
-                            .into()
-                    },
+        }
+        let observation_copy = outcome
+            .claim()
+            .observations
+            .iter()
+            .map(|observation| {
+                let action = match observation.predicate {
+                    agent::ClaimObservationPredicate::Evolves => "evolves",
+                    agent::ClaimObservationPredicate::Disappears => "disappears",
+                    agent::ClaimObservationPredicate::Forms => "forms",
+                    agent::ClaimObservationPredicate::Colour => "colour",
+                };
+                observation.value.as_ref().map_or_else(
+                    || format!("{} {action}", observation.subject),
+                    |value| format!("{} {action}: {value}", observation.subject),
                 )
-            } else {
-                space().height(Length::Shrink).into()
-            };
-            return container(
-                column![
-                    row![
-                        text(trust).size(type_scale::MICRO).color(color::SUCCESS),
-                        space().width(Fill),
-                        text("VIRTUAL MODEL")
-                            .size(type_scale::MICRO)
-                            .color(color::WARNING),
-                    ],
-                    text(nomenclature::display_equation(outcome.equation()))
-                        .size(type_scale::BODY_LARGE)
-                        .color(color::TEXT),
-                    text(outcome.claim().required_context.as_str())
-                        .size(type_scale::CAPTION)
-                        .color(color::MUTED),
-                    species,
-                    text(observation_copy)
-                        .size(type_scale::CAPTION)
-                        .color(color::TEXT_SOFT),
-                    text(presentation)
-                        .size(type_scale::CAPTION)
-                        .color(color::TEXT_SOFT),
-                    text(self.dynamic_latency_summary())
+            })
+            .collect::<Vec<_>>()
+            .join("  ·  ");
+        let diagnostic = match &self.dynamic_presentation {
+            Some(DynamicPresentationOutcome::Static { diagnostic, .. }) => {
+                Some(format!("Presentation: {diagnostic}"))
+            }
+            _ => None,
+        };
+        let mut actions = row![].spacing(spacing::XS).align_y(Center);
+        if self.structural_animation.is_some() {
+            actions = actions.push(
+                button(text("Watch reaction  →"))
+                    .on_press(Message::ReturnTo2d)
+                    .padding([spacing::XS, spacing::SM])
+                    .style(theme::primary_button),
+            );
+        }
+        if matches!(
+            (&self.dynamic_presentation, &self.dynamic_build),
+            (
+                Some(DynamicPresentationOutcome::Static {
+                    retryable: true,
+                    ..
+                }),
+                DynamicBuildState::Idle | DynamicBuildState::Failed(_),
+            )
+        ) {
+            actions = actions.push(
+                button(text("Retry mechanism"))
+                    .on_press(Message::RetryDynamicPresentation)
+                    .padding([spacing::XS, spacing::SM])
+                    .style(theme::secondary_button),
+            );
+        }
+        if let Some(diagnostic) = &diagnostic {
+            actions = actions.push(
+                button(text(if self.dynamic_details_open {
+                    "Hide details"
+                } else {
+                    "Details"
+                }))
+                .on_press(Message::ToggleDynamicDetails)
+                .padding([spacing::XS, spacing::SM])
+                .style(theme::secondary_button),
+            );
+            let _ = diagnostic;
+        }
+        let details: Element<'_, Message> = if self.dynamic_details_open {
+            diagnostic.map_or_else(
+                || space().height(Length::Shrink).into(),
+                |diagnostic| {
+                    text(diagnostic)
                         .size(type_scale::MICRO)
-                        .color(color::MUTED),
-                    retry,
-                    details_button,
-                    details,
-                ]
-                .spacing(spacing::XXS),
+                        .color(color::MUTED)
+                        .into()
+                },
             )
-            .style(theme::inset)
-            .padding(spacing::SM)
-            .width(Fill)
-            .into();
-        }
-        if let Some(claim) = &self.dynamic_claim {
-            let (title, detail) = match claim.disposition {
-                ClaimDisposition::NoReaction => {
-                    ("No supported reaction", claim.required_context.as_str())
-                }
-                ClaimDisposition::Ambiguous => (
-                    "More detail is needed",
-                    claim
-                        .ambiguity
-                        .as_ref()
-                        .map_or(claim.required_context.as_str(), |value| {
-                            value.summary.as_str()
-                        }),
-                ),
-                ClaimDisposition::Unsupported => (
-                    "Outside the current chemistry capability",
-                    claim.required_context.as_str(),
-                ),
-                ClaimDisposition::Reaction => ("Outcome claim", claim.required_context.as_str()),
-            };
-            return container(
-                column![
-                    text(title).size(type_scale::BODY_LARGE).color(color::TEXT),
-                    text(detail).size(type_scale::CAPTION).color(color::MUTED),
-                ]
-                .spacing(spacing::XXS),
+        } else {
+            space().height(Length::Shrink).into()
+        };
+        column![
+            container(
+                text(nomenclature::display_equation(outcome.equation()))
+                    .size(type_scale::TITLE)
+                    .color(color::TEXT),
             )
-            .style(theme::inset)
-            .padding(spacing::SM)
-            .width(Fill)
-            .into();
+            .center_x(Fill),
+            container(
+                text(outcome.claim().required_context.as_str())
+                    .size(type_scale::CAPTION)
+                    .color(color::MUTED),
+            )
+            .center_x(Fill),
+            container(species).center_x(Fill),
+            container(
+                text(observation_copy)
+                    .size(type_scale::CAPTION)
+                    .color(color::TEXT_SOFT),
+            )
+            .center_x(Fill),
+            container(
+                text(presentation)
+                    .size(type_scale::CAPTION)
+                    .color(color::TEXT_SOFT),
+            )
+            .center_x(Fill),
+            container(actions).center_x(Fill),
+            details,
+            container(
+                text(self.dynamic_latency_summary())
+                    .size(type_scale::MICRO)
+                    .color(color::MUTED),
+            )
+            .center_x(Fill),
+        ]
+        .spacing(spacing::XS)
+        .into()
+    }
+
+    fn dynamic_verdict_body(&self) -> Element<'_, Message> {
+        let Some(claim) = &self.dynamic_claim else {
+            return space().height(Length::Shrink).into();
+        };
+        let (title, detail) = match claim.disposition {
+            ClaimDisposition::NoReaction => {
+                ("No supported reaction", claim.required_context.as_str())
+            }
+            ClaimDisposition::Ambiguous => (
+                "More detail is needed",
+                claim
+                    .ambiguity
+                    .as_ref()
+                    .map_or(claim.required_context.as_str(), |value| {
+                        value.summary.as_str()
+                    }),
+            ),
+            ClaimDisposition::Unsupported => (
+                "Outside the current chemistry capability",
+                claim.required_context.as_str(),
+            ),
+            ClaimDisposition::Reaction => ("Outcome claim", claim.required_context.as_str()),
+        };
+        column![
+            text(title).size(type_scale::BODY_LARGE).color(color::TEXT),
+            text(detail).size(type_scale::CAPTION).color(color::MUTED),
+        ]
+        .spacing(spacing::XXS)
+        .into()
+    }
+
+    fn dynamic_running_body(&self) -> Element<'_, Message> {
+        let DynamicBuildState::Running {
+            stage,
+            elapsed_seconds,
+            ..
+        } = &self.dynamic_build
+        else {
+            return space().height(Length::Shrink).into();
+        };
+        let title = if self.local_mode() {
+            "Deriving this reaction"
+        } else {
+            "Codex is researching this reaction"
+        };
+        let stage_line = match stage {
+            DynamicBuildStage::Claim => "Checking the outcome claim",
+            DynamicBuildStage::Presentation => {
+                "Balanced result ready · checking animation capability"
+            }
+        };
+        let reactants = self.dynamic_request.as_ref().map_or_else(String::new, |request| {
+            request
+                .reactants
+                .iter()
+                .map(|reactant| reactant.display.clone())
+                .collect::<Vec<_>>()
+                .join("  +  ")
+        });
+        let progress: Element<'_, Message> = self.dynamic_progress_label().map_or_else(
+            || space().height(Length::Shrink).into(),
+            |label| {
+                text(label)
+                    .size(type_scale::MICRO)
+                    .color(color::ACCENT)
+                    .into()
+            },
+        );
+        column![
+            text(title).size(type_scale::BODY_LARGE).color(color::TEXT),
+            text(reactants).size(type_scale::TITLE).color(color::TEXT),
+            text(format!("{stage_line} · {elapsed_seconds}s"))
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
+            progress,
+        ]
+        .spacing(spacing::XXS)
+        .into()
+    }
+
+    fn dynamic_failed_body(&self) -> Element<'_, Message> {
+        let DynamicBuildState::Failed(error) = &self.dynamic_build else {
+            return space().height(Length::Shrink).into();
+        };
+        column![
+            text("Couldn\u{2019}t build this result")
+                .size(type_scale::BODY_LARGE)
+                .color(color::TEXT),
+            text(error).size(type_scale::CAPTION).color(color::MUTED),
+        ]
+        .spacing(spacing::XXS)
+        .into()
+    }
+
+    /// The dynamic-build modal: every Tier B/C surface (progress, results,
+    /// verdicts, identity choices, failures) lives here instead of inline
+    /// cards that squeeze the builder.
+    fn dynamic_overlay(&self, size: Size) -> Element<'_, Message> {
+        let running = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
+        let failed = matches!(self.dynamic_build, DynamicBuildState::Failed(_));
+        let has_content = running
+            || failed
+            || self.dynamic_static.is_some()
+            || self.dynamic_claim.is_some()
+            || self.dynamic_identity_choice.is_some();
+        if self.dynamic_overlay_dismissed || !has_content {
+            return space().height(Length::Shrink).into();
         }
-        space().height(Length::Shrink).into()
+        let (chip, chip_color, body) = if self.dynamic_identity_choice.is_some() {
+            (
+                "IDENTITY CHOICE",
+                color::WARNING,
+                self.dynamic_identity_choice_body(),
+            )
+        } else if self.dynamic_static.is_some() {
+            (
+                self.dynamic_trust_label(),
+                color::SUCCESS,
+                self.dynamic_result_body(),
+            )
+        } else if running {
+            (
+                if self.local_mode() {
+                    "LOCAL DERIVATION"
+                } else {
+                    "CODEX RESEARCH"
+                },
+                color::ACCENT,
+                self.dynamic_running_body(),
+            )
+        } else if failed {
+            ("BUILD FAILED", color::DANGER, self.dynamic_failed_body())
+        } else {
+            ("OUTCOME", color::WARNING, self.dynamic_verdict_body())
+        };
+        let mut header = row![text(chip).size(type_scale::MICRO).color(chip_color)]
+            .spacing(spacing::XS)
+            .align_y(Center);
+        if self.dynamic_static.is_some() {
+            header = header.push(
+                text("VIRTUAL MODEL")
+                    .size(type_scale::MICRO)
+                    .color(color::WARNING),
+            );
+        }
+        header = header.push(space().width(Fill)).push(
+            button(text("\u{00d7}").size(type_scale::BODY_LARGE))
+                .on_press(Message::DynamicOverlayDismissed)
+                .padding([0.0, spacing::XS])
+                .style(theme::secondary_button),
+        );
+        let panel = mouse_area(
+            container(column![header, body].spacing(spacing::SM))
+                .style(theme::overlay_panel)
+                .padding(spacing::LG)
+                .width(Length::Fixed((size.width - 32.0).min(640.0))),
+        )
+        .on_press(Message::Noop);
+        stack![
+            mouse_area(
+                container(space())
+                    .style(theme::overlay_scrim)
+                    .width(Fill)
+                    .height(Fill),
+            )
+            .on_press(Message::DynamicOverlayDismissed),
+            container(panel).center(Fill),
+        ]
+        .width(Fill)
+        .height(Fill)
+        .into()
     }
 
     fn dynamic_latency_summary(&self) -> String {
@@ -3602,7 +3782,7 @@ impl App {
         }
     }
 
-    fn dynamic_identity_choice_view(&self) -> Element<'_, Message> {
+    fn dynamic_identity_choice_body(&self) -> Element<'_, Message> {
         let Some(choice) = &self.dynamic_identity_choice else {
             return space().height(Length::Shrink).into();
         };
@@ -3642,11 +3822,7 @@ impl App {
                 .width(Fill),
             );
         }
-        container(alternatives)
-            .style(theme::inset)
-            .padding(spacing::SM)
-            .width(Fill)
-            .into()
+        alternatives.into()
     }
 
     fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
@@ -4009,44 +4185,10 @@ impl App {
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
         let conditions_enabled = !dynamic_busy && !first.is_empty() && second.is_empty();
         let toolbar = self.builder_toolbar(conditions_enabled);
-        let result = self.dynamic_result_view();
-        let identity_choice = self.dynamic_identity_choice_view();
-        let build_details: Element<'_, Message> =
-            if let DynamicBuildState::Failed(error) = &self.dynamic_build {
-                let detail: Element<'_, Message> = if self.dynamic_details_open {
-                    text(error)
-                        .size(type_scale::MICRO)
-                        .color(color::MUTED)
-                        .into()
-                } else {
-                    space().height(Length::Shrink).into()
-                };
-                column![
-                    button(text(if self.dynamic_details_open {
-                        "Hide details"
-                    } else {
-                        "Details"
-                    }))
-                    .on_press(Message::ToggleDynamicDetails)
-                    .style(theme::secondary_button),
-                    detail,
-                ]
-                .spacing(spacing::XXS)
-                .into()
-            } else {
-                space().height(Length::Shrink).into()
-            };
-        let foreground = column![
-            toolbar,
-            composer,
-            build_details,
-            identity_choice,
-            result,
-            library
-        ]
-        .spacing(spacing::XS)
-        .width(Fill)
-        .height(Fill);
+        let foreground = column![toolbar, composer, library]
+            .spacing(spacing::XS)
+            .width(Fill)
+            .height(Fill);
         let application = container(stack![ambient_models, foreground].width(Fill).height(Fill))
             .style(theme::app_background)
             .padding(if compact { spacing::XS } else { spacing::SM })
@@ -4069,11 +4211,16 @@ impl App {
             space().height(Length::Shrink).into()
         };
 
-        stack![application, drag_overlay, toolbar_overlay]
-            .width(Fill)
-            .height(Fill)
-            .clip(false)
-            .into()
+        stack![
+            application,
+            drag_overlay,
+            toolbar_overlay,
+            self.dynamic_overlay(size)
+        ]
+        .width(Fill)
+        .height(Fill)
+        .clip(false)
+        .into()
     }
 }
 
@@ -4302,6 +4449,95 @@ mod tests {
         assert!(app.validated_frames.is_none());
         assert!(app.dynamic_request.is_some());
         assert!(app.dynamic_identity_choice.is_none());
+    }
+
+
+    /// Catalogue graphs pack all cations of one kind into a single atom
+    /// group (both Na+ of Na2CO3 share one group), which used to defeat
+    /// `ionic_salt`'s one-atom-per-cation-group assumption and return None
+    /// for every polyprotic acid + carbonate pair.
+    #[test]
+    fn polyprotic_acids_neutralize_catalogue_carbonates_and_hydroxides() {
+        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let identities = agent::reviewed_species_registry(catalogue).expect("registry");
+        let cases: [(&str, Vec<u8>, &str, Vec<u8>, &str); 5] = [
+            // Monoprotic control: this already worked before the fix.
+            ("HCl", vec![1, 17], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "NaCl"),
+            ("H\u{2082}SO\u{2084}", vec![1, 1, 16, 8, 8, 8, 8], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "Na2SO4"),
+            ("H\u{2082}SO\u{2084}", vec![1, 1, 16, 8, 8, 8, 8], "K\u{2082}CO\u{2083}", vec![19, 19, 6, 8, 8, 8], "K2SO4"),
+            ("H\u{2083}PO\u{2084}", vec![1, 1, 1, 15, 8, 8, 8, 8], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "Na3PO4"),
+            ("H\u{2083}PO\u{2084}", vec![1, 1, 1, 15, 8, 8, 8, 8], "NaOH", vec![11, 8, 1], "Na3PO4"),
+        ];
+        for (acid, acid_atoms, base, base_atoms, salt) in cases {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: acid.to_owned(),
+                        atomic_numbers: acid_atoms,
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: base.to_owned(),
+                        atomic_numbers: base_atoms,
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = agent::solve_reaction_claim(&request, &identities)
+                .unwrap_or_else(|| panic!("{acid} + {base} should solve locally"));
+            // Exact balancing is the atom-conservation gate: an
+            // unconservable product set cannot compile to Static.
+            let outcome = compile_claim_outcome(&request, claim, &identities)
+                .unwrap_or_else(|error| panic!("{acid} + {base} failed to compile: {error}"));
+            let CompiledClaimOutcome::Static(outcome) = outcome else {
+                panic!("{acid} + {base} should balance to a static outcome");
+            };
+            assert!(
+                outcome.equation().contains(salt),
+                "{acid} + {base} should yield {salt}: {}",
+                outcome.equation()
+            );
+        }
+    }
+
+    #[test]
+    fn typed_acids_resolve_regardless_of_case() {
+        // "the app doesn't recognise acids": lowercase formulas were
+        // rejected at the name-entry box before the engine ever ran.
+        let hcl = chemistry::atoms_from_name("hcl").expect("hcl resolves");
+        let naoh = chemistry::atoms_from_name("naoh").expect("naoh resolves");
+        assert!(matches!(
+            chemistry::resolve_drafts(&hcl, &naoh),
+            chemistry::DraftResolution::Supported(_)
+        ));
+        // Oxoacids parse in any casing and reach the local solver.
+        let h2so4 = chemistry::atoms_from_name("h2so4").expect("h2so4 resolves");
+        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let identities = agent::reviewed_species_registry(catalogue).expect("registry");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "H\u{2082}SO\u{2084}".to_owned(),
+                    atomic_numbers: chemistry::standardize_elemental_draft(&h2so4),
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "NaOH".to_owned(),
+                    atomic_numbers: chemistry::standardize_elemental_draft(&naoh),
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = agent::solve_reaction_claim(&request, &identities)
+            .expect("local solver derives sulfuric acid neutralization");
+        let products = claim
+            .products
+            .iter()
+            .map(|product| product.formula.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(products, ["H2O", "Na2SO4"]);
     }
 
     #[test]
@@ -4726,7 +4962,7 @@ mod tests {
         };
 
         {
-            let _view = app.dynamic_result_view();
+            let _view = app.dynamic_result_body();
         }
         app.update(Message::DynamicTheatreTick);
         assert!(app.dynamic_theatre_phase > 0.0);

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/crates/agent/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/agent/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-catalogue/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-catalogue/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-domain/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-domain/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-kernel/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-kernel/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-kernel/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chem-presentation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chems-cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chems-cli/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chems-lang/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chems-lang/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/chemspec-app/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

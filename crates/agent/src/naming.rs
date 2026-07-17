@@ -286,15 +286,19 @@ pub fn structure_name(structure: &chem_domain::StructureDefinition) -> Option<St
 #[must_use]
 pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
     let trimmed = input.trim();
-    // Formulas are case-sensitive; try the input verbatim first.
+    // Formulas are case-sensitive; try the input verbatim first. The parser
+    // only checks symbol shape, so require every symbol to be a real element
+    // ("HCL" parses as H-C-L; the junk "L" must fall through to the
+    // case-insensitive reading instead of poisoning the result).
     if let Ok(formula) = FormulaComposition::parse(trimmed) {
-        return Some(
-            formula
-                .elements()
-                .iter()
-                .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
-                .collect(),
-        );
+        let counts = formula
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+            .collect::<BTreeMap<String, u64>>();
+        if counts.keys().all(|symbol| element_name(symbol).is_some()) {
+            return Some(counts);
+        }
     }
     // British spellings and spaced numerals normalize away.
     let name = trimmed
@@ -317,7 +321,124 @@ pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
         return Some([(symbol.to_owned(), count)].into());
     }
     let words = name.split(' ').collect::<Vec<_>>();
-    salt_composition(&words).or_else(|| molecular_composition(&words))
+    salt_composition(&words)
+        .or_else(|| molecular_composition(&words))
+        .or_else(|| case_insensitive_formula(trimmed))
+}
+
+/// Formula typed without conventional capitalisation (`hcl`, `NAOH`,
+/// `h2so4`). Case-folded formulas can be ambiguous (`hno3` reads as H-N-O₃
+/// or H-No₃, `cuso4` as Cu-S-O₄ or C-U-S-O₄), so every segmentation is
+/// enumerated and ambiguity is resolved by asking the structure generator
+/// which candidates are actually buildable chemistry. Anything still
+/// ambiguous after that is rejected: a wrong parse is worse than none.
+// ponytail: no parentheses support — `mg(no3)2` still needs proper case.
+fn case_insensitive_formula(input: &str) -> Option<BTreeMap<String, u64>> {
+    let folded = input.to_lowercase();
+    if folded.len() > 32 || !folded.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+        return None;
+    }
+    // A bare element symbol wins outright: `mg` is magnesium, `si` is
+    // silicon, `co` is cobalt (carbon monoxide is reachable as `CO` or
+    // "carbon monoxide").
+    if folded.bytes().all(|byte| byte.is_ascii_lowercase())
+        && let Some(symbol) = chem_domain::ELEMENT_SYMBOLS
+            .iter()
+            .find(|symbol| symbol.to_lowercase() == folded)
+    {
+        return Some([((*symbol).to_owned(), 1)].into());
+    }
+
+    let mut candidates = Vec::new();
+    segment_formula(folded.as_bytes(), &mut BTreeMap::new(), &mut candidates);
+    candidates.sort();
+    candidates.dedup();
+    if let [composition] = candidates.as_slice() {
+        return Some(composition.clone());
+    }
+    // Several readings: keep the ones the structure generator can actually
+    // build, then prefer the reading with more distinct elements (`co2` is
+    // carbon dioxide, not a cobalt cluster).
+    let mut buildable = candidates
+        .into_iter()
+        .filter(structure_exists)
+        .collect::<Vec<_>>();
+    buildable.sort_by_key(|composition| std::cmp::Reverse(composition.len()));
+    match buildable.as_slice() {
+        [composition] => Some(composition.clone()),
+        [first, second, ..] if first.len() > second.len() => Some(first.clone()),
+        _ => None,
+    }
+}
+
+/// Recursively segments a case-folded formula into element symbols with
+/// optional counts, collecting every complete reading.
+fn segment_formula(
+    rest: &[u8],
+    prefix: &mut BTreeMap<String, u64>,
+    out: &mut Vec<BTreeMap<String, u64>>,
+) {
+    if rest.is_empty() {
+        if !prefix.is_empty() {
+            out.push(prefix.clone());
+        }
+        return;
+    }
+    for length in [2_usize, 1] {
+        if rest.len() < length || !rest[..length].iter().all(u8::is_ascii_lowercase) {
+            continue;
+        }
+        let Some(symbol) = chem_domain::ELEMENT_SYMBOLS
+            .iter()
+            .find(|symbol| symbol.len() == length && symbol.to_lowercase().as_bytes() == &rest[..length])
+        else {
+            continue;
+        };
+        let digits = rest[length..]
+            .iter()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count();
+        let count = if digits == 0 {
+            1
+        } else {
+            match std::str::from_utf8(&rest[length..length + digits])
+                .ok()
+                .and_then(|digits| digits.parse::<u64>().ok())
+            {
+                Some(count) if count > 0 => count,
+                _ => continue,
+            }
+        };
+        *prefix.entry((*symbol).to_owned()).or_insert(0) += count;
+        segment_formula(&rest[length + digits..], prefix, out);
+        let entry = prefix.get_mut(*symbol).expect("just inserted");
+        if *entry > count {
+            *entry -= count;
+        } else {
+            prefix.remove(*symbol);
+        }
+    }
+}
+
+/// Whether the structure generator can build one coherent structure from
+/// this composition — the chemistry oracle used to reject nonsense readings.
+fn structure_exists(composition: &BTreeMap<String, u64>) -> bool {
+    let Ok(counts) = composition
+        .iter()
+        .map(|(symbol, count)| {
+            chem_domain::ElementSymbol::new(symbol.as_str()).map(|symbol| (symbol, *count))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()
+    else {
+        return false;
+    };
+    let Ok(inventory) = chem_domain::ElementInventory::new(counts) else {
+        return false;
+    };
+    let Ok(id) = chem_domain::StructureId::new("naming.case-fold-probe") else {
+        return false;
+    };
+    chem_domain::generate_structure(id, &inventory).is_some()
 }
 
 fn element_by_name(name: &str) -> Option<&'static str> {
@@ -552,6 +673,61 @@ mod tests {
             ion_pair_name("Fe", 2, &counts(&[("O", 4), ("S", 1)]), 2).as_deref(),
             Some("iron(II) sulfate")
         );
+    }
+
+
+    #[test]
+    fn case_insensitive_formulas_resolve_common_classroom_input() {
+        let counts = |pairs: &[(&str, u64)]| {
+            pairs
+                .iter()
+                .map(|(symbol, count)| ((*symbol).to_owned(), *count))
+                .collect::<BTreeMap<String, u64>>()
+        };
+        // Casing mistakes users actually make.
+        for input in ["hcl", "HCL", "hCl"] {
+            assert_eq!(
+                composition_from_name(input),
+                Some(counts(&[("H", 1), ("Cl", 1)])),
+                "{input}"
+            );
+        }
+        for input in ["naoh", "NAOH"] {
+            assert_eq!(
+                composition_from_name(input),
+                Some(counts(&[("Na", 1), ("O", 1), ("H", 1)])),
+                "{input}"
+            );
+        }
+        assert_eq!(
+            composition_from_name("h2so4"),
+            Some(counts(&[("H", 2), ("S", 1), ("O", 4)]))
+        );
+        // Ambiguous case-folded readings resolve to real chemistry: hno3
+        // could read H-No3 (nobelium) and cuso4 could read C-U-S-O4
+        // (uranium); the structure oracle keeps the sensible parse.
+        assert_eq!(
+            composition_from_name("hno3"),
+            Some(counts(&[("H", 1), ("N", 1), ("O", 3)]))
+        );
+        assert_eq!(
+            composition_from_name("cuso4"),
+            Some(counts(&[("Cu", 1), ("S", 1), ("O", 4)]))
+        );
+        assert_eq!(
+            composition_from_name("co2"),
+            Some(counts(&[("C", 1), ("O", 2)]))
+        );
+        assert_eq!(
+            composition_from_name("caco3"),
+            Some(counts(&[("Ca", 1), ("C", 1), ("O", 3)]))
+        );
+        // A bare symbol is the element, whatever the case.
+        assert_eq!(composition_from_name("mg"), Some(counts(&[("Mg", 1)])));
+        assert_eq!(composition_from_name("si"), Some(counts(&[("Si", 1)])));
+        // Junk still fails instead of guessing.
+        assert_eq!(composition_from_name("xyz"), None);
+        assert_eq!(composition_from_name("acid"), None);
     }
 
     #[test]
