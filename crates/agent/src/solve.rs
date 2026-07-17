@@ -39,39 +39,53 @@ pub fn solve_reaction_claim(
     else {
         return None;
     };
-    let structures = species
+    // Element identity is always known, even when structure generation
+    // falls short; families that only need it still get verdicts.
+    let compositions = species
+        .iter()
+        .map(species_composition)
+        .collect::<Option<Vec<_>>>()?;
+    let optional_structures = species
         .iter()
         .map(|entry| match entry {
             OutcomeSpecies::Resolved(resolved) => resolved.structure.as_ref(),
             OutcomeSpecies::FormulaOnly { .. } => None,
         })
-        .collect::<Option<Vec<_>>>()?;
-    let verdict = if structures.len() == 1 {
+        .collect::<Vec<_>>();
+    let verdict = if species.len() == 1 {
         let context = request.selected_context.as_deref()?.trim().to_lowercase();
-        solve_decomposition(structures[0], &context)?
+        solve_decomposition(optional_structures[0]?, &context)?
     } else {
-        solve_trivial_no_reaction(structures[0], structures[1])
-            .or_else(|| solve_acid_base(structures[0], structures[1]))
-            .or_else(|| solve_acid_base(structures[1], structures[0]))
-            .or_else(|| solve_acid_metal(structures[0], structures[1]))
-            .or_else(|| solve_acid_metal(structures[1], structures[0]))
-            .or_else(|| solve_combustion(structures[0], structures[1]))
-            .or_else(|| solve_combustion(structures[1], structures[0]))
-            .or_else(|| solve_oxide_water(structures[0], structures[1]))
-            .or_else(|| solve_oxide_water(structures[1], structures[0]))
-            .or_else(|| solve_metal_water(structures[0], structures[1]))
-            .or_else(|| solve_metal_water(structures[1], structures[0]))
-            .or_else(|| solve_single_displacement(structures[0], structures[1]))
-            .or_else(|| solve_single_displacement(structures[1], structures[0]))
-            .or_else(|| solve_halogen_displacement(structures[0], structures[1]))
-            .or_else(|| solve_halogen_displacement(structures[1], structures[0]))
-            .or_else(|| solve_double_displacement(structures[0], structures[1]))
-            .or_else(|| {
-                solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
-                    products,
-                    observations: Vec::new(),
+        let identity_verdict = solve_trivial_no_reaction(
+            (&compositions[0], optional_structures[0]),
+            (&compositions[1], optional_structures[1]),
+        );
+        let structures = move || Some((optional_structures[0]?, optional_structures[1]?));
+        identity_verdict.or_else(|| {
+            let (first, second) = structures()?;
+            let structures = [first, second];
+            solve_acid_base(structures[0], structures[1])
+                .or_else(|| solve_acid_base(structures[1], structures[0]))
+                .or_else(|| solve_acid_metal(structures[0], structures[1]))
+                .or_else(|| solve_acid_metal(structures[1], structures[0]))
+                .or_else(|| solve_combustion(structures[0], structures[1]))
+                .or_else(|| solve_combustion(structures[1], structures[0]))
+                .or_else(|| solve_oxide_water(structures[0], structures[1]))
+                .or_else(|| solve_oxide_water(structures[1], structures[0]))
+                .or_else(|| solve_metal_water(structures[0], structures[1]))
+                .or_else(|| solve_metal_water(structures[1], structures[0]))
+                .or_else(|| solve_single_displacement(structures[0], structures[1]))
+                .or_else(|| solve_single_displacement(structures[1], structures[0]))
+                .or_else(|| solve_halogen_displacement(structures[0], structures[1]))
+                .or_else(|| solve_halogen_displacement(structures[1], structures[0]))
+                .or_else(|| solve_double_displacement(structures[0], structures[1]))
+                .or_else(|| {
+                    solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
+                        products,
+                        observations: Vec::new(),
+                    })
                 })
-            })?
+        })?
     };
     let disposition = if verdict.products.is_empty() {
         ClaimDisposition::NoReaction
@@ -82,10 +96,7 @@ pub fn solve_reaction_claim(
         schema_version: REACTION_CLAIM_SCHEMA_VERSION,
         disposition,
         products: verdict.products,
-        required_context: request
-            .selected_context
-            .clone()
-            .unwrap_or_default(),
+        required_context: request.selected_context.clone().unwrap_or_default(),
         observations: verdict.observations,
         sources: Vec::new(),
         ambiguity: None,
@@ -100,10 +111,7 @@ struct Verdict {
 
 /// Acid + ionic base (oxide, hydroxide, carbonate, or bicarbonate) → salt
 /// + water, with carbon dioxide evolution for the carbonates.
-fn solve_acid_base(
-    acid: &StructureDefinition,
-    base: &StructureDefinition,
-) -> Option<Verdict> {
+fn solve_acid_base(acid: &StructureDefinition, base: &StructureDefinition) -> Option<Verdict> {
     let donors = acid_donor_count(acid)?;
     let (cation, cation_charge, anion_kind) = ionic_base(base)?;
     let salt = conjugate_salt(acid, donors, &cation, cation_charge)?;
@@ -138,10 +146,7 @@ fn solve_acid_base(
 
 /// Acid + elemental metal: salt + hydrogen above the hydrogen pivot in the
 /// activity series, a confident no-reaction below it.
-fn solve_acid_metal(
-    acid: &StructureDefinition,
-    metal: &StructureDefinition,
-) -> Option<Verdict> {
+fn solve_acid_metal(acid: &StructureDefinition, metal: &StructureDefinition) -> Option<Verdict> {
     let donors = acid_donor_count(acid)?;
     if metal.representation() != RepresentationKind::Metallic {
         return None;
@@ -177,10 +182,7 @@ fn solve_acid_metal(
 /// Organic fuel + oxygen → complete combustion to carbon dioxide and
 /// water. Deterministic for any C/H(/O) fuel; the balancer finds the
 /// coefficients.
-fn solve_combustion(
-    fuel: &StructureDefinition,
-    oxidizer: &StructureDefinition,
-) -> Option<Verdict> {
+fn solve_combustion(fuel: &StructureDefinition, oxidizer: &StructureDefinition) -> Option<Verdict> {
     let (oxidizer_element, _) = single_element(oxidizer)?;
     if oxidizer_element.as_str() != "O" {
         return None;
@@ -236,9 +238,8 @@ const ACID_ANHYDRIDES: [Anhydride; 6] = [
 
 /// Metals reactive enough that both they and their oxides turn water into
 /// the hydroxide (the alkali and heavy alkaline-earth metals).
-const WATER_REACTIVE_METALS: [&str; 10] = [
-    "Li", "Na", "K", "Rb", "Cs", "Fr", "Ca", "Sr", "Ba", "Ra",
-];
+const WATER_REACTIVE_METALS: [&str; 10] =
+    ["Li", "Na", "K", "Rb", "Cs", "Fr", "Ca", "Sr", "Ba", "Ra"];
 
 /// The hydroxide of one cation, conventionally formatted and phased by
 /// solubility.
@@ -261,10 +262,7 @@ fn hydroxide_salt(cation: &str, charge: u64) -> ClaimProduct {
 /// oxides slake to hydroxides, and other known metal oxides confidently do
 /// nothing. Borderline oxides (`MgO` reacts slowly, amphoterics passivate,
 /// `NO2` disproportionates) fall to the model.
-fn solve_oxide_water(
-    oxide: &StructureDefinition,
-    water: &StructureDefinition,
-) -> Option<Verdict> {
+fn solve_oxide_water(oxide: &StructureDefinition, water: &StructureDefinition) -> Option<Verdict> {
     if !is_water(water.formula()) || is_water(oxide.formula()) {
         return None;
     }
@@ -306,7 +304,10 @@ fn solve_oxide_water(
             }],
         });
     }
-    if matches!(salt.cation.as_str(), "Mg" | "Be" | "Al" | "Zn" | "Pb" | "Sn") {
+    if matches!(
+        salt.cation.as_str(),
+        "Mg" | "Be" | "Al" | "Zn" | "Pb" | "Sn"
+    ) {
         return None;
     }
     // Any other recognised metal oxide just sits in water.
@@ -317,36 +318,61 @@ fn solve_oxide_water(
     })
 }
 
-/// Pairings that confidently do nothing: a light noble gas with anything
-/// (Kr and Xe form real fluorides, so no verdict there), two elemental
-/// metals (alloys are mixtures, not reactions), or two portions of the
-/// same closed-shell substance (open-shell twins like NO2 dimerize).
+/// Element counts of one request species, from its formula text. Available
+/// even when no structure could be generated.
+fn species_composition(entry: &OutcomeSpecies) -> Option<BTreeMap<String, u64>> {
+    let formula = match entry {
+        OutcomeSpecies::Resolved(resolved) => resolved.formula_text.as_str(),
+        OutcomeSpecies::FormulaOnly { formula, .. } => formula.as_str(),
+    };
+    let composition = chem_domain::FormulaComposition::parse(formula).ok()?;
+    Some(
+        composition
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+            .collect(),
+    )
+}
+
+/// Pairings that confidently do nothing, decided from element identity
+/// alone where possible: a light noble gas with anything (Kr and Xe form
+/// real fluorides, so no verdict there), two elemental metals (alloys are
+/// mixtures, not reactions), or two portions of the same closed-shell
+/// substance (open-shell twins like NO2 dimerize, so those need their
+/// structures checked).
 fn solve_trivial_no_reaction(
-    left: &StructureDefinition,
-    right: &StructureDefinition,
+    left: (&BTreeMap<String, u64>, Option<&StructureDefinition>),
+    right: (&BTreeMap<String, u64>, Option<&StructureDefinition>),
 ) -> Option<Verdict> {
-    let inert = |structure: &StructureDefinition| {
-        single_element(structure)
-            .is_some_and(|(element, _)| matches!(element.as_str(), "He" | "Ne" | "Ar"))
+    let lone_element = |composition: &BTreeMap<String, u64>| {
+        (composition.len() == 1)
+            .then(|| composition.keys().next().cloned())
+            .flatten()
     };
-    let metallic = |structure: &StructureDefinition| {
-        structure.representation() == RepresentationKind::Metallic
+    let inert = |composition: &BTreeMap<String, u64>| {
+        lone_element(composition)
+            .is_some_and(|element| matches!(element.as_str(), "He" | "Ne" | "Ar"))
     };
-    let closed_shell = |structure: &StructureDefinition| {
-        structure
-            .graph()
-            .atoms()
-            .values()
-            .all(|atom| atom.electrons().unpaired_electrons() == 0)
+    let metal = |composition: &BTreeMap<String, u64>| {
+        lone_element(composition).is_some_and(|element| chem_domain::is_metal(&element))
     };
-    let same_substance = left.formula().elements() == right.formula().elements()
-        && left.representation() == right.representation()
-        && closed_shell(left);
-    (inert(left) || inert(right) || (metallic(left) && metallic(right)) || same_substance)
-        .then(|| Verdict {
+    let closed_shell = |structure: Option<&StructureDefinition>| {
+        structure.is_some_and(|structure| {
+            structure
+                .graph()
+                .atoms()
+                .values()
+                .all(|atom| atom.electrons().unpaired_electrons() == 0)
+        })
+    };
+    let same_substance = left.0 == right.0 && closed_shell(left.1) && closed_shell(right.1);
+    (inert(left.0) || inert(right.0) || (metal(left.0) && metal(right.0)) || same_substance).then(
+        || Verdict {
             products: Vec::new(),
             observations: Vec::new(),
-        })
+        },
+    )
 }
 
 /// Halogens in decreasing reactivity.
@@ -438,10 +464,7 @@ fn solve_halogen_displacement(
 /// Elemental metal + water: the very reactive metals form their hydroxide
 /// and hydrogen; metals below hydrogen in the activity series confidently
 /// do nothing. The steam-only band (Mg through Pb) falls to the model.
-fn solve_metal_water(
-    metal: &StructureDefinition,
-    water: &StructureDefinition,
-) -> Option<Verdict> {
+fn solve_metal_water(metal: &StructureDefinition, water: &StructureDefinition) -> Option<Verdict> {
     if metal.representation() != RepresentationKind::Metallic || !is_water(water.formula()) {
         return None;
     }
@@ -685,7 +708,9 @@ fn solve_synthesis(
         });
         return Some(vec![product_from_counts(
             &counts,
-            cation.as_ref().map(|(symbol, charge)| (symbol.as_str(), *charge)),
+            cation
+                .as_ref()
+                .map(|(symbol, charge)| (symbol.as_str(), *charge)),
         )]);
     }
 
@@ -800,7 +825,9 @@ fn ionic_salt(structure: &StructureDefinition) -> Option<Salt> {
         } else if charge < 0 {
             let mut counts = BTreeMap::new();
             for atom in &members {
-                *counts.entry(atom.element().as_str().to_owned()).or_insert(0) += 1;
+                *counts
+                    .entry(atom.element().as_str().to_owned())
+                    .or_insert(0) += 1;
             }
             let found = (counts, charge.unsigned_abs());
             if anion.get_or_insert_with(|| found.clone()) != &found {
@@ -871,8 +898,12 @@ fn solve_double_displacement(
     }
     // Oxidising cations turn iodide exchanges into redox (2Fe³⁺ + 2I⁻ →
     // 2Fe²⁺ + I₂); those never follow the exchange rule.
-    let oxidising =
-        |salt: &Salt| matches!((salt.cation.as_str(), salt.cation_charge), ("Fe", 3) | ("Cu", 2));
+    let oxidising = |salt: &Salt| {
+        matches!(
+            (salt.cation.as_str(), salt.cation_charge),
+            ("Fe", 3) | ("Cu", 2)
+        )
+    };
     let iodide = |salt: &Salt| salt.anion.len() == 1 && salt.anion.contains_key("I");
     if (oxidising(&first) && iodide(&second)) || (oxidising(&second) && iodide(&first)) {
         return None;
@@ -892,8 +923,18 @@ fn solve_double_displacement(
         });
     }
     let products = vec![
-        exchanged_salt(&first.cation, first.cation_charge, &second, Some(first_soluble)),
-        exchanged_salt(&second.cation, second.cation_charge, &first, Some(second_soluble)),
+        exchanged_salt(
+            &first.cation,
+            first.cation_charge,
+            &second,
+            Some(first_soluble),
+        ),
+        exchanged_salt(
+            &second.cation,
+            second.cation_charge,
+            &first,
+            Some(second_soluble),
+        ),
     ];
     let observations = products
         .iter()
@@ -1109,10 +1150,7 @@ mod tests {
 
     #[test]
     fn sulfuric_acid_and_sodium_hydroxide_solve_without_a_model() {
-        let request = request(&[
-            ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]),
-            ("NaOH", &[11, 8, 1]),
-        ]);
+        let request = request(&[("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]), ("NaOH", &[11, 8, 1])]);
         let registry = SpeciesRegistry::default();
         let claim = solve_reaction_claim(&request, &registry).expect("solved");
         assert_eq!(claim.disposition, ClaimDisposition::Reaction);
@@ -1122,12 +1160,15 @@ mod tests {
             .map(|product| product.formula.as_str())
             .collect::<Vec<_>>();
         assert_eq!(formulas, ["H2O", "Na2SO4"]);
-        let outcome =
-            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
         let CompiledClaimOutcome::Static(outcome) = outcome else {
             panic!("expected static outcome");
         };
-        assert!(outcome.equation().contains("Na2SO4"), "{}", outcome.equation());
+        assert!(
+            outcome.equation().contains("Na2SO4"),
+            "{}",
+            outcome.equation()
+        );
         assert!(
             outcome.species_without_structure().is_empty(),
             "every species should carry a generated structure: {:?}",
@@ -1138,8 +1179,7 @@ mod tests {
     #[test]
     fn hydrochloric_acid_neutralization_solves() {
         let request = request(&[("HCl", &[1, 17]), ("NaOH", &[11, 8, 1])]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1151,20 +1191,15 @@ mod tests {
     #[test]
     fn hydrogen_and_chlorine_synthesize_hydrogen_chloride() {
         let request = request(&[("H₂", &[1, 1]), ("Cl₂", &[17, 17])]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products.len(), 1);
         assert_eq!(claim.products[0].formula, "HCl");
     }
 
     #[test]
     fn acid_and_carbonate_solve_with_carbon_dioxide_evolution() {
-        let request = request(&[
-            ("HCl", &[1, 17]),
-            ("Na₂CO₃", &[11, 11, 6, 8, 8, 8]),
-        ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let request = request(&[("HCl", &[1, 17]), ("Na₂CO₃", &[11, 11, 6, 8, 8, 8])]);
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1185,8 +1220,7 @@ mod tests {
             ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]),
             ("NaHCO₃", &[11, 1, 6, 8, 8, 8]),
         ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1198,8 +1232,7 @@ mod tests {
     #[test]
     fn reactive_metal_and_acid_evolve_hydrogen() {
         let request = request(&[("Zn", &[30]), ("HCl", &[1, 17])]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.disposition, ClaimDisposition::Reaction);
         let formulas = claim
             .products
@@ -1218,8 +1251,7 @@ mod tests {
     #[test]
     fn noble_metal_and_acid_is_a_confident_no_reaction() {
         let request = request(&[("Cu", &[29]), ("HCl", &[1, 17])]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
     }
@@ -1227,8 +1259,7 @@ mod tests {
     #[test]
     fn methane_combustion_solves() {
         let request = request(&[("CH₄", &[6, 1, 1, 1, 1]), ("O₂", &[8, 8])]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1239,12 +1270,8 @@ mod tests {
 
     #[test]
     fn ethanol_combustion_solves() {
-        let request = request(&[
-            ("C₂H₆O", &[6, 6, 8, 1, 1, 1, 1, 1, 1]),
-            ("O₂", &[8, 8]),
-        ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let request = request(&[("C₂H₆O", &[6, 6, 8, 1, 1, 1, 1, 1, 1]), ("O₂", &[8, 8])]);
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1256,8 +1283,7 @@ mod tests {
     #[test]
     fn carbonate_decomposition_solves_under_heat() {
         let request = contextual("CaCO₃", &[20, 6, 8, 8, 8], "heat");
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.required_context, "heat");
         let formulas = claim
             .products
@@ -1270,8 +1296,7 @@ mod tests {
     #[test]
     fn bicarbonate_decomposition_solves_under_heat() {
         let request = contextual("NaHCO₃", &[11, 1, 6, 8, 8, 8], "heat");
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1283,8 +1308,7 @@ mod tests {
     #[test]
     fn hydroxide_decomposition_and_alkali_stability() {
         let calcium = contextual("Ca(OH)₂", &[20, 8, 8, 1, 1], "heat");
-        let claim =
-            solve_reaction_claim(&calcium, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&calcium, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1293,21 +1317,19 @@ mod tests {
         assert_eq!(formulas, ["CaO", "H2O"]);
 
         let sodium = contextual("NaOH", &[11, 8, 1], "heat");
-        let claim =
-            solve_reaction_claim(&sodium, &SpeciesRegistry::default()).expect("verdict");
+        let claim = solve_reaction_claim(&sodium, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
 
         let sodium_carbonate = contextual("Na₂CO₃", &[11, 11, 6, 8, 8, 8], "heat");
-        let claim = solve_reaction_claim(&sodium_carbonate, &SpeciesRegistry::default())
-            .expect("verdict");
+        let claim =
+            solve_reaction_claim(&sodium_carbonate, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
     }
 
     #[test]
     fn water_electrolysis_solves_under_electricity() {
         let request = contextual("H₂O", &[1, 1, 8], "electricity");
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.required_context, "electricity");
         let formulas = claim
             .products
@@ -1323,46 +1345,36 @@ mod tests {
 
     #[test]
     fn solver_products_carry_systematic_names() {
-        let neutralization = request(&[
-            ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]),
-            ("NaOH", &[11, 8, 1]),
-        ]);
-        let claim = solve_reaction_claim(&neutralization, &SpeciesRegistry::default())
-            .expect("solved");
+        let neutralization = request(&[("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]), ("NaOH", &[11, 8, 1])]);
+        let claim =
+            solve_reaction_claim(&neutralization, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[1].name, "sodium sulfate");
 
         let displacement = request(&[("Zn", &[30]), ("HCl", &[1, 17])]);
-        let claim = solve_reaction_claim(&displacement, &SpeciesRegistry::default())
-            .expect("solved");
+        let claim =
+            solve_reaction_claim(&displacement, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].name, "zinc chloride");
 
         let iron = request(&[("Fe", &[26]), ("Cl₂", &[17, 17])]);
-        let claim =
-            solve_reaction_claim(&iron, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&iron, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].name, "iron(III) chloride");
 
         let lime = contextual("CaCO₃", &[20, 6, 8, 8, 8], "heat");
-        let claim =
-            solve_reaction_claim(&lime, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&lime, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].name, "calcium oxide");
 
         let nitric = request(&[("HNO₃", &[1, 7, 8, 8, 8]), ("NaOH", &[11, 8, 1])]);
-        let claim =
-            solve_reaction_claim(&nitric, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&nitric, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[1].name, "sodium nitrate");
 
         let hydride = request(&[("H₂", &[1, 1]), ("Cl₂", &[17, 17])]);
-        let claim =
-            solve_reaction_claim(&hydride, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&hydride, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].name, "hydrogen chloride");
     }
 
     #[test]
     fn silver_nitrate_and_sodium_chloride_precipitate_silver_chloride() {
-        let request = request(&[
-            ("AgNO₃", &[47, 7, 8, 8, 8]),
-            ("NaCl", &[11, 17]),
-        ]);
+        let request = request(&[("AgNO₃", &[47, 7, 8, 8, 8]), ("NaCl", &[11, 17])]);
         let registry = SpeciesRegistry::default();
         let claim = solve_reaction_claim(&request, &registry).expect("solved");
         assert_eq!(claim.disposition, ClaimDisposition::Reaction);
@@ -1382,8 +1394,7 @@ mod tests {
                 .iter()
                 .any(|observation| observation.subject.contains("precipitate"))
         );
-        let outcome =
-            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
         let CompiledClaimOutcome::Static(outcome) = outcome else {
             panic!("expected static outcome");
         };
@@ -1400,8 +1411,7 @@ mod tests {
             ("BaCl₂", &[56, 17, 17]),
             ("Na₂SO₄", &[11, 11, 16, 8, 8, 8, 8]),
         ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let products = claim
             .products
             .iter()
@@ -1416,12 +1426,8 @@ mod tests {
 
     #[test]
     fn copper_sulfate_and_sodium_hydroxide_precipitate_the_hydroxide() {
-        let request = request(&[
-            ("CuSO₄", &[29, 16, 8, 8, 8, 8]),
-            ("NaOH", &[11, 8, 1]),
-        ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let request = request(&[("CuSO₄", &[29, 16, 8, 8, 8, 8]), ("NaOH", &[11, 8, 1])]);
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let precipitate = &claim.products[0];
         assert_eq!(precipitate.formula, "Cu(OH)2");
         assert_eq!(precipitate.name, "copper(II) hydroxide");
@@ -1435,8 +1441,7 @@ mod tests {
             ("Pb(NO₃)₂", &[82, 7, 8, 8, 8, 7, 8, 8, 8]),
             ("KI", &[19, 53]),
         ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         let precipitate = &claim.products[0];
         assert_eq!(precipitate.formula, "PbI2");
         assert_eq!(precipitate.name, "lead(II) iodide");
@@ -1446,16 +1451,19 @@ mod tests {
 
     #[test]
     fn zinc_displaces_copper_from_its_sulfate() {
-        let request = request(&[
-            ("Zn", &[30]),
-            ("CuSO₄", &[29, 16, 8, 8, 8, 8]),
-        ]);
+        let request = request(&[("Zn", &[30]), ("CuSO₄", &[29, 16, 8, 8, 8, 8])]);
         let registry = SpeciesRegistry::default();
         let claim = solve_reaction_claim(&request, &registry).expect("solved");
         let products = claim
             .products
             .iter()
-            .map(|product| (product.formula.as_str(), product.name.as_str(), product.phase))
+            .map(|product| {
+                (
+                    product.formula.as_str(),
+                    product.name.as_str(),
+                    product.phase,
+                )
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             products,
@@ -1464,8 +1472,7 @@ mod tests {
                 ("Cu", "copper", ClaimPhase::Solid),
             ]
         );
-        let outcome =
-            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
+        let outcome = compile_claim_outcome(&request, claim, &registry).expect("balanced outcome");
         let CompiledClaimOutcome::Static(outcome) = outcome else {
             panic!("expected static outcome");
         };
@@ -1478,12 +1485,8 @@ mod tests {
 
     #[test]
     fn copper_displaces_silver_from_its_nitrate() {
-        let request = request(&[
-            ("Cu", &[29]),
-            ("AgNO₃", &[47, 7, 8, 8, 8]),
-        ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let request = request(&[("Cu", &[29]), ("AgNO₃", &[47, 7, 8, 8, 8])]);
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].formula, "Cu(NO3)2");
         assert_eq!(claim.products[0].name, "copper(II) nitrate");
         assert_eq!(claim.products[1].formula, "Ag");
@@ -1492,12 +1495,8 @@ mod tests {
 
     #[test]
     fn less_active_metal_and_salt_is_a_confident_no_reaction() {
-        let request = request(&[
-            ("Cu", &[29]),
-            ("ZnSO₄", &[30, 16, 8, 8, 8, 8]),
-        ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
+        let request = request(&[("Cu", &[29]), ("ZnSO₄", &[30, 16, 8, 8, 8, 8])]);
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
     }
@@ -1505,21 +1504,14 @@ mod tests {
     #[test]
     fn copper_and_iron_iii_chloride_falls_to_the_model() {
         // The series says no reaction, but Fe3+ etches copper anyway.
-        let request = request(&[
-            ("Cu", &[29]),
-            ("FeCl₃", &[26, 17, 17, 17]),
-        ]);
+        let request = request(&[("Cu", &[29]), ("FeCl₃", &[26, 17, 17, 17])]);
         assert!(solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none());
     }
 
     #[test]
     fn fully_soluble_exchange_is_a_confident_no_reaction() {
-        let request = request(&[
-            ("NaCl", &[11, 17]),
-            ("KNO₃", &[19, 7, 8, 8, 8]),
-        ]);
-        let claim =
-            solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
+        let request = request(&[("NaCl", &[11, 17]), ("KNO₃", &[19, 7, 8, 8, 8])]);
+        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
     }
@@ -1527,10 +1519,7 @@ mod tests {
     #[test]
     fn redox_prone_and_borderline_exchanges_fall_to_the_model() {
         // Fe³⁺ oxidises iodide instead of exchanging.
-        let redox = request(&[
-            ("FeCl₃", &[26, 17, 17, 17]),
-            ("KI", &[19, 53]),
-        ]);
+        let redox = request(&[("FeCl₃", &[26, 17, 17, 17]), ("KI", &[19, 53])]);
         assert!(solve_reaction_claim(&redox, &SpeciesRegistry::default()).is_none());
 
         // CaSO4 is borderline soluble; no confident verdict either way.
@@ -1543,12 +1532,8 @@ mod tests {
 
     #[test]
     fn metal_oxides_neutralize_acids() {
-        let copper = request(&[
-            ("CuO", &[29, 8]),
-            ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]),
-        ]);
-        let claim =
-            solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("solved");
+        let copper = request(&[("CuO", &[29, 8]), ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8])]);
+        let claim = solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1558,8 +1543,7 @@ mod tests {
         assert_eq!(claim.products[1].name, "copper(II) sulfate");
 
         let soda = request(&[("HCl", &[1, 17]), ("Na₂O", &[11, 11, 8])]);
-        let claim =
-            solve_reaction_claim(&soda, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&soda, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1571,15 +1555,15 @@ mod tests {
     #[test]
     fn acid_anhydrides_hydrate_to_oxoacids() {
         let sulfur_trioxide = request(&[("SO₃", &[16, 8, 8, 8]), ("H₂O", &[1, 1, 8])]);
-        let claim = solve_reaction_claim(&sulfur_trioxide, &SpeciesRegistry::default())
-            .expect("solved");
+        let claim =
+            solve_reaction_claim(&sulfur_trioxide, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products.len(), 1);
         assert_eq!(claim.products[0].formula, "H2SO4");
         assert_eq!(claim.products[0].name, "sulfuric acid");
 
         let carbon_dioxide = request(&[("H₂O", &[1, 1, 8]), ("CO₂", &[6, 8, 8])]);
-        let claim = solve_reaction_claim(&carbon_dioxide, &SpeciesRegistry::default())
-            .expect("solved");
+        let claim =
+            solve_reaction_claim(&carbon_dioxide, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].formula, "H2CO3");
         assert_eq!(claim.products[0].name, "carbonic acid");
         assert!(
@@ -1593,20 +1577,17 @@ mod tests {
     #[test]
     fn reactive_metal_oxides_slake_and_noble_ones_sit_still() {
         let quicklime = request(&[("CaO", &[20, 8]), ("H₂O", &[1, 1, 8])]);
-        let claim =
-            solve_reaction_claim(&quicklime, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&quicklime, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products.len(), 1);
         assert_eq!(claim.products[0].formula, "Ca(OH)2");
         assert_eq!(claim.products[0].name, "calcium hydroxide");
 
         let soda = request(&[("Na₂O", &[11, 11, 8]), ("H₂O", &[1, 1, 8])]);
-        let claim =
-            solve_reaction_claim(&soda, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&soda, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].formula, "NaOH");
 
         let copper = request(&[("CuO", &[29, 8]), ("H₂O", &[1, 1, 8])]);
-        let claim =
-            solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("verdict");
+        let claim = solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
 
         // MgO reacts slowly and NO2 disproportionates: no confident verdict.
@@ -1619,8 +1600,7 @@ mod tests {
     #[test]
     fn reactive_metals_turn_water_into_hydroxide_and_hydrogen() {
         let sodium = request(&[("Na", &[11]), ("H₂O", &[1, 1, 8])]);
-        let claim =
-            solve_reaction_claim(&sodium, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&sodium, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1637,13 +1617,11 @@ mod tests {
 
         // Order-independent, and Ca(OH)2 formats conventionally.
         let calcium = request(&[("H₂O", &[1, 1, 8]), ("Ca", &[20])]);
-        let claim =
-            solve_reaction_claim(&calcium, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&calcium, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].formula, "Ca(OH)2");
 
         let copper = request(&[("Cu", &[29]), ("H₂O", &[1, 1, 8])]);
-        let claim =
-            solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("verdict");
+        let claim = solve_reaction_claim(&copper, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
 
         // The steam-only band has no cold-water verdict.
@@ -1677,13 +1655,12 @@ mod tests {
     #[test]
     fn charge_balanced_synthesis_solves_metal_salts_and_hydrides() {
         let magnesium = request(&[("Mg", &[12]), ("N₂", &[7, 7])]);
-        let claim =
-            solve_reaction_claim(&magnesium, &SpeciesRegistry::default()).expect("solved");
+        let claim = solve_reaction_claim(&magnesium, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].formula, "Mg3N2");
 
         let hydrogen_sulfide = request(&[("H₂", &[1, 1]), ("S₈", &[16; 8])]);
-        let claim = solve_reaction_claim(&hydrogen_sulfide, &SpeciesRegistry::default())
-            .expect("solved");
+        let claim =
+            solve_reaction_claim(&hydrogen_sulfide, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].formula, "H2S");
     }
 
@@ -1710,13 +1687,25 @@ mod tests {
     }
 
     #[test]
+    fn identity_verdicts_survive_missing_structures() {
+        // Tungsten has no generator facts, so no structure generates — but
+        // element identity still settles these pairings.
+        no_reaction_claim(&[("W", &[74]), ("He", &[2])]);
+        no_reaction_claim(&[("W", &[74]), ("Cu", &[29])]);
+    }
+
+    fn no_reaction_claim(reactants: &[(&str, &[u8])]) {
+        let claim = solve_reaction_claim(&request(reactants), &SpeciesRegistry::default())
+            .expect("verdict");
+        assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
+        assert!(claim.products.is_empty());
+    }
+
+    #[test]
     fn reactive_halogens_displace_less_reactive_halides() {
-        let displacement = request(&[
-            ("Cl₂", &[17, 17]),
-            ("KBr", &[19, 35]),
-        ]);
-        let claim = solve_reaction_claim(&displacement, &SpeciesRegistry::default())
-            .expect("solved");
+        let displacement = request(&[("Cl₂", &[17, 17]), ("KBr", &[19, 35])]);
+        let claim =
+            solve_reaction_claim(&displacement, &SpeciesRegistry::default()).expect("solved");
         let formulas = claim
             .products
             .iter()
@@ -1733,8 +1722,7 @@ mod tests {
 
         // The reverse is a confident no-reaction.
         let reverse = request(&[("I₂", &[53, 53]), ("NaCl", &[11, 17])]);
-        let claim =
-            solve_reaction_claim(&reverse, &SpeciesRegistry::default()).expect("verdict");
+        let claim = solve_reaction_claim(&reverse, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
 
         // Fluorine attacks water first; silver bromide never dissolves.

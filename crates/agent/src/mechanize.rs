@@ -109,7 +109,8 @@ pub(crate) fn derive_algorithmic_mechanism(
     let mut join_share: BTreeMap<String, u8> = BTreeMap::new();
     let mut joins = Vec::new();
     for domain in &products.domains {
-        let share = u8::try_from(domain.electrons / u32::try_from(domain.sites.len()).ok()?).ok()?;
+        let share =
+            u8::try_from(domain.electrons / u32::try_from(domain.sites.len()).ok()?).ok()?;
         let sites = domain
             .sites
             .iter()
@@ -130,7 +131,8 @@ pub(crate) fn derive_algorithmic_mechanism(
 
     // 2. Metallic sites release their share of the domain electrons.
     for domain in &reactants.domains {
-        let share = u8::try_from(domain.electrons / u32::try_from(domain.sites.len()).ok()?).ok()?;
+        let share =
+            u8::try_from(domain.electrons / u32::try_from(domain.sites.len()).ok()?).ok()?;
         let mut remaining = domain.electrons;
         for site in &domain.sites {
             let before = *ledger.get(site)?;
@@ -184,7 +186,11 @@ pub(crate) fn derive_algorithmic_mechanism(
         let after_left = split(before_left)?;
         let after_right = split(before_right)?;
         operations.push(MechanismOperation::CleaveCovalent {
-            edge: (bond.left.clone(), bond.right.clone(), bond_record(bond.order)?),
+            edge: (
+                bond.left.clone(),
+                bond.right.clone(),
+                bond_record(bond.order)?,
+            ),
             allocation: MechanismCleavageAllocation::Homolytic(MechanismHomolytic::Homolytic),
             before: BinaryElectronStateRecord {
                 left: before_left.record(),
@@ -270,7 +276,10 @@ pub(crate) fn derive_algorithmic_mechanism(
         let give_left = ledger.get(left)?.lone.checked_sub(target(left)?.lone)?;
         let give_right = ledger.get(right)?.lone.checked_sub(target(right)?.lone)?;
         let total = bond.order.checked_mul(2)?;
-        let left_contribution = bond.order.min(give_left).max(total.saturating_sub(give_right));
+        let left_contribution = bond
+            .order
+            .min(give_left)
+            .max(total.saturating_sub(give_right));
         let right_contribution = total.checked_sub(left_contribution)?;
         if left_contribution > give_left || right_contribution > give_right {
             return None;
@@ -490,8 +499,8 @@ fn expand_side(species: &[MechanismSpecies]) -> Option<Side> {
             let path = |label: &str| format!("{prefix}.{label}");
             let mut instance_atoms = Vec::new();
             let push_atoms = |records: &[chem_catalogue::AtomRecord],
-                                  side: &mut Side,
-                                  instance_atoms: &mut Vec<String>| {
+                              side: &mut Side,
+                              instance_atoms: &mut Vec<String>| {
                 for atom in records {
                     let atom_path = path(&atom.label);
                     instance_atoms.push(atom_path.clone());
@@ -657,8 +666,7 @@ fn map_atoms(reactants: &Side, products: &Side) -> Option<BTreeMap<String, Strin
                 .bonds
                 .iter()
                 .filter(|bond| {
-                    (bond.left == candidate.path
-                        && bonded_reactant_partners.contains(&bond.right))
+                    (bond.left == candidate.path && bonded_reactant_partners.contains(&bond.right))
                         || (bond.right == candidate.path
                             && bonded_reactant_partners.contains(&bond.left))
                 })

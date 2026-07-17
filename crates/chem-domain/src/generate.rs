@@ -164,17 +164,13 @@ fn best_solution(slot_sets: &[Vec<Slot>]) -> Option<SolvedUnit> {
             continue;
         }
         if slots.len() == 1 {
-            if slots[0].bond_sum_options().contains(&0)
-                && slots[0].lone_electrons_for(0).is_some()
+            if slots[0].bond_sum_options().contains(&0) && slots[0].lone_electrons_for(0).is_some()
             {
                 consider(slots, &[0], &[], &mut best_score, &mut best);
             }
             continue;
         }
-        let option_sets = slots
-            .iter()
-            .map(Slot::bond_sum_options)
-            .collect::<Vec<_>>();
+        let option_sets = slots.iter().map(Slot::bond_sum_options).collect::<Vec<_>>();
         if option_sets.iter().any(Vec::is_empty) {
             continue;
         }
@@ -238,9 +234,7 @@ fn consider(
                     None
                 }
             })
-            .all(|partner| {
-                slots[partner].facts.electronegativity > slot.facts.electronegativity
-            });
+            .all(|partner| slots[partner].facts.electronegativity > slot.facts.electronegativity);
         if !expansion_is_physical {
             return;
         }
@@ -596,8 +590,8 @@ pub fn has_variable_cation_charge(symbol: &str) -> bool {
 /// The metal activity series, most reactive first, with hydrogen as the
 /// pivot for acid reactivity. Periodic-trend knowledge, kept as code.
 const ACTIVITY_SERIES: [&str; 24] = [
-    "Cs", "Rb", "K", "Ba", "Sr", "Ca", "Na", "Mg", "Al", "Mn", "Zn", "Cr", "Fe", "Cd", "Co",
-    "Ni", "Sn", "Pb", "H", "Cu", "Ag", "Hg", "Pt", "Au",
+    "Cs", "Rb", "K", "Ba", "Sr", "Ca", "Na", "Mg", "Al", "Mn", "Zn", "Cr", "Fe", "Cd", "Co", "Ni",
+    "Sn", "Pb", "H", "Cu", "Ag", "Hg", "Pt", "Au",
 ];
 
 /// Position in the activity series (lower is more reactive), when listed.
@@ -768,7 +762,9 @@ fn generate_ionic(
             .iter()
             .zip(&charges)
             .map(|((_, _, count), charge)| {
-                i64::try_from(*count).ok().map(|count| count * i64::from(*charge))
+                i64::try_from(*count)
+                    .ok()
+                    .map(|count| count * i64::from(*charge))
             })
             .sum::<Option<i64>>()?;
         if let Some(structure) =
@@ -886,9 +882,8 @@ fn ionic_structure(
                 .ok()?,
             );
         }
-        group_records.push(
-            AtomGroup::new(AtomGroupId::new(format!("g{group_index}")).ok()?, members).ok()?,
-        );
+        group_records
+            .push(AtomGroup::new(AtomGroupId::new(format!("g{group_index}")).ok()?, members).ok()?);
     }
 
     let association = IonicAssociation::new(
@@ -964,8 +959,7 @@ fn generate_ammonium_salt(
 fn solve_anion_unit(elements: &[(String, Facts, u64)], charge: u32) -> Option<SolvedUnit> {
     let total: u64 = elements.iter().map(|(_, _, count)| *count).sum();
     if total == 1 && charge > 0 {
-        let (symbol, element_facts, _) =
-            elements.iter().find(|(_, _, count)| *count == 1)?;
+        let (symbol, element_facts, _) = elements.iter().find(|(_, _, count)| *count == 1)?;
         let lone = i16::from(element_facts.valence) + i16::try_from(charge).ok()?;
         if (0..=8).contains(&lone) && lone % 2 == 0 {
             return Some(SolvedUnit {

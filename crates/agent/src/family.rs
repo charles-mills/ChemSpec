@@ -399,8 +399,10 @@ mod tests {
 
     fn trusted() -> TrustedCatalogue {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(&std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"))
+        TrustedCatalogue::from_canonical_json(
+            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+                .expect("catalogue"),
+        )
         .expect("trusted catalogue")
     }
 

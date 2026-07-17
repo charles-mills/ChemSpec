@@ -834,9 +834,11 @@ mod tests {
 
     #[test]
     fn metallic_sites_use_domain_valence_instead_of_covalent_identity() {
-        let derived =
-            derive_provisional_structure_states(&copper_structure(11).structures, &[copper_premise()])
-                .expect("reviewed copper metal state");
+        let derived = derive_provisional_structure_states(
+            &copper_structure(11).structures,
+            &[copper_premise()],
+        )
+        .expect("reviewed copper metal state");
         assert!(derived.neutral_valence.is_empty());
         assert!(derived.supported_states.is_empty());
         assert!(derived.metallic_domain_states.is_empty());
@@ -844,9 +846,10 @@ mod tests {
 
     #[test]
     fn metallic_site_charge_must_balance_its_domain_electrons() {
-        let Err(error) =
-            derive_provisional_structure_states(&copper_structure(0).structures, &[copper_premise()])
-        else {
+        let Err(error) = derive_provisional_structure_states(
+            &copper_structure(0).structures,
+            &[copper_premise()],
+        ) else {
             panic!("neutral local site charge cannot balance the electron domain");
         };
         assert!(

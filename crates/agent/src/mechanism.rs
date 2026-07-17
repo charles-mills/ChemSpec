@@ -400,7 +400,13 @@ fn propose_mechanism_frames<P: MechanismProvider>(
             structure_repair_count,
         }));
     }
-    propose_with_provider(outcome, catalogue, provider, context, structure_repair_count)
+    propose_with_provider(
+        outcome,
+        catalogue,
+        provider,
+        context,
+        structure_repair_count,
+    )
 }
 
 /// The bounded model-proposal/repair loop, reached only when algorithmic
@@ -1460,8 +1466,10 @@ mod tests {
 
     fn trusted() -> TrustedCatalogue {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(&std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"))
+        TrustedCatalogue::from_canonical_json(
+            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+                .expect("catalogue"),
+        )
         .expect("trusted catalogue")
     }
 
@@ -1783,7 +1791,10 @@ mod tests {
         let trusted = trusted();
         let outcome = static_outcome_for(
             &trusted,
-            [("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]), ("NaOH", vec![11, 8, 1])],
+            [
+                ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8]),
+                ("NaOH", vec![11, 8, 1]),
+            ],
             &json!([
                 {"name":"Water","formula":"H2O","phase":"liquid","identity_hints":[]},
                 {"name":"sodium sulfate","formula":"Na2SO4","phase":"aqueous","identity_hints":[]}
@@ -2238,9 +2249,7 @@ mod tests {
     /// structures so the mapping stays consistent with whatever labels the
     /// generator assigned.
     #[allow(clippy::too_many_lines)]
-    fn ether_mechanism(
-        adopted: &crate::AdoptedProposedStructures,
-    ) -> MechanismEscalationResponse {
+    fn ether_mechanism(adopted: &crate::AdoptedProposedStructures) -> MechanismEscalationResponse {
         let context = compile_mechanism_request(&adopted.outcome, &adopted.bundle)
             .expect("request")
             .expect("complete structural request");
@@ -2285,8 +2294,7 @@ mod tests {
         };
 
         let (ethylene_role, ethylene_atoms, ethylene_bonds) = molecular("C2H4", &request.reactants);
-        let (methanol_role, methanol_atoms, methanol_bonds) =
-            molecular("CH4O", &request.reactants);
+        let (methanol_role, methanol_atoms, methanol_bonds) = molecular("CH4O", &request.reactants);
         let (product_role, _, _) = molecular("C3H8O", &request.products);
         let carbons = ethylene_atoms
             .iter()
@@ -2416,7 +2424,11 @@ mod tests {
         assert_eq!(provider.structure_diagnostics, [None]);
         // The mechanism itself derives algorithmically once structures are
         // adopted; the model is never consulted for it.
-        assert!(provider.diagnostics.is_empty(), "{:?}", provider.diagnostics);
+        assert!(
+            provider.diagnostics.is_empty(),
+            "{:?}",
+            provider.diagnostics
+        );
 
         // The cached-recipe replay must revalidate through the identical path.
         let replayed = validate_escalated_response_with_structures(

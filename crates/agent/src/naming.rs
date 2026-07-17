@@ -92,7 +92,9 @@ pub(crate) fn salt_name(
         format!("{}ide", anion_root(anion.keys().next()?)?)
     } else {
         // Reduce repeated units so Mg(NO3)2's N2O6 still reads as nitrate.
-        let shared = anion.values().fold(0, |acc, count| crate::solve::gcd(acc, *count));
+        let shared = anion
+            .values()
+            .fold(0, |acc, count| crate::solve::gcd(acc, *count));
         let reduced = anion
             .iter()
             .map(|(symbol, count)| (*symbol, count / shared))
@@ -258,7 +260,9 @@ fn salt_composition(words: &[&str]) -> Option<BTreeMap<String, u64>> {
         phrase
     };
     let (anion_unit, anion_charge): (Vec<(&str, u64)>, u64) = if let Some((_, unit, charge)) =
-        POLYATOMIC_ANIONS.iter().find(|(known, _, _)| *known == phrase)
+        POLYATOMIC_ANIONS
+            .iter()
+            .find(|(known, _, _)| *known == phrase)
     {
         (unit.to_vec(), *charge)
     } else {
@@ -322,7 +326,10 @@ fn molecular_composition(words: &[&str]) -> Option<BTreeMap<String, u64>> {
         _ => left_count.unwrap_or(1),
     };
     Some(scaled(
-        &[(left_symbol, left_count), (right_symbol, right_count.unwrap_or(1))],
+        &[
+            (left_symbol, left_count),
+            (right_symbol, right_count.unwrap_or(1)),
+        ],
         1,
         BTreeMap::new(),
     ))
@@ -398,14 +405,26 @@ mod tests {
         assert_eq!(composition("Sulfuric Acid").as_deref(), Some("H2 O4 S1"));
         // Salts, with and without numerals, including British spelling.
         assert_eq!(composition("sodium chloride").as_deref(), Some("Cl1 Na1"));
-        assert_eq!(composition("copper(II) sulphate").as_deref(), Some("Cu1 O4 S1"));
-        assert_eq!(composition("iron (III) chloride").as_deref(), Some("Cl3 Fe1"));
-        assert_eq!(composition("magnesium nitrate").as_deref(), Some("Mg1 N2 O6"));
+        assert_eq!(
+            composition("copper(II) sulphate").as_deref(),
+            Some("Cu1 O4 S1")
+        );
+        assert_eq!(
+            composition("iron (III) chloride").as_deref(),
+            Some("Cl3 Fe1")
+        );
+        assert_eq!(
+            composition("magnesium nitrate").as_deref(),
+            Some("Mg1 N2 O6")
+        );
         assert_eq!(
             composition("sodium bicarbonate").as_deref(),
             Some("C1 H1 Na1 O3")
         );
-        assert_eq!(composition("ammonium chloride").as_deref(), Some("Cl1 H4 N1"));
+        assert_eq!(
+            composition("ammonium chloride").as_deref(),
+            Some("Cl1 H4 N1")
+        );
         // Molecular binaries.
         assert_eq!(composition("carbon dioxide").as_deref(), Some("C1 O2"));
         assert_eq!(composition("carbon monoxide").as_deref(), Some("C1 O1"));

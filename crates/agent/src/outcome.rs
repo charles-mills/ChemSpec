@@ -4,9 +4,8 @@ use chem_catalogue::ValidatedCatalogueBundle;
 use chem_domain::{
     BronstedAcidProfile, Charge, ContentDigest, ElementInventory, ElementSymbol,
     ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
-    ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry,
-    SpeciesResolution, StructureId, UnbalancedReactionTerm, classify_bronsted_acid,
-    generate_structure, symbol_of,
+    ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry, SpeciesResolution,
+    StructureId, UnbalancedReactionTerm, classify_bronsted_acid, generate_structure, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -817,8 +816,10 @@ mod tests {
 
     fn trusted() -> TrustedCatalogue {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(&std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"))
+        TrustedCatalogue::from_canonical_json(
+            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+                .expect("catalogue"),
+        )
         .expect("trusted catalogue")
     }
 

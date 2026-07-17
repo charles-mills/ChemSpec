@@ -12,19 +12,20 @@ pub const ELEMENT_SYMBOLS: [&str; 118] = [
     "Sn", "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb",
     "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl",
     "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk",
-    "Cf", "Es", "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn",
-    "Nh", "Fl", "Mc", "Lv", "Ts", "Og",
+    "Cf", "Es", "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh",
+    "Fl", "Mc", "Lv", "Ts", "Og",
 ];
 
-static REGISTRY: LazyLock<StaticElementRegistry> = LazyLock::new(|| {
-    StaticElementRegistry::new(ELEMENT_SYMBOLS.iter().enumerate().map(|(index, symbol)| {
-        Element {
-            id: ElementId::new(u16::try_from(index + 1).expect("small")).expect("nonzero"),
-            symbol: ElementSymbol::new(*symbol).expect("valid symbol"),
-        }
-    }))
-    .expect("unique periodic table")
-});
+static REGISTRY: LazyLock<StaticElementRegistry> =
+    LazyLock::new(|| {
+        StaticElementRegistry::new(ELEMENT_SYMBOLS.iter().enumerate().map(|(index, symbol)| {
+            Element {
+                id: ElementId::new(u16::try_from(index + 1).expect("small")).expect("nonzero"),
+                symbol: ElementSymbol::new(*symbol).expect("valid symbol"),
+            }
+        }))
+        .expect("unique periodic table")
+    });
 
 /// The complete element registry, straight from the periodic table.
 #[must_use]
@@ -167,6 +168,39 @@ pub fn element_name(symbol: &str) -> Option<&'static str> {
         .iter()
         .position(|candidate| *candidate == symbol)
         .map(|index| ELEMENT_NAMES[index])
+}
+
+/// Everything that is not a recognised nonmetal or metalloid is a metal.
+#[must_use]
+pub fn is_metal(symbol: &str) -> bool {
+    !matches!(
+        symbol,
+        "H" | "He"
+            | "C"
+            | "N"
+            | "O"
+            | "F"
+            | "Ne"
+            | "P"
+            | "S"
+            | "Cl"
+            | "Ar"
+            | "Se"
+            | "Br"
+            | "Kr"
+            | "I"
+            | "Xe"
+            | "Rn"
+            | "Og"
+            | "B"
+            | "Si"
+            | "Ge"
+            | "As"
+            | "Sb"
+            | "Te"
+            | "At"
+            | "Ts"
+    ) && ELEMENT_SYMBOLS.contains(&symbol)
 }
 
 /// Neutral valence electron counts, indexed by atomic number - 1.
