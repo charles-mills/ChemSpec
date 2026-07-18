@@ -235,9 +235,13 @@ attestation and both exact digests committed to the trust root.
   profiles and observation-gated effects, never an atom graph.
 - Startup capability-probes Codex version, login, live-search support, and every
   non-interactive flag used by the runtime. Recognized catalogue misses show
-  **Codex will build this reaction**, launch a generation-scoped Iced task, and
-  compile a closed claim into an exactly balanced static outcome before
-  optional evidence and 2D/3D presentation enrichment.
+  **Press space to ask Codex** in the builder's ordinary animated prompt,
+  launch a generation-scoped Iced task, and compile a closed claim into an
+  exactly balanced static outcome before optional evidence and 2D/3D
+  presentation enrichment. The prompt fades while the dynamic modal is open
+  and returns if it is dismissed. Dynamic modal visibility is the single
+  builder-overlay authority: it suppresses inline status, toolbar and drag
+  overlays, and background builder shortcuts until dismissal.
 - UI-local hydrogen/oxygen, carbon/oxygen, and silver-chloride outcomes have
   been removed; known outcomes still come through the catalogue fast path.
 - Editable source invalidates downstream frames and can be revalidated through

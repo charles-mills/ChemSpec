@@ -245,6 +245,29 @@ cargo check -p chemspec-app
 cargo run -p chemspec-app
 ```
 
+### Verifying reaction outcomes without the GUI
+
+To confirm what the app would produce for a pair of reactants, use the headless
+`react` subcommand instead of booting the window. It resolves two reactants
+(compound names or formulae) through the exact `atoms_from_name → resolve_drafts
+→ run` path the GUI uses and prints the outcome as JSON:
+
+```sh
+cargo run -p chemspec-app -- react sodium water
+cargo run -p chemspec-app -- react HCl NaOH
+cargo run -p chemspec-app -- react --verbose sodium water   # full frame artifact
+```
+
+Exit codes: `0` a reaction ran, `1` resolved but no single reaction
+(`multiple`, `screened`, `uncatalogued`, `unsupported`, `unrecognized`), `2` bad
+input or catalogue error. The JSON `detail` carries the balanced `equation`,
+`products`, and simulation `frames` count. Add `--verbose` (`-v`) to also emit
+`detail.animation` — the complete renderer-independent frame artifact (per-frame
+atoms, bonds, changes, and observations with provenance) — and `detail.digest`,
+its stable content hash for regression comparison. A passing `react` check means
+the GUI would render the same chemistry; it does not exercise the renderer
+itself.
+
 GUI startup, live providers, platform packaging, credential storage, and GPU
 initialization require explicit smoke tests and must not be claimed from unit
 tests alone.

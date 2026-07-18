@@ -466,6 +466,9 @@ const MAX_UI_ZOOM: f32 = 2.0;
 
 fn main() -> iced::Result {
     let arguments = std::env::args().collect::<Vec<_>>();
+    if arguments.get(1).map(String::as_str) == Some("react") {
+        std::process::exit(react_command(&arguments[2..]));
+    }
     if let Some(validation) = arguments
         .iter()
         .find_map(|argument| validate_smoke_request_from_argument(argument))
@@ -497,6 +500,94 @@ fn main() -> iced::Result {
             ..iced::window::Settings::default()
         })
         .run()
+}
+
+/// Headless reaction verification for agents and CI: resolve two reactants
+/// (names or formulae) through the exact path the GUI uses and print the
+/// outcome as JSON, without booting the window. Pass `--verbose`/`-v` to also
+/// emit the full renderer-independent frame artifact (the actual animation
+/// contents) plus its stable digest. Exit 0 = a reaction ran, 1 = resolved but
+/// no single reaction, 2 = bad input or catalogue error.
+fn react_command(arguments: &[String]) -> i32 {
+    use chemistry::DraftResolution;
+    use serde_json::json;
+
+    let verbose = arguments
+        .iter()
+        .any(|argument| argument == "--verbose" || argument == "-v");
+    let reactants = arguments
+        .iter()
+        .filter(|argument| !argument.starts_with('-'))
+        .collect::<Vec<_>>();
+    let [first, second] = reactants.as_slice() else {
+        eprintln!(
+            "usage: chemspec-app react [--verbose] <reactant> <reactant>   (names or formulae)"
+        );
+        return 2;
+    };
+    let parse = |input: &str| {
+        chemistry::atoms_from_name(input)
+            .ok_or_else(|| format!("unrecognized reactant: {input}"))
+    };
+    let (first_atoms, second_atoms) = match (parse(first), parse(second)) {
+        (Ok(a), Ok(b)) => (a, b),
+        (Err(error), _) | (_, Err(error)) => {
+            eprintln!("{error}");
+            return 2;
+        }
+    };
+
+    let resolution = chemistry::resolve_drafts(&first_atoms, &second_atoms);
+    let (status, mut detail, code) = match &resolution {
+        DraftResolution::Supported(request) => match chemistry::run(*request) {
+            Ok(run) => {
+                let mut detail = json!({
+                    "id": request.id(),
+                    "equation": request.equation(),
+                    "products": crate::nomenclature::product_names(run.frames()),
+                    "frames": run.frames().frames().len(),
+                });
+                if verbose {
+                    let frames = run.frames();
+                    detail["digest"] = frames
+                        .digest()
+                        .map_or(json!(null), |digest| json!(digest.to_hex()));
+                    detail["animation"] =
+                        serde_json::to_value(frames).unwrap_or(serde_json::Value::Null);
+                }
+                ("reaction", detail, 0)
+            }
+            Err(error) => ("system_error", json!({ "error": error }), 2),
+        },
+        DraftResolution::Multiple(requests) => (
+            "multiple",
+            json!({ "candidates": requests.iter().map(|r| r.id()).collect::<Vec<_>>() }),
+            1,
+        ),
+        DraftResolution::Screened(assessment) => (
+            "screened",
+            json!({ "subject": assessment.subject }),
+            1,
+        ),
+        DraftResolution::ExplicitlyUnsupported(_) => ("unsupported", json!({}), 1),
+        DraftResolution::Uncatalogued => ("uncatalogued", json!({}), 1),
+        DraftResolution::Unrecognized => ("unrecognized", json!({}), 1),
+        DraftResolution::SystemError(error) => ("system_error", json!({ "error": error }), 2),
+    };
+    if let (Some(message), Some(object)) = (resolution.inline_message(), detail.as_object_mut()) {
+        object.insert("message".to_owned(), json!(message));
+    }
+
+    let output = json!({
+        "reactants": [first, second],
+        "status": status,
+        "detail": detail,
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output).unwrap_or_else(|_| output.to_string())
+    );
+    code
 }
 
 /// Resize events report sizes already divided by the active zoom, so the new
@@ -572,22 +663,22 @@ fn launch_state() -> App {
     if let Some(smoke_mode) = smoke_mode {
         app.smoke_mode = Some(smoke_mode);
         if smoke_mode == SmokeMode::Builder {
-            app.screen = Screen::Builder;
+            app.enter_screen(Screen::Builder);
             return app;
         }
         if let Some(request) = smoke_request {
             match request {
                 Ok(request) => app.select_request(request),
                 Err(error) => {
-                    app.screen = Screen::Builder;
+                    app.enter_screen(Screen::Builder);
                     app.structural_error = Some(error);
                     return app;
                 }
             }
         }
         app.open_structural_animation();
+        let three_dimensional = smoke_mode == SmokeMode::Structural3d;
         if let Some(animation) = &mut app.structural_animation {
-            let three_dimensional = smoke_mode == SmokeMode::Structural3d;
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
             if three_dimensional && !smoke_from_start {
                 let plan = &animation.real_world_plan;
@@ -620,12 +711,14 @@ fn launch_state() -> App {
                 }
             }
             animation.playing = smoke_from_start;
-            app.screen = if three_dimensional {
-                Screen::Structural3d
-            } else {
-                Screen::Structural2d
-            };
         }
+        app.enter_screen(if three_dimensional {
+            Screen::Structural3d
+        } else {
+            Screen::Structural2d
+        });
+        // Smoke launch has no preceding key event to consume.
+        app.structural_shortcut_state = StructuralShortcutState::Ready;
     }
     app
 }
@@ -681,6 +774,19 @@ enum Screen {
     ProductSummary,
 }
 
+impl Screen {
+    const fn smoke_title(self) -> &'static str {
+        match self {
+            Self::ProviderSetup => "Provider Setup",
+            Self::Builder => "Builder",
+            Self::OutcomeChoice => "Outcome Choice",
+            Self::Structural2d => "Structural 2D",
+            Self::Structural3d => "Structural 3D",
+            Self::ProductSummary => "Product Summary",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SmokeMode {
     Builder,
@@ -698,13 +804,6 @@ impl SmokeMode {
         }
     }
 
-    const fn title(self) -> &'static str {
-        match self {
-            Self::Builder => "Builder",
-            Self::Structural2d => "Structural 2D",
-            Self::Structural3d => "Structural 3D",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -719,6 +818,27 @@ enum PlaybackSpeed {
     Half,
     Normal,
     OneAndHalf,
+}
+
+const STRUCTURAL_SHORTCUT_SETTLE_MS: u32 = 200;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StructuralShortcutState {
+    Inactive,
+    Settling(u32),
+    Ready,
+}
+
+impl StructuralShortcutState {
+    fn tick(&mut self, elapsed_ms: u32) {
+        let Self::Settling(elapsed) = self else {
+            return;
+        };
+        *elapsed = elapsed.saturating_add(elapsed_ms);
+        if *elapsed >= STRUCTURAL_SHORTCUT_SETTLE_MS {
+            *self = Self::Ready;
+        }
+    }
 }
 
 impl PlaybackSpeed {
@@ -764,7 +884,8 @@ enum Message {
         reactant: reactant_composer::ActiveReactant,
         focused: bool,
     },
-    ScreenSelected(Screen),
+    ReturnToBuilder,
+    StartNewReaction,
     ProviderSelected(ProviderChoice),
     ApiKeyChanged(String),
     ProviderContinue,
@@ -794,6 +915,7 @@ enum Message {
     RegenerateDynamicReaction,
     RetryDynamicPresentation,
     OutcomeSelected(chemistry::ReactionRequest),
+    StructuralPlaybackShortcut,
     StructuralPlaybackToggled,
     StructuralSpeedChanged,
     StructuralTimelineScrubbed(u32),
@@ -875,6 +997,15 @@ fn builder_keyboard_message(
         return None;
     }
     builder_shortcut(screen, &key, modifiers, editor_open, panel_open, can_run)
+}
+
+fn dynamic_modal_keyboard_message(event: iced::keyboard::Event) -> Option<Message> {
+    use iced::keyboard::{Key, key::Named};
+
+    let iced::keyboard::Event::KeyPressed { key, .. } = event else {
+        return None;
+    };
+    (key == Key::Named(Named::Escape)).then_some(Message::DynamicOverlayDismissed)
 }
 
 fn builder_shortcut(
@@ -1045,12 +1176,12 @@ fn screen_keyboard_message(
                 Some(Message::OutcomeChoiceMoved(1))
             }
             Key::Named(Named::Enter) if !repeat => Some(Message::OutcomeChoiceConfirmed),
-            Key::Named(Named::Escape) if !repeat => Some(Message::ScreenSelected(Screen::Builder)),
+            Key::Named(Named::Escape) if !repeat => Some(Message::ReturnToBuilder),
             _ => None,
         },
         Screen::Structural2d | Screen::Structural3d => match key.as_ref() {
             Key::Named(Named::Space) | Key::Character(" ") if !repeat => {
-                Some(Message::StructuralPlaybackToggled)
+                Some(Message::StructuralPlaybackShortcut)
             }
             Key::Named(Named::ArrowLeft) => Some(Message::StructuralSkipRequested(-1)),
             Key::Named(Named::ArrowRight) => Some(Message::StructuralSkipRequested(1)),
@@ -1065,7 +1196,7 @@ fn screen_keyboard_message(
             }
             Key::Named(Named::Enter) if !repeat => Some(Message::ContinueToSummary),
             Key::Named(Named::Escape) if !repeat && screen == Screen::Structural2d => {
-                Some(Message::ScreenSelected(Screen::Builder))
+                Some(Message::ReturnToBuilder)
             }
             Key::Named(Named::Escape) if !repeat => Some(Message::ReturnTo2d),
             _ => None,
@@ -1073,7 +1204,7 @@ fn screen_keyboard_message(
         Screen::ProductSummary => match key.as_ref() {
             Key::Named(Named::Escape | Named::ArrowLeft) if !repeat => Some(Message::ReturnTo3d),
             Key::Character(value) if !repeat && value.eq_ignore_ascii_case("n") => {
-                Some(Message::ScreenSelected(Screen::Builder))
+                Some(Message::StartNewReaction)
             }
             _ => None,
         },
@@ -1114,6 +1245,23 @@ enum DynamicBuildState {
 enum DynamicBuildStage {
     Claim,
     Presentation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DynamicModalKind {
+    IdentityChoice,
+    StaticResult,
+    Running,
+    Failed,
+    Verdict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuilderOverlayKind {
+    Dynamic(DynamicModalKind),
+    Toolbar,
+    Drag,
+    None,
 }
 
 #[derive(Debug, Clone)]
@@ -1190,6 +1338,9 @@ struct App {
     next_dynamic_run_id: u64,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
+    /// A structural destination settles through animation time before keyboard
+    /// playback becomes active. Pointer playback can explicitly arm it sooner.
+    structural_shortcut_state: StructuralShortcutState,
     /// Interface zoom applied on top of the system scale factor.
     ui_zoom: f32,
     /// The user closed the dynamic-build overlay; completion events reopen it.
@@ -1241,6 +1392,7 @@ impl Default for App {
             next_dynamic_run_id: 1,
             structural_animation: None,
             structural_error: None,
+            structural_shortcut_state: StructuralShortcutState::Inactive,
             ui_zoom: 1.0,
             dynamic_overlay_dismissed: false,
             dump_frame_path: None,
@@ -1267,10 +1419,94 @@ impl App {
         self.provider == Some(ProviderChoice::Local)
     }
 
+    /// The only runtime boundary for changing product screens. It reconciles
+    /// screen-owned transient state before the next view or subscription can
+    /// observe the destination.
+    fn enter_screen(&mut self, screen: Screen) {
+        let resuming_builder = self.screen != Screen::Builder && screen == Screen::Builder;
+        self.screen = screen;
+        self.keyboard_outcome_index = None;
+        self.builder_panel = None;
+        if resuming_builder {
+            reactant_composer::restart_prompt_reveal(&mut self.reactant_composer);
+        }
+        self.structural_shortcut_state =
+            if matches!(screen, Screen::Structural2d | Screen::Structural3d) {
+                StructuralShortcutState::Settling(0)
+            } else {
+                StructuralShortcutState::Inactive
+            };
+        self.sync_builder_submit_prompt();
+    }
+
+    /// Starts a new builder session. Navigation back to the builder deliberately
+    /// does not call this: Return preserves the reaction; Build another clears
+    /// the completed question, its result surfaces, and transient tool state.
+    fn start_new_reaction(&mut self) {
+        self.cancel_dynamic_work();
+        reactant_composer::clear_reaction(&mut self.reactant_composer);
+        self.periodic_table = periodic_table::State::default();
+        self.sketcher = sketcher::State::default();
+        self.pending_requests.clear();
+        self.oxygen_assessment = None;
+        self.validated_frames = None;
+        self.validated_macroscopic = None;
+        self.dynamic_context = None;
+        self.dynamic_details_open = false;
+        self.dynamic_overlay_dismissed = false;
+        self.structural_animation = None;
+        self.structural_error = None;
+        self.structural_shortcut_state = StructuralShortcutState::Inactive;
+        self.keyboard_navigation_active = false;
+        self.enter_screen(Screen::Builder);
+    }
+
+    fn pending_dynamic_modal_kind(&self) -> Option<DynamicModalKind> {
+        if self.dynamic_identity_choice.is_some() {
+            Some(DynamicModalKind::IdentityChoice)
+        } else if self.dynamic_static.is_some() {
+            Some(DynamicModalKind::StaticResult)
+        } else if matches!(self.dynamic_build, DynamicBuildState::Running { .. }) {
+            Some(DynamicModalKind::Running)
+        } else if matches!(self.dynamic_build, DynamicBuildState::Failed(_)) {
+            Some(DynamicModalKind::Failed)
+        } else if self.dynamic_claim.is_some() {
+            Some(DynamicModalKind::Verdict)
+        } else {
+            None
+        }
+    }
+
+    fn dynamic_modal_kind(&self) -> Option<DynamicModalKind> {
+        if self.dynamic_overlay_dismissed {
+            None
+        } else {
+            self.pending_dynamic_modal_kind()
+        }
+    }
+
+    fn open_dynamic_overlay(&mut self) {
+        self.dynamic_overlay_dismissed = false;
+        self.builder_panel = None;
+        reactant_composer::set_submit_available(&mut self.reactant_composer, false);
+    }
+
+    fn builder_overlay_kind(&self) -> BuilderOverlayKind {
+        if let Some(kind) = self.dynamic_modal_kind() {
+            BuilderOverlayKind::Dynamic(kind)
+        } else if self.builder_panel.is_some() {
+            BuilderOverlayKind::Toolbar
+        } else if periodic_table::dragging_atomic_number(&self.periodic_table).is_some() {
+            BuilderOverlayKind::Drag
+        } else {
+            BuilderOverlayKind::None
+        }
+    }
+
     fn title(&self) -> String {
         let base = self.smoke_mode.map_or_else(
             || "ChemSpec — reaction builder".to_owned(),
-            |mode| format!("ChemSpec Agent Smoke — {}", mode.title()),
+            |_| format!("ChemSpec Agent Smoke — {}", self.screen.smoke_title()),
         );
         self.builder_accessibility_summary()
             .map_or(base.clone(), |summary| format!("{base} — {summary}"))
@@ -1284,18 +1520,23 @@ impl App {
         if first.is_empty() && second.is_empty() && self.dynamic_static.is_none() {
             return None;
         }
+        let formulae = reactant_composer::draft_formulae(&self.reactant_composer);
         let first = if first.is_empty() {
             "empty".to_owned()
         } else {
-            reactant_composer::formula(first)
+            formulae[0].clone()
         };
         let second = if second.is_empty() {
             "empty".to_owned()
         } else {
-            reactant_composer::formula(second)
+            formulae[1].clone()
         };
         let reactants = format!("Reactants {first} + {second}");
-        let state = if let Some(outcome) = &self.dynamic_static {
+        let static_summary = || {
+            let outcome = self
+                .dynamic_static
+                .as_ref()
+                .expect("a static-result modal retains its outcome");
             let capability = match &self.dynamic_presentation {
                 Some(
                     DynamicPresentationOutcome::ReviewedFamily(_)
@@ -1304,16 +1545,44 @@ impl App {
                 Some(DynamicPresentationOutcome::Static { .. }) => "static result only",
                 None => "static result ready",
             };
-            format!("{}; {capability}", outcome.equation())
-        } else {
-            match &self.dynamic_build {
-                DynamicBuildState::Idle => "idle".to_owned(),
-                DynamicBuildState::Running { stage, .. } => match stage {
-                    DynamicBuildStage::Claim => "building factual outcome".to_owned(),
-                    DynamicBuildStage::Presentation => "building presentation".to_owned(),
-                },
-                DynamicBuildState::Failed(_) => "build failed".to_owned(),
+            format!(
+                "{}; {capability}",
+                nomenclature::display_equation(outcome.equation())
+            )
+        };
+        let running_summary = || match &self.dynamic_build {
+            DynamicBuildState::Running { stage, .. } => match stage {
+                DynamicBuildStage::Claim => "building factual outcome",
+                DynamicBuildStage::Presentation => "building presentation",
+            },
+            DynamicBuildState::Idle | DynamicBuildState::Failed(_) => "working",
+        };
+        let state = match self.dynamic_modal_kind() {
+            Some(DynamicModalKind::IdentityChoice) => "identity choice modal open".to_owned(),
+            Some(DynamicModalKind::StaticResult) => {
+                format!("result modal open: {}", static_summary())
             }
+            Some(DynamicModalKind::Running) => {
+                format!("progress modal open: {}", running_summary())
+            }
+            Some(DynamicModalKind::Failed) => "failure modal open".to_owned(),
+            Some(DynamicModalKind::Verdict) => {
+                let verdict = self.dynamic_claim.as_ref().map_or("outcome", |claim| {
+                    match claim.disposition {
+                        ClaimDisposition::NoReaction => "no reaction",
+                        ClaimDisposition::Ambiguous => "ambiguous outcome",
+                        ClaimDisposition::Unsupported => "unsupported outcome",
+                        ClaimDisposition::Reaction => "reaction outcome",
+                    }
+                });
+                format!("outcome modal open: {verdict}")
+            }
+            None if self.dynamic_static.is_some() => static_summary(),
+            None => match &self.dynamic_build {
+                DynamicBuildState::Idle => "idle".to_owned(),
+                DynamicBuildState::Running { .. } => running_summary().to_owned(),
+                DynamicBuildState::Failed(_) => "build failed".to_owned(),
+            },
         };
         Some(format!("{reactants}; {state}"))
     }
@@ -1333,23 +1602,32 @@ impl App {
                 }
             }
             Message::FrameCaptured(path, shot) => {
-                let mut ppm = format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height)
-                    .into_bytes();
+                let mut ppm =
+                    format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height).into_bytes();
                 for pixel in shot.rgba.chunks_exact(4) {
                     ppm.extend_from_slice(&pixel[..3]);
                 }
                 let _ = std::fs::write(&path, ppm);
                 let _ = std::fs::write(
                     path.with_extension("meta"),
-                    format!("scale_factor={}\nui_zoom={}\n", shot.scale_factor, self.ui_zoom),
+                    format!(
+                        "scale_factor={}\nui_zoom={}\n",
+                        shot.scale_factor, self.ui_zoom
+                    ),
                 );
             }
             Message::DynamicOverlayDismissed => {
-                self.dynamic_overlay_dismissed = true;
+                if self.dynamic_modal_kind().is_some() {
+                    self.dynamic_overlay_dismissed = true;
+                    self.sync_builder_submit_prompt();
+                }
             }
             Message::Noop => {}
             Message::KeyboardEvent { event, status } => {
                 let message = match self.screen {
+                    Screen::Builder if self.dynamic_modal_kind().is_some() => {
+                        dynamic_modal_keyboard_message(event)
+                    }
                     Screen::Builder => builder_keyboard_message(
                         self.screen,
                         event,
@@ -1394,10 +1672,8 @@ impl App {
                         .update_reactant_composer(reactant_composer::Message::NameEntryCancelled);
                 }
             }
-            Message::ScreenSelected(screen) => {
-                self.screen = screen;
-                self.keyboard_outcome_index = None;
-            }
+            Message::ReturnToBuilder => self.enter_screen(Screen::Builder),
+            Message::StartNewReaction => self.start_new_reaction(),
             Message::ProviderSelected(provider) => self.provider = Some(provider),
             Message::ApiKeyChanged(api_key) => self.api_key = api_key,
             Message::ProviderContinue => {
@@ -1407,10 +1683,13 @@ impl App {
                     Some(ProviderChoice::ApiKey) | None => false,
                 };
                 if ready {
-                    self.screen = Screen::Builder;
+                    self.enter_screen(Screen::Builder);
                 }
             }
             Message::PeriodicTable(message) => {
+                if self.dynamic_modal_kind().is_some() {
+                    return Task::none();
+                }
                 periodic_table::update(&mut self.periodic_table, message);
                 if let periodic_table::Message::Activated(atomic_number) = message {
                     return self.update_reactant_composer(reactant_composer::Message::AddElement(
@@ -1422,6 +1701,9 @@ impl App {
                 return self.update_reactant_composer(message);
             }
             Message::Sketcher(message) => {
+                if self.dynamic_modal_kind().is_some() {
+                    return Task::none();
+                }
                 let submit = matches!(message, sketcher::Message::UseAsReactant);
                 sketcher::update(&mut self.sketcher, message);
                 if submit && let Some(sketch) = sketcher::submission(&self.sketcher) {
@@ -1438,10 +1720,15 @@ impl App {
                 }
             }
             Message::BuilderPanelToggled(panel) => {
-                self.builder_panel = (self.builder_panel != Some(panel)).then_some(panel);
+                if self.dynamic_modal_kind().is_none() {
+                    self.builder_panel = (self.builder_panel != Some(panel)).then_some(panel);
+                }
             }
             Message::BuilderPanelClosed => self.builder_panel = None,
             Message::DynamicContextSelected(context) => {
+                if self.dynamic_modal_kind().is_some() {
+                    return Task::none();
+                }
                 self.dynamic_context = context;
                 self.builder_panel = None;
                 self.sync_builder_submit_prompt();
@@ -1475,7 +1762,7 @@ impl App {
                 {
                     return Task::none();
                 }
-                self.dynamic_overlay_dismissed = false;
+                self.open_dynamic_overlay();
                 match *result {
                     Ok(DynamicClaimStageResult {
                         outcome: CompiledClaimOutcome::Static(outcome),
@@ -1547,7 +1834,7 @@ impl App {
                 {
                     return Task::none();
                 }
-                self.dynamic_overlay_dismissed = false;
+                self.open_dynamic_overlay();
                 match *result {
                     Ok(presentation) => {
                         let elapsed = self.dynamic_started_at.map_or(0, elapsed_millis);
@@ -1616,7 +1903,7 @@ impl App {
                 let Some(request) = self.dynamic_request.clone() else {
                     return Task::none();
                 };
-                self.screen = Screen::Builder;
+                self.enter_screen(Screen::Builder);
                 return self.start_dynamic_build_request(request, true);
             }
             Message::RetryDynamicPresentation => {
@@ -1647,7 +1934,7 @@ impl App {
                     elapsed_seconds: 0,
                     stage: DynamicBuildStage::Presentation,
                 };
-                self.dynamic_overlay_dismissed = false;
+                self.open_dynamic_overlay();
                 let progress = self.reset_dynamic_progress_channel();
                 return Self::start_dynamic_presentation(
                     run_id,
@@ -1665,7 +1952,13 @@ impl App {
                 self.select_request(request);
                 self.open_structural_animation();
             }
+            Message::StructuralPlaybackShortcut => {
+                if self.structural_shortcut_state == StructuralShortcutState::Ready {
+                    return self.update_with_task(Message::StructuralPlaybackToggled);
+                }
+            }
             Message::StructuralPlaybackToggled => {
+                self.structural_shortcut_state = StructuralShortcutState::Ready;
                 if let Some(animation) = &mut self.structural_animation {
                     if !animation.playing
                         && self.screen == Screen::Structural2d
@@ -1723,6 +2016,9 @@ impl App {
                 }
             }
             Message::StructuralTick => {
+                if matches!(self.screen, Screen::Structural2d | Screen::Structural3d) {
+                    self.structural_shortcut_state.tick(33);
+                }
                 let (elapsed, playing) = self
                     .structural_animation
                     .as_ref()
@@ -1771,24 +2067,26 @@ impl App {
             Message::ContinueTo3d => {
                 // The 3D model is always reachable from the 2D explanation;
                 // entering it restarts the macroscopic playback.
-                if let Some(animation) = &mut self.structural_animation {
-                    animation.frame_index = 0;
-                    animation.real_world_playhead_ms = 0;
-                    animation.playing = true;
-                    self.screen = Screen::Structural3d;
-                }
+                let Some(animation) = &mut self.structural_animation else {
+                    return Task::none();
+                };
+                animation.frame_index = 0;
+                animation.real_world_playhead_ms = 0;
+                animation.playing = true;
+                self.enter_screen(Screen::Structural3d);
             }
             Message::ContinueToSummary => {
                 // The product summary is always reachable from the 3D model,
                 // mirroring the free 2D ⇄ 3D navigation.
-                if let Some(animation) = &mut self.structural_animation {
-                    animation.summary_elapsed_ms = 0;
-                    animation.playing = false;
-                    self.screen = Screen::ProductSummary;
-                }
+                let Some(animation) = &mut self.structural_animation else {
+                    return Task::none();
+                };
+                animation.summary_elapsed_ms = 0;
+                animation.playing = false;
+                self.enter_screen(Screen::ProductSummary);
             }
-            Message::ReturnTo2d => self.screen = Screen::Structural2d,
-            Message::ReturnTo3d => self.screen = Screen::Structural3d,
+            Message::ReturnTo2d => self.enter_screen(Screen::Structural2d),
+            Message::ReturnTo3d => self.enter_screen(Screen::Structural3d),
             Message::OutcomeChoiceMoved(delta) => {
                 if self.pending_requests.is_empty() {
                     return Task::none();
@@ -1821,7 +2119,7 @@ impl App {
         drop(self.update_with_task(message));
     }
 
-    fn builder_can_submit(&self) -> bool {
+    fn builder_input_ready(&self) -> bool {
         if matches!(self.dynamic_build, DynamicBuildState::Running { .. })
             || reactant_composer::editing(&self.reactant_composer).is_some()
         {
@@ -1829,12 +2127,53 @@ impl App {
         }
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
         reactant_composer::can_start_reaction(&self.reactant_composer)
-            || (!first.is_empty() && second.is_empty() && self.dynamic_context.is_some())
+            || (self.dynamic_context.is_some() && (!first.is_empty() || !second.is_empty()))
+    }
+
+    fn local_solver_declines(&self) -> bool {
+        let requires_dynamic = self.dynamic_context.is_some()
+            || matches!(
+                reactant_composer::resolution(&self.reactant_composer),
+                chemistry::DraftResolution::ExplicitlyUnsupported(_)
+                    | chemistry::DraftResolution::Uncatalogued
+                    | chemistry::DraftResolution::Unrecognized
+            );
+        if !self.local_mode() || !requires_dynamic {
+            return false;
+        }
+        let Ok(catalogue) = chemistry::trusted_catalogue() else {
+            return false;
+        };
+        let Ok(identities) = reviewed_species_registry(catalogue) else {
+            return false;
+        };
+        let request = self.dynamic_build_request();
+        let Ok(RequestIdentityResolution::Resolved(_)) =
+            resolve_request_identities_with_catalogue(&request, &identities, catalogue)
+        else {
+            return false;
+        };
+        agent::solve_reaction_claim(&request, &identities).is_none()
+    }
+
+    fn builder_can_submit(&self) -> bool {
+        self.screen == Screen::Builder
+            && self.dynamic_modal_kind().is_none()
+            && self.builder_input_ready()
+            && !self.local_solver_declines()
     }
 
     fn sync_builder_submit_prompt(&mut self) {
-        let available = self.builder_can_submit();
-        reactant_composer::set_submit_available(&mut self.reactant_composer, available);
+        if self.screen != Screen::Builder || self.dynamic_modal_kind().is_some() {
+            reactant_composer::set_submit_available(&mut self.reactant_composer, false);
+            return;
+        }
+        let input_ready = self.builder_input_ready();
+        if input_ready && self.local_solver_declines() {
+            reactant_composer::show_try_codex_notice(&mut self.reactant_composer);
+        } else {
+            reactant_composer::set_submit_available(&mut self.reactant_composer, input_ready);
+        }
     }
 
     /// Cancels any in-flight dynamic build and clears its results. Every
@@ -1864,6 +2203,9 @@ impl App {
     }
 
     fn update_reactant_composer(&mut self, message: reactant_composer::Message) -> Task<Message> {
+        if self.dynamic_modal_kind().is_some() && !message.is_presentation_only() {
+            return Task::none();
+        }
         let focus_target = match &message {
             reactant_composer::Message::BeginNameEntry(reactant) => {
                 Some(reactant_composer::name_input_id(*reactant))
@@ -1886,19 +2228,20 @@ impl App {
             self.cancel_dynamic_work();
             reactant_composer::update(&mut self.reactant_composer, message);
             let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-            if !second.is_empty() {
+            if first.is_empty() && second.is_empty() {
                 self.dynamic_context = None;
-            }
-            if self.builder_panel == Some(BuilderPanel::Conditions)
-                && (first.is_empty() || !second.is_empty())
-            {
-                self.builder_panel = None;
+                if self.builder_panel == Some(BuilderPanel::Conditions) {
+                    self.builder_panel = None;
+                }
             }
             self.sync_builder_submit_prompt();
             return focus_target.map_or_else(Task::none, iced::widget::operation::focus);
         }
         reactant_composer::set_submit_available(&mut self.reactant_composer, false);
         self.builder_panel = None;
+        if self.dynamic_context.is_some() {
+            return self.start_dynamic_build();
+        }
         match reactant_composer::resolution(&self.reactant_composer) {
             chemistry::DraftResolution::Supported(request) => {
                 self.pending_requests.clear();
@@ -1910,13 +2253,13 @@ impl App {
             chemistry::DraftResolution::Multiple(requests) => {
                 self.pending_requests = requests;
                 self.oxygen_assessment = None;
-                self.screen = Screen::OutcomeChoice;
+                self.enter_screen(Screen::OutcomeChoice);
                 Task::none()
             }
             chemistry::DraftResolution::Screened(assessment) => {
                 self.pending_requests.clear();
                 self.oxygen_assessment = Some(assessment);
-                self.screen = Screen::OutcomeChoice;
+                self.enter_screen(Screen::OutcomeChoice);
                 Task::none()
             }
             chemistry::DraftResolution::ExplicitlyUnsupported(_)
@@ -1927,25 +2270,26 @@ impl App {
     }
 
     fn start_dynamic_build(&mut self) -> Task<Message> {
+        let request = self.dynamic_build_request();
+        self.start_dynamic_build_request(request, false)
+    }
+
+    fn dynamic_build_request(&self) -> ReactionBuildRequest {
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
         let names = reactant_composer::draft_names(&self.reactant_composer);
         // A selected condition rides along for any reactant count; the
         // submit gate already requires one for single-reactant requests.
         let context = self.dynamic_context;
-        let drafts = if second.is_empty() {
-            vec![first]
-        } else {
-            vec![first, second]
-        };
-        let request = ReactionBuildRequest {
+        let drafts = [(first, names[0]), (second, names[1])]
+            .into_iter()
+            .filter(|(atoms, _)| !atoms.is_empty());
+        ReactionBuildRequest {
             reactants: drafts
-                .into_iter()
-                .enumerate()
-                .map(|(index, atoms)| ReactantInput {
+                .map(|(atoms, name)| ReactantInput {
                     // A typed name outranks the formula: it can identify a
                     // species the inventory alone cannot (ammonium cyanate
                     // vs urea), and the resolver accepts either form.
-                    display: names[index].map_or_else(
+                    display: name.map_or_else(
                         || reactant_composer::formula(atoms),
                         std::borrow::ToOwned::to_owned,
                     ),
@@ -1956,8 +2300,7 @@ impl App {
                 })
                 .collect(),
             selected_context: context.map(|context| context.value().to_owned()),
-        };
-        self.start_dynamic_build_request(request, false)
+        }
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1967,6 +2310,7 @@ impl App {
         regenerate: bool,
     ) -> Task<Message> {
         let local = self.local_mode();
+        self.open_dynamic_overlay();
         if !local && !matches!(self.provider, Some(ProviderChoice::CodexSubscription)) {
             self.dynamic_build = DynamicBuildState::Failed(
                 "Direct API reaction building is not available yet; choose Codex subscription."
@@ -1986,7 +2330,6 @@ impl App {
 
         self.dynamic_identity_choice = None;
         self.dynamic_details_open = false;
-        self.dynamic_overlay_dismissed = false;
         self.dynamic_started_at = None;
         self.dynamic_latency = LatencyMilestones::default();
         self.dynamic_theatre_phase = 0.0;
@@ -2256,9 +2599,11 @@ impl App {
         self.structural_error = None;
         // Auto-navigating into the animation replaces the overlay; a
         // static-only result surfaces it on the builder instead.
-        self.dynamic_overlay_dismissed = animated;
         if animated {
+            self.dynamic_overlay_dismissed = true;
             self.open_structural_animation();
+        } else {
+            self.open_dynamic_overlay();
         }
     }
 
@@ -2426,7 +2771,14 @@ impl App {
             Subscription::none()
         };
 
-        Subscription::batch([resize, frame_dump, screen, dynamic_build, dynamic_theatre, input])
+        Subscription::batch([
+            resize,
+            frame_dump,
+            screen,
+            dynamic_build,
+            dynamic_theatre,
+            input,
+        ])
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -2447,7 +2799,7 @@ impl App {
         let compact = size.width < breakpoint::MOBILE || size.height < 760.0;
 
         let back = button(text("← Reactants"))
-            .on_press(Message::ScreenSelected(Screen::Builder))
+            .on_press(Message::ReturnToBuilder)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
 
@@ -2790,7 +3142,7 @@ impl App {
                 self.structural_error = Some(error);
             }
         }
-        self.screen = Screen::Structural2d;
+        self.enter_screen(Screen::Structural2d);
     }
 
     fn advance_educational_playback(&mut self, elapsed_ms: u32) {
@@ -3027,7 +3379,7 @@ impl App {
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
         let exit = button(text("← Return"))
-            .on_press(Message::ScreenSelected(Screen::Builder))
+            .on_press(Message::ReturnToBuilder)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
         // Local Mode derivations are deterministic; regenerating would only
@@ -3182,7 +3534,7 @@ impl App {
                     .color(color::WARNING),
                 text(message).size(type_scale::TITLE).color(color::TEXT),
                 button(text("Return to builder"))
-                    .on_press(Message::ScreenSelected(Screen::Builder))
+                    .on_press(Message::ReturnToBuilder)
                     .style(theme::secondary_button),
             ]
             .spacing(spacing::SM),
@@ -3615,20 +3967,14 @@ impl App {
         let (title, detail) = match claim.disposition {
             ClaimDisposition::NoReaction => match &claim.no_reaction_reason {
                 Some(reason) => ("No reaction", reason.learner_explanation()),
-                None => (
-                    "No supported reaction",
-                    claim.required_context.clone(),
-                ),
+                None => ("No supported reaction", claim.required_context.clone()),
             },
             ClaimDisposition::Ambiguous => (
                 "More detail is needed",
-                claim
-                    .ambiguity
-                    .as_ref()
-                    .map_or_else(
-                        || claim.required_context.clone(),
-                        |value| value.summary.clone(),
-                    ),
+                claim.ambiguity.as_ref().map_or_else(
+                    || claim.required_context.clone(),
+                    |value| value.summary.clone(),
+                ),
             ),
             ClaimDisposition::Unsupported => (
                 "Outside the current chemistry capability",
@@ -3664,14 +4010,17 @@ impl App {
                 "Balanced result ready · checking animation capability"
             }
         };
-        let reactants = self.dynamic_request.as_ref().map_or_else(String::new, |request| {
-            request
-                .reactants
-                .iter()
-                .map(|reactant| reactant.display.clone())
-                .collect::<Vec<_>>()
-                .join("  +  ")
-        });
+        let reactants = self
+            .dynamic_request
+            .as_ref()
+            .map_or_else(String::new, |request| {
+                request
+                    .reactants
+                    .iter()
+                    .map(|reactant| reactant.display.clone())
+                    .collect::<Vec<_>>()
+                    .join("  +  ")
+            });
         let progress: Element<'_, Message> = self.dynamic_progress_label().map_or_else(
             || space().height(Length::Shrink).into(),
             |label| {
@@ -3710,31 +4059,19 @@ impl App {
     /// The dynamic-build modal: every Tier B/C surface (progress, results,
     /// verdicts, identity choices, failures) lives here instead of inline
     /// cards that squeeze the builder.
-    fn dynamic_overlay(&self, size: Size) -> Element<'_, Message> {
-        let running = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
-        let failed = matches!(self.dynamic_build, DynamicBuildState::Failed(_));
-        let has_content = running
-            || failed
-            || self.dynamic_static.is_some()
-            || self.dynamic_claim.is_some()
-            || self.dynamic_identity_choice.is_some();
-        if self.dynamic_overlay_dismissed || !has_content {
-            return space().height(Length::Shrink).into();
-        }
-        let (chip, chip_color, body) = if self.dynamic_identity_choice.is_some() {
-            (
+    fn dynamic_overlay(&self, size: Size, kind: DynamicModalKind) -> Element<'_, Message> {
+        let (chip, chip_color, body) = match kind {
+            DynamicModalKind::IdentityChoice => (
                 "IDENTITY CHOICE",
                 color::WARNING,
                 self.dynamic_identity_choice_body(),
-            )
-        } else if self.dynamic_static.is_some() {
-            (
+            ),
+            DynamicModalKind::StaticResult => (
                 self.dynamic_trust_label(),
                 color::SUCCESS,
                 self.dynamic_result_body(),
-            )
-        } else if running {
-            (
+            ),
+            DynamicModalKind::Running => (
                 if self.local_mode() {
                     "LOCAL DERIVATION"
                 } else {
@@ -3742,11 +4079,9 @@ impl App {
                 },
                 color::ACCENT,
                 self.dynamic_running_body(),
-            )
-        } else if failed {
-            ("BUILD FAILED", color::DANGER, self.dynamic_failed_body())
-        } else {
-            ("OUTCOME", color::WARNING, self.dynamic_verdict_body())
+            ),
+            DynamicModalKind::Failed => ("BUILD FAILED", color::DANGER, self.dynamic_failed_body()),
+            DynamicModalKind::Verdict => ("OUTCOME", color::WARNING, self.dynamic_verdict_body()),
         };
         let mut header = row![text(chip).size(type_scale::MICRO).color(chip_color)]
             .spacing(spacing::XS)
@@ -3859,7 +4194,9 @@ impl App {
     ) -> Element<'a, Message> {
         tooltip(
             control,
-            text(label).size(type_scale::CAPTION).color(color::TEXT_SOFT),
+            text(label)
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
             tooltip::Position::Bottom,
         )
         .gap(spacing::XS)
@@ -3957,7 +4294,7 @@ impl App {
                     text("Reaction conditions")
                         .size(type_scale::BODY_LARGE)
                         .color(color::TEXT),
-                    text("Use a condition when asking what happens to one reactant.")
+                    text("A selected condition becomes part of the reaction request.")
                         .size(type_scale::CAPTION)
                         .color(color::MUTED),
                     button(text("No condition").size(type_scale::BODY))
@@ -4061,7 +4398,7 @@ impl App {
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
         let new_reaction = button(text("Build another reaction  →"))
-            .on_press(Message::ScreenSelected(Screen::Builder))
+            .on_press(Message::StartNewReaction)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
         let header = row![
@@ -4091,7 +4428,7 @@ impl App {
             if compact {
                 text("").size(type_scale::MICRO)
             } else {
-                text(animation.equation.as_str())
+                text(nomenclature::display_equation(&animation.equation))
                     .size(type_scale::CAPTION)
                     .color(color::TEXT_SOFT)
             },
@@ -4198,29 +4535,9 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn builder_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
-        let progress = self
-            .dynamic_progress_label()
-            .map_or_else(String::new, |label| format!(" · {label}"));
-
         let composer = reactant_composer::view(
             &self.reactant_composer,
             periodic_table::dragging_atomic_number(&self.periodic_table),
-            match &self.dynamic_build {
-                DynamicBuildState::Idle => None,
-                DynamicBuildState::Running {
-                    elapsed_seconds,
-                    stage,
-                    ..
-                } => Some(match stage {
-                    DynamicBuildStage::Claim => format!(
-                        "Checking the outcome claim{progress}… {elapsed_seconds}s"
-                    ),
-                    DynamicBuildStage::Presentation => format!(
-                        "The balanced result is ready; checking animation capability{progress}… {elapsed_seconds}s"
-                    ),
-                }),
-                DynamicBuildState::Failed(_) => Some("Couldn’t build this result".to_owned()),
-            },
             self.local_mode(),
             compact,
         )
@@ -4231,9 +4548,9 @@ impl App {
             periodic_table::view(&self.periodic_table, compact).map(Message::PeriodicTable);
         let library = container(element_library).width(Fill).height(Fill);
 
-        let dynamic_busy = matches!(self.dynamic_build, DynamicBuildState::Running { .. });
-        let (first, _) = reactant_composer::reactants(&self.reactant_composer);
-        let conditions_enabled = !dynamic_busy && !first.is_empty();
+        let modal_open = self.dynamic_modal_kind().is_some();
+        let (first, second) = reactant_composer::reactants(&self.reactant_composer);
+        let conditions_enabled = !modal_open && (!first.is_empty() || !second.is_empty());
         let toolbar = self.builder_toolbar(conditions_enabled);
         let foreground = column![toolbar, composer, library]
             .spacing(spacing::XS)
@@ -4244,33 +4561,31 @@ impl App {
             .padding(if compact { spacing::XS } else { spacing::SM })
             .width(Fill)
             .height(Fill);
-        let drag_overlay =
-            periodic_table::drag_overlay(&self.periodic_table, size).map(Message::PeriodicTable);
-        let toolbar_overlay: Element<'_, Message> = if self.builder_panel.is_some() {
-            container(row![space().width(Fill), self.builder_toolbar_panel()].width(Fill))
-                .padding(iced::Padding {
-                    top: 52.0,
-                    right: if compact { spacing::XS } else { spacing::SM },
-                    bottom: 0.0,
-                    left: if compact { spacing::XS } else { spacing::SM },
-                })
-                .width(Fill)
-                .height(Fill)
-                .into()
-        } else {
-            space().height(Length::Shrink).into()
+        let overlay = match self.builder_overlay_kind() {
+            BuilderOverlayKind::Dynamic(kind) => self.dynamic_overlay(size, kind),
+            BuilderOverlayKind::Toolbar => {
+                container(row![space().width(Fill), self.builder_toolbar_panel()].width(Fill))
+                    .padding(iced::Padding {
+                        top: 52.0,
+                        right: if compact { spacing::XS } else { spacing::SM },
+                        bottom: 0.0,
+                        left: if compact { spacing::XS } else { spacing::SM },
+                    })
+                    .width(Fill)
+                    .height(Fill)
+                    .into()
+            }
+            BuilderOverlayKind::Drag => {
+                periodic_table::drag_overlay(&self.periodic_table, size).map(Message::PeriodicTable)
+            }
+            BuilderOverlayKind::None => space().height(Length::Shrink).into(),
         };
 
-        stack![
-            application,
-            drag_overlay,
-            toolbar_overlay,
-            self.dynamic_overlay(size)
-        ]
-        .width(Fill)
-        .height(Fill)
-        .clip(false)
-        .into()
+        stack![application, overlay]
+            .width(Fill)
+            .height(Fill)
+            .clip(false)
+            .into()
     }
 }
 
@@ -4466,6 +4781,23 @@ mod tests {
         outcome
     }
 
+    fn no_reaction_claim() -> ReactionClaim {
+        let claim = serde_json::json!({
+            "schema_version": 1,
+            "disposition": "no_reaction",
+            "products": [],
+            "required_context": "Ordinary contact",
+            "observations": [],
+            "sources": [],
+            "ambiguity": null
+        });
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("no-reaction claim")
+    }
+
     #[test]
     fn local_mode_is_preselected_and_continues_without_codex() {
         let mut app = App::default();
@@ -4473,6 +4805,144 @@ mod tests {
         assert_eq!(app.screen, Screen::ProviderSetup);
         app.update(Message::ProviderContinue);
         assert_eq!(app.screen, Screen::Builder);
+    }
+
+    #[test]
+    fn local_mode_suggests_codex_immediately_when_the_solver_declines() {
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![12], vec![1, 1, 8]]);
+
+        app.sync_builder_submit_prompt();
+
+        assert!(!app.builder_can_submit());
+        assert!(reactant_composer::try_codex_notice_visible(
+            &app.reactant_composer
+        ));
+    }
+
+    #[test]
+    fn local_mode_keeps_programmatically_solvable_misses_actionable() {
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![20], vec![1, 1, 8]]);
+
+        app.sync_builder_submit_prompt();
+
+        assert!(app.builder_can_submit());
+        assert!(!reactant_composer::try_codex_notice_visible(
+            &app.reactant_composer
+        ));
+    }
+
+    #[test]
+    fn closing_a_dynamic_overlay_restores_the_codex_prompt() {
+        let mut app = App {
+            screen: Screen::Builder,
+            provider: Some(ProviderChoice::CodexSubscription),
+            dynamic_build: DynamicBuildState::Failed("test failure".to_owned()),
+            dynamic_overlay_dismissed: false,
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![12], vec![1, 1, 8]]);
+        reactant_composer::set_submit_available(&mut app.reactant_composer, false);
+
+        app.update(Message::DynamicOverlayDismissed);
+
+        assert!(app.dynamic_overlay_dismissed);
+        assert!(reactant_composer::submit_available(&app.reactant_composer));
+    }
+
+    #[test]
+    fn dynamic_modal_exclusively_owns_builder_overlays_and_input() {
+        let mut app = App {
+            screen: Screen::Builder,
+            builder_panel: Some(BuilderPanel::Help),
+            dynamic_build: DynamicBuildState::Failed("test failure".to_owned()),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![3]]);
+
+        app.open_dynamic_overlay();
+
+        assert_eq!(
+            app.builder_overlay_kind(),
+            BuilderOverlayKind::Dynamic(DynamicModalKind::Failed)
+        );
+        assert!(app.builder_panel.is_none());
+        assert!(!app.builder_can_submit());
+        assert!(!reactant_composer::submit_available(&app.reactant_composer));
+
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::AddElement(8),
+        ));
+        assert_eq!(
+            reactant_composer::reactants(&app.reactant_composer),
+            (&[26][..], &[3][..])
+        );
+    }
+
+    #[test]
+    fn dynamic_completion_replaces_a_dismissed_toolbar_panel() {
+        let mut app = App {
+            screen: Screen::Builder,
+            builder_panel: Some(BuilderPanel::Help),
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 9,
+                elapsed_seconds: 2,
+                stage: DynamicBuildStage::Claim,
+            },
+            dynamic_overlay_dismissed: true,
+            ..App::default()
+        };
+
+        app.update(Message::DynamicClaimFinished {
+            run_id: 9,
+            result: Box::new(Err("test failure".to_owned())),
+        });
+
+        assert!(app.builder_panel.is_none());
+        assert_eq!(
+            app.builder_overlay_kind(),
+            BuilderOverlayKind::Dynamic(DynamicModalKind::Failed)
+        );
+    }
+
+    #[test]
+    fn dynamic_modal_keyboard_route_only_accepts_escape() {
+        assert!(
+            dynamic_modal_keyboard_message(key_pressed(
+                iced::keyboard::Key::Named(iced::keyboard::key::Named::Space),
+                false,
+            ))
+            .is_none()
+        );
+        assert!(matches!(
+            dynamic_modal_keyboard_message(key_pressed(
+                iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape),
+                false,
+            )),
+            Some(Message::DynamicOverlayDismissed)
+        ));
+    }
+
+    #[test]
+    fn no_reaction_modal_is_not_reported_as_idle() {
+        let mut app = App {
+            screen: Screen::Builder,
+            dynamic_claim: Some(no_reaction_claim()),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![3]]);
+
+        assert_eq!(
+            app.builder_accessibility_summary().as_deref(),
+            Some("Reactants Fe + Li; outcome modal open: no reaction")
+        );
     }
 
     #[test]
@@ -4501,7 +4971,48 @@ mod tests {
         assert!(app.dynamic_identity_choice.is_none());
     }
 
+    #[test]
+    fn selected_conditions_never_fall_through_to_an_unconditioned_catalogue_result() {
+        let mut app = App {
+            screen: Screen::Builder,
+            provider: Some(ProviderChoice::CodexSubscription),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![3], vec![1, 1, 8]]);
+        app.dynamic_context = Some(DynamicRequestContext::Heat);
 
+        app.update(Message::ReactantComposer(
+            reactant_composer::Message::StartReactionRequested,
+        ));
+
+        assert_eq!(app.screen, Screen::Builder);
+        assert!(matches!(
+            app.dynamic_build,
+            DynamicBuildState::Running { .. }
+        ));
+        let request = app.dynamic_request.as_ref().expect("conditioned request");
+        assert_eq!(request.selected_context.as_deref(), Some("heat"));
+        assert_eq!(request.reactants.len(), 2);
+    }
+
+    #[test]
+    fn conditioned_single_reactant_requests_ignore_either_empty_slot() {
+        let mut app = App {
+            screen: Screen::Builder,
+            dynamic_context: Some(DynamicRequestContext::Light),
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(
+            &mut app.reactant_composer,
+            [Vec::new(), vec![6, 1, 1, 1, 1]],
+        );
+
+        assert!(app.builder_input_ready());
+        let request = app.dynamic_build_request();
+        assert_eq!(request.reactants.len(), 1);
+        assert_eq!(request.reactants[0].display, "CH₄");
+        assert_eq!(request.selected_context.as_deref(), Some("light"));
+    }
     /// Catalogue graphs pack all cations of one kind into a single atom
     /// group (both `Na+` of `Na2CO3` share one group), which used to defeat
     /// `ionic_salt`'s one-atom-per-cation-group assumption and return None
@@ -4513,11 +5024,41 @@ mod tests {
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
         let cases: [PolyproticCase; 5] = [
             // Monoprotic control: this already worked before the fix.
-            ("HCl", vec![1, 17], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "NaCl"),
-            ("H\u{2082}SO\u{2084}", vec![1, 1, 16, 8, 8, 8, 8], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "Na2SO4"),
-            ("H\u{2082}SO\u{2084}", vec![1, 1, 16, 8, 8, 8, 8], "K\u{2082}CO\u{2083}", vec![19, 19, 6, 8, 8, 8], "K2SO4"),
-            ("H\u{2083}PO\u{2084}", vec![1, 1, 1, 15, 8, 8, 8, 8], "Na\u{2082}CO\u{2083}", vec![11, 11, 6, 8, 8, 8], "Na3PO4"),
-            ("H\u{2083}PO\u{2084}", vec![1, 1, 1, 15, 8, 8, 8, 8], "NaOH", vec![11, 8, 1], "Na3PO4"),
+            (
+                "HCl",
+                vec![1, 17],
+                "Na\u{2082}CO\u{2083}",
+                vec![11, 11, 6, 8, 8, 8],
+                "NaCl",
+            ),
+            (
+                "H\u{2082}SO\u{2084}",
+                vec![1, 1, 16, 8, 8, 8, 8],
+                "Na\u{2082}CO\u{2083}",
+                vec![11, 11, 6, 8, 8, 8],
+                "Na2SO4",
+            ),
+            (
+                "H\u{2082}SO\u{2084}",
+                vec![1, 1, 16, 8, 8, 8, 8],
+                "K\u{2082}CO\u{2083}",
+                vec![19, 19, 6, 8, 8, 8],
+                "K2SO4",
+            ),
+            (
+                "H\u{2083}PO\u{2084}",
+                vec![1, 1, 1, 15, 8, 8, 8, 8],
+                "Na\u{2082}CO\u{2083}",
+                vec![11, 11, 6, 8, 8, 8],
+                "Na3PO4",
+            ),
+            (
+                "H\u{2083}PO\u{2084}",
+                vec![1, 1, 1, 15, 8, 8, 8, 8],
+                "NaOH",
+                vec![11, 8, 1],
+                "Na3PO4",
+            ),
         ];
         for (acid, acid_atoms, base, base_atoms, salt) in cases {
             let request = ReactionBuildRequest {
@@ -4589,6 +5130,7 @@ mod tests {
             app.dynamic_static.is_some(),
             "presentation ticks must not clear a finished result"
         );
+        app.dynamic_overlay_dismissed = true;
         app.update(Message::ReactantComposer(
             reactant_composer::Message::AddElement(8),
         ));
@@ -4914,7 +5456,7 @@ mod tests {
                 key_pressed(Key::Named(Named::Space), false),
                 iced::event::Status::Ignored,
             ),
-            Some(Message::StructuralPlaybackToggled)
+            Some(Message::StructuralPlaybackShortcut)
         ));
         assert!(
             screen_keyboard_message(
@@ -4949,6 +5491,49 @@ mod tests {
             )
             .is_none(),
             "captured widget input must win over screen shortcuts"
+        );
+    }
+
+    #[test]
+    fn structural_space_is_ignored_during_a_fresh_screen_transition() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        assert!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation")
+                .playing
+        );
+
+        app.update(Message::StructuralPlaybackShortcut);
+        assert!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation")
+                .playing,
+            "the builder submit key must not leak into 2D playback"
+        );
+
+        app.update(Message::StructuralTick);
+        app.update(Message::StructuralPlaybackShortcut);
+        assert!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation")
+                .playing,
+            "one scheduling tick must not arm a queued key"
+        );
+
+        while app.structural_shortcut_state != StructuralShortcutState::Ready {
+            app.update(Message::StructuralTick);
+        }
+        app.update(Message::StructuralPlaybackShortcut);
+        assert!(
+            !app.structural_animation
+                .as_ref()
+                .expect("animation")
+                .playing,
+            "space must remain available after the transition settles"
         );
     }
 
@@ -5307,6 +5892,7 @@ mod tests {
                 elapsed_seconds: 3,
                 stage: DynamicBuildStage::Claim,
             },
+            dynamic_overlay_dismissed: true,
             dynamic_cancellation: Some(cancellation.clone()),
             next_dynamic_run_id: 10,
             ..App::default()
@@ -5338,6 +5924,7 @@ mod tests {
                 elapsed_seconds: 1,
                 stage: DynamicBuildStage::Presentation,
             },
+            dynamic_overlay_dismissed: true,
             dynamic_cancellation: Some(cancellation.clone()),
             ..App::default()
         };
@@ -5510,9 +6097,30 @@ mod tests {
         let mut app = App::default();
         assert_eq!(app.title(), "ChemSpec — reaction builder");
         app.smoke_mode = Some(SmokeMode::Structural2d);
+        app.screen = Screen::Structural2d;
         assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 2D");
         app.smoke_mode = Some(SmokeMode::Structural3d);
+        app.screen = Screen::Structural3d;
         assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 3D");
+    }
+
+    #[test]
+    fn smoke_title_tracks_the_live_screen_instead_of_the_launch_route() {
+        let mut app = App {
+            smoke_mode: Some(SmokeMode::Builder),
+            screen: Screen::Builder,
+            ..App::default()
+        };
+
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Builder");
+        app.enter_screen(Screen::OutcomeChoice);
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Outcome Choice");
+        app.enter_screen(Screen::Structural2d);
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 2D");
+        app.enter_screen(Screen::Structural3d);
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 3D");
+        app.enter_screen(Screen::ProductSummary);
+        assert_eq!(app.title(), "ChemSpec Agent Smoke — Product Summary");
     }
 
     #[test]
@@ -6000,6 +6608,7 @@ mod tests {
     #[test]
     fn stage_one_supported_drafts_open_the_guided_animation_directly() {
         let mut app = App::default();
+        app.enter_screen(Screen::Builder);
 
         app.update(Message::PeriodicTable(periodic_table::Message::Activated(
             3,
@@ -6025,6 +6634,15 @@ mod tests {
             reactant_composer::reactants(&app.reactant_composer).1,
             &[1, 1, 8]
         );
+        for _ in 0..64 {
+            app.update(Message::ReactantComposer(
+                reactant_composer::Message::PromptAnimationTick,
+            ));
+        }
+        assert!(reactant_composer::submit_available(&app.reactant_composer));
+        assert!(
+            (reactant_composer::prompt_reveal(&app.reactant_composer) - 1.0).abs() < f32::EPSILON
+        );
 
         app.update(Message::ReactantComposer(
             reactant_composer::Message::StartReactionRequested,
@@ -6037,9 +6655,90 @@ mod tests {
             .as_ref()
             .expect("guided animation compiles from the trusted frames");
         assert!(animation.playing);
+        assert!(!reactant_composer::submit_available(&app.reactant_composer));
+        assert!(reactant_composer::prompt_reveal(&app.reactant_composer) > 0.0);
 
-        app.update(Message::ScreenSelected(Screen::Builder));
+        app.update(Message::ReturnToBuilder);
         assert_eq!(app.screen, Screen::Builder);
+        assert!(reactant_composer::submit_available(&app.reactant_composer));
+        assert!(reactant_composer::prompt_reveal(&app.reactant_composer).abs() < f32::EPSILON);
+        for _ in 0..64 {
+            app.update(Message::ReactantComposer(
+                reactant_composer::Message::PromptAnimationTick,
+            ));
+        }
+        assert!(
+            (reactant_composer::prompt_reveal(&app.reactant_composer) - 1.0).abs() < f32::EPSILON,
+            "returning to the builder must not resume an obsolete fade-out"
+        );
+    }
+
+    #[test]
+    fn screen_entry_reconciles_builder_owned_transient_state() {
+        let mut app = App::default();
+        app.enter_screen(Screen::Builder);
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![12], vec![1, 1, 8]]);
+        app.sync_builder_submit_prompt();
+        app.builder_panel = Some(BuilderPanel::Help);
+        assert!(reactant_composer::try_codex_notice_visible(
+            &app.reactant_composer
+        ));
+
+        app.enter_screen(Screen::Structural2d);
+
+        assert!(app.builder_panel.is_none());
+        assert!(!reactant_composer::submit_available(&app.reactant_composer));
+        assert!(!reactant_composer::try_codex_notice_visible(
+            &app.reactant_composer
+        ));
+
+        app.enter_screen(Screen::Builder);
+
+        assert!(reactant_composer::try_codex_notice_visible(
+            &app.reactant_composer
+        ));
+        assert!(reactant_composer::prompt_reveal(&app.reactant_composer).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn build_another_starts_fresh_while_return_preserves_the_reaction() {
+        let mut app = App::default();
+        app.enter_screen(Screen::Builder);
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![3], vec![1, 1, 8]]);
+        app.sync_builder_submit_prompt();
+        app.open_structural_animation();
+
+        app.update(Message::ReturnToBuilder);
+        assert_eq!(
+            reactant_composer::reactants(&app.reactant_composer),
+            (&[3][..], &[1, 1, 8][..])
+        );
+
+        sketcher::update(
+            &mut app.sketcher,
+            sketcher::Message::Canvas(sketcher::CanvasEvent::Placed(iced::Point::new(40.0, 40.0))),
+        );
+        assert!(sketcher::submission(&app.sketcher).is_some());
+        app.dynamic_context = Some(DynamicRequestContext::Heat);
+        app.enter_screen(Screen::ProductSummary);
+
+        app.update(Message::StartNewReaction);
+
+        assert_eq!(app.screen, Screen::Builder);
+        assert_eq!(
+            reactant_composer::reactants(&app.reactant_composer),
+            (&[][..], &[][..])
+        );
+        assert!(app.pending_requests.is_empty());
+        assert!(app.oxygen_assessment.is_none());
+        assert!(app.validated_frames.is_none());
+        assert!(app.validated_macroscopic.is_none());
+        assert!(app.structural_animation.is_none());
+        assert!(app.structural_error.is_none());
+        assert!(app.dynamic_context.is_none());
+        assert!(app.builder_panel.is_none());
+        assert!(sketcher::submission(&app.sketcher).is_none());
+        assert!(!reactant_composer::submit_available(&app.reactant_composer));
     }
 
     #[test]

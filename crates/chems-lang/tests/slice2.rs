@@ -265,6 +265,16 @@ fn subscript_count_before_a_group_formats_idempotently_without_whitespace() {
     let formatted = format_source(&source).expect("grouped subscript formula formats");
     assert!(formatted.contains("(NH4)2(SO4)[ionic]"));
     assert_eq!(format_source(&formatted).unwrap(), formatted);
+
+    for (authored, canonical) in [
+        ("(NH₄)SO₄[ionic]", "(NH4)SO4[ionic]"),
+        ("H(OH)Cl[molecular]", "H(OH)Cl[molecular]"),
+    ] {
+        let source = FORMULA_SUBSCRIPTS.replacen("C₁₀H₂₂[molecular]", authored, 1);
+        let formatted = format_source(&source).expect("adjacent formula parts format");
+        assert!(formatted.contains(canonical));
+        assert_eq!(format_source(&formatted).unwrap(), formatted);
+    }
 }
 
 #[test]

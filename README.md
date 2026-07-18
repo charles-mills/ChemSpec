@@ -168,7 +168,18 @@ cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo run -p chemspec-app
+
+# Verify a reaction outcome headlessly (names or formulae), no GUI:
+cargo run -p chemspec-app -- react sodium water
+cargo run -p chemspec-app -- react HCl NaOH
+cargo run -p chemspec-app -- react --verbose sodium water
 ```
+
+`chemspec-app react <reactant> <reactant>` resolves the pair through the same
+path the app uses and prints the balanced equation, products, and frame count as
+JSON. Add `--verbose` (`-v`) to also emit the full frame artifact (`animation`)
+and its `digest`. Exit code `0` means a reaction ran, `1` means no single
+reaction, `2` means bad input.
 
 ### macOS visual smoke tests
 

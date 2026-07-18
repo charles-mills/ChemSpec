@@ -241,6 +241,7 @@ fn needs_space(previous: TokenKind, current: TokenKind, next: Option<TokenKind>)
     if current == TokenKind::SubscriptNumber
         || (previous == TokenKind::SubscriptNumber
             && matches!(current, TokenKind::Word | TokenKind::LeftParen))
+        || (previous == TokenKind::RightParen && current == TokenKind::Word)
     {
         return false;
     }

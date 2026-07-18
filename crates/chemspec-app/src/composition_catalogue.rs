@@ -563,7 +563,7 @@ fn preview_from_definition(
 
     Some(TrustedCompositionPreview {
         structure_id: definition.id().as_str().to_owned(),
-        formula: display_formula(formula),
+        formula: crate::nomenclature::display_formula(formula),
         name: agent::structure_name(definition),
         atoms,
         covalent_bonds,
@@ -730,25 +730,6 @@ fn previews_are_isomorphic(
         &mut vec![false; right.atoms.len()],
         &mut work,
     )
-}
-
-fn display_formula(formula: &str) -> String {
-    formula
-        .chars()
-        .map(|character| match character {
-            '0' => '₀',
-            '1' => '₁',
-            '2' => '₂',
-            '3' => '₃',
-            '4' => '₄',
-            '5' => '₅',
-            '6' => '₆',
-            '7' => '₇',
-            '8' => '₈',
-            '9' => '₉',
-            _ => character,
-        })
-        .collect()
 }
 
 fn charge_topology(positive: &[usize], negative: &[usize]) -> Vec<PreviewIonicLink> {

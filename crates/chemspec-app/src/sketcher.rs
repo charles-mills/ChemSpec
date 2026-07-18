@@ -356,7 +356,11 @@ pub fn view(state: &State, slot_available: bool) -> Element<'_, Message> {
     .width(Fill);
 
     let (status, status_color, valid) = match evaluate(state) {
-        Ok((_, formula)) => (format!("valid: {formula}"), color::SUCCESS, true),
+        Ok((_, formula)) => (
+            format!("valid: {}", crate::nomenclature::display_formula(&formula)),
+            color::SUCCESS,
+            true,
+        ),
         Err(problem) => (problem, color::MUTED, false),
     };
 
