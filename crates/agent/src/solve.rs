@@ -20,9 +20,9 @@ use chem_domain::{
 
 use crate::{
     ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind, ClaimObservation,
-    ClaimObservationPredicate, ClaimPhase, ClaimProduct, OutcomeSpecies, ReactionBuildRequest,
-    ReactionClaim, RequestIdentityResolution, claim::REACTION_CLAIM_SCHEMA_VERSION, organic,
-    resolve_request_identities,
+    ClaimObservationPredicate, ClaimPhase, ClaimProduct, NoReactionReason, OutcomeSpecies,
+    ReactionBuildRequest, ReactionClaim, RequestIdentityResolution,
+    claim::REACTION_CLAIM_SCHEMA_VERSION, organic, resolve_request_identities,
 };
 
 /// Donor elements that make a proton-donor site an acid site in practice;
@@ -127,7 +127,7 @@ pub fn solve_reaction_claim(
                 .or_else(|| solve_halogen_displacement(structures[1], structures[0]))
                 .or_else(|| solve_double_displacement(structures[0], structures[1]))
                 .or_else(|| {
-                    solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
+                    solve_synthesis(structures[0], structures[1]).map(|products| Verdict { reason: None,
                         products,
                         observations: Vec::new(),
                     })
@@ -147,13 +147,33 @@ pub fn solve_reaction_claim(
         observations: verdict.observations,
         sources: Vec::new(),
         ambiguity: None,
+        no_reaction_reason: verdict.reason,
     })
 }
 
-/// A solved outcome: an empty product list is a confident "no reaction".
+/// A solved outcome: an empty product list is a confident "no reaction",
+/// and every such verdict names its physical cause for the learner.
 struct Verdict {
     products: Vec<ClaimProduct>,
     observations: Vec<ClaimObservation>,
+    reason: Option<NoReactionReason>,
+}
+
+/// One element symbol as its lowercase display name ("Cu" → "copper").
+fn display_name(symbol: &str) -> String {
+    chem_domain::element_name(symbol).map_or_else(|| symbol.to_owned(), str::to_owned)
+}
+
+/// Reason for an alkali carbonate or hydroxide shrugging off heat.
+fn heat_stable_reason(cation: &str, anion_kind: BaseAnion) -> NoReactionReason {
+    let anion = if anion_kind == BaseAnion::Carbonate {
+        "carbonate"
+    } else {
+        "hydroxide"
+    };
+    NoReactionReason::HeatStable {
+        compound: format!("{} {anion}", display_name(cation)),
+    }
 }
 
 /// Acid + ionic base (oxide, hydroxide, carbonate, or bicarbonate) → salt
@@ -185,7 +205,7 @@ fn solve_acid_base(acid: &StructureDefinition, base: &StructureDefinition) -> Op
             value: None,
         });
     }
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products,
         observations,
     })
@@ -204,13 +224,16 @@ fn solve_acid_metal(acid: &StructureDefinition, metal: &StructureDefinition) -> 
     let charge = chem_domain::aqueous_cation_charge(element.as_str())?;
     if !chem_domain::displaces_hydrogen_from_acids(element.as_str())? {
         return Some(Verdict {
+            reason: Some(NoReactionReason::BelowHydrogen {
+                metal: display_name(element.as_str()),
+            }),
             products: Vec::new(),
             observations: Vec::new(),
         });
     }
     let cation = element.as_str().to_owned();
     let salt = conjugate_salt(acid, donors, &cation, u64::try_from(charge).ok()?)?;
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             product_from_counts(&salt, Some((&cation, u64::try_from(charge).ok()?))),
             ClaimProduct {
@@ -257,7 +280,7 @@ fn solve_incomplete_combustion(
     if context != Some("limited oxygen") || !combustible_pair(fuel, oxidizer) {
         return None;
     }
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             ClaimProduct {
                 name: "carbon monoxide".to_owned(),
@@ -296,7 +319,7 @@ fn solve_alcohol_oxidation(
     }
     let molecule = organic::Editable::from_structure(alcohol)?;
     let product = organic::oxidise_alcohol(&molecule)?;
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             organic_product(&product, ClaimPhase::Liquid)?,
             water_product(ClaimPhase::Liquid),
@@ -316,7 +339,7 @@ fn solve_ester_hydrolysis(
     }
     let molecule = organic::Editable::from_structure(ester)?;
     let (acid, alcohol) = organic::hydrolyse_ester(&molecule)?;
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             organic_product(&acid, ClaimPhase::Liquid)?,
             organic_product(&alcohol, ClaimPhase::Liquid)?,
@@ -353,7 +376,7 @@ fn solve_hydrohalogenation(
     };
     let molecule = organic::Editable::from_structure(candidate)?;
     let product = organic::hydrohalogenate(&molecule, &halogen)?;
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![organic_product(&product, ClaimPhase::Liquid)?],
         observations: Vec::new(),
     })
@@ -363,7 +386,7 @@ fn solve_combustion(fuel: &StructureDefinition, oxidizer: &StructureDefinition) 
     if !combustible_pair(fuel, oxidizer) {
         return None;
     }
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             ClaimProduct {
                 name: "carbon dioxide".to_owned(),
@@ -440,7 +463,7 @@ fn solve_oxide_water(oxide: &StructureDefinition, water: &StructureDefinition) -
         let (_, formula, name) = ACID_ANHYDRIDES
             .iter()
             .find(|(anhydride, _, _)| *anhydride == reduced.as_slice())?;
-        return Some(Verdict {
+        return Some(Verdict { reason: None,
             products: vec![ClaimProduct {
                 name: (*name).to_owned(),
                 formula: (*formula).to_owned(),
@@ -459,7 +482,7 @@ fn solve_oxide_water(oxide: &StructureDefinition, water: &StructureDefinition) -
         return None;
     }
     if WATER_REACTIVE_METALS.contains(&salt.cation.as_str()) {
-        return Some(Verdict {
+        return Some(Verdict { reason: None,
             products: vec![hydroxide_salt(&salt.cation, salt.cation_charge)],
             observations: vec![ClaimObservation {
                 predicate: ClaimObservationPredicate::Forms,
@@ -477,6 +500,9 @@ fn solve_oxide_water(oxide: &StructureDefinition, water: &StructureDefinition) -
     // Any other recognised metal oxide just sits in water.
     chem_domain::common_cation_charge(&salt.cation)?;
     Some(Verdict {
+        reason: Some(NoReactionReason::OxideInertInWater {
+            metal: display_name(&salt.cation),
+        }),
         products: Vec::new(),
         observations: Vec::new(),
     })
@@ -531,12 +557,26 @@ fn solve_trivial_no_reaction(
         })
     };
     let same_substance = left.0 == right.0 && closed_shell(left.1) && closed_shell(right.1);
-    (inert(left.0) || inert(right.0) || (metal(left.0) && metal(right.0)) || same_substance).then(
-        || Verdict {
-            products: Vec::new(),
-            observations: Vec::new(),
-        },
-    )
+    let noble = [left.0, right.0]
+        .into_iter()
+        .find(|composition| inert(composition))
+        .and_then(lone_element);
+    let reason = if let Some(element) = noble {
+        NoReactionReason::NobleGas {
+            element: display_name(&element),
+        }
+    } else if metal(left.0) && metal(right.0) {
+        NoReactionReason::TwoMetals
+    } else if same_substance {
+        NoReactionReason::SameSubstance
+    } else {
+        return None;
+    };
+    Some(Verdict {
+        reason: Some(reason),
+        products: Vec::new(),
+        observations: Vec::new(),
+    })
 }
 
 /// Halogens in decreasing reactivity.
@@ -583,6 +623,10 @@ fn solve_halogen_displacement(
     }
     if incoming >= resident {
         return Some(Verdict {
+            reason: Some(NoReactionReason::LessReactiveHalogen {
+                incoming: display_name(element.as_str()),
+                resident: display_name(&resident_symbol),
+            }),
             products: Vec::new(),
             observations: Vec::new(),
         });
@@ -606,7 +650,7 @@ fn solve_halogen_displacement(
             value: Some(colour.to_owned()),
         });
     }
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             exchanged_salt(
                 &salt.cation,
@@ -635,7 +679,7 @@ fn solve_metal_water(metal: &StructureDefinition, water: &StructureDefinition) -
     let (element, _) = single_element(metal)?;
     if WATER_REACTIVE_METALS.contains(&element.as_str()) {
         let charge = u64::try_from(chem_domain::common_cation_charge(element.as_str())?).ok()?;
-        return Some(Verdict {
+        return Some(Verdict { reason: None,
             products: vec![
                 hydroxide_salt(element.as_str(), charge),
                 ClaimProduct {
@@ -662,6 +706,9 @@ fn solve_metal_water(metal: &StructureDefinition, water: &StructureDefinition) -
     if !chem_domain::displaces_hydrogen_from_acids(element.as_str())? {
         // Below the hydrogen pivot nothing happens, even to steam.
         return Some(Verdict {
+            reason: Some(NoReactionReason::BelowHydrogen {
+                metal: display_name(element.as_str()),
+            }),
             products: Vec::new(),
             observations: Vec::new(),
         });
@@ -677,7 +724,7 @@ const HEAT_STABLE_CATIONS: [&str; 4] = ["Na", "K", "Rb", "Cs"];
 /// confident no-reaction); electricity electrolyses water.
 fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<Verdict> {
     match context {
-        "electricity" if is_water(reactant.formula()) => Some(Verdict {
+        "electricity" if is_water(reactant.formula()) => Some(Verdict { reason: None,
             products: vec![
                 ClaimProduct {
                     name: "Hydrogen".to_owned(),
@@ -740,17 +787,18 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
                 // genuinely decompose; no confident verdict either way.
                 BaseAnion::Oxide => None,
                 BaseAnion::Carbonate | BaseAnion::Hydroxide if stable => Some(Verdict {
+                    reason: Some(heat_stable_reason(&cation, anion_kind)),
                     products: Vec::new(),
                     observations: Vec::new(),
                 }),
-                BaseAnion::Carbonate => Some(Verdict {
+                BaseAnion::Carbonate => Some(Verdict { reason: None,
                     products: vec![
                         product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
                         carbon_dioxide,
                     ],
                     observations: vec![evolves_carbon_dioxide],
                 }),
-                BaseAnion::Hydroxide => Some(Verdict {
+                BaseAnion::Hydroxide => Some(Verdict { reason: None,
                     products: vec![
                         product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
                         water,
@@ -764,7 +812,7 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
                     carbonate.insert(cation.clone(), 2 / shared);
                     *carbonate.entry("C".to_owned()).or_insert(0) += charge / shared;
                     *carbonate.entry("O".to_owned()).or_insert(0) += 3 * (charge / shared);
-                    Some(Verdict {
+                    Some(Verdict { reason: None,
                         products: vec![
                             product_from_counts(&carbonate, Some((&cation, charge))),
                             water,
@@ -851,7 +899,7 @@ fn solve_alkene_addition(
         }],
         _ => Vec::new(),
     };
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![organic_product(&product, phase)?],
         observations,
     })
@@ -875,7 +923,7 @@ fn solve_substitution(
     let molecule = organic::Editable::from_structure(candidate)?;
     let product = organic::unique_monosubstitution(&molecule, element)?;
     let halide_root = if element == "Cl" { "chloride" } else { "bromide" };
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             organic_product(&product, ClaimPhase::Gas)?,
             ClaimProduct {
@@ -897,7 +945,7 @@ fn solve_esterification(
     let acid = organic::Editable::from_structure(acid)?;
     let alcohol = organic::Editable::from_structure(alcohol)?;
     let ester = organic::esterify(&acid, &alcohol)?;
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             organic_product(&ester, ClaimPhase::Liquid)?,
             water_product(ClaimPhase::Liquid),
@@ -915,7 +963,7 @@ fn solve_esterification(
 fn solve_dehydration(reactant: &StructureDefinition) -> Option<Verdict> {
     let molecule = organic::Editable::from_structure(reactant)?;
     let alkene = organic::dehydrate(&molecule)?;
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             organic_product(&alkene, ClaimPhase::Gas)?,
             water_product(ClaimPhase::Gas),
@@ -941,7 +989,7 @@ fn wohler_urea_synthesis(reactant: &StructureDefinition) -> Option<Verdict> {
     if counts != [("C", 1), ("H", 4), ("N", 2), ("O", 1)] {
         return None;
     }
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![ClaimProduct {
             name: "urea".to_owned(),
             formula: "CO(NH2)2".to_owned(),
@@ -984,7 +1032,7 @@ fn nitrate_decomposition(reactant: &StructureDefinition) -> Option<Verdict> {
             anion: [("N".to_owned(), 1), ("O".to_owned(), 2)].into(),
             anion_charge: 1,
         };
-        return Some(Verdict {
+        return Some(Verdict { reason: None,
             products: vec![
                 exchanged_salt(&salt.cation, salt.cation_charge, &nitrite, None),
                 oxygen,
@@ -999,7 +1047,7 @@ fn nitrate_decomposition(reactant: &StructureDefinition) -> Option<Verdict> {
         anion: [("O".to_owned(), 1)].into(),
         anion_charge: 2,
     };
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             exchanged_salt(&salt.cation, salt.cation_charge, &oxide, None),
             ClaimProduct {
@@ -1026,7 +1074,7 @@ fn photolysis(reactant: &StructureDefinition) -> Option<Verdict> {
     if !matches!(halide.as_str(), "Cl" | "Br") {
         return None;
     }
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             ClaimProduct {
                 name: "silver".to_owned(),
@@ -1416,6 +1464,7 @@ fn solve_double_displacement(
     let second_soluble = salt_solubility(&second.cation, &first.anion)?;
     if first_soluble && second_soluble {
         return Some(Verdict {
+            reason: Some(NoReactionReason::AllProductsSoluble),
             products: Vec::new(),
             observations: Vec::new(),
         });
@@ -1443,7 +1492,7 @@ fn solve_double_displacement(
             value: None,
         })
         .collect();
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products,
         observations,
     })
@@ -1526,6 +1575,10 @@ fn solve_single_displacement(
             return None;
         }
         return Some(Verdict {
+            reason: Some(NoReactionReason::LessActiveMetal {
+                metal: display_name(element.as_str()),
+                displaced: display_name(&salt.cation),
+            }),
             products: Vec::new(),
             observations: Vec::new(),
         });
@@ -1544,7 +1597,7 @@ fn solve_single_displacement(
         subject: format!("solid {}", displaced.name),
         value: None,
     }];
-    Some(Verdict {
+    Some(Verdict { reason: None,
         products: vec![
             exchanged_salt(
                 element.as_str(),
@@ -1795,6 +1848,12 @@ mod tests {
         let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
+        assert_eq!(
+            claim.no_reaction_reason,
+            Some(NoReactionReason::BelowHydrogen {
+                metal: "copper".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -2485,6 +2544,13 @@ mod tests {
         let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
+        assert_eq!(
+            claim.no_reaction_reason,
+            Some(NoReactionReason::LessActiveMetal {
+                metal: "copper".to_owned(),
+                displaced: "zinc".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -2500,6 +2566,10 @@ mod tests {
         let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
+        assert_eq!(
+            claim.no_reaction_reason,
+            Some(NoReactionReason::AllProductsSoluble)
+        );
     }
 
     #[test]
@@ -2657,6 +2727,7 @@ mod tests {
                 .expect("verdict");
             assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
             assert!(claim.products.is_empty());
+            assert!(claim.no_reaction_reason.is_some(), "reason for {reactants:?}");
         };
         // Light noble gases with anything.
         no_reaction(&[("He", &[2]), ("O₂", &[8, 8])]);
@@ -2685,6 +2756,7 @@ mod tests {
             .expect("verdict");
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
+        assert!(claim.no_reaction_reason.is_some(), "reason for {reactants:?}");
     }
 
     #[test]

@@ -34,7 +34,8 @@ pub use claim::{
     ClaimIdentityHint, ClaimIdentityHintKind, ClaimMode, ClaimObservation,
     ClaimObservationPredicate, ClaimPhase, ClaimProduct, ClaimSource, LabelledStructure,
     MechanismCleavageAllocation, MechanismEscalationRequest, MechanismEscalationResponse,
-    MechanismHomolytic, MechanismMapping, MechanismOperation, MechanismSpecies, ReactionClaim,
+    MechanismHomolytic, MechanismMapping, MechanismOperation, MechanismSpecies, NoReactionReason,
+    ReactionClaim,
     StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
 };
 pub use codex::{

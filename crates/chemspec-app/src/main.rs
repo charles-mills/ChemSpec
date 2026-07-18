@@ -3613,23 +3613,28 @@ impl App {
             return space().height(Length::Shrink).into();
         };
         let (title, detail) = match claim.disposition {
-            ClaimDisposition::NoReaction => {
-                ("No supported reaction", claim.required_context.as_str())
-            }
+            ClaimDisposition::NoReaction => match &claim.no_reaction_reason {
+                Some(reason) => ("No reaction", reason.learner_explanation()),
+                None => (
+                    "No supported reaction",
+                    claim.required_context.clone(),
+                ),
+            },
             ClaimDisposition::Ambiguous => (
                 "More detail is needed",
                 claim
                     .ambiguity
                     .as_ref()
-                    .map_or(claim.required_context.as_str(), |value| {
-                        value.summary.as_str()
-                    }),
+                    .map_or_else(
+                        || claim.required_context.clone(),
+                        |value| value.summary.clone(),
+                    ),
             ),
             ClaimDisposition::Unsupported => (
                 "Outside the current chemistry capability",
-                claim.required_context.as_str(),
+                claim.required_context.clone(),
             ),
-            ClaimDisposition::Reaction => ("Outcome claim", claim.required_context.as_str()),
+            ClaimDisposition::Reaction => ("Outcome claim", claim.required_context.clone()),
         };
         column![
             text(title).size(type_scale::BODY_LARGE).color(color::TEXT),

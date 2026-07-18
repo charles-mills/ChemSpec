@@ -17,6 +17,8 @@ const FORMAT_EXPECTED: &str =
     include_str!("../../../conformance/formatting/canonical-comments-001.formatted.chems");
 const DIAGNOSTIC_SOURCE: &str =
     include_str!("../../../conformance/diagnostics-tooling/stable-diagnostics-001.chems");
+const FORMULA_SUBSCRIPTS: &str =
+    include_str!("../../../conformance/parsing/formula-subscripts-001.chems");
 
 #[test]
 fn every_normative_production_is_reached_losslessly() {
@@ -158,6 +160,126 @@ fn comments_can_separate_formula_characters_without_changing_meaning() {
     let formatted = format_source(&source).unwrap();
     assert!(parse_source(&formatted).is_complete());
     assert!(formatted.contains("/- count -/"));
+}
+
+#[test]
+fn formula_subscripts_are_lossless_input_with_ascii_semantics_and_formatting() {
+    let parsed = parse_source(FORMULA_SUBSCRIPTS);
+    assert!(parsed.is_complete(), "{:#?}", parsed.diagnostics);
+    let equation = parsed
+        .ast
+        .reaction
+        .as_ref()
+        .unwrap()
+        .equation
+        .as_ref()
+        .unwrap();
+    assert_eq!(equation.reactants[0].formula, "C10H22");
+    assert_eq!(equation.reactants[1].formula, "Ca(OH)2");
+    assert_eq!(equation.reactants[2].formula, "CuSO4.5H2O");
+    assert_eq!(equation.products[0].formula, "C10H22");
+    assert_eq!(equation.products[1].formula, "Ca(OH)2");
+    assert_eq!(equation.products[2].formula, "CuSO4.5H2O");
+
+    let subscript_tokens = parsed
+        .cst
+        .tokens
+        .iter()
+        .filter(|token| token.kind == TokenKind::SubscriptNumber)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        subscript_tokens
+            .iter()
+            .map(|token| token.text.as_str())
+            .collect::<Vec<_>>(),
+        ["₁₀", "₂₂", "₂", "₄", "₂"]
+    );
+    for token in subscript_tokens {
+        assert_eq!(
+            &FORMULA_SUBSCRIPTS[token.span.start..token.span.end],
+            token.text
+        );
+    }
+    let middle_dot = parsed
+        .cst
+        .tokens
+        .iter()
+        .find(|token| token.kind == TokenKind::MiddleDot)
+        .expect("middle dot token");
+    assert_eq!(middle_dot.text, "·");
+    assert_eq!(
+        &FORMULA_SUBSCRIPTS[middle_dot.span.start..middle_dot.span.end],
+        "·"
+    );
+
+    let formatted = format_source(FORMULA_SUBSCRIPTS).expect("subscript source formats");
+    assert!(!formatted.chars().any(|character| matches!(
+        character,
+        '₀' | '₁' | '₂' | '₃' | '₄' | '₅' | '₆' | '₇' | '₈' | '₉'
+    )));
+    assert!(!formatted.contains('·'));
+    assert!(formatted.contains("C10H22[molecular] + Ca(OH)2[ionic] + CuSO4.5H2O[ionic]"));
+    assert_eq!(format_source(&formatted).unwrap(), formatted);
+}
+
+#[test]
+fn copied_methane_and_oxygen_formulae_normalize_to_ascii() {
+    let source = FORMULA_SUBSCRIPTS.replacen(
+        "C₁₀H₂₂[molecular] + Ca(OH)₂[ionic] + CuSO₄·5H₂O[ionic]",
+        "CH₄[molecular] + O₂[molecular]",
+        1,
+    );
+    let parsed = parse_source(&source);
+    assert!(parsed.is_complete(), "{:#?}", parsed.diagnostics);
+    let formulae = parsed
+        .ast
+        .reaction
+        .unwrap()
+        .equation
+        .unwrap()
+        .reactants
+        .into_iter()
+        .map(|term| term.formula)
+        .collect::<Vec<_>>();
+    assert_eq!(formulae, ["CH4", "O2"]);
+}
+
+#[test]
+fn subscript_count_before_a_group_formats_idempotently_without_whitespace() {
+    let source = FORMULA_SUBSCRIPTS.replacen("C₁₀H₂₂[molecular]", "(NH₄)₂(SO₄)[ionic]", 1);
+    let parsed = parse_source(&source);
+    assert!(parsed.is_complete(), "{:#?}", parsed.diagnostics);
+    assert_eq!(
+        parsed
+            .ast
+            .reaction
+            .as_ref()
+            .unwrap()
+            .equation
+            .as_ref()
+            .unwrap()
+            .reactants[0]
+            .formula,
+        "(NH4)2(SO4)"
+    );
+    let formatted = format_source(&source).expect("grouped subscript formula formats");
+    assert!(formatted.contains("(NH4)2(SO4)[ionic]"));
+    assert_eq!(format_source(&formatted).unwrap(), formatted);
+}
+
+#[test]
+fn formula_subscripts_do_not_broaden_other_integers_or_malformed_counts() {
+    let coefficient = FORMULA_SUBSCRIPTS.replacen("C₁₀H₂₂[molecular]", "₂ C₁₀H₂₂[molecular]", 1);
+    assert!(!parse_source(&coefficient).is_complete());
+
+    let catalogue_version =
+        FORMULA_SUBSCRIPTS.replacen("ChemSpec.Theoretical@1", "ChemSpec.Theoretical@1·2", 1);
+    assert!(!parse_source(&catalogue_version).is_complete());
+
+    for malformed in ["C₀₂H₂₂", "C1₀H₂₂", "C₁0H₂₂", "Ca(OH)₀"] {
+        let source = FORMULA_SUBSCRIPTS.replacen("C₁₀H₂₂", malformed, 1);
+        assert!(!parse_source(&source).is_complete(), "accepted {malformed}");
+    }
 }
 
 #[test]

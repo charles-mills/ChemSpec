@@ -97,10 +97,13 @@ rule-application        = "apply", qualified-name, NEWLINE, INDENT,
 rule-binding            = value-identifier, ":=", value-identifier, NEWLINE ;
 
 formula                 = formula-segment,
-                          { ".", [ positive-integer ], formula-segment } ;
+                          { ( "." | MIDDLE_DOT ),
+                            [ positive-integer ], formula-segment } ;
 formula-segment         = formula-part, { formula-part } ;
-formula-part            = element, [ positive-integer ] |
-                          "(", formula-segment, ")", [ positive-integer ] ;
+formula-part            = element,
+                          [ positive-integer | SUBSCRIPT_POSITIVE_INTEGER ] |
+                          "(", formula-segment, ")",
+                          [ positive-integer | SUBSCRIPT_POSITIVE_INTEGER ] ;
 element                 = UPPER, [ LOWER ] ;
 
 qualified-name          = name-segment, { ".", name-segment } ;
@@ -123,4 +126,7 @@ integer                 = DIGIT, { DIGIT } ;
   LOWER         = ASCII a through z
   DIGIT         = ASCII 0 through 9
   NON_ZERO_DIGIT = ASCII 1 through 9
+  SUBSCRIPT_POSITIVE_INTEGER = Unicode subscript 1 through 9,
+                               followed by zero or more Unicode subscript digits
+  MIDDLE_DOT    = Unicode U+00B7 middle dot
 *)
