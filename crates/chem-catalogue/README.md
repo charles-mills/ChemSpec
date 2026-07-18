@@ -90,5 +90,5 @@ catalogue check` compiler accepts closed three-file content packages, generates
 and validates a working `CatalogueEnvelope`, and emits a pending review request.
 Neither that request nor the generated candidate inspection artifacts can call
 or configure `TrustedCatalogue::from_canonical_json`; production promotion still
-requires the exact host-pinned digest and a separately supplied exact human
-attestation.
+requires the exact host-pinned digest and a separately supplied exact
+host-selected review attestation.

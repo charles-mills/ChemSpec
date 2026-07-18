@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 
 /// Supported on-disk schema version for structural catalogue envelopes.
 pub const CATALOGUE_SCHEMA_VERSION: u32 = 1;
+pub const CATALOGUE_REVIEW_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,6 +49,29 @@ pub struct CatalogueDocument {
     /// byte-for-byte compatible after canonical normalization.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub macroscopic_materials: Vec<MacroscopicMaterialRecord>,
+}
+
+/// External review artifact accepted by a host trust policy.
+///
+/// This artifact deliberately lives outside [`CatalogueEnvelope`]: candidate
+/// content cannot assert its own promotion. Its semantic digest is pinned by
+/// the host before it can authorize a [`crate::TrustedCatalogue`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogueReviewAttestation {
+    pub schema_version: u32,
+    pub id: String,
+    pub catalogue_digest: ContentDigest,
+    pub reviewer: String,
+    pub reviewed_on: String,
+    pub scope: String,
+    pub method: String,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub sources: BTreeSet<EvidenceSourceId>,
+    #[serde(deserialize_with = "deserialize_unique_set")]
+    pub premises: BTreeSet<PremiseId>,
+    pub coverage_conclusion: String,
+    pub limitation: String,
 }
 
 /// Context in which a reviewed material phase applies.

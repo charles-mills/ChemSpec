@@ -181,6 +181,31 @@ impl Error for AgentError {
 }
 
 #[cfg(test)]
+mod test_support {
+    use chem_catalogue::{CatalogueEnvelope, CatalogueTrustPolicy, TrustedCatalogue};
+    use chem_domain::ContentDigest;
+
+    pub(crate) fn trusted_catalogue() -> TrustedCatalogue {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let catalogue = std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+            .expect("catalogue");
+        let review = std::fs::read(root.join("catalogue/reviews/core-chemistry.review.json"))
+            .expect("review");
+        let envelope: CatalogueEnvelope = serde_json::from_slice(&catalogue).expect("envelope");
+        let review_value = serde_json::from_slice(&review).expect("review value");
+        TrustedCatalogue::from_canonical_json(
+            &catalogue,
+            &review,
+            CatalogueTrustPolicy::new(
+                envelope.digest,
+                ContentDigest::of_json(&review_value).expect("review digest"),
+            ),
+        )
+        .expect("trusted catalogue")
+    }
+}
+
+#[cfg(test)]
 mod error_tests {
     use super::*;
 

@@ -477,6 +477,8 @@ imminent producer. Keep the renderer and presentation compiler exhaustive.
 
 ### AUD-024 — Repair the catalogue trust contract; do not delete it blindly
 
+Status: **Completed 2026-07-18 in the audit remediation commit.**
+
 Verdict: **Partly confirmed; high contract debt.**
 
 The crate docs say only `TrustedCatalogue::from_canonical_json` crosses the
@@ -491,6 +493,12 @@ redesign every producer/consumer and governing document consistently.
 `CatalogueError::is_system_error` at `lib.rs:120` always returning `true` is
 confirmed and should either disappear with a single error class or become a
 real typed classification.
+
+Resolution: trust construction again requires the canonical catalogue bytes,
+the separate review artifact, and host-pinned semantic digests for both.
+Promotion validates and packages the exact review without granting runtime
+trust; the application owns the compiled pins. `CatalogueError` remains the
+single invalid-catalogue class and the redundant classifier was removed.
 
 ### AUD-025 — Remove genuinely unused dependencies
 
@@ -1098,3 +1106,55 @@ For each completed slice, append:
   live provider, credential, network, GPU, macOS, or Windows behavior is
   required or claimed.
 - Follow-ups: none.
+
+### 2026-07-18 — AUD-024 Catalogue trust capability
+
+- Completion: this audit remediation commit.
+- Contract and code: `TrustedCatalogue::from_canonical_json` now requires the
+  canonical catalogue, a separately supplied `CatalogueReviewAttestation`, and
+  a `CatalogueTrustPolicy` pinning the semantic digest of each. Structural
+  validation remains available through `ValidatedCatalogueBundle` without
+  granting trust.
+- Attestation boundary: strict decoding rejects unknown fields, malformed
+  review metadata, wrong catalogue binding, and any review whose premise or
+  evidence-source set is not exactly the validated catalogue's set. Wrong
+  catalogue or review pins fail with `CHEMS-C025`; invalid review semantics
+  fail with `CHEMS-C026`.
+- Promotion and host ownership: `chems catalogue promote` once again requires
+  `--attestation`, validates it before creating output, and packages catalogue,
+  review, both digest files, and a promotion manifest. The app embeds the two
+  reviewed artifacts but independently compiles both accepted digest pins.
+- Error contract: unsupported lookups remain a distinct
+  `UnsupportedCatalogueItem`; invalid data remains the single typed
+  `CatalogueError` class. The always-true `CatalogueError::is_system_error`
+  classifier was removed.
+- Red evidence: the original one-argument trust constructor did not compile
+  against the new boundary test; before restoration, CLI promotion also
+  ignored its documented `--attestation` argument and emitted a directly
+  loadable catalogue.
+- Regression coverage: exact reviewed artifacts load; wrong catalogue and
+  review pins fail; an independently re-pinned but incomplete review still
+  fails; checked candidates remain only structurally valid; promotion rejects
+  missing review input and its packaged output crosses trust only when a host
+  deliberately supplies both emitted pins.
+- Review: the Spec pass found no missing requirement, scope creep, or incorrect
+  trust behavior. The Standards pass found missing assertions for the public
+  `CHEMS-C025`/`CHEMS-C026` strings and duplicated unit-test catalogue loaders;
+  exact diagnostic assertions and a shared agent test-support loader resolved
+  both findings. Its remaining stringly review-ID/date observation is a
+  non-blocking judgement call consistent with the existing wire model.
+- Verification passed:
+  `cargo test -p chem-catalogue --test slice3` (23 passed);
+  `cargo test -p chems-cli --test authoring` (16 passed);
+  `cargo test -p agent --lib` (152 passed);
+  `cargo test -p chemspec-app every_supported_request_crosses_the_trusted_frame_boundary`;
+  `cargo fmt --all --check`;
+  `cargo test --workspace --all-targets`;
+  `cargo clippy --workspace --all-targets -- -D warnings`; and
+  `git diff --check`. Cargo verification used the isolated target directory
+  `/tmp/chemspec-aud024c` after the existing repository target produced an
+  incremental-linker corruption error.
+- Remaining boundary: deterministic in-process artifacts exercise semantic
+  digesting, promotion, startup, and downstream catalogue consumers. No live
+  provider, credential, network, GPU, macOS, or Windows behavior is required
+  or claimed.

@@ -1581,17 +1581,8 @@ mod tests {
     use crate::{
         ClaimMode, CompiledClaimOutcome, FamilyMatchOutcome, ProviderClaim, ReactantInput,
         ReactionBuildRequest, compile_claim_outcome, match_reviewed_family,
-        reviewed_species_registry,
+        reviewed_species_registry, test_support::trusted_catalogue as trusted,
     };
-
-    fn trusted() -> TrustedCatalogue {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-        )
-        .expect("trusted catalogue")
-    }
 
     fn static_outcome_for(
         trusted: &TrustedCatalogue,

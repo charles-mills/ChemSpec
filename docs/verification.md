@@ -67,6 +67,14 @@ Every catalogue build checks:
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
 
+Catalogue trust tests additionally require the exact canonical catalogue and
+external review to match independently supplied host pins. The review must
+bind the catalogue digest and exactly the complete premise and evidence-source
+sets. Mismatched pins fail with `CHEMS-C025`; malformed, partial, or
+misbound reviews fail with `CHEMS-C026`. Candidate checking cannot construct
+the trusted capability, and promotion must validate and package the review
+without choosing the runtime host pins.
+
 Dynamic claims cannot construct catalogue trust. Exact static compilation must
 prove stable request identity, formula/charge conservation, deterministic
 smallest-integer coefficients, and checked `ReactionDeclaration` construction.

@@ -160,9 +160,7 @@ fn assess_packages(package_paths: &[PathBuf]) -> Result<CandidateAssessment, Str
 }
 
 fn promote_command(arguments: &[String]) -> Result<(), String> {
-    // Promotion is just validated publication now: no attestation, no
-    // review ceremony. If the bundle validates, it ships.
-    let (output, package_paths) = promote_arguments(arguments)?;
+    let (output, attestation, package_paths) = promote_arguments(arguments)?;
     if output.exists() {
         return Err(format!(
             "CHEMS-A003 output directory `{}` must not already exist",
@@ -171,13 +169,36 @@ fn promote_command(arguments: &[String]) -> Result<(), String> {
     }
     reject_output_inside_package(&output, &package_paths)?;
     let assessment = assess_packages(&package_paths)?;
+    let review_bytes = fs::read(&attestation).map_err(|error| io_error(&attestation, &error))?;
+    let review_digest = assessment
+        .catalogue
+        .validate_review_attestation(&review_bytes)
+        .map_err(|error| format!("CHEMS-A021 review attestation is invalid: {error}"))?;
     fs::create_dir(&output).map_err(|error| io_error(&output, &error))?;
     write_file(&output.join("catalogue.json"), &assessment.catalogue_bytes)?;
+    write_file(&output.join("review.json"), &review_bytes)?;
+    write_file(
+        &output.join("catalogue.digest"),
+        format!("{}\n", assessment.catalogue.digest()).as_bytes(),
+    )?;
+    write_file(
+        &output.join("review.digest"),
+        format!("{review_digest}\n").as_bytes(),
+    )?;
+    let manifest = pretty_json(&json!({
+        "schema_version": 1,
+        "catalogue_digest": assessment.catalogue.digest(),
+        "review_digest": review_digest,
+        "catalogue": "catalogue.json",
+        "review": "review.json",
+    }))?;
+    write_file(&output.join("promotion.json"), &manifest)?;
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "status": "published",
+            "status": "promoted",
             "catalogue_digest": assessment.catalogue.digest(),
+            "review_digest": review_digest,
             "packages": assessment
                 .packages
                 .iter()
@@ -237,8 +258,9 @@ fn check_arguments(arguments: &[String]) -> Result<(PathBuf, Vec<PathBuf>), Stri
     Ok((output, packages))
 }
 
-fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, Vec<PathBuf>), String> {
+fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, PathBuf, Vec<PathBuf>), String> {
     let mut output = None;
+    let mut attestation = None;
     let mut packages = Vec::new();
     let mut index = 0;
     while index < arguments.len() {
@@ -252,6 +274,15 @@ fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, Vec<PathBuf>), St
                     return Err("CHEMS-A001 `--out` may be specified only once".to_owned());
                 }
             }
+            "--attestation" => {
+                index += 1;
+                let path = arguments
+                    .get(index)
+                    .ok_or("CHEMS-A001 `--attestation` requires a path")?;
+                if attestation.replace(PathBuf::from(path)).is_some() {
+                    return Err("CHEMS-A001 `--attestation` may be specified only once".to_owned());
+                }
+            }
             option if option.starts_with('-') => {
                 return Err(format!("CHEMS-A001 unknown option `{option}`"));
             }
@@ -260,10 +291,12 @@ fn promote_arguments(arguments: &[String]) -> Result<(PathBuf, Vec<PathBuf>), St
         index += 1;
     }
     let output = output.ok_or("CHEMS-A001 catalogue promote requires `--out <directory>`")?;
+    let attestation =
+        attestation.ok_or("CHEMS-A001 catalogue promote requires `--attestation <review.json>`")?;
     if packages.is_empty() {
         return Err("CHEMS-A001 catalogue promote requires a candidate package".to_owned());
     }
-    Ok((output, packages))
+    Ok((output, attestation, packages))
 }
 
 fn load_package(root: &Path) -> Result<LoadedPackage, String> {

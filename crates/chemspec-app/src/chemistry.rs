@@ -6,10 +6,10 @@
 use std::{collections::BTreeMap, str::FromStr, sync::LazyLock};
 
 use chem_catalogue::{
-    GeneralizedCaseSelection, GeneralizedReactionCaseRecord, ObservationPredicate, OxygenOutcome,
-    TrustedCatalogue, ValidatedOxygenScreening,
+    CatalogueTrustPolicy, GeneralizedCaseSelection, GeneralizedReactionCaseRecord,
+    ObservationPredicate, OxygenOutcome, TrustedCatalogue, ValidatedOxygenScreening,
 };
-use chem_domain::ReactionRuleId;
+use chem_domain::{ContentDigest, ReactionRuleId};
 use chem_kernel::{
     CurrentArtifactIdentity, ObservationStatus, SimulationFrames, expand_trusted, generate_frames,
     validate_trusted,
@@ -25,6 +25,11 @@ use chem_presentation::{
 use crate::composition_catalogue::{self, CompositionId};
 
 const CATALOGUE: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
+const CATALOGUE_REVIEW: &[u8] =
+    include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
+const CATALOGUE_DIGEST: &str = "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
+const CATALOGUE_REVIEW_DIGEST: &str =
+    "6aa6f1c65023ed4fe7e93570eb9039ecafe75d39f15af5cf2eec3c8515dfe3e7";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -995,7 +1000,16 @@ struct ValidatedRequestArtifacts {
 }
 
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
-    TrustedCatalogue::from_canonical_json(CATALOGUE).map_err(|error| error.to_string())
+    let catalogue_digest =
+        ContentDigest::from_str(CATALOGUE_DIGEST).map_err(|error| error.to_string())?;
+    let review_digest =
+        ContentDigest::from_str(CATALOGUE_REVIEW_DIGEST).map_err(|error| error.to_string())?;
+    TrustedCatalogue::from_canonical_json(
+        CATALOGUE,
+        CATALOGUE_REVIEW,
+        CatalogueTrustPolicy::new(catalogue_digest, review_digest),
+    )
+    .map_err(|error| error.to_string())
 });
 
 pub(crate) fn trusted_catalogue() -> Result<&'static TrustedCatalogue, &'static str> {

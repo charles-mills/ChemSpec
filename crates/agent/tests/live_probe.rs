@@ -6,12 +6,23 @@ use agent::{
     ReactionBuildRequest, compile_claim_outcome, compile_mechanism_request, derive_mechanism,
     resolve_request_identities_with_catalogue, reviewed_species_registry,
 };
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::{CatalogueEnvelope, CatalogueTrustPolicy, TrustedCatalogue};
+use chem_domain::ContentDigest;
 
 fn trusted() -> TrustedCatalogue {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let catalogue =
+        std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json")).unwrap();
+    let review = std::fs::read(root.join("catalogue/reviews/core-chemistry.review.json")).unwrap();
+    let envelope: CatalogueEnvelope = serde_json::from_slice(&catalogue).unwrap();
+    let review_value = serde_json::from_slice(&review).unwrap();
     TrustedCatalogue::from_canonical_json(
-        &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json")).unwrap(),
+        &catalogue,
+        &review,
+        CatalogueTrustPolicy::new(
+            envelope.digest,
+            ContentDigest::of_json(&review_value).unwrap(),
+        ),
     )
     .unwrap()
 }

@@ -363,20 +363,12 @@ fn claim_digest(claim: &ProviderClaim) -> Result<ContentDigest, AgentError> {
 
 #[cfg(test)]
 mod tests {
-    use chem_catalogue::TrustedCatalogue;
     use serde_json::json;
 
     use super::*;
-    use crate::{ReactantInput, reviewed_species_registry};
-
-    fn trusted() -> TrustedCatalogue {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-        )
-        .expect("trusted catalogue")
-    }
+    use crate::{
+        ReactantInput, reviewed_species_registry, test_support::trusted_catalogue as trusted,
+    };
 
     fn request() -> ReactionBuildRequest {
         ReactionBuildRequest {

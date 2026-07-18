@@ -58,6 +58,8 @@ pub enum CatalogueErrorCode {
     InvalidGeneralizedRule,
     InvalidGeneralizedCase,
     InvalidMacroscopicMaterial,
+    TrustMismatch,
+    InvalidAttestation,
 }
 
 impl CatalogueErrorCode {
@@ -88,6 +90,8 @@ impl CatalogueErrorCode {
             Self::InvalidGeneralizedRule => "CHEMS-C022",
             Self::InvalidGeneralizedCase => "CHEMS-C023",
             Self::InvalidMacroscopicMaterial => "CHEMS-C024",
+            Self::TrustMismatch => "CHEMS-C025",
+            Self::InvalidAttestation => "CHEMS-C026",
         }
     }
 }
@@ -114,11 +118,6 @@ impl CatalogueError {
     #[must_use]
     pub const fn diagnostic_code(&self) -> &'static str {
         self.code.diagnostic_code()
-    }
-
-    #[must_use]
-    pub const fn is_system_error(&self) -> bool {
-        true
     }
 }
 
@@ -288,6 +287,21 @@ impl ValidatedCatalogueBundle {
     #[must_use]
     pub const fn document(&self) -> &CatalogueDocument {
         &self.document
+    }
+
+    /// Validates an external review against this exact catalogue and returns
+    /// the review's canonical semantic digest. This does not grant trust; a
+    /// host must still pin both digests through [`CatalogueTrustPolicy`].
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed review JSON or a review that does not bind every
+    /// exact catalogue premise and evidence source.
+    pub fn validate_review_attestation(
+        &self,
+        review_json: &[u8],
+    ) -> Result<ContentDigest, CatalogueError> {
+        validate_review_attestation(self, review_json)
     }
 
     #[must_use]
@@ -502,24 +516,128 @@ impl ValidatedCatalogueBundle {
     }
 }
 
-/// The built-in catalogue library. Nothing about it is "trusted" in an
-/// attestation sense anymore: it is ordinary validated data, kept as a
-/// convenient library of structures and reviewed reaction rules.
+/// A structurally valid catalogue promoted by an exact host trust policy.
 #[derive(Debug, Clone)]
 pub struct TrustedCatalogue {
     validated: ValidatedCatalogueBundle,
 }
 
+/// The two immutable digests a host accepts at the catalogue trust boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CatalogueTrustPolicy {
+    catalogue_digest: ContentDigest,
+    review_digest: ContentDigest,
+}
+
+impl CatalogueTrustPolicy {
+    #[must_use]
+    pub const fn new(catalogue_digest: ContentDigest, review_digest: ContentDigest) -> Self {
+        Self {
+            catalogue_digest,
+            review_digest,
+        }
+    }
+
+    #[must_use]
+    pub const fn catalogue_digest(self) -> ContentDigest {
+        self.catalogue_digest
+    }
+
+    #[must_use]
+    pub const fn review_digest(self) -> ContentDigest {
+        self.review_digest
+    }
+}
+
 impl TrustedCatalogue {
-    /// Loads a catalogue bundle from canonical JSON.
+    /// Loads catalogue and review JSON under an exact host-pinned policy.
     ///
     /// # Errors
     ///
-    /// Rejects invalid catalogue data.
-    pub fn from_canonical_json(catalogue_json: &[u8]) -> Result<Self, CatalogueError> {
+    /// Rejects invalid catalogue data, either unpinned artifact, or a review
+    /// that does not bind every exact premise and evidence source.
+    pub fn from_canonical_json(
+        catalogue_json: &[u8],
+        review_json: &[u8],
+        policy: CatalogueTrustPolicy,
+    ) -> Result<Self, CatalogueError> {
         let validated = ValidatedCatalogueBundle::from_json(catalogue_json)?;
+        if validated.digest() != policy.catalogue_digest {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::TrustMismatch,
+                format!(
+                    "catalogue digest {} does not match host pin {}",
+                    validated.digest(),
+                    policy.catalogue_digest
+                ),
+            ));
+        }
+        validate_trust_attestation(&validated, review_json, policy.review_digest)?;
         Ok(Self { validated })
     }
+}
+
+fn validate_trust_attestation(
+    catalogue: &ValidatedCatalogueBundle,
+    review_json: &[u8],
+    expected_digest: ContentDigest,
+) -> Result<(), CatalogueError> {
+    let actual_digest = validate_review_attestation(catalogue, review_json)?;
+    if actual_digest != expected_digest {
+        return Err(CatalogueError::new(
+            CatalogueErrorCode::TrustMismatch,
+            format!("review digest {actual_digest} does not match host pin {expected_digest}"),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_review_attestation(
+    catalogue: &ValidatedCatalogueBundle,
+    review_json: &[u8],
+) -> Result<ContentDigest, CatalogueError> {
+    let value: serde_json::Value = serde_json::from_slice(review_json).map_err(|error| {
+        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+    })?;
+    let actual_digest = ContentDigest::of_json(&value).map_err(|error| {
+        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+    })?;
+    let review: CatalogueReviewAttestation = serde_json::from_value(value).map_err(|error| {
+        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+    })?;
+    let expected_sources = catalogue
+        .document()
+        .evidence
+        .iter()
+        .map(|source| source.id.clone())
+        .collect::<BTreeSet<_>>();
+    let expected_premises = catalogue
+        .document()
+        .premises
+        .iter()
+        .map(|premise| premise.id.clone())
+        .collect::<BTreeSet<_>>();
+    let required_text = [
+        review.id.as_str(),
+        review.reviewer.as_str(),
+        review.scope.as_str(),
+        review.method.as_str(),
+        review.coverage_conclusion.as_str(),
+        review.limitation.as_str(),
+    ];
+    if review.schema_version != CATALOGUE_REVIEW_SCHEMA_VERSION
+        || review.catalogue_digest != catalogue.digest()
+        || !valid_date(&review.reviewed_on)
+        || required_text.iter().any(|value| value.trim().is_empty())
+        || review.sources != expected_sources
+        || review.premises != expected_premises
+    {
+        return Err(CatalogueError::new(
+            CatalogueErrorCode::InvalidAttestation,
+            "review must bind the exact catalogue digest, evidence sources, and premises",
+        ));
+    }
+    Ok(actual_digest)
 }
 
 impl Deref for TrustedCatalogue {

@@ -392,7 +392,6 @@ const fn representation(value: RepresentationKind) -> RepresentationRecord {
 
 #[cfg(test)]
 mod tests {
-    use chem_catalogue::TrustedCatalogue;
     use serde_json::json;
 
     use super::*;
@@ -400,6 +399,7 @@ mod tests {
         ClaimMode, CompiledClaimOutcome, MechanismEscalationRequest, MechanismEscalationResponse,
         MechanismProvider, ProviderClaim, ReactantInput, ReactionBuildRequest,
         compile_claim_outcome, reviewed_species_registry,
+        test_support::trusted_catalogue as trusted,
     };
 
     struct UnexpectedMechanismProvider;
@@ -412,15 +412,6 @@ mod tests {
         ) -> Result<MechanismEscalationResponse, crate::AgentError> {
             panic!("reviewed family hits must not invoke mechanism escalation")
         }
-    }
-
-    fn trusted() -> TrustedCatalogue {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-        )
-        .expect("trusted catalogue")
     }
 
     #[test]

@@ -9,8 +9,8 @@ The current catalogue truth is machine-readable:
 - [`../catalogue/reviews/core-chemistry.review.json`](../catalogue/reviews/core-chemistry.review.json)
   binds the exact semantic digest, review scope, premise set, and reviewer
   disclosure; and
-- `chem-catalogue` pins the accepted catalogue and review digests before the
-  application can load trusted chemistry.
+- the application host pins the accepted catalogue and review digests before
+  it can load trusted chemistry through `chem-catalogue`.
 
 This document is a navigation and scope summary. Counts and digests in the
 machine-readable trust artefacts are authoritative when they differ from prose.

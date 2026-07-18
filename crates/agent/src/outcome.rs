@@ -911,10 +911,13 @@ fn format_equation(declaration: &ReactionDeclaration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chem_catalogue::{CatalogueEnvelope, TrustedCatalogue, ValidatedCatalogueBundle};
+    use chem_catalogue::{CatalogueEnvelope, ValidatedCatalogueBundle};
     use serde_json::json;
 
-    use crate::{ClaimMode, ReactantInput, reviewed_species_registry};
+    use crate::{
+        ClaimMode, ReactantInput, reviewed_species_registry,
+        test_support::trusted_catalogue as trusted,
+    };
 
     fn registry() -> SpeciesRegistry {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -925,15 +928,6 @@ mod tests {
         envelope.digest = envelope.computed_digest().expect("digest");
         let catalogue = ValidatedCatalogueBundle::validate(envelope).expect("valid catalogue");
         reviewed_species_registry(&catalogue).expect("identities")
-    }
-
-    fn trusted() -> TrustedCatalogue {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-        )
-        .expect("trusted catalogue")
     }
 
     #[test]
