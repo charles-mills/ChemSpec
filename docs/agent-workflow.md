@@ -5,7 +5,7 @@
 The agent crate answers algorithmically first; the model supplies text only
 for genuine unknowns and is never a chemistry authority. On a reviewed
 catalogue miss the solver attempts the claim itself; on a solver miss, Codex
-may provide two narrowly separated untrusted artefacts:
+may provide two narrowly separated untrusted chemistry artefacts:
 
 1. a compact factual `ReactionClaim`; and
 2. only when neither the graph-diff deriver nor local reviewed-family
@@ -18,6 +18,14 @@ structure generation, exact balancing, typed declarations, family
 applicability, kernel validation, frame projection, and cache revalidation
 are local responsibilities. No provider result can bypass the next
 downstream gate.
+
+After chemistry validation, Codex mode also permits one presentation-only
+`OxideAppearanceClaim` for an already-validated surface-oxidation product. It
+uses live search, is bound to the exact product structure/formula and catalogue
+digest, and selects only a closed local colour family. It cannot alter
+chemistry or catalogue content. The application labels its authority
+`ModelAsserted`, prefers reviewed catalogue colour, and retains a neutral-grey
+fallback on every failure.
 
 ## Progressive result path
 
@@ -144,6 +152,13 @@ preflight, preserving offline replay.
 The default location is the platform cache directory (`Library/Caches` on
 macOS, `LOCALAPPDATA` on Windows, and `XDG_CACHE_HOME` or `.cache` on Linux).
 `CHEMSPEC_CACHE_DIR` overrides it.
+
+Oxide appearance enrichment uses a separate v1 cache envelope in the same
+directory. Its key binds the exact validated product request and catalogue
+digest. Loads revalidate the model claim, source records, identity echo, claim
+digest, and `ModelAsserted` tier before the renderer can consume the closed
+colour family. Appearance entries are never merged into cache v3 or promoted
+to the trusted catalogue.
 
 ## Provider-neutral boundary
 

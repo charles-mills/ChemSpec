@@ -6,6 +6,8 @@
 //! `propane-1,2-diol`, `butanoic acid`, `propyl ethanoate`. Anything
 //! richer returns None — a wrong name is worse than none.
 
+use std::fmt::Write as _;
+
 use crate::organic::{Editable, carboxyls, hydroxyls};
 
 const ROOTS: [&str; 8] = ["meth", "eth", "prop", "but", "pent", "hex", "hept", "oct"];
@@ -421,7 +423,8 @@ fn name_for_chain(
         if chain.len() <= 2 && locants.len() == 1 {
             prefix.push_str(&name);
         } else {
-            prefix.push_str(&format!("{locant_text}-{multiplier}{name}"));
+            write!(&mut prefix, "{locant_text}-{multiplier}{name}")
+                .expect("writing to a String cannot fail");
         }
     }
     let name = format!("{prefix}{suffix}");

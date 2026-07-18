@@ -105,7 +105,8 @@ catalogue data, provider output, and validation:
   compiled only from validated kernel frames;
 - `agent` — the algorithmic reaction solver, systematic naming (both
   directions), graph-diff mechanism derivation, compact claim/mechanism
-  contracts, Codex invocation, exact outcome compilation, and cache v3;
+  contracts, Codex invocation, exact outcome compilation, cache v3, and
+  product-bound provisional oxide-appearance enrichment;
 - `chems-cli` — parsing, formatting, and source/expansion inspection;
 - `chemspec-app` — native Iced composition UI plus Canvas 2D and wgpu 3D
   renderers.

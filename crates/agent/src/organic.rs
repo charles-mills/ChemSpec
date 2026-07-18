@@ -352,11 +352,11 @@ pub(crate) fn carboxyls(molecule: &Editable) -> Vec<Carboxyl> {
                     _ => {}
                 }
             }
-            Some(Carboxyl {
+            let hydroxyl_oxygen = hydroxyl_oxygen?;
+            double_oxygen.map(|_| Carboxyl {
                 carbon,
-                hydroxyl_oxygen: hydroxyl_oxygen?,
+                hydroxyl_oxygen,
             })
-            .filter(|_| double_oxygen.is_some())
         })
         .collect()
 }

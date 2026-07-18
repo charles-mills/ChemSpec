@@ -3439,10 +3439,71 @@ fn draw_observation_context(
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 /// The scene's one narration panel: the operation title as its header, the
 /// short factual line (formerly a separate floating chip) as its subtitle,
 /// and the classroom sentence as its body. One panel, one leader line.
+struct ExplanationTextLayout {
+    title_lines: Vec<String>,
+    subtitle_lines: Vec<String>,
+    body_lines: Vec<String>,
+    content_inset: f32,
+    content_width: f32,
+    title_size: f32,
+    subtitle_size: f32,
+    body_size: f32,
+    title_step: f32,
+    subtitle_step: f32,
+    body_step: f32,
+    title_top: f32,
+    subtitle_top: f32,
+    body_top: f32,
+    height: f32,
+}
+
+impl ExplanationTextLayout {
+    #[allow(clippy::cast_precision_loss)]
+    fn new(width: f32, scale: f32, title: &str, subtitle: Option<&str>, body: &str) -> Self {
+        let content_inset = 30.0 * scale;
+        let content_width = (width - content_inset * 2.0).max(96.0);
+        let title_size = 9.5 * scale;
+        let subtitle_size = 14.0 * scale;
+        let body_size = 13.5 * scale;
+        let title_lines = wrap_words(title, content_width, title_size);
+        let subtitle_lines = subtitle
+            .map(|subtitle| wrap_words(subtitle, content_width, subtitle_size))
+            .unwrap_or_default();
+        let body_lines = wrap_words(body, content_width, body_size);
+        let title_step = 14.0 * scale;
+        let subtitle_step = 20.0 * scale;
+        let body_step = 20.0 * scale;
+        let title_top = 20.0 * scale;
+        let subtitle_top = title_top + title_lines.len() as f32 * title_step + 8.0 * scale;
+        let body_top = if subtitle_lines.is_empty() {
+            title_top + title_lines.len() as f32 * title_step + 14.0 * scale
+        } else {
+            subtitle_top + subtitle_lines.len() as f32 * subtitle_step + 10.0 * scale
+        };
+        let height = body_top + body_lines.len() as f32 * body_step + 18.0 * scale;
+        Self {
+            title_lines,
+            subtitle_lines,
+            body_lines,
+            content_inset,
+            content_width,
+            title_size,
+            subtitle_size,
+            body_size,
+            title_step,
+            subtitle_step,
+            body_step,
+            title_top,
+            subtitle_top,
+            body_top,
+            height,
+        }
+    }
+}
+
 fn draw_explanation_label(
     frame: &mut canvas::Frame,
     label: &ExplanationLabel,
@@ -3455,16 +3516,23 @@ fn draw_explanation_label(
     let target = average_position(label.target_atoms.iter().map(String::as_str), positions);
     let max_width = (bounds.width - 40.0).max(240.0);
     let width = (410.0 * scale).clamp(260.0, max_width.min(460.0));
-    let lines = wrap_words(&label.text, if width > 390.0 { 47 } else { 33 });
-    let subtitle = context.map(|context| context.text.as_str());
-    let subtitle_extent = if subtitle.is_some() { 24.0 } else { 0.0 };
-    let height = (70.0 + subtitle_extent + lines.len() as f32 * 20.0) * scale;
-    let (x, base_y) = explanation_position(target, bounds, width, height);
+    let title = context.map_or_else(
+        || explanation_title(label.kind).to_owned(),
+        |context| context.title.clone(),
+    );
+    let text_layout = ExplanationTextLayout::new(
+        width,
+        scale,
+        &title,
+        context.map(|context| context.text.as_str()),
+        &label.text,
+    );
+    let (x, base_y) = explanation_position(target, bounds, width, text_layout.height);
     let enter = smoother_step(((progress - 0.04) / 0.14).clamp(0.0, 1.0));
     let alpha = enter;
     let rect = Rectangle::new(
         Point::new(x, base_y + (1.0 - enter) * 18.0 * scale),
-        Size::new(width, height),
+        Size::new(width, text_layout.height),
     );
     let accent = explanation_color(label.kind);
     draw_glass_panel(frame, rect, accent, alpha, 16.0 * scale);
@@ -3478,43 +3546,7 @@ fn draw_explanation_label(
         ),
         accent.scale_alpha(alpha),
     );
-    let title = context.map_or_else(
-        || explanation_title(label.kind).to_owned(),
-        |context| context.title.clone(),
-    );
-    frame.fill_text(canvas::Text {
-        content: title,
-        position: Point::new(rect.x + 30.0 * scale, rect.y + 22.0 * scale),
-        color: accent.scale_alpha(alpha),
-        size: iced::Pixels(9.5 * scale),
-        font: fonts::REGULAR,
-        ..canvas::Text::default()
-    });
-    if let Some(subtitle) = subtitle {
-        frame.fill_text(canvas::Text {
-            content: subtitle.to_owned(),
-            position: Point::new(rect.x + 30.0 * scale, rect.y + 44.0 * scale),
-            color: TEXT.scale_alpha(alpha),
-            size: iced::Pixels(14.0 * scale),
-            font: fonts::REGULAR,
-            ..canvas::Text::default()
-        });
-    }
-    let body_top = 50.0 + subtitle_extent;
-    let body_color = if subtitle.is_some() { TEXT_SOFT } else { TEXT };
-    for (index, line) in lines.iter().enumerate() {
-        frame.fill_text(canvas::Text {
-            content: line.clone(),
-            position: Point::new(
-                rect.x + 30.0 * scale,
-                rect.y + (body_top + index as f32 * 20.0) * scale,
-            ),
-            color: body_color.scale_alpha(alpha),
-            size: iced::Pixels(13.5 * scale),
-            font: fonts::REGULAR,
-            ..canvas::Text::default()
-        });
-    }
+    draw_explanation_text(frame, rect, &text_layout, accent, alpha, scale);
     if label.connector
         && let Some(target) = target
     {
@@ -3538,6 +3570,73 @@ fn draw_explanation_label(
             accent.scale_alpha(alpha * line_progress),
         );
     }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn draw_explanation_text(
+    frame: &mut canvas::Frame,
+    rect: Rectangle,
+    layout: &ExplanationTextLayout,
+    accent: Color,
+    alpha: f32,
+    scale: f32,
+) {
+    // Keep all narration inside the card even at compact viewport sizes or
+    // enlarged display scales. The manual line layout sizes the card, while
+    // `max_width` and the clip are final safeguards against font-metric drift.
+    let text_clip = Rectangle::new(
+        Point::new(rect.x + layout.content_inset, rect.y + 10.0 * scale),
+        Size::new(layout.content_width, (rect.height - 20.0 * scale).max(1.0)),
+    );
+    frame.with_clip(text_clip, |frame| {
+        for (index, line) in layout.title_lines.iter().enumerate() {
+            frame.fill_text(canvas::Text {
+                content: line.clone(),
+                position: Point::new(
+                    rect.x + layout.content_inset,
+                    rect.y + layout.title_top + index as f32 * layout.title_step,
+                ),
+                max_width: layout.content_width,
+                color: accent.scale_alpha(alpha),
+                size: iced::Pixels(layout.title_size),
+                font: fonts::REGULAR,
+                ..canvas::Text::default()
+            });
+        }
+        for (index, line) in layout.subtitle_lines.iter().enumerate() {
+            frame.fill_text(canvas::Text {
+                content: line.clone(),
+                position: Point::new(
+                    rect.x + layout.content_inset,
+                    rect.y + layout.subtitle_top + index as f32 * layout.subtitle_step,
+                ),
+                max_width: layout.content_width,
+                color: TEXT.scale_alpha(alpha),
+                size: iced::Pixels(layout.subtitle_size),
+                font: fonts::REGULAR,
+                ..canvas::Text::default()
+            });
+        }
+        let body_color = if layout.subtitle_lines.is_empty() {
+            TEXT
+        } else {
+            TEXT_SOFT
+        };
+        for (index, line) in layout.body_lines.iter().enumerate() {
+            frame.fill_text(canvas::Text {
+                content: line.clone(),
+                position: Point::new(
+                    rect.x + layout.content_inset,
+                    rect.y + layout.body_top + index as f32 * layout.body_step,
+                ),
+                max_width: layout.content_width,
+                color: body_color.scale_alpha(alpha),
+                size: iced::Pixels(layout.body_size),
+                font: fonts::REGULAR,
+                ..canvas::Text::default()
+            });
+        }
+    });
 }
 
 fn explanation_position(
@@ -3647,11 +3746,16 @@ const fn explanation_title(kind: ExplanationLabelKind) -> &'static str {
     }
 }
 
-fn wrap_words(text: &str, max_chars: usize) -> Vec<String> {
+fn wrap_words(text: &str, max_width: f32, font_size: f32) -> Vec<String> {
     let mut lines = Vec::new();
     let mut line = String::new();
     for word in text.split_whitespace() {
-        if !line.is_empty() && line.len() + word.len() + 1 > max_chars {
+        let candidate = if line.is_empty() {
+            word.to_owned()
+        } else {
+            format!("{line} {word}")
+        };
+        if !line.is_empty() && estimated_text_width(&candidate, font_size) > max_width {
             lines.push(std::mem::take(&mut line));
         }
         if !line.is_empty() {
@@ -3663,6 +3767,31 @@ fn wrap_words(text: &str, max_chars: usize) -> Vec<String> {
         lines.push(line);
     }
     lines
+}
+
+fn estimated_text_width(text: &str, font_size: f32) -> f32 {
+    // Approximate Inter's advances conservatively. Canvas still receives an
+    // exact `max_width`; this estimate exists to choose line breaks early
+    // enough to calculate a card height that contains the resulting lines.
+    text.chars()
+        .map(|character| {
+            let em = if character.is_whitespace() || "ilI.,'`:;!|".contains(character) {
+                0.34
+            } else if "mwMW@%&".contains(character) {
+                0.95
+            } else if character.is_ascii_uppercase() {
+                0.72
+            } else if character.is_ascii_digit() {
+                0.64
+            } else if character.is_ascii_punctuation() {
+                0.58
+            } else {
+                0.62
+            };
+            em * font_size
+        })
+        .sum::<f32>()
+        * 1.12
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -4658,9 +4787,29 @@ mod tests {
     #[test]
     fn word_wrapping_preserves_content() {
         let source = "A shared electron pair forms a covalent bond";
-        let lines = wrap_words(source, 18);
+        let lines = wrap_words(source, 120.0, 13.5);
         assert_eq!(lines.join(" "), source);
         assert!(lines.len() > 1);
+    }
+
+    #[test]
+    fn explanation_wrapping_respects_available_width_at_multiple_scales() {
+        let source = "The two atoms now share a pair of electrons — that shared pair is the new covalent bond holding them together.";
+        for scale in [0.72_f32, 1.0, 1.35] {
+            let panel_width = (410.0 * scale).clamp(260.0, 460.0);
+            let content_width = panel_width - 60.0 * scale;
+            let font_size = 13.5 * scale;
+            let lines = wrap_words(source, content_width, font_size);
+
+            assert_eq!(lines.join(" "), source);
+            assert!(lines.len() > 1);
+            assert!(
+                lines
+                    .iter()
+                    .all(|line| estimated_text_width(line, font_size) <= content_width),
+                "wrapped explanation exceeded {content_width}px at scale {scale}: {lines:?}"
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "product_binding",
+    "product_structure_id",
+    "product_formula",
+    "catalogue_digest",
+    "colour_family",
+    "representative_condition",
+    "sources",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "product_binding": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "product_structure_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "product_formula": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "catalogue_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "colour_family": {
+      "type": "string",
+      "enum": [
+        "white",
+        "off_white",
+        "pale_yellow",
+        "yellow",
+        "orange",
+        "red",
+        "red_brown",
+        "brown",
+        "dark_brown",
+        "green",
+        "blue",
+        "purple",
+        "grey",
+        "black"
+      ]
+    },
+    "representative_condition": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 240
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "publisher",
+          "url",
+          "supporting_excerpt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 240
+          },
+          "publisher": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://[^\\s]+$"
+          },
+          "supporting_excerpt": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 1200
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 600
+    }
+  }
+}

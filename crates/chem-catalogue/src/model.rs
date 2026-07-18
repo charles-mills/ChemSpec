@@ -72,6 +72,10 @@ pub struct MacroscopicMaterialRecord {
     pub structure: StructureId,
     pub context: MacroscopicMaterialContextRecord,
     pub phase: Phase,
+    /// Optional evidence-backed sRGB bulk colour. Opacity remains a renderer
+    /// concern and omission preserves the conservative phase-only default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colour: Option<[u8; 3]>,
     #[serde(deserialize_with = "deserialize_unique_set")]
     pub premise_ids: BTreeSet<PremiseId>,
 }

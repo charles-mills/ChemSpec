@@ -5,10 +5,12 @@
 //! through the catalogue fast path or a staged dynamic claim whose static and
 //! animated capabilities cross separate deterministic validation boundaries.
 
+mod animated_clip;
 mod chemistry;
 mod composition_catalogue;
 mod elements;
 mod fonts;
+mod gas_fluid;
 mod icons;
 mod nomenclature;
 mod particle_visualization;
@@ -39,17 +41,21 @@ use web_time::Instant;
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
-    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones, OutcomeSpecies,
+    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones,
+    MacroscopicProcess as AgentMacroscopicProcess, OutcomeSpecies, OxideAppearanceRequest,
     ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest, ReactionClaim,
-    RequestIdentityResolution, TrustTier, ValidatedStaticOutcome, compile_claim_outcome,
-    enrich_static_outcome, load_dynamic_cache, resolve_request_identities_with_catalogue,
-    reviewed_species_registry, store_dynamic_cache,
+    RequestIdentityResolution, TrustTier, ValidatedOxideAppearance, ValidatedStaticOutcome,
+    compile_claim_outcome_with_catalogue, enrich_static_outcome, load_dynamic_cache,
+    load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
+    reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
-use chem_domain::SpeciesId;
+use chem_domain::{ContentDigest, RepresentationKind, SpeciesId};
 use chem_presentation::{
-    AppearanceProfile, AssetProfile, EducationalPlan, EducationalSceneKind, EffectProfile,
-    PresentationObject, PresentationProfile, PresentationTransform, ScenePlan, SceneRole,
-    TimelinePosition, compile_educational_plan, compile_real_world_plan,
+    EducationalPlan, EducationalSceneKind, EffectProfile, MacroscopicColourAuthority,
+    MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction,
+    MacroscopicStage, PresentationProfile, ScenePlan, SurfaceOxideColour, TimelinePosition,
+    VisualColour, compile_educational_plan, compile_phase_driven_profile, compile_real_world_plan,
+    complete_generic_visual_profile,
 };
 use iced::widget::{
     button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
@@ -435,11 +441,15 @@ fn sync_educational_frame(animation: &mut StructuralAnimation) {
 
 const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
     match effect {
+        EffectProfile::ReactionActivity => "Reaction motion",
         EffectProfile::BubbleEmitter => "Interface bubbles",
         EffectProfile::GasRelease => "Gas release",
+        EffectProfile::VapourRelease => "Hot vapour",
         EffectProfile::SurfaceDisturbance => "Surface motion",
         EffectProfile::LiquidMixing => "Liquid mixing",
         EffectProfile::ObjectShrinkage => "Reactant consumption",
+        EffectProfile::SurfaceOxidation => "Oxide layer formation",
+        EffectProfile::SolidFormation => "Solid formation",
         EffectProfile::PrecipitateFormation => "Precipitate formation",
         EffectProfile::Clouding => "Solution clouding",
         EffectProfile::ColourTransition => "Colour transition",
@@ -603,46 +613,114 @@ fn codex_available() -> bool {
 }
 
 fn dynamic_presentation_profile(
-    _frames: &chem_kernel::SimulationFrames,
-    equation: &str,
-) -> PresentationProfile {
-    let transform = |translation, scale| PresentationTransform {
-        translation,
-        rotation: [0, 0, 0],
-        scale,
+    frames: &chem_kernel::SimulationFrames,
+    outcome: &ValidatedStaticOutcome,
+    surface_oxide_colour: Option<SurfaceOxideColour>,
+) -> Result<PresentationProfile, String> {
+    let mut reaction = dynamic_macroscopic_reaction(outcome)?;
+    reaction.surface_oxide_colour = surface_oxide_colour;
+    let profile =
+        compile_phase_driven_profile(frames, &reaction).map_err(|error| error.to_string())?;
+    complete_generic_visual_profile(frames, profile).map_err(|error| error.to_string())
+}
+
+fn dynamic_macroscopic_reaction(
+    outcome: &ValidatedStaticOutcome,
+) -> Result<MacroscopicReaction, String> {
+    let catalogue = chemistry::trusted_catalogue().ok();
+    let material = |species: &OutcomeSpecies, role| {
+        let reviewed_colour = match species {
+            OutcomeSpecies::Resolved(species) => species.structure.as_ref().and_then(|structure| {
+                catalogue
+                    .and_then(|catalogue| catalogue.macroscopic_material(structure.id(), None))
+                    .and_then(|material| material.colour)
+            }),
+            OutcomeSpecies::FormulaOnly { .. } => None,
+        };
+        let colour = reviewed_colour
+            .or_else(|| {
+                outcome
+                    .macroscopic_colour(species)
+                    .map(agent::MacroscopicColour::srgb)
+            })
+            .map(|[red, green, blue]| VisualColour { red, green, blue });
+        Some(MacroscopicMaterial {
+            binding: species.id().to_string(),
+            semantic_identity: species.display_name().to_owned(),
+            structure_id: match species {
+                OutcomeSpecies::Resolved(species) => species
+                    .structure
+                    .as_ref()
+                    .map(|structure| structure.id().to_string())?,
+                OutcomeSpecies::FormulaOnly { .. } => return None,
+            },
+            formula: match species {
+                OutcomeSpecies::Resolved(species) => species.formula_text.clone(),
+                OutcomeSpecies::FormulaOnly { formula, .. } => formula.clone(),
+            },
+            role,
+            phase: outcome.macroscopic_phase(species),
+            representation: species.representation()?,
+            colour,
+        })
     };
-    PresentationProfile {
-        id: "dynamic-validated".to_owned(),
-        environment: AssetProfile::LaboratoryBench,
-        objects: vec![
-            PresentationObject {
-                id: "vessel".to_owned(),
-                asset: AssetProfile::Beaker,
-                semantic_identity: "virtual reaction vessel".to_owned(),
-                appearance: AppearanceProfile::ClearGlass,
-                role: SceneRole::Vessel,
-                transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
-                visible_from_ordinal: 0,
-                observation: None,
-                colour_transition: None,
-            },
-            PresentationObject {
-                id: "contents".to_owned(),
-                asset: AssetProfile::LiquidVolume,
-                semantic_identity: "representative reaction contents".to_owned(),
-                appearance: AppearanceProfile::AqueousColourless,
-                role: SceneRole::Contents,
-                transform: transform([0, -150, 0], [1_000, 850, 1_000]),
-                visible_from_ordinal: 0,
-                observation: None,
-                colour_transition: None,
-            },
-        ],
-        effects: Vec::new(),
-        camera: Vec::new(),
-        equation: equation.to_owned(),
-        disclosure: "Representative virtual presentation.".to_owned(),
+    let materials = outcome
+        .reactants()
+        .iter()
+        .filter_map(|species| material(species, MacroscopicMaterialRole::Reactant))
+        .chain(
+            outcome
+                .products()
+                .iter()
+                .filter_map(|species| material(species, MacroscopicMaterialRole::Product)),
+        )
+        .collect::<Vec<_>>();
+    if materials.len() != outcome.reactants().len() + outcome.products().len() {
+        return Err("validated dynamic species lack renderer-readable structures".to_owned());
     }
+    let process = outcome.macroscopic_process().map(|process| match process {
+        AgentMacroscopicProcess::AqueousPrecipitation => MacroscopicProcess::AqueousPrecipitation,
+        AgentMacroscopicProcess::GasEvolutionLiquidLiquid => {
+            MacroscopicProcess::GasEvolutionLiquidLiquid
+        }
+        AgentMacroscopicProcess::GasEvolutionSolidLiquid => {
+            MacroscopicProcess::GasEvolutionSolidLiquid
+        }
+        AgentMacroscopicProcess::MetalDisplacement => MacroscopicProcess::MetalDisplacement,
+        AgentMacroscopicProcess::SolidSolidSynthesis => MacroscopicProcess::SolidSolidSynthesis,
+        AgentMacroscopicProcess::CompleteCombustion => MacroscopicProcess::CompleteCombustion,
+        AgentMacroscopicProcess::IncompleteCombustion => MacroscopicProcess::IncompleteCombustion,
+        AgentMacroscopicProcess::SolventEvaporationCrystallization => {
+            MacroscopicProcess::SolventEvaporationCrystallization
+        }
+        AgentMacroscopicProcess::SurfaceOxidation => MacroscopicProcess::SurfaceOxidation,
+    });
+    Ok(MacroscopicReaction {
+        profile_id: format!(
+            "presentation.dynamic.{}",
+            outcome.declaration().digest().to_hex()
+        ),
+        equation: outcome.equation().to_owned(),
+        materials,
+        intensity: match process {
+            Some(
+                MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion,
+            ) => chem_presentation::EffectIntensity::Strong,
+            Some(
+                MacroscopicProcess::AqueousPrecipitation
+                | MacroscopicProcess::GasEvolutionLiquidLiquid
+                | MacroscopicProcess::GasEvolutionSolidLiquid
+                | MacroscopicProcess::MetalDisplacement
+                | MacroscopicProcess::SolidSolidSynthesis
+                | MacroscopicProcess::SolventEvaporationCrystallization
+                | MacroscopicProcess::SurfaceOxidation,
+            )
+            | None => chem_presentation::EffectIntensity::Moderate,
+        },
+        process,
+        fuel_carbon_count: outcome.combustion_fuel_carbon_count(),
+        surface_oxide_colour: None,
+    })
 }
 
 fn launch_state() -> App {
@@ -919,6 +997,12 @@ enum Message {
         run_id: u64,
         result: Box<Result<DynamicPresentationOutcome, String>>,
     },
+    OxideAppearanceFinished {
+        run_id: u64,
+        request_binding: ContentDigest,
+        result: Box<Result<ValidatedOxideAppearance, String>>,
+    },
+    RetryOxideAppearance,
     DynamicBuildTick {
         run_id: u64,
     },
@@ -1322,7 +1406,6 @@ struct StructuralAnimation {
     declaration: chem_domain::ReactionDeclaration,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
-    reactant_previews: Vec<composition_catalogue::TrustedCompositionPreview>,
     product_preview: Option<composition_catalogue::TrustedCompositionPreview>,
     educational_playhead_ms: u64,
     frame_index: usize,
@@ -1380,6 +1463,12 @@ struct App {
     dynamic_latency: LatencyMilestones,
     dynamic_theatre_phase: f32,
     next_dynamic_run_id: u64,
+    oxide_appearance_request: Option<OxideAppearanceRequest>,
+    oxide_appearance: Option<ValidatedOxideAppearance>,
+    oxide_appearance_error: Option<String>,
+    oxide_appearance_cancellation: Option<Arc<AtomicBool>>,
+    active_oxide_appearance_run: Option<u64>,
+    next_oxide_appearance_run_id: u64,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
     /// A structural destination settles through animation time before keyboard
@@ -1439,6 +1528,12 @@ impl Default for App {
             dynamic_latency: LatencyMilestones::default(),
             dynamic_theatre_phase: 0.0,
             next_dynamic_run_id: 1,
+            oxide_appearance_request: None,
+            oxide_appearance: None,
+            oxide_appearance_error: None,
+            oxide_appearance_cancellation: None,
+            active_oxide_appearance_run: None,
+            next_oxide_appearance_run_id: 1,
             structural_animation: None,
             structural_error: None,
             structural_shortcut_state: StructuralShortcutState::Inactive,
@@ -2028,12 +2123,13 @@ impl App {
                         self.dynamic_latency = latency;
                         self.dynamic_claim = Some(outcome.claim().clone());
                         self.dynamic_static = Some(outcome.clone());
+                        self.validated_macroscopic = dynamic_macroscopic_reaction(&outcome).ok();
                         self.dynamic_presentation = None;
                         if let Some(presentation) = presentation {
                             self.dynamic_cancellation = None;
                             self.dynamic_progress_receiver = None;
                             self.finish_dynamic_presentation(presentation);
-                            return Task::none();
+                            return self.start_oxide_appearance_enrichment();
                         }
                         self.dynamic_build = DynamicBuildState::Running {
                             run_id,
@@ -2045,7 +2141,7 @@ impl App {
                             .clone()
                             .expect("a dynamic run retains its request");
                         let progress = self.reset_dynamic_progress_channel();
-                        return Self::start_dynamic_presentation(
+                        let presentation_task = Self::start_dynamic_presentation(
                             run_id,
                             request,
                             ClaimMode::Fast,
@@ -2056,6 +2152,8 @@ impl App {
                                 .expect("a running build retains cancellation"),
                             progress,
                         );
+                        let appearance_task = self.start_oxide_appearance_enrichment();
+                        return Task::batch([presentation_task, appearance_task]);
                     }
                     Ok(DynamicClaimStageResult {
                         outcome:
@@ -2104,6 +2202,7 @@ impl App {
                             DynamicPresentationOutcome::Static { .. } => {}
                         }
                         self.finish_dynamic_presentation(presentation);
+                        return self.start_oxide_appearance_enrichment();
                     }
                     Err(error) => {
                         // Presentation enrichment cannot invalidate or discard
@@ -2124,6 +2223,37 @@ impl App {
                         self.dynamic_progress_receiver = None;
                     }
                 }
+            }
+            Message::OxideAppearanceFinished {
+                run_id,
+                request_binding,
+                result,
+            } => {
+                if self.active_oxide_appearance_run != Some(run_id)
+                    || self
+                        .oxide_appearance_request
+                        .as_ref()
+                        .and_then(|request| request.binding_digest().ok())
+                        != Some(request_binding)
+                {
+                    return Task::none();
+                }
+                self.active_oxide_appearance_run = None;
+                self.oxide_appearance_cancellation = None;
+                match *result {
+                    Ok(appearance) => {
+                        self.oxide_appearance_error = None;
+                        self.oxide_appearance = Some(appearance);
+                        self.refresh_real_world_plan();
+                    }
+                    Err(error) => {
+                        self.oxide_appearance_error = Some(error);
+                    }
+                }
+            }
+            Message::RetryOxideAppearance => {
+                self.cancel_oxide_appearance_enrichment();
+                return self.start_oxide_appearance_enrichment();
             }
             Message::DynamicBuildTick { run_id } => {
                 let current = matches!(
@@ -2207,6 +2337,7 @@ impl App {
                 self.oxygen_assessment = None;
                 self.select_request(request);
                 self.open_structural_animation();
+                return self.start_oxide_appearance_enrichment();
             }
             Message::StructuralPlaybackShortcut => {
                 if self.structural_shortcut_state == StructuralShortcutState::Ready {
@@ -2272,15 +2403,23 @@ impl App {
                 }
             }
             Message::StructuralTick => {
+                let frame_millis = if self.screen == Screen::Structural3d {
+                    16
+                } else {
+                    33
+                };
                 if matches!(self.screen, Screen::Structural2d | Screen::Structural3d) {
-                    self.structural_shortcut_state.tick(33);
+                    self.structural_shortcut_state.tick(frame_millis);
                 }
-                let (elapsed, playing) = self
-                    .structural_animation
-                    .as_ref()
-                    .map_or((33, false), |animation| {
-                        (animation.playback_speed.scale_millis(33), animation.playing)
-                    });
+                let (elapsed, playing) =
+                    self.structural_animation
+                        .as_ref()
+                        .map_or((frame_millis, false), |animation| {
+                            (
+                                animation.playback_speed.scale_millis(frame_millis),
+                                animation.playing,
+                            )
+                        });
                 if self.screen == Screen::ProductSummary {
                     if let Some(animation) = &mut self.structural_animation {
                         animation.summary_elapsed_ms =
@@ -2403,20 +2542,13 @@ impl App {
         let Ok(identities) = reviewed_species_registry(catalogue) else {
             return false;
         };
-        let mut request = self.dynamic_build_request();
-        let Ok(RequestIdentityResolution::Resolved(resolved)) =
+        let request = self.dynamic_build_request();
+        let Ok(RequestIdentityResolution::Resolved(_)) =
             resolve_request_identities_with_catalogue(&request, &identities, catalogue)
         else {
             return false;
         };
-        for (input, species) in request.reactants.iter_mut().zip(resolved) {
-            if let OutcomeSpecies::Resolved(species) = species
-                && identities.get(&species.id).is_some()
-            {
-                input.species_id = Some(species.id);
-            }
-        }
-        agent::solve_reaction_claim(&request, &identities).is_none()
+        agent::solve_reaction_claim_with_catalogue(&request, &identities, catalogue).is_none()
     }
 
     fn builder_can_submit(&self) -> bool {
@@ -2443,6 +2575,7 @@ impl App {
     /// draft edit — typed, clicked, or sketched — must route through this so
     /// stale dynamic chemistry never survives a changed question.
     fn cancel_dynamic_work(&mut self) {
+        self.cancel_oxide_appearance_enrichment();
         if let Some(cancellation) = self.dynamic_cancellation.take() {
             cancellation.store(true, Ordering::Relaxed);
         }
@@ -2512,7 +2645,7 @@ impl App {
                 self.oxygen_assessment = None;
                 self.select_request(request);
                 self.open_structural_animation();
-                Task::none()
+                self.start_oxide_appearance_enrichment()
             }
             chemistry::DraftResolution::Multiple(requests) => {
                 self.pending_requests = requests;
@@ -2573,6 +2706,7 @@ impl App {
         mut request: ReactionBuildRequest,
         regenerate: bool,
     ) -> Task<Message> {
+        self.cancel_oxide_appearance_enrichment();
         let local = self.local_mode();
         self.open_dynamic_overlay();
         if !local && !matches!(self.provider, Some(AppMode::CodexBinary)) {
@@ -2588,6 +2722,7 @@ impl App {
         let run_id = self.next_dynamic_run_id;
         self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
         self.validated_frames = None;
+        self.validated_macroscopic = None;
         self.validated_declaration = None;
         self.dynamic_claim = None;
         self.dynamic_static = None;
@@ -2690,7 +2825,8 @@ impl App {
                 }
                 // Algorithmic solving comes first: deterministic reaction
                 // families never need the model at all.
-                let solved = agent::solve_reaction_claim(&request, &identities);
+                let solved =
+                    agent::solve_reaction_claim_with_catalogue(&request, &identities, &catalogue);
                 let algorithmic = solved.is_some();
                 let claim = match solved {
                     Some(claim) => claim,
@@ -2713,8 +2849,13 @@ impl App {
                         .map_err(|error| error.to_string())?,
                 };
                 latency.claim_ms = Some(elapsed_millis(started));
-                let outcome = compile_claim_outcome(&request, claim.clone(), &identities)
-                    .map_err(|error| error.to_string())?;
+                let outcome = compile_claim_outcome_with_catalogue(
+                    &request,
+                    claim.clone(),
+                    &identities,
+                    &catalogue,
+                )
+                .map_err(|error| error.to_string())?;
                 if matches!(outcome, CompiledClaimOutcome::Static(_)) {
                     latency.static_outcome_ms = Some(elapsed_millis(started));
                 }
@@ -2852,6 +2993,8 @@ impl App {
 
     fn finish_dynamic_presentation(&mut self, presentation: DynamicPresentationOutcome) {
         self.dynamic_static = Some(presentation.static_outcome().clone());
+        self.validated_macroscopic =
+            dynamic_macroscopic_reaction(presentation.static_outcome()).ok();
         self.validated_declaration = Some(presentation.static_outcome().declaration().clone());
         self.validated_frames = match &presentation {
             DynamicPresentationOutcome::ReviewedFamily(outcome) => {
@@ -2908,6 +3051,7 @@ impl App {
     // The offline fixture crosses the same trusted language/kernel boundary
     // that live provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
+        self.cancel_oxide_appearance_enrichment();
         self.active_request = request;
         let trusted_run = chemistry::run(request).ok();
         self.validated_frames = trusted_run
@@ -2925,6 +3069,119 @@ impl App {
         self.dynamic_build = DynamicBuildState::Idle;
         self.structural_animation = None;
         self.structural_error = None;
+    }
+
+    fn oxide_appearance_request(&self) -> Option<OxideAppearanceRequest> {
+        let reaction = self.validated_macroscopic.as_ref()?;
+        if reaction.process != Some(MacroscopicProcess::SurfaceOxidation) {
+            return None;
+        }
+        let product = reaction.materials.iter().find(|material| {
+            material.role == MacroscopicMaterialRole::Product
+                && material.representation == RepresentationKind::Ionic
+        })?;
+        let catalogue_digest = chemistry::trusted_catalogue().ok()?.digest();
+        Some(OxideAppearanceRequest::new(
+            product.binding.clone(),
+            product.structure_id.clone(),
+            product.formula.clone(),
+            product.semantic_identity.clone(),
+            catalogue_digest,
+        ))
+    }
+
+    fn start_oxide_appearance_enrichment(&mut self) -> Task<Message> {
+        let Some(request) = self.oxide_appearance_request() else {
+            return Task::none();
+        };
+        if self.oxide_appearance_request.as_ref() == Some(&request)
+            && (self.active_oxide_appearance_run.is_some()
+                || self.oxide_appearance.is_some()
+                || self.oxide_appearance_error.is_some())
+        {
+            return Task::none();
+        }
+        self.cancel_oxide_appearance_enrichment();
+        self.oxide_appearance_request = Some(request.clone());
+        if self.provider != Some(AppMode::CodexBinary) {
+            self.oxide_appearance_error = Some(
+                "A reviewed oxide colour is not available. Runtime colour research requires \
+                 Codex mode; the surface keeps its original metal colour until trusted appearance \
+                 data is available."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        if !self.codex_available {
+            self.oxide_appearance_error = Some(
+                "Runtime oxide-colour research is unavailable because Codex is not authenticated."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        let Ok(request_binding) = request.binding_digest() else {
+            self.oxide_appearance_error =
+                Some("The validated oxide identity could not be bound for colour research.".into());
+            return Task::none();
+        };
+        let run_id = self.next_oxide_appearance_run_id;
+        self.next_oxide_appearance_run_id = self.next_oxide_appearance_run_id.saturating_add(1);
+        self.active_oxide_appearance_run = Some(run_id);
+        let cancellation = Arc::new(AtomicBool::new(false));
+        self.oxide_appearance_cancellation = Some(cancellation.clone());
+        let mut config = CodexProviderConfig::from_environment();
+        config.cancellation = Some(cancellation);
+        Task::perform(
+            async move {
+                let provider = CodexProvider::new(config);
+                if let Some(cached) = load_oxide_appearance_cache(
+                    provider.config().cache_directory.as_deref(),
+                    &request,
+                ) {
+                    return Ok(cached);
+                }
+                let appearance = provider
+                    .research_oxide_appearance(&request)
+                    .map_err(|error| error.to_string())?;
+                if let Some(directory) = provider.config().cache_directory.as_deref() {
+                    let _ = store_oxide_appearance_cache(
+                        directory,
+                        &request,
+                        &appearance,
+                        "codex_subscription",
+                        provider.model_name(),
+                    );
+                }
+                Ok(appearance)
+            },
+            move |result| Message::OxideAppearanceFinished {
+                run_id,
+                request_binding,
+                result: Box::new(result),
+            },
+        )
+    }
+
+    fn cancel_oxide_appearance_enrichment(&mut self) {
+        if let Some(cancellation) = self.oxide_appearance_cancellation.take() {
+            cancellation.store(true, Ordering::Relaxed);
+        }
+        self.active_oxide_appearance_run = None;
+        self.next_oxide_appearance_run_id = self.next_oxide_appearance_run_id.saturating_add(1);
+        self.oxide_appearance_request = None;
+        self.oxide_appearance = None;
+        self.oxide_appearance_error = None;
+    }
+
+    fn accepted_surface_oxide_colour(&self) -> Option<SurfaceOxideColour> {
+        let request = self.oxide_appearance_request.as_ref()?;
+        let appearance = self.oxide_appearance.as_ref()?;
+        let [red, green, blue] = appearance.colour_family().srgb();
+        Some(SurfaceOxideColour {
+            product_binding: request.product_binding.clone(),
+            target: VisualColour { red, green, blue },
+            authority: MacroscopicColourAuthority::ModelAsserted,
+        })
     }
 
     fn change_structural_frame(&mut self, delta: i8) {
@@ -2990,16 +3247,20 @@ impl App {
                 reactant_composer::subscription(&self.reactant_composer)
                     .map(Message::ReactantComposer),
             ])
-        } else if (self.screen == Screen::Structural2d
+        } else if self.screen == Screen::Structural3d
             && self
                 .structural_animation
                 .as_ref()
-                .is_none_or(|animation| animation.playing || !animation.settled))
-            || (self.screen == Screen::Structural3d
-                && self
-                    .structural_animation
-                    .as_ref()
-                    .is_some_and(|animation| animation.playing))
+                .is_some_and(|animation| animation.playing)
+        {
+            // Authored 3D clips interpolate continuously, so request a 60 Hz
+            // presentation tick instead of exposing their 30 FPS source cadence.
+            iced::time::every(theme::motion::PROMPT_TICK).map(|_| Message::StructuralTick)
+        } else if self.screen == Screen::Structural2d
+            && self
+                .structural_animation
+                .as_ref()
+                .is_none_or(|animation| animation.playing || !animation.settled)
         {
             iced::time::every(std::time::Duration::from_millis(33)).map(|_| Message::StructuralTick)
         } else if self.screen == Screen::ProductSummary {
@@ -3370,28 +3631,32 @@ impl App {
                 .ok_or_else(|| "validated declaration is unavailable".to_owned())?;
             let educational_plan = compile_educational_plan(&frames, required_context)
                 .map_err(|error| error.to_string())?;
-            let (profile, reactant_previews, product_preview, declaration) =
-                if let Some(dynamic) = &self.dynamic_static {
-                    (
-                        dynamic_presentation_profile(&frames, dynamic.equation()),
-                        Vec::new(),
-                        None,
-                        dynamic.declaration().clone(),
-                    )
-                } else {
-                    (
-                        chemistry::presentation_profile_with_catalogue(
-                            self.active_request,
-                            &frames,
-                            self.validated_macroscopic.as_ref(),
-                        )?,
-                        self.active_request.reactant_previews(),
-                        self.active_request.product_preview(),
-                        self.validated_declaration
-                            .clone()
-                            .ok_or_else(|| "validated declaration is unavailable".to_owned())?,
-                    )
-                };
+            let surface_oxide_colour = self.accepted_surface_oxide_colour();
+            let (profile, product_preview, declaration) = if let Some(dynamic) =
+                &self.dynamic_static
+            {
+                (
+                    dynamic_presentation_profile(&frames, dynamic, surface_oxide_colour.clone())?,
+                    None,
+                    dynamic.declaration().clone(),
+                )
+            } else {
+                let mut macroscopic = self.validated_macroscopic.clone();
+                if let Some(reaction) = &mut macroscopic {
+                    reaction.surface_oxide_colour = surface_oxide_colour;
+                }
+                (
+                    chemistry::presentation_profile_with_catalogue(
+                        self.active_request,
+                        &frames,
+                        macroscopic.as_ref(),
+                    )?,
+                    self.active_request.product_preview(),
+                    self.validated_declaration
+                        .clone()
+                        .ok_or_else(|| "validated declaration is unavailable".to_owned())?,
+                )
+            };
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
             let home_timeline = structural_2d::home_timeline(frames.frames());
@@ -3400,7 +3665,6 @@ impl App {
                 declaration,
                 educational_plan,
                 real_world_plan,
-                reactant_previews,
                 product_preview,
                 educational_playhead_ms: 0,
                 frame_index: 0,
@@ -3538,6 +3802,41 @@ impl App {
         }
         if animation.real_world_playhead_ms == duration {
             animation.playing = false;
+        }
+    }
+
+    fn refresh_real_world_plan(&mut self) {
+        let Some(animation) = self.structural_animation.as_ref() else {
+            return;
+        };
+        let frames = animation.frames.clone();
+        let surface_oxide_colour = self.accepted_surface_oxide_colour();
+        let profile = if let Some(dynamic) = &self.dynamic_static {
+            dynamic_presentation_profile(&frames, dynamic, surface_oxide_colour)
+        } else {
+            let mut macroscopic = self.validated_macroscopic.clone();
+            if let Some(reaction) = &mut macroscopic {
+                reaction.surface_oxide_colour = surface_oxide_colour;
+            }
+            chemistry::presentation_profile_with_catalogue(
+                self.active_request,
+                &frames,
+                macroscopic.as_ref(),
+            )
+        };
+        let result = profile.and_then(|profile| {
+            compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())
+        });
+        match result {
+            Ok(plan) => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.real_world_playhead_ms = animation
+                        .real_world_playhead_ms
+                        .min(plan.timeline.duration_ms());
+                    animation.real_world_plan = plan;
+                }
+            }
+            Err(error) => self.structural_error = Some(error),
         }
     }
 
@@ -3883,102 +4182,157 @@ impl App {
             .on_press(Message::StructuralSpeedChanged)
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
-        let review_products = button(text("Review products  →"))
-            .on_press(Message::ContinueToSummary)
-            .padding([spacing::XS, spacing::SM])
-            .style(theme::secondary_button);
+        let at_end = animation.real_world_playhead_ms == real_world_plan.timeline.duration_ms();
+        let review_products = button(text(if at_end {
+            "Review products  →"
+        } else {
+            "Complete simulation to review"
+        }))
+        .on_press_maybe(at_end.then_some(Message::ContinueToSummary))
+        .padding([spacing::XS, spacing::SM])
+        .style(theme::primary_button);
+        let process_annotation = match moment.stage {
+            MacroscopicStage::Reaction => None,
+            MacroscopicStage::HeatingPreparation => Some((
+                "VIRTUAL SEPARATION · HEATING",
+                "The completed solution is positioned over a virtual heat source; this is a separate presentation step, not further reaction chemistry.",
+            )),
+            MacroscopicStage::SolventBoiling => Some((
+                "VIRTUAL SEPARATION · EVAPORATION",
+                "Nucleate boiling lowers the solvent level while buoyant vapour leaves the open vessel.",
+            )),
+            MacroscopicStage::CrystalGrowth => Some((
+                "VIRTUAL SEPARATION · CRYSTALLISATION",
+                "As the remaining solvent disappears, the already-validated dissolved ionic product nucleates and grows as a crystal residue.",
+            )),
+        };
         let active_annotation = real_world_plan.annotations.iter().rfind(|annotation| {
             annotation.start_ordinal <= moment.ordinal && moment.ordinal <= annotation.end_ordinal
         });
-        let active_effects = real_world_plan
-            .effects
-            .iter()
-            .filter(|effect| {
-                effect.start_ordinal <= moment.ordinal && moment.ordinal <= effect.end_ordinal
-            })
-            .map(|effect| macroscopic_effect_label(effect.effect))
-            .collect::<Vec<_>>()
-            .join("  ·  ");
-        let annotation = active_annotation.map_or_else(
+        let active_effects = match moment.stage {
+            MacroscopicStage::Reaction => real_world_plan
+                .effects
+                .iter()
+                .filter(|effect| {
+                    effect.start_ordinal <= moment.ordinal && moment.ordinal <= effect.end_ordinal
+                })
+                .map(|effect| macroscopic_effect_label(effect.effect))
+                .collect::<Vec<_>>()
+                .join("  ·  "),
+            MacroscopicStage::HeatingPreparation => "Beaker lift  ·  Burner ignition".to_owned(),
+            MacroscopicStage::SolventBoiling => {
+                "Wall nucleation  ·  Bubble detachment  ·  Vapour flow".to_owned()
+            }
+            MacroscopicStage::CrystalGrowth => {
+                "Solvent decay  ·  Crystal nucleation  ·  Faceted growth".to_owned()
+            }
+        };
+        let mut annotation = process_annotation.map_or_else(
             || {
+                active_annotation.map_or_else(
+                    || {
+                        column![
+                            text("REVIEWED SCENE")
+                                .size(type_scale::MICRO)
+                                .color(color::ACCENT),
+                            text(nomenclature::display_declaration(
+                                &animation.declaration,
+                                self.settings.chemical_labels,
+                            ))
+                            .size(type_scale::BODY_LARGE)
+                            .color(color::TEXT),
+                        ]
+                    },
+                    |annotation| {
+                        let mut content = column![
+                            text(annotation.title.as_str())
+                                .size(type_scale::MICRO)
+                                .color(color::ACCENT),
+                            text(annotation.text.as_str())
+                                .size(type_scale::BODY_LARGE)
+                                .color(color::TEXT),
+                        ]
+                        .spacing(spacing::XXS);
+                        if !active_effects.is_empty() {
+                            content = content.push(
+                                text(active_effects.clone())
+                                    .size(type_scale::MICRO)
+                                    .color(color::TEXT_SOFT),
+                            );
+                        }
+                        content
+                    },
+                )
+            },
+            |(title, body)| {
                 column![
-                    text("REVIEWED SCENE")
+                    text(title).size(type_scale::MICRO).color(color::ACCENT),
+                    text(body).size(type_scale::BODY_LARGE).color(color::TEXT),
+                    text(active_effects.clone())
                         .size(type_scale::MICRO)
-                        .color(color::ACCENT),
-                    text(nomenclature::display_declaration(
-                        &animation.declaration,
-                        self.settings.chemical_labels,
-                    ))
-                    .size(type_scale::BODY_LARGE)
-                    .color(color::TEXT),
+                        .color(color::TEXT_SOFT),
                 ]
             },
-            |annotation| {
-                let mut content = column![
-                    text(annotation.title.as_str())
+        );
+        let product_visible = real_world_plan.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Product
+                && object.visible_from_ordinal <= moment.ordinal
+        });
+        if product_visible && let Some(preview) = &animation.product_preview {
+            annotation = annotation.push(
+                text(format!("Macroscopic product · {}", preview.formula))
+                    .size(type_scale::MICRO)
+                    .color(color::TEXT_SOFT),
+            );
+        }
+        if self.oxide_appearance_request.is_some() {
+            let appearance_status: Element<'_, Message> =
+                if self.active_oxide_appearance_run.is_some() {
+                    text("OXIDE COLOUR · CHECKING REVIEWABLE SOURCES…")
                         .size(type_scale::MICRO)
-                        .color(color::ACCENT),
-                    text(annotation.text.as_str())
-                        .size(type_scale::BODY_LARGE)
-                        .color(color::TEXT),
-                ]
-                .spacing(spacing::XXS);
-                if !active_effects.is_empty() {
-                    content = content.push(
-                        text(active_effects.clone())
+                        .color(color::ACCENT)
+                        .into()
+                } else if self.oxide_appearance.is_some() {
+                    text("OXIDE COLOUR · VALIDATED RUNTIME APPEARANCE APPLIED")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT)
+                        .into()
+                } else if let Some(error) = &self.oxide_appearance_error {
+                    let retry: Element<'_, Message> =
+                        if self.provider == Some(AppMode::CodexBinary) && self.codex_available {
+                            button(text("Retry colour"))
+                                .on_press(Message::RetryOxideAppearance)
+                                .padding([spacing::XXS, spacing::XS])
+                                .style(theme::secondary_button)
+                                .into()
+                        } else {
+                            space().width(Length::Shrink).into()
+                        };
+                    row![
+                        text(error)
                             .size(type_scale::MICRO)
-                            .color(color::TEXT_SOFT),
-                    );
-                }
-                content
-            },
-        );
-        let inset_preview = structural_3d::active_molecular_preview(
-            real_world_plan,
-            moment.ordinal,
-            &animation.reactant_previews,
-            animation.product_preview.as_ref(),
-        );
-        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
-            real_world_plan,
-            moment,
-            &animation.reactant_previews,
-            animation.product_preview.as_ref(),
-        ))
-        .width(Fill)
-        .height(Fill);
+                            .color(color::TEXT_SOFT)
+                            .width(Fill),
+                        retry,
+                    ]
+                    .spacing(spacing::XS)
+                    .align_y(Center)
+                    .into()
+                } else {
+                    space().height(Length::Shrink).into()
+                };
+            annotation = annotation.push(appearance_status);
+        }
+        let scene_view =
+            iced::widget::Shader::new(structural_3d::Scene::new(real_world_plan, moment))
+                .width(Fill)
+                .height(Fill);
         let model_disclosure = if compact {
             "VIRTUAL MODEL · NOT A LAB PROCEDURE"
         } else {
             "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
         };
-        // The caption sits directly above the renderer's molecular inset;
-        // both derive their size from the same shared function.
-        let inset_caption: Element<'_, Message> = match inset_preview {
-            Some(preview) if !compact => {
-                let inset_side = structural_3d::molecular_inset_side(size.width, size.height);
-                column![
-                    container(
-                        text(format!(
-                            "MOLECULAR MODEL · {}",
-                            nomenclature::display_species(
-                                self.settings.chemical_labels,
-                                preview.name.as_deref(),
-                                &preview.formula,
-                            )
-                        ))
-                        .size(type_scale::MICRO)
-                        .color(color::TEXT_SOFT),
-                    )
-                    .style(theme::media_bar)
-                    .padding([spacing::XXS, spacing::XS]),
-                    space().height(Length::Fixed(inset_side + 6.0)),
-                ]
-                .align_x(iced::Right)
-                .into()
-            }
-            _ => space().width(Length::Shrink).into(),
-        };
+        let inset_caption: Element<'_, Message> = space().width(Length::Shrink).into();
         let annotation_layer = container(
             column![
                 row![
@@ -5120,6 +5474,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent::compile_claim_outcome;
 
     type DraftCase = (&'static str, &'static [u8], &'static [u8]);
 
@@ -5135,6 +5490,35 @@ mod tests {
             text: None,
             repeat,
         }
+    }
+
+    fn validated_oxide_appearance(
+        request: &OxideAppearanceRequest,
+        colour_family: agent::OxideColourFamily,
+    ) -> ValidatedOxideAppearance {
+        let claim = agent::OxideAppearanceClaim {
+            schema_version: agent::OXIDE_APPEARANCE_SCHEMA_VERSION,
+            product_binding: request.product_binding.clone(),
+            product_structure_id: request.product_structure_id.clone(),
+            product_formula: request.product_formula.clone(),
+            catalogue_digest: request.catalogue_digest,
+            colour_family,
+            representative_condition: "Representative dry solid at ordinary ambient conditions"
+                .to_owned(),
+            sources: vec![agent::AppearanceSource {
+                title: "Reviewed oxide reference".to_owned(),
+                publisher: "Reference publisher".to_owned(),
+                url: "https://example.org/oxide-reference".to_owned(),
+                supporting_excerpt:
+                    "The reference directly describes the representative solid colour.".to_owned(),
+            }],
+            limitations: "Colour can vary with impurities and physical form.".to_owned(),
+        };
+        agent::OxideAppearanceClaim::from_json_for(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            request,
+        )
+        .expect("claim is exactly bound")
     }
 
     // Independently authored UI fixtures. These deliberately do not use
@@ -5309,6 +5693,165 @@ mod tests {
         outcome
     }
 
+    fn dynamic_methane_static() -> ValidatedStaticOutcome {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let claim = serde_json::json!({
+            "schema_version": 1,
+            "disposition": "reaction",
+            "products": [
+                {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
+                {"name":"water","formula":"H2O","phase":"gas","identity_hints":[]}
+            ],
+            "required_context":"complete combustion in oxygen",
+            "observations":[
+                {"predicate":"forms","subject":"carbon dioxide and water vapour","value":null}
+            ],
+            "sources":[],
+            "ambiguity":null
+        });
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let request = ReactionBuildRequest {
+            reactants: [
+                ReactantInput {
+                    display: "CH4".into(),
+                    atomic_numbers: vec![6, 1, 1, 1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ]
+            .to_vec(),
+            selected_context: None,
+        };
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &identities).expect("compiled")
+        else {
+            panic!("static outcome")
+        };
+        outcome
+    }
+
+    fn dynamic_iron_oxide_presentation() -> DynamicPresentationOutcome {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "Fe".into(),
+                    atomic_numbers: vec![26],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = serde_json::json!({
+            "schema_version": 1,
+            "disposition": "reaction",
+            "products": [
+                {
+                    "name": "iron(III) oxide",
+                    "formula": "Fe2O3",
+                    "phase": "solid",
+                    "identity_hints": []
+                }
+            ],
+            "required_context": "Representative complete surface oxidation in oxygen.",
+            "observations": [
+                {"predicate": "forms", "subject": "solid iron(III) oxide", "value": null}
+            ],
+            "sources": [],
+            "ambiguity": null
+        });
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                .expect("iron oxide outcome compiles")
+        else {
+            panic!("iron oxidation is a static outcome")
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(AgentMacroscopicProcess::SurfaceOxidation)
+        );
+        let mut provider = agent::UnsupportedMechanismProvider;
+        enrich_static_outcome(outcome, catalogue, &mut provider)
+            .expect("surface oxidation animation is derived")
+    }
+
+    fn dynamic_incomplete_methane_static() -> ValidatedStaticOutcome {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: [
+                ReactantInput {
+                    display: "CH4".into(),
+                    atomic_numbers: vec![6, 1, 1, 1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ]
+            .to_vec(),
+            selected_context: Some("limited oxygen".to_owned()),
+        };
+        let claim = agent::solve_reaction_claim(&request, &identities)
+            .expect("limited-oxygen methane combustion solves");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &identities).expect("compiled")
+        else {
+            panic!("static outcome")
+        };
+        outcome
+    }
+
+    fn dynamic_copper_oxide_neutralisation_static() -> ValidatedStaticOutcome {
+        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "CuO".to_owned(),
+                    atomic_numbers: vec![29, 8],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "H2SO4".to_owned(),
+                    atomic_numbers: vec![1, 1, 16, 8, 8, 8, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim =
+            agent::solve_reaction_claim(&request, &identities).expect("neutralisation solves");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &identities).expect("outcome compiles")
+        else {
+            panic!("neutralisation is static")
+        };
+        outcome
+    }
+
     fn no_reaction_claim() -> ReactionClaim {
         let claim = serde_json::json!({
             "schema_version": 1,
@@ -5340,6 +5883,339 @@ mod tests {
             result: Ok(()),
         });
         assert_eq!(app.screen, Screen::Builder);
+    }
+
+    #[test]
+    fn dynamic_combustion_compiles_phase_aware_flame_vapour_and_gas_reactants() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let mut provider = agent::UnsupportedMechanismProvider;
+        let presentation =
+            enrich_static_outcome(dynamic_methane_static(), catalogue, &mut provider)
+                .expect("combustion animation");
+        let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
+            match &presentation {
+                DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Escalated(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                    panic!("combustion should animate: {diagnostic}")
+                }
+            };
+        let profile = dynamic_presentation_profile(frames, outcome, None)
+            .expect("phase-driven combustion profile");
+
+        let assembly = profile
+            .objects
+            .iter()
+            .find(|object| {
+                object.role == chem_presentation::SceneRole::Vessel
+                    && object.asset == chem_presentation::AssetProfile::CompleteCombustionAssembly
+            })
+            .expect("validated complete combustion selects its authored assembly");
+        assert_eq!(
+            assembly.appearance,
+            chem_presentation::AppearanceProfile::ReviewedColour(
+                chem_presentation::hydrocarbon_fuel_colour(1)
+            )
+        );
+        assert!(profile.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Reactant
+                && object.asset == chem_presentation::AssetProfile::GasCloud
+        }));
+        assert!(profile.effects.iter().any(|effect| {
+            matches!(
+                effect.effect,
+                EffectProfile::FlameEmitter(chem_presentation::FlamePalette::Natural)
+            )
+        }));
+        assert!(
+            profile
+                .effects
+                .iter()
+                .any(|effect| effect.effect == EffectProfile::VapourRelease)
+        );
+        compile_real_world_plan(frames, &profile)
+            .expect("typed process effects cross macroscopic plan validation");
+    }
+
+    #[test]
+    fn carbon_monoxide_product_selects_incomplete_combustion_assembly() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let mut provider = agent::UnsupportedMechanismProvider;
+        let presentation = enrich_static_outcome(
+            dynamic_incomplete_methane_static(),
+            catalogue,
+            &mut provider,
+        )
+        .expect("incomplete combustion animation");
+        let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
+            match &presentation {
+                DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Escalated(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                    panic!("incomplete combustion should animate: {diagnostic}")
+                }
+            };
+        let profile = dynamic_presentation_profile(frames, outcome, None)
+            .expect("phase-driven incomplete combustion profile");
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(AgentMacroscopicProcess::IncompleteCombustion)
+        );
+        assert!(profile.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Vessel
+                && object.asset == chem_presentation::AssetProfile::IncompleteCombustionAssembly
+        }));
+        assert!(!profile.objects.iter().any(|object| {
+            object.asset == chem_presentation::AssetProfile::CompleteCombustionAssembly
+        }));
+        compile_real_world_plan(frames, &profile)
+            .expect("typed incomplete-combustion process crosses plan validation");
+    }
+
+    #[test]
+    fn dynamic_neutralisation_selects_shared_assembly_and_copper_colour() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let mut provider = agent::UnsupportedMechanismProvider;
+        let presentation = enrich_static_outcome(
+            dynamic_copper_oxide_neutralisation_static(),
+            catalogue,
+            &mut provider,
+        )
+        .expect("neutralisation animation");
+        let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
+            match &presentation {
+                DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Escalated(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                    panic!("neutralisation should animate: {diagnostic}")
+                }
+            };
+        let profile = dynamic_presentation_profile(frames, outcome, None)
+            .expect("phase-driven neutralisation profile");
+        assert!(profile.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Vessel
+                && object.asset
+                    == chem_presentation::AssetProfile::NeutralisationEvaporationAssembly
+        }));
+        assert!(profile.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Contents
+                && matches!(
+                    object.appearance,
+                    chem_presentation::AppearanceProfile::ReviewedColour(VisualColour {
+                        red: 0x63,
+                        green: 0x9d,
+                        blue: 0xd0,
+                    })
+                )
+        }));
+        assert_eq!(
+            profile.post_process,
+            Some(MacroscopicProcess::SolventEvaporationCrystallization)
+        );
+        compile_real_world_plan(frames, &profile)
+            .expect("typed neutralisation process crosses plan validation");
+    }
+
+    #[test]
+    fn generated_precipitations_select_shared_assembly_and_structural_colours() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let cases = [
+            (
+                [
+                    ("CuSO4", vec![29, 16, 8, 8, 8, 8]),
+                    ("NaOH", vec![11, 8, 1]),
+                ],
+                VisualColour {
+                    red: 0x4f,
+                    green: 0x92,
+                    blue: 0xd0,
+                },
+            ),
+            (
+                [
+                    ("Pb(NO3)2", vec![82, 7, 8, 8, 8, 7, 8, 8, 8]),
+                    ("KI", vec![19, 53]),
+                ],
+                VisualColour {
+                    red: 0xef,
+                    green: 0xd1,
+                    blue: 0x47,
+                },
+            ),
+        ];
+
+        for (reactants, expected_precipitate_colour) in cases {
+            let request = ReactionBuildRequest {
+                reactants: reactants
+                    .into_iter()
+                    .map(|(display, atomic_numbers)| ReactantInput {
+                        display: display.to_owned(),
+                        atomic_numbers,
+                        species_id: None,
+                    })
+                    .collect(),
+                selected_context: None,
+            };
+            let claim =
+                agent::solve_reaction_claim_with_catalogue(&request, &identities, catalogue)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "precipitation solves for {} + {}",
+                            request.reactants[0].display, request.reactants[1].display
+                        )
+                    });
+            let CompiledClaimOutcome::Static(outcome) =
+                compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                    .expect("outcome compiles")
+            else {
+                panic!("precipitation is static");
+            };
+            assert_eq!(
+                outcome.macroscopic_process(),
+                Some(AgentMacroscopicProcess::AqueousPrecipitation)
+            );
+            let mut provider = agent::UnsupportedMechanismProvider;
+            let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+                .expect("precipitation animation");
+            let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
+                match &presentation {
+                    DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                        (animated.static_outcome(), animated.frames())
+                    }
+                    DynamicPresentationOutcome::Escalated(animated) => {
+                        (animated.static_outcome(), animated.frames())
+                    }
+                    DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                        panic!("precipitation should animate: {diagnostic}")
+                    }
+                };
+            let profile = dynamic_presentation_profile(frames, outcome, None)
+                .expect("phase-driven precipitation profile");
+            assert!(profile.objects.iter().any(|object| {
+                object.role == chem_presentation::SceneRole::Vessel
+                    && object.asset == chem_presentation::AssetProfile::AqueousPrecipitationAssembly
+            }));
+            assert_eq!(
+                profile
+                    .precipitation
+                    .as_ref()
+                    .expect("precipitation material bindings")
+                    .precipitate
+                    .colour,
+                expected_precipitate_colour
+            );
+            assert!(profile.effects.iter().any(|effect| {
+                effect.effect == EffectProfile::PrecipitateFormation
+                    && effect.authorization
+                        == chem_presentation::EffectAuthorization::Process(
+                            MacroscopicProcess::AqueousPrecipitation,
+                        )
+            }));
+            compile_real_world_plan(frames, &profile)
+                .expect("typed precipitation process crosses plan validation");
+        }
+    }
+
+    #[test]
+    fn generated_gas_evolution_examples_select_supported_authored_variants() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let cases = [
+            (
+                [("NaHCO3", vec![11, 1, 6, 8, 8, 8]), ("HCl", vec![1, 17])],
+                chem_presentation::GasEvolutionVariant::LiquidLiquid,
+            ),
+            (
+                [("Mg", vec![12]), ("HCl", vec![1, 17])],
+                chem_presentation::GasEvolutionVariant::SolidLiquid,
+            ),
+            (
+                [("CaCO3", vec![20, 6, 8, 8, 8]), ("HCl", vec![1, 17])],
+                chem_presentation::GasEvolutionVariant::SolidLiquid,
+            ),
+            (
+                [("FeS", vec![26, 16]), ("HCl", vec![1, 17])],
+                chem_presentation::GasEvolutionVariant::SolidLiquid,
+            ),
+            (
+                [("Zn", vec![30]), ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8])],
+                chem_presentation::GasEvolutionVariant::SolidLiquid,
+            ),
+        ];
+
+        for (reactants, expected_variant) in cases {
+            let request = ReactionBuildRequest {
+                reactants: reactants
+                    .into_iter()
+                    .map(|(display, atomic_numbers)| ReactantInput {
+                        display: display.to_owned(),
+                        atomic_numbers,
+                        species_id: None,
+                    })
+                    .collect(),
+                selected_context: None,
+            };
+            let claim =
+                agent::solve_reaction_claim_with_catalogue(&request, &identities, catalogue)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "gas evolution solves for {} + {}",
+                            request.reactants[0].display, request.reactants[1].display
+                        )
+                    });
+            let CompiledClaimOutcome::Static(outcome) =
+                compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                    .expect("gas-evolution outcome compiles")
+            else {
+                panic!("gas evolution is static");
+            };
+            let expected_process = match expected_variant {
+                chem_presentation::GasEvolutionVariant::LiquidLiquid => {
+                    AgentMacroscopicProcess::GasEvolutionLiquidLiquid
+                }
+                chem_presentation::GasEvolutionVariant::SolidLiquid => {
+                    AgentMacroscopicProcess::GasEvolutionSolidLiquid
+                }
+            };
+            assert_eq!(outcome.macroscopic_process(), Some(expected_process));
+
+            let mut provider = agent::UnsupportedMechanismProvider;
+            let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+                .expect("gas-evolution animation");
+            let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
+                match &presentation {
+                    DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                        (animated.static_outcome(), animated.frames())
+                    }
+                    DynamicPresentationOutcome::Escalated(animated) => {
+                        (animated.static_outcome(), animated.frames())
+                    }
+                    DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                        panic!("gas evolution should animate: {diagnostic}")
+                    }
+                };
+            let profile = dynamic_presentation_profile(frames, outcome, None)
+                .expect("phase-driven gas-evolution profile");
+            assert_eq!(
+                profile.gas_evolution.as_ref().map(|visual| visual.variant),
+                Some(expected_variant)
+            );
+            compile_real_world_plan(frames, &profile)
+                .expect("typed gas-evolution process crosses plan validation");
+        }
     }
 
     #[test]
@@ -5419,6 +6295,80 @@ mod tests {
             reactant_composer::reactants(&app.reactant_composer),
             (&[26][..], &[3][..])
         );
+    }
+
+    #[test]
+    fn dynamic_metal_displacement_reaches_the_generic_authored_scene() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "Zn".to_owned(),
+                    atomic_numbers: vec![30],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "CuSO4".to_owned(),
+                    atomic_numbers: vec![29, 16, 8, 8, 8, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim =
+            agent::solve_reaction_claim(&request, &identities).expect("displacement solves");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                .expect("displacement compiles")
+        else {
+            panic!("displacement is a static outcome")
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(AgentMacroscopicProcess::MetalDisplacement)
+        );
+        let mut provider = agent::UnsupportedMechanismProvider;
+        let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+            .expect("displacement animation is derived");
+        let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
+            match &presentation {
+                DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Escalated(animated) => {
+                    (animated.static_outcome(), &**animated.frames())
+                }
+                DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                    panic!("displacement should animate: {diagnostic}")
+                }
+            };
+        let profile =
+            dynamic_presentation_profile(frames, outcome, None).expect("presentation compiles");
+        assert!(profile.precipitation.is_none());
+        assert!(profile.gas_evolution.is_none());
+        let displacement = profile
+            .metal_displacement
+            .as_ref()
+            .expect("metal displacement has exact material bindings");
+        assert_eq!(
+            displacement.deposited_metal.colour,
+            VisualColour {
+                red: 0xb8,
+                green: 0x6a,
+                blue: 0x47,
+            }
+        );
+        assert_ne!(
+            displacement.original_metal.colour,
+            displacement.deposited_metal.colour
+        );
+        assert!(profile.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Vessel
+                && object.asset == chem_presentation::AssetProfile::MetalDisplacementAssembly
+        }));
+        let plan = compile_real_world_plan(frames, &profile).expect("scene plan compiles");
+        assert_eq!(plan.timeline.duration_ms(), 6_000);
     }
 
     #[test]
@@ -6950,6 +7900,180 @@ mod tests {
         assert_eq!(animation.real_world_playhead_ms, 0);
         assert_eq!(animation.frame_index, 0);
         assert!(animation.playing);
+    }
+
+    #[test]
+    fn validated_runtime_oxide_colour_reaches_generic_3d_plan() {
+        let mut app = App::default();
+        let reaction = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("reviewed oxidation exists");
+        app.select_request(reaction);
+        let request = app
+            .oxide_appearance_request()
+            .expect("validated surface product produces a bounded request");
+        let appearance = validated_oxide_appearance(&request, agent::OxideColourFamily::White);
+        app.oxide_appearance_request = Some(request);
+        app.oxide_appearance = Some(appearance);
+        app.open_structural_animation();
+
+        let colour = app
+            .structural_animation
+            .as_ref()
+            .expect("animation")
+            .real_world_plan
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+            .and_then(|effect| effect.surface_oxide_colour.as_ref())
+            .expect("accepted appearance reaches process effect");
+        assert_eq!(colour.authority, MacroscopicColourAuthority::ModelAsserted);
+        assert_eq!(
+            colour.target,
+            VisualColour {
+                red: 0xee,
+                green: 0xf1,
+                blue: 0xef,
+            }
+        );
+    }
+
+    #[test]
+    fn failed_oxide_colour_research_is_visible_and_retryable() {
+        let mut app = App {
+            provider: Some(AppMode::CodexBinary),
+            codex_available: true,
+            ..App::default()
+        };
+        let reaction = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("reviewed oxidation exists");
+        app.select_request(reaction);
+        app.open_structural_animation();
+        let request = app
+            .oxide_appearance_request()
+            .expect("surface oxidation produces a bounded request");
+        let request_binding = request.binding_digest().expect("request binding");
+        app.oxide_appearance_request = Some(request);
+        app.active_oxide_appearance_run = Some(41);
+
+        app.update(Message::OxideAppearanceFinished {
+            run_id: 41,
+            request_binding,
+            result: Box::new(Err("live source lookup timed out".to_owned())),
+        });
+
+        assert_eq!(
+            app.oxide_appearance_error.as_deref(),
+            Some("live source lookup timed out")
+        );
+        assert!(app.active_oxide_appearance_run.is_none());
+
+        app.update(Message::RetryOxideAppearance);
+        assert!(app.oxide_appearance_error.is_none());
+        assert!(app.oxide_appearance_request.is_some());
+        assert!(app.active_oxide_appearance_run.is_some());
+    }
+
+    #[test]
+    fn accepted_oxide_colour_replaces_the_live_plan_without_restarting_playback() {
+        let mut app = App::default();
+        let reaction = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("reviewed oxidation exists");
+        app.select_request(reaction);
+        app.open_structural_animation();
+        app.seek_real_world_timeline(2_500);
+        let request = app
+            .oxide_appearance_request()
+            .expect("surface oxidation produces a bounded request");
+        let request_binding = request.binding_digest().expect("request binding");
+        let appearance = validated_oxide_appearance(&request, agent::OxideColourFamily::RedBrown);
+        app.oxide_appearance_request = Some(request);
+        app.active_oxide_appearance_run = Some(52);
+
+        app.update(Message::OxideAppearanceFinished {
+            run_id: 52,
+            request_binding,
+            result: Box::new(Ok(appearance)),
+        });
+
+        let animation = app.structural_animation.as_ref().expect("animation");
+        assert_eq!(animation.real_world_playhead_ms, 2_500);
+        let colour = animation
+            .real_world_plan
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+            .and_then(|effect| effect.surface_oxide_colour.as_ref())
+            .expect("accepted appearance reaches the live process effect");
+        assert_eq!(
+            colour.target,
+            VisualColour {
+                red: 0x8e,
+                green: 0x46,
+                blue: 0x36,
+            }
+        );
+    }
+
+    #[test]
+    fn dynamic_iron_oxide_uses_the_validated_runtime_colour_in_the_live_plan() {
+        let presentation = dynamic_iron_oxide_presentation();
+        let mut app = App {
+            provider: Some(AppMode::CodexBinary),
+            codex_available: true,
+            ..App::default()
+        };
+        app.finish_dynamic_presentation(presentation);
+        let request = app
+            .oxide_appearance_request()
+            .expect("dynamic iron oxide produces an exact appearance request");
+        assert_eq!(request.product_formula, "Fe2O3");
+        let request_binding = request.binding_digest().expect("request binding");
+        let appearance = validated_oxide_appearance(&request, agent::OxideColourFamily::RedBrown);
+        app.oxide_appearance_request = Some(request);
+        app.active_oxide_appearance_run = Some(63);
+
+        app.update(Message::OxideAppearanceFinished {
+            run_id: 63,
+            request_binding,
+            result: Box::new(Ok(appearance)),
+        });
+
+        let colour = app
+            .structural_animation
+            .as_ref()
+            .expect("animation")
+            .real_world_plan
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+            .and_then(|effect| effect.surface_oxide_colour.as_ref())
+            .expect("dynamic iron oxidation keeps the accepted colour");
+        assert_eq!(
+            colour.target,
+            VisualColour {
+                red: 0x8e,
+                green: 0x46,
+                blue: 0x36,
+            }
+        );
+    }
+
+    #[test]
+    fn macroscopic_playback_uses_the_same_16_ms_delta_as_its_60_hz_tick() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.screen = Screen::Structural3d;
+
+        app.update(Message::StructuralTick);
+
+        assert_eq!(
+            app.structural_animation
+                .as_ref()
+                .expect("animation exists")
+                .real_world_playhead_ms,
+            16,
+            "a 60 Hz redraw must not advance the 3D playhead by the old 33 ms cadence"
+        );
     }
 
     #[test]
