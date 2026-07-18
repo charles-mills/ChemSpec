@@ -13,6 +13,7 @@
 
 use std::collections::BTreeMap;
 
+use chem_catalogue::ValidatedCatalogueBundle;
 use chem_domain::{
     ElementInventory, ElementSymbol, RepresentationKind, SpeciesRegistry, StructureDefinition,
     StructureId, classify_bronsted_acid, generate_structure,
@@ -37,12 +38,38 @@ pub fn solve_reaction_claim(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
 ) -> Option<ReactionClaim> {
+    solve_reaction_claim_inner(request, identities, None)
+}
+
+/// Attempts the same deterministic solve while allowing reviewed catalogue
+/// isomorphism to collapse duplicate aliases of the same exact structure.
+///
+/// This does not broaden chemistry support or trust: it only avoids treating
+/// equivalent reviewed catalogue entries as distinct reactants.
+#[must_use]
+pub fn solve_reaction_claim_with_catalogue(
+    request: &ReactionBuildRequest,
+    identities: &SpeciesRegistry,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Option<ReactionClaim> {
+    solve_reaction_claim_inner(request, identities, Some(catalogue))
+}
+
+#[allow(clippy::too_many_lines)]
+fn solve_reaction_claim_inner(
+    request: &ReactionBuildRequest,
+    identities: &SpeciesRegistry,
+    catalogue: Option<&ValidatedCatalogueBundle>,
+) -> Option<ReactionClaim> {
     if !(1..=2).contains(&request.reactants.len()) {
         return None;
     }
-    let Ok(RequestIdentityResolution::Resolved(species)) =
+    let resolution = if let Some(catalogue) = catalogue {
+        crate::resolve_request_identities_with_catalogue(request, identities, catalogue)
+    } else {
         resolve_request_identities(request, identities)
-    else {
+    };
+    let Ok(RequestIdentityResolution::Resolved(species)) = resolution else {
         return None;
     };
     // Element identity is always known, even when structure generation
@@ -75,6 +102,8 @@ pub fn solve_reaction_claim(
             let structures = [first, second];
             solve_acid_base(structures[0], structures[1])
                 .or_else(|| solve_acid_base(structures[1], structures[0]))
+                .or_else(|| solve_acid_sulfide(structures[0], structures[1]))
+                .or_else(|| solve_acid_sulfide(structures[1], structures[0]))
                 .or_else(|| solve_acid_metal(structures[0], structures[1]))
                 .or_else(|| solve_acid_metal(structures[1], structures[0]))
                 .or_else(|| {
@@ -256,6 +285,49 @@ fn solve_acid_metal(acid: &StructureDefinition, metal: &StructureDefinition) -> 
         observations: vec![ClaimObservation {
             predicate: ClaimObservationPredicate::Evolves,
             subject: "hydrogen gas".to_owned(),
+            value: None,
+        }],
+    })
+}
+
+/// Acid + insoluble ionic sulfide -> dissolved conjugate salt + hydrogen
+/// sulfide gas. The structural anion and solubility table establish this
+/// family; display names and formula strings are not consulted.
+fn solve_acid_sulfide(
+    acid: &StructureDefinition,
+    sulfide: &StructureDefinition,
+) -> Option<Verdict> {
+    let donors = acid_donor_count(acid)?;
+    let sulfide = ionic_salt(sulfide)?;
+    if sulfide.anion.len() != 1
+        || sulfide.anion.get("S").copied() != Some(1)
+        || salt_solubility(&sulfide.cation, &sulfide.anion) != Some(false)
+    {
+        return None;
+    }
+    let conjugate_anion = conjugate_anion(acid, donors)?;
+    let salt = conjugate_salt(acid, donors, &sulfide.cation, sulfide.cation_charge)?;
+    let mut salt_product =
+        product_from_counts(&salt, Some((&sulfide.cation, sulfide.cation_charge)));
+    salt_product.phase = match salt_solubility(&sulfide.cation, &conjugate_anion) {
+        Some(true) => ClaimPhase::Aqueous,
+        Some(false) => ClaimPhase::Solid,
+        None => ClaimPhase::Unknown,
+    };
+    Some(Verdict {
+        reason: None,
+        products: vec![
+            salt_product,
+            ClaimProduct {
+                name: "hydrogen sulfide".to_owned(),
+                formula: "H2S".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Evolves,
+            subject: "hydrogen sulfide gas".to_owned(),
             value: None,
         }],
     })
@@ -1435,7 +1507,7 @@ fn classify_ion_unit(
 /// Classroom solubility rules for salts in water: Some(true) dissolves,
 /// Some(false) precipitates, None is outside the table (borderline cases
 /// like `CaSO4` and `Ca(OH)2` stay with the model).
-fn salt_solubility(cation: &str, anion: &BTreeMap<String, u64>) -> Option<bool> {
+pub(crate) fn salt_solubility(cation: &str, anion: &BTreeMap<String, u64>) -> Option<bool> {
     if ["Li", "Na", "K", "Rb", "Cs", "Fr"].contains(&cation) {
         return Some(true);
     }
@@ -1765,6 +1837,10 @@ mod tests {
             "every species should carry a generated structure: {:?}",
             outcome.species_without_structure()
         );
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::MetalDisplacement)
+        );
     }
 
     #[test]
@@ -1833,7 +1909,8 @@ mod tests {
     #[test]
     fn reactive_metal_and_acid_evolve_hydrogen() {
         let request = request(&[("Zn", &[30]), ("HCl", &[1, 17])]);
-        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
         assert_eq!(claim.disposition, ClaimDisposition::Reaction);
         let formulas = claim
             .products
@@ -1846,6 +1923,16 @@ mod tests {
                 .observations
                 .iter()
                 .any(|observation| observation.subject.contains("hydrogen"))
+        );
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome")
+        else {
+            panic!("expected static outcome");
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::GasEvolutionSolidLiquid),
+            "a gas product must take priority over metal displacement"
         );
     }
 
@@ -2138,7 +2225,14 @@ mod tests {
             .collect();
         assert_eq!(formulas, ["CO", "H2O"]);
         let outcome = compile_claim_outcome(&limited, claim, &registry).expect("balanced");
-        assert!(matches!(outcome, CompiledClaimOutcome::Static(_)));
+        let CompiledClaimOutcome::Static(outcome) = outcome else {
+            panic!("limited-oxygen combustion should be a static outcome");
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::IncompleteCombustion)
+        );
+        assert_eq!(outcome.combustion_fuel_carbon_count(), Some(1));
         // The unconditioned pair still burns completely.
         let plain = ReactionBuildRequest {
             selected_context: None,
@@ -2522,12 +2616,29 @@ mod tests {
     #[test]
     fn copper_sulfate_and_sodium_hydroxide_precipitate_the_hydroxide() {
         let request = request(&[("CuSO₄", &[29, 16, 8, 8, 8, 8]), ("NaOH", &[11, 8, 1])]);
-        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
         let precipitate = &claim.products[0];
         assert_eq!(precipitate.formula, "Cu(OH)2");
         assert_eq!(precipitate.name, "copper(II) hydroxide");
         assert_eq!(precipitate.phase, ClaimPhase::Solid);
         assert_eq!(claim.products[1].formula, "Na2SO4");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome")
+        else {
+            panic!("expected static outcome");
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::AqueousPrecipitation)
+        );
+        assert!(outcome.reactants().iter().all(|reactant| {
+            outcome.macroscopic_phase(reactant) == chem_domain::Phase::Aqueous
+        }));
+        assert_eq!(
+            outcome.macroscopic_colour(&outcome.products()[0]),
+            Some(crate::MacroscopicColour::Blue)
+        );
     }
 
     #[test]
@@ -2536,12 +2647,26 @@ mod tests {
             ("Pb(NO₃)₂", &[82, 7, 8, 8, 8, 7, 8, 8, 8]),
             ("KI", &[19, 53]),
         ]);
-        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
         let precipitate = &claim.products[0];
         assert_eq!(precipitate.formula, "PbI2");
         assert_eq!(precipitate.name, "lead(II) iodide");
         assert_eq!(precipitate.phase, ClaimPhase::Solid);
         assert_eq!(claim.products[1].formula, "KNO3");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome")
+        else {
+            panic!("expected static outcome");
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::AqueousPrecipitation)
+        );
+        assert_eq!(
+            outcome.macroscopic_colour(&outcome.products()[0]),
+            Some(crate::MacroscopicColour::Yellow)
+        );
     }
 
     #[test]
@@ -2581,11 +2706,21 @@ mod tests {
     #[test]
     fn copper_displaces_silver_from_its_nitrate() {
         let request = request(&[("Cu", &[29]), ("AgNO₃", &[47, 7, 8, 8, 8])]);
-        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
         assert_eq!(claim.products[0].formula, "Cu(NO3)2");
         assert_eq!(claim.products[0].name, "copper(II) nitrate");
         assert_eq!(claim.products[1].formula, "Ag");
         assert_eq!(claim.products[1].phase, ClaimPhase::Solid);
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome")
+        else {
+            panic!("expected static outcome");
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::MetalDisplacement)
+        );
     }
 
     #[test]

@@ -150,19 +150,281 @@ liquid, solid + gas -> gas, aqueous + aqueous -> solid, and solid + liquid ->
 gas without knowing the reaction name. Effect intensity remains conservative
 unless separately reviewed kinetics, heat, flame, or pressure metadata exists.
 
-Complete combustion is the first closed chemistry-process classification. It
-is established before presentation only when the validated equation contains
-exactly one molecular carbon/hydrogen fuel (which may also contain oxygen) and
-dioxygen, and exactly gaseous carbon dioxide and gaseous water products. The
+For non-combustion gas generation, an optional authored gas-evolution layer
+refines the existing generic gas effects without changing `.chems 1`.
+Selection requires one exact active `evolves` or gas-phase `forms` observation,
+one exact gaseous product binding, and exactly two catalogue-resolved
+reactants. Two liquid/aqueous reactants select the reusable liquid-liquid clip;
+one solid plus one liquid/aqueous reactant selects the solid-liquid clip.
+Unknown phases, additional reactants, multiple gas products, and unsupported
+layouts keep the generic fallback. The chemistry-owned combustion process is
+checked first and always retains its combustion clip.
+
+Dynamically solved reactions use the same clips through the chemistry-owned
+`GasEvolutionLiquidLiquid` and `GasEvolutionSolidLiquid` processes. Selection
+requires exactly one validated gaseous product plus the solver's typed
+`evolves` claim. Reactant layout is derived structurally: soluble ionic salts
+and the acid solution in an established gas-evolution family are mobile,
+metallic or insoluble ionic reactants are solid, and unknown layouts remain
+unsupported. Process-authorized gas release begins at the first validated
+product-assignment ordinal because generated mechanisms do not invent
+repository evidence observations.
+
+Reviewed legacy profiles that predate catalogue phase records expose two
+distinct generic reactant objects and the exact gas-product binding. The same
+object/role selector can therefore choose a clip without inspecting the
+reaction name. Acid plus insoluble sulfide is also solved structurally as a
+general gas-evolution family; the ionic sulfide graph, acid donor sites,
+solubility rules, exact products, and balancing gate the result.
+
+Both gas-evolution variants are six-second, 180-frame authored clips sampled
+from the absolute playhead. Their liquid, solid, bubble, and connected-plume
+materials are bound to exact reactant/product identities. An exact validated
+colour observation outranks role-context catalogue RGB; absent gas colour uses
+a pale nearly colourless fallback. Opacity remains phase-specific, the plume
+represents released gas rather than smoke, and this category never adds a
+flame. The clips reuse the shared beaker and decode into separate lazy caches,
+so switching reactions cannot leak geometry, material colour, or accumulated
+animation state between scenes.
+
+Combustion is a closed chemistry-process classification. It is established
+before presentation only when the validated equation contains one molecular
+carbon/hydrogen fuel (which may also contain oxygen) and dioxygen. Gaseous
+carbon dioxide plus gaseous water selects `CompleteCombustion`; the presence
+of exact gaseous carbon monoxide instead selects `IncompleteCombustion`. The
 classifier compares element-count maps, representation kinds, validated
 products, and reviewed/resolved phases; it does not compare reaction names,
-rule IDs, display names, or renderer assets. That typed process authorizes a
-natural surface flame, hot-vapour release, and—when a liquid or aqueous
-reactant is present—surface disturbance from the first validated product
-assignment onward. A liquid fuel therefore burns at the liquid surface rather
-than displaying a detached decorative flame. In scientific terms, water
-vapour itself is invisible; the pale escaping plume is an intentionally
-stylised hot-vapour/condensing-mist cue for educational visibility.
+rule IDs, display names, or renderer assets.
+
+Both typed processes authorize surface flame, hot-vapour release, and—when a
+liquid or aqueous reactant is present—surface disturbance from the first
+validated product assignment onward. In scientific terms, water vapour and
+carbon monoxide are invisible; pale product plume and dark incomplete-burning
+smoke are stylised hot-vapour and soot cues, not depictions of visible carbon
+monoxide.
+
+### Authored combustion assemblies
+
+`CompleteCombustionAssembly` and `IncompleteCombustionAssembly` use separate
+six-second, 30 FPS authored clips with a shared beaker and fuel rig. Complete
+combustion contains fuel ripples, ignition sparks, layered blue flame, and a
+sparse pale product plume. Incomplete combustion contains stronger fuel
+motion, a taller unstable orange/yellow flame, dark smoke, irregular airborne
+soot, rim buildup, and glass deposits. Runtime uses the authored geometry
+instead of overlaying the procedural flame and product meshes.
+
+The validated fuel formula is not reparsed by the renderer. Chemistry passes
+the exact carbon count through `MacroscopicReaction::fuel_carbon_count`, and
+presentation assigns a reusable fuel material palette:
+
+- C1-C4: nearly clear;
+- C5-C8: pale yellow;
+- C9-C12: amber;
+- C13-C16: warm brown; and
+- C17+: deep brown.
+
+This palette is a conservative visual convention rather than a claim about a
+specific compound's purity or room-temperature phase. New validated
+hydrocarbon fuels automatically enter the appropriate range without new Rust
+reaction branches.
+
+### Authored alkali-metal/water assembly
+
+Reviewed alkali-metal/water profiles select the generic
+`ReactiveMetalWaterAssembly` asset. This is still downstream of exact
+chemistry: trusted `evolves` and `disappears` observations authorize the gas,
+bubble, disturbance, and consumption controls, while reviewed qualitative
+metadata sets one reusable activity level. The renderer does not inspect a
+reaction name or metal name.
+
+The supplied Blender scene is baked into 92 modular mesh tracks: beaker, water,
+metal, flame, bubbles, splashes, and vapour. The application plays those
+evaluated models directly and does not overlay the procedural beaker, gas
+volume, or effect meshes. Modules are retained deterministically according to
+the typed activity level, horizontal skitter and water deformation are scaled
+continuously, and a flame module is shown only when a separate reviewed
+ignition effect exists. This currently produces:
+
+- subtle fizzing and restrained travel for lithium;
+- vigorous fizzing and greater surface travel for sodium; and
+- the strongest fizzing, splashing, vapour, and reviewed lilac ignition for
+  potassium.
+
+These distinctions follow the Royal Society of Chemistry's reviewed
+group-one observations rather than flame-test colours or renderer-side species
+branches. Lithium and sodium do not invent self-ignition merely because their
+flame-test colours are known.
+
+The source animation is 180 frames at 30 FPS. Runtime playback requests a
+60 Hz presentation tick and linearly interpolates quantized positions and
+normals between adjacent authored samples, removing source-frame stepping
+without running Blender, an FBX/GLB importer, armature evaluation, or a second
+physics solver in the application. Clip position is derived from normalized
+wall-clock timeline time rather than reaction ordinal, so unequal chemistry
+beat durations cannot accelerate one section and stretch another. Track
+topology and buffer bounds are validated once, and the resulting scene remains
+below the fixed GPU vertex and index budgets. The fixed orthographic camera
+uses a deterministic authored assembly framing and remains noninteractive.
+
+### Authored neutralisation and solvent separation
+
+Validated acid/base neutralisation profiles select the reusable
+`NeutralisationEvaporationAssembly` while retaining the existing
+`SolventEvaporationCrystallization` process and trusted reaction observations.
+The renderer does not inspect an acid, base, or reaction name.
+
+The supplied 240-frame scene provides stirring, subsurface mixing tracers,
+surface ripples, vessel lift, gentle heating, nucleate boiling, liquid
+evaporation, salt-residue growth, and vessel lowering. Runtime plays these
+authored tracks instead of layering the older procedural stirring, burner,
+bubble, and crystal systems on top. The source has no vapour module, so the
+existing reusable advected vapour volume remains as a complementary
+process-driven effect during the boiling stage.
+
+The beaker is genuinely shared with the alkali-metal/water assembly. The
+neutralisation clip excludes all beaker geometry and stores only a lightweight
+vessel-motion anchor. Runtime samples the existing shared beaker mesh once and
+applies the anchor displacement, while neutralisation-specific water and
+contents retain their evaluated deformation. This removes duplicated beaker
+samples across 240 frames and keeps both scenes visually consistent.
+
+Flame geometry remains reusable, but neutralisation heating maps its material
+slots to a restrained orange/yellow flame. Potassium/water continues to use
+its separately reviewed lilac ignition palette. Missing indicator or salt
+colour evidence remains conservative: colourless mixing tracers and an
+off-white residue are presentation defaults, not new chemical claims.
+
+### Authored aqueous precipitation
+
+The reusable `AqueousPrecipitationAssembly` is selected in presentation, never
+by the renderer. Reviewed `.chems` profiles select it from a mobile
+liquid/aqueous context, a phase-reviewed solid product, a product object bound
+to its exact validated `forms` ordinal, and both observation-authorized
+`PrecipitateFormation` and `Clouding` effects beginning at that ordinal. A
+generic product `forms` observation without those phase/effect conclusions
+cannot select the clip.
+
+Dynamically solved double-displacement reactions use the same assembly through
+the chemistry-owned `AqueousPrecipitation` process. That process requires two
+structurally validated soluble ionic reactants, exactly one validated ionic
+solid product, an aqueous ionic coproduct, and the solver's formation
+observation. The presentation begins at the first validated product-assignment
+ordinal and emits process-authorized precipitation/clouding effects. This
+bridges generated mechanisms whose trusted frames do not contain repository
+evidence observations without inventing a frame observation or allowing the
+renderer to inspect names and formulas.
+
+The 180-frame, 30 FPS authored clip retains separately baked initial liquid,
+added pouring vessel/liquid, mixing, temporary cloud, falling fragments, and
+persistent sediment modules. Its beaker and stage are excluded; runtime reuses
+the shared beaker already embedded for authored vessel scenes. Frame sampling
+uses absolute presentation milliseconds from the formation ordinal over an
+exact six-second interval. No frame counter is accumulated, so seeking,
+pausing, replaying, and backwards scrubbing reconstruct the same mesh sample.
+
+Material colour resolution stays upstream of rendering. For each exact
+binding, an active validated `.chems` colour observation outranks the reviewed
+role-specific `macroscopic_materials` RGB, which outranks colourless-liquid or
+off-white-solid defaults. For dynamically generated common inorganic
+precipitates, a small reviewed structure-keyed colour table may supply a
+conservative family colour after the exact cation, charge, anion graph, solid
+phase, and `AqueousPrecipitation` process all validate. It never authorizes the
+reaction or phase, and unknown families retain the off-white fallback. RGB is
+stored independently from opacity:
+`MAT_PrecipitateCloud` uses the product RGB with low opacity while falling and
+settled `MAT_Precipitate` geometry stays opaque. The cloud and fragments
+collapse at the authored end state; the sediment geometry remains present.
+
+### Authored metal displacement
+
+`MetalDisplacement` is classified upstream from exact validated structures and
+phases. It requires one solid metallic reactant and one aqueous soluble ionic
+reactant, followed by an aqueous ionic product containing the original metal
+and a different solid elemental-metal product. The deposited metal's element
+must occur in the initial ionic reactant. This cross-side element inventory
+check distinguishes surface deposition from a broad redox label, an ionic
+precipitate throughout solution, or an arbitrary `forms` observation.
+
+Classification fails closed when structures, phases, or products are
+ambiguous. Combustion retains its assembly; any gaseous product takes the
+gas-evolution route (including acid plus metal producing hydrogen);
+`AqueousPrecipitation` remains responsible for insoluble ionic solids.
+Presentation and rendering do not inspect reaction names, formula text, or
+species display names.
+
+The selected `MetalDisplacementAssembly` samples a six-second, 180-frame,
+30 FPS authored clip containing the initial and final solution surfaces,
+original-metal erosion, surface deposit growth, and detached deposited-metal
+flakes. The clip excludes its duplicate beaker and stage, and runtime appends
+the existing shared beaker geometry. Sampling comes from absolute timeline
+milliseconds, not mutable animation state, so pause, replay, seek, and
+backwards scrub reproduce identical geometry.
+
+The presentation profile carries four exact role bindings. Active validated
+`.chems` colour observations have first authority, reviewed catalogue
+`macroscopic_materials` RGB is second, and conservative colourless-solution or
+neutral-metal values are the fallback. The renderer preserves liquid opacity
+separately from RGB, keeps both metal slots in the opaque lit pass, leaves
+erosion detail dark neutral, and does not mutate cached colours shared by
+another reaction.
+
+### Exposed metal oxidation
+
+`SurfaceOxidation` is a second typed chemistry-process classification. It is
+selected before presentation when the validated transformation has:
+
+- exactly two reactants, one structurally metallic and one molecular
+  dioxygen;
+- one validated ionic product containing oxygen; and
+- a `product ... forms` observation in the trusted frames.
+
+The classifier compares structure representations, exact element-count maps,
+roles, phases where reviewed, and validated products. It does not compare a
+reaction name, rule ID, display name, or renderer asset. Current
+lithium/oxygen and sodium/oxygen experiences—and future reactions with the same
+typed shape—therefore share one presentation path.
+
+The surface path deliberately contains no vessel and does not render dioxygen
+as a thrown object. The metal is already resting on the laboratory bench. A
+process-authorized oxide front spreads irregularly across the same solid mesh,
+so the object does not disappear and get replaced by a robotic product model.
+Minor seeded displacement communicates reaction activity without moving the
+fixed camera.
+
+The experimental `newmodeltesting` branch embeds the user-supplied
+`metal.fbx`. Blender evaluates and normalizes it once into `metal.mesh`; the
+runtime reads the compact 2,321-vertex mesh directly and has no Blender or FBX
+dependency. `tools/bake-fbx-mesh.py` documents the reproducible conversion.
+
+Current oxygen-family `.chems` sources establish product formation and reactant
+consumption but do not always provide product appearance colour. In Codex mode,
+once the catalogue and kernel have established the exact oxide identity and
+`SurfaceOxidation` process, a separate bounded appearance lookup may research
+that exact product with live search. The provider must echo the product
+binding, structure ID, formula, and current catalogue digest, cite one to three
+unique HTTPS sources, and choose one restrained colour family from a closed
+palette. Local validation rejects stale identities, arbitrary RGB values,
+malformed sources, procedural content, and schema drift.
+
+An accepted lookup remains `ModelAsserted`; it is not written into `.chems` or
+the catalogue and cannot authorize a product, phase, reaction, or effect.
+Reviewed catalogue colour always wins. A valid provisional colour supplies the
+oxide front's target while preserving the same product-bound,
+process-authorized coating animation. Rejected, unavailable, cancelled, or
+missing claims leave the original white-silver metal appearance unchanged
+instead of presenting a generic grey as chemical fact. In Codex mode the
+appearance task starts as soon as the static reaction is validated, in parallel
+with presentation enrichment; a matching revalidated cache entry can therefore
+be applied before the 3D scene opens.
+
+Appearance cache entries bind the complete request, catalogue digest, schema,
+and local contract version. They store the untrusted model claim and its
+provider/model provenance, are revalidated on every load, and never confer
+reviewed authority. No `.chems` or catalogue schema change is required.
+
+Missing ambient phase records remain `Phase::Unknown`; the surface scene is
+authorized from the validated metallic, molecular-dioxygen, and ionic-product
+structure rather than writing a phase fact into the catalogue.
 
 The renderer does not derive products from chemical names or formula patterns.
 It accepts only the validated products and typed observations that survive the
@@ -329,7 +591,7 @@ beats without changing products, atom mappings, observations, or the final
 trusted frame:
 
 1. the vessel rises a small deterministic distance onto a reusable support and
-   a blue virtual burner ignites beneath it;
+   a gentle orange/yellow virtual burner ignites beneath it;
 2. wall and floor nucleation sites grow, detach, accelerate upward, merge into
    occasional larger bubbles, disturb the falling surface, and feed the shared
    advected vapour field while the solvent level decreases;
@@ -339,17 +601,38 @@ trusted frame:
 The process is selected from trusted structure, phase, and product information,
 not a reaction or species name. Dynamic outcomes require a structurally
 identified proton donor, an ionic base, liquid water, and an aqueous ionic
-product. The reviewed legacy neutralisation profile supplies the same typed
-process while older catalogues lack macroscopic phase records. Gas-evolution
-acid/carbonate reactions and precipitation profiles do not receive this
-two-product separation sequence.
+product. This covers hydroxides and metal oxides as well as carbonate and
+bicarbonate bases; gas-evolving members retain their typed carbon-dioxide
+effect during the authored mixing phase. The reviewed legacy acid/hydroxide,
+acid/carbonate, and acid/bicarbonate families supply the same typed process
+while older catalogues lack macroscopic phase records. Precipitation,
+combustion, phase-unknown products, and neutralisations that do not leave an
+aqueous ionic product remain excluded from solvent separation.
 
 The UI labels every added beat **Virtual separation** so heating is not
 misrepresented as additional neutralisation chemistry or as a laboratory
-procedure. The blue flame belongs to the reusable heating apparatus and is not
+procedure. The orange/yellow flame belongs to the reusable heating apparatus and is not
 a claim that the reaction mixture is combustible. Salt colour comes from the
 already-authorized product appearance; the renderer never chooses a salt by
 name.
+
+Neutralisation colour follows a strict authority order:
+
+1. an exact validated `.chems` colour observation;
+2. optional evidence-backed `colour: [red, green, blue]` on a catalogue
+   macroscopic-material record;
+3. a small structure-derived hydrated-ion palette for unambiguous common
+   aqueous ions (currently Cu(II), Fe(II), Fe(III), Co(II), and Ni(II));
+4. the conservative colourless fallback.
+
+The third tier is keyed by the validated ionic cation and charge, never a
+compound name or reaction name. It deliberately declines ligand-sensitive or
+ambiguous cases. The authored mixing interval diffuses from the initial liquid
+appearance toward the product colour, and the isolated salt inherits the same
+trusted RGB with solid opacity. OpenStax notes that coordination and ligand
+environment can change transition-metal colours, which is why an exact
+`.chems` observation or catalogue RGB always wins over the simplified hydrated
+ion palette.
 
 The boiling approximation follows the observable nucleate-boiling cycle rather
 than spawning uniform bubbles throughout the liquid. Detailed boiling research
@@ -362,6 +645,8 @@ growth instead of revealing a finished solid all at once.
 Sources:
 
 - [Royal Society of Chemistry: Preparing a soluble salt by neutralisation](https://edu.rsc.org/experiments/preparing-a-soluble-salt-by-neutralisation/1760.article)
+- [OpenStax: Spectroscopic and magnetic properties of coordination compounds](https://openstax.org/books/chemistry-2e/pages/19-3-spectroscopic-and-magnetic-properties-of-coordination-compounds)
+- [Royal Society of Chemistry: Testing transition-metal cations](https://edu.rsc.org/download?ac=17360)
 - [Journal of Fluid Mechanics: Comprehensive simulations of boiling with a resolved microlayer](https://www.cambridge.org/core/journals/journal-of-fluid-mechanics/article/comprehensive-simulations-of-boiling-with-a-resolved-microlayer-validation-and-sensitivity-study/C52BA3387A09F19E9945B2CB8193E887)
 - [Lattice Boltzmann Simulation of Nucleate Pool Boiling in Saturated Liquid](https://global-sci.org/index.php/cicp/article/view/5840)
 

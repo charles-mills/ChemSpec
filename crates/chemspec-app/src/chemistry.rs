@@ -19,8 +19,8 @@ use chem_presentation::{
     FlamePalette, MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess,
     MacroscopicReaction, ObjectObservationBinding, PresentationColourTransition,
     PresentationEffect, PresentationObject, PresentationProfile, PresentationTransform, SceneRole,
-    VIRTUAL_ONLY_DISCLOSURE, compile_phase_driven_profile, complete_generic_visual_profile,
-    visual_colour,
+    VIRTUAL_ONLY_DISCLOSURE, VisualColour, compile_phase_driven_profile,
+    complete_generic_visual_profile, visual_colour,
 };
 
 use crate::composition_catalogue::{self, CompositionId};
@@ -106,22 +106,31 @@ impl AlkaliMetal {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct AlkaliWaterVisualEvidence {
+    activity: EffectIntensity,
     flame: Option<(FlamePalette, EffectIntensity)>,
 }
 
 /// Reviewed qualitative presentation metadata for the alkali-water family.
 ///
-/// The Royal Society of Chemistry's classroom observation table describes
-/// lithium as fizzing and potassium as self-igniting with a lilac flame. This
-/// metadata remains upstream of the generic renderer and does not alter the
-/// trusted reaction frames.
+/// The Royal Society of Chemistry's classroom observations describe lithium
+/// as fizzing, sodium as fizzing vigorously, and potassium as vigorous with
+/// lilac self-ignition. This metadata remains upstream of the generic renderer
+/// and does not alter the trusted reaction frames.
 /// <https://edu.rsc.org/download?ac=512063>
 const fn alkali_water_visual_evidence(metal: AlkaliMetal) -> AlkaliWaterVisualEvidence {
     match metal {
+        AlkaliMetal::Lithium => AlkaliWaterVisualEvidence {
+            activity: EffectIntensity::Subtle,
+            flame: None,
+        },
+        AlkaliMetal::Sodium => AlkaliWaterVisualEvidence {
+            activity: EffectIntensity::Moderate,
+            flame: None,
+        },
         AlkaliMetal::Potassium => AlkaliWaterVisualEvidence {
+            activity: EffectIntensity::Strong,
             flame: Some((FlamePalette::Lilac, EffectIntensity::Strong)),
         },
-        AlkaliMetal::Lithium | AlkaliMetal::Sodium => AlkaliWaterVisualEvidence { flame: None },
     }
 }
 
@@ -960,14 +969,35 @@ fn catalogue_macroscopic_reaction(
             .values()
             .find(|candidate| candidate.binding == binding)
             .map(|candidate| (rule, candidate.role.as_str()));
-        catalogue
-            .macroscopic_material(&resolved.structure, rule_role)
-            .map(|record| MacroscopicMaterial {
+        let record = catalogue.macroscopic_material(&resolved.structure, rule_role);
+        record
+            .map(|material| material.phase)
+            .or_else(|| {
+                (request.family() == ReactionFamily::Oxygen).then_some(chem_domain::Phase::Unknown)
+            })
+            .map(|phase| MacroscopicMaterial {
                 binding: binding.to_owned(),
                 semantic_identity: resolved.name.clone(),
+                structure_id: resolved.structure.to_string(),
+                formula: resolved
+                    .formula
+                    .iter()
+                    .map(|(symbol, count)| {
+                        if *count == 1 {
+                            symbol.clone()
+                        } else {
+                            format!("{symbol}{count}")
+                        }
+                    })
+                    .collect::<String>(),
                 role,
-                phase: record.phase,
+                phase,
                 representation: resolved.representation,
+                colour: record.and_then(|material| {
+                    material
+                        .colour
+                        .map(|[red, green, blue]| VisualColour { red, green, blue })
+                }),
             })
     };
     let mut materials =
@@ -987,16 +1017,35 @@ fn catalogue_macroscopic_reaction(
         )?);
     }
     let process = classify_catalogue_macroscopic_process(expanded, &materials);
+    let fuel_carbon_count = process
+        .filter(|process| {
+            matches!(
+                process,
+                MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion
+            )
+        })
+        .and_then(|_| catalogue_combustion_fuel_carbon_count(expanded));
     Some(MacroscopicReaction {
         profile_id: format!("presentation.catalogue.{}", request.id()),
         equation: request.equation(),
         materials,
-        intensity: if process == Some(MacroscopicProcess::CompleteCombustion) {
-            EffectIntensity::Strong
-        } else {
-            EffectIntensity::Moderate
+        intensity: match process {
+            Some(
+                MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion,
+            ) => EffectIntensity::Strong,
+            Some(
+                MacroscopicProcess::AqueousPrecipitation
+                | MacroscopicProcess::GasEvolutionLiquidLiquid
+                | MacroscopicProcess::GasEvolutionSolidLiquid
+                | MacroscopicProcess::MetalDisplacement
+                | MacroscopicProcess::SolventEvaporationCrystallization
+                | MacroscopicProcess::SurfaceOxidation,
+            )
+            | None => EffectIntensity::Moderate,
         },
         process,
+        fuel_carbon_count,
+        surface_oxide_colour: None,
     })
 }
 
@@ -1004,7 +1053,7 @@ fn classify_catalogue_macroscopic_process(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     materials: &[MacroscopicMaterial],
 ) -> Option<MacroscopicProcess> {
-    if expanded.claim.reactants.len() != 2 || expanded.claim.products.len() != 2 {
+    if expanded.claim.reactants.len() != 2 {
         return None;
     }
     let material_has_phase =
@@ -1013,6 +1062,15 @@ fn classify_catalogue_macroscopic_process(
                 material.binding == binding && material.role == role && material.phase == phase
             })
         };
+    let mut reactants = expanded.claim.reactants.iter();
+    let first = reactants.next()?;
+    let second = reactants.next()?;
+    if classifies_catalogue_metal_displacement(expanded, materials) {
+        return Some(MacroscopicProcess::MetalDisplacement);
+    }
+    if classifies_catalogue_surface_oxidation(expanded, materials) {
+        return Some(MacroscopicProcess::SurfaceOxidation);
+    }
     let liquid_water = expanded.claim.products.iter().any(|(binding, product)| {
         material_has_phase(
             binding,
@@ -1040,10 +1098,6 @@ fn classify_catalogue_macroscopic_process(
     if liquid_water && dissolved_ionic_product && mobile_reactants {
         return Some(MacroscopicProcess::SolventEvaporationCrystallization);
     }
-
-    let mut reactants = expanded.claim.reactants.iter();
-    let first = reactants.next()?;
-    let second = reactants.next()?;
     let (fuel, oxygen) = if has_formula_counts(&first.1.formula, &[("O", 2)]) {
         (second, first)
     } else if has_formula_counts(&second.1.formula, &[("O", 2)]) {
@@ -1074,10 +1128,165 @@ fn classify_catalogue_macroscopic_process(
     let has_carbon_dioxide = expanded.claim.products.iter().any(|(binding, product)| {
         product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 2)])
     });
+    let has_carbon_monoxide = expanded.claim.products.iter().any(|(binding, product)| {
+        product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 1)])
+    });
     let has_water_vapour = expanded.claim.products.iter().any(|(binding, product)| {
         product_is_gas(binding) && has_formula_counts(&product.formula, &[("H", 2), ("O", 1)])
     });
-    (has_carbon_dioxide && has_water_vapour).then_some(MacroscopicProcess::CompleteCombustion)
+    if has_carbon_monoxide {
+        Some(MacroscopicProcess::IncompleteCombustion)
+    } else {
+        (has_carbon_dioxide && has_water_vapour).then_some(MacroscopicProcess::CompleteCombustion)
+    }
+}
+
+fn classifies_catalogue_metal_displacement(
+    expanded: &chem_kernel::ExpandedStructuralReaction,
+    materials: &[MacroscopicMaterial],
+) -> bool {
+    if expanded.claim.reactants.len() != 2
+        || expanded.claim.products.len() != 2
+        || materials.iter().any(|material| {
+            material.role == MacroscopicMaterialRole::Product
+                && material.phase == chem_domain::Phase::Gas
+        })
+    {
+        return false;
+    }
+    let phase = |binding: &str, role, expected| {
+        materials.iter().any(|material| {
+            material.binding == binding && material.role == role && material.phase == expected
+        })
+    };
+    let reactants = expanded.claim.reactants.iter().collect::<Vec<_>>();
+    let (original_metal, initial_solution) = match reactants.as_slice() {
+        [metal, solution] | [solution, metal]
+            if metal.1.representation == RepresentationKind::Metallic
+                && phase(
+                    metal.0,
+                    MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Solid,
+                )
+                && solution.1.representation == RepresentationKind::Ionic
+                && phase(
+                    solution.0,
+                    MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Aqueous,
+                ) =>
+        {
+            (*metal, *solution)
+        }
+        _ => return false,
+    };
+    let products = expanded.claim.products.iter().collect::<Vec<_>>();
+    let (final_solution, deposited_metal) = match products.as_slice() {
+        [solution, metal] | [metal, solution]
+            if solution.1.representation == RepresentationKind::Ionic
+                && phase(
+                    solution.0,
+                    MacroscopicMaterialRole::Product,
+                    chem_domain::Phase::Aqueous,
+                )
+                && metal.1.representation == RepresentationKind::Metallic
+                && phase(
+                    metal.0,
+                    MacroscopicMaterialRole::Product,
+                    chem_domain::Phase::Solid,
+                ) =>
+        {
+            (*solution, *metal)
+        }
+        _ => return false,
+    };
+    let single_element = |formula: &BTreeMap<String, u64>| {
+        if formula.len() != 1 {
+            return None;
+        }
+        formula.keys().next().cloned()
+    };
+    let Some(original_symbol) = single_element(&original_metal.1.formula) else {
+        return false;
+    };
+    let Some(deposited_symbol) = single_element(&deposited_metal.1.formula) else {
+        return false;
+    };
+    original_symbol != deposited_symbol
+        && final_solution.1.formula.contains_key(&original_symbol)
+        && initial_solution.1.formula.contains_key(&deposited_symbol)
+}
+
+fn catalogue_combustion_fuel_carbon_count(
+    expanded: &chem_kernel::ExpandedStructuralReaction,
+) -> Option<u64> {
+    let mut reactants = expanded.claim.reactants.iter();
+    let first = reactants.next()?;
+    let second = reactants.next()?;
+    let fuel = if has_formula_counts(&first.1.formula, &[("O", 2)]) {
+        second
+    } else if has_formula_counts(&second.1.formula, &[("O", 2)]) {
+        first
+    } else {
+        return None;
+    };
+    fuel.1.formula.get("C").copied()
+}
+
+fn classifies_catalogue_surface_oxidation(
+    expanded: &chem_kernel::ExpandedStructuralReaction,
+    materials: &[MacroscopicMaterial],
+) -> bool {
+    let mut reactants = expanded.claim.reactants.iter();
+    let Some(first) = reactants.next() else {
+        return false;
+    };
+    let Some(second) = reactants.next() else {
+        return false;
+    };
+    let Some((surface_metal, surface_oxygen)) =
+        (if has_formula_counts(&first.1.formula, &[("O", 2)]) {
+            Some((second, first))
+        } else if has_formula_counts(&second.1.formula, &[("O", 2)]) {
+            Some((first, second))
+        } else {
+            None
+        })
+    else {
+        return false;
+    };
+    let surface_product = expanded
+        .claim
+        .products
+        .iter()
+        .next()
+        .filter(|_| expanded.claim.products.len() == 1);
+    surface_metal.1.representation == RepresentationKind::Metallic
+        && surface_oxygen.1.representation == RepresentationKind::Molecular
+        && materials.iter().any(|material| {
+            material.binding == surface_metal.0.as_str()
+                && material.role == MacroscopicMaterialRole::Reactant
+                && matches!(
+                    material.phase,
+                    chem_domain::Phase::Solid | chem_domain::Phase::Unknown
+                )
+        })
+        && materials.iter().any(|material| {
+            material.binding == surface_oxygen.0.as_str()
+                && material.role == MacroscopicMaterialRole::Reactant
+                && material.phase == chem_domain::Phase::Gas
+        })
+        && surface_product.is_some_and(|(binding, product)| {
+            product.representation == RepresentationKind::Ionic
+                && product.formula.contains_key("O")
+                && materials.iter().any(|material| {
+                    material.binding == binding.as_str()
+                        && material.role == MacroscopicMaterialRole::Product
+                        && matches!(
+                            material.phase,
+                            chem_domain::Phase::Solid | chem_domain::Phase::Unknown
+                        )
+                })
+        })
 }
 
 fn is_carbon_hydrogen_oxygen_fuel(formula: &BTreeMap<String, u64>) -> bool {
@@ -1393,6 +1602,7 @@ pub fn presentation_profile(
         intensity,
         start_ordinal,
         end_ordinal: last_ordinal,
+        surface_oxide_colour: None,
     };
     // Kept as one full-range cue for presentation-plan compatibility. The 3D
     // renderer uses a fixed orthographic angle and only derives framing from
@@ -1403,8 +1613,13 @@ pub fn presentation_profile(
         end_ordinal: last_ordinal,
     }];
 
-    let post_process = matches!(request.kind, ReactionKind::AcidBaseNeutralization { .. })
-        .then_some(MacroscopicProcess::SolventEvaporationCrystallization);
+    let post_process = matches!(
+        request.kind,
+        ReactionKind::AcidBaseNeutralization { .. }
+            | ReactionKind::AcidBicarbonateGasEvolution { .. }
+            | ReactionKind::AcidCarbonateGasEvolution { .. }
+    )
+    .then_some(MacroscopicProcess::SolventEvaporationCrystallization);
     let (objects, effects) = match request.kind {
         ReactionKind::AlkaliWater { metal } => {
             let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
@@ -1416,25 +1631,25 @@ pub fn presentation_profile(
                     EffectProfile::BubbleEmitter,
                     ObservationPredicate::Evolves,
                     gas_ordinal,
-                    EffectIntensity::Moderate,
+                    visual_evidence.activity,
                 ),
                 effect(
                     EffectProfile::GasRelease,
                     ObservationPredicate::Evolves,
                     gas_ordinal,
-                    EffectIntensity::Moderate,
+                    visual_evidence.activity,
                 ),
                 effect(
                     EffectProfile::SurfaceDisturbance,
                     ObservationPredicate::Disappears,
                     disappears_ordinal,
-                    EffectIntensity::Subtle,
+                    visual_evidence.activity,
                 ),
                 effect(
                     EffectProfile::ObjectShrinkage,
                     ObservationPredicate::Disappears,
                     disappears_ordinal,
-                    EffectIntensity::Moderate,
+                    visual_evidence.activity,
                 ),
             ];
             if let Some((palette, intensity)) = visual_evidence.flame {
@@ -1447,7 +1662,7 @@ pub fn presentation_profile(
             }
             (
                 vec![
-                    vessel(AssetProfile::Beaker),
+                    vessel(AssetProfile::ReactiveMetalWaterAssembly),
                     contents("water", "water", AppearanceProfile::Water),
                     PresentationObject {
                         id: metal.lower_name().to_owned(),
@@ -1545,7 +1760,7 @@ pub fn presentation_profile(
             let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
             (
                 vec![
-                    vessel(AssetProfile::Beaker),
+                    vessel(AssetProfile::NeutralisationEvaporationAssembly),
                     contents(
                         "neutralization-mixture",
                         "aqueous acid and alkali hydroxide",
@@ -1575,14 +1790,19 @@ pub fn presentation_profile(
                 active_observation(frames, ObservationPredicate::Disappears)?;
             (
                 vec![
-                    vessel(AssetProfile::ConicalFlask),
+                    vessel(AssetProfile::NeutralisationEvaporationAssembly),
                     contents(
-                        "aqueous-reactants",
-                        "aqueous acid and carbonate reactants",
+                        "acid",
+                        "aqueous acid reactant",
+                        AppearanceProfile::AqueousColourless,
+                    ),
+                    contents(
+                        "carbonateSalt",
+                        "aqueous carbonate reactant",
                         AppearanceProfile::AqueousColourless,
                     ),
                     PresentationObject {
-                        id: "carbon-dioxide".to_owned(),
+                        id: "carbonDioxide".to_owned(),
                         asset: AssetProfile::GasCloud,
                         semantic_identity: "carbon dioxide gas".to_owned(),
                         appearance: AppearanceProfile::AqueousColourless,
@@ -1689,6 +1909,9 @@ pub fn presentation_profile(
         objects,
         effects,
         camera,
+        precipitation: None,
+        gas_evolution: None,
+        metal_displacement: None,
         post_process,
         equation: request.equation(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -1787,9 +2010,12 @@ mod tests {
         MacroscopicMaterial {
             binding: binding.to_owned(),
             semantic_identity: binding.to_owned(),
+            structure_id: format!("Structures.{binding}"),
+            formula: binding.to_owned(),
             role,
             phase,
             representation,
+            colour: None,
         }
     }
 
@@ -1806,6 +2032,8 @@ mod tests {
                 materials,
                 intensity: EffectIntensity::Moderate,
                 process: None,
+                fuel_carbon_count: None,
+                surface_oxide_colour: None,
             },
         )
         .expect("catalogue phases compile");
@@ -1987,6 +2215,123 @@ mod tests {
     }
 
     #[test]
+    fn metallic_oxygen_family_selects_a_generic_exposed_surface_scene() {
+        for id in ["oxygen-lithium-oxygen", "oxygen-sodium-oxygen"] {
+            let request = ReactionRequest::from_id(id).expect("oxygen experience exists");
+            let run = run(request).expect("oxygen experience validates");
+            let reaction = run
+                .macroscopic()
+                .expect("structural oxygen fallback supplies renderer inputs");
+            assert_eq!(reaction.process, Some(MacroscopicProcess::SurfaceOxidation));
+            let profile =
+                presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+                    .expect("surface oxidation profile compiles");
+
+            assert!(
+                profile
+                    .objects
+                    .iter()
+                    .all(|object| object.role != SceneRole::Vessel)
+            );
+            assert_eq!(
+                profile
+                    .objects
+                    .iter()
+                    .filter(|object| object.asset == AssetProfile::MetalChunk)
+                    .count(),
+                1
+            );
+            assert!(
+                profile
+                    .objects
+                    .iter()
+                    .all(|object| object.asset != AssetProfile::GasCloud)
+            );
+            assert!(profile.effects.iter().any(|effect| {
+                effect.effect == EffectProfile::SurfaceOxidation
+                    && effect.authorization
+                        == chem_presentation::EffectAuthorization::Process(
+                            MacroscopicProcess::SurfaceOxidation,
+                        )
+            }));
+        }
+    }
+
+    #[test]
+    fn surface_oxidation_uses_exact_product_bound_colour_and_reviewed_colour_wins() {
+        let request = ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("reviewed sodium oxidation exists");
+        let run = run(request).expect("oxygen experience validates");
+        let mut reaction = run.macroscopic().expect("surface inputs exist").clone();
+        let product_binding = reaction
+            .materials
+            .iter()
+            .find(|material| material.role == MacroscopicMaterialRole::Product)
+            .expect("oxide product")
+            .binding
+            .clone();
+        reaction.surface_oxide_colour = Some(chem_presentation::SurfaceOxideColour {
+            product_binding: product_binding.clone(),
+            target: VisualColour {
+                red: 0xb9,
+                green: 0x42,
+                blue: 0x3b,
+            },
+            authority: chem_presentation::MacroscopicColourAuthority::ModelAsserted,
+        });
+        let profile = compile_phase_driven_profile(run.frames(), &reaction)
+            .expect("model-asserted colour remains product bound");
+        let effect = profile
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+            .expect("surface effect");
+        assert_eq!(
+            effect
+                .surface_oxide_colour
+                .as_ref()
+                .expect("enriched colour")
+                .target,
+            VisualColour {
+                red: 0xb9,
+                green: 0x42,
+                blue: 0x3b,
+            }
+        );
+
+        reaction
+            .materials
+            .iter_mut()
+            .find(|material| material.binding == product_binding)
+            .expect("oxide product")
+            .colour = Some(VisualColour {
+            red: 0xee,
+            green: 0xf1,
+            blue: 0xef,
+        });
+        let profile = compile_phase_driven_profile(run.frames(), &reaction)
+            .expect("reviewed colour compiles");
+        let colour = profile
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+            .and_then(|effect| effect.surface_oxide_colour.as_ref())
+            .expect("reviewed colour retained");
+        assert_eq!(
+            colour.authority,
+            chem_presentation::MacroscopicColourAuthority::Reviewed
+        );
+        assert_eq!(
+            colour.target,
+            VisualColour {
+                red: 0xee,
+                green: 0xf1,
+                blue: 0xef,
+            }
+        );
+    }
+
+    #[test]
     fn future_aqueous_product_solid_uses_generic_precipitation_physics() {
         let request = ReactionRequest::silver_halide_precipitation(Halogen::Bromine);
         let profile = future_profile(
@@ -2022,6 +2367,15 @@ mod tests {
         assert!(profile.objects.iter().any(|object| {
             object.id == "silverHalide" && object.asset == AssetProfile::PrecipitateCloud
         }));
+        assert!(profile.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && object.asset == AssetProfile::AqueousPrecipitationAssembly
+        }));
+        let precipitation = profile
+            .precipitation
+            .as_ref()
+            .expect("typed precipitation metadata selects the authored assembly");
+        assert_eq!(precipitation.precipitate.binding, "silverHalide");
         assert!(profile.effects.iter().any(|effect| {
             effect.effect == EffectProfile::PrecipitateFormation
                 && effect.trigger == ObservationPredicate::Forms
@@ -2031,6 +2385,30 @@ mod tests {
                 .effects
                 .iter()
                 .all(|effect| effect.effect != EffectProfile::GasRelease)
+        );
+    }
+
+    #[test]
+    fn forms_alone_does_not_select_the_precipitation_assembly() {
+        let request = ReactionRequest::silver_halide_precipitation(Halogen::Bromine);
+        let run = run(request).expect("precipitation request validates");
+        let mut profile =
+            presentation_profile(request, run.frames()).expect("legacy profile compiles");
+        profile.effects.retain(|effect| {
+            !matches!(
+                effect.effect,
+                EffectProfile::PrecipitateFormation | EffectProfile::Clouding
+            )
+        });
+        profile.precipitation = None;
+        let profile = chem_presentation::complete_generic_visual_profile(run.frames(), profile)
+            .expect("generic completion remains conservative");
+        assert!(profile.precipitation.is_none());
+        assert!(
+            profile
+                .objects
+                .iter()
+                .all(|object| { object.asset != AssetProfile::AqueousPrecipitationAssembly })
         );
     }
 
@@ -2049,6 +2427,10 @@ mod tests {
             profile.post_process,
             Some(MacroscopicProcess::SolventEvaporationCrystallization)
         );
+        assert!(profile.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && object.asset == AssetProfile::NeutralisationEvaporationAssembly
+        }));
         let plan =
             chem_presentation::compile_real_world_plan(neutralization_run.frames(), &profile)
                 .expect("separation plan");
@@ -2073,7 +2455,48 @@ mod tests {
             gas_run.macroscopic(),
         )
         .expect("gas presentation");
-        assert_eq!(gas_profile.post_process, None);
+        assert_eq!(
+            gas_profile.post_process,
+            Some(MacroscopicProcess::SolventEvaporationCrystallization),
+            "acid-carbonate neutralisation keeps its gas effect before shared solvent separation"
+        );
+        assert!(gas_profile.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && object.asset == AssetProfile::NeutralisationEvaporationAssembly
+        }));
+    }
+
+    #[test]
+    fn every_reviewed_neutralization_uses_the_shared_authored_assembly() {
+        for metal in [
+            AlkaliMetal::Lithium,
+            AlkaliMetal::Sodium,
+            AlkaliMetal::Potassium,
+        ] {
+            for halogen in [Halogen::Chlorine, Halogen::Bromine, Halogen::Iodine] {
+                for request in [
+                    ReactionRequest::acid_base_neutralization(metal, halogen),
+                    ReactionRequest::acid_bicarbonate_gas_evolution(metal, halogen),
+                    ReactionRequest::acid_carbonate_gas_evolution(metal, halogen),
+                ] {
+                    let neutralization_run = run(request).expect("neutralization validates");
+                    let profile = presentation_profile_with_catalogue(
+                        request,
+                        neutralization_run.frames(),
+                        neutralization_run.macroscopic(),
+                    )
+                    .expect("presentation profile");
+                    assert!(profile.objects.iter().any(|object| {
+                        object.role == SceneRole::Vessel
+                            && object.asset == AssetProfile::NeutralisationEvaporationAssembly
+                    }));
+                    assert_eq!(
+                        profile.post_process,
+                        Some(MacroscopicProcess::SolventEvaporationCrystallization)
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -2280,11 +2703,16 @@ mod tests {
                 u16::try_from(run.frames().frames().len().saturating_sub(1))
                     .expect("frame count fits presentation ordinal")
             );
-            assert!(
+            let surface_oxidation = profile
+                .effects
+                .iter()
+                .any(|effect| effect.effect == EffectProfile::SurfaceOxidation);
+            assert_eq!(
                 profile
                     .objects
                     .iter()
-                    .any(|object| object.role == SceneRole::Vessel)
+                    .any(|object| object.role == SceneRole::Vessel),
+                !surface_oxidation
             );
             assert!(
                 !profile.effects.is_empty(),
@@ -2406,11 +2834,27 @@ mod tests {
 
     #[test]
     fn reviewed_alkali_water_metadata_distinguishes_ignition_from_flame_test_colour() {
-        for metal in [AlkaliMetal::Lithium, AlkaliMetal::Sodium] {
+        for (metal, expected_activity) in [
+            (AlkaliMetal::Lithium, EffectIntensity::Subtle),
+            (AlkaliMetal::Sodium, EffectIntensity::Moderate),
+        ] {
             let request = ReactionRequest::alkali_water(metal);
             let run = run(request).expect("alkali-water request validates");
             let profile =
                 presentation_profile(request, run.frames()).expect("alkali-water profile compiles");
+            assert!(profile.objects.iter().any(|object| {
+                object.role == SceneRole::Vessel
+                    && object.asset == AssetProfile::ReactiveMetalWaterAssembly
+            }));
+            assert_eq!(
+                profile
+                    .effects
+                    .iter()
+                    .find(|effect| effect.effect == EffectProfile::BubbleEmitter)
+                    .expect("reviewed fizzing drives the reusable clip")
+                    .intensity,
+                expected_activity
+            );
             assert!(
                 !profile
                     .effects
@@ -2424,6 +2868,19 @@ mod tests {
         let run = run(request).expect("potassium-water request validates");
         let profile =
             presentation_profile(request, run.frames()).expect("potassium-water profile compiles");
+        assert!(profile.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && object.asset == AssetProfile::ReactiveMetalWaterAssembly
+        }));
+        assert_eq!(
+            profile
+                .effects
+                .iter()
+                .find(|effect| effect.effect == EffectProfile::BubbleEmitter)
+                .expect("reviewed fizzing drives the reusable clip")
+                .intensity,
+            EffectIntensity::Strong
+        );
         let flame = profile
             .effects
             .iter()

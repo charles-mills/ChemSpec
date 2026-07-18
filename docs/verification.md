@@ -255,11 +255,21 @@ must move with the rod, no mixing-current geometry or `LiquidMixing`
 turbulence may appear while the immersed rod is stationary, and all apparatus
 and mixing-current geometry must be absent after withdrawal completes.
 
-Neutralization regression tests require its trusted disappearance and formation
-observations to authorize deterministic liquid mixing and surface motion. The
-same test prohibits gas, bubbles, precipitate, flame, and product-phase assets,
-and requires the colourless material to remain less blue and more transparent
-than the stylised water material.
+Ordinary acid/hydroxide neutralization regression tests require its trusted
+disappearance and formation observations to authorize deterministic liquid
+mixing and surface motion. The same test prohibits gas, bubbles, precipitate,
+flame, and product-phase assets before the separate isolation process, and
+requires the colourless material to remain less blue and more transparent than
+the stylised water material. Acid/carbonate and acid/bicarbonate members are
+separate typed gas-evolution cases and must retain their carbon-dioxide volume.
+The reviewed sodium-bicarbonate/hydrochloric-acid profile must select the
+liquid-liquid authored clip even when optional catalogue phase records are
+absent. Dynamic end-to-end coverage must select liquid-liquid for soluble
+bicarbonate plus acid and solid-liquid for reactive metal, insoluble carbonate,
+or insoluble sulfide plus acid. Magnesium/hydrochloric acid,
+calcium-carbonate/hydrochloric acid, iron-sulfide/hydrochloric acid, and
+zinc/sulfuric acid are representative structural fixtures; renderer code must
+not branch on those identities.
 
 Post-neutralisation separation tests operate after that regression boundary.
 They require a typed solvent-evaporation/crystallisation process, three appended
@@ -272,12 +282,14 @@ crystallisation beat must fully remove the illustrative solvent, extinguish the
 burner, and leave deterministic persistent faceted salt geometry.
 
 Process-selection tests require structurally checked acid capability, an ionic
-base, liquid water, and an aqueous ionic product for dynamic reactions. The
-reviewed legacy neutralisation family must reach the same typed process while
-acid/carbonate gas evolution, precipitation, combustion, and phase-unknown
-outcomes remain excluded. UI checks must retain the virtual-only disclosure and
-label all appended beats as a separate virtual separation, never as further
-reaction chemistry.
+base, liquid water, and an aqueous ionic product for dynamic reactions.
+Hydroxide, oxide, carbonate, and bicarbonate bases must reach the shared
+assembly when those conditions hold; carbonate members must preserve their gas
+effect. All 27 reviewed legacy acid/base members must reach the same typed
+process while precipitation, combustion, and phase-unknown outcomes remain
+excluded. UI checks must retain the virtual-only disclosure and label all
+appended beats as a separate virtual separation, never as further reaction
+chemistry.
 
 Colour tests require named and exact `Rgb.HexRRGGBB` values to resolve
 deterministically, malformed or observation-mismatched values to fail with a
@@ -285,6 +297,12 @@ typed plan error, and the same validated target to work for liquid, solid, and
 gas assets. Intermediate samples must differ from both endpoints, final samples
 must reach the exact requested RGB value, phase alpha must remain unchanged,
 and seeking the same sample must reproduce identical vertex colours.
+Optional catalogue RGB must be schema-valid and backwards compatible when
+omitted. Dynamic aqueous products may use only the closed structure-and-charge
+hydrated-ion palette; copper(II) must resolve pale blue while unknown main-group
+or ligand-sensitive cases retain the colourless fallback. Neutralisation colour
+must diffuse during authored mixing rather than appearing at frame zero, and
+the salt residue must inherit the same RGB with solid opacity.
 
 State-transition tests additionally require the reactant approach to remain in
 motion across later setup ordinals, meet the first effect boundary with matching
@@ -328,12 +346,77 @@ oxygen, and water records to route the hydrogen-oxidation experience through
 gas reactants and a liquid product rather than its phase-unknown solid
 fallback. The compiler input contains bindings and phases but no reaction name.
 
+Exposed surface-oxidation tests additionally require lithium/oxygen and
+sodium/oxygen to reach the same typed `SurfaceOxidation` path from structural
+roles, not reaction names. The resulting plan must contain one imported metal
+asset, no vessel, no visible gas object, and one process-authorized oxidation
+effect. The embedded mesh parser checks its magic/version, exact byte length,
+finite normalized vertices, unit normals, triangular indices, and index
+bounds. Renderer tests check that the metal starts stationary on the bench and
+that missing appearance authority leaves the original metal material unchanged,
+while an accepted exact-product colour drives the seeded coating
+deterministically.
+
 Flame tests additionally require deterministic faceted plume geometry, separate
 alpha body and additive core/spark batches, palette preservation, and a smooth
 bounded lifecycle. The reviewed alkali-water profile test must prove that
 potassium selects a strong lilac generic flame emitter at the trusted gas
 observation while lithium and sodium remain flame-free. A flame-test colour
 alone is not ignition metadata.
+
+Authored alkali-water clip tests additionally require an exact 180 frames at
+30 FPS, all seven modular asset categories, triangular in-bounds topology, and
+vertex/index totals below the fixed renderer budgets. Half-frame sampling must
+equal the interpolated adjacent samples. Normalized clip progress must advance
+linearly with wall-clock time across unequal real-world beats. All three
+reviewed alkali-water profiles must select the same
+`ReactiveMetalWaterAssembly`, with typed subtle/moderate/strong activity in
+lithium/sodium/potassium order. Runtime scene tests require the assembly to
+suppress duplicate procedural gas, remain deterministic, use no additive flame
+batch for lithium or sodium, and use the reviewed lilac flame batch for
+potassium. GUI screenshots and offline renders are not part of this nonvisual
+asset-path verification.
+
+Neutralisation-assembly tests require 240 frames at 30 FPS and modular water,
+stirrer, mixing, bubble, flame, salt, and vessel-anchor tracks. The clip must
+contain no beaker track; runtime must reuse the beaker topology from the
+alkali-water clip and apply the neutralisation anchor displacement. Heating
+flame slots must resolve to orange/yellow values, while potassium's lilac
+palette remains unchanged. All 27 reviewed hydroxide, carbonate, and
+bicarbonate neutralisation members, plus dynamically solved metal-oxide
+neutralisations, must select the same typed assembly without renderer-side
+reactant-name branches. Gas-evolving members must combine the authored clip
+with the generic gas volume instead of replacing it.
+
+Precipitation-assembly tests require the complete 180 frames at 30 FPS and
+separate water, pouring-vessel, mixing, cloud, falling-fragment, and sediment
+modules. The baked clip must contain no beaker track and must reuse the shared
+beaker geometry. Selection tests must prove that typed precipitation plus
+clouding and a phase-reviewed solid product select the assembly at the exact
+validated product-formation ordinal, while `forms` alone does not. Colour tests
+must cover exact-observation precedence, reviewed catalogue RGB propagation to
+both the low-opacity cloud and opaque sediment, and conservative missing-colour
+fallbacks. Dynamically solved coverage must additionally prove that structurally
+soluble aqueous reactants producing one validated solid select the same
+process-authorized assembly at the first product-assignment ordinal, including
+yellow lead iodide and blue copper(II) hydroxide, without renderer identity
+branches. Absolute-playhead tests must seek forward and backward to the same
+sample, retain the six-second 180/30 interval, collapse temporary cloud and
+falling geometry, and preserve nonzero settled-sediment geometry. Renderer
+source checks must exclude reaction, formula, and species identity branches.
+
+Metal-displacement tests must prove classification from exact validated
+phases, representation kinds, and cross-side element inventories for at least
+zinc/copper and copper/silver transformations. A gaseous product, acid/metal
+hydrogen evolution, combustion, ionic precipitation, or any ambiguous phase or
+structure must retain its higher-priority or fallback route. The authored clip
+must retain 180 frames at 30 FPS, contain separate initial/final solution,
+original-metal, erosion, deposited-metal, and detached-flake modules, and
+contain no beaker track. Material tests must bind the two solutions and two
+metals by exact reaction role, preserve liquid versus metal opacity, and cover
+reviewed RGB plus conservative missing-colour defaults. Absolute-playhead
+sampling must be byte-identical when replayed at the same time. Renderer source
+must contain no reaction-name, formula-string, or species-name branches.
 
 Gas-phase motion tests require gaseous reactants to begin inside the vessel
 headspace, remain bounded there, and use seeded buoyancy, drag, and curl without
@@ -359,12 +442,16 @@ redraws within the same quantized 18 Hz solver step to reuse the same cached
 density and velocity storage, while the next fixed step produces a distinct
 field. The cache must remain bounded and cache keys must include the stable seed
 and every solver control.
-Complete-combustion tests require classification from exact
-validated element counts, molecular representation, gaseous products, and
-product assignment—not reaction or species names—and must prove that the
-generic plan authorizes natural surface flame and hot-vapour channels. The plan
-compiler must reject those process-authorized effects for any other process or
-effect pairing.
+Combustion tests require classification from exact validated element counts,
+molecular representation, gaseous products, and product assignment—not
+reaction or species names. Gaseous carbon dioxide plus water must select the
+complete authored assembly, while any exact carbon-monoxide product in the
+validated fuel/dioxygen transformation must select the incomplete authored
+assembly. Tests must prove both processes authorize the shared flame and
+hot-vapour channels, that the two 180-frame clips are bounded and reuse the
+existing beaker, and that C4/C5, C8/C9, C12/C13, and C16/C17 select distinct
+fuel-colour ranges. The plan compiler must reject those process-authorized
+effects for any unrelated process or effect pairing.
 
 Macroscopic coverage tests must compile every supported experience through the
 same production profile-selection path and reject any profile with zero
@@ -466,6 +553,18 @@ Each launch used the freshly bundled, byte-checked executable and displayed
 the expected family equation and scene. The displacement profile intentionally
 shows no liquid colour or product visual until such an appearance is supported
 by a trusted observation.
+
+Oxide appearance verification is split at the trust boundary. Unit tests
+require exact product/digest binding, closed-palette conversion,
+`ModelAsserted` provenance, procedural-text rejection, cache revalidation and
+tamper rejection, reviewed-colour precedence, original-material preservation
+when colour authority is absent, and delivery of an accepted colour through
+the generic `SurfaceOxidation` effect to the 3D coating transition. Dynamic
+tests also require the typed process to authorize that reusable effect when
+generated frames omit a renderer-bound `forms` observation. Normal tests use
+authored claim fixtures and no subscription or network. A live Codex/source
+lookup remains an explicit provider smoke test and is not implied by unit-test
+success.
 
 On 2026-07-16 the rebuilt bundle also passed the dedicated Builder startup
 check with title `ChemSpec Agent Smoke — Builder` and the full periodic-table

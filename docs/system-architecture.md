@@ -68,9 +68,10 @@ Owns immutable reviewed structure entries, groups, valence/electron premises,
 reaction applicability, product/map/operation templates, observation
 compatibility, provenance, review attestations, schema versions, semantic
 digests, validation, and deterministic indexes. Optional evidence-backed
-macroscopic material records attach `Phase` to a structure in a standard or
-exact rule-role context. They are presentation facts only and cannot authorize
-a reaction or construct a product.
+macroscopic material records attach `Phase` and an optional evidence-backed
+sRGB bulk colour to a structure in a standard or exact rule-role context.
+Opacity remains phase-specific. These are presentation facts only and cannot
+authorize a reaction or construct a product.
 
 The implemented generalized-rules design extends this boundary with an
 element registry, derived reviewed categories, checked structural traits,

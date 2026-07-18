@@ -11,8 +11,8 @@ use chem_domain::{
 use num_bigint::BigUint;
 
 use crate::{
-    AgentError, ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind, ClaimPhase,
-    ClaimProduct, ReactionBuildRequest, ReactionClaim,
+    AgentError, ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind,
+    ClaimObservationPredicate, ClaimPhase, ClaimProduct, ReactionBuildRequest, ReactionClaim,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -27,8 +27,64 @@ pub enum TrustTier {
 /// it must not rediscover the process from names or renderer assets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MacroscopicProcess {
+    /// Two structurally validated soluble ionic reactants exchange partners,
+    /// producing one exact solid product in an aqueous mobile phase.
+    AqueousPrecipitation,
+    /// Two validated mobile reactants generate one exact gaseous product.
+    GasEvolutionLiquidLiquid,
+    /// One validated solid reactant and one mobile reactant generate one exact
+    /// gaseous product.
+    GasEvolutionSolidLiquid,
+    /// A solid metal transfers into an aqueous ionic product while the
+    /// solution's original metal cation becomes a different solid metal.
+    MetalDisplacement,
     CompleteCombustion,
+    /// A validated C/H(/O) fuel reacts with dioxygen and carbon monoxide is
+    /// one of the exact gaseous products.
+    IncompleteCombustion,
     SolventEvaporationCrystallization,
+    /// A solid metallic reactant combines with gaseous dioxygen to form a
+    /// validated solid product at the exposed metal surface.
+    SurfaceOxidation,
+}
+
+/// Conservative educational colour families for simple hydrated ions.
+///
+/// This is intentionally a small closed set. Ligand-dependent or
+/// concentration-dependent colours are left unknown so presentation falls
+/// back to colourless unless `.chems` or reviewed catalogue data is more
+/// specific.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MacroscopicColour {
+    White,
+    Cream,
+    Yellow,
+    Blue,
+    RedBrown,
+    PaleBlue,
+    PaleGreen,
+    YellowBrown,
+    Pink,
+    Green,
+}
+
+impl MacroscopicColour {
+    /// Stylised sRGB representative used by the macroscopic renderer.
+    #[must_use]
+    pub const fn srgb(self) -> [u8; 3] {
+        match self {
+            Self::White => [0xf0, 0xf5, 0xfa],
+            Self::Cream => [0xf0, 0xe0, 0xad],
+            Self::Yellow => [0xef, 0xd1, 0x47],
+            Self::Blue => [0x4f, 0x92, 0xd0],
+            Self::RedBrown => [0xa6, 0x4b, 0x32],
+            Self::PaleBlue => [0x63, 0x9d, 0xd0],
+            Self::PaleGreen => [0x8d, 0xb1, 0x83],
+            Self::YellowBrown => [0xc4, 0x91, 0x48],
+            Self::Pink => [0xd1, 0x8d, 0xa5],
+            Self::Green => [0x74, 0xa2, 0x78],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,6 +200,34 @@ impl ValidatedStaticOutcome {
         self.macroscopic_process
     }
 
+    /// Exact carbon count of the validated C/H(/O) fuel for a combustion
+    /// process. Presentation may use this composition fact for a generic fuel
+    /// palette without parsing names or formula strings.
+    #[must_use]
+    pub fn combustion_fuel_carbon_count(&self) -> Option<u64> {
+        if !matches!(
+            self.macroscopic_process,
+            Some(MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion)
+        ) {
+            return None;
+        }
+        let [first, second] = self.declaration.reactants() else {
+            return None;
+        };
+        let fuel = if is_dioxygen(first) {
+            second
+        } else if is_dioxygen(second) {
+            first
+        } else {
+            return None;
+        };
+        fuel.formula()
+            .elements()
+            .iter()
+            .find(|(element, _)| element.as_str() == "C")
+            .map(|(_, count)| *count)
+    }
+
     /// Returns the exact claimed product phase after static validation, plus
     /// process-established reactant phase where the closed classification
     /// proves it. Other unknown phases remain unknown.
@@ -156,17 +240,63 @@ impl ValidatedStaticOutcome {
         {
             return claim_phase(self.claim.products[index].phase);
         }
-        if self.macroscopic_process == Some(MacroscopicProcess::CompleteCombustion)
-            && self
-                .declaration
-                .reactants()
-                .iter()
-                .find(|term| term.species() == species.id())
-                .is_some_and(is_dioxygen)
-        {
-            Phase::Gas
-        } else {
-            species.phase()
+        let Some(term) = self
+            .declaration
+            .reactants()
+            .iter()
+            .find(|term| term.species() == species.id())
+        else {
+            return species.phase();
+        };
+        match self.macroscopic_process {
+            Some(
+                MacroscopicProcess::AqueousPrecipitation
+                | MacroscopicProcess::GasEvolutionLiquidLiquid,
+            ) => Phase::Aqueous,
+            Some(
+                MacroscopicProcess::GasEvolutionSolidLiquid | MacroscopicProcess::MetalDisplacement,
+            ) => gas_evolution_reactant_phase(species).unwrap_or_else(|| species.phase()),
+            Some(
+                MacroscopicProcess::CompleteCombustion
+                | MacroscopicProcess::IncompleteCombustion
+                | MacroscopicProcess::SurfaceOxidation,
+            ) if is_dioxygen(term) => Phase::Gas,
+            Some(
+                MacroscopicProcess::CompleteCombustion
+                | MacroscopicProcess::IncompleteCombustion
+                | MacroscopicProcess::SolventEvaporationCrystallization
+                | MacroscopicProcess::SurfaceOxidation,
+            )
+            | None => species.phase(),
+        }
+    }
+
+    /// Returns a conservative structure-derived colour for a simple aqueous
+    /// ion or a reviewed common precipitate family. Exact `.chems`
+    /// observations and reviewed catalogue RGB records remain
+    /// higher-authority presentation inputs.
+    #[must_use]
+    pub fn macroscopic_colour(&self, species: &OutcomeSpecies) -> Option<MacroscopicColour> {
+        let phase = self.macroscopic_phase(species);
+        let OutcomeSpecies::Resolved(species) = species else {
+            return None;
+        };
+        let salt = crate::solve::ionic_salt(species.structure.as_ref()?)?;
+        match phase {
+            Phase::Aqueous => match (salt.cation.as_str(), salt.cation_charge) {
+                ("Cu", 2) => Some(MacroscopicColour::PaleBlue),
+                ("Fe", 2) => Some(MacroscopicColour::PaleGreen),
+                ("Fe", 3) => Some(MacroscopicColour::YellowBrown),
+                ("Co", 2) => Some(MacroscopicColour::Pink),
+                ("Ni", 2) => Some(MacroscopicColour::Green),
+                _ => None,
+            },
+            Phase::Solid
+                if self.macroscopic_process == Some(MacroscopicProcess::AqueousPrecipitation) =>
+            {
+                precipitate_colour(&salt)
+            }
+            Phase::Unknown | Phase::Solid | Phase::Liquid | Phase::Gas => None,
         }
     }
 
@@ -281,6 +411,30 @@ pub fn compile_claim_outcome(
     claim: ReactionClaim,
     identities: &SpeciesRegistry,
 ) -> Result<CompiledClaimOutcome, AgentError> {
+    compile_claim_outcome_inner(request, claim, identities, None)
+}
+
+/// Compiles a claim while allowing reviewed catalogue isomorphism to collapse
+/// duplicate aliases of the same exact reactant structure.
+///
+/// # Errors
+///
+/// Returns the same typed validation errors as [`compile_claim_outcome`].
+pub fn compile_claim_outcome_with_catalogue(
+    request: &ReactionBuildRequest,
+    claim: ReactionClaim,
+    identities: &SpeciesRegistry,
+    catalogue: &ValidatedCatalogueBundle,
+) -> Result<CompiledClaimOutcome, AgentError> {
+    compile_claim_outcome_inner(request, claim, identities, Some(catalogue))
+}
+
+fn compile_claim_outcome_inner(
+    request: &ReactionBuildRequest,
+    claim: ReactionClaim,
+    identities: &SpeciesRegistry,
+    catalogue: Option<&ValidatedCatalogueBundle>,
+) -> Result<CompiledClaimOutcome, AgentError> {
     validate_request_shape(request)?;
     validate_selected_context_binding(request, &claim)?;
     match claim.disposition {
@@ -289,7 +443,22 @@ pub fn compile_claim_outcome(
         ClaimDisposition::Unsupported => return Ok(CompiledClaimOutcome::Unsupported(claim)),
         ClaimDisposition::Reaction => {}
     }
-    let reactants = resolve_request_species(request, identities)?;
+    let reactants = if let Some(catalogue) = catalogue {
+        match resolve_request_identities_with_catalogue(request, identities, catalogue)? {
+            RequestIdentityResolution::Resolved(species) => species,
+            RequestIdentityResolution::Ambiguous(ambiguity) => {
+                return Err(AgentError::new(
+                    "request identity",
+                    format!(
+                        "reactant `{}` resolves to multiple identities",
+                        request.reactants[ambiguity.reactant_index].display
+                    ),
+                ));
+            }
+        }
+    } else {
+        resolve_request_species(request, identities)?
+    };
     let products = claim
         .products
         .iter()
@@ -350,6 +519,13 @@ fn classify_macroscopic_process(
     products: &[OutcomeSpecies],
     claim: &ReactionClaim,
 ) -> Option<MacroscopicProcess> {
+    if classifies_aqueous_precipitation(reactants, products, claim) {
+        return Some(MacroscopicProcess::AqueousPrecipitation);
+    }
+    if let Some(process) = classifies_gas_evolution(reactants, claim) {
+        return Some(process);
+    }
+
     let has_structural_acid = reactants.iter().any(|species| {
         species
             .bronsted_acid_profile()
@@ -377,18 +553,20 @@ fn classify_macroscopic_process(
                 claim_phase(claim_product.phase) == Phase::Aqueous
                     && product.representation() == Some(RepresentationKind::Ionic)
             });
-    if claim.products.len() == 2
-        && has_structural_acid
-        && has_ionic_base
-        && liquid_water
-        && dissolved_ionic_product
-    {
+    if has_structural_acid && has_ionic_base && liquid_water && dissolved_ionic_product {
         return Some(MacroscopicProcess::SolventEvaporationCrystallization);
+    }
+    if classifies_metal_displacement(reactants, products, claim) {
+        return Some(MacroscopicProcess::MetalDisplacement);
     }
 
     let [first, second] = declaration.reactants() else {
         return None;
     };
+    if classifies_surface_oxidation(first, second, reactants, products, claim) {
+        return Some(MacroscopicProcess::SurfaceOxidation);
+    }
+
     let (fuel, oxygen) = if is_dioxygen(first) {
         (second, first)
     } else if is_dioxygen(second) {
@@ -414,13 +592,314 @@ fn classify_macroscopic_process(
             && FormulaComposition::parse(&ascii_formula_key(&product.formula))
                 .is_ok_and(|formula| has_counts(&formula, &[("C", 1), ("O", 2)]))
     });
+    let has_carbon_monoxide = products.iter().any(|product| {
+        claim_phase(product.phase) == Phase::Gas
+            && FormulaComposition::parse(&ascii_formula_key(&product.formula))
+                .is_ok_and(|formula| has_counts(&formula, &[("C", 1), ("O", 1)]))
+    });
     let has_water_vapour = products.iter().any(|product| {
         claim_phase(product.phase) == Phase::Gas
             && FormulaComposition::parse(&ascii_formula_key(&product.formula))
                 .is_ok_and(|formula| has_counts(&formula, &[("H", 2), ("O", 1)]))
     });
-    (products.len() == 2 && has_carbon_dioxide && has_water_vapour)
-        .then_some(MacroscopicProcess::CompleteCombustion)
+    if has_carbon_monoxide {
+        Some(MacroscopicProcess::IncompleteCombustion)
+    } else {
+        (products.len() == 2 && has_carbon_dioxide && has_water_vapour)
+            .then_some(MacroscopicProcess::CompleteCombustion)
+    }
+}
+
+fn classifies_gas_evolution(
+    reactants: &[OutcomeSpecies],
+    claim: &ReactionClaim,
+) -> Option<MacroscopicProcess> {
+    let [first, second] = reactants else {
+        return None;
+    };
+    if claim
+        .products
+        .iter()
+        .filter(|product| claim_phase(product.phase) == Phase::Gas)
+        .count()
+        != 1
+        || !claim
+            .observations
+            .iter()
+            .any(|observation| observation.predicate == ClaimObservationPredicate::Evolves)
+    {
+        return None;
+    }
+    match [
+        gas_evolution_reactant_phase(first)?,
+        gas_evolution_reactant_phase(second)?,
+    ] {
+        [
+            Phase::Aqueous | Phase::Liquid,
+            Phase::Aqueous | Phase::Liquid,
+        ] => Some(MacroscopicProcess::GasEvolutionLiquidLiquid),
+        [Phase::Solid, Phase::Aqueous | Phase::Liquid]
+        | [Phase::Aqueous | Phase::Liquid, Phase::Solid] => {
+            Some(MacroscopicProcess::GasEvolutionSolidLiquid)
+        }
+        _ => None,
+    }
+}
+
+fn gas_evolution_reactant_phase(species: &OutcomeSpecies) -> Option<Phase> {
+    if species.phase() != Phase::Unknown {
+        return Some(species.phase());
+    }
+    let OutcomeSpecies::Resolved(species) = species else {
+        return None;
+    };
+    let structure = species.structure.as_ref()?;
+    match structure.representation() {
+        RepresentationKind::Metallic => Some(Phase::Solid),
+        RepresentationKind::Ionic => {
+            let salt = crate::solve::ionic_salt(structure)?;
+            crate::solve::salt_solubility(&salt.cation, &salt.anion).map(|soluble| {
+                if soluble {
+                    Phase::Aqueous
+                } else {
+                    Phase::Solid
+                }
+            })
+        }
+        RepresentationKind::Molecular
+            if !classify_bronsted_acid(structure)
+                .proton_donor_sites()
+                .is_empty() =>
+        {
+            Some(Phase::Aqueous)
+        }
+        RepresentationKind::Molecular | RepresentationKind::Ion => None,
+    }
+}
+
+fn classifies_metal_displacement(
+    reactants: &[OutcomeSpecies],
+    products: &[OutcomeSpecies],
+    claim: &ReactionClaim,
+) -> bool {
+    let [first, second] = reactants else {
+        return false;
+    };
+    let [first_product, second_product] = products else {
+        return false;
+    };
+    let [first_claim_product, second_claim_product] = claim.products.as_slice() else {
+        return false;
+    };
+    if claim
+        .products
+        .iter()
+        .any(|product| claim_phase(product.phase) == Phase::Gas)
+    {
+        return false;
+    }
+
+    let reactant_phase = |species| gas_evolution_reactant_phase(species);
+    let (original_metal, initial_solution) = match (
+        first.representation(),
+        reactant_phase(first),
+        second.representation(),
+        reactant_phase(second),
+    ) {
+        (
+            Some(RepresentationKind::Metallic),
+            Some(Phase::Solid),
+            Some(RepresentationKind::Ionic),
+            Some(Phase::Aqueous),
+        ) => (first, second),
+        (
+            Some(RepresentationKind::Ionic),
+            Some(Phase::Aqueous),
+            Some(RepresentationKind::Metallic),
+            Some(Phase::Solid),
+        ) => (second, first),
+        _ => return false,
+    };
+    let (final_solution, deposited_metal) = match (
+        first_product.representation(),
+        claim_phase(first_claim_product.phase),
+        second_product.representation(),
+        claim_phase(second_claim_product.phase),
+    ) {
+        (
+            Some(RepresentationKind::Ionic),
+            Phase::Aqueous,
+            Some(RepresentationKind::Metallic),
+            Phase::Solid,
+        ) => (first_product, second_product),
+        (
+            Some(RepresentationKind::Metallic),
+            Phase::Solid,
+            Some(RepresentationKind::Ionic),
+            Phase::Aqueous,
+        ) => (second_product, first_product),
+        _ => return false,
+    };
+
+    let elemental_symbol = |species: &OutcomeSpecies| {
+        let OutcomeSpecies::Resolved(species) = species else {
+            return None;
+        };
+        let elements = species.structure.as_ref()?.formula().elements();
+        if elements.len() != 1 {
+            return None;
+        }
+        elements.keys().next().cloned()
+    };
+    let contains_element = |species: &OutcomeSpecies, symbol: &ElementSymbol| {
+        let OutcomeSpecies::Resolved(species) = species else {
+            return false;
+        };
+        species
+            .structure
+            .as_ref()
+            .is_some_and(|structure| structure.formula().elements().contains_key(symbol))
+    };
+    let Some(original_symbol) = elemental_symbol(original_metal) else {
+        return false;
+    };
+    let Some(deposited_symbol) = elemental_symbol(deposited_metal) else {
+        return false;
+    };
+    original_symbol != deposited_symbol
+        && contains_element(final_solution, &original_symbol)
+        && contains_element(initial_solution, &deposited_symbol)
+}
+
+fn classifies_aqueous_precipitation(
+    reactants: &[OutcomeSpecies],
+    products: &[OutcomeSpecies],
+    claim: &ReactionClaim,
+) -> bool {
+    let [first, second] = reactants else {
+        return false;
+    };
+    let soluble_ionic_reactant = |species: &OutcomeSpecies| {
+        let OutcomeSpecies::Resolved(species) = species else {
+            return false;
+        };
+        species
+            .structure
+            .as_ref()
+            .and_then(crate::solve::ionic_salt)
+            .and_then(|salt| crate::solve::salt_solubility(&salt.cation, &salt.anion))
+            == Some(true)
+    };
+    if !soluble_ionic_reactant(first) || !soluble_ionic_reactant(second) {
+        return false;
+    }
+
+    let solid_products = claim
+        .products
+        .iter()
+        .zip(products)
+        .filter(|(product_claim, product)| {
+            claim_phase(product_claim.phase) == Phase::Solid
+                && product.representation() == Some(RepresentationKind::Ionic)
+        })
+        .count();
+    let has_aqueous_product =
+        claim
+            .products
+            .iter()
+            .zip(products)
+            .any(|(product_claim, product)| {
+                claim_phase(product_claim.phase) == Phase::Aqueous
+                    && product.representation() == Some(RepresentationKind::Ionic)
+            });
+    solid_products == 1
+        && has_aqueous_product
+        && claim
+            .observations
+            .iter()
+            .any(|observation| observation.predicate == ClaimObservationPredicate::Forms)
+}
+
+fn precipitate_colour(salt: &crate::solve::Salt) -> Option<MacroscopicColour> {
+    let is_monatomic =
+        |symbol: &str| salt.anion.len() == 1 && salt.anion.get(symbol).copied() == Some(1);
+    let is_hydroxide = salt.anion.len() == 2
+        && salt.anion.get("H").copied() == Some(1)
+        && salt.anion.get("O").copied() == Some(1);
+
+    if salt.cation == "Ag" && salt.cation_charge == 1 {
+        return if is_monatomic("Cl") {
+            Some(MacroscopicColour::White)
+        } else if is_monatomic("Br") {
+            Some(MacroscopicColour::Cream)
+        } else if is_monatomic("I") {
+            Some(MacroscopicColour::Yellow)
+        } else {
+            None
+        };
+    }
+    if salt.cation == "Pb" && salt.cation_charge == 2 && is_monatomic("I") {
+        return Some(MacroscopicColour::Yellow);
+    }
+    if is_hydroxide {
+        return match (salt.cation.as_str(), salt.cation_charge) {
+            ("Cu", 2) => Some(MacroscopicColour::Blue),
+            ("Fe", 2) => Some(MacroscopicColour::PaleGreen),
+            ("Fe", 3) => Some(MacroscopicColour::RedBrown),
+            ("Al", 3) | ("Mg", 2) => Some(MacroscopicColour::White),
+            _ => None,
+        };
+    }
+    None
+}
+
+fn classifies_surface_oxidation(
+    first: &chem_domain::ReactionTerm,
+    second: &chem_domain::ReactionTerm,
+    reactants: &[OutcomeSpecies],
+    products: &[OutcomeSpecies],
+    claim: &ReactionClaim,
+) -> bool {
+    let Some((surface_metal, surface_oxygen)) = (if is_dioxygen(first) {
+        Some((second, first))
+    } else if is_dioxygen(second) {
+        Some((first, second))
+    } else {
+        None
+    }) else {
+        return false;
+    };
+    let surface_metal_species = reactants
+        .iter()
+        .find(|species| species.id() == surface_metal.species());
+    let surface_oxygen_species = reactants
+        .iter()
+        .find(|species| species.id() == surface_oxygen.species());
+    let solid_oxide_product =
+        claim.products.len() == 1
+            && claim.products.first().zip(products.first()).is_some_and(
+                |(product_claim, product)| {
+                    claim_phase(product_claim.phase) == Phase::Solid
+                        && product.representation() == Some(RepresentationKind::Ionic)
+                        && FormulaComposition::parse(&ascii_formula_key(&product_claim.formula))
+                            .is_ok_and(|formula| {
+                                formula
+                                    .elements()
+                                    .keys()
+                                    .any(|element| element.as_str() == "O")
+                            })
+                },
+            );
+    is_dioxygen(surface_oxygen)
+        && surface_metal_species.is_some_and(|species| {
+            matches!(species.phase(), Phase::Solid | Phase::Unknown)
+                && species.representation() == Some(RepresentationKind::Metallic)
+        })
+        && surface_oxygen_species.is_some_and(|species| {
+            matches!(species.phase(), Phase::Gas | Phase::Unknown)
+                && species.representation() == Some(RepresentationKind::Molecular)
+        })
+        && solid_oxide_product
 }
 
 fn is_dioxygen(term: &chem_domain::ReactionTerm) -> bool {
@@ -1037,7 +1516,9 @@ mod tests {
     use chem_catalogue::{CatalogueEnvelope, TrustedCatalogue, ValidatedCatalogueBundle};
     use serde_json::json;
 
-    use crate::{ClaimMode, ReactantInput, ReactionClaim, reviewed_species_registry};
+    use crate::{
+        ClaimMode, ReactantInput, ReactionClaim, reviewed_species_registry, solve_reaction_claim,
+    };
 
     fn registry() -> SpeciesRegistry {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -1175,6 +1656,61 @@ mod tests {
     }
 
     #[test]
+    fn neutralisation_process_and_aqueous_colour_are_structure_derived() {
+        let catalogue = trusted();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let compile = |reactants: [(&str, Vec<u8>); 2]| {
+            let request = ReactionBuildRequest {
+                reactants: reactants
+                    .into_iter()
+                    .map(|(display, atomic_numbers)| ReactantInput {
+                        display: display.to_owned(),
+                        atomic_numbers,
+                        species_id: None,
+                    })
+                    .collect(),
+                selected_context: None,
+            };
+            let claim = solve_reaction_claim(&request, &identities).expect("neutralisation solves");
+            let CompiledClaimOutcome::Static(outcome) =
+                compile_claim_outcome(&request, claim, &identities).expect("outcome compiles")
+            else {
+                panic!("neutralisation is static")
+            };
+            outcome
+        };
+
+        let copper = compile([("CuO", vec![29, 8]), ("H2SO4", vec![1, 1, 16, 8, 8, 8, 8])]);
+        let copper_sulfate = copper
+            .products()
+            .iter()
+            .find(|product| product.display_name() == "copper(II) sulfate")
+            .expect("copper sulfate product");
+        assert_eq!(
+            copper.macroscopic_process(),
+            Some(MacroscopicProcess::SolventEvaporationCrystallization)
+        );
+        assert_eq!(
+            copper.macroscopic_colour(copper_sulfate),
+            Some(MacroscopicColour::PaleBlue)
+        );
+
+        let carbonate = compile([("HCl", vec![1, 17]), ("Na2CO3", vec![11, 11, 6, 8, 8, 8])]);
+        assert_eq!(
+            carbonate.macroscopic_process(),
+            Some(MacroscopicProcess::GasEvolutionLiquidLiquid),
+            "gas generation selects the authored gas clip before optional salt isolation"
+        );
+        assert!(
+            carbonate
+                .products()
+                .iter()
+                .all(|product| carbonate.macroscopic_colour(product).is_none()),
+            "unknown or main-group colours keep the conservative fallback"
+        );
+    }
+
+    #[test]
     fn formula_only_reactant_compiles_and_enters_structure_escalation() {
         let claim = ReactionClaim::from_json(
             &serde_json::to_vec(&json!({
@@ -1243,6 +1779,7 @@ mod tests {
             Some(MacroscopicProcess::CompleteCombustion),
             "validated C/H fuel + dioxygen -> gaseous CO2 + H2O should carry a typed process"
         );
+        assert_eq!(outcome.combustion_fuel_carbon_count(), Some(1));
     }
 
     #[test]

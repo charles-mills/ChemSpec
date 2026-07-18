@@ -4,18 +4,21 @@
 //! This renderer consumes only trusted macroscopic assets and effects; it never
 //! infers structure, parses source, or selects reaction rules.
 
+use std::sync::OnceLock;
+
 use bytemuck::{Pod, Zeroable};
 use chem_catalogue::ObservationPredicate;
 use chem_presentation::{
     AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, FlamePalette,
-    MacroscopicStage, PresentationColourTransition, PresentationEffect, PresentationObject,
-    PresentationTransform, ReactionVisualInputs, SceneRole, VisualColour,
+    GasEvolutionVariant, MacroscopicStage, PresentationColourTransition, PresentationEffect,
+    PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole, VisualColour,
 };
 use chem_presentation::{RealWorldPosition, ScenePlan};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use iced::widget::shader::{self, Program};
 use iced::{Rectangle, wgpu};
 
+use crate::animated_clip::{AnimatedClip, ClipColour, ClipModule, ClipPass, ClipTrack, ClipVertex};
 use crate::gas_fluid::{GasFlowControls, GasFluidVolume};
 use crate::scene_registry::{self, AssetGeometry, EffectDynamics, EffectGeometry};
 
@@ -87,6 +90,188 @@ struct Vertex {
     position: [f32; 3],
     normal: [f32; 3],
     color: [f32; 4],
+}
+
+#[derive(Debug, Clone, Copy)]
+struct EmbeddedMeshVertex {
+    position: Vec3,
+    normal: Vec3,
+}
+
+#[derive(Debug)]
+struct EmbeddedMesh {
+    vertices: Box<[EmbeddedMeshVertex]>,
+    indices: Box<[u32]>,
+}
+
+const METAL_MESH_BYTES: &[u8] = include_bytes!("../assets/models/metal.mesh");
+const EMBEDDED_MESH_MAGIC: &[u8; 8] = b"CMSHMESH";
+const EMBEDDED_MESH_VERSION: u32 = 1;
+static METAL_MESH: OnceLock<EmbeddedMesh> = OnceLock::new();
+const ALKALI_WATER_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/alkali_water.clip");
+static ALKALI_WATER_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const NEUTRALISATION_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/neutralisation.clip");
+static NEUTRALISATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const COMPLETE_COMBUSTION_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/complete_combustion.clip");
+static COMPLETE_COMBUSTION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const INCOMPLETE_COMBUSTION_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/incomplete_combustion.clip");
+static INCOMPLETE_COMBUSTION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const PRECIPITATION_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/precipitation.clip");
+static PRECIPITATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const GAS_EVOLUTION_LIQUID_LIQUID_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/gas_evolution_liquid_liquid.clip");
+static GAS_EVOLUTION_LIQUID_LIQUID_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const GAS_EVOLUTION_SOLID_LIQUID_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/gas_evolution_solid_liquid.clip");
+static GAS_EVOLUTION_SOLID_LIQUID_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const METAL_DISPLACEMENT_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/metal_displacement.clip");
+static METAL_DISPLACEMENT_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+
+fn embedded_metal_mesh() -> &'static EmbeddedMesh {
+    METAL_MESH.get_or_init(|| {
+        parse_embedded_mesh(METAL_MESH_BYTES)
+            .unwrap_or_else(|error| panic!("embedded metal mesh is invalid: {error}"))
+    })
+}
+
+fn alkali_water_clip() -> &'static AnimatedClip {
+    ALKALI_WATER_CLIP.get_or_init(|| {
+        AnimatedClip::parse(ALKALI_WATER_CLIP_BYTES)
+            .unwrap_or_else(|error| panic!("embedded alkali-water clip is invalid: {error}"))
+    })
+}
+
+fn neutralisation_clip() -> &'static AnimatedClip {
+    NEUTRALISATION_CLIP.get_or_init(|| {
+        AnimatedClip::parse(NEUTRALISATION_CLIP_BYTES)
+            .unwrap_or_else(|error| panic!("embedded neutralisation clip is invalid: {error}"))
+    })
+}
+
+fn complete_combustion_clip() -> &'static AnimatedClip {
+    COMPLETE_COMBUSTION_CLIP.get_or_init(|| {
+        AnimatedClip::parse(COMPLETE_COMBUSTION_CLIP_BYTES)
+            .unwrap_or_else(|error| panic!("embedded complete-combustion clip is invalid: {error}"))
+    })
+}
+
+fn incomplete_combustion_clip() -> &'static AnimatedClip {
+    INCOMPLETE_COMBUSTION_CLIP.get_or_init(|| {
+        AnimatedClip::parse(INCOMPLETE_COMBUSTION_CLIP_BYTES).unwrap_or_else(|error| {
+            panic!("embedded incomplete-combustion clip is invalid: {error}")
+        })
+    })
+}
+
+fn precipitation_clip() -> &'static AnimatedClip {
+    PRECIPITATION_CLIP.get_or_init(|| {
+        AnimatedClip::parse(PRECIPITATION_CLIP_BYTES)
+            .unwrap_or_else(|error| panic!("embedded precipitation clip is invalid: {error}"))
+    })
+}
+
+fn gas_evolution_clip(variant: GasEvolutionVariant) -> &'static AnimatedClip {
+    match variant {
+        GasEvolutionVariant::LiquidLiquid => GAS_EVOLUTION_LIQUID_LIQUID_CLIP.get_or_init(|| {
+            AnimatedClip::parse(GAS_EVOLUTION_LIQUID_LIQUID_CLIP_BYTES).unwrap_or_else(|error| {
+                panic!("embedded liquid-liquid gas-evolution clip is invalid: {error}")
+            })
+        }),
+        GasEvolutionVariant::SolidLiquid => GAS_EVOLUTION_SOLID_LIQUID_CLIP.get_or_init(|| {
+            AnimatedClip::parse(GAS_EVOLUTION_SOLID_LIQUID_CLIP_BYTES).unwrap_or_else(|error| {
+                panic!("embedded solid-liquid gas-evolution clip is invalid: {error}")
+            })
+        }),
+    }
+}
+
+fn metal_displacement_clip() -> &'static AnimatedClip {
+    METAL_DISPLACEMENT_CLIP.get_or_init(|| {
+        AnimatedClip::parse(METAL_DISPLACEMENT_CLIP_BYTES)
+            .unwrap_or_else(|error| panic!("embedded metal-displacement clip is invalid: {error}"))
+    })
+}
+
+fn parse_embedded_mesh(bytes: &[u8]) -> Result<EmbeddedMesh, &'static str> {
+    const HEADER_SIZE: usize = 20;
+    const VERTEX_SIZE: usize = 24;
+    if bytes.len() < HEADER_SIZE || bytes.get(..8) != Some(EMBEDDED_MESH_MAGIC) {
+        return Err("invalid header");
+    }
+    let read_u32 = |offset: usize| {
+        bytes
+            .get(offset..offset + 4)
+            .and_then(|value| <[u8; 4]>::try_from(value).ok())
+            .map(u32::from_le_bytes)
+    };
+    if read_u32(8) != Some(EMBEDDED_MESH_VERSION) {
+        return Err("unsupported version");
+    }
+    let vertex_count =
+        usize::try_from(read_u32(12).ok_or("missing vertex count")?).map_err(|_| "vertex count")?;
+    let index_count =
+        usize::try_from(read_u32(16).ok_or("missing index count")?).map_err(|_| "index count")?;
+    if vertex_count == 0 || index_count == 0 || index_count % 3 != 0 {
+        return Err("empty or non-triangular mesh");
+    }
+    let vertex_bytes = vertex_count
+        .checked_mul(VERTEX_SIZE)
+        .ok_or("vertex byte overflow")?;
+    let index_bytes = index_count.checked_mul(4).ok_or("index byte overflow")?;
+    let expected = HEADER_SIZE
+        .checked_add(vertex_bytes)
+        .and_then(|size| size.checked_add(index_bytes))
+        .ok_or("mesh byte overflow")?;
+    if bytes.len() != expected {
+        return Err("byte length mismatch");
+    }
+
+    let read_scalar = |offset: usize| {
+        bytes
+            .get(offset..offset + 4)
+            .and_then(|value| <[u8; 4]>::try_from(value).ok())
+            .map(f32::from_le_bytes)
+    };
+    let mut vertices = Vec::with_capacity(vertex_count);
+    for index in 0..vertex_count {
+        let offset = HEADER_SIZE + index * VERTEX_SIZE;
+        let values = [
+            read_scalar(offset).ok_or("missing position x")?,
+            read_scalar(offset + 4).ok_or("missing position y")?,
+            read_scalar(offset + 8).ok_or("missing position z")?,
+            read_scalar(offset + 12).ok_or("missing normal x")?,
+            read_scalar(offset + 16).ok_or("missing normal y")?,
+            read_scalar(offset + 20).ok_or("missing normal z")?,
+        ];
+        if values.iter().any(|value| !value.is_finite()) {
+            return Err("non-finite vertex");
+        }
+        let normal = Vec3::new(values[3], values[4], values[5]).normalize_or_zero();
+        if normal.length_squared() <= f32::EPSILON {
+            return Err("zero vertex normal");
+        }
+        vertices.push(EmbeddedMeshVertex {
+            position: Vec3::new(values[0], values[1], values[2]),
+            normal,
+        });
+    }
+
+    let indices_offset = HEADER_SIZE + vertex_bytes;
+    let mut indices = Vec::with_capacity(index_count);
+    for index in 0..index_count {
+        let value = read_u32(indices_offset + index * 4).ok_or("missing mesh index")?;
+        if usize::try_from(value).map_or(true, |value| value >= vertex_count) {
+            return Err("mesh index is out of bounds");
+        }
+        indices.push(value);
+    }
+    Ok(EmbeddedMesh {
+        vertices: vertices.into_boxed_slice(),
+        indices: indices.into_boxed_slice(),
+    })
 }
 
 #[repr(C)]
@@ -536,6 +721,7 @@ impl shader::Primitive for ScenePrimitive {
 #[derive(Debug, Clone, Copy)]
 struct SceneLayout {
     bench_top: f32,
+    has_vessel: bool,
     vessel_center: Vec3,
     vessel_scale: Vec3,
     has_liquid: bool,
@@ -552,15 +738,42 @@ impl SceneLayout {
             .objects
             .iter()
             .find(|object| object.role == SceneRole::Vessel);
+        if vessel.is_some_and(|object| {
+            matches!(
+                object.asset,
+                AssetProfile::ReactiveMetalWaterAssembly
+                    | AssetProfile::NeutralisationEvaporationAssembly
+                    | AssetProfile::CompleteCombustionAssembly
+                    | AssetProfile::IncompleteCombustionAssembly
+                    | AssetProfile::AqueousPrecipitationAssembly
+            )
+        }) {
+            let vessel_center = Vec3::new(0.0, bench_top + 0.90, 0.0);
+            let liquid_center = Vec3::new(0.0, bench_top + 0.81, 0.0);
+            let liquid_surface = bench_top + 1.543;
+            return Self {
+                bench_top,
+                has_vessel: true,
+                vessel_center,
+                vessel_scale: Vec3::new(0.99, 0.90, 0.99),
+                has_liquid: true,
+                liquid_center,
+                liquid_surface,
+                reaction_point: Vec3::new(0.0, liquid_surface + 0.045, 0.0),
+                camera_target: Vec3::new(0.0, bench_top + 1.10, 0.0),
+            };
+        }
         let vessel_scale = vessel.map_or(Vec3::ONE, |object| transform_scale(&object.transform));
         let vessel_source = vessel.map_or(Vec3::ZERO, |object| {
             transform_translation(&object.transform)
         });
-        let vessel_center = Vec3::new(
-            vessel_source.x,
-            bench_top + 0.55 * vessel_scale.y,
-            vessel_source.z,
-        );
+        let vessel_center = vessel.map_or(Vec3::new(0.0, bench_top, 0.0), |_| {
+            Vec3::new(
+                vessel_source.x,
+                bench_top + 0.55 * vessel_scale.y,
+                vessel_source.z,
+            )
+        });
         let contents = plan
             .objects
             .iter()
@@ -575,24 +788,33 @@ impl SceneLayout {
             vessel_center.z,
         );
         let liquid_surface = liquid_center.y + 0.54 * liquid_scale.y;
-        let reaction_point = Vec3::new(vessel_center.x, liquid_surface + 0.065, vessel_center.z);
+        let reaction_point = if vessel.is_some() {
+            Vec3::new(vessel_center.x, liquid_surface + 0.065, vessel_center.z)
+        } else {
+            Vec3::new(vessel_center.x, bench_top + 0.006, vessel_center.z)
+        };
         let precipitation = plan.effects.iter().any(|effect| {
             matches!(
                 effect.effect,
                 EffectProfile::PrecipitateFormation | EffectProfile::Clouding
             )
         });
-        let camera_target = Vec3::new(
-            vessel_center.x,
-            if precipitation {
-                liquid_center.y
-            } else {
-                liquid_surface
-            },
-            vessel_center.z,
-        );
+        let camera_target = if vessel.is_some() {
+            Vec3::new(
+                vessel_center.x,
+                if precipitation {
+                    liquid_center.y
+                } else {
+                    liquid_surface
+                },
+                vessel_center.z,
+            )
+        } else {
+            reaction_point + Vec3::Y * 0.30
+        };
         Self {
             bench_top,
+            has_vessel: vessel.is_some(),
             vessel_center,
             vessel_scale,
             has_liquid: contents.is_some(),
@@ -652,6 +874,12 @@ impl SceneLayout {
     }
 
     fn gas_volume(self) -> (Vec3, Vec3) {
+        if !self.has_vessel {
+            return (
+                self.reaction_point + Vec3::Y * 0.42,
+                Vec3::new(1.2, 0.7, 1.2),
+            );
+        }
         let vessel_floor = self.bench_top + 0.055 * self.vessel_scale.y;
         let vessel_rim = self.vessel_center.y + 0.91 * self.vessel_scale.y;
         let volume_floor = if self.has_liquid {
@@ -827,6 +1055,7 @@ fn build_scene(
         progress,
         MacroscopicStage::Reaction,
         progress,
+        None,
     )
 }
 
@@ -834,12 +1063,24 @@ fn build_scene_at(
     plan: &ScenePlan,
     moment: RealWorldPosition,
 ) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    let authored_clip_progress =
+        if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
+            gas_evolution_clip_progress(plan, moment)
+        } else if moment.stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
+            authored_reaction_clip_progress(plan, moment)
+        } else {
+            plan.precipitation.as_ref().map_or_else(
+                || plan.timeline.normalized_progress_at(moment),
+                |_| precipitation_clip_progress(plan, moment),
+            )
+        };
     build_scene_with_stage(
         plan,
         moment.ordinal,
         moment.ordinal_progress,
         moment.stage,
         moment.beat_progress,
+        Some(authored_clip_progress),
     )
 }
 
@@ -850,6 +1091,7 @@ fn build_scene_with_stage(
     progress: f32,
     stage: MacroscopicStage,
     stage_progress: f32,
+    authored_clip_progress: Option<f32>,
 ) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let mut meshes = SceneMeshes::default();
     let layout = SceneLayout::resolve(plan);
@@ -909,6 +1151,90 @@ fn build_scene_with_stage(
         1.0,
         None,
     );
+    if plan.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel && object.asset == AssetProfile::ReactiveMetalWaterAssembly
+    }) {
+        add_animated_alkali_water_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+        );
+        return meshes.finish();
+    }
+    if stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
+        add_animated_gas_evolution_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish();
+    }
+    if stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
+        add_animated_metal_displacement_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish();
+    }
+    if plan.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && object.asset == AssetProfile::NeutralisationEvaporationAssembly
+    }) {
+        add_animated_neutralisation_assembly(
+            &mut meshes,
+            NeutralisationAssemblyMoment {
+                plan,
+                layout,
+                progress: authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+                post_process,
+                stage_progress,
+                seed: plan_seed(plan),
+                visual_inputs,
+                effect_colours,
+                ordinal,
+                ordinal_progress: progress,
+            },
+        );
+        return meshes.finish();
+    }
+    if let Some(assembly) = plan.objects.iter().find(|object| {
+        object.role == SceneRole::Vessel
+            && matches!(
+                object.asset,
+                AssetProfile::CompleteCombustionAssembly
+                    | AssetProfile::IncompleteCombustionAssembly
+            )
+    }) {
+        add_animated_combustion_assembly(
+            &mut meshes,
+            assembly,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+        );
+        return meshes.finish();
+    }
+    if plan.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && object.asset == AssetProfile::AqueousPrecipitationAssembly
+    }) {
+        add_animated_precipitation_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish();
+    }
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
             // Consumption/replacement shrink (exact-model swap) composes
@@ -932,6 +1258,8 @@ fn build_scene_with_stage(
             // Exact structural previews never enter this macroscopic
             // presentation. Every phase uses its reviewed physical asset:
             // gas density, mobile liquid, or faceted solid material.
+            let colour_transition = object_colour_transition(object, ordinal, progress)
+                .or_else(|| surface_oxidation_transition(plan, object, ordinal, progress));
             if object.asset == AssetProfile::GasCloud {
                 instantiate_plan_gas_asset(
                     &mut meshes,
@@ -942,7 +1270,7 @@ fn build_scene_with_stage(
                     stable_seed(&object.id),
                     visual_inputs,
                     phase,
-                    object_colour_transition(object, ordinal, progress),
+                    colour_transition,
                 );
             } else {
                 instantiate_asset(
@@ -961,7 +1289,7 @@ fn build_scene_with_stage(
                     } else {
                         1.0
                     },
-                    object_colour_transition(object, ordinal, progress),
+                    colour_transition,
                 );
             }
         }
@@ -1067,6 +1395,44 @@ fn object_colour_transition(
         })
 }
 
+/// The typed surface-oxidation process uses an exact product-bound colour when
+/// one survived upstream validation. Missing or rejected enrichment leaves the
+/// original metal appearance unchanged instead of presenting a generic grey as
+/// chemical fact. Selection is bound to the process effect, never a
+/// reaction/species name.
+fn surface_oxidation_transition(
+    plan: &ScenePlan,
+    object: &PresentationObject,
+    ordinal: u16,
+    progress: f32,
+) -> Option<AssetColourTransition> {
+    if object.role != SceneRole::Reactant
+        || !matches!(
+            object.asset,
+            AssetProfile::MetalChunk | AssetProfile::MetalStrip
+        )
+    {
+        return None;
+    }
+    let effect = plan
+        .effects
+        .iter()
+        .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)?;
+    let colour = effect.surface_oxide_colour.as_ref()?;
+    let progress = match ordinal.cmp(&effect.start_ordinal) {
+        std::cmp::Ordering::Less => 0.0,
+        std::cmp::Ordering::Greater if ordinal > effect.end_ordinal => 1.0,
+        std::cmp::Ordering::Equal | std::cmp::Ordering::Greater => {
+            effect_progress(effect, ordinal, progress)
+        }
+    };
+    Some(AssetColourTransition {
+        target: colour.target,
+        progress: smoother_step(progress),
+        seed: plan_seed(plan) ^ stable_seed(&object.id) ^ 0x6f78_6964_652d_6669,
+    })
+}
+
 fn object_uniform_color(object: &PresentationObject, ordinal: u16, progress: f32) -> [f32; 4] {
     let base = appearance_color(object.appearance);
     object
@@ -1102,6 +1468,25 @@ struct FixedCameraPose {
 }
 
 fn fixed_camera_pose(plan: &ScenePlan) -> FixedCameraPose {
+    if let Some(assembly) = plan.objects.iter().find(|object| {
+        object.role == SceneRole::Vessel
+            && matches!(
+                object.asset,
+                AssetProfile::ReactiveMetalWaterAssembly
+                    | AssetProfile::NeutralisationEvaporationAssembly
+                    | AssetProfile::CompleteCombustionAssembly
+                    | AssetProfile::IncompleteCombustionAssembly
+                    | AssetProfile::AqueousPrecipitationAssembly
+            )
+    }) {
+        let scale = transform_scale(&assembly.transform);
+        let extent = scale.x.max(scale.y).max(scale.z);
+        return FixedCameraPose {
+            yaw: -0.72,
+            pitch: -0.70,
+            view_height: (5.0 + (extent - 1.1) * 2.0).clamp(4.6, 5.8),
+        };
+    }
     let vessel_scale = plan
         .objects
         .iter()
@@ -1210,6 +1595,15 @@ fn object_motion(
     reaction_motion: Vec3,
 ) -> ObjectMotion {
     if object.role != SceneRole::Reactant {
+        return ObjectMotion::default();
+    }
+    if plan
+        .effects
+        .iter()
+        .any(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+    {
+        // An exposed surface reaction starts with the metal resting on the
+        // bench. It is not introduced with the reusable vessel drop/toss.
         return ObjectMotion::default();
     }
     let seed = stable_seed(&object.id) ^ plan_seed(plan);
@@ -1457,6 +1851,7 @@ const fn effect_profile_seed(effect: EffectProfile) -> u64 {
         EffectProfile::LiquidMixing => 0x3f84_d5b5_b547_0917,
         EffectProfile::SplashEmitter => 0x8538_ec85_5c19_1b69,
         EffectProfile::ObjectShrinkage => 0xda94_2042_e4dd_58b5,
+        EffectProfile::SurfaceOxidation => 0x6f78_6964_6174_696f,
         EffectProfile::SolidFormation => 0x1319_8a2e_0370_7344,
         EffectProfile::PrecipitateFormation => 0xa409_3822_299f_31d0,
         EffectProfile::Clouding => 0x082e_fa98_ec4e_6c89,
@@ -1687,6 +2082,12 @@ fn apply_asset_colour_transition(
             | AssetProfile::MetalStrip => (noise * 0.36).clamp(0.0, 0.40),
             AssetProfile::LaboratoryBench
             | AssetProfile::DarkPresentationPlatform
+            | AssetProfile::ReactiveMetalWaterAssembly
+            | AssetProfile::NeutralisationEvaporationAssembly
+            | AssetProfile::CompleteCombustionAssembly
+            | AssetProfile::IncompleteCombustionAssembly
+            | AssetProfile::AqueousPrecipitationAssembly
+            | AssetProfile::MetalDisplacementAssembly
             | AssetProfile::Beaker
             | AssetProfile::TestTube
             | AssetProfile::ConicalFlask
@@ -1816,7 +2217,13 @@ fn instantiate_asset(
     let position = transform_translation(transform) + position_offset;
     let scale = transform_scale(transform) * scale_multiplier;
     let rotation = rotation_offset * transform_rotation(transform);
-    let color = appearance_color(appearance);
+    let color = if matches!(asset, AssetProfile::MetalChunk | AssetProfile::MetalStrip) {
+        // The imported metal uses a restrained white-silver base so lighting
+        // can carry its shape before a process-authorized surface transition.
+        [0.88, 0.90, 0.92, 1.0]
+    } else {
+        appearance_color(appearance)
+    };
     let opaque_start = meshes.opaque.vertices.len();
     let translucent_start = meshes.translucent.vertices.len();
     let glass_start = meshes.glass.vertices.len();
@@ -1836,6 +2243,9 @@ fn instantiate_asset(
                 [0.01, 0.02, 0.025, 0.22],
             );
         }
+        // Authored assemblies are instantiated once by the scene-level clip
+        // player so their modules share an exact frame sample.
+        AssetGeometry::AnimatedAssembly => {}
         AssetGeometry::CylindricalVessel => {
             let bottom = position + Vec3::new(0.0, -0.55 * scale.y, 0.0);
             let top = position + Vec3::new(0.0, 0.95 * scale.y, 0.0);
@@ -1893,15 +2303,8 @@ fn instantiate_asset(
                 variation_seed,
             );
         }
-        AssetGeometry::LowPolyChunk => {
-            let variation = 0.96 + f32::from((variation_seed % 9) as u8) * 0.01;
-            add_irregular_chunk(
-                &mut meshes.opaque,
-                position,
-                Vec3::new(0.52, 0.18, 0.36) * scale * variation,
-                color,
-                variation_seed,
-            );
+        AssetGeometry::ImportedMetal => {
+            add_imported_metal(&mut meshes.opaque, position, scale, color);
         }
         AssetGeometry::ShardCluster => {
             add_particle_cluster(
@@ -3240,6 +3643,12 @@ fn appearance_color(profile: AppearanceProfile) -> [f32; 4] {
         AppearanceProfile::ClearGlass => [0.46, 0.70, 0.82, 0.09],
         AppearanceProfile::Water => [0.36, 0.62, 0.74, 0.28],
         AppearanceProfile::AqueousColourless => [0.72, 0.79, 0.82, 0.18],
+        AppearanceProfile::ReviewedColour(colour) => [
+            f32::from(colour.red) / 255.0,
+            f32::from(colour.green) / 255.0,
+            f32::from(colour.blue) / 255.0,
+            0.24,
+        ],
         AppearanceProfile::WhitePrecipitate => [0.94, 0.96, 1.0, 0.92],
         AppearanceProfile::CreamPrecipitate => [0.94, 0.88, 0.68, 0.92],
         AppearanceProfile::YellowPrecipitate => [0.94, 0.82, 0.28, 0.92],
@@ -3325,6 +3734,1003 @@ fn append_mesh(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, mesh: Mesh) {
     indices.extend(
         mesh.indices
             .into_iter()
+            .map(|index| index.saturating_add(vertex_offset)),
+    );
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AnimatedAlkaliWaterStyle {
+    activity: f32,
+    flame: Option<FlamePalette>,
+}
+
+fn animated_alkali_water_style(plan: &ScenePlan) -> AnimatedAlkaliWaterStyle {
+    let activity = plan
+        .effects
+        .iter()
+        .find(|effect| effect.effect == EffectProfile::BubbleEmitter)
+        .map_or(0.42, |effect| match effect.intensity {
+            EffectIntensity::Subtle => 0.42,
+            EffectIntensity::Moderate => 0.70,
+            EffectIntensity::Strong => 1.0,
+        });
+    let flame = plan.effects.iter().find_map(|effect| match effect.effect {
+        EffectProfile::FlameEmitter(palette) => Some(palette),
+        _ => None,
+    });
+    AnimatedAlkaliWaterStyle { activity, flame }
+}
+
+fn add_animated_alkali_water_assembly(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+) {
+    let clip = alkali_water_clip();
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    let style = animated_alkali_water_style(plan);
+    let seed = plan_seed(plan);
+    for (track_index, track) in clip.tracks.iter().enumerate() {
+        if !animated_track_enabled(track, track_index, style, seed) {
+            continue;
+        }
+        let colour = animated_track_colour(track.colour, style);
+        let destination = match (track.pass, track.colour) {
+            (_, ClipColour::Glass) => &mut meshes.glass,
+            (ClipPass::Opaque, _) => &mut meshes.opaque,
+            (ClipPass::Translucent, _) => &mut meshes.translucent,
+            (ClipPass::Emissive, _) => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            style.activity,
+            colour,
+        );
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NeutralisationAssemblyMoment<'a> {
+    plan: &'a ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+    post_process: PostProcessVisualState,
+    stage_progress: f32,
+    seed: u64,
+    visual_inputs: ReactionVisualInputs,
+    effect_colours: EffectColours,
+    ordinal: u16,
+    ordinal_progress: f32,
+}
+
+fn add_animated_neutralisation_assembly(
+    meshes: &mut SceneMeshes,
+    moment: NeutralisationAssemblyMoment<'_>,
+) {
+    let NeutralisationAssemblyMoment {
+        plan,
+        layout,
+        progress,
+        post_process,
+        stage_progress,
+        seed,
+        effect_colours,
+        ..
+    } = moment;
+    let clip = neutralisation_clip();
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    let vessel_motion = neutralisation_vessel_motion(clip, frame);
+    let colours = neutralisation_colours(plan, effect_colours, frame);
+    append_shared_beaker(
+        &mut meshes.glass,
+        alkali_water_clip(),
+        layout.bench_top,
+        vessel_motion,
+    );
+    for track in &clip.tracks {
+        if track.module == ClipModule::VesselAnchor {
+            continue;
+        }
+        let colour = neutralisation_track_colour(track.colour, colours);
+        let destination = match (track.pass, track.colour) {
+            (_, ClipColour::Glass) => &mut meshes.glass,
+            (ClipPass::Opaque, _) => &mut meshes.opaque,
+            (ClipPass::Translucent, _) => &mut meshes.translucent,
+            (ClipPass::Emissive, _) => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+    add_neutralisation_supplemental_reactants(meshes, moment, vessel_motion);
+    add_neutralisation_reaction_gas(meshes, moment, vessel_motion);
+    if post_process.vapour > 0.002 {
+        let centre = Vec3::new(
+            layout.vessel_center.x,
+            layout.liquid_surface + vessel_motion.y * 0.45 + 0.30,
+            layout.vessel_center.z,
+        );
+        add_gas_density_field(
+            &mut meshes.gas,
+            centre,
+            Vec3::new(0.46, 0.74, 0.46),
+            [0.88, 0.92, 0.93, 0.34 * post_process.vapour],
+            seed.rotate_left(23),
+            stage_progress * 4.2,
+            post_process.vapour,
+            GasFlowControls::escaping(
+                post_process.vapour,
+                0.48 + post_process.boiling * 0.34,
+                0.92,
+                seed.rotate_left(23),
+            ),
+        );
+    }
+}
+
+fn add_animated_combustion_assembly(
+    meshes: &mut SceneMeshes,
+    assembly: &PresentationObject,
+    layout: SceneLayout,
+    progress: f32,
+) {
+    let incomplete = assembly.asset == AssetProfile::IncompleteCombustionAssembly;
+    let clip = if incomplete {
+        incomplete_combustion_clip()
+    } else {
+        complete_combustion_clip()
+    };
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    append_shared_beaker(
+        &mut meshes.glass,
+        alkali_water_clip(),
+        layout.bench_top,
+        Vec3::ZERO,
+    );
+    let mut fuel = appearance_color(assembly.appearance);
+    fuel[3] = 0.32;
+    for track in &clip.tracks {
+        let colour = combustion_track_colour(track.colour, fuel, incomplete);
+        let destination = match (track.pass, track.colour) {
+            (_, ClipColour::Glass) => &mut meshes.glass,
+            (ClipPass::Opaque, _) => &mut meshes.opaque,
+            (ClipPass::Translucent, _) => &mut meshes.translucent,
+            (ClipPass::Emissive, _) => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn precipitation_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
+    const DURATION_MS: f32 = 6_000.0;
+    let Some(precipitation) = &plan.precipitation else {
+        return 0.0;
+    };
+    let Some(start_ms) = plan
+        .timeline
+        .start_ms_for_ordinal(precipitation.formation_ordinal)
+    else {
+        return 0.0;
+    };
+    let elapsed_ms = plan.timeline.elapsed_ms_at(moment).unwrap_or(0.0);
+    ((elapsed_ms - start_ms as f32) / DURATION_MS).clamp(0.0, 1.0)
+}
+
+fn add_animated_precipitation_assembly(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) {
+    let precipitation = plan
+        .precipitation
+        .as_ref()
+        .expect("validated precipitation assembly has material bindings");
+    let clip = precipitation_clip();
+    debug_assert_eq!(clip.frame_count, 180);
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    append_shared_beaker(
+        &mut meshes.glass,
+        alkali_water_clip(),
+        layout.bench_top,
+        Vec3::ZERO,
+    );
+    for track in &clip.tracks {
+        let colour =
+            precipitation_track_colour(track.colour, precipitation, ordinal, ordinal_progress);
+        let destination = match (track.pass, track.colour) {
+            (_, ClipColour::Glass) => &mut meshes.glass,
+            (ClipPass::Opaque, _) => &mut meshes.opaque,
+            (ClipPass::Translucent, _) => &mut meshes.translucent,
+            (ClipPass::Emissive, _) => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn gas_evolution_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
+    const GAS_SOURCE_PROGRESS: f32 = 35.0 / 179.0;
+    let Some(gas_evolution) = &plan.gas_evolution else {
+        return 0.0;
+    };
+    let reaction_duration = plan
+        .timeline
+        .beats
+        .iter()
+        .take_while(|beat| beat.stage == MacroscopicStage::Reaction)
+        .fold(0_u64, |total, beat| {
+            total.saturating_add(u64::from(beat.duration_ms))
+        }) as f32;
+    if reaction_duration <= f32::EPSILON {
+        return 0.0;
+    }
+    let elapsed = plan
+        .timeline
+        .elapsed_ms_at(moment)
+        .unwrap_or(0.0)
+        .clamp(0.0, reaction_duration);
+    let generation_ms = plan
+        .timeline
+        .start_ms_for_ordinal(gas_evolution.generation_ordinal)
+        .unwrap_or(0) as f32;
+    if generation_ms <= f32::EPSILON {
+        return (elapsed / reaction_duration).clamp(0.0, 1.0);
+    }
+    if elapsed < generation_ms {
+        return (elapsed / generation_ms * GAS_SOURCE_PROGRESS).clamp(0.0, GAS_SOURCE_PROGRESS);
+    }
+    let remaining = (reaction_duration - generation_ms).max(f32::EPSILON);
+    (GAS_SOURCE_PROGRESS + ((elapsed - generation_ms) / remaining) * (1.0 - GAS_SOURCE_PROGRESS))
+        .clamp(0.0, 1.0)
+}
+
+fn add_animated_gas_evolution_assembly(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) {
+    let gas_evolution = plan
+        .gas_evolution
+        .as_ref()
+        .expect("validated gas-evolution assembly has material bindings");
+    let clip = gas_evolution_clip(gas_evolution.variant);
+    debug_assert_eq!(clip.frame_count, 180);
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    append_shared_beaker(
+        &mut meshes.glass,
+        alkali_water_clip(),
+        layout.bench_top,
+        Vec3::ZERO,
+    );
+    for track in &clip.tracks {
+        let colour =
+            gas_evolution_track_colour(track.colour, gas_evolution, ordinal, ordinal_progress);
+        let destination = match (track.pass, track.colour) {
+            (_, ClipColour::Glass) => &mut meshes.glass,
+            (ClipPass::Opaque, _) => &mut meshes.opaque,
+            (ClipPass::Translucent, _) => &mut meshes.translucent,
+            (ClipPass::Emissive, _) => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn authored_reaction_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
+    let reaction_duration = plan
+        .timeline
+        .beats
+        .iter()
+        .take_while(|beat| beat.stage == MacroscopicStage::Reaction)
+        .fold(0_u64, |total, beat| {
+            total.saturating_add(u64::from(beat.duration_ms))
+        }) as f32;
+    if reaction_duration <= f32::EPSILON {
+        return 0.0;
+    }
+    (plan.timeline.elapsed_ms_at(moment).unwrap_or(0.0) / reaction_duration).clamp(0.0, 1.0)
+}
+
+fn add_animated_metal_displacement_assembly(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) {
+    let displacement = plan
+        .metal_displacement
+        .as_ref()
+        .expect("validated metal-displacement assembly has material bindings");
+    let clip = metal_displacement_clip();
+    debug_assert_eq!(clip.frame_count, 180);
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    append_shared_beaker(
+        &mut meshes.glass,
+        alkali_water_clip(),
+        layout.bench_top,
+        Vec3::ZERO,
+    );
+    for track in &clip.tracks {
+        let colour =
+            metal_displacement_track_colour(track.colour, displacement, ordinal, ordinal_progress);
+        let destination = match (track.pass, track.colour) {
+            (_, ClipColour::Glass) => &mut meshes.glass,
+            (ClipPass::Opaque, _) => &mut meshes.opaque,
+            (ClipPass::Translucent, _) => &mut meshes.translucent,
+            (ClipPass::Emissive, _) => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+}
+
+fn metal_displacement_track_colour(
+    colour: ClipColour,
+    displacement: &chem_presentation::MetalDisplacementVisualProfile,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> [f32; 4] {
+    let rgba = |bound: &chem_presentation::BoundVisualColour, opacity| {
+        let base = [
+            f32::from(bound.base_colour.red) / 255.0,
+            f32::from(bound.base_colour.green) / 255.0,
+            f32::from(bound.base_colour.blue) / 255.0,
+        ];
+        let target = [
+            f32::from(bound.colour.red) / 255.0,
+            f32::from(bound.colour.green) / 255.0,
+            f32::from(bound.colour.blue) / 255.0,
+        ];
+        let amount = bound
+            .transition_ordinal
+            .map_or(1.0, |start| match ordinal.cmp(&start) {
+                std::cmp::Ordering::Less => 0.0,
+                std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+                std::cmp::Ordering::Greater => 1.0,
+            });
+        [
+            base[0] + (target[0] - base[0]) * amount,
+            base[1] + (target[1] - base[1]) * amount,
+            base[2] + (target[2] - base[2]) * amount,
+            opacity,
+        ]
+    };
+    match colour {
+        ClipColour::SolutionInitial => rgba(&displacement.initial_solution, 0.34),
+        ClipColour::SolutionFinal => rgba(&displacement.final_solution, 0.34),
+        ClipColour::OriginalMetal => rgba(&displacement.original_metal, 1.0),
+        ClipColour::DepositedMetal => rgba(&displacement.deposited_metal, 1.0),
+        ClipColour::MetalErosion => [0.12, 0.13, 0.14, 1.0],
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        _ => [0.76, 0.78, 0.80, 1.0],
+    }
+}
+
+fn gas_evolution_track_colour(
+    colour: ClipColour,
+    gas_evolution: &chem_presentation::GasEvolutionVisualProfile,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> [f32; 4] {
+    let rgba = |bound: &chem_presentation::BoundVisualColour, opacity| {
+        let base = [
+            f32::from(bound.base_colour.red) / 255.0,
+            f32::from(bound.base_colour.green) / 255.0,
+            f32::from(bound.base_colour.blue) / 255.0,
+        ];
+        let target = [
+            f32::from(bound.colour.red) / 255.0,
+            f32::from(bound.colour.green) / 255.0,
+            f32::from(bound.colour.blue) / 255.0,
+        ];
+        let amount = bound
+            .transition_ordinal
+            .map_or(1.0, |start| match ordinal.cmp(&start) {
+                std::cmp::Ordering::Less => 0.0,
+                std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+                std::cmp::Ordering::Greater => 1.0,
+            });
+        [
+            base[0] + (target[0] - base[0]) * amount,
+            base[1] + (target[1] - base[1]) * amount,
+            base[2] + (target[2] - base[2]) * amount,
+            opacity,
+        ]
+    };
+    match colour {
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        ClipColour::LiquidInitial => rgba(&gas_evolution.initial_reactant, 0.34),
+        ClipColour::LiquidAdded => rgba(&gas_evolution.added_reactant, 0.36),
+        ClipColour::SolidReactant => rgba(&gas_evolution.added_reactant, 1.0),
+        ClipColour::GasBubble => rgba(&gas_evolution.gas_product, 0.28),
+        ClipColour::GasCloud
+        | ClipColour::Water
+        | ClipColour::WaterHighlight
+        | ClipColour::ReactiveMetal
+        | ClipColour::FlameOuter
+        | ClipColour::FlameInner
+        | ClipColour::FlameCore
+        | ClipColour::FizzBubble
+        | ClipColour::Vapour
+        | ClipColour::MixtureA
+        | ClipColour::MixtureB
+        | ClipColour::SaltResidue
+        | ClipColour::Fuel
+        | ClipColour::IgnitionSpark
+        | ClipColour::ProductPlume
+        | ClipColour::CombustionSmoke
+        | ClipColour::Soot
+        | ClipColour::SootDeposit
+        | ClipColour::PrecipitateCloud
+        | ClipColour::Precipitate
+        | ClipColour::SolutionInitial
+        | ClipColour::SolutionFinal
+        | ClipColour::OriginalMetal
+        | ClipColour::DepositedMetal
+        | ClipColour::MetalErosion => rgba(&gas_evolution.gas_product, 0.18),
+    }
+}
+
+fn precipitation_track_colour(
+    colour: ClipColour,
+    precipitation: &chem_presentation::PrecipitationVisualProfile,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> [f32; 4] {
+    let rgba = |bound: &chem_presentation::BoundVisualColour, opacity| {
+        let base = [
+            f32::from(bound.base_colour.red) / 255.0,
+            f32::from(bound.base_colour.green) / 255.0,
+            f32::from(bound.base_colour.blue) / 255.0,
+            opacity,
+        ];
+        let target = [
+            f32::from(bound.colour.red) / 255.0,
+            f32::from(bound.colour.green) / 255.0,
+            f32::from(bound.colour.blue) / 255.0,
+            opacity,
+        ];
+        let amount = bound
+            .transition_ordinal
+            .map_or(1.0, |start| match ordinal.cmp(&start) {
+                std::cmp::Ordering::Less => 0.0,
+                std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+                std::cmp::Ordering::Greater => 1.0,
+            });
+        [
+            base[0] + (target[0] - base[0]) * amount,
+            base[1] + (target[1] - base[1]) * amount,
+            base[2] + (target[2] - base[2]) * amount,
+            opacity,
+        ]
+    };
+    match colour {
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        ClipColour::LiquidInitial => rgba(&precipitation.initial_liquid, 0.34),
+        ClipColour::LiquidAdded => rgba(&precipitation.added_liquid, 0.36),
+        ClipColour::PrecipitateCloud => rgba(&precipitation.precipitate, 0.20),
+        ClipColour::Precipitate
+        | ClipColour::Water
+        | ClipColour::WaterHighlight
+        | ClipColour::ReactiveMetal
+        | ClipColour::FlameOuter
+        | ClipColour::FlameInner
+        | ClipColour::FlameCore
+        | ClipColour::FizzBubble
+        | ClipColour::Vapour
+        | ClipColour::MixtureA
+        | ClipColour::MixtureB
+        | ClipColour::SaltResidue
+        | ClipColour::Fuel
+        | ClipColour::IgnitionSpark
+        | ClipColour::ProductPlume
+        | ClipColour::CombustionSmoke
+        | ClipColour::Soot
+        | ClipColour::SootDeposit
+        | ClipColour::GasBubble
+        | ClipColour::GasCloud
+        | ClipColour::SolidReactant
+        | ClipColour::SolutionInitial
+        | ClipColour::SolutionFinal
+        | ClipColour::OriginalMetal
+        | ClipColour::DepositedMetal
+        | ClipColour::MetalErosion => rgba(&precipitation.precipitate, 1.0),
+    }
+}
+
+fn combustion_track_colour(colour: ClipColour, fuel: [f32; 4], incomplete: bool) -> [f32; 4] {
+    match colour {
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        ClipColour::Fuel
+        | ClipColour::Water
+        | ClipColour::WaterHighlight
+        | ClipColour::ReactiveMetal
+        | ClipColour::FizzBubble
+        | ClipColour::Vapour
+        | ClipColour::MixtureA
+        | ClipColour::MixtureB
+        | ClipColour::SaltResidue
+        | ClipColour::LiquidInitial
+        | ClipColour::LiquidAdded
+        | ClipColour::PrecipitateCloud
+        | ClipColour::Precipitate
+        | ClipColour::SolidReactant
+        | ClipColour::SolutionInitial
+        | ClipColour::SolutionFinal
+        | ClipColour::OriginalMetal
+        | ClipColour::DepositedMetal
+        | ClipColour::MetalErosion => fuel,
+        ClipColour::FlameOuter if incomplete => [1.0, 0.24, 0.025, 0.58],
+        ClipColour::FlameInner if incomplete => [1.0, 0.60, 0.06, 0.82],
+        ClipColour::FlameCore if incomplete => [1.0, 0.92, 0.45, 0.96],
+        ClipColour::FlameOuter => [0.10, 0.31, 0.98, 0.52],
+        ClipColour::FlameInner => [0.16, 0.66, 1.0, 0.82],
+        ClipColour::FlameCore => [0.78, 0.96, 1.0, 0.98],
+        ClipColour::IgnitionSpark => [1.0, 0.74, 0.14, 0.95],
+        ClipColour::ProductPlume | ClipColour::GasBubble | ClipColour::GasCloud => {
+            [0.84, 0.89, 0.93, 0.14]
+        }
+        ClipColour::CombustionSmoke => [0.10, 0.105, 0.11, 0.46],
+        ClipColour::Soot => [0.055, 0.050, 0.047, 0.96],
+        ClipColour::SootDeposit => [0.075, 0.068, 0.062, 0.48],
+    }
+}
+
+fn add_neutralisation_supplemental_reactants(
+    meshes: &mut SceneMeshes,
+    moment: NeutralisationAssemblyMoment<'_>,
+    vessel_motion: Vec3,
+) {
+    let NeutralisationAssemblyMoment {
+        plan,
+        layout,
+        visual_inputs,
+        ordinal,
+        ordinal_progress,
+        ..
+    } = moment;
+    for object in plan.objects.iter().filter(|object| {
+        object.role == SceneRole::Reactant
+            && !matches!(
+                object.asset,
+                AssetProfile::LiquidVolume | AssetProfile::GasCloud
+            )
+            && object.visible_from_ordinal <= ordinal
+    }) {
+        let scale = object_scale_from_effects(plan, object.role, ordinal, ordinal_progress)
+            * object_replacement_scale(plan, object, ordinal, ordinal_progress);
+        if scale <= f32::EPSILON {
+            continue;
+        }
+        let motion = object_motion(
+            plan,
+            object,
+            ordinal,
+            ordinal_progress,
+            reaction_surface_motion(plan, ordinal, ordinal_progress),
+        );
+        instantiate_asset(
+            meshes,
+            object.asset,
+            object.appearance,
+            &object.transform,
+            scale,
+            layout.object_offset(object) + motion.translation + vessel_motion,
+            motion.rotation,
+            stable_seed(&object.id),
+            visual_inputs,
+            continuous_phase(ordinal, ordinal_progress),
+            1.0,
+            object_colour_transition(object, ordinal, ordinal_progress),
+        );
+    }
+}
+
+fn add_neutralisation_reaction_gas(
+    meshes: &mut SceneMeshes,
+    moment: NeutralisationAssemblyMoment<'_>,
+    vessel_motion: Vec3,
+) {
+    let NeutralisationAssemblyMoment {
+        layout,
+        post_process,
+        seed,
+        visual_inputs,
+        effect_colours,
+        ordinal,
+        ordinal_progress,
+        ..
+    } = moment;
+    let reaction_gas = (visual_inputs.gas_generation_rate - post_process.vapour * 0.72).max(0.0);
+    if reaction_gas > 0.002 {
+        add_gas_density_field(
+            &mut meshes.gas,
+            Vec3::new(
+                layout.vessel_center.x,
+                layout.liquid_surface + vessel_motion.y * 0.45 + 0.18,
+                layout.vessel_center.z,
+            ),
+            Vec3::new(0.48, 0.68, 0.48),
+            alpha(
+                effect_colours.gas,
+                effect_colours.gas[3].max(0.18) * reaction_gas,
+            ),
+            seed.rotate_left(17),
+            continuous_phase(ordinal, ordinal_progress),
+            reaction_gas,
+            GasFlowControls::escaping(
+                reaction_gas,
+                0.34 + reaction_gas * 0.26,
+                0.78,
+                seed.rotate_left(17),
+            ),
+        );
+    }
+}
+
+fn neutralisation_vessel_motion(clip: &AnimatedClip, frame: f32) -> Vec3 {
+    let anchor = clip
+        .tracks
+        .iter()
+        .find(|track| track.module == ClipModule::VesselAnchor)
+        .expect("validated neutralisation clip has a vessel anchor");
+    clip.sample(anchor, 0, frame).position - clip.sample(anchor, 0, 0.0).position
+}
+
+fn append_shared_beaker(
+    mesh: &mut Mesh,
+    shared_clip: &AnimatedClip,
+    bench_top: f32,
+    vessel_motion: Vec3,
+) {
+    const MODEL_SCALE: f32 = 0.45;
+    for track in shared_clip
+        .tracks
+        .iter()
+        .filter(|track| track.module == ClipModule::Beaker)
+    {
+        let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+        mesh.vertices.reserve(track.vertex_count);
+        mesh.indices.reserve(track.indices.len());
+        for vertex_index in 0..track.vertex_count {
+            let vertex = shared_clip.sample(track, vertex_index, 0.0);
+            mesh.vertices.push(Vertex {
+                position: ((vertex.position + vessel_motion) * MODEL_SCALE + Vec3::Y * bench_top)
+                    .to_array(),
+                normal: vertex.normal.to_array(),
+                color: [0.62, 0.84, 0.94, 0.22],
+            });
+        }
+        mesh.indices.extend(
+            track
+                .indices
+                .iter()
+                .map(|index| index.saturating_add(vertex_offset)),
+        );
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NeutralisationColours {
+    liquid: [f32; 4],
+    liquid_highlight: [f32; 4],
+    mixing_a: [f32; 4],
+    mixing_b: [f32; 4],
+    salt: [f32; 4],
+}
+
+fn neutralisation_colours(
+    plan: &ScenePlan,
+    effect_colours: EffectColours,
+    frame: f32,
+) -> NeutralisationColours {
+    let contents = plan.objects.iter().find(|object| {
+        object.role == SceneRole::Contents && object.asset == AssetProfile::LiquidVolume
+    });
+    let colourless = appearance_color(AppearanceProfile::AqueousColourless);
+    let authored_mix = ((frame - 12.0) / 108.0).clamp(0.0, 1.0);
+    let authored_mix = authored_mix * authored_mix * (3.0 - 2.0 * authored_mix);
+    let liquid = contents.map_or(effect_colours.liquid, |object| {
+        if object.colour_transition.is_some() {
+            effect_colours.liquid
+        } else if matches!(object.appearance, AppearanceProfile::ReviewedColour(_)) {
+            mix_color(colourless, effect_colours.liquid, authored_mix)
+        } else {
+            effect_colours.liquid
+        }
+    });
+    let salt_rgb = contents
+        .and_then(|object| {
+            object
+                .colour_transition
+                .as_ref()
+                .map(|transition| transition.target)
+                .or(match object.appearance {
+                    AppearanceProfile::ReviewedColour(colour) => Some(colour),
+                    _ => None,
+                })
+        })
+        .map_or([0.92, 0.93, 0.89, 1.0], |colour| {
+            [
+                f32::from(colour.red) / 255.0,
+                f32::from(colour.green) / 255.0,
+                f32::from(colour.blue) / 255.0,
+                1.0,
+            ]
+        });
+    NeutralisationColours {
+        liquid,
+        liquid_highlight: alpha(mix_color(liquid, [0.95, 0.98, 1.0, liquid[3]], 0.48), 0.42),
+        mixing_a: alpha(mix_color(colourless, liquid, 0.42), liquid[3].max(0.18)),
+        mixing_b: alpha(mix_color(colourless, liquid, 0.84), liquid[3].max(0.20)),
+        salt: salt_rgb,
+    }
+}
+
+fn neutralisation_track_colour(colour: ClipColour, colours: NeutralisationColours) -> [f32; 4] {
+    let gentle_flame = flame_colours(FlamePalette::Natural);
+    match colour {
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        ClipColour::Water | ClipColour::Fuel => colours.liquid,
+        ClipColour::WaterHighlight => colours.liquid_highlight,
+        ClipColour::FlameOuter => gentle_flame.body_low,
+        ClipColour::FlameInner => gentle_flame.body_high,
+        ClipColour::FlameCore => gentle_flame.core,
+        ClipColour::FizzBubble | ClipColour::GasBubble => [0.82, 0.94, 0.98, 0.36],
+        ClipColour::MixtureA => colours.mixing_a,
+        ClipColour::MixtureB => colours.mixing_b,
+        ClipColour::SaltResidue
+        | ClipColour::LiquidInitial
+        | ClipColour::LiquidAdded
+        | ClipColour::PrecipitateCloud
+        | ClipColour::Precipitate
+        | ClipColour::SolidReactant
+        | ClipColour::SolutionInitial
+        | ClipColour::SolutionFinal
+        | ClipColour::OriginalMetal
+        | ClipColour::DepositedMetal
+        | ClipColour::MetalErosion => colours.salt,
+        ClipColour::ReactiveMetal => [0.88, 0.90, 0.92, 1.0],
+        ClipColour::Vapour | ClipColour::ProductPlume | ClipColour::GasCloud => {
+            [0.86, 0.90, 0.92, 0.16]
+        }
+        ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
+        ClipColour::CombustionSmoke => [0.10, 0.105, 0.11, 0.46],
+        ClipColour::Soot => [0.055, 0.050, 0.047, 0.96],
+        ClipColour::SootDeposit => [0.075, 0.068, 0.062, 0.48],
+    }
+}
+
+fn animated_track_enabled(
+    track: &ClipTrack,
+    track_index: usize,
+    style: AnimatedAlkaliWaterStyle,
+    seed: u64,
+) -> bool {
+    if track.module == ClipModule::Flame {
+        return style.flame.is_some();
+    }
+    let retention = match track.module {
+        ClipModule::Bubbles => style.activity,
+        ClipModule::Splashes => ((style.activity - 0.18) / 0.82).clamp(0.18, 1.0),
+        ClipModule::Vapour => (style.activity * 0.86).clamp(0.28, 1.0),
+        ClipModule::Water if track.colour == ClipColour::WaterHighlight => {
+            (0.34 + style.activity * 0.66).clamp(0.0, 1.0)
+        }
+        ClipModule::Beaker | ClipModule::Water | ClipModule::Metal => 1.0,
+        ClipModule::Mixing
+        | ClipModule::Salt
+        | ClipModule::Stirrer
+        | ClipModule::VesselAnchor
+        | ClipModule::Sparks
+        | ClipModule::Plume
+        | ClipModule::Soot
+        | ClipModule::PrecipitateCloud
+        | ClipModule::FallingPrecipitate
+        | ClipModule::PouringVessel
+        | ClipModule::Sediment
+        | ClipModule::SurfaceBursts
+        | ClipModule::SolidReactant
+        | ClipModule::InitialSolution
+        | ClipModule::FinalSolution
+        | ClipModule::OriginalMetal
+        | ClipModule::MetalErosion
+        | ClipModule::MetalDeposit
+        | ClipModule::MetalFlakes => 0.0,
+        ClipModule::Flame => unreachable!("flame handled above"),
+    };
+    let index = u32::try_from(track_index).unwrap_or(u32::MAX);
+    seeded_unit(seed, index, 211) <= retention
+}
+
+fn animated_track_colour(colour: ClipColour, style: AnimatedAlkaliWaterStyle) -> [f32; 4] {
+    let flame = flame_colours(style.flame.unwrap_or(FlamePalette::Natural));
+    match colour {
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        ClipColour::Water => [0.34, 0.64, 0.80, 0.34],
+        ClipColour::WaterHighlight => [0.72, 0.90, 0.98, 0.46],
+        ClipColour::ReactiveMetal => [0.88, 0.90, 0.92, 1.0],
+        ClipColour::FlameOuter => flame.body_high,
+        ClipColour::FlameInner => flame.body_low,
+        ClipColour::FlameCore => flame.core,
+        ClipColour::FizzBubble | ClipColour::GasBubble => [0.80, 0.94, 1.0, 0.30 * style.activity],
+        ClipColour::Vapour => [0.84, 0.88, 0.92, 0.13 + style.activity * 0.06],
+        ClipColour::MixtureA
+        | ClipColour::MixtureB
+        | ClipColour::SaltResidue
+        | ClipColour::LiquidInitial
+        | ClipColour::LiquidAdded
+        | ClipColour::PrecipitateCloud
+        | ClipColour::Precipitate
+        | ClipColour::SolidReactant
+        | ClipColour::SolutionInitial
+        | ClipColour::SolutionFinal
+        | ClipColour::OriginalMetal
+        | ClipColour::DepositedMetal
+        | ClipColour::MetalErosion => [0.82, 0.86, 0.88, 0.20],
+        ClipColour::Fuel => [0.88, 0.82, 0.54, 0.30],
+        ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
+        ClipColour::ProductPlume | ClipColour::GasCloud => [0.86, 0.90, 0.92, 0.16],
+        ClipColour::CombustionSmoke => [0.10, 0.105, 0.11, 0.46],
+        ClipColour::Soot => [0.055, 0.050, 0.047, 0.96],
+        ClipColour::SootDeposit => [0.075, 0.068, 0.062, 0.48],
+    }
+}
+
+fn append_animated_track(
+    mesh: &mut Mesh,
+    clip: &AnimatedClip,
+    track: &ClipTrack,
+    frame: f32,
+    bench_top: f32,
+    activity: f32,
+    colour: [f32; 4],
+) {
+    const MODEL_SCALE: f32 = 0.45;
+    let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.reserve(track.vertex_count);
+    mesh.indices.reserve(track.indices.len());
+    for vertex_index in 0..track.vertex_count {
+        let current = clip.sample(track, vertex_index, frame);
+        let initial = if matches!(track.module, ClipModule::Water | ClipModule::Metal) {
+            clip.sample(track, vertex_index, 0.0)
+        } else {
+            current
+        };
+        let ClipVertex {
+            mut position,
+            normal,
+        } = current;
+        match track.module {
+            ClipModule::Water => {
+                position = initial.position.lerp(position, 0.28 + activity * 0.72);
+            }
+            ClipModule::Metal => {
+                position.x = initial.position.x + (position.x - initial.position.x) * activity;
+                position.z = initial.position.z + (position.z - initial.position.z) * activity;
+            }
+            ClipModule::Beaker
+            | ClipModule::Flame
+            | ClipModule::Bubbles
+            | ClipModule::Splashes
+            | ClipModule::Vapour
+            | ClipModule::Mixing
+            | ClipModule::Salt
+            | ClipModule::Stirrer
+            | ClipModule::Sparks
+            | ClipModule::Plume
+            | ClipModule::Soot
+            | ClipModule::PrecipitateCloud
+            | ClipModule::FallingPrecipitate
+            | ClipModule::PouringVessel
+            | ClipModule::Sediment
+            | ClipModule::SurfaceBursts
+            | ClipModule::SolidReactant
+            | ClipModule::InitialSolution
+            | ClipModule::FinalSolution
+            | ClipModule::OriginalMetal
+            | ClipModule::MetalErosion
+            | ClipModule::MetalDeposit
+            | ClipModule::MetalFlakes => {}
+            ClipModule::VesselAnchor => {
+                unreachable!("anchor tracks are not renderable geometry");
+            }
+        }
+        mesh.vertices.push(Vertex {
+            position: (position * MODEL_SCALE + Vec3::Y * bench_top).to_array(),
+            normal: normal.to_array(),
+            color: colour,
+        });
+    }
+    mesh.indices.extend(
+        track
+            .indices
+            .iter()
+            .map(|index| index.saturating_add(vertex_offset)),
+    );
+}
+
+fn add_imported_metal(mesh: &mut Mesh, base_center: Vec3, scale: Vec3, color: [f32; 4]) {
+    let source = embedded_metal_mesh();
+    let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    let model_scale = scale * Vec3::new(1.0, 0.78, 1.0);
+    mesh.vertices.reserve(source.vertices.len());
+    mesh.indices.reserve(source.indices.len());
+    mesh.vertices.extend(source.vertices.iter().map(|vertex| {
+        let normal_scale = Vec3::new(
+            model_scale.x.abs().max(0.001).recip(),
+            model_scale.y.abs().max(0.001).recip(),
+            model_scale.z.abs().max(0.001).recip(),
+        );
+        Vertex {
+            position: (base_center + vertex.position * model_scale).to_array(),
+            normal: (vertex.normal * normal_scale)
+                .normalize_or_zero()
+                .to_array(),
+            color,
+        }
+    }));
+    mesh.indices.extend(
+        source
+            .indices
+            .iter()
             .map(|index| index.saturating_add(vertex_offset)),
     );
 }
@@ -3485,47 +4891,6 @@ fn add_shard(
     }
 }
 
-fn add_irregular_chunk(mesh: &mut Mesh, center: Vec3, size: Vec3, color: [f32; 4], seed: u64) {
-    let half = size * 0.5;
-    let mut corners = [Vec3::ZERO; 8];
-    for (index, corner) in corners.iter_mut().enumerate() {
-        let sign = Vec3::new(
-            if index & 1 == 0 { -1.0 } else { 1.0 },
-            if index & 2 == 0 { -1.0 } else { 1.0 },
-            if index & 4 == 0 { -1.0 } else { 1.0 },
-        );
-        let jitter = Vec3::new(
-            seeded_variation(seed, index * 3),
-            seeded_variation(seed, index * 3 + 1) * 0.45,
-            seeded_variation(seed, index * 3 + 2),
-        );
-        *corner = center + sign * half * (Vec3::ONE + jitter);
-    }
-    let faces = [
-        [0, 1, 3, 2],
-        [5, 4, 6, 7],
-        [4, 0, 2, 6],
-        [1, 5, 7, 3],
-        [2, 3, 7, 6],
-        [4, 5, 1, 0],
-    ];
-    for indices in faces {
-        let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-        let normal = (corners[indices[1]] - corners[indices[0]])
-            .cross(corners[indices[2]] - corners[indices[0]])
-            .normalize_or_zero();
-        for index in indices {
-            mesh.vertices.push(Vertex {
-                position: corners[index].to_array(),
-                normal: normal.to_array(),
-                color,
-            });
-        }
-        mesh.indices
-            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    }
-}
-
 fn seeded_variation(seed: u64, component: usize) -> f32 {
     let mixed = seed
         .wrapping_add(u64::try_from(component).unwrap_or(u64::MAX))
@@ -3643,7 +5008,10 @@ mod tests {
 
     #[test]
     fn fixed_camera_has_no_interaction_state_and_frames_vessel_size_deterministically() {
-        let plan = canonical_plan();
+        let plan = plan_for(chemistry::ReactionRequest::acid_carbonate_gas_evolution(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
         let camera = fixed_camera_pose(&plan);
         assert_eq!(std::mem::size_of::<FixedCameraState>(), 0);
         assert!(camera.pitch < -0.5);
@@ -4392,10 +5760,26 @@ mod tests {
             assert!(inputs.gas_generation_rate > 0.0);
             assert!(inputs.bubble_rate > 0.0);
             assert!(inputs.liquid_turbulence > 0.0);
-            let gas_splats = build_scene(&plan, gas_start, 0.5).4;
+            let scene = build_scene(&plan, gas_start, 0.5);
+            if plan
+                .objects
+                .iter()
+                .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly)
+            {
+                assert!(
+                    scene.4.is_empty(),
+                    "the supplied assembly must not be overlaid with procedural gas"
+                );
+                assert!(
+                    scene.0.len() > 1_000,
+                    "the modular authored reaction should supply its own visible geometry"
+                );
+                continue;
+            }
+            let gas_splats = scene.4;
             assert!(
                 gas_splats.len() > 220,
-                "a gas-producing reaction should build a dense shared headspace volume"
+                "a generic gas-producing reaction should build a dense shared headspace volume"
             );
             let (minimum_y, maximum_y) = gas_splats.iter().map(|splat| splat.center[1]).fold(
                 (f32::INFINITY, f32::NEG_INFINITY),
@@ -4704,6 +6088,113 @@ mod tests {
     }
 
     #[test]
+    fn supplied_metal_asset_is_a_valid_normalized_embedded_mesh() {
+        let mesh = parse_embedded_mesh(METAL_MESH_BYTES).expect("baked metal mesh is valid");
+        assert_eq!(mesh.vertices.len(), 2_321);
+        assert_eq!(mesh.indices.len(), 13_914);
+        assert!(
+            mesh.indices
+                .iter()
+                .all(|index| usize::try_from(*index).is_ok_and(|index| index < mesh.vertices.len()))
+        );
+        let (minimum, maximum) = mesh.vertices.iter().fold(
+            (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+            |(minimum, maximum), vertex| {
+                (minimum.min(vertex.position), maximum.max(vertex.position))
+            },
+        );
+        assert!(minimum.y.abs() < 0.000_01);
+        assert!((maximum - minimum).max_element() <= 1.000_01);
+        assert!(
+            mesh.vertices
+                .iter()
+                .all(|vertex| { (vertex.normal.length() - 1.0).abs() < 0.000_1 })
+        );
+    }
+
+    #[test]
+    fn surface_oxidation_without_trusted_colour_keeps_the_original_metal_appearance() {
+        let request = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("reviewed sodium oxidation exists");
+        let plan = plan_for(request);
+        let layout = SceneLayout::resolve(&plan);
+        assert!(!layout.has_vessel);
+        assert!(
+            plan.objects
+                .iter()
+                .all(|object| object.role != SceneRole::Vessel)
+        );
+        let metal = plan
+            .objects
+            .iter()
+            .find(|object| object.asset == AssetProfile::MetalChunk)
+            .expect("surface scene has one imported metal");
+        let effect = plan
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+            .expect("typed oxidation effect exists");
+        assert!(surface_oxidation_transition(&plan, metal, effect.start_ordinal, 0.0).is_none());
+        assert!(surface_oxidation_transition(&plan, metal, effect.end_ordinal, 1.0).is_none());
+        assert!((layout.reaction_point.y - layout.bench_top).abs() < 0.01);
+        assert_eq!(
+            object_motion(&plan, metal, effect.start_ordinal, 0.5, Vec3::ZERO).translation,
+            Vec3::ZERO
+        );
+
+        let mut mesh = Mesh::default();
+        add_imported_metal(
+            &mut mesh,
+            layout.reaction_point,
+            transform_scale(&metal.transform),
+            [0.88, 0.90, 0.92, 1.0],
+        );
+        assert!(mesh.vertices.iter().all(|vertex| {
+            vertex.color[..3]
+                .iter()
+                .zip([0.88, 0.90, 0.92])
+                .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
+        }));
+    }
+
+    #[test]
+    fn surface_oxidation_uses_product_bound_effect_colour_when_available() {
+        let request = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("reviewed sodium oxidation exists");
+        let mut plan = plan_for(request);
+        let effect = plan
+            .effects
+            .iter_mut()
+            .find(|effect| effect.effect == EffectProfile::SurfaceOxidation)
+            .expect("typed oxidation effect exists");
+        effect.surface_oxide_colour = Some(chem_presentation::SurfaceOxideColour {
+            product_binding: "oxide".to_owned(),
+            target: VisualColour {
+                red: 0xb9,
+                green: 0x42,
+                blue: 0x3b,
+            },
+            authority: chem_presentation::MacroscopicColourAuthority::ModelAsserted,
+        });
+        let ordinal = effect.end_ordinal;
+        let metal = plan
+            .objects
+            .iter()
+            .find(|object| object.asset == AssetProfile::MetalChunk)
+            .expect("surface scene has one imported metal");
+        let transition = surface_oxidation_transition(&plan, metal, ordinal, 1.0)
+            .expect("surface transition is bound");
+        assert_eq!(
+            transition.target,
+            VisualColour {
+                red: 0xb9,
+                green: 0x42,
+                blue: 0x3b,
+            }
+        );
+    }
+
+    #[test]
     fn gas_forms_stays_in_vessel_while_gas_evolves_can_feed_the_open_rim() {
         let render_release = |request: chemistry::ReactionRequest| {
             let plan = plan_for(request);
@@ -4822,7 +6313,12 @@ mod tests {
             .min()
             .expect("alkali-water profile has observation-backed effects");
         let reacting = build_scene(&plan, reacting_ordinal, 0.5);
-        assert!(reacting.0.len() > before.0.len());
+        assert_eq!(reacting.0.len(), before.0.len());
+        assert_ne!(
+            bytemuck::cast_slice::<Vertex, u8>(&reacting.0),
+            bytemuck::cast_slice::<Vertex, u8>(&before.0),
+            "authored tracks should deform and move continuously without entity churn"
+        );
         assert!(plan.effects.iter().any(|effect| {
             effect.effect == EffectProfile::SurfaceDisturbance
                 || effect.effect == EffectProfile::SplashEmitter
@@ -4830,6 +6326,31 @@ mod tests {
         let camera = fixed_camera_pose(&plan);
         assert!(camera.pitch < -0.5);
         assert_eq!(camera, fixed_camera_pose(&plan));
+    }
+
+    #[test]
+    fn authored_clip_advances_uniformly_across_chemistry_beat_boundaries() {
+        let plan = canonical_plan();
+        let duration = plan.timeline.duration_ms();
+        let clip = alkali_water_clip();
+        let frames = (0..=4_u64)
+            .map(|quarter| {
+                let elapsed = duration.saturating_mul(quarter) / 4;
+                let moment = plan
+                    .timeline
+                    .locate(elapsed)
+                    .expect("quarter-time sample exists");
+                clip.frame_at_progress(plan.timeline.normalized_progress_at(moment))
+            })
+            .collect::<Vec<_>>();
+        let deltas = frames
+            .windows(2)
+            .map(|window| window[1] - window[0])
+            .collect::<Vec<_>>();
+        assert!(
+            deltas.iter().all(|delta| (*delta - deltas[0]).abs() < 0.05),
+            "unequal chemistry beats must not alter authored clip speed: {deltas:?}"
+        );
     }
 
     #[test]
@@ -4883,10 +6404,9 @@ mod tests {
             let visible = build_scene(&plan, transition.start_ordinal, 1.0);
 
             let has_expected_colour = |vertex: &Vertex| {
-                vertex
-                    .color
+                vertex.color[..3]
                     .iter()
-                    .zip(expected)
+                    .zip(expected[..3].iter())
                     .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
             };
             assert!(!before.0.iter().any(has_expected_colour));
@@ -4968,8 +6488,13 @@ mod tests {
 
         let before = build_scene(&plan, mixing.start_ordinal.saturating_sub(1), 0.5);
         let active = build_scene(&plan, mixing.start_ordinal, 0.5);
-        assert!(active.0.len() > before.0.len());
-        assert!(active.1.len() > before.1.len());
+        assert_eq!(active.0.len(), before.0.len());
+        assert_eq!(active.1.len(), before.1.len());
+        assert_ne!(
+            bytemuck::cast_slice::<Vertex, u8>(&active.0),
+            bytemuck::cast_slice::<Vertex, u8>(&before.0),
+            "authored mixing tracks should move without per-frame entity churn"
+        );
 
         let colourless = appearance_color(AppearanceProfile::AqueousColourless);
         assert!((colourless[2] - colourless[0]).abs() < 0.12);
@@ -5024,15 +6549,521 @@ mod tests {
 
         let crystals = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
         let repeated = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
+        let clip = neutralisation_clip();
+        let salt = clip
+            .tracks
+            .iter()
+            .find(|track| track.module == ClipModule::Salt)
+            .expect("authored clip contains salt residue");
+        let early_size = clip
+            .sample(salt, 0, 170.0)
+            .position
+            .distance(clip.sample(salt, 1, 170.0).position);
+        let final_size = clip
+            .sample(salt, 0, 231.0)
+            .position
+            .distance(clip.sample(salt, 1, 231.0).position);
         assert!(
-            crystals.2 > boiling.2,
-            "faceted salt residue must add persistent opaque geometry"
+            final_size > early_size * 4.0,
+            "faceted salt residue must grow from the authored nucleation scale"
+        );
+        assert_ne!(
+            bytemuck::cast_slice::<Vertex, u8>(&crystals.0),
+            bytemuck::cast_slice::<Vertex, u8>(&boiling.0)
         );
         assert_eq!(
             bytemuck::cast_slice::<Vertex, u8>(&crystals.0),
             bytemuck::cast_slice::<Vertex, u8>(&repeated.0)
         );
         assert_eq!(crystals.1, repeated.1);
+    }
+
+    #[test]
+    fn neutralisation_assembly_reuses_beaker_motion_and_has_a_gentle_orange_flame() {
+        let plan = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        assert!(plan.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && object.asset == AssetProfile::NeutralisationEvaporationAssembly
+        }));
+
+        let clip = neutralisation_clip();
+        let lifted_motion = neutralisation_vessel_motion(clip, 139.0);
+        assert!(lifted_motion.y > 0.5);
+        let mut shared_beaker = Mesh::default();
+        append_shared_beaker(
+            &mut shared_beaker,
+            alkali_water_clip(),
+            -0.76,
+            lifted_motion,
+        );
+        let expected_vertices = alkali_water_clip()
+            .tracks
+            .iter()
+            .filter(|track| track.module == ClipModule::Beaker)
+            .map(|track| track.vertex_count)
+            .sum::<usize>();
+        assert_eq!(shared_beaker.vertices.len(), expected_vertices);
+
+        let neutralisation_colours =
+            neutralisation_colours(&plan, scene_effect_colours(&plan, 0, 0.0), 0.0);
+        for colour in [
+            neutralisation_track_colour(ClipColour::FlameOuter, neutralisation_colours),
+            neutralisation_track_colour(ClipColour::FlameInner, neutralisation_colours),
+            neutralisation_track_colour(ClipColour::FlameCore, neutralisation_colours),
+        ] {
+            assert!(
+                colour[0] > colour[2] && colour[1] > colour[2],
+                "the heating flame should be orange rather than lilac: {colour:?}"
+            );
+        }
+        let potassium_flame = animated_track_colour(
+            ClipColour::FlameOuter,
+            AnimatedAlkaliWaterStyle {
+                activity: 1.0,
+                flame: Some(FlamePalette::Lilac),
+            },
+        );
+        let expected_lilac = flame_colours(FlamePalette::Lilac).body_high;
+        assert!(
+            potassium_flame
+                .iter()
+                .zip(expected_lilac)
+                .all(|(actual, expected)| (actual - expected).abs() <= f32::EPSILON),
+            "neutralisation styling must not recolour potassium ignition"
+        );
+    }
+
+    #[test]
+    fn precipitation_assembly_uses_absolute_six_second_playback_and_persistent_sediment() {
+        let plan = plan_for(chemistry::ReactionRequest::silver_halide_precipitation(
+            chemistry::Halogen::Bromine,
+        ));
+        let precipitation = plan
+            .precipitation
+            .as_ref()
+            .expect("validated precipitation metadata reaches the scene plan");
+        assert!(plan.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && object.asset == AssetProfile::AqueousPrecipitationAssembly
+        }));
+        let start_ms = plan
+            .timeline
+            .start_ms_for_ordinal(precipitation.formation_ordinal)
+            .expect("formation ordinal begins an authored beat");
+        assert_eq!(plan.timeline.duration_ms() - start_ms, 6_000);
+
+        let midpoint = plan
+            .timeline
+            .locate(start_ms + 3_000)
+            .expect("midpoint is on the timeline");
+        let first_sample = build_scene_at(&plan, midpoint);
+        let _later_sample = build_scene_at(
+            &plan,
+            plan.timeline
+                .locate(start_ms + 5_000)
+                .expect("later sample is on the timeline"),
+        );
+        let repeated_midpoint = build_scene_at(&plan, midpoint);
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&first_sample.0),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated_midpoint.0)
+        );
+        assert_eq!(first_sample.1, repeated_midpoint.1);
+
+        let clip = precipitation_clip();
+        let surface_area = |module| {
+            clip.tracks
+                .iter()
+                .filter(|track| track.module == module)
+                .flat_map(|track| {
+                    track.indices.chunks_exact(3).map(move |triangle| {
+                        let a = clip
+                            .sample(
+                                track,
+                                usize::try_from(triangle[0]).expect("vertex index"),
+                                179.0,
+                            )
+                            .position;
+                        let b = clip
+                            .sample(
+                                track,
+                                usize::try_from(triangle[1]).expect("vertex index"),
+                                179.0,
+                            )
+                            .position;
+                        let c = clip
+                            .sample(
+                                track,
+                                usize::try_from(triangle[2]).expect("vertex index"),
+                                179.0,
+                            )
+                            .position;
+                        (b - a).cross(c - a).length() * 0.5
+                    })
+                })
+                .sum::<f32>()
+        };
+        let cloud_area = surface_area(ClipModule::PrecipitateCloud);
+        let fragments_area = surface_area(ClipModule::FallingPrecipitate);
+        let sediment_area = surface_area(ClipModule::Sediment);
+        assert!(cloud_area < 0.001);
+        assert!(fragments_area < 0.001);
+        assert!(
+            sediment_area > 1.0,
+            "the settled sediment must remain as visible geometry"
+        );
+    }
+
+    #[test]
+    fn precipitation_product_rgb_reaches_cloud_and_sediment_with_separate_opacity() {
+        let plan = plan_for(chemistry::ReactionRequest::silver_halide_precipitation(
+            chemistry::Halogen::Iodine,
+        ));
+        let precipitation = plan
+            .precipitation
+            .as_ref()
+            .expect("precipitation has exact bound colours");
+        let transition_ordinal = precipitation
+            .precipitate
+            .transition_ordinal
+            .expect("validated colour observation retains its own ordinal");
+        let before_exact = precipitation_track_colour(
+            ClipColour::Precipitate,
+            precipitation,
+            transition_ordinal.saturating_sub(1),
+            1.0,
+        );
+        let cloud =
+            precipitation_track_colour(ClipColour::PrecipitateCloud, precipitation, u16::MAX, 1.0);
+        let sediment =
+            precipitation_track_colour(ClipColour::Precipitate, precipitation, u16::MAX, 1.0);
+        assert_eq!(cloud[..3], sediment[..3]);
+        assert!(cloud[3] < sediment[3]);
+        assert!((sediment[3] - 1.0).abs() < f32::EPSILON);
+        assert_ne!(
+            before_exact[..3],
+            sediment[..3],
+            "the exact `.chems` colour must not appear before its observation ordinal"
+        );
+    }
+
+    #[test]
+    fn metal_displacement_material_slots_keep_exact_rgb_and_phase_opacity() {
+        let bound =
+            |binding: &str, [red, green, blue]: [u8; 3]| chem_presentation::BoundVisualColour {
+                binding: binding.to_owned(),
+                base_colour: VisualColour { red, green, blue },
+                colour: VisualColour { red, green, blue },
+                transition_ordinal: None,
+            };
+        let visual = chem_presentation::MetalDisplacementVisualProfile {
+            formation_ordinal: 3,
+            initial_solution: bound("initial-solution", [0x42, 0x76, 0xb0]),
+            final_solution: bound("final-solution", [0xd8, 0xe3, 0xe8]),
+            original_metal: bound("original-metal", [0xc4, 0xc7, 0xc9]),
+            deposited_metal: bound("deposited-metal", [0xb9, 0x68, 0x46]),
+        };
+        let initial =
+            metal_displacement_track_colour(ClipColour::SolutionInitial, &visual, u16::MAX, 1.0);
+        let final_solution =
+            metal_displacement_track_colour(ClipColour::SolutionFinal, &visual, u16::MAX, 1.0);
+        let original =
+            metal_displacement_track_colour(ClipColour::OriginalMetal, &visual, u16::MAX, 1.0);
+        let deposited =
+            metal_displacement_track_colour(ClipColour::DepositedMetal, &visual, u16::MAX, 1.0);
+        let rgb = |[red, green, blue]: [u8; 3]| {
+            [
+                f32::from(red) / 255.0,
+                f32::from(green) / 255.0,
+                f32::from(blue) / 255.0,
+            ]
+        };
+        assert_eq!(initial[..3], rgb([0x42, 0x76, 0xb0]));
+        assert_eq!(final_solution[..3], rgb([0xd8, 0xe3, 0xe8]));
+        assert_eq!(original[..3], rgb([0xc4, 0xc7, 0xc9]));
+        assert_eq!(deposited[..3], rgb([0xb9, 0x68, 0x46]));
+        assert!(initial[3] < 1.0 && final_solution[3] < 1.0);
+        assert!((original[3] - 1.0).abs() < f32::EPSILON);
+        assert!((deposited[3] - 1.0).abs() < f32::EPSILON);
+        let erosion =
+            metal_displacement_track_colour(ClipColour::MetalErosion, &visual, u16::MAX, 1.0);
+        assert!(
+            erosion
+                .iter()
+                .zip([0.12, 0.13, 0.14, 1.0])
+                .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
+        );
+    }
+
+    fn authored_gas_plan(variant: GasEvolutionVariant) -> ScenePlan {
+        let mut plan = plan_for(chemistry::ReactionRequest::acid_carbonate_gas_evolution(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let generation_ordinal = plan
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::GasRelease)
+            .map_or(0, |effect| effect.start_ordinal);
+        let colour = |binding: &str, value: VisualColour| chem_presentation::BoundVisualColour {
+            binding: binding.to_owned(),
+            base_colour: value,
+            colour: value,
+            transition_ordinal: None,
+        };
+        plan.gas_evolution = Some(chem_presentation::GasEvolutionVisualProfile {
+            generation_ordinal,
+            variant,
+            initial_reactant: colour(
+                "initial-reactant",
+                VisualColour {
+                    red: 0x42,
+                    green: 0x74,
+                    blue: 0xaa,
+                },
+            ),
+            added_reactant: colour(
+                "added-reactant",
+                VisualColour {
+                    red: 0xd8,
+                    green: 0xb2,
+                    blue: 0x58,
+                },
+            ),
+            gas_product: colour(
+                "gas-product",
+                VisualColour {
+                    red: 0xa4,
+                    green: 0xd0,
+                    blue: 0x72,
+                },
+            ),
+        });
+        plan
+    }
+
+    #[test]
+    fn reviewed_bicarbonate_gas_evolution_selects_liquid_liquid_clip() {
+        let request = chemistry::ReactionRequest::acid_bicarbonate_gas_evolution(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        );
+        let run = chemistry::run(request).expect("request validates");
+        let profile = chemistry::presentation_profile_with_catalogue(
+            request,
+            run.frames(),
+            run.macroscopic(),
+        )
+        .expect("presentation compiles");
+        let plan = compile_real_world_plan(run.frames(), &profile).expect("trusted plan compiles");
+        assert_eq!(
+            plan.gas_evolution.as_ref().map(|visual| visual.variant),
+            Some(GasEvolutionVariant::LiquidLiquid),
+            "macroscopic inputs: {:?}",
+            run.macroscopic()
+        );
+    }
+
+    #[test]
+    fn gas_evolution_colours_reach_bubbles_plume_and_solid_without_changing_opacity() {
+        let plan = authored_gas_plan(GasEvolutionVariant::SolidLiquid);
+        let visual = plan.gas_evolution.as_ref().expect("authored gas profile");
+        let bubble = gas_evolution_track_colour(ClipColour::GasBubble, visual, u16::MAX, 1.0);
+        let plume = gas_evolution_track_colour(ClipColour::GasCloud, visual, u16::MAX, 1.0);
+        let solid = gas_evolution_track_colour(ClipColour::SolidReactant, visual, u16::MAX, 1.0);
+        assert_eq!(bubble[..3], plume[..3]);
+        assert!(plume[3] < bubble[3]);
+        assert_eq!(
+            solid[..3],
+            [
+                f32::from(visual.added_reactant.colour.red) / 255.0,
+                f32::from(visual.added_reactant.colour.green) / 255.0,
+                f32::from(visual.added_reactant.colour.blue) / 255.0,
+            ]
+        );
+        assert!((solid[3] - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn changing_gas_reactions_resets_to_the_new_absolute_clip_sample() {
+        let old = authored_gas_plan(GasEvolutionVariant::LiquidLiquid);
+        let new = authored_gas_plan(GasEvolutionVariant::SolidLiquid);
+        let old_reaction_duration = old
+            .timeline
+            .beats
+            .iter()
+            .take_while(|beat| beat.stage == MacroscopicStage::Reaction)
+            .fold(0_u64, |total, beat| {
+                total.saturating_add(u64::from(beat.duration_ms))
+            });
+        let old_end = old
+            .timeline
+            .locate(old_reaction_duration.saturating_sub(1))
+            .expect("old authored reaction endpoint");
+        let _ = build_scene_at(&old, old_end);
+
+        let new_start = new.timeline.locate(0).expect("new timeline starts");
+        let after_switch = build_scene_at(&new, new_start);
+        let fresh = build_scene_at(&new, new_start);
+        assert_eq!(after_switch.1, fresh.1);
+        assert_eq!(after_switch.2, fresh.2);
+        assert_eq!(after_switch.3, fresh.3);
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&after_switch.0),
+            bytemuck::cast_slice::<Vertex, u8>(&fresh.0),
+            "the new reaction must not retain prior transforms, material colours, or playhead"
+        );
+        assert_eq!(after_switch.4.len(), fresh.4.len());
+    }
+
+    #[test]
+    fn gas_evolution_renderer_contains_no_reaction_or_species_identity_branch() {
+        let source = include_str!("structural_3d.rs");
+        let start = source
+            .find("fn add_animated_gas_evolution_assembly")
+            .expect("gas-evolution renderer exists");
+        let end = source[start..]
+            .find("fn precipitation_track_colour")
+            .map(|offset| start + offset)
+            .expect("renderer function boundary exists");
+        let renderer = &source[start..end];
+        for forbidden in [
+            "ReactionRequest",
+            "reaction_name",
+            "formula",
+            "carbonate",
+            "metal_name",
+            "hydrocarbon",
+        ] {
+            assert!(
+                !renderer.contains(forbidden),
+                "renderer must not branch on `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
+    fn precipitation_renderer_contains_no_reaction_or_species_identity_branch() {
+        let source = include_str!("structural_3d.rs");
+        let start = source
+            .find("fn add_animated_precipitation_assembly")
+            .expect("precipitation renderer exists");
+        let end = source[start..]
+            .find("fn combustion_track_colour")
+            .map(|offset| start + offset)
+            .expect("renderer function boundary exists");
+        let renderer = &source[start..end];
+        for forbidden in [
+            "ReactionRequest",
+            "reaction_name",
+            "formula",
+            "silver",
+            "chloride",
+            "bromide",
+            "iodide",
+        ] {
+            assert!(
+                !renderer.contains(forbidden),
+                "renderer must not branch on `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
+    fn metal_displacement_renderer_contains_no_reaction_or_species_identity_branch() {
+        let source = include_str!("structural_3d.rs");
+        let start = source
+            .find("fn add_animated_metal_displacement_assembly")
+            .expect("metal-displacement renderer exists");
+        let end = source[start..]
+            .find("fn gas_evolution_track_colour")
+            .map(|offset| start + offset)
+            .expect("renderer function boundary exists");
+        let renderer = &source[start..end];
+        for forbidden in [
+            "ReactionRequest",
+            "reaction_name",
+            "formula",
+            "species_name",
+            "zinc",
+            "copper",
+            "silver",
+        ] {
+            assert!(
+                !renderer.contains(forbidden),
+                "renderer must not branch on `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
+    fn authored_combustion_materials_preserve_fuel_colour_and_distinguish_flames() {
+        let fuel = [0.78, 0.53, 0.20, 0.32];
+        for incomplete in [false, true] {
+            let mapped = combustion_track_colour(ClipColour::Fuel, fuel, incomplete);
+            assert!(
+                mapped
+                    .iter()
+                    .zip(fuel)
+                    .all(|(actual, expected)| (*actual - expected).abs() < f32::EPSILON)
+            );
+        }
+        let complete = combustion_track_colour(ClipColour::FlameOuter, fuel, false);
+        let incomplete = combustion_track_colour(ClipColour::FlameOuter, fuel, true);
+        assert!(
+            complete[2] > complete[0],
+            "complete flame should preserve the authored blue family"
+        );
+        assert!(
+            incomplete[0] > incomplete[2],
+            "incomplete flame should preserve the authored orange family"
+        );
+        assert!(combustion_track_colour(ClipColour::CombustionSmoke, fuel, true)[3] > 0.4);
+        assert!(combustion_track_colour(ClipColour::Soot, fuel, true)[3] > 0.9);
+    }
+
+    #[test]
+    fn neutralisation_assembly_diffuses_reviewed_liquid_colour_into_the_salt() {
+        let mut plan = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let blue = VisualColour {
+            red: 0x63,
+            green: 0x9d,
+            blue: 0xd0,
+        };
+        let contents = plan
+            .objects
+            .iter_mut()
+            .find(|object| object.role == SceneRole::Contents)
+            .expect("neutralisation contents");
+        contents.appearance = AppearanceProfile::ReviewedColour(blue);
+
+        let effect_colours = scene_effect_colours(&plan, 0, 0.0);
+        let initial = neutralisation_colours(&plan, effect_colours, 0.0);
+        let mixed = neutralisation_colours(&plan, effect_colours, 120.0);
+        let target = [
+            f32::from(blue.red) / 255.0,
+            f32::from(blue.green) / 255.0,
+            f32::from(blue.blue) / 255.0,
+        ];
+        assert!(
+            initial.liquid[..3]
+                .iter()
+                .zip(target)
+                .any(|(initial, target)| (initial - target).abs() > 0.05),
+            "the liquid must not jump to its product colour before mixing"
+        );
+        for (actual, expected) in mixed.liquid[..3].iter().zip(target) {
+            assert!((actual - expected).abs() < 0.000_01);
+        }
+        for (actual, expected) in mixed.salt[..3].iter().zip(target) {
+            assert!((actual - expected).abs() < 0.000_01);
+        }
     }
 
     #[test]
@@ -5044,9 +7075,13 @@ mod tests {
             .iter()
             .find(|object| object.role == SceneRole::Vessel)
             .expect("vessel exists");
-        let vessel_scale = transform_scale(&vessel.transform);
-        let vessel_base = layout.vessel_center.y - 0.55 * vessel_scale.y;
-        let vessel_rim = layout.vessel_center.y + 0.95 * vessel_scale.y;
+        assert_eq!(
+            vessel.asset,
+            AssetProfile::ReactiveMetalWaterAssembly,
+            "the authored vessel uses its own evaluated dimensions"
+        );
+        let vessel_base = layout.bench_top;
+        let vessel_rim = layout.bench_top + 1.8;
 
         assert!((vessel_base - layout.bench_top).abs() < 0.001);
         assert!(layout.liquid_center.y > layout.bench_top);

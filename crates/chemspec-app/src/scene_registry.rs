@@ -8,9 +8,10 @@ use chem_presentation::{AssetProfile, EffectIntensity, EffectProfile};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssetGeometry {
     Bench,
+    AnimatedAssembly,
     CylindricalVessel,
     LiquidCylinder,
-    LowPolyChunk,
+    ImportedMetal,
     ShardCluster,
     GasCluster,
 }
@@ -70,12 +71,18 @@ pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
         AssetProfile::LaboratoryBench | AssetProfile::DarkPresentationPlatform => {
             AssetGeometry::Bench
         }
+        AssetProfile::ReactiveMetalWaterAssembly
+        | AssetProfile::NeutralisationEvaporationAssembly
+        | AssetProfile::CompleteCombustionAssembly
+        | AssetProfile::IncompleteCombustionAssembly
+        | AssetProfile::AqueousPrecipitationAssembly
+        | AssetProfile::MetalDisplacementAssembly => AssetGeometry::AnimatedAssembly,
         AssetProfile::Beaker
         | AssetProfile::TestTube
         | AssetProfile::ConicalFlask
         | AssetProfile::MeasuringCylinder => AssetGeometry::CylindricalVessel,
         AssetProfile::LiquidVolume => AssetGeometry::LiquidCylinder,
-        AssetProfile::MetalChunk | AssetProfile::MetalStrip => AssetGeometry::LowPolyChunk,
+        AssetProfile::MetalChunk | AssetProfile::MetalStrip => AssetGeometry::ImportedMetal,
         AssetProfile::PrecipitateCloud
         | AssetProfile::CrystalCluster
         | AssetProfile::PowderPile => AssetGeometry::ShardCluster,
@@ -98,6 +105,7 @@ pub const fn effect_geometry(profile: EffectProfile) -> EffectGeometry {
         EffectProfile::SplashEmitter => EffectGeometry::SplashDroplets,
         EffectProfile::FlameEmitter(_) => EffectGeometry::FlamePlume,
         EffectProfile::ObjectShrinkage
+        | EffectProfile::SurfaceOxidation
         | EffectProfile::ColourTransition
         | EffectProfile::HeatDistortion => EffectGeometry::PresentationOnly,
     }
@@ -144,6 +152,7 @@ pub fn effect_dynamics(profile: EffectProfile, intensity: EffectIntensity) -> Ef
             dynamics(particle_count, 1.18, 0.25, 0.82, 0.44, 0.08, 0.22)
         }
         EffectProfile::ObjectShrinkage
+        | EffectProfile::SurfaceOxidation
         | EffectProfile::ColourTransition
         | EffectProfile::HeatDistortion => dynamics(0, 0.28, 0.0, 0.0, 0.10, 0.16, 0.18),
     };
@@ -164,6 +173,10 @@ mod tests {
     fn reusable_profiles_resolve_without_reaction_identity() {
         let beaker = asset_geometry(AssetProfile::Beaker);
         assert_eq!(beaker, asset_geometry(AssetProfile::TestTube));
+        assert_eq!(
+            asset_geometry(AssetProfile::AqueousPrecipitationAssembly),
+            super::AssetGeometry::AnimatedAssembly
+        );
         let bubbles = effect_geometry(EffectProfile::BubbleEmitter);
         assert_ne!(bubbles, effect_geometry(EffectProfile::GasRelease));
         assert_ne!(
