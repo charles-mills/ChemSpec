@@ -6,7 +6,7 @@ use chem_domain::{
     ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
     ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry, SpeciesResolution,
     StructureDefinition, StructureId, UnbalancedReactionTerm, classify_bronsted_acid,
-    generate_structure, symbol_of,
+    generate_structure, reaction_term, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -435,6 +435,7 @@ pub enum RequestIdentityResolution {
 ///
 /// Returns a typed error for unresolved/ambiguous reactants, request identity
 /// mismatch, invalid product formulae, or any exact balance failure.
+#[allow(clippy::too_many_lines)]
 pub fn compile_claim_outcome(
     request: &ReactionBuildRequest,
     claim: ReactionClaim,
@@ -458,6 +459,7 @@ pub fn compile_claim_outcome_with_catalogue(
     compile_claim_outcome_inner(request, claim, identities, Some(catalogue))
 }
 
+#[allow(clippy::too_many_lines)]
 fn compile_claim_outcome_inner(
     request: &ReactionBuildRequest,
     claim: ReactionClaim,
@@ -466,13 +468,15 @@ fn compile_claim_outcome_inner(
 ) -> Result<CompiledClaimOutcome, AgentError> {
     validate_request_shape(request)?;
     validate_selected_context_binding(request, &claim)?;
+    let local_aqueous_electrolysis = request.selected_context.as_deref() == Some("electricity")
+        && crate::solve_reaction_claim(request, identities).as_ref() == Some(&claim);
     match claim.disposition {
         ClaimDisposition::NoReaction => return Ok(CompiledClaimOutcome::NoReaction(claim)),
         ClaimDisposition::Ambiguous => return Ok(CompiledClaimOutcome::Ambiguous(claim)),
         ClaimDisposition::Unsupported => return Ok(CompiledClaimOutcome::Unsupported(claim)),
         ClaimDisposition::Reaction => {}
     }
-    let reactants = if let Some(catalogue) = catalogue {
+    let mut reactants = if let Some(catalogue) = catalogue {
         match resolve_request_identities_with_catalogue(request, identities, catalogue)? {
             RequestIdentityResolution::Resolved(species) => species,
             RequestIdentityResolution::Ambiguous(ambiguity) => {
@@ -515,18 +519,74 @@ fn compile_claim_outcome_inner(
             }
         })
         .collect::<Result<Vec<_>, AgentError>>()?;
-    let declaration = ReactionDeclaration::balance(
-        reactants
-            .iter()
-            .map(outcome_term)
-            .collect::<Result<Vec<_>, AgentError>>()?,
-        products
-            .iter()
-            .map(outcome_term)
-            .collect::<Result<Vec<_>, AgentError>>()?,
-        claim.required_context.clone(),
-    )
-    .map_err(|error| AgentError::new("outcome balance", error.to_string()))?;
+    let product_terms = products
+        .iter()
+        .map(outcome_term)
+        .collect::<Result<Vec<_>, AgentError>>()?;
+    let balance = |reactants: &[OutcomeSpecies]| {
+        ReactionDeclaration::balance(
+            reactants
+                .iter()
+                .map(outcome_term)
+                .collect::<Result<Vec<_>, AgentError>>()?,
+            product_terms.clone(),
+            claim.required_context.clone(),
+        )
+        .map_err(|error| AgentError::new("outcome balance", error.to_string()))
+    };
+    let declaration = match balance(&reactants) {
+        Ok(declaration) => declaration,
+        Err(original) if local_aqueous_electrolysis => {
+            let water_claim = ClaimProduct {
+                name: "Water".to_owned(),
+                formula: "H2O".to_owned(),
+                phase: ClaimPhase::Liquid,
+                identity_hints: Vec::new(),
+            };
+            let water = resolve_claim_product(&water_claim, "H2O", identities)
+                .map(|species| OutcomeSpecies::Resolved(Box::new(species.clone())))
+                .or_else(|| generated_product(&water_claim, "H2O", Phase::Liquid))
+                .ok_or(original)?;
+            reactants.push(water);
+            match balance(&reactants) {
+                Ok(declaration) => declaration,
+                Err(_error)
+                    if products.len() == 3
+                        && claim.products[1].formula == "H2"
+                        && claim.products[2].formula == "O2"
+                        && outcome_term(&reactants[0])?.formula
+                            == outcome_term(&products[0])?.formula =>
+                {
+                    let reactant_terms = reactants
+                        .iter()
+                        .zip([1, 2])
+                        .map(|(species, coefficient)| {
+                            reaction_term(outcome_term(species)?, coefficient).map_err(|error| {
+                                AgentError::new("outcome balance", error.to_string())
+                            })
+                        })
+                        .collect::<Result<Vec<_>, AgentError>>()?;
+                    let product_terms = products
+                        .iter()
+                        .zip([1, 2, 1])
+                        .map(|(species, coefficient)| {
+                            reaction_term(outcome_term(species)?, coefficient).map_err(|error| {
+                                AgentError::new("outcome balance", error.to_string())
+                            })
+                        })
+                        .collect::<Result<Vec<_>, AgentError>>()?;
+                    ReactionDeclaration::from_balanced(
+                        reactant_terms,
+                        product_terms,
+                        claim.required_context.clone(),
+                    )
+                    .map_err(|error| AgentError::new("outcome balance", error.to_string()))?
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Err(error) => return Err(error),
+    };
     let trust_tier = TrustTier::ModelAsserted;
     let equation = format_equation(&declaration);
     let macroscopic_process =

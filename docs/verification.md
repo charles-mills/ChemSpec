@@ -91,6 +91,9 @@ ordinary workspace tests:
 - end-to-end animation tests: each solved family drives structure
   generation, graph-diff mechanism derivation, kernel validation, and frame
   projection while asserting **zero model calls**;
+- aqueous-electrolysis tests cover halide and oxoanion discharge with active,
+  depositable, and spectator cations, including exact contextual-water balance
+  and complete structural frames;
 - provider-path tests with fakes: structured-output failure, bounded repair,
   escalated mechanism validation, and cache-v3 replay.
 
@@ -182,9 +185,18 @@ Stage 5 tests prove that both plans derive from the same current trusted
 every non-success result remains non-animatable. The 2D suite
 covers generated scene roles, operation-to-frame mapping, fluid interpolation,
 operation-specific changes, electron and charge presentation, metallic and
-covalent/ionic distinctions, product assignment, observation synchronization,
-and explanatory disclosure. The display equation comes from the pinned
-experience profile; renderer-side inference is forbidden.
+covalent/ionic distinctions, suppression of domain-balanced metallic core
+charges without suppressing genuine ions, product assignment, observation
+synchronization, transition-metal suppression of static Lewis/domain dots
+without suppressing typed transfer motion, and explanatory disclosure. The
+display equation comes from the pinned experience profile; renderer-side
+inference is forbidden.
+Non-1:1 ionic layout tests additionally prove that every validated component
+receives an opposite-charge lattice neighbour and remains in the same rendered
+product cluster.
+Composer tests prove that manual element-entry order cannot change a displayed
+formula: unambiguous structures supply their canonical formula and unresolved
+inventories use deterministic Hill order.
 
 Educational narration tests cover the complete trust path. They prove that:
 

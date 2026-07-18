@@ -96,8 +96,26 @@ of the trusted `SimulationFrames` sequence. Deterministic educational scenes
 group the exact validated states without inventing chemistry. Stable atom IDs
 persist across frames; covalent edges, dative provenance, ionic associations,
 metallic domains, product membership, changes, and observations come directly
-from the kernel artifact. Controls expose pause, restart, return, and a gated
-transition into the macroscopic view.
+from the kernel artifact. Atom charge badges present formal charge outside a
+metallic domain. They do not show a metallic site's positive core charge in
+isolation because its domain-owned delocalized electrons balance that core;
+the renderer continues to show the metallic halo and electron domain instead.
+Once a site leaves the metallic domain, its genuine formal charge is eligible
+for the ordinary charge badge. Controls expose pause, restart, return, and a
+gated transition into the macroscopic view.
+
+The structural renderer does not apply the main-group Lewis-dot layout to
+transition metals. It keeps their metallic-domain halo but omits stationary
+site and domain electron dots, including bookkeeping-only release/join motion.
+Typed electron-transfer operations still draw the exact electrons in flight,
+and validated ionic charge badges remain visible. Main-group atoms retain the
+ordinary Lewis-dot presentation.
+
+Ionic lattice layout includes every validated component for non-1:1 formula
+ratios. Charge-alternating grid neighbours are preferred; any excess ions are
+connected to their nearest opposite-charge lattice neighbour for presentation,
+so no component becomes a detached layout island. These connectors express
+many-body ionic membership, not covalent bonds or discrete molecules.
 
 The subsequent 3D page is a separate illustrative scale. It consumes a scene
 plan containing reusable visual assets and observation-gated effects, not the
@@ -168,6 +186,10 @@ transitions in 220–300 ms, and explanatory scene transitions in 400–600 ms.
 Motion must describe a state change, not run decoratively. Continuous ticks are
 allowed only while playback or a real loading state is active. Reduced-motion
 mode removes spatial movement while preserving opacity and status feedback.
+
+Electricity-driven electron-transfer scenes label oxidation at the anode and
+reduction at the cathode. They do not draw an electron route directly between
+ions; the explanation identifies the external circuit as the electron path.
 
 The motion cadence and step tokens live in `theme::motion`. The composer
 subscribes to ticks only while a slot tooltip is open: the same subscription

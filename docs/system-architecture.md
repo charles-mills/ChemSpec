@@ -92,7 +92,7 @@ before graph-state validation begins.
 ### `agent`
 
 Owns the algorithmic reaction solver (classroom families, solubility and
-activity tables, confident no-reactions), systematic naming in both
+activity tables, ion-derived aqueous electrolysis, confident no-reactions), systematic naming in both
 directions (product names and typed-name input), graph-diff mechanism
 derivation, provider preflight, closed claim and mechanism wire contracts,
 reviewed identity projection, exact outcome compilation, reviewed-family
@@ -100,6 +100,11 @@ matching, bounded mechanism escalation, cache v3, timeouts, and normalized
 progress. Cached, solved, and fresh artefacts cross the same
 identity/balance/kernel gates. It never constructs host-pinned catalogue
 trust.
+
+For one-reactant electricity requests, the solver derives electrode products
+from the validated ionic structure. Outcome compilation introduces water as a
+contextual participant only when the incoming claim exactly matches that local
+derivation; it then crosses the normal exact conservation and structural gates.
 
 ### `chem-presentation`
 
@@ -223,9 +228,13 @@ should exist. Direct screen assignment outside initialization and tests is
 forbidden.
 
 Typed reactant identity owns its canonical display formula until a manual atom
-edit invalidates that identity. Conditions are reaction-request source, not
-decorative builder state: a selected condition makes either non-empty slot a
-valid request, empty slots are removed at handoff, and the conditioned request
+edit invalidates that identity. A manually composed inventory uses the
+unambiguous trusted or generated structure's canonical formula when available;
+otherwise its presentation falls back deterministically to Hill order (C, H,
+then alphabetical, or wholly alphabetical when carbon is absent). Formula
+presentation is therefore independent of element-entry order. Conditions are
+reaction-request source, not decorative builder state: a selected condition
+makes either non-empty slot a valid request, empty slots are removed at handoff, and the conditioned request
 always crosses the dynamic solver/provider and validation path rather than
 falling through to an unconditioned catalogue result.
 

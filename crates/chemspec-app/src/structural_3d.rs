@@ -5988,18 +5988,19 @@ mod tests {
             assert!(inputs.bubble_rate > 0.0);
             assert!(inputs.liquid_turbulence > 0.0);
             let scene = build_scene(&plan, gas_start, 0.5);
-            if plan
-                .objects
-                .iter()
-                .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly)
-            {
+            let uses_authored_gas_assembly = plan.gas_evolution.is_some()
+                || plan
+                    .objects
+                    .iter()
+                    .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly);
+            if uses_authored_gas_assembly {
                 assert!(
                     scene.4.is_empty(),
-                    "the supplied assembly must not be overlaid with procedural gas"
+                    "an authored gas assembly must not be overlaid with procedural gas"
                 );
                 assert!(
                     scene.0.len() > 1_000,
-                    "the modular authored reaction should supply its own visible geometry"
+                    "the authored reaction should supply its own visible geometry"
                 );
                 continue;
             }
