@@ -6,11 +6,10 @@
 //! inventory plus its subset SMILES, which the dynamic pipeline resolves
 //! back into the exact drawn structure.
 
-use std::time::Instant;
+use web_time::Instant;
 
 use chem_domain::{
-    ELEMENT_SYMBOLS, StructureId, smiles_from_structure, structure_from_heavy_graph,
-    subset_valence,
+    ELEMENT_SYMBOLS, StructureId, smiles_from_structure, structure_from_heavy_graph, subset_valence,
 };
 use iced::mouse::{self, Cursor};
 use iced::widget::canvas::{Path, Stroke};
@@ -172,7 +171,9 @@ fn canvas_event(state: &mut State, event: CanvasEvent) {
         },
         CanvasEvent::AtomRemoved(index) if index < state.atoms.len() => {
             state.atoms.remove(index);
-            state.bonds.retain(|bond| bond.a != index && bond.b != index);
+            state
+                .bonds
+                .retain(|bond| bond.a != index && bond.b != index);
             for bond in &mut state.bonds {
                 if bond.a > index {
                     bond.a -= 1;
@@ -191,7 +192,8 @@ fn canvas_event(state: &mut State, event: CanvasEvent) {
             }
         }
         CanvasEvent::Bonded { from, to } => add_bond(state, from, to),
-        CanvasEvent::AtomClicked(_) | CanvasEvent::AtomRemoved(_) | CanvasEvent::BondClicked(_) => {}
+        CanvasEvent::AtomClicked(_) | CanvasEvent::AtomRemoved(_) | CanvasEvent::BondClicked(_) => {
+        }
     }
 }
 
@@ -493,9 +495,11 @@ impl canvas::Program<Message> for Sketchpad {
             canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 let press = interaction.press.take()?;
                 let released = self.release_event(interaction, press, cursor, bounds);
-                Some(released.map_or_else(canvas::Action::request_redraw, |event| {
-                    canvas::Action::publish(Message::Canvas(event)).and_capture()
-                }))
+                Some(
+                    released.map_or_else(canvas::Action::request_redraw, |event| {
+                        canvas::Action::publish(Message::Canvas(event)).and_capture()
+                    }),
+                )
             }
             _ => None,
         }
@@ -513,14 +517,15 @@ impl canvas::Program<Message> for Sketchpad {
         {
             return mouse::Interaction::Grabbing;
         }
-        cursor.position_in(bounds).map_or_else(
-            mouse::Interaction::default,
-            |point| match self.hit_test(point) {
-                PressTarget::Atom(_) => mouse::Interaction::Grab,
-                PressTarget::Bond(_) => mouse::Interaction::Pointer,
-                PressTarget::Empty => mouse::Interaction::Crosshair,
-            },
-        )
+        cursor
+            .position_in(bounds)
+            .map_or_else(mouse::Interaction::default, |point| {
+                match self.hit_test(point) {
+                    PressTarget::Atom(_) => mouse::Interaction::Grab,
+                    PressTarget::Bond(_) => mouse::Interaction::Pointer,
+                    PressTarget::Empty => mouse::Interaction::Crosshair,
+                }
+            })
     }
 
     fn draw(
@@ -735,7 +740,10 @@ mod tests {
             place(&mut state, 40.0 + 30.0 * f32::from(index), 60.0);
         }
         for to in 1..6 {
-            update(&mut state, Message::Canvas(CanvasEvent::Bonded { from: 0, to }));
+            update(
+                &mut state,
+                Message::Canvas(CanvasEvent::Bonded { from: 0, to }),
+            );
         }
 
         assert!(submission(&state).is_none());

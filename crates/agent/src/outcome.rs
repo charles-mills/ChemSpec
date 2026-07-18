@@ -668,14 +668,9 @@ fn generated_product(
             && *structure.formula() == inventory
         {
             let id = SpeciesId::from_str(&format!("generated.s{}", &digest[..24])).ok()?;
-            let species = crate::identity::generated_species(
-                &id,
-                &product.name,
-                formula,
-                phase,
-                &structure,
-            )
-            .ok()?;
+            let species =
+                crate::identity::generated_species(&id, &product.name, formula, phase, &structure)
+                    .ok()?;
             return Some(OutcomeSpecies::Resolved(Box::new(species)));
         }
     }

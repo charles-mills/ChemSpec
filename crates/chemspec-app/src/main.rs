@@ -29,8 +29,11 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
     },
-    time::Instant,
 };
+
+// std::time::Instant panics on wasm32; web-time is std's Instant on native
+// and performance.now() on the web.
+use web_time::Instant;
 
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
@@ -465,6 +468,8 @@ const DESIGN_SIZE: Size = Size::new(1_440.0, 900.0);
 const MAX_UI_ZOOM: f32 = 2.0;
 
 fn main() -> iced::Result {
+    #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
     let arguments = std::env::args().collect::<Vec<_>>();
     if arguments.get(1).map(String::as_str) == Some("react") {
         std::process::exit(react_command(&arguments[2..]));
@@ -526,8 +531,7 @@ fn react_command(arguments: &[String]) -> i32 {
         return 2;
     };
     let parse = |input: &str| {
-        chemistry::atoms_from_name(input)
-            .ok_or_else(|| format!("unrecognized reactant: {input}"))
+        chemistry::atoms_from_name(input).ok_or_else(|| format!("unrecognized reactant: {input}"))
     };
     let (first_atoms, second_atoms) = match (parse(first), parse(second)) {
         (Ok(a), Ok(b)) => (a, b),
@@ -564,11 +568,9 @@ fn react_command(arguments: &[String]) -> i32 {
             json!({ "candidates": requests.iter().map(|r| r.id()).collect::<Vec<_>>() }),
             1,
         ),
-        DraftResolution::Screened(assessment) => (
-            "screened",
-            json!({ "subject": assessment.subject }),
-            1,
-        ),
+        DraftResolution::Screened(assessment) => {
+            ("screened", json!({ "subject": assessment.subject }), 1)
+        }
         DraftResolution::ExplicitlyUnsupported(_) => ("unsupported", json!({}), 1),
         DraftResolution::Uncatalogued => ("uncatalogued", json!({}), 1),
         DraftResolution::Unrecognized => ("unrecognized", json!({}), 1),
@@ -602,6 +604,11 @@ fn adaptive_zoom(reported: Size, current_zoom: f32) -> f32 {
 }
 
 fn codex_available() -> bool {
+    // No subprocesses (and no std::time) in the browser: Codex is never
+    // available on wasm.
+    if cfg!(target_arch = "wasm32") {
+        return false;
+    }
     CodexProvider::new(CodexProviderConfig::from_environment())
         .preflight()
         .is_ok_and(|preflight| preflight.authenticated)
@@ -720,6 +727,16 @@ fn launch_state() -> App {
         // Smoke launch has no preceding key event to consume.
         app.structural_shortcut_state = StructuralShortcutState::Ready;
     }
+    // The web demo is Local Mode only (no subprocesses in a browser), so the
+    // provider screen is meaningless there: boot into the builder with the
+    // showcase reactants pre-filled, ready for "Press space to find out".
+    #[cfg(target_arch = "wasm32")]
+    {
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![3], vec![1, 1, 8]]);
+        // enter_screen syncs the "Press space to find out" prompt from the
+        // composer state, so the reactants must be in place first.
+        app.enter_screen(Screen::Builder);
+    }
     app
 }
 
@@ -803,7 +820,6 @@ impl SmokeMode {
             _ => None,
         }
     }
-
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2392,7 +2408,6 @@ impl App {
         Task::perform(
             async move {
                 let started = Instant::now();
-                let deadline = started + FAST_CLAIM_TIMEOUT;
                 let mut latency = LatencyMilestones::default();
                 let provider = CodexProvider::new(config);
                 // Local Mode never reads the cache: cached claims are model
@@ -2437,8 +2452,15 @@ impl App {
                                 .to_owned(),
                         );
                     }
+                    // agent speaks std::time::Instant; this branch never runs
+                    // on wasm (Local Mode is forced there), where it would
+                    // panic.
                     None => provider
-                        .claim_reaction_until(&request, mode, deadline)
+                        .claim_reaction_until(
+                            &request,
+                            mode,
+                            std::time::Instant::now() + FAST_CLAIM_TIMEOUT,
+                        )
                         .map_err(|error| error.to_string())?,
                 };
                 latency.claim_ms = Some(elapsed_millis(started));

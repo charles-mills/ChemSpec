@@ -154,9 +154,7 @@ impl AmbientReactantDiagram {
     ) -> Self {
         let preview = name.map_or_else(
             || crate::composition_catalogue::trusted_preview(atoms.iter().copied()),
-            |name| {
-                crate::composition_catalogue::trusted_preview_named(name, atoms.iter().copied())
-            },
+            |name| crate::composition_catalogue::trusted_preview_named(name, atoms.iter().copied()),
         );
         let elements = atoms
             .iter()

@@ -332,10 +332,7 @@ mod tests {
         )
     }
 
-    fn charged_spec(
-        atoms: &[(&str, f32, f32, Point)],
-        springs: &[(&str, &str, f32)],
-    ) -> WorldSpec {
+    fn charged_spec(atoms: &[(&str, f32, f32, Point)], springs: &[(&str, &str, f32)]) -> WorldSpec {
         WorldSpec {
             atoms: atoms
                 .iter()

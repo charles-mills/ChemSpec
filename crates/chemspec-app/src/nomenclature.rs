@@ -159,9 +159,7 @@ fn organic_graph_name(
     let bonds = frame
         .covalent_edges()
         .values()
-        .filter(|edge| {
-            product_atoms.contains(&edge.left) || product_atoms.contains(&edge.right)
-        })
+        .filter(|edge| product_atoms.contains(&edge.left) || product_atoms.contains(&edge.right))
         .map(|edge| {
             let order = match edge.order {
                 chem_domain::BondOrder::Single => 1,

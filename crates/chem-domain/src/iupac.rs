@@ -8,9 +8,7 @@
 //! impossible substitution downstream.
 
 /// Chain roots by carbon count (index + 1 carbons).
-const ROOTS: [&str; 8] = [
-    "meth", "eth", "prop", "but", "pent", "hex", "hept", "oct",
-];
+const ROOTS: [&str; 8] = ["meth", "eth", "prop", "but", "pent", "hex", "hept", "oct"];
 
 const MULTIPLIERS: [(&str, usize); 3] = [("di", 2), ("tri", 3), ("tetra", 4)];
 
@@ -196,10 +194,11 @@ fn try_suffix(tail: &str, suffix: &str, spec: &mut ChainSpec) -> Option<String> 
 /// position 2.
 fn try_ketone(tail: &str, spec: &mut ChainSpec) -> Option<String> {
     let rest = tail.strip_suffix("one")?;
-    let (rest, locant) = strip_trailing_locant(&rest.strip_suffix('-').map_or_else(
-        || rest.to_owned(),
-        str::to_owned,
-    ));
+    let (rest, locant) = strip_trailing_locant(
+        &rest
+            .strip_suffix('-')
+            .map_or_else(|| rest.to_owned(), str::to_owned),
+    );
     let rest = strip_root_suffix(&rest, "an", spec)?;
     spec.suffix_locant_explicit = locant.is_some();
     spec.oxo = Some(locant.unwrap_or(2));
@@ -253,11 +252,7 @@ fn try_unsaturated(tail: &str, suffix: &str, order: u8, spec: &mut ChainSpec) ->
 /// Strips `-N-` or a bare trailing locant digit block from the end.
 fn strip_trailing_locant(text: &str) -> (String, Option<usize>) {
     let trimmed = text.strip_suffix('-').unwrap_or(text);
-    let digits = trimmed
-        .bytes()
-        .rev()
-        .take_while(u8::is_ascii_digit)
-        .count();
+    let digits = trimmed.bytes().rev().take_while(u8::is_ascii_digit).count();
     if digits == 0 {
         return (trimmed.to_owned(), None);
     }

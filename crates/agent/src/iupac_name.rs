@@ -8,9 +8,7 @@
 
 use crate::organic::{Editable, carboxyls, hydroxyls};
 
-const ROOTS: [&str; 8] = [
-    "meth", "eth", "prop", "but", "pent", "hex", "hept", "oct",
-];
+const ROOTS: [&str; 8] = ["meth", "eth", "prop", "but", "pent", "hex", "hept", "oct"];
 
 const MULTIPLIERS: [&str; 4] = ["", "di", "tri", "tetra"];
 
@@ -132,7 +130,10 @@ pub(crate) fn systematic_name(molecule: &Editable) -> Option<String> {
             if *order != 2 {
                 return None;
             }
-            match (molecule.symbols[*left].as_str(), molecule.symbols[*right].as_str()) {
+            match (
+                molecule.symbols[*left].as_str(),
+                molecule.symbols[*right].as_str(),
+            ) {
                 ("C", "O") => Some((*left, *right)),
                 ("O", "C") => Some((*right, *left)),
                 _ => None,
@@ -140,18 +141,18 @@ pub(crate) fn systematic_name(molecule: &Editable) -> Option<String> {
         })
         .filter(|(carbon, _)| !carboxyl_carbons.contains(carbon))
         .collect();
-    let (acid, hydroxyls, carbonyl) = match (acids.as_slice(), alcohols.as_slice(), carbonyls.as_slice())
-    {
-        ([acid], [], []) if heteroatom_oxygens == 2 => (Some(*acid), Vec::new(), None),
-        ([], polyols @ ([_] | [_, _] | [_, _, _]), [])
-            if heteroatom_oxygens == polyols.len() =>
-        {
-            (None, polyols.to_vec(), None)
-        }
-        ([], [], [carbonyl]) if heteroatom_oxygens == 1 => (None, Vec::new(), Some(*carbonyl)),
-        ([], [], []) if heteroatom_oxygens == 0 => (None, Vec::new(), None),
-        _ => return None,
-    };
+    let (acid, hydroxyls, carbonyl) =
+        match (acids.as_slice(), alcohols.as_slice(), carbonyls.as_slice()) {
+            ([acid], [], []) if heteroatom_oxygens == 2 => (Some(*acid), Vec::new(), None),
+            ([], polyols @ ([_] | [_, _] | [_, _, _]), [])
+                if heteroatom_oxygens == polyols.len() =>
+            {
+                (None, polyols.to_vec(), None)
+            }
+            ([], [], [carbonyl]) if heteroatom_oxygens == 1 => (None, Vec::new(), Some(*carbonyl)),
+            ([], [], []) if heteroatom_oxygens == 0 => (None, Vec::new(), None),
+            _ => return None,
+        };
     if multiples.len() > 1
         || (acid.is_some() || !hydroxyls.is_empty() || carbonyl.is_some()) && !multiples.is_empty()
     {
@@ -369,7 +370,11 @@ fn name_for_chain(
             format!("{root}an-{locant}-one")
         }
     } else if hydroxyl_locants.len() > 1 {
-        let glue = if hydroxyl_locants.len() == 2 { "diol" } else { "triol" };
+        let glue = if hydroxyl_locants.len() == 2 {
+            "diol"
+        } else {
+            "triol"
+        };
         let locant_text = hydroxyl_locants
             .iter()
             .map(ToString::to_string)
@@ -428,7 +433,9 @@ fn name_for_chain(
     } else if !hydroxyl_locants.is_empty() {
         hydroxyl_locants
     } else {
-        unsaturation_locant.map(|locant| vec![locant]).unwrap_or_default()
+        unsaturation_locant
+            .map(|locant| vec![locant])
+            .unwrap_or_default()
     };
     let mut substituent_locants: Vec<usize> =
         substituents.iter().map(|(locant, _)| *locant).collect();

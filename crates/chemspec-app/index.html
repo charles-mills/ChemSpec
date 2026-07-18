@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChemSpec</title>
+    <link data-trunk rel="rust" data-bin="chemspec-app" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #101014;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        outline: none;
+      }
+      body:has(canvas) #chemspec-boot {
+        display: none;
+      }
+      #chemspec-boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: center;
+        justify-content: center;
+        color: #d5d5de;
+        font: 400 1rem/1.5 system-ui, sans-serif;
+        background: #101014;
+      }
+      #chemspec-boot .spinner {
+        width: 2rem;
+        height: 2rem;
+        border: 3px solid #2a2a33;
+        border-top-color: #8ce99a;
+        border-radius: 50%;
+        animation: chemspec-spin 0.8s linear infinite;
+      }
+      @keyframes chemspec-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chemspec-boot">
+      <div class="spinner"></div>
+      <div id="chemspec-boot-message">Loading ChemSpec…</div>
+    </div>
+    <script>
+      if (!navigator.gpu) {
+        document.getElementById("chemspec-boot").innerHTML =
+          "<div>ChemSpec needs WebGPU. Please use a current Chrome, Edge, Safari, or Firefox.</div>";
+      }
+    </script>
+  </body>
+</html>

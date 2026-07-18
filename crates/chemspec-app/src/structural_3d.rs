@@ -280,7 +280,8 @@ impl shader::Pipeline for ScenePipeline {
         let camera_size = std::mem::size_of::<CameraUniform>() as u64;
         let panel_size = std::mem::size_of::<PanelUniform>() as u64;
         let camera_buffer = uniform_buffer("chemspec structural 3d camera", camera_size);
-        let inset_camera_buffer = uniform_buffer("chemspec structural 3d inset camera", camera_size);
+        let inset_camera_buffer =
+            uniform_buffer("chemspec structural 3d inset camera", camera_size);
         let scene_panel_buffer = uniform_buffer("chemspec structural 3d scene panel", panel_size);
         let inset_panel_buffer = uniform_buffer("chemspec structural 3d inset panel", panel_size);
         queue.write_buffer(
@@ -290,18 +291,17 @@ impl shader::Pipeline for ScenePipeline {
         );
         queue.write_buffer(&scene_panel_buffer, 0, bytemuck::bytes_of(&SCENE_PANEL));
         queue.write_buffer(&inset_panel_buffer, 0, bytemuck::bytes_of(&INSET_PANEL));
-        let single_group = |label: &'static str,
-                            layout: &wgpu::BindGroupLayout,
-                            buffer: &wgpu::Buffer| {
-            device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(label),
-                layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: buffer.as_entire_binding(),
-                }],
-            })
-        };
+        let single_group =
+            |label: &'static str, layout: &wgpu::BindGroupLayout, buffer: &wgpu::Buffer| {
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some(label),
+                    layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: buffer.as_entire_binding(),
+                    }],
+                })
+            };
         let camera_group = single_group(
             "chemspec structural 3d camera group",
             &camera_layout,
@@ -1056,9 +1056,10 @@ pub fn active_molecular_preview<'preview>(
     reactant_previews: &'preview [TrustedCompositionPreview],
     product_preview: Option<&'preview TrustedCompositionPreview>,
 ) -> Option<&'preview TrustedCompositionPreview> {
-    let product_visible = plan.objects.iter().any(|object| {
-        object.role == SceneRole::Product && object.visible_from_ordinal <= ordinal
-    });
+    let product_visible = plan
+        .objects
+        .iter()
+        .any(|object| object.role == SceneRole::Product && object.visible_from_ordinal <= ordinal);
     if product_visible && product_preview.is_some() {
         return product_preview;
     }
@@ -2120,8 +2121,11 @@ fn molecular_layout(preview: &TrustedCompositionPreview) -> MolecularLayout {
                     edge / (2.0 * (std::f32::consts::PI / component.len() as f32).sin());
                 for (slot, atom) in component.iter().copied().enumerate() {
                     let angle = std::f32::consts::TAU * slot as f32 / component.len() as f32;
-                    positions[atom] =
-                        Vec3::new(angle.cos() * polygon_radius, 0.0, angle.sin() * polygon_radius);
+                    positions[atom] = Vec3::new(
+                        angle.cos() * polygon_radius,
+                        0.0,
+                        angle.sin() * polygon_radius,
+                    );
                     placed[atom] = true;
                 }
             }
@@ -2148,8 +2152,7 @@ fn molecular_layout(preview: &TrustedCompositionPreview) -> MolecularLayout {
                 if let (Some(grandparent), true) = (parent_map[parent], oriented.len() > 1) {
                     let reference = (positions[grandparent] - positions[parent])
                         .reject_from_normalized(to_parent);
-                    let candidate =
-                        (orientation * oriented[1]).reject_from_normalized(to_parent);
+                    let candidate = (orientation * oriented[1]).reject_from_normalized(to_parent);
                     if reference.length_squared() > 1e-6 && candidate.length_squared() > 1e-6 {
                         let from = candidate.normalize();
                         let to = (-reference).normalize();
@@ -2189,7 +2192,10 @@ fn molecular_layout(preview: &TrustedCompositionPreview) -> MolecularLayout {
         let (min_x, max_x) = component.iter().fold(
             (f32::INFINITY, f32::NEG_INFINITY),
             |(minimum, maximum), atom| {
-                (minimum.min(positions[*atom].x), maximum.max(positions[*atom].x))
+                (
+                    minimum.min(positions[*atom].x),
+                    maximum.max(positions[*atom].x),
+                )
             },
         );
         let shift = if cursor_x.is_finite() {
@@ -2266,8 +2272,7 @@ fn enforce_chirality(
         if placed[neighbour] {
             return Some(positions[neighbour]);
         }
-        let (_, order, kind, direction) =
-            pending.iter().find(|(other, ..)| *other == neighbour)?;
+        let (_, order, kind, direction) = pending.iter().find(|(other, ..)| *other == neighbour)?;
         let length = bond_length_angstrom(
             preview.atoms[atom].atomic_number,
             preview.atoms[neighbour].atomic_number,
@@ -2284,8 +2289,8 @@ fn enforce_chirality(
         corners[slot] = position;
     }
     let volume = chirality_signed_volume(corners);
-    let wants_negative = chirality.handedness
-        == chem_domain::TetrahedralHandedness::Counterclockwise;
+    let wants_negative =
+        chirality.handedness == chem_domain::TetrahedralHandedness::Counterclockwise;
     if (volume < 0.0) == wants_negative {
         return;
     }
@@ -2545,7 +2550,9 @@ fn place_fused_rings(
         .iter()
         .all(|ring| ring_metrics(preview, neighbours, ring).0 > f32::EPSILON);
     if uniform && puckered {
-        place_fused_chairs(preview, neighbours, rings, positions, placed, parent_map, queue);
+        place_fused_chairs(
+            preview, neighbours, rings, positions, placed, parent_map, queue,
+        );
         return;
     }
     let mut centers: Vec<Vec3> = Vec::with_capacity(rings.len());
@@ -2555,7 +2562,12 @@ fn place_fused_rings(
         if index == 0 {
             let edge_sum: f32 = (0..ring.len())
                 .map(|slot| {
-                    ring_bond_length(preview, neighbours, ring[slot], ring[(slot + 1) % ring.len()])
+                    ring_bond_length(
+                        preview,
+                        neighbours,
+                        ring[slot],
+                        ring[(slot + 1) % ring.len()],
+                    )
                 })
                 .sum();
             let radius = edge_sum / count / (2.0 * sector.sin());
@@ -2614,7 +2626,15 @@ fn place_fused_rings(
     }
     for (ring, center) in rings.iter().zip(&centers) {
         place_ring_substituents(
-            preview, neighbours, ring, *center, Vec3::Y, positions, placed, parent_map, queue,
+            preview,
+            neighbours,
+            ring,
+            *center,
+            Vec3::Y,
+            positions,
+            placed,
+            parent_map,
+            queue,
         );
     }
 }
@@ -2677,10 +2697,17 @@ fn place_fused_chairs(
         }
     }
     for ring in rings {
-        let center =
-            ring.iter().map(|atom| positions[*atom]).sum::<Vec3>() / ring.len() as f32;
+        let center = ring.iter().map(|atom| positions[*atom]).sum::<Vec3>() / ring.len() as f32;
         place_ring_substituents(
-            preview, neighbours, ring, center, Vec3::Y, positions, placed, parent_map, queue,
+            preview,
+            neighbours,
+            ring,
+            center,
+            Vec3::Y,
+            positions,
+            placed,
+            parent_map,
+            queue,
         );
     }
 }
@@ -2699,10 +2726,7 @@ fn spiro_rings(
         .filter(|atom| in_core[*atom])
         .collect();
     let hub = *core.iter().find(|atom| degree[**atom] == 4)?;
-    if core
-        .iter()
-        .any(|atom| *atom != hub && degree[*atom] != 2)
-    {
+    if core.iter().any(|atom| *atom != hub && degree[*atom] != 2) {
         return None;
     }
     let walk = |first: usize| -> Option<Vec<usize>> {
@@ -2733,7 +2757,9 @@ fn spiro_rings(
         .find(|other| !first.contains(other))?;
     let second = walk(start)?;
     (first.len() + second.len() - 1 == core.len()
-        && second.iter().all(|atom| *atom == hub || !first.contains(atom)))
+        && second
+            .iter()
+            .all(|atom| *atom == hub || !first.contains(atom)))
     .then_some((first, second))
 }
 
@@ -2773,7 +2799,15 @@ fn place_spiro_rings(
         placed[atom] = true;
     }
     place_ring_substituents(
-        preview, neighbours, first, Vec3::ZERO, Vec3::Y, positions, placed, parent_map, queue,
+        preview,
+        neighbours,
+        first,
+        Vec3::ZERO,
+        Vec3::Y,
+        positions,
+        placed,
+        parent_map,
+        queue,
     );
     let second_center =
         second.iter().map(|atom| positions[*atom]).sum::<Vec3>() / second.len() as f32;
@@ -2852,9 +2886,7 @@ fn bridged_bicyclic(
         return None;
     }
     paths.sort_by_key(|path| std::cmp::Reverse(path.len()));
-    if paths[2].is_empty()
-        || 2 + paths.iter().map(Vec::len).sum::<usize>() != core.len()
-    {
+    if paths[2].is_empty() || 2 + paths.iter().map(Vec::len).sum::<usize>() != core.len() {
         return None;
     }
     let tail_slot = 1 + paths[0].len();
@@ -2908,8 +2940,7 @@ fn place_bridged_bicyclic(
         // evenly spaced points on the axis; a boat main ring would make
         // room if that visual ever matters.
         for (slot, atom) in bridge.iter().copied().enumerate() {
-            positions[atom] =
-                head_position + span * ((slot + 1) as f32 / segments as f32);
+            positions[atom] = head_position + span * ((slot + 1) as f32 / segments as f32);
             placed[atom] = true;
             parent_map[atom] = Some(previous);
             queue.push_back(atom);
@@ -2947,7 +2978,14 @@ fn place_bridged_bicyclic(
         }
     }
     place_ring_substituents(
-        preview, neighbours, main_ring, Vec3::ZERO, Vec3::Y, positions, placed, parent_map,
+        preview,
+        neighbours,
+        main_ring,
+        Vec3::ZERO,
+        Vec3::Y,
+        positions,
+        placed,
+        parent_map,
         queue,
     );
 }
@@ -2994,7 +3032,11 @@ fn place_ring_substituents(
             let direction = if steric <= 3 {
                 radial
             } else {
-                let side = if branch.is_multiple_of(2) { axial_sign } else { -axial_sign };
+                let side = if branch.is_multiple_of(2) {
+                    axial_sign
+                } else {
+                    -axial_sign
+                };
                 (radial / 3.0_f32.sqrt() + normal * side * (2.0 / 3.0_f32).sqrt()).normalize()
             };
             branch += 1;
@@ -3043,11 +3085,7 @@ fn ring_bond_length(
 /// deeper fraction that lands S8 at its observed ±0.45 Å.
 // ponytail: odd saturated rings (cyclopentane) stay flat; an envelope flap
 // can replace this if that visual ever matters.
-fn ring_pucker(
-    ring: &[usize],
-    neighbours: &[Vec<(usize, u8, MolecularLink)>],
-    edge: f32,
-) -> f32 {
+fn ring_pucker(ring: &[usize], neighbours: &[Vec<(usize, u8, MolecularLink)>], edge: f32) -> f32 {
     let planar = ring.iter().enumerate().any(|(slot, atom)| {
         let next = ring[(slot + 1) % ring.len()];
         neighbours[*atom]
@@ -3087,9 +3125,15 @@ fn vsepr_directions(count: usize) -> Vec<Vec3> {
                 Vec3::new(-corner, -corner, corner),
             ]
         }
-        5 => [Vec3::Y, -Vec3::Y].into_iter().chain(equatorial(3)).collect(),
+        5 => [Vec3::Y, -Vec3::Y]
+            .into_iter()
+            .chain(equatorial(3))
+            .collect(),
         6 => vec![Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z],
-        7 => [Vec3::Y, -Vec3::Y].into_iter().chain(equatorial(5)).collect(),
+        7 => [Vec3::Y, -Vec3::Y]
+            .into_iter()
+            .chain(equatorial(5))
+            .collect(),
         count => {
             let golden_angle = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
             (0..count)
@@ -4861,7 +4905,10 @@ mod tests {
             bytemuck::cast_slice::<Vertex, u8>(&second.vertices)
         );
         assert_eq!(first.indices, second.indices);
-        assert!(first.opaque_end > 0, "the scene must contain opaque depth geometry");
+        assert!(
+            first.opaque_end > 0,
+            "the scene must contain opaque depth geometry"
+        );
         assert!(
             usize::try_from(first.glass_end).is_ok_and(|count| count <= first.indices.len())
                 && first.glass_end > first.opaque_end,
@@ -4871,7 +4918,12 @@ mod tests {
             usize::try_from(first.emissive_end).is_ok_and(|count| count <= first.indices.len()),
             "the additive pass boundary must remain inside the batched index buffer"
         );
-        assert!(first.vertices.iter().any(|vertex| vertex.position[2].abs() > 0.1));
+        assert!(
+            first
+                .vertices
+                .iter()
+                .any(|vertex| vertex.position[2].abs() > 0.1)
+        );
         assert!(
             first.vertices.len() > 100,
             "diorama should include reusable scene assets"
@@ -5017,7 +5069,11 @@ mod tests {
             .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
             .map(|bond| (layout.positions[bond.start] - layout.positions[bond.end]).length())
             .collect();
-        assert_eq!(ring_bonds.len(), 6, "the Kekulé ring closes with six C-C bonds");
+        assert_eq!(
+            ring_bonds.len(),
+            6,
+            "the Kekulé ring closes with six C-C bonds"
+        );
         for length in &ring_bonds {
             assert!((length - ring_bonds[0]).abs() < 0.001);
         }
@@ -5036,8 +5092,7 @@ mod tests {
                 bonds[0].start
             };
             assert!(carbons.contains(&carbon));
-            let outward =
-                (layout.positions[*hydrogen] - layout.positions[carbon]).normalize();
+            let outward = (layout.positions[*hydrogen] - layout.positions[carbon]).normalize();
             let radial = (layout.positions[carbon] - ring_center).normalize();
             assert!(
                 outward.dot(radial) > 0.999,
@@ -5117,9 +5172,10 @@ mod tests {
             .collect();
         assert_eq!(junctions.len(), 2);
         assert!(
-            naphthalene.covalent_bonds().iter().any(|bond| {
-                junctions.contains(&bond.start) && junctions.contains(&bond.end)
-            }),
+            naphthalene
+                .covalent_bonds()
+                .iter()
+                .any(|bond| { junctions.contains(&bond.start) && junctions.contains(&bond.end) }),
             "the junction carbons are directly bonded"
         );
         // The two hexagon centres sit an apothem either side of the fusion
@@ -5174,8 +5230,8 @@ mod tests {
 
     #[test]
     fn sulfur_crown_keeps_all_eight_atoms_evenly_on_one_ring() {
-        let sulfur = crate::composition_catalogue::trusted_preview([16; 8])
-            .expect("S8 preview resolves");
+        let sulfur =
+            crate::composition_catalogue::trusted_preview([16; 8]).expect("S8 preview resolves");
         assert_eq!(sulfur.atoms.len(), 8);
         let layout = molecular_layout(&sulfur);
         let center = layout.positions.iter().copied().sum::<Vec3>() / 8.0;
@@ -5185,7 +5241,10 @@ mod tests {
             .map(|position| (*position - center).length())
             .collect();
         for radius in &radii {
-            assert!((radius - radii[0]).abs() < 0.001, "octagon atoms share one radius");
+            assert!(
+                (radius - radii[0]).abs() < 0.001,
+                "octagon atoms share one radius"
+            );
         }
         let bond_lengths: Vec<f32> = sulfur
             .covalent_bonds()
@@ -5275,7 +5334,11 @@ mod tests {
         assert!(bonded(ring[5], ring[0]));
         // Chair: equal signed lifts from the carbon mean plane, alternating
         // around the ring — three carbons above, three below.
-        let mean_y = ring.iter().map(|carbon| layout.positions[*carbon].y).sum::<f32>() / 6.0;
+        let mean_y = ring
+            .iter()
+            .map(|carbon| layout.positions[*carbon].y)
+            .sum::<f32>()
+            / 6.0;
         let lifts: Vec<f32> = ring
             .iter()
             .map(|carbon| layout.positions[*carbon].y - mean_y)
@@ -5314,7 +5377,11 @@ mod tests {
                     .push((layout.positions[hydrogen] - layout.positions[*carbon]).length());
             }
         }
-        assert_eq!(hydrogen_bond_lengths.len(), 12, "every hydrogen bonds to one ring carbon");
+        assert_eq!(
+            hydrogen_bond_lengths.len(),
+            12,
+            "every hydrogen bonds to one ring carbon"
+        );
         for length in &hydrogen_bond_lengths {
             assert!((length - hydrogen_bond_lengths[0]).abs() < 0.001);
         }
@@ -5608,8 +5675,7 @@ mod tests {
             .copied()
             .filter(|carbon| {
                 let neighbours = carbon_neighbours(*carbon);
-                neighbours.len() == 2
-                    && neighbours.iter().all(|other| bridgeheads.contains(other))
+                neighbours.len() == 2 && neighbours.iter().all(|other| bridgeheads.contains(other))
             })
             .collect();
         assert_eq!(bridge_carbons.len(), 1);
@@ -5642,15 +5708,19 @@ mod tests {
             "the bridge carbon must arc over the ring plane, got {bridge_lift}"
         );
         // Every C-C bond keeps its target length.
-        let target = bond_length_angstrom(6, 6, 1, MolecularLink::Covalent)
-            * layout.units_per_angstrom;
+        let target =
+            bond_length_angstrom(6, 6, 1, MolecularLink::Covalent) * layout.units_per_angstrom;
         let ring_bonds: Vec<f32> = norbornane
             .covalent_bonds()
             .iter()
             .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
             .map(|bond| layout.positions[bond.start].distance(layout.positions[bond.end]))
             .collect();
-        assert_eq!(ring_bonds.len(), 8, "norbornane closes with eight C-C bonds");
+        assert_eq!(
+            ring_bonds.len(),
+            8,
+            "norbornane closes with eight C-C bonds"
+        );
         for length in &ring_bonds {
             assert!(
                 (length - target).abs() < target * 0.01,
@@ -5715,7 +5785,10 @@ mod tests {
         };
         let (left_hand, left_volume) = butanol("C[C@H](O)CC", "test.butan-2-ol-at");
         let (right_hand, right_volume) = butanol("C[C@@H](O)CC", "test.butan-2-ol-at-at");
-        assert_ne!(left_hand, right_hand, "enantiomers carry opposite descriptors");
+        assert_ne!(
+            left_hand, right_hand,
+            "enantiomers carry opposite descriptors"
+        );
         assert!(
             left_volume * right_volume < 0.0,
             "enantiomer layouts must mirror: {left_volume} vs {right_volume}"
@@ -6044,7 +6117,10 @@ mod tests {
 
         assert!(batches.opaque_end > 0, "the floor remains opaque geometry");
         assert!(
-            batches.vertices.iter().all(|vertex| vertex.position[1] < 0.0),
+            batches
+                .vertices
+                .iter()
+                .all(|vertex| vertex.position[1] < 0.0),
             "the environment must not add a vertical wall above the floor"
         );
     }

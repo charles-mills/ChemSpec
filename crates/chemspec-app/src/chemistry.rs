@@ -1247,7 +1247,6 @@ pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
     DraftResolution::Unrecognized
 }
 
-
 /// Whether one draft names chemistry the app understands: a bare element or
 /// any composition the catalogue or structure generator can realize.
 fn draft_is_understood(atoms: &[u8]) -> bool {

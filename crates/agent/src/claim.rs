@@ -252,9 +252,7 @@ impl ReactionClaim {
                 format!("unsupported claim schema {}", self.schema_version),
             ));
         }
-        if self.no_reaction_reason.is_some()
-            && self.disposition != ClaimDisposition::NoReaction
-        {
+        if self.no_reaction_reason.is_some() && self.disposition != ClaimDisposition::NoReaction {
             return Err(AgentError::new(
                 "reaction claim",
                 "only a no-reaction claim may carry a no-reaction reason",
@@ -898,6 +896,10 @@ mod tests {
             incoming: "bromine".to_owned(),
             resident: "chlorine".to_owned(),
         };
-        assert!(weaker.learner_explanation().starts_with("Bromine is less reactive"));
+        assert!(
+            weaker
+                .learner_explanation()
+                .starts_with("Bromine is less reactive")
+        );
     }
 }
