@@ -509,6 +509,20 @@ fn invalid_unsupported_and_corrupt_boundaries_remain_distinct() {
 }
 
 #[test]
+fn formula_overflow_is_reported_at_the_equation_term() {
+    let overflowing_term = "2 H18446744073709551616[molecular]";
+    let source = canonical_source().replacen("2 H2O[molecular]", overflowing_term, 1);
+    let error =
+        expand_review_candidate("overflow.chems", &source, &catalogue(), &evidence()).unwrap_err();
+
+    assert_eq!(error.class(), ExpansionFailureClass::InvalidSource);
+    assert_eq!(error.code(), "CHEMS-X005");
+    assert_eq!(error.message(), "formula count overflow");
+    let span = error.span().expect("formula errors retain the source span");
+    assert_eq!(&source[span.start..span.end], overflowing_term);
+}
+
+#[test]
 fn rule_binding_and_evidence_claim_mismatches_are_invalid() {
     let catalogue = catalogue();
     let wrong_binding = canonical_source().replacen("metal := lithium", "metal := water", 1);

@@ -2109,133 +2109,15 @@ fn reaction_declaration(
 }
 
 fn parse_formula(source: &str, span: ByteSpan) -> Result<BTreeMap<String, u64>, ExpansionError> {
-    FormulaParser::new(source, span).parse()
-}
-
-struct FormulaParser<'a> {
-    source: &'a str,
-    bytes: &'a [u8],
-    index: usize,
-    span: ByteSpan,
-}
-
-impl<'a> FormulaParser<'a> {
-    fn new(source: &'a str, span: ByteSpan) -> Self {
-        Self {
-            source,
-            bytes: source.as_bytes(),
-            index: 0,
-            span,
-        }
-    }
-
-    fn parse(mut self) -> Result<BTreeMap<String, u64>, ExpansionError> {
-        let mut result = self.segment(None)?;
-        while self.index < self.bytes.len() {
-            self.expect(b'.')?;
-            let multiplier = self.number()?.unwrap_or(1);
-            let segment = self.segment(None)?;
-            merge_formula(&mut result, segment, multiplier, self.span)?;
-        }
-        if result.is_empty() {
-            return self.error("formula is empty");
-        }
-        Ok(result)
-    }
-
-    fn segment(&mut self, terminator: Option<u8>) -> Result<BTreeMap<String, u64>, ExpansionError> {
-        let mut result = BTreeMap::new();
-        let start = self.index;
-        while self.index < self.bytes.len()
-            && self.bytes[self.index] != b'.'
-            && Some(self.bytes[self.index]) != terminator
-        {
-            if self.bytes[self.index] == b'(' {
-                self.index += 1;
-                let nested = self.segment(Some(b')'))?;
-                self.expect(b')')?;
-                let multiplier = self.number()?.unwrap_or(1);
-                merge_formula(&mut result, nested, multiplier, self.span)?;
-            } else if self.bytes[self.index].is_ascii_uppercase() {
-                let element_start = self.index;
-                self.index += 1;
-                if self
-                    .bytes
-                    .get(self.index)
-                    .is_some_and(u8::is_ascii_lowercase)
-                {
-                    self.index += 1;
-                }
-                let element = &self.source[element_start..self.index];
-                ElementSymbol::from_str(element).map_err(|error| {
-                    ExpansionError::invalid("CHEMS-X005", error.to_string(), Some(self.span))
-                })?;
-                let count = self.number()?.unwrap_or(1);
-                let entry = result.entry(element.to_owned()).or_insert(0_u64);
-                *entry = entry.checked_add(count).ok_or_else(|| {
-                    ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(self.span))
-                })?;
-            } else {
-                return self.error("invalid formula token");
-            }
-        }
-        if self.index == start {
-            return self.error("empty formula segment");
-        }
-        Ok(result)
-    }
-
-    fn number(&mut self) -> Result<Option<u64>, ExpansionError> {
-        let start = self.index;
-        while self.bytes.get(self.index).is_some_and(u8::is_ascii_digit) {
-            self.index += 1;
-        }
-        if start == self.index {
-            return Ok(None);
-        }
-        let value = self.source[start..self.index].parse::<u64>().map_err(|_| {
-            ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(self.span))
-        })?;
-        if value == 0 {
-            return self.error("formula count must be positive");
-        }
-        Ok(Some(value))
-    }
-
-    fn expect(&mut self, byte: u8) -> Result<(), ExpansionError> {
-        if self.bytes.get(self.index) == Some(&byte) {
-            self.index += 1;
-            Ok(())
-        } else {
-            self.error("malformed formula grouping")
-        }
-    }
-
-    fn error<T>(&self, message: &str) -> Result<T, ExpansionError> {
-        Err(ExpansionError::invalid(
-            "CHEMS-X005",
-            format!("{message} in `{}`", self.source),
-            Some(self.span),
-        ))
-    }
-}
-
-fn merge_formula(
-    target: &mut BTreeMap<String, u64>,
-    source: BTreeMap<String, u64>,
-    multiplier: u64,
-    span: ByteSpan,
-) -> Result<(), ExpansionError> {
-    for (element, count) in source {
-        let count = count.checked_mul(multiplier).ok_or_else(|| {
-            ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(span))
-        })?;
-        let entry = target.entry(element).or_insert(0);
-        *entry = entry.checked_add(count).ok_or_else(|| {
-            ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(span))
-        })?;
-    }
-    Ok(())
+    FormulaComposition::parse(source)
+        .map(|formula| {
+            formula
+                .elements()
+                .iter()
+                .map(|(element, count)| (element.as_str().to_owned(), *count))
+                .collect()
+        })
+        .map_err(|error| ExpansionError::invalid("CHEMS-X005", error.to_string(), Some(span)))
 }
 
 fn positive_u32(value: &str, span: ByteSpan, label: &str) -> Result<u32, ExpansionError> {
@@ -2354,23 +2236,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn formula_resolution_handles_groups_and_adduct_multipliers() {
-        assert_eq!(
-            parse_formula("Ca(OH)2", ByteSpan::new(0, 7)).unwrap(),
-            BTreeMap::from([
-                ("Ca".to_owned(), 1),
-                ("H".to_owned(), 2),
-                ("O".to_owned(), 2),
-            ])
-        );
-        assert_eq!(
-            parse_formula("CuSO4.5H2O", ByteSpan::new(0, 11)).unwrap(),
-            BTreeMap::from([
-                ("Cu".to_owned(), 1),
-                ("H".to_owned(), 10),
-                ("O".to_owned(), 9),
-                ("S".to_owned(), 1),
-            ])
-        );
+    fn formula_resolution_conforms_to_the_domain_parser() {
+        let span = ByteSpan::new(17, 41);
+        for source in ["H2O", "Ca(OH)2", "CuSO4.5H2O", "K4(ON(SO3)2)2"] {
+            let expected = FormulaComposition::parse(source)
+                .unwrap()
+                .elements()
+                .iter()
+                .map(|(element, count)| (element.as_str().to_owned(), *count))
+                .collect::<BTreeMap<_, _>>();
+            assert_eq!(parse_formula(source, span).unwrap(), expected);
+        }
+
+        for source in ["", "H0", "Ca(OH", "CuSO4.", "H18446744073709551616"] {
+            let expected = FormulaComposition::parse(source).unwrap_err();
+            let actual = parse_formula(source, span).unwrap_err();
+            assert_eq!(actual.class(), crate::ExpansionFailureClass::InvalidSource);
+            assert_eq!(actual.code(), "CHEMS-X005");
+            assert_eq!(actual.message(), expected.to_string());
+            assert_eq!(actual.span(), Some(span));
+        }
     }
 }
