@@ -625,20 +625,19 @@ fn frame_bonds(state: &StructuralState) -> BTreeMap<CovalentBondId, FrameCovalen
         .graph()
         .covalent_bonds()
         .values()
-        .map(|bond| {
-            (
-                bond.id().clone(),
-                FrameCovalentEdge {
-                    id: bond.id().clone(),
-                    left: bond.left().clone(),
-                    right: bond.right().clone(),
-                    order: bond.order(),
-                    electron_origin: bond.electron_origin().clone(),
-                    delocalization: bond.delocalization().cloned(),
-                },
-            )
-        })
+        .map(|bond| (bond.id().clone(), frame_bond(bond)))
         .collect()
+}
+
+fn frame_bond(bond: &chem_domain::CovalentBond) -> FrameCovalentEdge {
+    FrameCovalentEdge {
+        id: bond.id().clone(),
+        left: bond.left().clone(),
+        right: bond.right().clone(),
+        order: bond.order(),
+        electron_origin: bond.electron_origin().clone(),
+        delocalization: bond.delocalization().cloned(),
+    }
 }
 
 fn frame_groups(state: &StructuralState) -> BTreeMap<AtomGroupId, FrameAtomGroup> {
@@ -994,12 +993,16 @@ mod tests {
     };
 
     use chem_catalogue::ValidatedCatalogueBundle;
+    use chem_domain::{
+        AtomId, BondOrder, CovalentBond, CovalentBondId, CovalentDelocalization,
+        CovalentDelocalizationId, EffectiveBondOrder,
+    };
 
     use crate::{expand_review_candidate, validate_review_candidate};
 
     use super::{
         ContentDigest, CurrentArtifactIdentity, DerivationTrust, FrameFailureClass,
-        ObservationStatus, ensure_current, project_frames,
+        ObservationStatus, ensure_current, frame_bond, project_frames,
     };
 
     fn root() -> PathBuf {
@@ -1029,6 +1032,26 @@ mod tests {
 
     fn review_candidate_frames() -> super::SimulationFrames {
         project_frames(&review_candidate_derivation()).unwrap()
+    }
+
+    #[test]
+    fn resonance_annotation_reaches_the_frame_edge() {
+        let delocalization = CovalentDelocalization::new(
+            CovalentDelocalizationId::new("oxygen.resonance").unwrap(),
+            EffectiveBondOrder::new(3, 2).unwrap(),
+        );
+        let bond = CovalentBond::new_delocalized(
+            CovalentBondId::new("oxygen.oo").unwrap(),
+            AtomId::new("oxygen.o1").unwrap(),
+            AtomId::new("oxygen.o2").unwrap(),
+            BondOrder::Single,
+            delocalization.clone(),
+        )
+        .unwrap();
+
+        let edge = frame_bond(&bond);
+
+        assert_eq!(edge.delocalization, Some(delocalization));
     }
 
     fn electron_tuple(value: &serde_json::Value) -> serde_json::Value {

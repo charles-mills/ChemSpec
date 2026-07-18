@@ -105,6 +105,7 @@ impl EscalatedMechanismOutcome {
 #[derive(Debug, Clone)]
 pub enum MechanismEscalationOutcome {
     Animated(Box<EscalatedMechanismOutcome>),
+    Failed(AgentError),
     Unavailable {
         static_outcome: Box<ValidatedStaticOutcome>,
         attempts: usize,
@@ -428,8 +429,11 @@ fn propose_with_provider<P: MechanismProvider>(
         let response = match provider.propose(&context.request, diagnostic.as_deref()) {
             Ok(response) => response,
             Err(error) => {
-                diagnostic = Some(error.to_string());
-                continue;
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                    continue;
+                }
+                return MechanismEscalationOutcome::Failed(error);
             }
         };
         match compile_mechanism(&outcome, context, &response, catalogue) {
@@ -441,7 +445,13 @@ fn propose_with_provider<P: MechanismProvider>(
                     structure_repair_count,
                 }));
             }
-            Err(error) => diagnostic = Some(error.to_string()),
+            Err(error) => {
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                } else {
+                    return MechanismEscalationOutcome::Failed(error);
+                }
+            }
         }
     }
     MechanismEscalationOutcome::Unavailable {
@@ -450,6 +460,13 @@ fn propose_with_provider<P: MechanismProvider>(
         diagnostic: diagnostic.unwrap_or_else(|| "mechanism validation failed".to_owned()),
         retryable: true,
     }
+}
+
+const fn is_repairable_proposal_error(kind: AgentErrorKind) -> bool {
+    matches!(
+        kind,
+        AgentErrorKind::InvalidProviderOutput | AgentErrorKind::KernelRejection
+    )
 }
 
 /// Structure escalation: products absent from the reviewed structure library
@@ -474,8 +491,11 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
         let response = match provider.propose_structures(&request, diagnostic.as_deref()) {
             Ok(response) => response,
             Err(error) => {
-                diagnostic = Some(error.to_string());
-                continue;
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                    continue;
+                }
+                return MechanismEscalationOutcome::Failed(error);
             }
         };
         match adopt_proposed_structures(&outcome, &request, &response, catalogue) {
@@ -488,7 +508,7 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
                         &context,
                         structure_attempt,
                     ),
-                    Ok(None) | Err(_) => MechanismEscalationOutcome::Unavailable {
+                    Ok(None) => MechanismEscalationOutcome::Unavailable {
                         static_outcome: Box::new(adopted.outcome),
                         attempts: 0,
                         diagnostic:
@@ -496,9 +516,16 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
                                 .to_owned(),
                         retryable: true,
                     },
+                    Err(error) => MechanismEscalationOutcome::Failed(error),
                 };
             }
-            Err(error) => diagnostic = Some(error.to_string()),
+            Err(error) => {
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                } else {
+                    return MechanismEscalationOutcome::Failed(error);
+                }
+            }
         }
     }
     MechanismEscalationOutcome::Unavailable {
@@ -1050,6 +1077,7 @@ fn mechanism_electron_states(
             }
             MechanismOperation::AssociateIonic { .. }
             | MechanismOperation::DissociateIonic { .. }
+            | MechanismOperation::ChangeCovalentDelocalization { .. }
             | MechanismOperation::AssignProduct { .. } => {}
         }
     }
@@ -1153,7 +1181,8 @@ fn validate_operation_labels(
             atom(donor)?;
             atom(acceptor)
         }
-        MechanismOperation::ChangeCovalent { edge, .. } => {
+        MechanismOperation::ChangeCovalent { edge, .. }
+        | MechanismOperation::ChangeCovalentDelocalization { edge, .. } => {
             atom(&edge.0)?;
             atom(&edge.1)
         }
@@ -1297,6 +1326,16 @@ fn operation_record(
             allocation: cleavage(allocation),
             before: before.clone(),
             after: after.clone(),
+        },
+        MechanismOperation::ChangeCovalentDelocalization {
+            edge,
+            expected,
+            replacement,
+        } => OperationTemplateRecord::ChangeCovalentDelocalization {
+            premise_ids: premises(),
+            edge: edge.clone(),
+            expected: expected.clone(),
+            replacement: replacement.clone(),
         },
         MechanismOperation::AssociateIonic {
             label,
@@ -1770,6 +1809,63 @@ mod tests {
         }
     }
 
+    struct ErrorProvider {
+        kind: AgentErrorKind,
+        calls: usize,
+        diagnostics: Vec<Option<String>>,
+    }
+
+    impl MechanismProvider for ErrorProvider {
+        fn propose(
+            &mut self,
+            _request: &MechanismEscalationRequest,
+            diagnostic: Option<&str>,
+        ) -> Result<MechanismEscalationResponse, AgentError> {
+            self.calls += 1;
+            self.diagnostics.push(diagnostic.map(str::to_owned));
+            Err(AgentError::new(
+                self.kind,
+                "classified provider failure",
+                "original provider message",
+            ))
+        }
+
+        fn propose_structures(
+            &mut self,
+            _request: &StructureProposalRequest,
+            diagnostic: Option<&str>,
+        ) -> Result<StructureProposalResponse, AgentError> {
+            self.calls += 1;
+            self.diagnostics.push(diagnostic.map(str::to_owned));
+            Err(AgentError::new(
+                self.kind,
+                "classified provider failure",
+                "original provider message",
+            ))
+        }
+    }
+
+    struct ErrorThenResponseProvider {
+        error: Option<AgentError>,
+        response: MechanismEscalationResponse,
+        diagnostics: Vec<Option<String>>,
+    }
+
+    impl MechanismProvider for ErrorThenResponseProvider {
+        fn propose(
+            &mut self,
+            _request: &MechanismEscalationRequest,
+            diagnostic: Option<&str>,
+        ) -> Result<MechanismEscalationResponse, AgentError> {
+            self.diagnostics.push(diagnostic.map(str::to_owned));
+            if let Some(error) = self.error.take() {
+                Err(error)
+            } else {
+                Ok(self.response.clone())
+            }
+        }
+    }
+
     /// Drives the model-proposal loop directly, bypassing algorithmic
     /// derivation, so repair behaviour stays testable.
     fn provider_loop_result<P: MechanismProvider>(
@@ -1808,6 +1904,107 @@ mod tests {
     }
 
     #[test]
+    fn operational_provider_errors_do_not_consume_repair_attempts() {
+        let trusted = trusted();
+        for kind in [
+            AgentErrorKind::Cancelled,
+            AgentErrorKind::TimedOut,
+            AgentErrorKind::UnsupportedCapability,
+            AgentErrorKind::ProviderUnavailable,
+            AgentErrorKind::ProviderFailure,
+            AgentErrorKind::CacheIo,
+            AgentErrorKind::InvalidCache,
+            AgentErrorKind::IdentityFailure,
+            AgentErrorKind::InvalidRequest,
+            AgentErrorKind::CompilationFailure,
+            AgentErrorKind::InternalFailure,
+        ] {
+            let outcome = lithium_hydroxide_outcome(&trusted);
+            let mut provider = ErrorProvider {
+                kind,
+                calls: 0,
+                diagnostics: Vec::new(),
+            };
+
+            let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+            assert_eq!(provider.calls, 1, "{kind:?}");
+            assert_eq!(provider.diagnostics, [None], "{kind:?}");
+            let MechanismEscalationOutcome::Failed(error) = result else {
+                panic!("expected typed failure for {kind:?}: {result:?}")
+            };
+            assert_eq!(error.kind(), kind);
+            assert_eq!(error.context(), "classified provider failure");
+            assert_eq!(error.message(), "original provider message");
+        }
+    }
+
+    #[test]
+    fn operational_structure_provider_errors_do_not_consume_repair_attempts() {
+        let trusted = trusted();
+        for kind in [
+            AgentErrorKind::Cancelled,
+            AgentErrorKind::TimedOut,
+            AgentErrorKind::UnsupportedCapability,
+            AgentErrorKind::ProviderUnavailable,
+            AgentErrorKind::ProviderFailure,
+            AgentErrorKind::CacheIo,
+            AgentErrorKind::InvalidCache,
+            AgentErrorKind::IdentityFailure,
+            AgentErrorKind::InvalidRequest,
+            AgentErrorKind::CompilationFailure,
+            AgentErrorKind::InternalFailure,
+        ] {
+            let outcome = ether_outcome(&trusted);
+            let mut provider = ErrorProvider {
+                kind,
+                calls: 0,
+                diagnostics: Vec::new(),
+            };
+
+            let result = derive_mechanism(outcome, &trusted, &mut provider);
+
+            assert_eq!(provider.calls, 1, "{kind:?}");
+            assert_eq!(provider.diagnostics, [None], "{kind:?}");
+            let MechanismEscalationOutcome::Failed(error) = result else {
+                panic!("expected typed structure failure for {kind:?}: {result:?}")
+            };
+            assert_eq!(error.kind(), kind);
+            assert_eq!(error.context(), "classified provider failure");
+            assert_eq!(error.message(), "original provider message");
+        }
+    }
+
+    #[test]
+    fn invalid_provider_output_error_is_repaired_with_its_diagnostic() {
+        let trusted = trusted();
+        let outcome = lithium_hydroxide_outcome(&trusted);
+        let valid = valid_response(&outcome, &trusted);
+        let mut provider = ErrorThenResponseProvider {
+            error: Some(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
+                "mechanism response",
+                "malformed structured output",
+            )),
+            response: valid,
+            diagnostics: Vec::new(),
+        };
+
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.repair_count(), 1);
+        assert_eq!(provider.diagnostics.len(), 2);
+        assert_eq!(provider.diagnostics[0], None);
+        assert_eq!(
+            provider.diagnostics[1].as_deref(),
+            Some("mechanism response: malformed structured output")
+        );
+    }
+
+    #[test]
     fn invalid_operation_is_repaired_without_changing_the_request() {
         let trusted = trusted();
         let outcome = lithium_hydroxide_outcome(&trusted);
@@ -1829,6 +2026,43 @@ mod tests {
             provider.diagnostics[1]
                 .as_deref()
                 .is_some_and(|value| value.contains("unknown"))
+        );
+    }
+
+    #[test]
+    fn kernel_rejection_is_repaired_with_its_diagnostic() {
+        let trusted = trusted();
+        let outcome = lithium_hydroxide_outcome(&trusted);
+        let valid = valid_response(&outcome, &trusted);
+        let mut invalid = valid.clone();
+        let cleave = invalid
+            .operations
+            .iter_mut()
+            .find_map(|operation| match operation {
+                MechanismOperation::CleaveCovalent { edge, .. } => Some(edge),
+                _ => None,
+            })
+            .expect("reviewed mechanism has a covalent cleavage");
+        cleave.2 = BondOrderRecord::Triple;
+        let mut provider = FakeProvider {
+            responses: VecDeque::from([invalid, valid]),
+            ..FakeProvider::default()
+        };
+
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.repair_count(), 1);
+        assert_eq!(provider.diagnostics.len(), 2);
+        assert_eq!(provider.diagnostics[0], None);
+        assert!(
+            provider.diagnostics[1]
+                .as_deref()
+                .is_some_and(|value| value.contains("mechanism expansion")),
+            "{:?}",
+            provider.diagnostics
         );
     }
 
@@ -1939,9 +2173,25 @@ mod tests {
             .iter()
             .filter(|operation| matches!(operation, MechanismOperation::FormCovalent { .. }))
             .count();
+        let delocalization_changes = response
+            .operations
+            .iter()
+            .filter(|operation| {
+                matches!(
+                    operation,
+                    MechanismOperation::ChangeCovalentDelocalization {
+                        expected: None,
+                        replacement: Some(_),
+                        ..
+                    }
+                )
+            })
+            .count();
         // Least action: only the two acid O-H bonds break, only the two
-        // water O-H bonds form. The sulfate skeleton passes through intact.
+        // water O-H bonds form. The sulfate skeleton passes through intact,
+        // then its four product resonance annotations are made explicit.
         assert_eq!((cleaves, forms), (2, 2), "ops: {:?}", response.operations);
+        assert_eq!(delocalization_changes, 4, "ops: {:?}", response.operations);
     }
 
     #[test]
@@ -2278,25 +2528,23 @@ mod tests {
     }
 
     #[test]
-    fn formula_only_product_escalates_structures_and_stays_retryable() {
+    fn unsupported_structure_capability_returns_without_repair() {
         // C3H8O is deliberately ambiguous (1-propanol vs 2-propanol), so the
         // structure generator declines and model escalation stays necessary.
         let trusted = trusted();
         let outcome = ether_outcome(&trusted);
         let mut provider = MechanismOnlyProvider::default();
         let result = derive_mechanism(outcome, &trusted, &mut provider);
-        let MechanismEscalationOutcome::Unavailable {
-            attempts,
-            retryable,
-            diagnostic,
-            ..
-        } = result
-        else {
-            panic!("expected unavailable: {result:?}")
+        let MechanismEscalationOutcome::Failed(error) = result else {
+            panic!("expected typed capability failure: {result:?}")
         };
-        assert_eq!(attempts, MAX_STRUCTURE_REPAIRS + 1);
-        assert!(retryable, "a missing structure must remain retryable");
-        assert!(diagnostic.contains("structure proposal"));
+        assert_eq!(error.kind(), AgentErrorKind::UnsupportedCapability);
+        assert_eq!(error.context(), "structure proposal");
+        assert!(
+            error
+                .message()
+                .contains("does not support structure proposals")
+        );
         assert_eq!(
             provider.mechanism_calls, 0,
             "mechanism escalation must wait for validated structures"

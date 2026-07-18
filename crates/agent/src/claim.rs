@@ -1,7 +1,7 @@
 use chem_catalogue::{
-    AtomRecord, BinaryElectronStateRecord, BondOrderRecord, BondRecord, ComponentRecord,
-    ElectronContributionRecord, ElectronStateRecord, ElementValenceRecord, GroupRecord,
-    IonicAssociationRecord, MetallicDomainRecord, MetallicElectronStateRecord,
+    AtomRecord, BinaryElectronStateRecord, BondDelocalizationRecord, BondOrderRecord, BondRecord,
+    ComponentRecord, ElectronContributionRecord, ElectronStateRecord, ElementValenceRecord,
+    GroupRecord, IonicAssociationRecord, MetallicDomainRecord, MetallicElectronStateRecord,
     MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord, MetallicValenceStateRecord,
     TransferElectronStateRecord, ValenceStateRecord,
 };
@@ -633,6 +633,11 @@ pub enum MechanismOperation {
         allocation: MechanismCleavageAllocation,
         before: BinaryElectronStateRecord,
         after: BinaryElectronStateRecord,
+    },
+    ChangeCovalentDelocalization {
+        edge: (String, String),
+        expected: Option<BondDelocalizationRecord>,
+        replacement: Option<BondDelocalizationRecord>,
     },
     AssociateIonic {
         label: String,

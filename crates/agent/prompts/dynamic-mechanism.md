@@ -22,6 +22,11 @@ Rules:
   that its mapped atoms already have exactly the product's bonds and electron
   states. A response containing only mappings and `assign_product` operations
   is invalid whenever reactant and product graphs differ.
+- Covalent `delocalization` is graph identity, not display decoration. Use
+  `change_covalent_delocalization` whenever a surviving or newly formed edge's
+  `expected` annotation differs from the product's `replacement` annotation;
+  either side may be `null`. Do not silently add, remove, or rename a
+  resonance domain through another bond operation.
 - Electron-state triples are `[formal_charge, non_bonding_electrons,
   unpaired_electrons]`. `non_bonding_electrons` counts every electron not in
   a covalent bond, including unpaired ones: a free hydrogen radical is

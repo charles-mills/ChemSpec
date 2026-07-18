@@ -880,15 +880,10 @@ fn configure_child_process(_: &mut Command) {}
 
 #[cfg(unix)]
 fn terminate_child_tree(child: &mut Child) {
-    let group = format!("-{}", child.id());
-    let quiet_signal = |signal: &str| {
-        Command::new("/bin/kill")
-            .args([signal, group.as_str()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-    };
-    let _ = quiet_signal("-TERM");
+    use rustix::process::{Pid, Signal, kill_process_group};
+
+    let group = Pid::from_child(child);
+    let _ = kill_process_group(group, Signal::TERM);
     for _ in 0..4 {
         std::thread::sleep(Duration::from_millis(25));
         if child.try_wait().ok().flatten().is_some() {
@@ -898,7 +893,7 @@ fn terminate_child_tree(child: &mut Child) {
     // Kill the process group even when the leader already exited: a spawned
     // descendant may still hold the captured pipes open and otherwise make a
     // 90-second provider deadline unbounded.
-    let _ = quiet_signal("-KILL");
+    let _ = kill_process_group(group, Signal::KILL);
     let _ = child.kill();
     let _ = child.wait();
 }
@@ -1125,7 +1120,7 @@ mod tests {
                 .as_array()
                 .expect("closed operation variants")
                 .len(),
-            12
+            13
         );
     }
 
@@ -1275,6 +1270,39 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn unix_termination_kills_descendants_that_hold_pipes() {
+        let mut command = Command::new("/bin/sh");
+        command
+            .args(["-c", "(trap '' HUP TERM; sleep 30) & echo ready; wait"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        configure_child_process(&mut command);
+        let mut child = command.spawn().expect("pipe-holding child tree");
+        let stdout = child.stdout.take().expect("captured stdout");
+        let mut reader = BufReader::new(stdout);
+        let mut ready = String::new();
+        reader.read_line(&mut ready).expect("descendant ready line");
+        assert_eq!(ready, "ready\n");
+        let drain = std::thread::spawn(move || {
+            let mut remaining = Vec::new();
+            reader.read_to_end(&mut remaining).map(|_| remaining)
+        });
+
+        let started = Instant::now();
+        terminate_child_tree(&mut child);
+        drain
+            .join()
+            .expect("pipe reader thread")
+            .expect("pipe reader result");
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "descendant-held pipe survived termination: {:?}",
+            started.elapsed()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn capability_probes_are_cached_but_authentication_is_rechecked() {
         let directory = std::env::temp_dir().join(format!(
             "chemspec-preflight-cache-{}-{}",
@@ -1319,8 +1347,11 @@ esac
         assert_eq!(calls.lines().filter(|line| *line == "--help").count(), 1);
         assert_eq!(calls.matches("login status").count(), 2);
 
-        fs::write(&executable, "#!/bin/sh\nsleep 30 &\nwait\n")
-            .expect("slow fake Codex executable");
+        fs::write(
+            &executable,
+            "#!/bin/sh\n(trap '' HUP TERM; sleep 30) &\nwait\n",
+        )
+        .expect("slow fake Codex executable");
         let started = Instant::now();
         let error = bounded_command_output(&executable, ["--version"], Duration::from_millis(20))
             .expect_err("slow preflight must be bounded");
@@ -1352,7 +1383,10 @@ case "$*" in
   "--help") echo "--search" ;;
   "exec --help") echo "--config --output-schema --sandbox --ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --output-last-message" ;;
   "login status") exit 0 ;;
-  "exec "*) sleep 30 ;;
+  "exec "*)
+    (trap '' HUP TERM; sleep 30) &
+    wait
+    ;;
   *) exit 1 ;;
 esac
 "#,
@@ -1374,12 +1408,18 @@ esac
             }],
             selected_context: Some("electricity".to_owned()),
         };
+        let started = Instant::now();
         let error = provider
             .claim_reaction(&request, ClaimMode::Fast)
             .expect_err("pre-cancelled invocation must stop");
 
         assert_eq!(error.kind(), AgentErrorKind::Cancelled);
         assert_eq!(error.context(), "Codex cancellation");
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "descendant-held pipes exceeded cancellation: {:?}",
+            started.elapsed()
+        );
         fs::remove_dir_all(directory).expect("remove cancellation directory");
     }
 }

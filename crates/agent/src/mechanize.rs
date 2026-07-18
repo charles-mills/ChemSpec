@@ -12,9 +12,9 @@
 use std::collections::BTreeMap;
 
 use chem_catalogue::{
-    BinaryElectronStateRecord, BondOrderRecord, ElectronContributionRecord, ElectronStateRecord,
-    MetallicElectronStateRecord, MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord,
-    TransferElectronStateRecord,
+    BinaryElectronStateRecord, BondDelocalizationRecord, BondOrderRecord,
+    ElectronContributionRecord, ElectronStateRecord, MetallicElectronStateRecord,
+    MetallicJoinAllocationRecord, MetallicReleaseAllocationRecord, TransferElectronStateRecord,
 };
 
 use crate::claim::{
@@ -48,6 +48,7 @@ struct SideBond {
     left: String,
     right: String,
     order: u8,
+    delocalization: Option<BondDelocalizationRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -337,6 +338,30 @@ pub(crate) fn derive_algorithmic_mechanism(
         ledger.insert(right.clone(), right_after);
     }
 
+    // 5a. Delocalization is proof-relevant bond identity. Formation creates
+    // a localized edge, while a same-order surviving edge retains its current
+    // annotation, so reconcile every product annotation explicitly.
+    for product_bond in &products.bonds {
+        let left = inverse.get(&product_bond.left)?;
+        let right = inverse.get(&product_bond.right)?;
+        let expected = reactants
+            .bonds
+            .iter()
+            .find(|candidate| {
+                candidate.order == product_bond.order
+                    && ((&candidate.left == left && &candidate.right == right)
+                        || (&candidate.left == right && &candidate.right == left))
+            })
+            .and_then(|bond| bond.delocalization.clone());
+        if expected != product_bond.delocalization {
+            operations.push(MechanismOperation::ChangeCovalentDelocalization {
+                edge: (left.clone(), right.clone()),
+                expected,
+                replacement: product_bond.delocalization.clone(),
+            });
+        }
+    }
+
     // 5b. Sites join product metallic domains, donating their acquired
     // share as unpaired electrons (pairs are broken open first).
     for (domain_path, sites, share) in &joins {
@@ -521,6 +546,7 @@ fn expand_side(species: &[MechanismSpecies]) -> Option<Side> {
                         left: path(&bond.left),
                         right: path(&bond.right),
                         order: order_of(bond.order),
+                        delocalization: bond.delocalization.clone(),
                     });
                 }
             };

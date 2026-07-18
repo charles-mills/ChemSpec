@@ -485,7 +485,9 @@ The runtime keeps the existing capability-checked subprocess adapter:
   release configuration;
 - output is constrained by the compact schema;
 - the claim path allows one targeted retry, and the escalation path allows at
-  most two operation-level repairs against kernel diagnostics; and
+  most two operation-level repairs only for invalid provider output or kernel
+  rejection; operational failures retain their typed kind and return without
+  repair; and
 - late completions are rejected by generation ID.
 
 Capability/version help probes may be cached for the application process.
@@ -632,7 +634,10 @@ Acceptance:
   library: a closed graph-proposal contract validated inside an isolated
   working catalogue bundle before any mechanism work.
 - Validate escalated mapping/operation responses through the existing kernel
-  and frame projection, with at most two operation-level repairs.
+  and frame projection, with at most two operation-level repairs only for
+  invalid provider output or kernel rejection. Return cancellation, timeout,
+  unavailable capability, authentication, transport, and other operational
+  failures immediately with their original typed kind.
 - Settle to the labelled mechanism-unavailable static state when escalation
   exhausts, retaining the validated static outcome and a retry affordance.
 

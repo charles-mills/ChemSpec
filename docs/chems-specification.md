@@ -282,6 +282,10 @@ The initial operation set is closed:
 - `ChangeCovalent(A, B, old_order, new_order, allocation)` performs a checked
   order decrease or increase with explicit allocation and exact endpoint
   post-states;
+- `ChangeCovalentDelocalization(A, B, expected, replacement)` changes only the
+  typed resonance-domain/effective-order annotation on an existing shared
+  edge; ordinary bond-order changes preserve that annotation, and final graph
+  equality compares it;
 - `AssociateIonic(left_group, right_group)` creates a checked ionic
   association without moving electrons;
 - `DissociateIonic(left_group, right_group)` removes that exact association

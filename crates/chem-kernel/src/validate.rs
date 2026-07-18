@@ -835,11 +835,20 @@ impl WorkingState {
                     ));
                 }
                 self.apply_transitions(transitions, ordinal)?;
-                let changed =
+                let changed = if let Some(delocalization) = old.delocalization() {
+                    CovalentBond::new_delocalized(
+                        old.id().clone(),
+                        left.clone(),
+                        right.clone(),
+                        new_order,
+                        delocalization.clone(),
+                    )
+                } else {
                     CovalentBond::new(old.id().clone(), left.clone(), right.clone(), new_order)
-                        .map_err(|error| {
-                            KernelError::invalid("CHEMS-K021", error.to_string(), Some(ordinal))
-                        })?;
+                }
+                .map_err(|error| {
+                    KernelError::invalid("CHEMS-K021", error.to_string(), Some(ordinal))
+                })?;
                 self.bonds.insert(old.id().clone(), changed);
             }
             StructuralOperationView::ChangeCovalentDelocalization {
@@ -1418,41 +1427,53 @@ fn compare_final_bonds(
     expanded: &ExpandedStructuralReaction,
     state: &WorkingState,
 ) -> Result<(), KernelError> {
-    let map_edge = |bond: &CovalentBond| {
-        let mut ends = [
-            expanded.mapping.entries()[bond.left()].clone(),
-            expanded.mapping.entries()[bond.right()].clone(),
-        ];
-        ends.sort();
-        let origin = match bond.electron_origin() {
-            CovalentElectronOrigin::Shared => None,
-            CovalentElectronOrigin::Dative { donor, acceptor } => Some((
-                expanded.mapping.entries()[donor].clone(),
-                expanded.mapping.entries()[acceptor].clone(),
-            )),
-        };
-        (ends[0].clone(), ends[1].clone(), bond.order(), origin)
-    };
-    let actual = state.bonds.values().map(map_edge).collect::<BTreeSet<_>>();
+    let actual = state
+        .bonds
+        .values()
+        .map(|bond| final_bond_identity(bond, |atom| expanded.mapping.entries()[atom].clone()))
+        .collect::<BTreeSet<_>>();
     let expected = expanded
         .product_instances
         .values()
         .flat_map(|instance| instance.instance.graph().covalent_bonds().values())
-        .map(|bond| {
-            let origin = match bond.electron_origin() {
-                CovalentElectronOrigin::Shared => None,
-                CovalentElectronOrigin::Dative { donor, acceptor } => {
-                    Some((donor.clone(), acceptor.clone()))
-                }
-            };
-            (
-                bond.left().clone(),
-                bond.right().clone(),
-                bond.order(),
-                origin,
-            )
-        })
+        .map(|bond| final_bond_identity(bond, Clone::clone))
         .collect::<BTreeSet<_>>();
+    require_matching_final_bonds(&actual, &expected)
+}
+
+type FinalBondIdentity = (
+    AtomId,
+    AtomId,
+    chem_domain::BondOrder,
+    Option<(AtomId, AtomId)>,
+    Option<chem_domain::CovalentDelocalization>,
+);
+
+fn final_bond_identity(
+    bond: &CovalentBond,
+    map_atom: impl Fn(&AtomId) -> AtomId,
+) -> FinalBondIdentity {
+    let mut ends = [map_atom(bond.left()), map_atom(bond.right())];
+    ends.sort();
+    let origin = match bond.electron_origin() {
+        CovalentElectronOrigin::Shared => None,
+        CovalentElectronOrigin::Dative { donor, acceptor } => {
+            Some((map_atom(donor), map_atom(acceptor)))
+        }
+    };
+    (
+        ends[0].clone(),
+        ends[1].clone(),
+        bond.order(),
+        origin,
+        bond.delocalization().cloned(),
+    )
+}
+
+fn require_matching_final_bonds(
+    actual: &BTreeSet<FinalBondIdentity>,
+    expected: &BTreeSet<FinalBondIdentity>,
+) -> Result<(), KernelError> {
     if actual != expected {
         return Err(KernelError::invalid(
             "CHEMS-K053",
@@ -1548,7 +1569,12 @@ fn compare_final_metallic(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs, path::PathBuf, str::FromStr};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        fs,
+        path::PathBuf,
+        str::FromStr,
+    };
 
     use chem_catalogue::{
         ElementValenceRecord, MetallicValenceStateRecord, ValencePremiseRecord, ValenceStateRecord,
@@ -1556,10 +1582,11 @@ mod tests {
     };
     use chem_domain::{
         Atom, AtomGroup, AtomGroupId, AtomId, BondOrder, CovalentBond, CovalentBondId,
-        ElectronAllocation, ElectronState, ElectronTransition, ElementSymbol, IonicAssociation,
-        IonicAssociationId, MetallicDomain, MetallicDomainId, MetallicJoinAllocation,
-        MetallicReleaseAllocation, StructuralGraph, StructuralOperation, StructuralOperationId,
-        StructuralOperationInput, StructureInstanceId,
+        CovalentDelocalization, CovalentDelocalizationId, EffectiveBondOrder, ElectronAllocation,
+        ElectronState, ElectronTransition, ElementSymbol, IonicAssociation, IonicAssociationId,
+        MetallicDomain, MetallicDomainId, MetallicJoinAllocation, MetallicReleaseAllocation,
+        StructuralGraph, StructuralOperation, StructuralOperationId, StructuralOperationInput,
+        StructureInstanceId,
     };
     use serde_json::Value;
 
@@ -1568,7 +1595,8 @@ mod tests {
     };
 
     use super::{
-        KernelFailureClass, StructuralLedger, WorkingState, validate_conservation, validate_valence,
+        KernelFailureClass, StructuralLedger, WorkingState, final_bond_identity,
+        require_matching_final_bonds, validate_conservation, validate_valence,
     };
 
     fn atom(id: &str, charge: i16, local: u8, unpaired: u8) -> Atom {
@@ -1846,6 +1874,103 @@ mod tests {
             leave.domains[&domain_id].sites(),
             &[right].into_iter().collect()
         );
+    }
+
+    #[test]
+    fn bond_order_changes_preserve_covalent_delocalization() {
+        let left = AtomId::from_str("left").unwrap();
+        let right = AtomId::from_str("right").unwrap();
+        let delocalization = CovalentDelocalization::new(
+            CovalentDelocalizationId::from_str("resonance").unwrap(),
+            EffectiveBondOrder::new(3, 2).unwrap(),
+        );
+        let mut state = state(vec![
+            element_atom("left", "C", 0, 3, 1),
+            element_atom("right", "C", 0, 3, 1),
+        ]);
+        let bond_id = CovalentBondId::from_str("bond").unwrap();
+        state.bonds.insert(
+            bond_id.clone(),
+            CovalentBond::new_delocalized(
+                bond_id,
+                left.clone(),
+                right.clone(),
+                BondOrder::Single,
+                delocalization.clone(),
+            )
+            .unwrap(),
+        );
+        let change = operation(StructuralOperationInput::ChangeCovalent {
+            left: left.clone(),
+            right: right.clone(),
+            old_order: BondOrder::Single,
+            new_order: BondOrder::Double,
+            allocation: ElectronAllocation::Homolytic,
+            transitions: vec![
+                transition("left", (0, 3, 1), (0, 2, 0)),
+                transition("right", (0, 3, 1), (0, 2, 0)),
+            ],
+        });
+
+        validate_complete_transition(&mut state, &change);
+
+        assert_eq!(
+            state.find_bond(&left, &right).unwrap().delocalization(),
+            Some(&delocalization)
+        );
+    }
+
+    #[test]
+    fn final_bond_comparison_rejects_missing_or_wrong_delocalization() {
+        let left = AtomId::from_str("product.left").unwrap();
+        let right = AtomId::from_str("product.right").unwrap();
+        let bond_id = CovalentBondId::from_str("product.bond").unwrap();
+        let annotation = |domain: &str, numerator, denominator| {
+            CovalentDelocalization::new(
+                CovalentDelocalizationId::from_str(domain).unwrap(),
+                EffectiveBondOrder::new(numerator, denominator).unwrap(),
+            )
+        };
+        let expected_bond = CovalentBond::new_delocalized(
+            bond_id.clone(),
+            left.clone(),
+            right.clone(),
+            BondOrder::Single,
+            annotation("resonance", 3, 2),
+        )
+        .unwrap();
+        let expected = BTreeSet::from([final_bond_identity(&expected_bond, Clone::clone)]);
+
+        for actual_bond in [
+            CovalentBond::new(
+                bond_id.clone(),
+                left.clone(),
+                right.clone(),
+                BondOrder::Single,
+            )
+            .unwrap(),
+            CovalentBond::new_delocalized(
+                bond_id.clone(),
+                left.clone(),
+                right.clone(),
+                BondOrder::Single,
+                annotation("other-resonance", 3, 2),
+            )
+            .unwrap(),
+            CovalentBond::new_delocalized(
+                bond_id.clone(),
+                left.clone(),
+                right.clone(),
+                BondOrder::Single,
+                annotation("resonance", 4, 3),
+            )
+            .unwrap(),
+        ] {
+            let actual = BTreeSet::from([final_bond_identity(&actual_bond, Clone::clone)]);
+            let error = require_matching_final_bonds(&actual, &expected).unwrap_err();
+            assert_eq!(error.code(), "CHEMS-K053");
+            assert_eq!(error.class(), KernelFailureClass::InvalidExpansion);
+        }
     }
 
     fn expect_precondition(

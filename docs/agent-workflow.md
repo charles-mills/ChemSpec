@@ -123,10 +123,14 @@ and ordered operations over those labels. It cannot introduce species,
 structures, coefficients, atoms, or operation variants.
 
 Returned proposals cross the same expansion, kernel, and frame projection as a
-reviewed family. At most two operation-level repairs receive bounded kernel
-diagnostics. Exhaustion preserves the static outcome and exposes a retry
-affordance. Formula-only products never enter escalation because ChemSpec does
-not fabricate unknown graphs.
+reviewed family. Only invalid provider output and kernel rejection enter the
+bounded repair loop; at most two operation-level repairs receive the exact
+bounded validation diagnostic. Cancellation, timeout, unavailable capability,
+authentication, transport, cache, and other operational failures return
+immediately with their original typed error and are never shown to the provider
+as repair feedback. Repair exhaustion preserves the static outcome and exposes
+a retry affordance. Formula-only products never enter escalation because
+ChemSpec does not fabricate unknown graphs.
 
 ## Cache v3
 

@@ -139,6 +139,9 @@ fn live_reactant_structure_escalation_probe() {
             "KERNEL OK: reactant structure escalation produced {} frames",
             animated.frames().frames().len()
         ),
+        MechanismEscalationOutcome::Failed(error) => {
+            panic!("PROVIDER ERR {:?}: {error}", error.kind())
+        }
         MechanismEscalationOutcome::Unavailable {
             attempts,
             diagnostic,
