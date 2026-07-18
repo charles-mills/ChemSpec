@@ -12,9 +12,9 @@ Do not implement any part of G1 or later.
 
 Read completely before editing:
 
-1. [`docs/generalized-chemistry-rules.md`](../generalized-chemistry-rules.md),
+1. [`docs/generalized-chemistry-rules.md`](../../generalized-chemistry-rules.md),
    through **Element categories** and **Architectural invariants**.
-2. [`docs/generalized-rules-implementation-plan.md`](../generalized-rules-implementation-plan.md),
+2. [`docs/archive/plans/generalized-rules-implementation-plan.md`](../plans/generalized-rules-implementation-plan.md),
    especially global constraints and **Slice G0**.
 3. The existing catalogue model, validation, normalization, digest, schema, and
    Slice 3 tests.

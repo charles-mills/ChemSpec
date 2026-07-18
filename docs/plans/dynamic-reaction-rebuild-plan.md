@@ -2,9 +2,11 @@
 
 ## Status and decision
 
-This is the implementation plan for replacing the current model-authored
-electron-ledger path on catalogue misses. It governs `DYN-104` through
-`DYN-112` in [the repository implementation plan](implementation-plan.md).
+This is the implementation plan for replacing the model-authored
+electron-ledger path on catalogue misses and completing the coverage and
+experience work that follows it. It governs `DYN-104` through `DYN-119` in
+[the repository implementation plan](implementation-plan.md) and this plan's
+Phase 2 section.
 
 The provider decision is fixed:
 

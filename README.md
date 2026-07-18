@@ -93,19 +93,18 @@ full; `by apply` cannot select or omit checks.
 
 ## Documentation
 
+- [Documentation map](docs/README.md)
 - [Product specification](docs/product-spec.md)
 - [The `.chems` language](docs/chems-language.md)
 - [Normative `.chems` specification](docs/chems-specification.md)
 - [Structural architecture](docs/structural-chems-architecture.md)
-- [`.chems` implementation plan](docs/chems-implementation-plan.md)
-- [Generalized chemistry rules (locked forward design)](docs/generalized-chemistry-rules.md)
-- [Generalized rules implementation plan](docs/generalized-rules-implementation-plan.md)
-- [Catalogue candidate and Luna handoff](docs/luna-catalogue-handoff.md)
+- [Generalized chemistry rules](docs/generalized-chemistry-rules.md)
+- [Trusted catalogue coverage](docs/catalogue-coverage.md)
 - [Chemistry engine](docs/chemistry-engine.md)
 - [System architecture](docs/system-architecture.md)
 - [Macroscopic 3D visual system](docs/macroscopic-visual-system.md)
 - [Agent workflow and providers](docs/agent-workflow.md)
-- [Dynamic reaction outcome rebuild plan](docs/dynamic-reaction-rebuild-plan.md)
+- [Active plans](docs/plans/README.md)
 - [Verification strategy](docs/verification.md)
 - [Conformance fixtures](conformance/README.md)
 
@@ -133,7 +132,14 @@ dynamic provider uses a Codex subscription through the local `codex` binary.
 Codex binary remains the default provider. The startup UI reserves BYOK/API as
 a possible provider-neutral backup, but it is not connected and neither a
 direct API implementation nor a hosted backend is required by the current
-[dynamic reaction rebuild](docs/dynamic-reaction-rebuild-plan.md).
+[dynamic reaction rebuild](docs/plans/dynamic-reaction-rebuild-plan.md).
+
+Application preferences are selected on first launch and can be changed from
+the Builder settings menu. ChemSpec persists the app mode and whether chemical
+labels use formulae (`H₂O`) or deterministic names (`water`) in the operating
+system's standard per-user configuration directory. Names fall back to the
+exact formula when the chemistry engine cannot derive one. API mode remains
+visible but unavailable; settings never store API keys or other credentials.
 
 ## Chemistry status
 

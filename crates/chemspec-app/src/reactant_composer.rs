@@ -23,7 +23,9 @@ use crate::chemistry;
 use crate::composition_catalogue;
 use crate::elements;
 use crate::fonts;
+use crate::nomenclature;
 use crate::particle_visualization::{AmbientReactantDiagram, ambient_footprint};
+use crate::settings::ChemicalLabels;
 use crate::theme::{self, color, motion, space as spacing, type_scale};
 
 // Matches the domain generator's structure cap so name-resolved organics
@@ -60,6 +62,8 @@ struct ReactantDraft {
     /// Keeping it beside the name avoids rebuilding a structure on every
     /// animation frame just to display conventional element order.
     display_formula: Option<String>,
+    /// Canonical deterministic name resolved with the same preview identity.
+    display_name: Option<String>,
 }
 
 /// An in-flight press on a slot: a quick release clicks (select or undo),
@@ -229,6 +233,7 @@ pub fn update(state: &mut State, message: Message) {
                 draft.atoms.pop();
                 draft.name = None;
                 draft.display_formula = None;
+                draft.display_name = None;
             } else {
                 state.active = reactant;
             }
@@ -244,6 +249,7 @@ pub fn update(state: &mut State, message: Message) {
             draft.atoms.pop();
             draft.name = None;
             draft.display_formula = None;
+            draft.display_name = None;
             state.limit_reached = false;
         }
         Message::ClearActive => {
@@ -251,6 +257,7 @@ pub fn update(state: &mut State, message: Message) {
             draft.atoms.clear();
             draft.name = None;
             draft.display_formula = None;
+            draft.display_name = None;
             state.limit_reached = false;
         }
         Message::BeginNameEntry(reactant) => {
@@ -303,6 +310,7 @@ fn animation_tick(state: &mut State) {
             draft.atoms.clear();
             draft.name = None;
             draft.display_formula = None;
+            draft.display_name = None;
             state.limit_reached = false;
         }
     }
@@ -693,13 +701,16 @@ fn resolve_named(input: &str) -> Result<ReactantDraft, String> {
     {
         return Err(format!("Element {unknown} is not in the library yet"));
     }
-    let display_formula =
-        composition_catalogue::trusted_preview_named(input, atoms.iter().copied())
-            .map_or_else(|| formula(&atoms), |preview| preview.formula);
+    let preview = composition_catalogue::trusted_preview_named(input, atoms.iter().copied());
+    let display_formula = preview
+        .as_ref()
+        .map_or_else(|| formula(&atoms), |preview| preview.formula.clone());
+    let display_name = preview.and_then(|preview| preview.name);
     Ok(ReactantDraft {
         atoms,
         name: Some(input.to_owned()),
         display_formula: Some(display_formula),
+        display_name,
     })
 }
 
@@ -715,6 +726,7 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
     draft.atoms.push(atomic_number);
     draft.name = None;
     draft.display_formula = None;
+    draft.display_name = None;
     state.limit_reached = false;
 }
 
@@ -748,12 +760,28 @@ pub fn draft_names(state: &State) -> [Option<&str>; 2] {
 /// User-facing formulae for the current drafts. Name-resolved drafts retain
 /// conventional formula order (`NaCl`, not inventory-sorted `ClNa`).
 #[must_use]
+#[cfg(test)]
 pub fn draft_formulae(state: &State) -> [String; 2] {
     state.drafts.each_ref().map(|draft| {
         draft
             .display_formula
             .clone()
             .unwrap_or_else(|| formula(&draft.atoms))
+    })
+}
+
+#[must_use]
+pub fn draft_labels(state: &State, labels: ChemicalLabels) -> [String; 2] {
+    state.drafts.each_ref().map(|draft| {
+        let formula = draft
+            .display_formula
+            .clone()
+            .unwrap_or_else(|| formula(&draft.atoms));
+        let name = draft.display_name.clone().or_else(|| {
+            composition_catalogue::trusted_preview(draft.atoms.iter().copied())
+                .and_then(|preview| preview.name)
+        });
+        nomenclature::display_species(labels, name.as_deref(), &formula)
     })
 }
 
@@ -833,12 +861,15 @@ pub fn clear_reaction(state: &mut State) {
 /// the dynamic pipeline resolves back into the exact drawn structure.
 pub fn set_sketched_reactant(state: &mut State, atoms: Vec<u8>, smiles: String) {
     let draft = &mut state.drafts[state.active.index()];
-    let display_formula =
-        composition_catalogue::trusted_preview_named(&smiles, atoms.iter().copied())
-            .map_or_else(|| formula(&atoms), |preview| preview.formula);
+    let preview = composition_catalogue::trusted_preview_named(&smiles, atoms.iter().copied());
+    let display_formula = preview
+        .as_ref()
+        .map_or_else(|| formula(&atoms), |preview| preview.formula.clone());
+    let display_name = preview.and_then(|preview| preview.name);
     draft.atoms = atoms;
     draft.name = Some(smiles);
     draft.display_formula = Some(display_formula);
+    draft.display_name = display_name;
     state.limit_reached = false;
     state.editing = None;
     state.name_input.clear();
@@ -855,6 +886,7 @@ pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
         atoms,
         name: None,
         display_formula: None,
+        display_name: None,
     });
     state.active = ActiveReactant::First;
     state.limit_reached = false;
@@ -948,9 +980,10 @@ pub fn view(
     state: &State,
     library_drag: Option<u8>,
     local: bool,
+    labels: ChemicalLabels,
     compact: bool,
 ) -> Element<'static, Message> {
-    let sentence = sentence(state, library_drag, compact);
+    let sentence = sentence(state, library_drag, labels, compact);
     let prompt = reaction_prompt(state, local, compact);
 
     container(
@@ -975,7 +1008,12 @@ pub fn view(
 
 /// Wide layouts phrase the equation as the product's canonical question;
 /// compact layouts fall back to the denser `X + Y` equation form.
-fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'static, Message> {
+fn sentence(
+    state: &State,
+    library_drag: Option<u8>,
+    labels: ChemicalLabels,
+    compact: bool,
+) -> Element<'static, Message> {
     let word = |content: &'static str| {
         text(content)
             .size(if compact {
@@ -986,8 +1024,8 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
             .font(SENTENCE_FONT)
             .color(color::TEXT_SOFT)
     };
-    let first = slot(state, ActiveReactant::First, library_drag, compact);
-    let second = slot(state, ActiveReactant::Second, library_drag, compact);
+    let first = slot(state, ActiveReactant::First, library_drag, labels, compact);
+    let second = slot(state, ActiveReactant::Second, library_drag, labels, compact);
 
     let sentence = if compact {
         row![
@@ -1120,6 +1158,7 @@ fn slot(
     state: &State,
     reactant: ActiveReactant,
     library_drag: Option<u8>,
+    labels: ChemicalLabels,
     compact: bool,
 ) -> Element<'static, Message> {
     let atoms = &state.drafts[reactant.index()].atoms;
@@ -1129,6 +1168,15 @@ fn slot(
         .display_formula
         .clone()
         .unwrap_or_else(|| formula(atoms));
+    let display_name = state.drafts[reactant.index()]
+        .display_name
+        .clone()
+        .or_else(|| {
+            composition_catalogue::trusted_preview(atoms.iter().copied())
+                .and_then(|preview| preview.name)
+        });
+    let draft_label =
+        nomenclature::display_species(labels, display_name.as_deref(), &draft_formula);
 
     let empty = draft_formula.is_empty();
     if empty && state.editing == Some(reactant) {
@@ -1146,13 +1194,17 @@ fn slot(
             .style(theme::request_input)
             .into();
     }
-    let label = text(if empty { "?".to_owned() } else { draft_formula })
-        .size(if compact {
-            type_scale::TITLE
-        } else {
-            type_scale::DISPLAY
+    let label = text(if empty { "?".to_owned() } else { draft_label })
+        .size(match (labels, compact) {
+            (ChemicalLabels::Formulae, true) | (ChemicalLabels::Names, false) => type_scale::TITLE,
+            (ChemicalLabels::Formulae, false) => type_scale::DISPLAY,
+            (ChemicalLabels::Names, true) => type_scale::BODY_LARGE,
         })
-        .font(FORMULA_FONT)
+        .font(if labels == ChemicalLabels::Formulae {
+            FORMULA_FONT
+        } else {
+            SENTENCE_FONT
+        })
         .color(if empty { color::MUTED } else { color::TEXT });
 
     let chip = container(label)
@@ -1365,6 +1417,17 @@ mod tests {
         update(&mut state, Message::AddElement(1));
         assert_eq!(draft_names(&state), [None, None]);
         assert_eq!(draft_formulae(&state)[0], formula(reactants(&state).0));
+    }
+
+    #[test]
+    fn chemical_label_preference_switches_the_same_resolved_draft() {
+        let mut state = State::default();
+        update(&mut state, Message::NameInput("water".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+
+        assert_eq!(draft_labels(&state, ChemicalLabels::Formulae)[0], "H₂O");
+        assert_eq!(draft_labels(&state, ChemicalLabels::Names)[0], "water");
+        assert_eq!(reactants(&state).0, [1, 1, 8]);
     }
 
     #[test]

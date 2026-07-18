@@ -114,7 +114,11 @@ construct chemical state.
 Composes request states, provider selection, visible workflow, source editing,
 expanded-certificate inspection, diagnostics, derivations, paired playback,
 guided 2D and macroscopic 3D views, and overview. Only the application depends
-on Iced and GPU presentation.
+on Iced and GPU presentation. It also owns versioned per-user preferences for
+app mode and chemical label presentation. Formula/name selection changes only
+the projection of already checked identities; it cannot alter source,
+declarations, validation, frames, or catalogue meaning. Preference files never
+contain provider credentials.
 
 ### Oxygen screening boundary
 

@@ -16,6 +16,7 @@ mod periodic_table;
 mod product_summary;
 mod reactant_composer;
 mod scene_registry;
+mod settings;
 mod sketcher;
 mod structural_2d;
 mod structural_3d;
@@ -52,15 +53,12 @@ use chem_presentation::{
 };
 use iced::widget::{
     button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
-    space, stack, text, text_input, tooltip,
+    space, stack, text, tooltip,
 };
 use iced::{Center, Element, Fill, FillPortion, Length, Size, Subscription, Task, Theme};
 
+use settings::{AppMode, AppSettings, ChemicalLabels, LoadOutcome};
 use theme::{breakpoint, color, space as spacing, type_scale};
-
-fn plan_equation(animation: &StructuralAnimation) -> Option<&str> {
-    (!animation.equation.is_empty()).then_some(animation.equation.as_str())
-}
 
 fn elapsed_millis(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
@@ -68,19 +66,17 @@ fn elapsed_millis(started: Instant) -> u64 {
 
 fn reviewed_outcome_choice(
     request: chemistry::ReactionRequest,
+    labels: ChemicalLabels,
     compact: bool,
     keyboard_selected: bool,
 ) -> Element<'static, Message> {
-    let labels = column![
-        text(request.name())
-            .size(type_scale::BODY_LARGE)
-            .color(color::TEXT),
-        text(nomenclature::display_equation(&request.equation()))
-            .size(type_scale::CAPTION)
-            .color(color::MUTED),
-    ]
-    .spacing(spacing::XXS)
-    .width(Fill);
+    let label = match labels {
+        ChemicalLabels::Formulae => nomenclature::display_equation(&request.equation()),
+        ChemicalLabels::Names => request.name(),
+    };
+    let labels = column![text(label).size(type_scale::BODY_LARGE).color(color::TEXT),]
+        .spacing(spacing::XXS)
+        .width(Fill);
     let choice: Element<'static, Message> = if let Some(preview) = request.product_preview() {
         row![
             canvas(
@@ -109,6 +105,7 @@ fn dynamic_species_theatre_card(
     species: &OutcomeSpecies,
     term: &chem_domain::ReactionTerm,
     phase: f32,
+    labels: ChemicalLabels,
 ) -> Element<'static, Message> {
     let acid_sites = species
         .bronsted_acid_profile()
@@ -149,9 +146,13 @@ fn dynamic_species_theatre_card(
     container(
         column![
             model,
-            text(nomenclature::display_equation(term.formula_text()))
-                .size(type_scale::CAPTION)
-                .color(color::TEXT),
+            text(nomenclature::display_species(
+                labels,
+                Some(term.display_name()),
+                term.formula_text(),
+            ))
+            .size(type_scale::CAPTION)
+            .color(color::TEXT),
             text(capability).size(type_scale::MICRO).color(color::MUTED),
         ]
         .spacing(spacing::XXS)
@@ -234,6 +235,7 @@ fn typewriter_value(value: &str, line: usize, elapsed_ms: u64) -> (String, bool,
 fn product_properties_view(
     summary: &product_summary::SummaryData,
     elapsed_ms: u64,
+    labels: ChemicalLabels,
     compact: bool,
     dense: bool,
 ) -> Element<'static, Message> {
@@ -287,7 +289,7 @@ fn product_properties_view(
         let heading = container(
             row![
                 column![
-                    text(product.display_name())
+                    text(product.primary_label(labels))
                         .size(type_scale::BODY_LARGE)
                         .font(fonts::SEMIBOLD)
                         .color(if product_visible {
@@ -308,21 +310,7 @@ fn product_properties_view(
                     }),
                 ]
                 .spacing(spacing::XXS)
-                .width(FillPortion(3)),
-                text(if product_visible {
-                    product.formula.clone()
-                } else {
-                    "···".to_owned()
-                })
-                .size(type_scale::TITLE)
-                .font(fonts::SEMIBOLD)
-                .color(if product_visible {
-                    color::TEXT
-                } else {
-                    color::FAINT
-                })
-                .width(FillPortion(2))
-                .align_x(iced::Right),
+                .width(Fill),
             ]
             .spacing(panel_spacing)
             .align_y(Center),
@@ -663,6 +651,7 @@ fn launch_state() -> App {
             .find_map(|argument| argument.strip_prefix("--dump-frame=").map(Into::into)),
         ..App::default()
     };
+    app.apply_settings_load(settings::load());
     let smoke_mode = std::env::args().find_map(|argument| SmokeMode::from_argument(&argument));
     let smoke_from_start = std::env::args().any(|argument| argument == "--smoke-from-start");
     let smoke_request =
@@ -823,13 +812,6 @@ impl SmokeMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ProviderChoice {
-    Local,
-    CodexSubscription,
-    ApiKey,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlaybackSpeed {
     Half,
     Normal,
@@ -905,9 +887,19 @@ enum Message {
     },
     ReturnToBuilder,
     StartNewReaction,
-    ProviderSelected(ProviderChoice),
-    ApiKeyChanged(String),
+    ProviderSelected(AppMode),
     ProviderContinue,
+    SettingsOpened,
+    SettingsClosed,
+    SettingsAppModeSelected(AppMode),
+    SettingsChemicalLabelsSelected(ChemicalLabels),
+    SettingsSaveRequested,
+    SettingsSaveFinished {
+        save_id: u64,
+        destination: SettingsSaveDestination,
+        settings: AppSettings,
+        result: Result<(), String>,
+    },
     PeriodicTable(periodic_table::Message),
     ReactantComposer(reactant_composer::Message),
     Sketcher(sketcher::Message),
@@ -957,6 +949,28 @@ enum BuilderPanel {
     Conditions,
     Sketch,
     Help,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SettingsSaveDestination {
+    FirstLaunch,
+    Dialog,
+}
+
+#[derive(Debug, Clone)]
+struct SettingsDialog {
+    draft: AppSettings,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum SettingsSaveState {
+    #[default]
+    Idle,
+    Saving {
+        save_id: u64,
+        destination: SettingsSaveDestination,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1025,6 +1039,21 @@ fn dynamic_modal_keyboard_message(event: iced::keyboard::Event) -> Option<Messag
         return None;
     };
     (key == Key::Named(Named::Escape)).then_some(Message::DynamicOverlayDismissed)
+}
+
+fn settings_modal_keyboard_message(
+    event: iced::keyboard::Event,
+    status: iced::event::Status,
+) -> Option<Message> {
+    use iced::keyboard::{Key, key::Named};
+
+    if status == iced::event::Status::Captured {
+        return None;
+    }
+    let iced::keyboard::Event::KeyPressed { key, repeat, .. } = event else {
+        return None;
+    };
+    (key == Key::Named(Named::Escape) && !repeat).then_some(Message::SettingsClosed)
 }
 
 fn builder_shortcut(
@@ -1100,7 +1129,7 @@ fn builder_shortcut(
 fn provider_keyboard_message(
     event: iced::keyboard::Event,
     status: iced::event::Status,
-    provider: Option<ProviderChoice>,
+    provider: Option<AppMode>,
     codex_available: bool,
 ) -> Option<Message> {
     use iced::keyboard::{Key, key::Named};
@@ -1122,17 +1151,9 @@ fn provider_keyboard_message(
     }
 
     let available = if codex_available {
-        [
-            Some(ProviderChoice::Local),
-            Some(ProviderChoice::CodexSubscription),
-            Some(ProviderChoice::ApiKey),
-        ]
+        [Some(AppMode::Local), Some(AppMode::CodexBinary)]
     } else {
-        [
-            Some(ProviderChoice::Local),
-            Some(ProviderChoice::ApiKey),
-            None,
-        ]
+        [Some(AppMode::Local), None]
     };
     let choices = available.into_iter().flatten().collect::<Vec<_>>();
     match key.as_ref() {
@@ -1156,11 +1177,10 @@ fn provider_keyboard_message(
             ))
         }
         Key::Named(Named::Enter) if !repeat => Some(Message::ProviderContinue),
-        Key::Character("1") if !repeat => Some(Message::ProviderSelected(ProviderChoice::Local)),
+        Key::Character("1") if !repeat => Some(Message::ProviderSelected(AppMode::Local)),
         Key::Character("2") if !repeat && codex_available => {
-            Some(Message::ProviderSelected(ProviderChoice::CodexSubscription))
+            Some(Message::ProviderSelected(AppMode::CodexBinary))
         }
-        Key::Character("3") if !repeat => Some(Message::ProviderSelected(ProviderChoice::ApiKey)),
         _ => None,
     }
 }
@@ -1299,11 +1319,11 @@ struct DynamicIdentityChoice {
 #[derive(Debug)]
 struct StructuralAnimation {
     frames: RenderableFrames,
+    declaration: chem_domain::ReactionDeclaration,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
     reactant_previews: Vec<composition_catalogue::TrustedCompositionPreview>,
     product_preview: Option<composition_catalogue::TrustedCompositionPreview>,
-    equation: String,
     educational_playhead_ms: u64,
     frame_index: usize,
     real_world_playhead_ms: u64,
@@ -1329,8 +1349,12 @@ struct App {
     keyboard_outcome_index: Option<usize>,
     smoke_mode: Option<SmokeMode>,
     codex_available: bool,
-    provider: Option<ProviderChoice>,
-    api_key: String,
+    settings: AppSettings,
+    settings_dialog: Option<SettingsDialog>,
+    settings_save_state: SettingsSaveState,
+    settings_load_error: Option<String>,
+    next_settings_save_id: u64,
+    provider: Option<AppMode>,
     periodic_table: periodic_table::State,
     reactant_composer: reactant_composer::State,
     sketcher: sketcher::State,
@@ -1339,6 +1363,7 @@ struct App {
     active_request: chemistry::ReactionRequest,
     validated_frames: Option<RenderableFrames>,
     validated_macroscopic: Option<chem_presentation::MacroscopicReaction>,
+    validated_declaration: Option<chem_domain::ReactionDeclaration>,
     dynamic_claim: Option<ReactionClaim>,
     dynamic_static: Option<ValidatedStaticOutcome>,
     dynamic_presentation: Option<DynamicPresentationOutcome>,
@@ -1379,8 +1404,12 @@ impl Default for App {
             keyboard_outcome_index: None,
             smoke_mode: None,
             codex_available,
-            provider: Some(ProviderChoice::Local),
-            api_key: String::new(),
+            settings: AppSettings::default(),
+            settings_dialog: None,
+            settings_save_state: SettingsSaveState::Idle,
+            settings_load_error: None,
+            next_settings_save_id: 1,
+            provider: Some(AppMode::Local),
             periodic_table: periodic_table::State::default(),
             reactant_composer: reactant_composer::State::default(),
             sketcher: sketcher::State::default(),
@@ -1393,6 +1422,7 @@ impl Default for App {
             validated_macroscopic: trusted_run
                 .as_ref()
                 .and_then(|run| run.macroscopic().cloned()),
+            validated_declaration: trusted_run.as_ref().map(|run| run.declaration().clone()),
             dynamic_claim: None,
             dynamic_static: None,
             dynamic_presentation: None,
@@ -1419,23 +1449,152 @@ impl Default for App {
     }
 }
 
-#[cfg(test)]
-fn api_key_format_is_valid(api_key: &str) -> bool {
-    let Some(secret) = api_key.strip_prefix("sk-") else {
-        return false;
-    };
-
-    (20..=256).contains(&api_key.len())
-        && secret
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-}
-
 impl App {
+    fn mode_available(&self, mode: AppMode) -> bool {
+        match mode {
+            AppMode::Local => true,
+            AppMode::CodexBinary => self.codex_available,
+            AppMode::Api => false,
+        }
+    }
+
+    fn apply_settings_load(&mut self, outcome: LoadOutcome) {
+        match outcome {
+            LoadOutcome::Loaded(settings) => {
+                self.settings = settings;
+                self.provider = Some(settings.app_mode);
+                if self.mode_available(settings.app_mode) {
+                    self.enter_screen(Screen::Builder);
+                } else {
+                    self.screen = Screen::ProviderSetup;
+                    self.settings_load_error = Some(match settings.app_mode {
+                        AppMode::CodexBinary => {
+                            "Codex is not available. Choose another app mode to continue."
+                                .to_owned()
+                        }
+                        AppMode::Api => {
+                            "API mode is not available in this version of ChemSpec.".to_owned()
+                        }
+                        AppMode::Local => unreachable!("local mode is always available"),
+                    });
+                }
+            }
+            LoadOutcome::Missing => {
+                let app_mode = if self.codex_available {
+                    AppMode::CodexBinary
+                } else {
+                    AppMode::Local
+                };
+                self.settings = AppSettings {
+                    app_mode,
+                    chemical_labels: ChemicalLabels::Formulae,
+                };
+                self.provider = Some(app_mode);
+                self.screen = Screen::ProviderSetup;
+            }
+            LoadOutcome::Invalid(error) => {
+                let app_mode = if self.codex_available {
+                    AppMode::CodexBinary
+                } else {
+                    AppMode::Local
+                };
+                self.settings = AppSettings {
+                    app_mode,
+                    chemical_labels: ChemicalLabels::Formulae,
+                };
+                self.provider = Some(app_mode);
+                self.screen = Screen::ProviderSetup;
+                self.settings_load_error = Some(format!(
+                    "Saved settings could not be loaded. Choose an app mode to repair them. {error}"
+                ));
+            }
+        }
+    }
+
+    fn start_settings_save(
+        &mut self,
+        destination: SettingsSaveDestination,
+        settings: AppSettings,
+    ) -> Task<Message> {
+        if !matches!(self.settings_save_state, SettingsSaveState::Idle) {
+            return Task::none();
+        }
+        let save_id = self.next_settings_save_id;
+        self.next_settings_save_id = self.next_settings_save_id.saturating_add(1);
+        self.settings_save_state = SettingsSaveState::Saving {
+            save_id,
+            destination,
+        };
+        if let Some(dialog) = &mut self.settings_dialog {
+            dialog.error = None;
+        }
+        Task::perform(async move { settings::save(settings) }, move |result| {
+            Message::SettingsSaveFinished {
+                save_id,
+                destination,
+                settings,
+                result,
+            }
+        })
+    }
+
+    fn finish_settings_save(
+        &mut self,
+        save_id: u64,
+        destination: SettingsSaveDestination,
+        settings: AppSettings,
+        result: Result<(), String>,
+    ) {
+        if self.settings_save_state
+            != (SettingsSaveState::Saving {
+                save_id,
+                destination,
+            })
+        {
+            return;
+        }
+        self.settings_save_state = SettingsSaveState::Idle;
+        match result {
+            Ok(()) => {
+                let mode_changed = self.provider != Some(settings.app_mode);
+                if mode_changed {
+                    self.cancel_dynamic_work();
+                }
+                self.settings = settings;
+                self.provider = Some(settings.app_mode);
+                self.settings_load_error = None;
+                self.settings_dialog = None;
+                if destination == SettingsSaveDestination::FirstLaunch {
+                    self.enter_screen(Screen::Builder);
+                } else {
+                    self.sync_builder_submit_prompt();
+                }
+            }
+            Err(error) => match destination {
+                SettingsSaveDestination::FirstLaunch => self.settings_load_error = Some(error),
+                SettingsSaveDestination::Dialog => {
+                    if let Some(dialog) = &mut self.settings_dialog {
+                        dialog.error = Some(error);
+                    }
+                }
+            },
+        }
+    }
+
+    fn settings_saving(&self, destination: SettingsSaveDestination) -> bool {
+        matches!(
+            self.settings_save_state,
+            SettingsSaveState::Saving {
+                destination: active,
+                ..
+            } if active == destination
+        )
+    }
+
     /// Local Mode is a state for the whole app: no model integration, no
     /// model-facing copy, and anything only a model could do is unsupported.
     fn local_mode(&self) -> bool {
-        self.provider == Some(ProviderChoice::Local)
+        self.provider == Some(AppMode::Local)
     }
 
     /// The only runtime boundary for changing product screens. It reconciles
@@ -1470,6 +1629,7 @@ impl App {
         self.oxygen_assessment = None;
         self.validated_frames = None;
         self.validated_macroscopic = None;
+        self.validated_declaration = None;
         self.dynamic_context = None;
         self.dynamic_details_open = false;
         self.dynamic_overlay_dismissed = false;
@@ -1539,7 +1699,8 @@ impl App {
         if first.is_empty() && second.is_empty() && self.dynamic_static.is_none() {
             return None;
         }
-        let formulae = reactant_composer::draft_formulae(&self.reactant_composer);
+        let formulae =
+            reactant_composer::draft_labels(&self.reactant_composer, self.settings.chemical_labels);
         let first = if first.is_empty() {
             "empty".to_owned()
         } else {
@@ -1566,7 +1727,10 @@ impl App {
             };
             format!(
                 "{}; {capability}",
-                nomenclature::display_equation(outcome.equation())
+                nomenclature::display_declaration(
+                    outcome.declaration(),
+                    self.settings.chemical_labels,
+                )
             )
         };
         let running_summary = || match &self.dynamic_build {
@@ -1643,28 +1807,34 @@ impl App {
             }
             Message::Noop => {}
             Message::KeyboardEvent { event, status } => {
-                let message = match self.screen {
-                    Screen::Builder if self.dynamic_modal_kind().is_some() => {
-                        dynamic_modal_keyboard_message(event)
+                let message = if self.settings_dialog.is_some() {
+                    settings_modal_keyboard_message(event, status)
+                } else {
+                    match self.screen {
+                        Screen::Builder if self.dynamic_modal_kind().is_some() => {
+                            dynamic_modal_keyboard_message(event)
+                        }
+                        Screen::Builder => builder_keyboard_message(
+                            self.screen,
+                            event,
+                            status,
+                            reactant_composer::editing(&self.reactant_composer).is_some(),
+                            self.builder_panel.is_some(),
+                            self.builder_can_submit(),
+                        ),
+                        Screen::ProviderSetup => provider_keyboard_message(
+                            event,
+                            status,
+                            self.provider,
+                            self.codex_available,
+                        ),
+                        Screen::OutcomeChoice
+                        | Screen::Structural2d
+                        | Screen::Structural3d
+                        | Screen::ProductSummary => {
+                            screen_keyboard_message(self.screen, event, status)
+                        }
                     }
-                    Screen::Builder => builder_keyboard_message(
-                        self.screen,
-                        event,
-                        status,
-                        reactant_composer::editing(&self.reactant_composer).is_some(),
-                        self.builder_panel.is_some(),
-                        self.builder_can_submit(),
-                    ),
-                    Screen::ProviderSetup => provider_keyboard_message(
-                        event,
-                        status,
-                        self.provider,
-                        self.codex_available,
-                    ),
-                    Screen::OutcomeChoice
-                    | Screen::Structural2d
-                    | Screen::Structural3d
-                    | Screen::ProductSummary => screen_keyboard_message(self.screen, event, status),
                 };
                 if let Some(message) = message {
                     self.keyboard_navigation_active = true;
@@ -1693,18 +1863,70 @@ impl App {
             }
             Message::ReturnToBuilder => self.enter_screen(Screen::Builder),
             Message::StartNewReaction => self.start_new_reaction(),
-            Message::ProviderSelected(provider) => self.provider = Some(provider),
-            Message::ApiKeyChanged(api_key) => self.api_key = api_key,
-            Message::ProviderContinue => {
-                let ready = match self.provider {
-                    Some(ProviderChoice::Local) => true,
-                    Some(ProviderChoice::CodexSubscription) => self.codex_available,
-                    Some(ProviderChoice::ApiKey) | None => false,
-                };
-                if ready {
-                    self.enter_screen(Screen::Builder);
+            Message::ProviderSelected(provider) => {
+                if self.mode_available(provider) {
+                    self.provider = Some(provider);
+                    self.settings.app_mode = provider;
+                    self.settings_load_error = None;
                 }
             }
+            Message::ProviderContinue => {
+                let ready = match self.provider {
+                    Some(AppMode::Local) => true,
+                    Some(AppMode::CodexBinary) => self.codex_available,
+                    Some(AppMode::Api) | None => false,
+                };
+                if ready {
+                    let settings = AppSettings {
+                        app_mode: self.provider.expect("a ready provider exists"),
+                        chemical_labels: self.settings.chemical_labels,
+                    };
+                    return self
+                        .start_settings_save(SettingsSaveDestination::FirstLaunch, settings);
+                }
+            }
+            Message::SettingsOpened => {
+                if self.settings_dialog.is_none() && self.dynamic_modal_kind().is_none() {
+                    self.builder_panel = None;
+                    self.settings_dialog = Some(SettingsDialog {
+                        draft: self.settings,
+                        error: None,
+                    });
+                }
+            }
+            Message::SettingsClosed => {
+                if !self.settings_saving(SettingsSaveDestination::Dialog) {
+                    self.settings_dialog = None;
+                }
+            }
+            Message::SettingsAppModeSelected(mode) => {
+                let available = self.mode_available(mode);
+                if available && let Some(dialog) = &mut self.settings_dialog {
+                    dialog.draft.app_mode = mode;
+                    dialog.error = None;
+                }
+            }
+            Message::SettingsChemicalLabelsSelected(labels) => {
+                if let Some(dialog) = &mut self.settings_dialog {
+                    dialog.draft.chemical_labels = labels;
+                    dialog.error = None;
+                }
+            }
+            Message::SettingsSaveRequested => {
+                let Some(dialog) = &self.settings_dialog else {
+                    return Task::none();
+                };
+                if !self.mode_available(dialog.draft.app_mode) {
+                    return Task::none();
+                }
+                return self.start_settings_save(SettingsSaveDestination::Dialog, dialog.draft);
+            }
+            Message::SettingsSaveFinished {
+                save_id,
+                destination,
+                settings,
+                result,
+            } => self.finish_settings_save(save_id, destination, settings, result),
             Message::PeriodicTable(message) => {
                 if self.dynamic_modal_kind().is_some() {
                     return Task::none();
@@ -2230,6 +2452,7 @@ impl App {
             || matches!(&self.validated_frames, Some(RenderableFrames::Dynamic(_)))
         {
             self.validated_frames = None;
+            self.validated_declaration = None;
             self.structural_animation = None;
         }
 
@@ -2345,7 +2568,7 @@ impl App {
     ) -> Task<Message> {
         let local = self.local_mode();
         self.open_dynamic_overlay();
-        if !local && !matches!(self.provider, Some(ProviderChoice::CodexSubscription)) {
+        if !local && !matches!(self.provider, Some(AppMode::CodexBinary)) {
             self.dynamic_build = DynamicBuildState::Failed(
                 "Direct API reaction building is not available yet; choose Codex subscription."
                     .to_owned(),
@@ -2358,6 +2581,7 @@ impl App {
         let run_id = self.next_dynamic_run_id;
         self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
         self.validated_frames = None;
+        self.validated_declaration = None;
         self.dynamic_claim = None;
         self.dynamic_static = None;
         self.dynamic_presentation = None;
@@ -2621,6 +2845,7 @@ impl App {
 
     fn finish_dynamic_presentation(&mut self, presentation: DynamicPresentationOutcome) {
         self.dynamic_static = Some(presentation.static_outcome().clone());
+        self.validated_declaration = Some(presentation.static_outcome().declaration().clone());
         self.validated_frames = match &presentation {
             DynamicPresentationOutcome::ReviewedFamily(outcome) => {
                 Some(RenderableFrames::Catalogue(outcome.frames().clone()))
@@ -2684,6 +2909,7 @@ impl App {
         self.validated_macroscopic = trusted_run
             .as_ref()
             .and_then(|run| run.macroscopic().cloned());
+        self.validated_declaration = trusted_run.as_ref().map(|run| run.declaration().clone());
         self.dynamic_claim = None;
         self.dynamic_static = None;
         self.dynamic_presentation = None;
@@ -2822,14 +3048,25 @@ impl App {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        match self.screen {
-            Screen::ProviderSetup => responsive(|size| self.provider_setup_view(size)).into(),
-            Screen::Builder => responsive(|size| self.builder_view(size)).into(),
-            Screen::OutcomeChoice => responsive(|size| self.outcome_choice_view(size)).into(),
-            Screen::Structural2d => responsive(|size| self.structural_2d_view(size)).into(),
-            Screen::Structural3d => responsive(|size| self.structural_3d_view(size)).into(),
-            Screen::ProductSummary => responsive(|size| self.product_summary_view(size)).into(),
-        }
+        responsive(|size| {
+            let application = match self.screen {
+                Screen::ProviderSetup => self.provider_setup_view(size),
+                Screen::Builder => self.builder_view(size),
+                Screen::OutcomeChoice => self.outcome_choice_view(size),
+                Screen::Structural2d => self.structural_2d_view(size),
+                Screen::Structural3d => self.structural_3d_view(size),
+                Screen::ProductSummary => self.product_summary_view(size),
+            };
+            if self.settings_dialog.is_some() {
+                stack![application, self.settings_overlay(size)]
+                    .width(Fill)
+                    .height(Fill)
+                    .into()
+            } else {
+                application
+            }
+        })
+        .into()
     }
 
     #[allow(clippy::too_many_lines)]
@@ -2848,6 +3085,7 @@ impl App {
             for (index, request) in self.pending_requests.iter().enumerate() {
                 choices = choices.push(reviewed_outcome_choice(
                     *request,
+                    self.settings.chemical_labels,
                     compact,
                     self.keyboard_navigation_active && self.keyboard_outcome_index == Some(index),
                 ));
@@ -2949,19 +3187,18 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn provider_setup_view(&self, size: Size) -> Element<'_, Message> {
         let compact = size.width < breakpoint::MOBILE;
-        let local_selected = self.provider == Some(ProviderChoice::Local);
-        let codex_selected = self.provider == Some(ProviderChoice::CodexSubscription);
-        let api_selected = self.provider == Some(ProviderChoice::ApiKey);
+        let local_selected = self.provider == Some(AppMode::Local);
+        let codex_selected = self.provider == Some(AppMode::CodexBinary);
 
         let local = button(
             row![
                 icons::chip(20.0, color::ACCENT),
-                text("Local Mode").size(type_scale::BODY_LARGE),
+                text("Local").size(type_scale::BODY_LARGE),
             ]
             .spacing(spacing::SM)
             .align_y(Center),
         )
-        .on_press(Message::ProviderSelected(ProviderChoice::Local))
+        .on_press(Message::ProviderSelected(AppMode::Local))
         .padding([spacing::SM, spacing::MD])
         .width(Fill)
         .style(move |_, status| theme::provider_button(local_selected, status));
@@ -2975,14 +3212,14 @@ impl App {
         let codex = button(
             row![
                 icons::codex(20.0, codex_icon_color),
-                text("Codex subscription").size(type_scale::BODY_LARGE),
+                text("Codex").size(type_scale::BODY_LARGE),
             ]
             .spacing(spacing::SM)
             .align_y(Center),
         )
         .on_press_maybe(
             self.codex_available
-                .then_some(Message::ProviderSelected(ProviderChoice::CodexSubscription)),
+                .then_some(Message::ProviderSelected(AppMode::CodexBinary)),
         )
         .padding([spacing::SM, spacing::MD])
         .width(Fill)
@@ -2990,16 +3227,19 @@ impl App {
 
         let api = button(
             row![
-                icons::api_key(20.0, color::ACCENT),
-                text("OpenAI API key").size(type_scale::BODY_LARGE),
+                icons::api_key(20.0, color::FAINT),
+                text("API").size(type_scale::BODY_LARGE).color(color::FAINT),
+                space().width(Fill),
+                text("UNAVAILABLE")
+                    .size(type_scale::MICRO)
+                    .color(color::FAINT),
             ]
             .spacing(spacing::SM)
             .align_y(Center),
         )
-        .on_press(Message::ProviderSelected(ProviderChoice::ApiKey))
         .padding([spacing::SM, spacing::MD])
         .width(Fill)
-        .style(move |_, status| theme::provider_button(api_selected, status));
+        .style(theme::secondary_button);
 
         let choices: Element<'_, Message> = column![
             local,
@@ -3014,51 +3254,28 @@ impl App {
         .into();
         let ready = local_selected || (codex_selected && self.codex_available);
         let continue_label = if local_selected {
-            "Continue with Local Mode"
-        } else if api_selected {
-            "API provider coming next"
+            "Continue with Local"
         } else {
             "Continue with Codex"
         };
+        let saving = self.settings_saving(SettingsSaveDestination::FirstLaunch);
         let continue_icon_color = if ready { color::CANVAS } else { color::FAINT };
         let continue_button = button(
             row![
-                text(continue_label),
+                text(if saving { "Saving…" } else { continue_label }),
                 icons::arrow_right(16.0, continue_icon_color),
             ]
             .spacing(spacing::XS)
             .align_y(Center),
         )
-        .on_press_maybe(ready.then_some(Message::ProviderContinue))
+        .on_press_maybe((ready && !saving).then_some(Message::ProviderContinue))
         .padding([spacing::SM, spacing::MD])
         .style(theme::primary_button);
 
-        let action: Element<'_, Message> = if api_selected {
-            let input = text_input("sk-…", &self.api_key)
-                .on_input(Message::ApiKeyChanged)
-                .secure(true)
-                .padding(spacing::SM)
-                .width(Fill)
-                .style(theme::request_input);
-
-            if compact {
-                column![input, continue_button]
-                    .spacing(spacing::SM)
-                    .width(Fill)
-                    .into()
-            } else {
-                row![input, continue_button]
-                    .spacing(spacing::SM)
-                    .align_y(Center)
-                    .width(Fill)
-                    .into()
-            }
-        } else {
-            row![space().width(Fill), continue_button]
-                .align_y(Center)
-                .width(Fill)
-                .into()
-        };
+        let action: Element<'_, Message> = row![space().width(Fill), continue_button]
+            .align_y(Center)
+            .width(Fill)
+            .into();
 
         let mut sections: Vec<Element<'_, Message>> = vec![
             text("How should ChemSpec research?")
@@ -3081,7 +3298,7 @@ impl App {
                         text("Codex wasn’t found")
                             .size(type_scale::BODY_LARGE)
                             .color(color::TEXT),
-                        text("Use an API key or install Codex.")
+                        text("Install Codex, or continue in Local mode.")
                             .size(type_scale::CAPTION)
                             .color(color::MUTED),
                     ]
@@ -3093,10 +3310,19 @@ impl App {
             );
         }
 
+        if let Some(error) = &self.settings_load_error {
+            sections.push(
+                text(error)
+                    .size(type_scale::CAPTION)
+                    .color(color::DANGER)
+                    .into(),
+            );
+        }
+
         sections.push(action);
         if self.keyboard_navigation_active {
             sections.push(
-                text("↑ ↓ choose  ·  1–3 select  ·  Enter continue")
+                text("↑ ↓ choose  ·  1–2 select  ·  Enter continue")
                     .size(type_scale::MICRO)
                     .color(color::ACCENT)
                     .into(),
@@ -3125,13 +3351,13 @@ impl App {
                 .clone();
             let educational_plan =
                 compile_educational_plan(&frames).map_err(|error| error.to_string())?;
-            let (profile, reactant_previews, product_preview, equation) =
+            let (profile, reactant_previews, product_preview, declaration) =
                 if let Some(dynamic) = &self.dynamic_static {
                     (
                         dynamic_presentation_profile(&frames, dynamic.equation()),
                         Vec::new(),
                         None,
-                        dynamic.equation().to_owned(),
+                        dynamic.declaration().clone(),
                     )
                 } else {
                     (
@@ -3142,7 +3368,9 @@ impl App {
                         )?,
                         self.active_request.reactant_previews(),
                         self.active_request.product_preview(),
-                        self.active_request.equation(),
+                        self.validated_declaration
+                            .clone()
+                            .ok_or_else(|| "validated declaration is unavailable".to_owned())?,
                     )
                 };
             let real_world_plan =
@@ -3150,11 +3378,11 @@ impl App {
             let home_timeline = structural_2d::home_timeline(frames.frames());
             Ok::<_, String>(StructuralAnimation {
                 frames,
+                declaration,
                 educational_plan,
                 real_world_plan,
                 reactant_previews,
                 product_preview,
-                equation,
                 educational_playhead_ms: 0,
                 frame_index: 0,
                 real_world_playhead_ms: 0,
@@ -3439,7 +3667,10 @@ impl App {
             .padding([spacing::XS, spacing::SM])
             .style(theme::secondary_button);
 
-        let equation = plan_equation(animation).map(nomenclature::display_equation);
+        let equation = Some(nomenclature::display_declaration(
+            &animation.declaration,
+            self.settings.chemical_labels,
+        ));
         let scene_context = structural_2d::SceneContext::new(
             educational_scene.kind,
             timeline_position.scene_index,
@@ -3649,9 +3880,12 @@ impl App {
                     text("REVIEWED SCENE")
                         .size(type_scale::MICRO)
                         .color(color::ACCENT),
-                    text(nomenclature::display_equation(&real_world_plan.equation))
-                        .size(type_scale::BODY_LARGE)
-                        .color(color::TEXT),
+                    text(nomenclature::display_declaration(
+                        &animation.declaration,
+                        self.settings.chemical_labels,
+                    ))
+                    .size(type_scale::BODY_LARGE)
+                    .color(color::TEXT),
                 ]
             },
             |annotation| {
@@ -3700,9 +3934,16 @@ impl App {
                 let inset_side = structural_3d::molecular_inset_side(size.width, size.height);
                 column![
                     container(
-                        text(format!("MOLECULAR MODEL · {}", preview.formula))
-                            .size(type_scale::MICRO)
-                            .color(color::TEXT_SOFT),
+                        text(format!(
+                            "MOLECULAR MODEL · {}",
+                            nomenclature::display_species(
+                                self.settings.chemical_labels,
+                                preview.name.as_deref(),
+                                &preview.formula,
+                            )
+                        ))
+                        .size(type_scale::MICRO)
+                        .color(color::TEXT_SOFT),
                     )
                     .style(theme::media_bar)
                     .padding([spacing::XXS, spacing::XS]),
@@ -3798,13 +4039,16 @@ impl App {
                 .spacing(spacing::XS)
                 .align_y(Center),
             container(
-                text(nomenclature::display_equation(&real_world_plan.equation))
-                    .size(if compact {
-                        type_scale::BODY_LARGE
-                    } else {
-                        type_scale::TITLE
-                    })
-                    .color(color::TEXT),
+                text(nomenclature::display_declaration(
+                    &animation.declaration,
+                    self.settings.chemical_labels,
+                ))
+                .size(if compact {
+                    type_scale::BODY_LARGE
+                } else {
+                    type_scale::TITLE
+                })
+                .color(color::TEXT),
             )
             .center_x(Fill)
             .center_y(Fill),
@@ -3881,6 +4125,7 @@ impl App {
                     species_capability,
                     term,
                     self.dynamic_theatre_phase,
+                    self.settings.chemical_labels,
                 ))
                 .width(Length::Fixed(132.0)),
             );
@@ -3963,9 +4208,12 @@ impl App {
         };
         column![
             container(
-                text(nomenclature::display_equation(outcome.equation()))
-                    .size(type_scale::TITLE)
-                    .color(color::TEXT),
+                text(nomenclature::display_declaration(
+                    outcome.declaration(),
+                    self.settings.chemical_labels,
+                ))
+                .size(type_scale::TITLE)
+                .color(color::TEXT),
             )
             .center_x(Fill),
             container(
@@ -4161,6 +4409,178 @@ impl App {
         .into()
     }
 
+    #[allow(clippy::too_many_lines)]
+    fn settings_overlay(&self, size: Size) -> Element<'_, Message> {
+        let Some(dialog) = &self.settings_dialog else {
+            return space().height(Length::Shrink).into();
+        };
+        let compact = size.width < breakpoint::MOBILE || size.height < 680.0;
+        let saving = self.settings_saving(SettingsSaveDestination::Dialog);
+        let option = |label: &'static str,
+                      detail: &'static str,
+                      selected: bool,
+                      enabled: bool,
+                      message: Message| {
+            let label_color = if enabled { color::TEXT } else { color::FAINT };
+            button(
+                row![
+                    column![
+                        text(label).size(type_scale::BODY_LARGE).color(label_color),
+                        text(detail).size(type_scale::CAPTION).color(if enabled {
+                            color::TEXT_SOFT
+                        } else {
+                            color::FAINT
+                        }),
+                    ]
+                    .spacing(spacing::XXS)
+                    .width(Fill),
+                    text(if selected { "✓" } else { "" })
+                        .size(type_scale::BODY_LARGE)
+                        .color(color::ACCENT),
+                ]
+                .spacing(spacing::SM)
+                .align_y(Center),
+            )
+            .on_press_maybe((enabled && !saving).then_some(message))
+            .padding([spacing::SM, spacing::MD])
+            .width(Fill)
+            .style(move |_, status| theme::provider_button(selected, status))
+        };
+
+        let local = option(
+            "Local",
+            "On-device solver only",
+            dialog.draft.app_mode == AppMode::Local,
+            true,
+            Message::SettingsAppModeSelected(AppMode::Local),
+        );
+        let codex = option(
+            "Codex",
+            if self.codex_available {
+                "Codex binary"
+            } else {
+                "Codex not found"
+            },
+            dialog.draft.app_mode == AppMode::CodexBinary,
+            self.codex_available,
+            Message::SettingsAppModeSelected(AppMode::CodexBinary),
+        );
+        let api = option(
+            "API",
+            "Unavailable",
+            dialog.draft.app_mode == AppMode::Api,
+            false,
+            Message::SettingsAppModeSelected(AppMode::Api),
+        );
+        let app_modes: Element<'_, Message> = if compact {
+            column![local, codex, api]
+                .spacing(spacing::XS)
+                .width(Fill)
+                .into()
+        } else {
+            row![local, codex, api]
+                .spacing(spacing::XS)
+                .width(Fill)
+                .into()
+        };
+
+        let formulae = option(
+            "Formulae",
+            "H₂O",
+            dialog.draft.chemical_labels == ChemicalLabels::Formulae,
+            true,
+            Message::SettingsChemicalLabelsSelected(ChemicalLabels::Formulae),
+        );
+        let names = option(
+            "Names",
+            "water",
+            dialog.draft.chemical_labels == ChemicalLabels::Names,
+            true,
+            Message::SettingsChemicalLabelsSelected(ChemicalLabels::Names),
+        );
+        let chemical_labels: Element<'_, Message> = row![formulae, names]
+            .spacing(spacing::XS)
+            .width(Fill)
+            .into();
+
+        let changed = dialog.draft != self.settings;
+        let can_save = changed && self.mode_available(dialog.draft.app_mode);
+        let save = button(text(if saving { "Saving…" } else { "Save" }))
+            .on_press_maybe((can_save && !saving).then_some(Message::SettingsSaveRequested))
+            .padding([spacing::XS, spacing::MD])
+            .style(theme::primary_button);
+        let cancel = button(text("Cancel"))
+            .on_press_maybe((!saving).then_some(Message::SettingsClosed))
+            .padding([spacing::XS, spacing::MD])
+            .style(theme::secondary_button);
+        let error: Element<'_, Message> = dialog.error.as_ref().map_or_else(
+            || space().height(Length::Shrink).into(),
+            |error| {
+                text(error)
+                    .size(type_scale::CAPTION)
+                    .color(color::DANGER)
+                    .into()
+            },
+        );
+        let content = column![
+            row![
+                text("Settings")
+                    .size(type_scale::TITLE)
+                    .font(fonts::SEMIBOLD)
+                    .color(color::TEXT),
+                space().width(Fill),
+                button(text("×").size(type_scale::BODY_LARGE))
+                    .on_press_maybe((!saving).then_some(Message::SettingsClosed))
+                    .padding([0.0, spacing::XS])
+                    .style(theme::secondary_button),
+            ]
+            .align_y(Center),
+            rule::horizontal(1).style(theme::soft_divider),
+            text("APP MODE")
+                .size(type_scale::MICRO)
+                .color(color::TEXT_SOFT),
+            app_modes,
+            text("CHEMICAL LABELS")
+                .size(type_scale::MICRO)
+                .color(color::TEXT_SOFT),
+            chemical_labels,
+            error,
+            row![space().width(Fill), cancel, save]
+                .spacing(spacing::XS)
+                .align_y(Center),
+        ]
+        .spacing(if compact { spacing::SM } else { spacing::MD })
+        .width(Fill);
+        let panel_width = (size.width - spacing::LG * 2.0).clamp(280.0, 620.0);
+        let available_height = (size.height - spacing::LG * 2.0).max(280.0);
+        let panel_height = available_height.min(if compact { 560.0 } else { 390.0 });
+        let panel = mouse_area(
+            container(scrollable(content).height(Fill))
+                .style(theme::overlay_panel)
+                .padding(if compact { spacing::MD } else { spacing::LG })
+                .width(Length::Fixed(panel_width))
+                .height(Length::Fixed(panel_height)),
+        )
+        .on_press(Message::Noop);
+        stack![
+            mouse_area(
+                container(space())
+                    .style(theme::overlay_scrim)
+                    .width(Fill)
+                    .height(Fill),
+            )
+            .on_press(if saving {
+                Message::Noop
+            } else {
+                Message::SettingsClosed
+            }),
+            container(panel).center(Fill),
+        ]
+        .width(Fill)
+        .height(Fill)
+        .into()
+    }
+
     fn dynamic_latency_summary(&self) -> String {
         let mut milestones = Vec::new();
         for (label, value) in [
@@ -4245,6 +4665,7 @@ impl App {
         .into()
     }
 
+    #[allow(clippy::too_many_lines)]
     fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
         let conditions_selected =
             self.builder_panel == Some(BuilderPanel::Conditions) || self.dynamic_context.is_some();
@@ -4315,10 +4736,11 @@ impl App {
         );
 
         let settings = Self::toolbar_tooltip(
-            button(icons::settings(20.0, color::FAINT))
+            button(icons::settings(20.0, color::TEXT_SOFT))
+                .on_press(Message::SettingsOpened)
                 .padding(spacing::XS)
                 .style(theme::secondary_button),
-            "Settings — coming soon",
+            "Settings",
         );
 
         #[cfg(target_arch = "wasm32")]
@@ -4344,10 +4766,17 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         let demo_disclaimer = row![];
 
-        row![demo_disclaimer, space().width(Fill), sketch, conditions, help, settings,]
-            .spacing(spacing::XS)
-            .align_y(Center)
-            .into()
+        row![
+            demo_disclaimer,
+            space().width(Fill),
+            sketch,
+            conditions,
+            help,
+            settings,
+        ]
+        .spacing(spacing::XS)
+        .align_y(Center)
+        .into()
     }
 
     fn builder_toolbar_panel(&self) -> Element<'_, Message> {
@@ -4491,9 +4920,12 @@ impl App {
             if compact {
                 text("").size(type_scale::MICRO)
             } else {
-                text(nomenclature::display_equation(&animation.equation))
-                    .size(type_scale::CAPTION)
-                    .color(color::TEXT_SOFT)
+                text(nomenclature::display_declaration(
+                    &animation.declaration,
+                    self.settings.chemical_labels,
+                ))
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT)
             },
             new_reaction,
         ]
@@ -4526,6 +4958,7 @@ impl App {
                 canvas(product_summary::Product3dScene::new(
                     summary.clone(),
                     elapsed_ms,
+                    self.settings.chemical_labels,
                 ))
                 .width(Fill)
                 .height(if compact {
@@ -4541,7 +4974,13 @@ impl App {
         .width(Fill)
         .height(if compact { Length::Shrink } else { Fill });
 
-        let properties = product_properties_view(&summary, elapsed_ms, compact, dense);
+        let properties = product_properties_view(
+            &summary,
+            elapsed_ms,
+            self.settings.chemical_labels,
+            compact,
+            dense,
+        );
         let body: Element<'_, Message> = if compact {
             scrollable(column![three_dimensional, properties].spacing(spacing::SM))
                 .width(Fill)
@@ -4602,6 +5041,7 @@ impl App {
             &self.reactant_composer,
             periodic_table::dragging_atomic_number(&self.periodic_table),
             self.local_mode(),
+            self.settings.chemical_labels,
             compact,
         )
         .map(Message::ReactantComposer);
@@ -4864,9 +5304,16 @@ mod tests {
     #[test]
     fn local_mode_is_preselected_and_continues_without_codex() {
         let mut app = App::default();
-        assert_eq!(app.provider, Some(ProviderChoice::Local));
+        assert_eq!(app.provider, Some(AppMode::Local));
         assert_eq!(app.screen, Screen::ProviderSetup);
         app.update(Message::ProviderContinue);
+        assert_eq!(app.screen, Screen::ProviderSetup);
+        app.update(Message::SettingsSaveFinished {
+            save_id: 1,
+            destination: SettingsSaveDestination::FirstLaunch,
+            settings: AppSettings::default(),
+            result: Ok(()),
+        });
         assert_eq!(app.screen, Screen::Builder);
     }
 
@@ -4906,7 +5353,7 @@ mod tests {
     fn closing_a_dynamic_overlay_restores_the_codex_prompt() {
         let mut app = App {
             screen: Screen::Builder,
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             dynamic_build: DynamicBuildState::Failed("test failure".to_owned()),
             dynamic_overlay_dismissed: false,
             ..App::default()
@@ -5011,7 +5458,7 @@ mod tests {
     #[test]
     fn uncatalogued_reaction_starts_generation_scoped_codex_build() {
         let mut app = App {
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![20], vec![1, 1, 8]]);
@@ -5038,7 +5485,7 @@ mod tests {
     fn selected_conditions_never_fall_through_to_an_unconditioned_catalogue_result() {
         let mut app = App {
             screen: Screen::Builder,
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![3], vec![1, 1, 8]]);
@@ -5162,7 +5609,7 @@ mod tests {
         // are on screen; treating those as edits silently cancelled every
         // Tier B/C build the moment it started.
         let mut app = App {
-            provider: Some(ProviderChoice::Local),
+            provider: Some(AppMode::Local),
             screen: Screen::Builder,
             ..App::default()
         };
@@ -5234,7 +5681,7 @@ mod tests {
         let presentation = enrich_static_outcome(static_outcome, catalogue, &mut provider)
             .expect("presentation enriches");
         let mut app = App {
-            provider: Some(ProviderChoice::Local),
+            provider: Some(AppMode::Local),
             screen: Screen::Builder,
             ..App::default()
         };
@@ -5308,7 +5755,7 @@ mod tests {
     #[test]
     fn uncatalogued_sulfuric_acid_pair_starts_a_dynamic_build_with_generated_identities() {
         let mut app = App {
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             ..App::default()
         };
         reactant_composer::replace_reactants(
@@ -5346,7 +5793,7 @@ mod tests {
             (53, 2),
         ] {
             let mut app = App {
-                provider: Some(ProviderChoice::CodexSubscription),
+                provider: Some(AppMode::CodexBinary),
                 ..App::default()
             };
             reactant_composer::replace_reactants(
@@ -5368,7 +5815,7 @@ mod tests {
     #[test]
     fn equivalent_reviewed_hydrogen_records_do_not_create_a_user_facing_choice() {
         let mut app = App {
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![37], vec![1]]);
@@ -5615,7 +6062,7 @@ mod tests {
             status: iced::event::Status::Ignored,
         });
         assert!(app.keyboard_navigation_active);
-        assert_eq!(app.provider, Some(ProviderChoice::ApiKey));
+        assert_eq!(app.provider, Some(AppMode::Local));
 
         app.update(Message::PointerPressed);
         assert!(!app.keyboard_navigation_active);
@@ -5785,7 +6232,7 @@ mod tests {
     fn retryable_static_presentation_relaunches_only_enrichment() {
         let outcome = dynamic_lithium_static();
         let mut app = App {
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             dynamic_request: Some(ReactionBuildRequest {
                 reactants: [
                     ReactantInput {
@@ -5829,7 +6276,7 @@ mod tests {
         // A non-retryable presentation must not relaunch.
         let outcome = dynamic_lithium_static();
         let mut blocked = App {
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             dynamic_static: Some(outcome.clone()),
             dynamic_presentation: Some(DynamicPresentationOutcome::Static {
                 outcome: Box::new(outcome),
@@ -5863,7 +6310,7 @@ mod tests {
         };
         let mut app = App {
             screen: Screen::Structural2d,
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             dynamic_request: Some(request.clone()),
             ..App::default()
         };
@@ -6043,7 +6490,7 @@ mod tests {
         };
         let lithium_id = lithium.id.clone();
         let mut app = App {
-            provider: Some(ProviderChoice::CodexSubscription),
+            provider: Some(AppMode::CodexBinary),
             dynamic_request: Some(request.clone()),
             dynamic_identity_choice: Some(DynamicIdentityChoice {
                 request,
@@ -6187,32 +6634,14 @@ mod tests {
     }
 
     #[test]
-    fn api_key_provider_remains_blocked_until_dynamic_api_is_connected() {
+    fn api_mode_remains_unavailable_until_a_provider_is_connected() {
         let mut app = App::default();
         assert_eq!(app.screen, Screen::ProviderSetup);
-        app.update(Message::ProviderSelected(ProviderChoice::ApiKey));
+        assert_eq!(app.provider, Some(AppMode::Local));
+        app.update(Message::ProviderSelected(AppMode::Api));
+        assert_eq!(app.provider, Some(AppMode::Local));
         app.update(Message::ProviderContinue);
         assert_eq!(app.screen, Screen::ProviderSetup);
-        app.update(Message::ApiKeyChanged(
-            "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789".to_owned(),
-        ));
-        app.update(Message::ProviderContinue);
-        assert_eq!(app.screen, Screen::ProviderSetup);
-    }
-
-    #[test]
-    fn api_key_format_rejects_obvious_invalid_values() {
-        assert!(!api_key_format_is_valid(""));
-        assert!(!api_key_format_is_valid("sk-short"));
-        assert!(!api_key_format_is_valid(
-            "not-an-openai-key-abcdefghijklmnopqrstuvwxyz"
-        ));
-        assert!(!api_key_format_is_valid(
-            "sk-proj-abcdefghijklmnopqrstuvwxyz with-space"
-        ));
-        assert!(api_key_format_is_valid(
-            "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789"
-        ));
     }
 
     #[test]
@@ -6476,7 +6905,13 @@ mod tests {
             .structural_animation
             .as_ref()
             .expect("trusted educational animation compiles");
-        assert_eq!(animation.equation, request.equation());
+        assert_eq!(
+            animation.declaration.digest(),
+            app.validated_declaration
+                .as_ref()
+                .expect("trusted declaration is retained")
+                .digest()
+        );
         assert!(!animation.real_world_plan.timeline.beats.is_empty());
 
         let duration = animation.educational_plan.duration_ms();
@@ -6552,7 +6987,13 @@ mod tests {
                 .expect("trusted frames have a digest");
             assert_eq!(animation.educational_plan.id, digest);
             assert_eq!(animation.real_world_plan.reaction, digest);
-            assert_eq!(animation.equation, request.equation());
+            assert_eq!(
+                animation.declaration.digest(),
+                app.validated_declaration
+                    .as_ref()
+                    .expect("trusted declaration is retained")
+                    .digest()
+            );
 
             let duration = animation.educational_plan.duration_ms();
             app.seek_educational_timeline(duration);
@@ -6666,6 +7107,140 @@ mod tests {
             let _ = app.structural_3d_view(size);
             let _ = app.product_summary_view(size);
         }
+
+        app.screen = Screen::Builder;
+        app.settings_dialog = Some(SettingsDialog {
+            draft: app.settings,
+            error: None,
+        });
+        for size in [
+            Size::new(360.0, 480.0),
+            Size::new(560.0, 620.0),
+            Size::new(1_440.0, 900.0),
+        ] {
+            let _ = app.settings_overlay(size);
+            let _ = app.view();
+        }
+    }
+
+    #[test]
+    fn settings_load_controls_first_launch_without_silent_mode_fallback() {
+        let mut first_launch = App {
+            codex_available: true,
+            ..App::default()
+        };
+        first_launch.apply_settings_load(LoadOutcome::Missing);
+        assert_eq!(first_launch.screen, Screen::ProviderSetup);
+        assert_eq!(first_launch.provider, Some(AppMode::CodexBinary));
+
+        let mut returning = App {
+            codex_available: false,
+            ..App::default()
+        };
+        returning.apply_settings_load(LoadOutcome::Loaded(AppSettings {
+            app_mode: AppMode::Local,
+            chemical_labels: ChemicalLabels::Names,
+        }));
+        assert_eq!(returning.screen, Screen::Builder);
+        assert_eq!(returning.settings.chemical_labels, ChemicalLabels::Names);
+
+        returning.apply_settings_load(LoadOutcome::Loaded(AppSettings {
+            app_mode: AppMode::CodexBinary,
+            chemical_labels: ChemicalLabels::Formulae,
+        }));
+        assert_eq!(returning.screen, Screen::ProviderSetup);
+        assert_eq!(returning.provider, Some(AppMode::CodexBinary));
+        assert!(returning.settings_load_error.is_some());
+    }
+
+    #[test]
+    fn settings_apply_only_after_the_matching_atomic_save_finishes() {
+        let mut app = App {
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        app.update(Message::SettingsOpened);
+        app.update(Message::SettingsChemicalLabelsSelected(
+            ChemicalLabels::Names,
+        ));
+        app.update(Message::SettingsSaveRequested);
+        assert_eq!(app.settings.chemical_labels, ChemicalLabels::Formulae);
+        assert!(app.settings_saving(SettingsSaveDestination::Dialog));
+
+        let saved = AppSettings {
+            app_mode: AppMode::Local,
+            chemical_labels: ChemicalLabels::Names,
+        };
+        app.update(Message::SettingsSaveFinished {
+            save_id: 99,
+            destination: SettingsSaveDestination::Dialog,
+            settings: saved,
+            result: Ok(()),
+        });
+        assert_eq!(app.settings.chemical_labels, ChemicalLabels::Formulae);
+
+        app.update(Message::SettingsSaveFinished {
+            save_id: 1,
+            destination: SettingsSaveDestination::Dialog,
+            settings: saved,
+            result: Ok(()),
+        });
+        assert_eq!(app.settings, saved);
+        assert!(app.settings_dialog.is_none());
+    }
+
+    #[test]
+    fn app_mode_change_cancels_in_flight_dynamic_work_after_save() {
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let mut app = App {
+            screen: Screen::Builder,
+            codex_available: true,
+            settings: AppSettings {
+                app_mode: AppMode::CodexBinary,
+                chemical_labels: ChemicalLabels::Formulae,
+            },
+            provider: Some(AppMode::CodexBinary),
+            dynamic_build: DynamicBuildState::Running {
+                run_id: 7,
+                elapsed_seconds: 0,
+                stage: DynamicBuildStage::Claim,
+            },
+            dynamic_cancellation: Some(cancellation.clone()),
+            ..App::default()
+        };
+        let saved = AppSettings {
+            app_mode: AppMode::Local,
+            chemical_labels: ChemicalLabels::Formulae,
+        };
+        app.settings_save_state = SettingsSaveState::Saving {
+            save_id: 1,
+            destination: SettingsSaveDestination::Dialog,
+        };
+        app.settings_dialog = Some(SettingsDialog {
+            draft: saved,
+            error: None,
+        });
+        app.update(Message::SettingsSaveFinished {
+            save_id: 1,
+            destination: SettingsSaveDestination::Dialog,
+            settings: saved,
+            result: Ok(()),
+        });
+        assert!(cancellation.load(Ordering::Relaxed));
+        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+        assert_eq!(app.provider, Some(AppMode::Local));
+    }
+
+    #[test]
+    fn validated_equations_switch_labels_without_changing_the_declaration() {
+        let run = chemistry::run(chemistry::ReactionRequest::DEFAULT).expect("trusted run");
+        let digest = run.declaration().digest();
+        let formulae =
+            nomenclature::display_declaration(run.declaration(), ChemicalLabels::Formulae);
+        let names = nomenclature::display_declaration(run.declaration(), ChemicalLabels::Names);
+        assert!(formulae.contains("H₂O"));
+        assert!(names.contains("water"));
+        assert_eq!(run.declaration().digest(), digest);
     }
 
     #[test]

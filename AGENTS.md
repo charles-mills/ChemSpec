@@ -22,6 +22,7 @@ before changing a contract:
 
 - `README.md` — product summary, current implementation status, and common
   commands.
+- `docs/README.md` — documentation map and authority levels.
 - `docs/product-spec.md` — audience, supported chemistry, canonical journey,
   and product states.
 - `docs/system-architecture.md` — crate ownership, dependency direction,
@@ -33,11 +34,12 @@ before changing a contract:
   structured results, and bounded repair.
 - `docs/chems-specification.md` — normative `.chems` language semantics.
 - `grammar/chems.ebnf` — normative grammar.
-- `docs/chems-implementation-plan.md` — language implementation slices and
-  acceptance criteria.
+- `docs/archive/plans/chems-implementation-plan.md` — completed language slice
+  history; current semantics live in the specification, grammar, and
+  conformance registry.
 - `conformance/README.md` — shared language and kernel test fixtures.
-- `docs/implementation-plan.md` and `docs/delivery-plan.md` — task IDs,
-  dependencies, integration gates, and delivery cut line.
+- `docs/plans/implementation-plan.md` and `docs/plans/delivery-plan.md` — task
+  IDs, dependencies, integration gates, and delivery cut line.
 
 Do not infer language semantics from the README or the example fixture when the
 specification, grammar, or conformance registry answers the question. Do not
@@ -75,7 +77,7 @@ types into domain, language, validator, provider, or simulation contracts.
 ## Working rules
 
 - Establish the relevant task ID, acceptance criteria, and integration gate
-  from `docs/implementation-plan.md` before implementing planned work.
+  from `docs/plans/implementation-plan.md` before implementing planned work.
 - Prefer the smallest complete vertical change over speculative abstractions or
   chemistry breadth outside the current closed-world scope.
 - Preserve the distinction between `Validated`,

@@ -4,10 +4,10 @@
 > including concrete-kernel execution, conformance promotion, catalogue
 > authoring support, and the closed Luna content handoff.
 >
-> This document defines the intended catalogue and elaboration architecture for
-> generalized chemistry. The implemented `.chems 1` source grammar and concrete
-> validation kernel remain authoritative until the implementation plan is
-> completed and conformance fixtures are promoted.
+> This document defines the implemented catalogue and elaboration architecture
+> for generalized chemistry. The `.chems 1` specification and grammar,
+> catalogue schemas, concrete validation kernel, and promoted conformance
+> fixtures remain the normative compatibility surfaces.
 
 ## Decision
 
@@ -713,4 +713,4 @@ journey. At final migration:
 - no legacy generalized-rule format is retained because none has been released.
 
 Implementation is governed by
-[the generalized rules implementation plan](generalized-rules-implementation-plan.md).
+[the archived generalized rules implementation plan](archive/plans/generalized-rules-implementation-plan.md).

@@ -4,12 +4,14 @@
 
 - Source visual truth: `/var/folders/0z/kq1k4pwn71g7q_yp6x9r655h0000gn/T/codex-clipboard-a08a6eac-0dad-470b-892a-8ab7abfb39b4.png`, with the user's subsequent annotations removing the sidebar, product logo, setup labels, helper copy, recommendation chip, status/offline content, option subtitles, selection ticks, and divider; the latest pass also calls for a quieter primary-button glow and local API-key format validation.
 - Implementation screenshots:
-  - `docs/design-qa/provider-setup-codex-selected.jpeg`
-  - `docs/design-qa/provider-setup-api-empty.jpeg`
-  - `docs/design-qa/provider-setup-api-invalid.jpeg`
-  - `docs/design-qa/provider-setup-api-valid.jpeg`
-- Normalized full-view comparison: `docs/design-qa/provider-setup-comparison.png`.
-- Focused validation-state comparison: `docs/design-qa/provider-setup-api-validation.png`.
+  - [`provider-setup-codex-selected.jpeg`](provider-setup-codex-selected.jpeg)
+  - [`provider-setup-api-empty.jpeg`](provider-setup-api-empty.jpeg)
+  - [`provider-setup-api-invalid.jpeg`](provider-setup-api-invalid.jpeg)
+  - [`provider-setup-api-valid.jpeg`](provider-setup-api-valid.jpeg)
+- Normalized full-view comparison:
+  [`provider-setup-comparison.png`](provider-setup-comparison.png).
+- Focused validation-state comparison:
+  [`provider-setup-api-validation.png`](provider-setup-api-validation.png).
 - Desktop viewport: 1,187 x 768.
 - States checked: Codex selected, API key selected with an empty key, malformed key, plausible OpenAI-style key, and successful continuation from a plausible key.
 
@@ -19,7 +21,11 @@ The current implementation keeps the selected direction's dark, restrained palet
 
 ## Focused-region evidence
 
-`docs/design-qa/provider-setup-api-validation.png` places the empty and plausible-key states side by side. The input and button remain in the same row, so validation does not move the layout. The empty and malformed states keep continuation disabled; the plausible `sk-…` state enables it. A live click from the enabled state reached the reaction builder.
+[`provider-setup-api-validation.png`](provider-setup-api-validation.png) places
+the empty and plausible-key states side by side. The input and button remain in
+the same row, so validation does not move the layout. The empty and malformed
+states keep continuation disabled; the plausible `sk-…` state enables it. A
+live click from the enabled state reached the reaction builder.
 
 ## Required fidelity surfaces
 
