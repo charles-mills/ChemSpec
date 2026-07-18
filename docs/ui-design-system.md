@@ -187,6 +187,10 @@ Motion must describe a state change, not run decoratively. Continuous ticks are
 allowed only while playback or a real loading state is active. Reduced-motion
 mode removes spatial movement while preserving opacity and status feedback.
 
+Electricity-driven electron-transfer scenes label oxidation at the anode and
+reduction at the cathode. They do not draw an electron route directly between
+ions; the explanation identifies the external circuit as the electron path.
+
 The motion cadence and step tokens live in `theme::motion`. The composer
 subscribes to ticks only while a slot tooltip is open: the same subscription
 advances the slow orbit and the tooltip's ease-out reveal, and ends when the

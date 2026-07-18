@@ -729,9 +729,78 @@ fn solve_metal_water(metal: &StructureDefinition, water: &StructureDefinition) -
 /// Cations whose carbonates and hydroxides shrug off a Bunsen flame.
 const HEAT_STABLE_CATIONS: [&str; 4] = ["Na", "K", "Rb", "Cs"];
 
+fn solve_aqueous_electrolysis(reactant: &StructureDefinition) -> Option<Verdict> {
+    let salt = ionic_salt(reactant)?;
+    let active_cation = chem_domain::displaces_hydrogen_from_acids(&salt.cation)?;
+    let halide = (salt.anion.len() == 1)
+        .then(|| salt.anion.keys().next().map(String::as_str))
+        .flatten()
+        .filter(|symbol| matches!(*symbol, "Cl" | "Br" | "I"));
+    let mut products = Vec::new();
+
+    if active_cation {
+        if halide.is_some() {
+            products.push(hydroxide_salt(&salt.cation, salt.cation_charge));
+        } else {
+            products.push(exchanged_salt(
+                &salt.cation,
+                salt.cation_charge,
+                &salt,
+                Some(true),
+            ));
+        }
+        products.push(ClaimProduct {
+            name: "Hydrogen".to_owned(),
+            formula: "H2".to_owned(),
+            phase: ClaimPhase::Gas,
+            identity_hints: Vec::new(),
+        });
+    } else {
+        products.push(ClaimProduct {
+            name: chem_domain::element_name(&salt.cation)?.to_owned(),
+            formula: salt.cation.clone(),
+            phase: ClaimPhase::Solid,
+            identity_hints: Vec::new(),
+        });
+        if halide.is_none() {
+            let mut acid = salt.anion.clone();
+            *acid.entry("H".to_owned()).or_insert(0) += salt.anion_charge;
+            let mut product = product_from_counts(&acid, None);
+            product.phase = ClaimPhase::Aqueous;
+            products.push(product);
+        }
+    }
+
+    if let Some(symbol) = halide {
+        products.push(ClaimProduct {
+            name: chem_domain::element_name(symbol)?.to_owned(),
+            formula: format!("{symbol}2"),
+            phase: match symbol {
+                "Cl" => ClaimPhase::Gas,
+                "Br" => ClaimPhase::Liquid,
+                _ => ClaimPhase::Solid,
+            },
+            identity_hints: Vec::new(),
+        });
+    } else {
+        products.push(ClaimProduct {
+            name: "Oxygen".to_owned(),
+            formula: "O2".to_owned(),
+            phase: ClaimPhase::Gas,
+            identity_hints: Vec::new(),
+        });
+    }
+    Some(Verdict {
+        reason: None,
+        products,
+        observations: Vec::new(),
+    })
+}
+
 /// Single reactant + energy context. Heat decomposes carbonates,
 /// bicarbonates, and hydroxides (except the heat-stable alkali ones, a
 /// confident no-reaction); electricity electrolyses water.
+#[allow(clippy::too_many_lines)]
 fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<Verdict> {
     match context {
         "electricity" if is_water(reactant.formula()) => Some(Verdict {
@@ -756,6 +825,7 @@ fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<
                 value: None,
             }],
         }),
+        "electricity" => solve_aqueous_electrolysis(reactant),
         "light" => photolysis(reactant),
         "heat" => {
             if let Some(verdict) = wohler_urea_synthesis(reactant) {
@@ -1723,6 +1793,44 @@ mod tests {
                 species_id: None,
             }],
             selected_context: Some(context.to_owned()),
+        }
+    }
+
+    #[test]
+    fn aqueous_electrolysis_is_derived_and_balanced_without_a_catalogue_entry() {
+        let registry = SpeciesRegistry::default();
+        let cases = [
+            ("NaCl", vec![11, 17], ["NaOH", "H2", "Cl2"].as_slice()),
+            ("CuCl2", vec![29, 17, 17], ["Cu", "Cl2"].as_slice()),
+            (
+                "CuSO4",
+                vec![29, 16, 8, 8, 8, 8],
+                ["Cu", "H2SO4", "O2"].as_slice(),
+            ),
+            (
+                "Na2SO4",
+                vec![11, 11, 16, 8, 8, 8, 8],
+                ["Na2SO4", "H2", "O2"].as_slice(),
+            ),
+        ];
+        for (formula, atoms, expected) in cases {
+            let request = contextual(formula, &atoms, "electricity");
+            let claim = solve_reaction_claim(&request, &registry).expect("electrolysis claim");
+            assert_eq!(
+                claim
+                    .products
+                    .iter()
+                    .map(|product| product.formula.as_str())
+                    .collect::<Vec<_>>(),
+                expected,
+                "{formula}"
+            );
+            let CompiledClaimOutcome::Static(outcome) =
+                compile_claim_outcome(&request, claim, &registry).expect("balanced outcome")
+            else {
+                panic!("expected static outcome")
+            };
+            assert!(outcome.species_without_structure().is_empty(), "{formula}");
         }
     }
 

@@ -91,7 +91,7 @@ before graph-state validation begins.
 ### `agent`
 
 Owns the algorithmic reaction solver (classroom families, solubility and
-activity tables, confident no-reactions), systematic naming in both
+activity tables, ion-derived aqueous electrolysis, confident no-reactions), systematic naming in both
 directions (product names and typed-name input), graph-diff mechanism
 derivation, provider preflight, closed claim and mechanism wire contracts,
 reviewed identity projection, exact outcome compilation, reviewed-family
@@ -99,6 +99,11 @@ matching, bounded mechanism escalation, cache v3, timeouts, and normalized
 progress. Cached, solved, and fresh artefacts cross the same
 identity/balance/kernel gates. It never constructs host-pinned catalogue
 trust.
+
+For one-reactant electricity requests, the solver derives electrode products
+from the validated ionic structure. Outcome compilation introduces water as a
+contextual participant only when the incoming claim exactly matches that local
+derivation; it then crosses the normal exact conservation and structural gates.
 
 ### `chem-presentation`
 
