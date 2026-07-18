@@ -17,6 +17,24 @@ pub const MAX_MECHANISM_RESPONSE_BYTES: usize = 256 * 1024;
 pub const MAX_STRUCTURE_RESPONSE_BYTES: usize = 128 * 1024;
 pub const MAX_CLAIM_SOURCES: usize = 4;
 
+const MAX_CLAIM_PRODUCTS: usize = 16;
+const MAX_CLAIM_OBSERVATIONS: usize = 16;
+const MAX_IDENTITY_HINTS: usize = 12;
+const MAX_SOURCE_SUPPORTS: usize = 4;
+const MAX_AMBIGUITY_ALTERNATIVES: usize = 8;
+const MAX_PRODUCT_NAME_CHARS: usize = 300;
+const MAX_FORMULA_CHARS: usize = 200;
+const MAX_CONTEXT_CHARS: usize = 1_000;
+const MAX_IDENTITY_HINT_CHARS: usize = 500;
+const MAX_OBSERVATION_CHARS: usize = 300;
+const MAX_SOURCE_ID_CHARS: usize = 40;
+const MAX_SOURCE_TITLE_CHARS: usize = 500;
+const MAX_SOURCE_PUBLISHER_CHARS: usize = 300;
+const MAX_SOURCE_URL_CHARS: usize = 2_000;
+const MAX_SOURCE_EXCERPT_CHARS: usize = 1_200;
+const MAX_WIRE_IDENTIFIER_CHARS: usize = 120;
+const MAX_MECHANISM_LABEL_CHARS: usize = 160;
+
 /// Fixed factual-claim policy retained in cache bindings.
 ///
 /// The application exposes one low-latency path; this enum remains serialized
@@ -247,11 +265,12 @@ impl ReactionClaim {
                 error,
             )
         })?;
-        claim.validate()?;
+        claim.validate_wire()?;
         Ok(claim)
     }
 
-    fn validate(&self) -> Result<(), AgentError> {
+    pub(crate) fn validate_wire(&self) -> Result<(), AgentError> {
+        require_serialized_size(self, MAX_REACTION_CLAIM_BYTES, "claim", "reaction claim")?;
         if self.schema_version != REACTION_CLAIM_SCHEMA_VERSION {
             return Err(AgentError::new(
                 AgentErrorKind::InvalidProviderOutput,
@@ -312,6 +331,18 @@ impl ReactionClaim {
     }
 
     fn validate_fields(&self) -> Result<(), AgentError> {
+        require_max_len(
+            self.products.len(),
+            MAX_CLAIM_PRODUCTS,
+            "products",
+            "reaction claim",
+        )?;
+        require_max_len(
+            self.observations.len(),
+            MAX_CLAIM_OBSERVATIONS,
+            "observations",
+            "reaction claim",
+        )?;
         if self.sources.len() > MAX_CLAIM_SOURCES {
             return Err(AgentError::new(
                 AgentErrorKind::InvalidProviderOutput,
@@ -319,20 +350,38 @@ impl ReactionClaim {
                 format!("a claim may cite at most {MAX_CLAIM_SOURCES} direct sources"),
             ));
         }
-        require_text(&self.required_context, "required context")?;
+        require_text(
+            &self.required_context,
+            "required context",
+            MAX_CONTEXT_CHARS,
+        )?;
         let mut text = vec![self.required_context.as_str()];
+        self.validate_products(&mut text)?;
+        self.validate_observations(&mut text)?;
+        self.validate_sources(&mut text)?;
+        self.validate_ambiguity(&mut text)?;
+        reject_procedural_content(&text)
+    }
+
+    fn validate_products<'a>(&'a self, text: &mut Vec<&'a str>) -> Result<(), AgentError> {
         for product in &self.products {
-            require_text(&product.name, "product name")?;
-            require_text(&product.formula, "product formula")?;
+            validate_claim_product(product, "product")?;
             text.push(&product.name);
             text.push(&product.formula);
             for hint in &product.identity_hints {
-                require_text(&hint.value, "identity hint")?;
                 text.push(&hint.value);
             }
         }
+        Ok(())
+    }
+
+    fn validate_observations<'a>(&'a self, text: &mut Vec<&'a str>) -> Result<(), AgentError> {
         for observation in &self.observations {
-            require_text(&observation.subject, "observation subject")?;
+            require_text(
+                &observation.subject,
+                "observation subject",
+                MAX_OBSERVATION_CHARS,
+            )?;
             let needs_value = observation.predicate == ClaimObservationPredicate::Colour;
             if needs_value != observation.value.is_some() {
                 return Err(AgentError::new(
@@ -343,9 +392,19 @@ impl ReactionClaim {
             }
             text.push(&observation.subject);
             if let Some(value) = &observation.value {
+                require_max_chars(
+                    value,
+                    "observation value",
+                    MAX_OBSERVATION_CHARS,
+                    "reaction claim",
+                )?;
                 text.push(value);
             }
         }
+        Ok(())
+    }
+
+    fn validate_sources<'a>(&'a self, text: &mut Vec<&'a str>) -> Result<(), AgentError> {
         let mut source_ids = std::collections::BTreeSet::new();
         for source in &self.sources {
             if !source_ids.insert(source.id.as_str())
@@ -358,38 +417,110 @@ impl ReactionClaim {
                     "sources require unique IDs, HTTPS URLs, and claim-level coverage",
                 ));
             }
-            for value in [
-                &source.id,
-                &source.title,
+            require_max_len(
+                source.supports.len(),
+                MAX_SOURCE_SUPPORTS,
+                "source supports",
+                "reaction claim",
+            )?;
+            require_text(&source.id, "source ID", MAX_SOURCE_ID_CHARS)?;
+            require_text(&source.title, "source title", MAX_SOURCE_TITLE_CHARS)?;
+            require_text(
                 &source.publisher,
-                &source.url,
+                "source publisher",
+                MAX_SOURCE_PUBLISHER_CHARS,
+            )?;
+            require_text(&source.url, "source URL", MAX_SOURCE_URL_CHARS)?;
+            require_text(
                 &source.supporting_excerpt,
-            ] {
-                require_text(value, "source field")?;
-                text.push(value);
-            }
+                "source supporting excerpt",
+                MAX_SOURCE_EXCERPT_CHARS,
+            )?;
+            text.extend([
+                source.id.as_str(),
+                source.title.as_str(),
+                source.publisher.as_str(),
+                source.url.as_str(),
+                source.supporting_excerpt.as_str(),
+            ]);
         }
+        Ok(())
+    }
+
+    fn validate_ambiguity<'a>(&'a self, text: &mut Vec<&'a str>) -> Result<(), AgentError> {
         if let Some(ambiguity) = &self.ambiguity {
-            require_text(&ambiguity.summary, "ambiguity summary")?;
+            require_text(&ambiguity.summary, "ambiguity summary", MAX_CONTEXT_CHARS)?;
+            require_max_len(
+                ambiguity.alternatives.len(),
+                MAX_AMBIGUITY_ALTERNATIVES,
+                "ambiguity alternatives",
+                "reaction claim",
+            )?;
             text.push(&ambiguity.summary);
             for alternative in &ambiguity.alternatives {
-                require_text(&alternative.label, "ambiguity label")?;
-                require_text(&alternative.required_context, "alternative context")?;
+                require_text(
+                    &alternative.label,
+                    "ambiguity label",
+                    MAX_PRODUCT_NAME_CHARS,
+                )?;
+                require_text(
+                    &alternative.required_context,
+                    "alternative context",
+                    MAX_CONTEXT_CHARS,
+                )?;
+                require_max_len(
+                    alternative.products.len(),
+                    MAX_CLAIM_PRODUCTS,
+                    "alternative products",
+                    "reaction claim",
+                )?;
                 text.push(&alternative.label);
                 text.push(&alternative.required_context);
                 for product in &alternative.products {
-                    require_text(&product.name, "alternative product name")?;
-                    require_text(&product.formula, "alternative product formula")?;
+                    validate_claim_product(product, "alternative product")?;
                     text.push(&product.name);
                     text.push(&product.formula);
+                    text.extend(
+                        product
+                            .identity_hints
+                            .iter()
+                            .map(|hint| hint.value.as_str()),
+                    );
                 }
             }
         }
-        reject_procedural_content(&text)
+        Ok(())
     }
 }
 
-fn require_text(value: &str, label: &str) -> Result<(), AgentError> {
+fn validate_claim_product(product: &ClaimProduct, label: &str) -> Result<(), AgentError> {
+    require_text(
+        &product.name,
+        &format!("{label} name"),
+        MAX_PRODUCT_NAME_CHARS,
+    )?;
+    require_text(
+        &product.formula,
+        &format!("{label} formula"),
+        MAX_FORMULA_CHARS,
+    )?;
+    require_max_len(
+        product.identity_hints.len(),
+        MAX_IDENTITY_HINTS,
+        &format!("{label} identity hints"),
+        "reaction claim",
+    )?;
+    for hint in &product.identity_hints {
+        require_text(
+            &hint.value,
+            &format!("{label} identity hint"),
+            MAX_IDENTITY_HINT_CHARS,
+        )?;
+    }
+    Ok(())
+}
+
+fn require_text(value: &str, label: &str, max_chars: usize) -> Result<(), AgentError> {
     if value.trim().is_empty() {
         Err(AgentError::new(
             AgentErrorKind::InvalidProviderOutput,
@@ -397,8 +528,58 @@ fn require_text(value: &str, label: &str) -> Result<(), AgentError> {
             format!("{label} cannot be empty"),
         ))
     } else {
+        require_max_chars(value, label, max_chars, "reaction claim")
+    }
+}
+
+fn require_max_chars(
+    value: &str,
+    label: &str,
+    max_chars: usize,
+    context: &'static str,
+) -> Result<(), AgentError> {
+    if value.chars().count() > max_chars {
+        Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            context,
+            format!("{label} exceeds the {max_chars}-character contract limit"),
+        ))
+    } else {
         Ok(())
     }
+}
+
+fn require_max_len(
+    len: usize,
+    max: usize,
+    label: &str,
+    context: &'static str,
+) -> Result<(), AgentError> {
+    if len > max {
+        Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            context,
+            format!("{label} exceeds the {max}-item contract limit"),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn require_non_empty_len(
+    len: usize,
+    max: usize,
+    label: &str,
+    context: &'static str,
+) -> Result<(), AgentError> {
+    if len == 0 {
+        return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            context,
+            format!("{label} must be non-empty"),
+        ));
+    }
+    require_max_len(len, max, label, context)
 }
 
 fn reject_procedural_content(values: &[&str]) -> Result<(), AgentError> {
@@ -536,14 +717,15 @@ pub struct StructureProposalResponse {
 }
 
 impl StructureProposalResponse {
-    /// Strictly decodes a bounded structure proposal. Graph, formula, charge,
-    /// and valence validation intentionally happens later inside an isolated
-    /// working catalogue bundle.
+    /// Strictly decodes a structure proposal and enforces every wire-level
+    /// string, collection, numeric, and document-size bound. Cross-reference,
+    /// formula, charge-balance, and valence validation happens later inside an
+    /// isolated working catalogue bundle.
     ///
     /// # Errors
     ///
-    /// Returns an error for oversized JSON, unknown fields or variants, or an
-    /// unsupported schema version.
+    /// Returns an error for a wire-bound violation, oversized JSON, unknown
+    /// fields or variants, or an unsupported schema version.
     pub fn from_json(bytes: &[u8]) -> Result<Self, AgentError> {
         if bytes.len() > MAX_STRUCTURE_RESPONSE_BYTES {
             return Err(AgentError::new(
@@ -559,22 +741,266 @@ impl StructureProposalResponse {
                 error,
             )
         })?;
-        if response.schema_version != STRUCTURE_PROPOSAL_SCHEMA_VERSION {
-            return Err(AgentError::new(
-                AgentErrorKind::InvalidProviderOutput,
-                "structure proposal",
-                format!("unsupported structure schema {}", response.schema_version),
-            ));
-        }
-        if response.structures.is_empty() {
-            return Err(AgentError::new(
-                AgentErrorKind::InvalidProviderOutput,
-                "structure proposal",
-                "structures must be non-empty",
-            ));
-        }
+        response.validate_wire()?;
         Ok(response)
     }
+
+    pub(crate) fn validate_wire(&self) -> Result<(), AgentError> {
+        require_serialized_size(
+            self,
+            MAX_STRUCTURE_RESPONSE_BYTES,
+            "response",
+            "structure proposal",
+        )?;
+        if self.schema_version != STRUCTURE_PROPOSAL_SCHEMA_VERSION {
+            return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
+                "structure proposal",
+                format!("unsupported structure schema {}", self.schema_version),
+            ));
+        }
+        require_non_empty_len(
+            self.structures.len(),
+            16,
+            "structures",
+            "structure proposal",
+        )?;
+        for structure in &self.structures {
+            validate_labelled_structure(structure)?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_labelled_structure(structure: &LabelledStructure) -> Result<(), AgentError> {
+    match structure {
+        LabelledStructure::Molecular {
+            id,
+            formula,
+            atoms,
+            bonds,
+            groups,
+        }
+        | LabelledStructure::Ion {
+            id,
+            formula,
+            atoms,
+            bonds,
+            groups,
+        } => validate_molecular_structure(id, formula, atoms, bonds, groups),
+        LabelledStructure::Ionic {
+            id,
+            formula,
+            components,
+            associations,
+        } => validate_ionic_structure(id, formula, components, associations),
+        LabelledStructure::Metallic {
+            id,
+            formula,
+            sites,
+            domains,
+        } => validate_metallic_structure(id, formula, sites, domains),
+    }
+}
+
+fn validate_ionic_structure(
+    id: &str,
+    formula: &str,
+    components: &[ComponentRecord],
+    associations: &[IonicAssociationRecord],
+) -> Result<(), AgentError> {
+    validate_structure_header(id, formula)?;
+    require_non_empty_len(
+        components.len(),
+        64,
+        "ionic components",
+        "structure proposal",
+    )?;
+    require_non_empty_len(
+        associations.len(),
+        64,
+        "ionic associations",
+        "structure proposal",
+    )?;
+    for component in components {
+        validate_identifier(&component.label, "component label")?;
+        require_non_empty_len(
+            component.atoms.len(),
+            64,
+            "component atoms",
+            "structure proposal",
+        )?;
+        require_max_len(
+            component.bonds.len(),
+            128,
+            "component bonds",
+            "structure proposal",
+        )?;
+        require_max_len(
+            component.groups.len(),
+            32,
+            "component groups",
+            "structure proposal",
+        )?;
+        validate_atoms(&component.atoms)?;
+        validate_bonds(&component.bonds)?;
+        validate_groups(&component.groups)?;
+    }
+    for association in associations {
+        validate_identifier(&association.label, "association label")?;
+        require_non_empty_len(
+            association.components.len(),
+            64,
+            "association components",
+            "structure proposal",
+        )?;
+        for component in &association.components {
+            validate_identifier(component, "association component")?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_metallic_structure(
+    id: &str,
+    formula: &str,
+    sites: &[AtomRecord],
+    domains: &[MetallicDomainRecord],
+) -> Result<(), AgentError> {
+    validate_structure_header(id, formula)?;
+    require_non_empty_len(sites.len(), 64, "metallic sites", "structure proposal")?;
+    require_non_empty_len(domains.len(), 16, "metallic domains", "structure proposal")?;
+    validate_atoms(sites)?;
+    for domain in domains {
+        validate_identifier(&domain.label, "metallic domain label")?;
+        require_non_empty_len(
+            domain.sites.len(),
+            64,
+            "metallic domain sites",
+            "structure proposal",
+        )?;
+        for site in &domain.sites {
+            validate_identifier(site, "metallic domain site")?;
+        }
+        if domain.delocalized_electrons > 4_096 {
+            return Err(wire_bound_error(
+                "structure proposal",
+                "metallic domain electrons exceed the 4096 contract limit",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_molecular_structure(
+    id: &str,
+    formula: &str,
+    atoms: &[AtomRecord],
+    bonds: &[BondRecord],
+    groups: &[GroupRecord],
+) -> Result<(), AgentError> {
+    validate_structure_header(id, formula)?;
+    require_non_empty_len(atoms.len(), 128, "atoms", "structure proposal")?;
+    require_max_len(bonds.len(), 256, "bonds", "structure proposal")?;
+    require_max_len(groups.len(), 32, "groups", "structure proposal")?;
+    validate_atoms(atoms)?;
+    validate_bonds(bonds)?;
+    validate_groups(groups)
+}
+
+fn validate_structure_header(id: &str, formula: &str) -> Result<(), AgentError> {
+    validate_identifier(id, "structure ID")?;
+    require_text_for_context(
+        formula,
+        "structure formula",
+        MAX_FORMULA_CHARS,
+        "structure proposal",
+    )
+}
+
+fn validate_identifier(value: &str, label: &str) -> Result<(), AgentError> {
+    require_text_for_context(
+        value,
+        label,
+        MAX_WIRE_IDENTIFIER_CHARS,
+        "structure proposal",
+    )
+}
+
+fn validate_atoms(atoms: &[AtomRecord]) -> Result<(), AgentError> {
+    for atom in atoms {
+        validate_identifier(&atom.label, "atom label")?;
+        require_text_for_context(&atom.element, "atom element", 3, "structure proposal")?;
+        if !(-8..=8).contains(&atom.formal_charge) {
+            return Err(wire_bound_error(
+                "structure proposal",
+                "atom formal charge lies outside -8..=8",
+            ));
+        }
+        if atom.non_bonding_electrons > 64 || atom.unpaired_electrons > 16 {
+            return Err(wire_bound_error(
+                "structure proposal",
+                "atom electron count exceeds its schema limit",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_bonds(bonds: &[BondRecord]) -> Result<(), AgentError> {
+    for bond in bonds {
+        validate_identifier(&bond.left, "bond endpoint")?;
+        validate_identifier(&bond.right, "bond endpoint")?;
+    }
+    Ok(())
+}
+
+fn validate_groups(groups: &[GroupRecord]) -> Result<(), AgentError> {
+    for group in groups {
+        validate_identifier(&group.label, "group label")?;
+        require_max_len(group.atoms.len(), 64, "group atoms", "structure proposal")?;
+        for atom in &group.atoms {
+            validate_identifier(atom, "group atom")?;
+        }
+    }
+    Ok(())
+}
+
+fn require_text_for_context(
+    value: &str,
+    label: &str,
+    max_chars: usize,
+    context: &'static str,
+) -> Result<(), AgentError> {
+    if value.is_empty() {
+        return Err(wire_bound_error(
+            context,
+            format!("{label} cannot be empty"),
+        ));
+    }
+    require_max_chars(value, label, max_chars, context)
+}
+
+fn wire_bound_error(context: &'static str, message: impl Into<String>) -> AgentError {
+    AgentError::new(AgentErrorKind::InvalidProviderOutput, context, message)
+}
+
+fn require_serialized_size<T: Serialize>(
+    value: &T,
+    max_bytes: usize,
+    label: &str,
+    context: &'static str,
+) -> Result<(), AgentError> {
+    let bytes = serde_json::to_vec(value).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidProviderOutput, context, error)
+    })?;
+    if bytes.len() > max_bytes {
+        return Err(wire_bound_error(
+            context,
+            format!("{label} exceeds the {max_bytes}-byte contract limit"),
+        ));
+    }
+    Ok(())
 }
 
 /// The only model-authored content accepted during mechanism escalation.
@@ -688,13 +1114,14 @@ pub enum MechanismHomolytic {
 }
 
 impl MechanismEscalationResponse {
-    /// Strictly decodes a bounded mechanism response. Structural and label
-    /// validation intentionally happens later against its exact request.
+    /// Strictly decodes a mechanism response and enforces every wire-level
+    /// label, collection, numeric, and document-size bound. Label binding to
+    /// the exact request and chemical transition validation happen later.
     ///
     /// # Errors
     ///
-    /// Returns an error for oversized JSON, unknown fields or variants, or an
-    /// unsupported schema version.
+    /// Returns an error for a wire-bound violation, oversized JSON, unknown
+    /// fields or variants, or an unsupported schema version.
     pub fn from_json(bytes: &[u8]) -> Result<Self, AgentError> {
         if bytes.len() > MAX_MECHANISM_RESPONSE_BYTES {
             return Err(AgentError::new(
@@ -710,22 +1137,273 @@ impl MechanismEscalationResponse {
                 error,
             )
         })?;
-        if response.schema_version != MECHANISM_ESCALATION_SCHEMA_VERSION {
-            return Err(AgentError::new(
-                AgentErrorKind::InvalidProviderOutput,
-                "mechanism response",
-                format!("unsupported mechanism schema {}", response.schema_version),
-            ));
-        }
-        if response.mapping.is_empty() || response.operations.is_empty() {
-            return Err(AgentError::new(
-                AgentErrorKind::InvalidProviderOutput,
-                "mechanism response",
-                "mapping and operations must be non-empty",
-            ));
-        }
+        response.validate_wire()?;
         Ok(response)
     }
+
+    pub(crate) fn validate_wire(&self) -> Result<(), AgentError> {
+        require_serialized_size(
+            self,
+            MAX_MECHANISM_RESPONSE_BYTES,
+            "response",
+            "mechanism response",
+        )?;
+        if self.schema_version != MECHANISM_ESCALATION_SCHEMA_VERSION {
+            return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
+                "mechanism response",
+                format!("unsupported mechanism schema {}", self.schema_version),
+            ));
+        }
+        require_non_empty_len(self.mapping.len(), 512, "mapping", "mechanism response")?;
+        require_non_empty_len(
+            self.operations.len(),
+            512,
+            "operations",
+            "mechanism response",
+        )?;
+        for mapping in &self.mapping {
+            validate_mechanism_label(&mapping.reactant, "reactant mapping label")?;
+            validate_mechanism_label(&mapping.product, "product mapping label")?;
+        }
+        for operation in &self.operations {
+            validate_mechanism_operation(operation)?;
+        }
+        Ok(())
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn validate_mechanism_operation(operation: &MechanismOperation) -> Result<(), AgentError> {
+    match operation {
+        MechanismOperation::ReconfigureElectrons {
+            atom,
+            before,
+            after,
+        } => {
+            validate_mechanism_label(atom, "atom label")?;
+            validate_electron_state(*before)?;
+            validate_electron_state(*after)
+        }
+        MechanismOperation::CleaveCovalent {
+            edge,
+            allocation,
+            before,
+            after,
+        } => {
+            validate_mechanism_label(&edge.0, "edge label")?;
+            validate_mechanism_label(&edge.1, "edge label")?;
+            validate_cleavage_allocation(allocation)?;
+            validate_binary_state(before)?;
+            validate_binary_state(after)
+        }
+        MechanismOperation::FormCovalent {
+            edge,
+            electron_contribution,
+            before,
+            after,
+        } => {
+            validate_mechanism_label(&edge.0, "edge label")?;
+            validate_mechanism_label(&edge.1, "edge label")?;
+            if electron_contribution.left > 2 || electron_contribution.right > 2 {
+                return Err(wire_bound_error(
+                    "mechanism response",
+                    "covalent electron contribution exceeds 2",
+                ));
+            }
+            validate_binary_state(before)?;
+            validate_binary_state(after)
+        }
+        MechanismOperation::CleaveDative {
+            donor,
+            acceptor,
+            allocation,
+            before,
+            after,
+        } => {
+            validate_mechanism_label(donor, "dative donor")?;
+            validate_mechanism_label(acceptor, "dative acceptor")?;
+            validate_cleavage_allocation(allocation)?;
+            validate_binary_state(before)?;
+            validate_binary_state(after)
+        }
+        MechanismOperation::FormDative {
+            donor,
+            acceptor,
+            before,
+            after,
+        } => {
+            validate_mechanism_label(donor, "dative donor")?;
+            validate_mechanism_label(acceptor, "dative acceptor")?;
+            validate_binary_state(before)?;
+            validate_binary_state(after)
+        }
+        MechanismOperation::ChangeCovalent {
+            edge,
+            allocation,
+            before,
+            after,
+            ..
+        } => {
+            validate_mechanism_label(&edge.0, "edge label")?;
+            validate_mechanism_label(&edge.1, "edge label")?;
+            validate_cleavage_allocation(allocation)?;
+            validate_binary_state(before)?;
+            validate_binary_state(after)
+        }
+        MechanismOperation::ChangeCovalentDelocalization {
+            edge,
+            expected,
+            replacement,
+        } => {
+            validate_mechanism_label(&edge.0, "edge label")?;
+            validate_mechanism_label(&edge.1, "edge label")?;
+            if let Some(delocalization) = expected {
+                validate_delocalization(delocalization)?;
+            }
+            if let Some(delocalization) = replacement {
+                validate_delocalization(delocalization)?;
+            }
+            Ok(())
+        }
+        MechanismOperation::AssociateIonic {
+            label,
+            components,
+            component_charges,
+        } => {
+            validate_mechanism_label(label, "ionic association label")?;
+            if components.is_empty() || components.iter().any(Vec::is_empty) {
+                return Err(wire_bound_error(
+                    "mechanism response",
+                    "ionic components and their atom lists must be non-empty",
+                ));
+            }
+            for component in components {
+                for atom in component {
+                    validate_mechanism_label(atom, "ionic component atom")?;
+                }
+            }
+            if component_charges.is_empty()
+                || component_charges
+                    .iter()
+                    .any(|charge| !(-32..=32).contains(charge))
+            {
+                return Err(wire_bound_error(
+                    "mechanism response",
+                    "ionic component charges must be non-empty and lie within -32..=32",
+                ));
+            }
+            Ok(())
+        }
+        MechanismOperation::DissociateIonic { association } => {
+            validate_mechanism_label(association, "ionic association label")
+        }
+        MechanismOperation::ReleaseMetallic {
+            site,
+            domain,
+            before,
+            after,
+            ..
+        }
+        | MechanismOperation::JoinMetallic {
+            site,
+            domain,
+            before,
+            after,
+            ..
+        } => {
+            validate_mechanism_label(site, "metallic site")?;
+            validate_mechanism_label(domain, "metallic domain")?;
+            validate_metallic_state(before)?;
+            validate_metallic_state(after)
+        }
+        MechanismOperation::TransferElectron {
+            count,
+            donor,
+            acceptor,
+            before,
+            after,
+        } => {
+            if !(1..=8).contains(count) {
+                return Err(wire_bound_error(
+                    "mechanism response",
+                    "electron transfer count lies outside 1..=8",
+                ));
+            }
+            validate_mechanism_label(donor, "electron donor")?;
+            validate_mechanism_label(acceptor, "electron acceptor")?;
+            validate_transfer_state(before)?;
+            validate_transfer_state(after)
+        }
+        MechanismOperation::AssignProduct { atoms, product } => {
+            if atoms.is_empty() {
+                return Err(wire_bound_error(
+                    "mechanism response",
+                    "assigned product atoms must be non-empty",
+                ));
+            }
+            for atom in atoms {
+                validate_mechanism_label(atom, "assigned product atom")?;
+            }
+            validate_mechanism_label(product, "assigned product label")
+        }
+    }
+}
+
+fn validate_mechanism_label(value: &str, label: &str) -> Result<(), AgentError> {
+    require_text_for_context(
+        value,
+        label,
+        MAX_MECHANISM_LABEL_CHARS,
+        "mechanism response",
+    )
+}
+
+fn validate_cleavage_allocation(
+    allocation: &MechanismCleavageAllocation,
+) -> Result<(), AgentError> {
+    if let MechanismCleavageAllocation::Heterolytic { heterolytic_to } = allocation {
+        validate_mechanism_label(heterolytic_to, "heterolytic allocation label")?;
+    }
+    Ok(())
+}
+
+fn validate_electron_state(state: ElectronStateRecord) -> Result<(), AgentError> {
+    if !(-64..=64).contains(&state.0) || state.1 > 64 || state.2 > 64 {
+        Err(wire_bound_error(
+            "mechanism response",
+            "electron state lies outside -64..=64",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_binary_state(state: &BinaryElectronStateRecord) -> Result<(), AgentError> {
+    validate_electron_state(state.left)?;
+    validate_electron_state(state.right)
+}
+
+fn validate_transfer_state(state: &TransferElectronStateRecord) -> Result<(), AgentError> {
+    validate_electron_state(state.donor)?;
+    validate_electron_state(state.acceptor)
+}
+
+fn validate_metallic_state(state: &MetallicElectronStateRecord) -> Result<(), AgentError> {
+    validate_electron_state(state.site)
+}
+
+fn validate_delocalization(delocalization: &BondDelocalizationRecord) -> Result<(), AgentError> {
+    validate_mechanism_label(&delocalization.domain, "delocalization domain")?;
+    if delocalization.effective_order.numerator == 0
+        || delocalization.effective_order.denominator == 0
+    {
+        return Err(wire_bound_error(
+            "mechanism response",
+            "effective bond order numerator and denominator must be non-zero",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -824,6 +1502,292 @@ mod tests {
     }
 
     #[test]
+    fn claim_text_limit_uses_json_schema_character_count() {
+        let mut at_limit = rubidium_claim();
+        at_limit["products"][0]["name"] = json!("é".repeat(300));
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&at_limit).expect("bounded claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("300 Unicode characters are within the schema limit");
+
+        let mut over_limit = rubidium_claim();
+        over_limit["products"][0]["name"] = json!("é".repeat(301));
+        let error = ReactionClaim::from_json(
+            &serde_json::to_vec(&over_limit).expect("oversized claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect_err("301 Unicode characters exceed the schema limit");
+        assert!(error.to_string().contains("product name"));
+    }
+
+    fn assert_invalid_claim(value: &serde_json::Value, expected: &str) {
+        let error = ReactionClaim::from_json(
+            &serde_json::to_vec(value).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect_err("claim must exceed a wire bound");
+        assert!(
+            error.to_string().contains(expected),
+            "expected {expected:?} in {error}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn claim_collection_and_nested_text_limits_match_schema_boundaries() {
+        let product = rubidium_claim()["products"][0].clone();
+
+        let mut products_at_limit = rubidium_claim();
+        products_at_limit["products"] = json!(vec![product.clone(); 16]);
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&products_at_limit).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("16 products");
+        products_at_limit["products"] = json!(vec![product.clone(); 17]);
+        assert_invalid_claim(&products_at_limit, "products");
+
+        let mut context = rubidium_claim();
+        context["required_context"] = json!("x".repeat(1_000));
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&context).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("1,000-character context");
+        context["required_context"] = json!("x".repeat(1_001));
+        assert_invalid_claim(&context, "required context");
+
+        let mut formula = rubidium_claim();
+        formula["products"][0]["formula"] = json!("X".repeat(200));
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&formula).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("200-character formula");
+        formula["products"][0]["formula"] = json!("X".repeat(201));
+        assert_invalid_claim(&formula, "product formula");
+
+        let hint = json!({"kind":"registry_id", "value":"x".repeat(500)});
+        let mut hints = rubidium_claim();
+        hints["products"][0]["identity_hints"] = json!(vec![hint.clone(); 12]);
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&hints).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("12 bounded identity hints");
+        hints["products"][0]["identity_hints"] = json!(vec![hint.clone(); 13]);
+        assert_invalid_claim(&hints, "identity hints");
+        hints["products"][0]["identity_hints"] =
+            json!([{"kind":"registry_id", "value":"x".repeat(501)}]);
+        assert_invalid_claim(&hints, "identity hint");
+
+        let observation = json!({"predicate":"evolves", "subject":"x".repeat(300), "value":null});
+        let mut observations = rubidium_claim();
+        observations["observations"] = json!(vec![observation; 16]);
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&observations).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("16 bounded observations");
+        observations["observations"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({
+                "predicate":"evolves", "subject":"x", "value":null
+            }));
+        assert_invalid_claim(&observations, "observations");
+        let mut colour = rubidium_claim();
+        colour["observations"] = json!([{
+            "predicate":"colour", "subject":"solution", "value":"x".repeat(301)
+        }]);
+        assert_invalid_claim(&colour, "observation value");
+
+        let source = |id: usize| {
+            json!({
+                "id": format!("source-{id}"),
+                "title": "x".repeat(500),
+                "publisher": "x".repeat(300),
+                "url": format!("https://{}", "x".repeat(1_992)),
+                "supporting_excerpt": "x".repeat(1_200),
+                "supports": ["products", "required_context", "observations", "no_reaction"]
+            })
+        };
+        let mut sources = rubidium_claim();
+        sources["sources"] = json!((0..4).map(source).collect::<Vec<_>>());
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&sources).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("four sources at every nested boundary");
+        sources["sources"][0]["id"] = json!("x".repeat(41));
+        assert_invalid_claim(&sources, "source ID");
+        sources["sources"][0] = source(0);
+        sources["sources"][0]["url"] = json!(format!("https://{}", "x".repeat(1_993)));
+        assert_invalid_claim(&sources, "source URL");
+        sources["sources"][0] = source(0);
+        sources["sources"][0]["supporting_excerpt"] = json!("x".repeat(1_201));
+        assert_invalid_claim(&sources, "supporting excerpt");
+    }
+
+    #[test]
+    fn ambiguity_limits_apply_to_alternatives_and_their_nested_products() {
+        let alternative = json!({
+            "label":"x".repeat(300),
+            "products":[],
+            "required_context":"x".repeat(1_000)
+        });
+        let mut claim = json!({
+            "schema_version":1, "disposition":"ambiguous", "products":[],
+            "required_context":"context", "observations":[], "sources":[],
+            "ambiguity":{
+                "kind":"conditions", "summary":"x".repeat(1_000),
+                "alternatives":vec![alternative.clone(); 8]
+            }
+        });
+        ReactionClaim::from_json(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("eight bounded alternatives");
+        claim["ambiguity"]["alternatives"] = json!(vec![alternative.clone(); 9]);
+        assert_invalid_claim(&claim, "ambiguity alternatives");
+        claim["ambiguity"]["alternatives"] = json!(vec![alternative.clone(); 2]);
+        claim["ambiguity"]["alternatives"][0]["label"] = json!("x".repeat(301));
+        assert_invalid_claim(&claim, "ambiguity label");
+        claim["ambiguity"]["alternatives"][0] = alternative;
+        claim["ambiguity"]["alternatives"][0]["products"] =
+            json!(vec![rubidium_claim()["products"][0].clone(); 17]);
+        assert_invalid_claim(&claim, "alternative products");
+    }
+
+    fn molecular_structure() -> serde_json::Value {
+        json!({
+            "representation":"molecular", "id":"s1", "formula":"H2",
+            "atoms":[
+                {"label":"h1", "element":"H", "formal_charge":0,
+                 "non_bonding_electrons":0, "unpaired_electrons":0}
+            ],
+            "bonds":[], "groups":[]
+        })
+    }
+
+    fn assert_invalid_structure(
+        structures: impl IntoIterator<Item = serde_json::Value>,
+        expected: &str,
+    ) {
+        let structures = structures.into_iter().collect::<Vec<_>>();
+        let value = json!({"schema_version":1, "structures":structures});
+        let error = StructureProposalResponse::from_json(
+            &serde_json::to_vec(&value).expect("structure JSON"),
+        )
+        .expect_err("structure must exceed a wire bound");
+        assert!(
+            error.to_string().contains(expected),
+            "expected {expected:?} in {error}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn structure_scalar_and_collection_limits_match_schema_boundaries() {
+        let mut bounded = molecular_structure();
+        bounded["id"] = json!("é".repeat(120));
+        bounded["formula"] = json!("X".repeat(200));
+        bounded["atoms"][0]["label"] = json!("x".repeat(120));
+        bounded["atoms"][0]["element"] = json!("XxX");
+        bounded["atoms"][0]["formal_charge"] = json!(8);
+        bounded["atoms"][0]["non_bonding_electrons"] = json!(64);
+        bounded["atoms"][0]["unpaired_electrons"] = json!(16);
+        StructureProposalResponse::from_json(
+            &serde_json::to_vec(&json!({"schema_version":1, "structures":[bounded.clone()]}))
+                .expect("structure JSON"),
+        )
+        .expect("structure at scalar bounds");
+
+        let mut over = bounded.clone();
+        over["id"] = json!("x".repeat(121));
+        assert_invalid_structure(vec![over], "structure ID");
+        let mut over = bounded.clone();
+        over["formula"] = json!("X".repeat(201));
+        assert_invalid_structure(vec![over], "structure formula");
+        let mut over = bounded.clone();
+        over["atoms"][0]["formal_charge"] = json!(9);
+        assert_invalid_structure(vec![over], "formal charge");
+        let mut over = bounded.clone();
+        over["atoms"][0]["non_bonding_electrons"] = json!(65);
+        assert_invalid_structure(vec![over], "electron count");
+
+        let atom = molecular_structure()["atoms"][0].clone();
+        let mut atoms = molecular_structure();
+        atoms["atoms"] = json!(vec![atom.clone(); 128]);
+        atoms["bonds"] = json!(vec![
+            json!({"left":"h1", "right":"h1", "order":"single"});
+            256
+        ]);
+        atoms["groups"] = json!(vec![json!({"label":"g", "atoms":vec!["h1"; 64]}); 32]);
+        StructureProposalResponse::from_json(
+            &serde_json::to_vec(&json!({"schema_version":1, "structures":[atoms.clone()]}))
+                .expect("structure JSON"),
+        )
+        .expect("molecular structure at collection bounds");
+        atoms["atoms"] = json!(vec![atom; 129]);
+        assert_invalid_structure(vec![atoms], "atoms");
+
+        StructureProposalResponse::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version":1, "structures":vec![molecular_structure(); 16]
+            }))
+            .expect("structure JSON"),
+        )
+        .expect("16 structures");
+        assert_invalid_structure(vec![molecular_structure(); 17], "structures");
+    }
+
+    #[test]
+    fn ionic_and_metallic_nested_limits_match_schema_boundaries() {
+        let atom = molecular_structure()["atoms"][0].clone();
+        let component = json!({"label":"c", "atoms":[atom.clone()], "bonds":[], "groups":[]});
+        let association = json!({"label":"a", "components":["c"]});
+        let ionic = json!({
+            "representation":"ionic", "id":"i", "formula":"HX",
+            "components":vec![component.clone(); 64],
+            "associations":vec![association.clone(); 64]
+        });
+        StructureProposalResponse::from_json(
+            &serde_json::to_vec(&json!({"schema_version":1, "structures":[ionic]}))
+                .expect("ionic JSON"),
+        )
+        .expect("ionic structure at collection bounds");
+
+        let metallic = json!({
+            "representation":"metallic", "id":"m", "formula":"M",
+            "sites":vec![atom; 64],
+            "domains":vec![json!({
+                "label":"d", "sites":vec!["h1"; 64], "delocalized_electrons":4096
+            }); 16]
+        });
+        StructureProposalResponse::from_json(
+            &serde_json::to_vec(&json!({"schema_version":1, "structures":[metallic.clone()]}))
+                .expect("metallic JSON"),
+        )
+        .expect("metallic structure at collection and scalar bounds");
+        let mut over = metallic;
+        over["domains"][0]["delocalized_electrons"] = json!(4097);
+        assert_invalid_structure(vec![over], "domain electrons");
+
+        let mut over_component = component;
+        over_component["atoms"] = json!(vec![molecular_structure()["atoms"][0].clone(); 65]);
+        assert_invalid_structure(
+            vec![json!({
+                "representation":"ionic", "id":"i", "formula":"HX",
+                "components":[over_component], "associations":[association]
+            })],
+            "component atoms",
+        );
+    }
+
+    #[test]
     fn closed_dispositions_represent_no_reaction_condition_and_conflict() {
         let no_reaction = json!({
             "schema_version": 1,
@@ -887,6 +1851,136 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    fn mechanism_value(operation: serde_json::Value) -> serde_json::Value {
+        let operations = vec![operation];
+        json!({
+            "schema_version":1,
+            "mapping":[{"reactant":"r", "product":"p"}],
+            "operations":operations
+        })
+    }
+
+    fn assert_invalid_mechanism(value: &serde_json::Value, expected: &str) {
+        let error = MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(value).expect("mechanism JSON"),
+        )
+        .expect_err("mechanism must exceed a wire bound");
+        assert!(
+            error.to_string().contains(expected),
+            "expected {expected:?} in {error}"
+        );
+    }
+
+    #[test]
+    fn mechanism_label_and_top_level_collection_limits_match_schema_boundaries() {
+        let assignment = json!({"kind":"assign_product", "atoms":["a"], "product":"p"});
+        let bounded_label = mechanism_value(assignment.clone());
+        let mut bounded_label = bounded_label;
+        bounded_label["mapping"][0] =
+            json!({"reactant":"é".repeat(160), "product":"x".repeat(160)});
+        MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(&bounded_label).expect("mechanism JSON"),
+        )
+        .expect("160-character mechanism labels");
+
+        let mapping = json!({"reactant":"r", "product":"p"});
+        let value = json!({
+            "schema_version":1,
+            "mapping":vec![mapping.clone(); 512],
+            "operations":vec![assignment.clone(); 512]
+        });
+        MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(&value).expect("mechanism JSON"),
+        )
+        .expect("mechanism at label and collection bounds");
+
+        let mut over_mapping = value.clone();
+        over_mapping["mapping"] = json!(vec![mapping; 513]);
+        assert_invalid_mechanism(&over_mapping, "mapping");
+        let mut over_operations = value.clone();
+        over_operations["operations"] = json!(vec![assignment; 513]);
+        assert_invalid_mechanism(&over_operations, "operations");
+        let mut over_label = bounded_label;
+        over_label["mapping"][0]["reactant"] = json!("x".repeat(161));
+        assert_invalid_mechanism(&over_label, "reactant mapping label");
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn mechanism_nested_collection_and_numeric_limits_match_schema_boundaries() {
+        let reconfigure = json!({
+            "kind":"reconfigure_electrons", "atom":"a",
+            "before":[-64, 64, 64], "after":[64, 64, 64]
+        });
+        MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(&mechanism_value(reconfigure.clone())).expect("mechanism JSON"),
+        )
+        .expect("electron state at bounds");
+        let mut invalid = mechanism_value(reconfigure);
+        invalid["operations"][0]["after"] = json!([65, 0, 0]);
+        assert_invalid_mechanism(&invalid, "electron state");
+
+        let form = json!({
+            "kind":"form_covalent", "edge":["a", "b", "single"],
+            "electron_contribution":{"left":2, "right":2},
+            "before":{"left":[0,0,0], "right":[0,0,0]},
+            "after":{"left":[0,0,0], "right":[0,0,0]}
+        });
+        MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(&mechanism_value(form.clone())).expect("mechanism JSON"),
+        )
+        .expect("electron contribution at bound");
+        let mut invalid = mechanism_value(form);
+        invalid["operations"][0]["electron_contribution"]["left"] = json!(3);
+        assert_invalid_mechanism(&invalid, "electron contribution");
+
+        let association = json!({
+            "kind":"associate_ionic", "label":"salt",
+            "components":[["a"]], "component_charges":[-32, 32]
+        });
+        MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(&mechanism_value(association.clone())).expect("mechanism JSON"),
+        )
+        .expect("ionic component charges at bounds");
+        let mut invalid = mechanism_value(association.clone());
+        invalid["operations"][0]["component_charges"] = json!([33]);
+        assert_invalid_mechanism(&invalid, "component charges");
+        let mut invalid = mechanism_value(association);
+        invalid["operations"][0]["components"] = json!([]);
+        assert_invalid_mechanism(&invalid, "ionic components");
+
+        let transfer = json!({
+            "kind":"transfer_electron", "count":8, "donor":"a", "acceptor":"b",
+            "before":{"donor":[0,0,0], "acceptor":[0,0,0]},
+            "after":{"donor":[0,0,0], "acceptor":[0,0,0]}
+        });
+        MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(&mechanism_value(transfer.clone())).expect("mechanism JSON"),
+        )
+        .expect("transfer count at bound");
+        let mut invalid = mechanism_value(transfer);
+        invalid["operations"][0]["count"] = json!(0);
+        assert_invalid_mechanism(&invalid, "transfer count");
+
+        let delocalization = json!({
+            "kind":"change_covalent_delocalization", "edge":["a", "b"],
+            "expected":null,
+            "replacement":{"domain":"d", "effective_order":{"numerator":1, "denominator":255}}
+        });
+        MechanismEscalationResponse::from_json(
+            &serde_json::to_vec(&mechanism_value(delocalization.clone())).expect("mechanism JSON"),
+        )
+        .expect("effective order at bounds");
+        let mut invalid = mechanism_value(delocalization);
+        invalid["operations"][0]["replacement"]["effective_order"]["numerator"] = json!(0);
+        assert_invalid_mechanism(&invalid, "effective bond order");
+
+        let empty_assignment = mechanism_value(json!({
+            "kind":"assign_product", "atoms":[], "product":"p"
+        }));
+        assert_invalid_mechanism(&empty_assignment, "assigned product atoms");
     }
 
     #[test]

@@ -213,6 +213,7 @@ pub fn adopt_proposed_structures(
             "request does not exactly describe this outcome's missing species",
         ));
     }
+    response.validate_wire()?;
     let premise_id = PremiseId::from_str(DYNAMIC_STRUCTURE_PREMISE).map_err(|error| {
         AgentError::from_source(
             AgentErrorKind::InvalidProviderOutput,

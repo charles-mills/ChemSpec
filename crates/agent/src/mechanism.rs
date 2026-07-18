@@ -601,6 +601,7 @@ fn compile_mechanism(
     response: &MechanismEscalationResponse,
     catalogue: &ValidatedCatalogueBundle,
 ) -> Result<ValidatedDynamicFrames, AgentError> {
+    response.validate_wire()?;
     validate_response_labels(context, response)?;
     let provisional_bundle = provisional_mechanism_bundle(context, response, catalogue)?;
     let catalogue = provisional_bundle.as_ref().unwrap_or(catalogue);
@@ -2030,6 +2031,34 @@ mod tests {
     }
 
     #[test]
+    fn typed_provider_response_still_crosses_mechanism_wire_validation() {
+        let trusted = trusted();
+        let outcome = lithium_hydroxide_outcome(&trusted);
+        let valid = valid_response(&outcome, &trusted);
+        let mut outside_wire_contract = valid.clone();
+        outside_wire_contract.mapping[0].reactant = "x".repeat(161);
+        let mut provider = FakeProvider {
+            responses: VecDeque::from([outside_wire_contract, valid]),
+            ..FakeProvider::default()
+        };
+
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.repair_count(), 1);
+        assert_eq!(provider.diagnostics.len(), 2);
+        assert!(
+            provider.diagnostics[1]
+                .as_deref()
+                .is_some_and(|diagnostic| diagnostic.contains("160-character")),
+            "{:?}",
+            provider.diagnostics
+        );
+    }
+
+    #[test]
     fn kernel_rejection_is_repaired_with_its_diagnostic() {
         let trusted = trusted();
         let outcome = lithium_hydroxide_outcome(&trusted);
@@ -3025,5 +3054,43 @@ mod tests {
         )
         .expect("cached escalation with structures revalidates");
         assert!(!replayed.frames().frames().is_empty());
+    }
+
+    #[test]
+    fn typed_provider_response_still_crosses_structure_wire_validation() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let structures = ether_structure();
+        let request =
+            crate::structure_proposal_request(&outcome, &trusted).expect("structure request");
+        let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &trusted)
+            .expect("valid proposal");
+        let mechanism = ether_mechanism(&adopted);
+        let mut outside_wire_contract = structures.clone();
+        let LabelledStructure::Molecular { id, .. } = &mut outside_wire_contract.structures[0]
+        else {
+            panic!("ether fixture is molecular")
+        };
+        *id = "x".repeat(121);
+        let mut provider = FakeProvider {
+            responses: VecDeque::from([mechanism]),
+            structure_responses: VecDeque::from([outside_wire_contract, structures]),
+            ..FakeProvider::default()
+        };
+
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.structure_repair_count(), 1);
+        assert_eq!(provider.structure_diagnostics.len(), 2);
+        assert!(
+            provider.structure_diagnostics[1]
+                .as_deref()
+                .is_some_and(|diagnostic| diagnostic.contains("120-character")),
+            "{:?}",
+            provider.structure_diagnostics
+        );
     }
 }

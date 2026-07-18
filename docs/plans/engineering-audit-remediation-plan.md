@@ -242,6 +242,8 @@ Required outcome:
 
 Verdict: **Confirmed with scope correction; medium.**
 
+Status: **Completed 2026-07-18 in the audit remediation commit.**
+
 Evidence:
 
 - The Codex output schema in `crates/agent/src/codex.rs` contains useful
@@ -997,4 +999,47 @@ For each completed slice, append:
 - Remaining boundary: deterministic in-process fixtures exercise request and
   graph adoption. No live provider, credential, network, GPU, macOS, or Windows
   behavior is required or claimed.
+- Follow-ups: none.
+
+### 2026-07-18 — AUD-008 Rust-enforced wire bounds
+
+- Completion: this audit remediation commit.
+- Contract and code: `ReactionClaim`, `StructureProposalResponse`, and
+  `MechanismEscalationResponse` now enforce the checked-in JSON Schema string,
+  collection, and numeric bounds in Rust, using Unicode character counts for
+  `maxLength`. Raw provider documents retain their existing byte caps, while
+  canonical serialized-size checks extend the same defense to typed provider
+  values and cache entries.
+- Boundary coverage: exact-limit and one-over tests cover claim text and nested
+  collections, structure identifiers/formulae/atoms/components/domains, and
+  mechanism labels/mappings/operations/electron states. A digest-consistent
+  cache entry outside the wire contract is rejected. Fake typed providers
+  prove alternate mechanism and structure implementations cannot bypass the
+  validator and receive one bounded repair opportunity.
+- Trust boundary: the shared validation sits below provider-specific decoding:
+  mechanism compilation and structure adoption both validate typed responses,
+  and cache load/store validates claims plus any escalated presentation recipe.
+  Request-to-outcome binding still runs before structure-response validation so
+  a substituted request cannot mask the stronger AUD-007 diagnostic.
+- Review: the Standards and Spec passes found two documentation omissions and
+  one alternate-provider bypass. The decoder contracts and this execution
+  record were updated; shared validation was moved beneath the generic typed
+  provider/cache entry points. Both reviewers confirmed their findings were
+  resolved and found no remaining response-consumer bypass.
+- Verification passed:
+  `cargo test -p agent --lib claim::tests -- --nocapture`;
+  `cargo test -p agent --lib typed_provider_response_still_crosses -- --nocapture`;
+  `cargo test -p agent --lib` (151 passed);
+  `cargo fmt --all --check`;
+  `cargo test --workspace --all-targets`;
+  `cargo clippy --workspace --all-targets -- -D warnings`; and
+  `git diff --check`. Cargo verification used the isolated target directory
+  `/tmp/chemspec-aud008`.
+- Verification note: the first workspace rerun hit the pre-existing Unix
+  cancellation race once (`ProviderUnavailable` instead of `Cancelled`), the
+  same behavior recorded during AUD-006. Its focused rerun passed, followed by
+  a clean full workspace run; the assertion and production code were unchanged.
+- Remaining boundary: deterministic in-process JSON, cache, and fake-provider
+  tests exercise this contract. No live provider, credential, network, GPU,
+  macOS, or Windows behavior is required or claimed.
 - Follow-ups: none.

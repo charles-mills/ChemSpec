@@ -120,6 +120,12 @@ pub fn load_dynamic_cache(
     }
     let bytes = fs::read(path).ok()?;
     let cached: DynamicCacheEnvelope = serde_json::from_slice(&bytes).ok()?;
+    cached.claim.validate_wire().ok()?;
+    cached
+        .presentation
+        .as_ref()
+        .map_or(Ok(()), validate_cached_presentation)
+        .ok()?;
     let expected_request = request_binding(request, identities).ok()?;
     let expected_identities = identities.snapshot_digest().ok()?;
     if cached.schema_version != DYNAMIC_CACHE_SCHEMA_VERSION
@@ -179,6 +185,10 @@ pub fn store_dynamic_cache(
     provider: &str,
     model: &str,
 ) -> Result<(), AgentError> {
+    claim.validate_wire()?;
+    if let Some(presentation) = &presentation {
+        validate_cached_presentation(presentation)?;
+    }
     // Recompile before persistence so a provider response alone can never
     // populate the cache.
     compile_claim_outcome(request, claim.clone(), identities)?;
@@ -219,6 +229,20 @@ pub fn store_dynamic_cache(
         AgentError::from_source(AgentErrorKind::CacheIo, "reaction cache", error)
     })?;
     atomic_replace(&temporary, &path, "reaction cache")
+}
+
+fn validate_cached_presentation(presentation: &DynamicCachePresentation) -> Result<(), AgentError> {
+    if let DynamicCachePresentation::Escalated {
+        response,
+        structures,
+    } = presentation
+    {
+        response.validate_wire()?;
+        if let Some(structures) = structures {
+            structures.validate_wire()?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -577,6 +601,58 @@ mod tests {
         assert!(
             loaded.presentation.is_none(),
             "a retryable failure must relaunch presentation enrichment"
+        );
+        fs::remove_dir_all(directory).expect("cleanup");
+    }
+
+    #[test]
+    fn cache_rejects_a_digest_consistent_claim_outside_wire_limits() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let request = request();
+        let directory = std::env::temp_dir().join(format!(
+            "chemspec-cache-wire-limit-test-{}-{}",
+            std::process::id(),
+            CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        store_dynamic_cache(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &trusted,
+            &claim(),
+            None,
+            "fake",
+            "offline",
+        )
+        .expect("store valid cache entry");
+        let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
+            .expect("cache path");
+        let mut envelope: DynamicCacheEnvelope =
+            serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache entry");
+        envelope.claim.products[0].name = "x".repeat(301);
+        envelope.claim_digest = claim_digest(&envelope.claim).expect("updated digest");
+        fs::write(
+            &path,
+            serde_json::to_vec(&envelope).expect("tampered cache entry"),
+        )
+        .expect("write tampered entry");
+
+        assert!(
+            load_dynamic_cache(
+                Some(&directory),
+                &request,
+                ClaimMode::Fast,
+                &identities,
+                &trusted,
+            )
+            .is_none(),
+            "a matching digest must not confer schema validity"
+        );
+        assert!(
+            path.exists(),
+            "a rejected entry remains a cache miss artifact"
         );
         fs::remove_dir_all(directory).expect("cleanup");
     }
