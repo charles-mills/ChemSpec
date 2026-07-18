@@ -83,7 +83,12 @@ fn live_mechanism_probe() {
                 Err(error) => panic!("KERNEL ERR: {error}"),
             }
         }
-        Err(error) => panic!("ERR: [{}] {:?}", error.stage(), error.to_string()),
+        Err(error) => panic!(
+            "ERR: [{:?}/{}] {:?}",
+            error.kind(),
+            error.context(),
+            error.to_string()
+        ),
     }
 }
 

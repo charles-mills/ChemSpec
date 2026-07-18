@@ -10,8 +10,8 @@ use chem_domain::{
 use num_bigint::BigUint;
 
 use crate::{
-    AgentError, ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind, ClaimPhase,
-    ClaimProduct, ReactionBuildRequest, ReactionClaim,
+    AgentError, AgentErrorKind, ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind,
+    ClaimPhase, ClaimProduct, ReactionBuildRequest, ReactionClaim,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -158,6 +158,7 @@ impl ValidatedStaticOutcome {
                 .any(|(adopted, existing)| adopted.id() != existing.id())
         {
             return Err(AgentError::new(
+                AgentErrorKind::CompilationFailure,
                 "structure adoption",
                 "adopted species must preserve side, identity, and order",
             ));
@@ -229,10 +230,22 @@ pub fn compile_claim_outcome(
             } else {
                 let id_material = format!("{}\0{formula}", product.name);
                 let digest = ContentDigest::sha256(id_material.as_bytes()).to_hex();
-                let id = SpeciesId::from_str(&format!("dynamic.s{}", &digest[..24]))
-                    .map_err(|error| AgentError::new("outcome identity", error.to_string()))?;
-                FormulaComposition::parse(&formula)
-                    .map_err(|error| AgentError::new("outcome formula", error.to_string()))?;
+                let id = SpeciesId::from_str(&format!("dynamic.s{}", &digest[..24])).map_err(
+                    |error| {
+                        AgentError::from_source(
+                            AgentErrorKind::IdentityFailure,
+                            "outcome identity",
+                            error,
+                        )
+                    },
+                )?;
+                FormulaComposition::parse(&formula).map_err(|error| {
+                    AgentError::from_source(
+                        AgentErrorKind::CompilationFailure,
+                        "outcome formula",
+                        error,
+                    )
+                })?;
                 Ok(OutcomeSpecies::FormulaOnly {
                     id,
                     display_name: product.name.clone(),
@@ -253,7 +266,9 @@ pub fn compile_claim_outcome(
             .collect::<Result<Vec<_>, AgentError>>()?,
         claim.required_context.clone(),
     )
-    .map_err(|error| AgentError::new("outcome balance", error.to_string()))?;
+    .map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CompilationFailure, "outcome balance", error)
+    })?;
     let trust_tier = TrustTier::ModelAsserted;
     let equation = format_equation(&declaration);
     Ok(CompiledClaimOutcome::Static(ValidatedStaticOutcome {
@@ -338,6 +353,7 @@ pub fn resolve_request_species(
     match resolve_request_identities(request, identities)? {
         RequestIdentityResolution::Resolved(species) => Ok(species),
         RequestIdentityResolution::Ambiguous(ambiguity) => Err(AgentError::new(
+            AgentErrorKind::IdentityFailure,
             "request identity",
             format!(
                 "reactant `{}` resolves to multiple identities",
@@ -386,6 +402,7 @@ fn resolve_request_identities_inner(
         let lookup = if let Some(species_id) = &input.species_id {
             IdentityLookup::Resolved(identities.get(species_id).ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::IdentityFailure,
                     "request identity",
                     format!("selected species `{species_id}` is not in the current snapshot"),
                 )
@@ -420,6 +437,7 @@ fn resolve_request_identities_inner(
                     ));
                 } else {
                     return Err(AgentError::new(
+                        AgentErrorKind::InvalidRequest,
                         "request binding",
                         format!(
                             "no identity alternative for `{}` matches its composed atoms",
@@ -443,6 +461,7 @@ fn resolve_request_identities_inner(
 fn validate_request_shape(request: &ReactionBuildRequest) -> Result<(), AgentError> {
     if !(1..=2).contains(&request.reactants.len()) {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidRequest,
             "request shape",
             "a dynamic request must contain one or two reactants",
         ));
@@ -456,6 +475,7 @@ fn validate_request_shape(request: &ReactionBuildRequest) -> Result<(), AgentErr
         })
     {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidRequest,
             "request shape",
             "a single-reactant request requires the context heat, light, or electricity",
         ));
@@ -477,6 +497,7 @@ fn validate_selected_context_binding(
         .trim();
     if !claim.required_context.trim().eq_ignore_ascii_case(selected) {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidRequest,
             "request context",
             format!(
                 "single-reactant claim context `{}` must preserve selected context `{selected}`",
@@ -537,6 +558,7 @@ fn resolve_name_or_formula<'a>(
                         .map(IdentityLookup::Resolved)
                         .ok_or_else(|| {
                             AgentError::new(
+                                AgentErrorKind::IdentityFailure,
                                 "request identity",
                                 format!("reactant `{value}` has no stable equivalent identity"),
                             )
@@ -563,6 +585,7 @@ fn resolve_name_or_formula<'a>(
                         .map(IdentityLookup::Resolved)
                         .ok_or_else(|| {
                             AgentError::new(
+                                AgentErrorKind::IdentityFailure,
                                 "request identity",
                                 format!("reactant `{value}` has no stable metallic identity"),
                             )
@@ -679,10 +702,12 @@ fn generated_product(
 
 fn formula_only_reactant(input: &crate::ReactantInput) -> Result<OutcomeSpecies, AgentError> {
     let formula = ascii_formula_key(&input.display);
-    let composition = FormulaComposition::parse(&formula)
-        .map_err(|error| AgentError::new("request formula", error.to_string()))?;
+    let composition = FormulaComposition::parse(&formula).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidRequest, "request formula", error)
+    })?;
     if input.atomic_numbers.is_empty() {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidRequest,
             "request binding",
             format!("reactant `{}` has no composed atoms", input.display),
         ));
@@ -694,14 +719,23 @@ fn formula_only_reactant(input: &crate::ReactantInput) -> Result<OutcomeSpecies,
             .try_fold(0_usize, |total, count| {
                 total
                     .checked_add(usize::try_from(*count).map_err(|_| {
-                        AgentError::new("request binding", "formula atom count overflow")
+                        AgentError::new(
+                            AgentErrorKind::InvalidRequest,
+                            "request binding",
+                            "formula atom count overflow",
+                        )
                     })?)
                     .ok_or_else(|| {
-                        AgentError::new("request binding", "formula atom count overflow")
+                        AgentError::new(
+                            AgentErrorKind::InvalidRequest,
+                            "request binding",
+                            "formula atom count overflow",
+                        )
                     })
             })?;
     if formula_atom_count != input.atomic_numbers.len() {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidRequest,
             "request binding",
             format!(
                 "reactant `{}` formula contains {formula_atom_count} atoms but the composer supplied {}",
@@ -713,10 +747,13 @@ fn formula_only_reactant(input: &crate::ReactantInput) -> Result<OutcomeSpecies,
     let mut atomic_numbers = input.atomic_numbers.clone();
     atomic_numbers.sort_unstable();
     let id_material = serde_json::to_vec(&("formula-only-reactant-v2", &formula, &atomic_numbers))
-        .map_err(|error| AgentError::new("request identity", error.to_string()))?;
+        .map_err(|error| {
+            AgentError::from_source(AgentErrorKind::IdentityFailure, "request identity", error)
+        })?;
     let digest = ContentDigest::sha256(&id_material).to_hex();
-    let id = SpeciesId::from_str(&format!("dynamic.r{}", &digest[..24]))
-        .map_err(|error| AgentError::new("request identity", error.to_string()))?;
+    let id = SpeciesId::from_str(&format!("dynamic.r{}", &digest[..24])).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::IdentityFailure, "request identity", error)
+    })?;
     Ok(OutcomeSpecies::FormulaOnly {
         id,
         display_name: input.display.clone(),
@@ -777,6 +814,7 @@ fn validate_atomic_numbers(authored: &[u8], resolved: &ResolvedSpecies) -> Resul
     }
     if actual != expected {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidRequest,
             "request binding",
             format!(
                 "reactant `{}` identity disagrees with its composed atoms",
@@ -792,8 +830,9 @@ fn resolved_term(species: &ResolvedSpecies) -> Result<UnbalancedReactionTerm, Ag
         species: species.id.clone(),
         display_name: species.display_name.clone(),
         formula_text: species.formula_text.clone(),
-        formula: FormulaComposition::parse(&species.formula_text)
-            .map_err(|error| AgentError::new("outcome formula", error.to_string()))?,
+        formula: FormulaComposition::parse(&species.formula_text).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::CompilationFailure, "outcome formula", error)
+        })?,
         charge: species.charge.clone(),
         phase: species.phase,
     })
@@ -811,8 +850,13 @@ fn outcome_term(species: &OutcomeSpecies) -> Result<UnbalancedReactionTerm, Agen
             species: id.clone(),
             display_name: display_name.clone(),
             formula_text: formula.clone(),
-            formula: FormulaComposition::parse(formula)
-                .map_err(|error| AgentError::new("outcome formula", error.to_string()))?,
+            formula: FormulaComposition::parse(formula).map_err(|error| {
+                AgentError::from_source(
+                    AgentErrorKind::CompilationFailure,
+                    "outcome formula",
+                    error,
+                )
+            })?,
             charge: Charge::neutral(),
             phase: *phase,
         }),
@@ -1093,7 +1137,8 @@ mod tests {
 
         let error = resolve_request_identities(&request(vec![6, 1, 1]), &identities)
             .expect_err("the formula and composed atom count must agree");
-        assert_eq!(error.stage(), "request binding");
+        assert_eq!(error.kind(), AgentErrorKind::InvalidRequest);
+        assert_eq!(error.context(), "request binding");
     }
 
     #[test]
@@ -1197,7 +1242,8 @@ mod tests {
         .expect("claim");
         let error = compile_claim_outcome(&request, claim, &identities)
             .expect_err("the model cannot replace the learner's selected context");
-        assert_eq!(error.stage(), "request context");
+        assert_eq!(error.kind(), AgentErrorKind::InvalidRequest);
+        assert_eq!(error.context(), "request context");
         assert!(
             error
                 .to_string()
@@ -1268,7 +1314,8 @@ mod tests {
             &registry(),
         )
         .expect_err("stale atoms must fail request binding");
-        assert_eq!(error.stage(), "request binding");
+        assert_eq!(error.kind(), AgentErrorKind::InvalidRequest);
+        assert_eq!(error.context(), "request binding");
     }
 
     #[test]

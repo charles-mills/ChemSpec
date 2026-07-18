@@ -13,7 +13,7 @@ use std::{
 };
 
 use crate::{
-    AgentError, ClaimMode, MechanismEscalationRequest, MechanismEscalationResponse,
+    AgentError, AgentErrorKind, ClaimMode, MechanismEscalationRequest, MechanismEscalationResponse,
     MechanismProvider, ReactionBuildRequest, ReactionClaim, StructureProposalRequest,
     StructureProposalResponse,
 };
@@ -324,6 +324,7 @@ impl CodexProvider {
         let preflight = self.preflight_until(deadline)?;
         if !preflight.authenticated {
             return Err(AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
                 "Codex preflight",
                 "Codex is installed but not authenticated",
             ));
@@ -331,8 +332,9 @@ impl CodexProvider {
         let temporary = TemporaryRun::create()?;
         let schema_path = temporary.path.join("claim.schema.json");
         let result_path = temporary.path.join("claim.json");
-        fs::write(&schema_path, CLAIM_RESULT_SCHEMA)
-            .map_err(|error| AgentError::new("Codex run setup", error.to_string()))?;
+        fs::write(&schema_path, CLAIM_RESULT_SCHEMA).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        })?;
         let mut prompt = build_claim_prompt(request, mode, None)?;
         for attempt in 0..=1 {
             let bytes = self.invoke(
@@ -350,6 +352,7 @@ impl CodexProvider {
                 }
                 Err(error) => {
                     return Err(AgentError::new(
+                        AgentErrorKind::InvalidProviderOutput,
                         "Codex claim retry",
                         format!("claim remained invalid after one retry; {error}"),
                     ));
@@ -383,6 +386,7 @@ impl CodexProvider {
         let preflight = self.preflight_until(deadline)?;
         if !preflight.authenticated {
             return Err(AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
                 "Codex preflight",
                 "Codex is installed but not authenticated",
             ));
@@ -390,8 +394,9 @@ impl CodexProvider {
         let temporary = TemporaryRun::create()?;
         let schema_path = temporary.path.join("mechanism.schema.json");
         let result_path = temporary.path.join("mechanism.json");
-        fs::write(&schema_path, MECHANISM_RESULT_SCHEMA)
-            .map_err(|error| AgentError::new("Codex run setup", error.to_string()))?;
+        fs::write(&schema_path, MECHANISM_RESULT_SCHEMA).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        })?;
         let prompt = build_mechanism_prompt(request, diagnostic)?;
         let bytes = self.invoke(
             &temporary,
@@ -413,6 +418,7 @@ impl CodexProvider {
         let preflight = self.preflight_until(deadline)?;
         if !preflight.authenticated {
             return Err(AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
                 "Codex preflight",
                 "Codex is installed but not authenticated",
             ));
@@ -420,8 +426,9 @@ impl CodexProvider {
         let temporary = TemporaryRun::create()?;
         let schema_path = temporary.path.join("structure.schema.json");
         let result_path = temporary.path.join("structure.json");
-        fs::write(&schema_path, STRUCTURE_RESULT_SCHEMA)
-            .map_err(|error| AgentError::new("Codex run setup", error.to_string()))?;
+        fs::write(&schema_path, STRUCTURE_RESULT_SCHEMA).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        })?;
         let prompt = build_structure_prompt(request, diagnostic)?;
         let bytes = self.invoke(
             &temporary,
@@ -445,8 +452,9 @@ impl CodexProvider {
         live_search: bool,
     ) -> Result<Vec<u8>, AgentError> {
         if result_path.exists() {
-            fs::remove_file(result_path)
-                .map_err(|error| AgentError::new("Codex run setup", error.to_string()))?;
+            fs::remove_file(result_path).map_err(|error| {
+                AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+            })?;
         }
         let started = Instant::now();
         self.send_progress(CodexProgressStage::Started, started);
@@ -483,30 +491,41 @@ impl CodexProvider {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|error| AgentError::new("Codex invocation", error.to_string()))?;
+            .map_err(|error| {
+                AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex invocation", error)
+            })?;
         if let Some(mut stdin) = child.stdin.take()
             && let Err(error) = stdin.write_all(prompt.as_bytes())
         {
             terminate_child_tree(&mut child);
-            return Err(AgentError::new("Codex invocation", error.to_string()));
+            return Err(AgentError::from_source(
+                AgentErrorKind::ProviderFailure,
+                "Codex invocation",
+                error,
+            ));
         }
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| AgentError::new("Codex invocation", "failed to capture Codex stdout"))?;
+        let stdout = child.stdout.take().ok_or_else(|| {
+            AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex invocation",
+                "failed to capture Codex stdout",
+            )
+        })?;
         let progress = self.config.progress.clone();
         let progress_reader =
             std::thread::spawn(move || drain_progress(stdout, progress.as_ref(), started));
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| AgentError::new("Codex invocation", "failed to capture Codex stderr"))?;
+        let stderr = child.stderr.take().ok_or_else(|| {
+            AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex invocation",
+                "failed to capture Codex stderr",
+            )
+        })?;
         let stderr_reader = std::thread::spawn(move || drain_bounded(stderr, 2_000));
         let status = loop {
-            if let Some(status) = child
-                .try_wait()
-                .map_err(|error| AgentError::new("Codex invocation", error.to_string()))?
-            {
+            if let Some(status) = child.try_wait().map_err(|error| {
+                AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex invocation", error)
+            })? {
                 break status;
             }
             if self
@@ -520,6 +539,7 @@ impl CodexProvider {
                 let _ = progress_reader.join();
                 self.send_progress(CodexProgressStage::Failed, started);
                 return Err(AgentError::new(
+                    AgentErrorKind::Cancelled,
                     "Codex cancellation",
                     "provider invocation was cancelled",
                 ));
@@ -530,6 +550,7 @@ impl CodexProvider {
                 let _ = progress_reader.join();
                 self.send_progress(CodexProgressStage::Failed, started);
                 return Err(AgentError::new(
+                    AgentErrorKind::TimedOut,
                     "Codex timeout",
                     "provider invocation exceeded its bounded deadline",
                 ));
@@ -538,12 +559,28 @@ impl CodexProvider {
         };
         let stderr = stderr_reader
             .join()
-            .map_err(|_| AgentError::new("Codex invocation", "stderr reader failed"))?
-            .map_err(|error| AgentError::new("Codex invocation", error.to_string()))?;
+            .map_err(|_| {
+                AgentError::new(
+                    AgentErrorKind::ProviderFailure,
+                    "Codex invocation",
+                    "stderr reader failed",
+                )
+            })?
+            .map_err(|error| {
+                AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex invocation", error)
+            })?;
         let stream_error = progress_reader
             .join()
-            .map_err(|_| AgentError::new("Codex invocation", "progress reader failed"))?
-            .map_err(|error| AgentError::new("Codex invocation", error.to_string()))?;
+            .map_err(|_| {
+                AgentError::new(
+                    AgentErrorKind::ProviderFailure,
+                    "Codex invocation",
+                    "progress reader failed",
+                )
+            })?
+            .map_err(|error| {
+                AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex invocation", error)
+            })?;
         if !status.success() {
             self.send_progress(CodexProgressStage::Failed, started);
             let stderr = String::from_utf8_lossy(&stderr).trim().to_owned();
@@ -552,7 +589,11 @@ impl CodexProvider {
             } else {
                 stderr
             };
-            return Err(AgentError::new("Codex invocation", message));
+            return Err(AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "Codex invocation",
+                message,
+            ));
         }
         self.send_progress(CodexProgressStage::Completed, started);
         read_bounded(result_path, MAX_ARTIFACT_BYTES)
@@ -687,15 +728,20 @@ fn classify_progress(line: &[u8]) -> Option<CodexProgressStage> {
 
 fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>, AgentError> {
     let length = fs::metadata(path)
-        .map_err(|error| AgentError::new("Codex result", error.to_string()))?
+        .map_err(|error| {
+            AgentError::from_source(AgentErrorKind::InvalidProviderOutput, "Codex result", error)
+        })?
         .len();
     if length > limit {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "Codex result",
             format!("result exceeded the {limit}-byte limit"),
         ));
     }
-    fs::read(path).map_err(|error| AgentError::new("Codex result", error.to_string()))
+    fs::read(path).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidProviderOutput, "Codex result", error)
+    })
 }
 
 fn cache_directory_from_environment() -> Option<PathBuf> {
@@ -742,6 +788,7 @@ fn command_text<const N: usize>(
         bounded_command_output(executable, arguments, remaining_preflight_time(deadline)?)?;
     if !output.status.success() {
         return Err(AgentError::new(
+            AgentErrorKind::UnsupportedCapability,
             "Codex preflight",
             String::from_utf8_lossy(&output.stderr).trim().to_owned(),
         ));
@@ -756,6 +803,7 @@ fn remaining_preflight_time(deadline: Instant) -> Result<Duration, AgentError> {
         .map(|remaining| remaining.min(PREFLIGHT_PROBE_TIMEOUT))
         .ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::TimedOut,
                 "Codex preflight timeout",
                 "the caller-owned deadline expired during preflight",
             )
@@ -774,21 +822,38 @@ fn bounded_command_output<const N: usize>(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| AgentError::new("Codex preflight", error.to_string()))?;
+        .map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::ProviderUnavailable,
+                "Codex preflight",
+                error,
+            )
+        })?;
     let deadline = Instant::now() + timeout;
     loop {
         if child
             .try_wait()
-            .map_err(|error| AgentError::new("Codex preflight", error.to_string()))?
+            .map_err(|error| {
+                AgentError::from_source(
+                    AgentErrorKind::ProviderUnavailable,
+                    "Codex preflight",
+                    error,
+                )
+            })?
             .is_some()
         {
-            return child
-                .wait_with_output()
-                .map_err(|error| AgentError::new("Codex preflight", error.to_string()));
+            return child.wait_with_output().map_err(|error| {
+                AgentError::from_source(
+                    AgentErrorKind::ProviderUnavailable,
+                    "Codex preflight",
+                    error,
+                )
+            });
         }
         if Instant::now() >= deadline {
             terminate_child_tree(&mut child);
             return Err(AgentError::new(
+                AgentErrorKind::TimedOut,
                 "Codex preflight timeout",
                 "capability or authentication probe exceeded five seconds",
             ));
@@ -862,7 +927,13 @@ fn cached_capabilities(
     let cache = CAPABILITY_CACHE.get_or_init(|| Mutex::new(BTreeMap::new()));
     if let Some(capabilities) = cache
         .lock()
-        .map_err(|_| AgentError::new("Codex preflight", "capability cache lock was poisoned"))?
+        .map_err(|_| {
+            AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
+                "Codex preflight",
+                "capability cache lock was poisoned",
+            )
+        })?
         .get(executable)
         .cloned()
     {
@@ -872,6 +943,7 @@ fn cached_capabilities(
     let top_help = command_text(executable, ["--help"], deadline)?;
     if !top_help.contains("--search") {
         return Err(AgentError::new(
+            AgentErrorKind::ProviderUnavailable,
             "Codex preflight",
             "installed Codex does not expose live web search",
         ));
@@ -889,6 +961,7 @@ fn cached_capabilities(
     ] {
         if !exec_help.contains(capability) {
             return Err(AgentError::new(
+                AgentErrorKind::UnsupportedCapability,
                 "Codex preflight",
                 format!("installed Codex is missing `{capability}`"),
             ));
@@ -899,7 +972,13 @@ fn cached_capabilities(
     };
     cache
         .lock()
-        .map_err(|_| AgentError::new("Codex preflight", "capability cache lock was poisoned"))?
+        .map_err(|_| {
+            AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
+                "Codex preflight",
+                "capability cache lock was poisoned",
+            )
+        })?
         .insert(executable.to_owned(), capabilities.clone());
     Ok(capabilities)
 }
@@ -909,8 +988,9 @@ fn build_claim_prompt(
     mode: ClaimMode,
     correction: Option<(&AgentError, &[u8])>,
 ) -> Result<String, AgentError> {
-    let request = serde_json::to_string_pretty(request)
-        .map_err(|error| AgentError::new("Codex prompt", error.to_string()))?;
+    let request = serde_json::to_string_pretty(request).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InternalFailure, "Codex prompt", error)
+    })?;
     let mode_name = match mode {
         ClaimMode::Fast => "Fast",
     };
@@ -920,8 +1000,9 @@ fn build_claim_prompt(
         .replace("{{MODE}}", mode_name)
         .replace("{{SOURCE_POLICY}}", source_policy);
     if let Some((diagnostic, previous)) = correction {
-        let previous = std::str::from_utf8(previous)
-            .map_err(|error| AgentError::new("Codex prompt", error.to_string()))?;
+        let previous = std::str::from_utf8(previous).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::InternalFailure, "Codex prompt", error)
+        })?;
         prompt.push_str("\n\n## One targeted correction\n\n");
         prompt.push_str("The previous complete claim failed strict validation: ");
         prompt.push_str(&diagnostic.to_string());
@@ -932,6 +1013,7 @@ fn build_claim_prompt(
     }
     if prompt.contains("{{") {
         return Err(AgentError::new(
+            AgentErrorKind::InternalFailure,
             "Codex prompt",
             "runtime prompt contains an unresolved placeholder",
         ));
@@ -943,8 +1025,9 @@ fn build_mechanism_prompt(
     request: &MechanismEscalationRequest,
     diagnostic: Option<&str>,
 ) -> Result<String, AgentError> {
-    let request = serde_json::to_string_pretty(request)
-        .map_err(|error| AgentError::new("Codex prompt", error.to_string()))?;
+    let request = serde_json::to_string_pretty(request).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InternalFailure, "Codex prompt", error)
+    })?;
     let repair = diagnostic.map_or_else(
         || "This is the first proposal.".to_owned(),
         |diagnostic| {
@@ -958,6 +1041,7 @@ fn build_mechanism_prompt(
         .replace("{{REPAIR_CONTEXT}}", &repair);
     if prompt.contains("{{") {
         return Err(AgentError::new(
+            AgentErrorKind::InternalFailure,
             "Codex prompt",
             "runtime mechanism prompt contains an unresolved placeholder",
         ));
@@ -969,8 +1053,9 @@ fn build_structure_prompt(
     request: &StructureProposalRequest,
     diagnostic: Option<&str>,
 ) -> Result<String, AgentError> {
-    let request = serde_json::to_string_pretty(request)
-        .map_err(|error| AgentError::new("Codex prompt", error.to_string()))?;
+    let request = serde_json::to_string_pretty(request).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InternalFailure, "Codex prompt", error)
+    })?;
     let repair = diagnostic.map_or_else(
         || "This is the first proposal.".to_owned(),
         |diagnostic| {
@@ -984,6 +1069,7 @@ fn build_structure_prompt(
         .replace("{{REPAIR_CONTEXT}}", &repair);
     if prompt.contains("{{") {
         return Err(AgentError::new(
+            AgentErrorKind::InternalFailure,
             "Codex prompt",
             "runtime structure prompt contains an unresolved placeholder",
         ));
@@ -1000,8 +1086,9 @@ impl TemporaryRun {
         let sequence = RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let path =
             std::env::temp_dir().join(format!("chemspec-codex-{}-{sequence}", std::process::id()));
-        fs::create_dir(&path)
-            .map_err(|error| AgentError::new("Codex run setup", error.to_string()))?;
+        fs::create_dir(&path).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        })?;
         Ok(Self { path })
     }
 }
@@ -1237,12 +1324,62 @@ esac
         let started = Instant::now();
         let error = bounded_command_output(&executable, ["--version"], Duration::from_millis(20))
             .expect_err("slow preflight must be bounded");
-        assert_eq!(error.stage(), "Codex preflight timeout");
+        assert_eq!(error.kind(), AgentErrorKind::TimedOut);
+        assert_eq!(error.context(), "Codex preflight timeout");
         assert!(
             started.elapsed() < Duration::from_secs(1),
             "descendant-held pipes exceeded the deadline: {:?}",
             started.elapsed()
         );
         fs::remove_dir_all(directory).expect("remove temporary preflight directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn provider_cancellation_has_a_closed_error_kind() {
+        let directory = std::env::temp_dir().join(format!(
+            "chemspec-cancellation-kind-{}-{}",
+            std::process::id(),
+            RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&directory).expect("temporary cancellation directory");
+        let executable = directory.join("codex");
+        fs::write(
+            &executable,
+            r#"#!/bin/sh
+case "$*" in
+  "--version") echo "codex-test 1.0" ;;
+  "--help") echo "--search" ;;
+  "exec --help") echo "--config --output-schema --sandbox --ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --output-last-message" ;;
+  "login status") exit 0 ;;
+  "exec "*) sleep 30 ;;
+  *) exit 1 ;;
+esac
+"#,
+        )
+        .expect("fake Codex executable");
+        let mut permissions = fs::metadata(&executable).expect("metadata").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&executable, permissions).expect("executable permissions");
+
+        let mut config = CodexProviderConfig::from_environment();
+        config.executable = executable;
+        config.cancellation = Some(Arc::new(AtomicBool::new(true)));
+        let provider = CodexProvider::new(config);
+        let request = ReactionBuildRequest {
+            reactants: vec![crate::ReactantInput {
+                display: "H2".to_owned(),
+                atomic_numbers: vec![1, 1],
+                species_id: None,
+            }],
+            selected_context: Some("electricity".to_owned()),
+        };
+        let error = provider
+            .claim_reaction(&request, ClaimMode::Fast)
+            .expect_err("pre-cancelled invocation must stop");
+
+        assert_eq!(error.kind(), AgentErrorKind::Cancelled);
+        assert_eq!(error.context(), "Codex cancellation");
+        fs::remove_dir_all(directory).expect("remove cancellation directory");
     }
 }

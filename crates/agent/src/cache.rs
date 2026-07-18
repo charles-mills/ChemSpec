@@ -13,10 +13,10 @@ use crate::claim::{
     STRUCTURE_PROPOSAL_SCHEMA_VERSION,
 };
 use crate::{
-    AgentError, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome, FamilyMatchOutcome,
-    MechanismEscalationResponse, ReactionBuildRequest, ReactionClaim, StructureProposalResponse,
-    TrustTier, compile_claim_outcome, compile_reviewed_animation, match_reviewed_family,
-    resolve_request_species, validate_escalated_response_with_structures,
+    AgentError, AgentErrorKind, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome,
+    FamilyMatchOutcome, MechanismEscalationResponse, ReactionBuildRequest, ReactionClaim,
+    StructureProposalResponse, TrustTier, compile_claim_outcome, compile_reviewed_animation,
+    match_reviewed_family, resolve_request_species, validate_escalated_response_with_structures,
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
@@ -80,9 +80,9 @@ pub fn dynamic_cache_path(
     catalogue: &TrustedCatalogue,
 ) -> Result<PathBuf, AgentError> {
     let request_binding = request_binding(request, identities)?;
-    let identity_snapshot = identities
-        .snapshot_digest()
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    let identity_snapshot = identities.snapshot_digest().map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     let material = serde_json::to_vec(&(
         DYNAMIC_CACHE_SCHEMA_VERSION,
         DYNAMIC_COMPILER_CONTRACT_VERSION,
@@ -94,7 +94,9 @@ pub fn dynamic_cache_path(
         MECHANISM_ESCALATION_SCHEMA_VERSION,
         STRUCTURE_PROPOSAL_SCHEMA_VERSION,
     ))
-    .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    .map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     Ok(directory.join(format!(
         "{}.json",
         ContentDigest::sha256(&material).to_hex()
@@ -189,29 +191,33 @@ pub fn store_dynamic_cache(
         model: model.to_owned(),
         mode,
         request_binding: request_binding(request, identities)?,
-        identity_snapshot: identities
-            .snapshot_digest()
-            .map_err(|error| AgentError::new("reaction cache", error.to_string()))?,
+        identity_snapshot: identities.snapshot_digest().map_err(|error| {
+            AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+        })?,
         catalogue_digest: catalogue.digest(),
         claim_digest: claim_digest(claim)?,
         claim: claim.clone(),
         trust_tier,
         presentation,
     };
-    let bytes = serde_json::to_vec(&envelope)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    let bytes = serde_json::to_vec(&envelope).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_CACHE_BYTES {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidCache,
             "reaction cache",
             "entry exceeds size limit",
         ));
     }
-    fs::create_dir_all(directory)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    fs::create_dir_all(directory).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "reaction cache", error)
+    })?;
     let sequence = CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let temporary = directory.join(format!(".dynamic-v3-{}-{sequence}.tmp", std::process::id()));
-    fs::write(&temporary, bytes)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    fs::write(&temporary, bytes).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "reaction cache", error)
+    })?;
     atomic_replace(&temporary, &path, "reaction cache")
 }
 
@@ -219,29 +225,35 @@ pub fn store_dynamic_cache(
 fn atomic_replace(
     temporary: &Path,
     destination: &Path,
-    stage: &'static str,
+    context: &'static str,
 ) -> Result<(), AgentError> {
-    fs::rename(temporary, destination).map_err(|error| AgentError::new(stage, error.to_string()))
+    fs::rename(temporary, destination)
+        .map_err(|error| AgentError::from_source(AgentErrorKind::CacheIo, context, error))
 }
 
 #[cfg(target_os = "windows")]
 fn atomic_replace(
     temporary: &Path,
     destination: &Path,
-    stage: &'static str,
+    context: &'static str,
 ) -> Result<(), AgentError> {
     if !destination.exists() {
         return fs::rename(temporary, destination)
-            .map_err(|error| AgentError::new(stage, error.to_string()));
+            .map_err(|error| AgentError::from_source(AgentErrorKind::CacheIo, context, error));
     }
     let backup = destination.with_extension(format!(
         "backup-{}",
         CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     ));
-    fs::rename(destination, &backup).map_err(|error| AgentError::new(stage, error.to_string()))?;
+    fs::rename(destination, &backup)
+        .map_err(|error| AgentError::from_source(AgentErrorKind::CacheIo, context, error))?;
     if let Err(error) = fs::rename(temporary, destination) {
         let _ = fs::rename(&backup, destination);
-        return Err(AgentError::new(stage, error.to_string()));
+        return Err(AgentError::from_source(
+            AgentErrorKind::CacheIo,
+            context,
+            error,
+        ));
     }
     let _ = fs::remove_file(backup);
     Ok(())
@@ -257,12 +269,14 @@ fn revalidate_presentation(
             let matched = match_reviewed_family(&outcome, catalogue)?;
             let FamilyMatchOutcome::Matched(family) = matched else {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidCache,
                     "reaction cache",
                     "cached reviewed family is no longer uniquely applicable",
                 ));
             };
             if family.rule_id() != &rule_id {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidCache,
                     "reaction cache",
                     "cached reviewed family binding changed",
                 ));
@@ -310,14 +324,16 @@ fn request_binding(
             .join(" ")
             .to_lowercase()
     });
-    let bytes = serde_json::to_vec(&(ids, selected_context))
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    let bytes = serde_json::to_vec(&(ids, selected_context)).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     Ok(ContentDigest::sha256(&bytes))
 }
 
 fn claim_digest(claim: &ReactionClaim) -> Result<ContentDigest, AgentError> {
-    let bytes = serde_json::to_vec(claim)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    let bytes = serde_json::to_vec(claim).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     Ok(ContentDigest::sha256(&bytes))
 }
 
@@ -516,8 +532,9 @@ mod tests {
         };
         let directory = std::path::Path::new("/unused/cache-binding-test");
         assert_eq!(
-            dynamic_cache_path(directory, &first, ClaimMode::Fast, &identities, &trusted),
+            dynamic_cache_path(directory, &first, ClaimMode::Fast, &identities, &trusted).unwrap(),
             dynamic_cache_path(directory, &swapped, ClaimMode::Fast, &identities, &trusted)
+                .unwrap()
         );
     }
 

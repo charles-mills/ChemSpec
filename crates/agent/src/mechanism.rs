@@ -23,10 +23,11 @@ use chem_kernel::{
 };
 
 use crate::{
-    AgentError, LabelledStructure, MechanismCleavageAllocation, MechanismEscalationRequest,
-    MechanismEscalationResponse, MechanismHomolytic, MechanismOperation, MechanismSpecies,
-    OutcomeSpecies, StructureProposalRequest, StructureProposalResponse, ValidatedStaticOutcome,
-    adopt_proposed_structures, structure_proposal_request,
+    AgentError, AgentErrorKind, LabelledStructure, MechanismCleavageAllocation,
+    MechanismEscalationRequest, MechanismEscalationResponse, MechanismHomolytic,
+    MechanismOperation, MechanismSpecies, OutcomeSpecies, StructureProposalRequest,
+    StructureProposalResponse, ValidatedStaticOutcome, adopt_proposed_structures,
+    structure_proposal_request,
 };
 
 const MAX_MECHANISM_REPAIRS: usize = 2;
@@ -140,6 +141,7 @@ pub trait MechanismProvider {
     ) -> Result<StructureProposalResponse, AgentError> {
         let _ = (request, diagnostic);
         Err(AgentError::new(
+            AgentErrorKind::UnsupportedCapability,
             "structure proposal",
             "provider does not support structure proposals",
         ))
@@ -158,6 +160,7 @@ impl MechanismProvider for UnsupportedMechanismProvider {
         _diagnostic: Option<&str>,
     ) -> Result<MechanismEscalationResponse, AgentError> {
         Err(AgentError::new(
+            AgentErrorKind::UnsupportedCapability,
             "mechanism escalation",
             "animating this mechanism is not supported without a model",
         ))
@@ -213,6 +216,7 @@ pub fn compile_mechanism_request(
             };
             let species = resolved.get(term.species()).ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::CompilationFailure,
                     "mechanism request",
                     format!(
                         "declaration species `{}` has no resolved identity",
@@ -222,6 +226,7 @@ pub fn compile_mechanism_request(
             })?;
             let structure = species.structure.as_ref().ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::CompilationFailure,
                     "mechanism request",
                     format!("species `{}` has no validated structure", term.species()),
                 )
@@ -520,6 +525,7 @@ pub fn validate_escalated_response(
     let catalogue = &augmented;
     let context = compile_mechanism_request(&outcome, catalogue)?.ok_or_else(|| {
         AgentError::new(
+            AgentErrorKind::InvalidCache,
             "mechanism cache",
             "cached escalation requires structures for every product",
         )
@@ -553,6 +559,7 @@ pub fn validate_escalated_response_with_structures(
     let catalogue = &augmented;
     let request = structure_proposal_request(&outcome, catalogue).ok_or_else(|| {
         AgentError::new(
+            AgentErrorKind::InvalidCache,
             "mechanism cache",
             "cached structure proposal does not correspond to missing products",
         )
@@ -572,13 +579,59 @@ fn compile_mechanism(
     let catalogue = provisional_bundle.as_ref().unwrap_or(catalogue);
     let premise_ids = mechanism_premises(context, catalogue)?;
     let applicability_premise = premise_ids.first().cloned().ok_or_else(|| {
-        AgentError::new("mechanism compile", "catalogue exposes no valence premise")
+        AgentError::new(
+            AgentErrorKind::CompilationFailure,
+            "mechanism compile",
+            "catalogue exposes no valence premise",
+        )
     })?;
     let role_species = context
         .roles
         .iter()
         .map(|(role, value)| (role.clone(), value.species.clone()))
         .collect::<BTreeMap<_, _>>();
+    let rule = dynamic_mechanism_rule(
+        outcome,
+        context,
+        response,
+        &premise_ids,
+        applicability_premise,
+    )?;
+    let expanded = expand_proposed_declaration(
+        &context.request.reaction_id,
+        outcome.declaration(),
+        &role_species,
+        &rule,
+        catalogue,
+    )
+    .map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::KernelRejection,
+            "mechanism expansion",
+            error,
+        )
+    })?;
+    let derivation = validate_review_candidate(&expanded, catalogue).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::KernelRejection,
+            "mechanism validation",
+            error,
+        )
+    })?;
+    Ok(inspect_review_candidate_frames(&derivation)
+        .map_err(|error| {
+            AgentError::from_source(AgentErrorKind::KernelRejection, "mechanism frames", error)
+        })?
+        .into_validated_dynamic())
+}
+
+fn dynamic_mechanism_rule(
+    outcome: &ValidatedStaticOutcome,
+    context: &MechanismContext,
+    response: &MechanismEscalationResponse,
+    premise_ids: &BTreeSet<PremiseId>,
+    applicability_premise: PremiseId,
+) -> Result<ReactionRuleRecord, AgentError> {
     let roles = context
         .roles
         .iter()
@@ -604,12 +657,18 @@ fn compile_mechanism(
             })
             .collect::<Vec<_>>()
     };
-    let rule = ReactionRuleRecord {
+    Ok(ReactionRuleRecord {
         id: ReactionRuleId::from_str(&format!(
             "DynamicMechanism.r{}",
             &outcome.declaration().digest().to_hex()[..24]
         ))
-        .map_err(|error| AgentError::new("mechanism compile", error.to_string()))?,
+        .map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::CompilationFailure,
+                "mechanism compile",
+                error,
+            )
+        })?,
         premise_ids: premise_ids.clone(),
         roles,
         reactant_pattern: terms(RuleSideRecord::Reactant),
@@ -637,7 +696,7 @@ fn compile_mechanism(
         operation_template: response
             .operations
             .iter()
-            .map(|operation| operation_record(operation, &premise_ids))
+            .map(|operation| operation_record(operation, premise_ids))
             .collect(),
         model_assumptions: ModelAssumptionsRecord {
             event: EventModel::Representative,
@@ -645,20 +704,7 @@ fn compile_mechanism(
             premise_ids: premise_ids.clone(),
         },
         observation_compatibility: Vec::new(),
-    };
-    let expanded = expand_proposed_declaration(
-        &context.request.reaction_id,
-        outcome.declaration(),
-        &role_species,
-        &rule,
-        catalogue,
-    )
-    .map_err(|error| AgentError::new("mechanism expansion", error.to_string()))?;
-    let derivation = validate_review_candidate(&expanded, catalogue)
-        .map_err(|error| AgentError::new("mechanism validation", error.to_string()))?;
-    Ok(inspect_review_candidate_frames(&derivation)
-        .map_err(|error| AgentError::new("mechanism frames", error.to_string()))?
-        .into_validated_dynamic())
+    })
 }
 
 #[allow(clippy::too_many_lines)]
@@ -695,18 +741,21 @@ fn provisional_mechanism_bundle(
     for (path, state) in mechanism_electron_states(response) {
         let element = context.reactant_atoms.get(path).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("operation state references unknown atom `{path}`"),
             )
         })?;
         ElectronState::new(state.0, state.1, state.2).map_err(|error| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("atom `{path}` has an invalid electron state: {error}"),
             )
         })?;
         let candidates = neutral.get(element).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("atom `{path}` has no reviewed neutral valence"),
             )
@@ -719,6 +768,7 @@ fn provisional_mechanism_bundle(
         });
         let Some((neutral_electrons, covalent_bond_order_sum)) = candidate else {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("atom `{path}` violates the reviewed formal-charge identity"),
             ));
@@ -738,6 +788,7 @@ fn provisional_mechanism_bundle(
             .is_some_and(|existing| existing != neutral_electrons)
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("operation states require conflicting neutral valence for `{element}`"),
             ));
@@ -756,6 +807,7 @@ fn provisional_mechanism_bundle(
                 .any(|metallic| metallic.element == state.element)
         }) else {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 "a provisional metallic state has no reviewed covalent anchor",
             ));
@@ -773,6 +825,7 @@ fn provisional_mechanism_bundle(
             .copied()
             .ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     "reviewed metallic anchor violates its neutral-valence premise",
                 )
@@ -780,8 +833,13 @@ fn provisional_mechanism_bundle(
         used_neutral.insert(reviewed_anchor.element.clone(), neutral_electrons);
         provisional.insert(reviewed_anchor.clone());
     }
-    let premise_id = PremiseId::from_str(DYNAMIC_MECHANISM_VALENCE_PREMISE)
-        .map_err(|error| AgentError::new("provisional valence", error.to_string()))?;
+    let premise_id = PremiseId::from_str(DYNAMIC_MECHANISM_VALENCE_PREMISE).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "provisional valence",
+            error,
+        )
+    })?;
     let mut document = catalogue.document().clone();
     document.publication = PublicationKind::Working;
     let evidence = document
@@ -818,13 +876,18 @@ fn provisional_mechanism_bundle(
         digest: ContentDigest::sha256(b"uncomputed dynamic mechanism valence bundle"),
         bundle: document,
     };
-    envelope.digest = envelope
-        .computed_digest()
-        .map_err(|error| AgentError::new("provisional valence", error.to_string()))?;
+    envelope.digest = envelope.computed_digest().map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "provisional valence",
+            error,
+        )
+    })?;
     ValidatedCatalogueBundle::validate(envelope)
         .map(Some)
         .map_err(|error| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("derived operation states failed working-bundle validation: {error}"),
             )
@@ -866,18 +929,21 @@ fn derive_provisional_metallic_operation_states(
         };
         if state.site.1 != 0 {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("metallic site `{site}` must have zero local electrons in-domain"),
             ));
         }
         if share == 0 {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("metallic operation on `{site}` moves no electrons"),
             ));
         }
         let element = context.reactant_atoms.get(site).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 "metallic operation site does not resolve",
             )
@@ -1003,7 +1069,13 @@ fn mechanism_premises(
     for role in context.roles.values() {
         let closure = catalogue
             .structure_premises(&role.structure)
-            .ok_or_else(|| AgentError::new("mechanism compile", "structure premise disappeared"))?;
+            .ok_or_else(|| {
+                AgentError::new(
+                    AgentErrorKind::CompilationFailure,
+                    "mechanism compile",
+                    "structure premise disappeared",
+                )
+            })?;
         premises.extend(closure.iter().cloned());
     }
     Ok(premises)
@@ -1017,6 +1089,7 @@ fn validate_response_labels(
         || response.mapping.len() != context.product_atoms.len()
     {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "mechanism mapping",
             "mapping must cover every reactant and product atom exactly once",
         ));
@@ -1033,6 +1106,7 @@ fn validate_response_labels(
             || !products.insert(&mapping.product)
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "mechanism mapping",
                 "mapping contains an unknown, duplicate, or element-changing atom label",
             ));
@@ -1054,6 +1128,7 @@ fn validate_operation_labels(
             Ok(())
         } else {
             Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "mechanism operation",
                 format!("unknown atom label `{value}`"),
             ))
@@ -1093,6 +1168,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown ionic association `{association}`"),
                 ))
@@ -1104,6 +1180,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown metallic domain `{domain}`"),
                 ))
@@ -1115,6 +1192,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown product metallic domain `{domain}`"),
                 ))
@@ -1128,6 +1206,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown product instance `{product}`"),
                 ))
@@ -1643,9 +1722,13 @@ mod tests {
             diagnostic: Option<&str>,
         ) -> Result<MechanismEscalationResponse, AgentError> {
             self.diagnostics.push(diagnostic.map(str::to_owned));
-            self.responses
-                .pop_front()
-                .ok_or_else(|| AgentError::new("fake provider", "no response"))
+            self.responses.pop_front().ok_or_else(|| {
+                AgentError::new(
+                    AgentErrorKind::ProviderFailure,
+                    "fake provider",
+                    "no response",
+                )
+            })
         }
 
         fn propose_structures(
@@ -1655,9 +1738,13 @@ mod tests {
         ) -> Result<StructureProposalResponse, AgentError> {
             self.structure_diagnostics
                 .push(diagnostic.map(str::to_owned));
-            self.structure_responses
-                .pop_front()
-                .ok_or_else(|| AgentError::new("fake provider", "no structure response"))
+            self.structure_responses.pop_front().ok_or_else(|| {
+                AgentError::new(
+                    AgentErrorKind::ProviderFailure,
+                    "fake provider",
+                    "no structure response",
+                )
+            })
         }
     }
 
@@ -1675,7 +1762,11 @@ mod tests {
             _diagnostic: Option<&str>,
         ) -> Result<MechanismEscalationResponse, AgentError> {
             self.mechanism_calls += 1;
-            Err(AgentError::new("fake provider", "no response"))
+            Err(AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "fake provider",
+                "no response",
+            ))
         }
     }
 
@@ -2369,7 +2460,8 @@ mod tests {
         };
         let error = provisional_mechanism_bundle(&context, &response, &adopted.bundle)
             .expect_err("impossible state must fail");
-        assert_eq!(error.stage(), "provisional valence");
+        assert_eq!(error.kind(), AgentErrorKind::InvalidProviderOutput);
+        assert_eq!(error.context(), "provisional valence");
         assert!(error.to_string().contains("formal-charge identity"));
     }
 

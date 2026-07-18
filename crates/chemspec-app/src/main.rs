@@ -38,7 +38,7 @@ use std::{
 use web_time::Instant;
 
 use agent::{
-    ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
+    AgentError, ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
     DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones, OutcomeSpecies,
     ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest, ReactionClaim,
@@ -914,11 +914,11 @@ enum Message {
     },
     DynamicClaimFinished {
         run_id: u64,
-        result: Box<Result<DynamicClaimStageResult, String>>,
+        result: Box<Result<DynamicClaimStageResult, DynamicBuildFailure>>,
     },
     DynamicPresentationFinished {
         run_id: u64,
-        result: Box<Result<DynamicPresentationOutcome, String>>,
+        result: Box<Result<DynamicPresentationOutcome, DynamicBuildFailure>>,
     },
     DynamicBuildTick {
         run_id: u64,
@@ -1278,7 +1278,46 @@ enum DynamicBuildState {
         elapsed_seconds: u64,
         stage: DynamicBuildStage,
     },
-    Failed(String),
+    Failed(DynamicBuildFailure),
+}
+
+#[derive(Debug, Clone)]
+enum DynamicBuildFailure {
+    Agent(AgentError),
+    Application(String),
+}
+
+impl From<AgentError> for DynamicBuildFailure {
+    fn from(error: AgentError) -> Self {
+        Self::Agent(error)
+    }
+}
+
+impl From<String> for DynamicBuildFailure {
+    fn from(error: String) -> Self {
+        Self::Application(error)
+    }
+}
+
+impl From<&str> for DynamicBuildFailure {
+    fn from(error: &str) -> Self {
+        Self::Application(error.to_owned())
+    }
+}
+
+impl From<blocking::BlockingFailure> for DynamicBuildFailure {
+    fn from(error: blocking::BlockingFailure) -> Self {
+        Self::Application(error.to_string())
+    }
+}
+
+impl std::fmt::Display for DynamicBuildFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Agent(error) => error.fmt(formatter),
+            Self::Application(error) => formatter.write_str(error),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -2137,7 +2176,7 @@ impl App {
                                     .clone()
                                     .expect("presentation starts only after a static outcome"),
                             ),
-                            diagnostic: error,
+                            diagnostic: error.to_string(),
                             retryable: true,
                             attempts: 0,
                         });
@@ -2594,7 +2633,8 @@ impl App {
         if !local && !matches!(self.provider, Some(AppMode::CodexBinary)) {
             self.dynamic_build = DynamicBuildState::Failed(
                 "Direct API reaction building is not available yet; choose Codex subscription."
-                    .to_owned(),
+                    .to_owned()
+                    .into(),
             );
             return Task::none();
         }
@@ -2623,14 +2663,14 @@ impl App {
         let catalogue = match chemistry::trusted_catalogue() {
             Ok(catalogue) => catalogue.clone(),
             Err(error) => {
-                self.dynamic_build = DynamicBuildState::Failed(error.to_owned());
+                self.dynamic_build = DynamicBuildState::Failed(error.to_owned().into());
                 return Task::none();
             }
         };
         let identities = match reviewed_species_registry(&catalogue) {
             Ok(identities) => identities,
             Err(error) => {
-                self.dynamic_build = DynamicBuildState::Failed(error.to_string());
+                self.dynamic_build = DynamicBuildState::Failed(error.into());
                 return Task::none();
             }
         };
@@ -2654,7 +2694,7 @@ impl App {
             }
             Err(error) => {
                 self.dynamic_request = Some(request);
-                self.dynamic_build = DynamicBuildState::Failed(error.to_string());
+                self.dynamic_build = DynamicBuildState::Failed(error.into());
                 return Task::none();
             }
         }
@@ -2672,7 +2712,7 @@ impl App {
         config.progress = Some(self.reset_dynamic_progress_channel());
         self.dynamic_cancellation = Some(cancellation);
         Task::perform(
-            blocking::run(move || {
+            blocking::run::<_, DynamicBuildFailure, _>(move || {
                 let started = Instant::now();
                 let mut latency = LatencyMilestones::default();
                 let provider = CodexProvider::new(config);
@@ -2715,7 +2755,8 @@ impl App {
                         return Err(
                             "This reaction isn't supported in Local Mode — ChemSpec couldn't \
                              derive it programmatically. Switch to an AI mode to research it."
-                                .to_owned(),
+                                .to_owned()
+                                .into(),
                         );
                     }
                     // agent speaks std::time::Instant; this branch never runs
@@ -2727,11 +2768,11 @@ impl App {
                             mode,
                             std::time::Instant::now() + FAST_CLAIM_TIMEOUT,
                         )
-                        .map_err(|error| error.to_string())?,
+                        .map_err(DynamicBuildFailure::from)?,
                 };
                 latency.claim_ms = Some(elapsed_millis(started));
                 let outcome = compile_claim_outcome(&request, claim.clone(), &identities)
-                    .map_err(|error| error.to_string())?;
+                    .map_err(DynamicBuildFailure::from)?;
                 if matches!(outcome, CompiledClaimOutcome::Static(_)) {
                     latency.static_outcome_ms = Some(elapsed_millis(started));
                 }
@@ -2782,12 +2823,12 @@ impl App {
             Err(error) => {
                 return Task::done(Message::DynamicPresentationFinished {
                     run_id,
-                    result: Box::new(Err(error.to_owned())),
+                    result: Box::new(Err(error.to_owned().into())),
                 });
             }
         };
         Task::perform(
-            blocking::run(move || {
+            blocking::run::<_, DynamicBuildFailure, _>(move || {
                 if local {
                     // Reviewed-family and algorithmic mechanisms only; model
                     // escalation is explicitly unsupported, so a static
@@ -2797,7 +2838,7 @@ impl App {
                         &catalogue,
                         &mut agent::UnsupportedMechanismProvider,
                     )
-                    .map_err(|error| error.to_string())?;
+                    .map_err(DynamicBuildFailure::from)?;
                     return Ok(match presentation {
                         DynamicPresentationOutcome::Static {
                             outcome,
@@ -2816,7 +2857,7 @@ impl App {
                 let mut provider = CodexProvider::new(config);
                 let claim = outcome.claim().clone();
                 let presentation = enrich_static_outcome(outcome, &catalogue, &mut provider)
-                    .map_err(|error| error.to_string())?;
+                    .map_err(DynamicBuildFailure::from)?;
                 let recipe = match &presentation {
                     DynamicPresentationOutcome::ReviewedFamily(outcome) => {
                         Some(DynamicCachePresentation::ReviewedFamily {
@@ -2845,7 +2886,7 @@ impl App {
                     (recipe, provider.config().cache_directory.as_deref())
                 {
                     let identities =
-                        reviewed_species_registry(&catalogue).map_err(|error| error.to_string())?;
+                        reviewed_species_registry(&catalogue).map_err(DynamicBuildFailure::from)?;
                     let _ = store_dynamic_cache(
                         directory,
                         &request,
@@ -4362,7 +4403,9 @@ impl App {
             text("Couldn\u{2019}t build this result")
                 .size(type_scale::BODY_LARGE)
                 .color(color::TEXT),
-            text(error).size(type_scale::CAPTION).color(color::MUTED),
+            text(error.to_string())
+                .size(type_scale::CAPTION)
+                .color(color::MUTED),
         ]
         .spacing(spacing::XXS)
         .into()
@@ -5378,7 +5421,7 @@ mod tests {
         let mut app = App {
             screen: Screen::Builder,
             provider: Some(AppMode::CodexBinary),
-            dynamic_build: DynamicBuildState::Failed("test failure".to_owned()),
+            dynamic_build: DynamicBuildState::Failed("test failure".to_owned().into()),
             dynamic_overlay_dismissed: false,
             ..App::default()
         };
@@ -5396,7 +5439,7 @@ mod tests {
         let mut app = App {
             screen: Screen::Builder,
             builder_panel: Some(BuilderPanel::Help),
-            dynamic_build: DynamicBuildState::Failed("test failure".to_owned()),
+            dynamic_build: DynamicBuildState::Failed("test failure".to_owned().into()),
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![3]]);
@@ -5434,9 +5477,11 @@ mod tests {
             ..App::default()
         };
 
+        let provider_error = ReactionClaim::from_json(b"{}", ClaimMode::Fast)
+            .expect_err("an empty provider claim must be rejected");
         app.update(Message::DynamicClaimFinished {
             run_id: 9,
-            result: Box::new(Err("test failure".to_owned())),
+            result: Box::new(Err(provider_error.into())),
         });
 
         assert!(app.builder_panel.is_none());
@@ -5444,6 +5489,11 @@ mod tests {
             app.builder_overlay_kind(),
             BuilderOverlayKind::Dynamic(DynamicModalKind::Failed)
         );
+        let DynamicBuildState::Failed(DynamicBuildFailure::Agent(error)) = &app.dynamic_build
+        else {
+            panic!("provider errors remain typed in application state")
+        };
+        assert_eq!(error.kind(), agent::AgentErrorKind::InvalidProviderOutput);
     }
 
     #[test]
@@ -6373,7 +6423,7 @@ mod tests {
 
         app.update(Message::DynamicClaimFinished {
             run_id: 8,
-            result: Box::new(Err("stale failure".to_owned())),
+            result: Box::new(Err("stale failure".to_owned().into())),
         });
 
         assert!(matches!(

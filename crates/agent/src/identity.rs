@@ -17,7 +17,7 @@ use chem_domain::{
 };
 use num_bigint::BigUint;
 
-use crate::AgentError;
+use crate::{AgentError, AgentErrorKind};
 
 const IDENTITY_CACHE_FILE: &str = "species-identities-v1.json";
 const MAX_IDENTITY_CACHE_BYTES: u64 = 4 * 1024 * 1024;
@@ -107,14 +107,20 @@ pub fn reviewed_element_registry(
             .iter()
             .map(|record| {
                 Ok(Element {
-                    id: ElementId::new(record.atomic_number)
-                        .map_err(|error| AgentError::new("species identity", error.to_string()))?,
+                    id: ElementId::new(record.atomic_number).map_err(species_identity_error)?,
                     symbol: record.symbol.clone(),
                 })
             })
             .collect::<Result<Vec<_>, AgentError>>()?,
     )
-    .map_err(|error| AgentError::new("species identity", error.to_string()))
+    .map_err(species_identity_error)
+}
+
+fn species_identity_error<E>(error: E) -> AgentError
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    AgentError::from_source(AgentErrorKind::IdentityFailure, "species identity", error)
 }
 
 /// Projects every validated reviewed catalogue structure onto a stable species
@@ -133,11 +139,11 @@ pub fn reviewed_species_registry(
     for (structure_id, structure) in catalogue.structures() {
         let stable_suffix = structure_id.as_str();
         let species_id = SpeciesId::from_str(&format!("catalogue.{stable_suffix}"))
-            .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+            .map_err(species_identity_error)?;
         let substance = SubstanceId::from_str(&format!("catalogue.{stable_suffix}"))
-            .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+            .map_err(species_identity_error)?;
         let identity_premise = FactId::from_str(&format!("identity.{stable_suffix}"))
-            .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+            .map_err(species_identity_error)?;
         let formula_text = catalogue_formula(catalogue, structure_id)
             .unwrap_or_else(|| inventory_formula(structure.formula()));
         let formula = FormulaSyntax {
@@ -150,16 +156,15 @@ pub fn reviewed_species_registry(
                     .map(|(symbol, count)| {
                         Ok(FormulaPart::Element {
                             symbol: symbol.clone(),
-                            count: Count::new(BigUint::from(*count)).map_err(|error| {
-                                AgentError::new("species identity", error.to_string())
-                            })?,
+                            count: Count::new(BigUint::from(*count))
+                                .map_err(species_identity_error)?,
                         })
                     })
                     .collect::<Result<Vec<_>, AgentError>>()?,
             }],
         }
         .normalize(&elements)
-        .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+        .map_err(species_identity_error)?;
         let net_charge = structure.graph().system_net_charge();
         let charge = if net_charge == 0 {
             Charge::neutral()
@@ -173,12 +178,12 @@ pub fn reviewed_species_registry(
                     ChargeSign::Negative
                 },
             )
-            .map_err(|error| AgentError::new("species identity", error.to_string()))?
+            .map_err(species_identity_error)?
         };
         let canonical_graph = structure
             .graph()
             .canonical_json()
-            .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+            .map_err(species_identity_error)?;
         let display_name = display_name(stable_suffix);
         let mut aliases = BTreeSet::new();
         aliases.insert(normalize_alias(&display_name));
@@ -205,7 +210,7 @@ pub fn reviewed_species_registry(
                 canonical_serialization: Some(CanonicalSpeciesSerialization {
                     media_type: "application/vnd.chemspec.structural+json".to_owned(),
                     value: String::from_utf8(canonical_graph.clone())
-                        .map_err(|error| AgentError::new("species identity", error.to_string()))?,
+                        .map_err(species_identity_error)?,
                     digest: chem_domain::ContentDigest::sha256(&canonical_graph),
                 }),
                 external_identifiers: BTreeSet::<ExternalIdentifier>::new(),
@@ -220,10 +225,8 @@ pub fn reviewed_species_registry(
             },
             &elements,
         )
-        .map_err(|error| AgentError::new("species identity", error.to_string()))?;
-        registry
-            .insert(species)
-            .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+        .map_err(species_identity_error)?;
+        registry.insert(species).map_err(species_identity_error)?;
     }
     Ok(registry)
 }
@@ -305,16 +308,14 @@ fn species_from_structure(
                 .map(|(symbol, count)| {
                     Ok(FormulaPart::Element {
                         symbol: symbol.clone(),
-                        count: Count::new(BigUint::from(*count)).map_err(|error| {
-                            AgentError::new("species identity", error.to_string())
-                        })?,
+                        count: Count::new(BigUint::from(*count)).map_err(species_identity_error)?,
                     })
                 })
                 .collect::<Result<Vec<_>, AgentError>>()?,
         }],
     }
     .normalize(elements)
-    .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+    .map_err(species_identity_error)?;
     let net_charge = structure.graph().system_net_charge();
     let charge = if net_charge == 0 {
         Charge::neutral()
@@ -328,12 +329,12 @@ fn species_from_structure(
                 ChargeSign::Negative
             },
         )
-        .map_err(|error| AgentError::new("species identity", error.to_string()))?
+        .map_err(species_identity_error)?
     };
     let canonical_graph = structure
         .graph()
         .canonical_json()
-        .map_err(|error| AgentError::new("species identity", error.to_string()))?;
+        .map_err(species_identity_error)?;
     let mut aliases = BTreeSet::new();
     aliases.insert(normalize_alias(display_name));
     // The canonical subset SMILES is a label-insensitive identity: two
@@ -345,8 +346,7 @@ fn species_from_structure(
     ResolvedSpecies::validate_identity(
         ResolvedSpeciesInput {
             id: id.clone(),
-            substance: SubstanceId::from_str(id.as_str())
-                .map_err(|error| AgentError::new("species identity", error.to_string()))?,
+            substance: SubstanceId::from_str(id.as_str()).map_err(species_identity_error)?,
             display_name: display_name.to_owned(),
             normalized_aliases: aliases,
             formula_text: formula_text.to_owned(),
@@ -357,7 +357,7 @@ fn species_from_structure(
             canonical_serialization: Some(CanonicalSpeciesSerialization {
                 media_type: "application/vnd.chemspec.structural+json".to_owned(),
                 value: String::from_utf8(canonical_graph.clone())
-                    .map_err(|error| AgentError::new("species identity", error.to_string()))?,
+                    .map_err(species_identity_error)?,
                 digest: chem_domain::ContentDigest::sha256(&canonical_graph),
             }),
             external_identifiers,
@@ -372,11 +372,11 @@ fn species_from_structure(
                 content_digest: chem_domain::ContentDigest::sha256(&canonical_graph),
             }],
             identity_premise: FactId::from_str(&format!("identity.{}", structure.id()))
-                .map_err(|error| AgentError::new("species identity", error.to_string()))?,
+                .map_err(species_identity_error)?,
         },
         elements,
     )
-    .map_err(|error| AgentError::new("species identity", error.to_string()))
+    .map_err(species_identity_error)
 }
 
 fn protonation_policy(structure: &StructureDefinition) -> ProtonationPolicy {
@@ -407,13 +407,15 @@ pub fn store_identity_cache(
     directory: &Path,
     envelope: &IdentityCacheEnvelope,
 ) -> Result<(), AgentError> {
-    fs::create_dir_all(directory)
-        .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
-    let bytes = envelope
-        .canonical_json()
-        .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+    fs::create_dir_all(directory).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "identity cache", error)
+    })?;
+    let bytes = envelope.canonical_json().map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error)
+    })?;
     if bytes.len() as u64 > MAX_IDENTITY_CACHE_BYTES {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidCache,
             "identity cache",
             "cache exceeds size limit",
         ));
@@ -423,8 +425,9 @@ pub fn store_identity_cache(
         std::process::id(),
         IDENTITY_CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     ));
-    fs::write(&temporary, bytes)
-        .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+    fs::write(&temporary, bytes).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "identity cache", error)
+    })?;
     atomic_replace(&temporary, &directory.join(IDENTITY_CACHE_FILE))
 }
 
@@ -474,8 +477,9 @@ pub fn resolve_species_identity(
         cached.map_or_else(Vec::new, |value| value.records),
         discovered,
     )?;
-    let envelope = IdentityCacheEnvelope::new(merged)
-        .map_err(|error| AgentError::new("identity adapter", error.to_string()))?;
+    let envelope = IdentityCacheEnvelope::new(merged).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::IdentityFailure, "identity adapter", error)
+    })?;
     let registry = registry_from_cache(&envelope, elements, decoder)?;
     let outcome = owned_resolution(registry.resolve(query), &registry)
         .unwrap_or(IdentityResolutionOutcome::NotFound);
@@ -518,6 +522,7 @@ fn merge_identity_records(
             && previous != record
         {
             return Err(AgentError::new(
+                AgentErrorKind::IdentityFailure,
                 "identity adapter",
                 format!("conflicting records for `{}`", record.species_id),
             ));
@@ -535,7 +540,9 @@ fn registry_from_cache(
     for record in &envelope.records {
         registry
             .insert(reconstruct_cached_identity(record, elements, decoder)?)
-            .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+            .map_err(|error| {
+                AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error)
+            })?;
     }
     Ok(registry)
 }
@@ -545,8 +552,9 @@ fn reconstruct_cached_identity(
     elements: &StaticElementRegistry,
     decoder: &mut dyn StructureIdentityDecoder,
 ) -> Result<ResolvedSpecies, AgentError> {
-    let composition = FormulaComposition::parse(&record.formula)
-        .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+    let composition = FormulaComposition::parse(&record.formula).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error)
+    })?;
     let formula = FormulaSyntax {
         segments: vec![FormulaSegment {
             coefficient: Count::one(),
@@ -557,7 +565,11 @@ fn reconstruct_cached_identity(
                     Ok(FormulaPart::Element {
                         symbol: symbol.clone(),
                         count: Count::new(BigUint::from(*count)).map_err(|error| {
-                            AgentError::new("identity cache", error.to_string())
+                            AgentError::from_source(
+                                AgentErrorKind::InvalidCache,
+                                "identity cache",
+                                error,
+                            )
                         })?,
                     })
                 })
@@ -565,33 +577,38 @@ fn reconstruct_cached_identity(
         }],
     }
     .normalize(elements)
-    .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+    .map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error)
+    })?;
     let structure = match (&record.canonical_structure_json, record.structure_digest) {
         (None, None) => None,
         (Some(json), Some(digest)) => {
             if chem_domain::ContentDigest::sha256(json.as_bytes()) != digest {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidCache,
                     "identity cache",
                     "canonical structure digest changed",
                 ));
             }
-            Some(
-                decoder
-                    .decode(json, digest)
-                    .map_err(|error| AgentError::new("identity cache", error.to_string()))?,
-            )
+            Some(decoder.decode(json, digest).map_err(|error| {
+                AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error)
+            })?)
         }
         _ => {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidCache,
                 "identity cache",
                 "structure bytes and digest must be present together",
             ));
         }
     };
-    let substance = SubstanceId::from_str(record.species_id.as_str())
-        .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+    let substance = SubstanceId::from_str(record.species_id.as_str()).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error)
+    })?;
     let identity_premise = FactId::from_str(&format!("identity.{}", record.species_id.as_str()))
-        .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+        .map_err(|error| {
+            AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error)
+        })?;
     ResolvedSpecies::validate_identity(
         ResolvedSpeciesInput {
             id: record.species_id.clone(),
@@ -622,7 +639,7 @@ fn reconstruct_cached_identity(
         },
         elements,
     )
-    .map_err(|error| AgentError::new("identity cache", error.to_string()))
+    .map_err(|error| AgentError::from_source(AgentErrorKind::InvalidCache, "identity cache", error))
 }
 
 fn atomic_replace(temporary: &Path, destination: &Path) -> Result<(), AgentError> {
@@ -630,8 +647,9 @@ fn atomic_replace(temporary: &Path, destination: &Path) -> Result<(), AgentError
     {
         let backup = std::path::PathBuf::from(format!("{}.backup", destination.display()));
         if destination.exists() {
-            fs::rename(destination, &backup)
-                .map_err(|error| AgentError::new("identity cache", error.to_string()))?;
+            fs::rename(destination, &backup).map_err(|error| {
+                AgentError::from_source(AgentErrorKind::CacheIo, "identity cache", error)
+            })?;
         }
         match fs::rename(temporary, destination) {
             Ok(()) => {
@@ -640,14 +658,19 @@ fn atomic_replace(temporary: &Path, destination: &Path) -> Result<(), AgentError
             }
             Err(error) => {
                 let _ = fs::rename(backup, destination);
-                Err(AgentError::new("identity cache", error.to_string()))
+                Err(AgentError::from_source(
+                    AgentErrorKind::CacheIo,
+                    "identity cache",
+                    error,
+                ))
             }
         }
     }
     #[cfg(not(target_os = "windows"))]
     {
-        fs::rename(temporary, destination)
-            .map_err(|error| AgentError::new("identity cache", error.to_string()))
+        fs::rename(temporary, destination).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::CacheIo, "identity cache", error)
+        })
     }
 }
 

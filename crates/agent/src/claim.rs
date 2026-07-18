@@ -7,7 +7,7 @@ use chem_catalogue::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::AgentError;
+use crate::{AgentError, AgentErrorKind};
 
 pub const REACTION_CLAIM_SCHEMA_VERSION: u32 = 1;
 pub const MECHANISM_ESCALATION_SCHEMA_VERSION: u32 = 1;
@@ -235,12 +235,18 @@ impl ReactionClaim {
     pub fn from_json(bytes: &[u8], _mode: ClaimMode) -> Result<Self, AgentError> {
         if bytes.len() > MAX_REACTION_CLAIM_BYTES {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "reaction claim",
                 format!("claim exceeds the {MAX_REACTION_CLAIM_BYTES}-byte contract limit"),
             ));
         }
-        let claim: Self = serde_json::from_slice(bytes)
-            .map_err(|error| AgentError::new("reaction claim", error.to_string()))?;
+        let claim: Self = serde_json::from_slice(bytes).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "reaction claim",
+                error,
+            )
+        })?;
         claim.validate()?;
         Ok(claim)
     }
@@ -248,12 +254,14 @@ impl ReactionClaim {
     fn validate(&self) -> Result<(), AgentError> {
         if self.schema_version != REACTION_CLAIM_SCHEMA_VERSION {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "reaction claim",
                 format!("unsupported claim schema {}", self.schema_version),
             ));
         }
         if self.no_reaction_reason.is_some() && self.disposition != ClaimDisposition::NoReaction {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "reaction claim",
                 "only a no-reaction claim may carry a no-reaction reason",
             ));
@@ -262,6 +270,7 @@ impl ReactionClaim {
             ClaimDisposition::Reaction => {
                 if self.products.is_empty() || self.ambiguity.is_some() {
                     return Err(AgentError::new(
+                        AgentErrorKind::InvalidProviderOutput,
                         "reaction claim",
                         "a reaction requires products and cannot carry ambiguity",
                     ));
@@ -273,6 +282,7 @@ impl ReactionClaim {
                     || self.ambiguity.is_some()
                 {
                     return Err(AgentError::new(
+                        AgentErrorKind::InvalidProviderOutput,
                         "reaction claim",
                         "no-reaction and unsupported claims cannot carry products, observations, or ambiguity",
                     ));
@@ -281,6 +291,7 @@ impl ReactionClaim {
             ClaimDisposition::Ambiguous => {
                 let ambiguity = self.ambiguity.as_ref().ok_or_else(|| {
                     AgentError::new(
+                        AgentErrorKind::InvalidProviderOutput,
                         "reaction claim",
                         "an ambiguous claim requires ambiguity details",
                     )
@@ -290,6 +301,7 @@ impl ReactionClaim {
                     || ambiguity.alternatives.len() < 2
                 {
                     return Err(AgentError::new(
+                        AgentErrorKind::InvalidProviderOutput,
                         "reaction claim",
                         "an ambiguous claim requires at least two alternatives and no selected outcome",
                     ));
@@ -302,6 +314,7 @@ impl ReactionClaim {
     fn validate_fields(&self) -> Result<(), AgentError> {
         if self.sources.len() > MAX_CLAIM_SOURCES {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "reaction claim",
                 format!("a claim may cite at most {MAX_CLAIM_SOURCES} direct sources"),
             ));
@@ -323,6 +336,7 @@ impl ReactionClaim {
             let needs_value = observation.predicate == ClaimObservationPredicate::Colour;
             if needs_value != observation.value.is_some() {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "reaction claim",
                     "only colour observations require a value",
                 ));
@@ -339,6 +353,7 @@ impl ReactionClaim {
                 || !source.url.starts_with("https://")
             {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "reaction claim",
                     "sources require unique IDs, HTTPS URLs, and claim-level coverage",
                 ));
@@ -377,6 +392,7 @@ impl ReactionClaim {
 fn require_text(value: &str, label: &str) -> Result<(), AgentError> {
     if value.trim().is_empty() {
         Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "reaction claim",
             format!("{label} cannot be empty"),
         ))
@@ -411,6 +427,7 @@ fn reject_procedural_content(values: &[&str]) -> Result<(), AgentError> {
         BLOCKED.iter().any(|blocked| normalized.contains(blocked))
     }) {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "reaction claim",
             "provider output contains disallowed procedural or hazard-control content",
         ));
@@ -530,20 +547,28 @@ impl StructureProposalResponse {
     pub fn from_json(bytes: &[u8]) -> Result<Self, AgentError> {
         if bytes.len() > MAX_STRUCTURE_RESPONSE_BYTES {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure proposal",
                 format!("response exceeds the {MAX_STRUCTURE_RESPONSE_BYTES}-byte contract limit"),
             ));
         }
-        let response: Self = serde_json::from_slice(bytes)
-            .map_err(|error| AgentError::new("structure proposal", error.to_string()))?;
+        let response: Self = serde_json::from_slice(bytes).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "structure proposal",
+                error,
+            )
+        })?;
         if response.schema_version != STRUCTURE_PROPOSAL_SCHEMA_VERSION {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure proposal",
                 format!("unsupported structure schema {}", response.schema_version),
             ));
         }
         if response.structures.is_empty() {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure proposal",
                 "structures must be non-empty",
             ));
@@ -668,20 +693,28 @@ impl MechanismEscalationResponse {
     pub fn from_json(bytes: &[u8]) -> Result<Self, AgentError> {
         if bytes.len() > MAX_MECHANISM_RESPONSE_BYTES {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "mechanism response",
                 format!("response exceeds the {MAX_MECHANISM_RESPONSE_BYTES}-byte contract limit"),
             ));
         }
-        let response: Self = serde_json::from_slice(bytes)
-            .map_err(|error| AgentError::new("mechanism response", error.to_string()))?;
+        let response: Self = serde_json::from_slice(bytes).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "mechanism response",
+                error,
+            )
+        })?;
         if response.schema_version != MECHANISM_ESCALATION_SCHEMA_VERSION {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "mechanism response",
                 format!("unsupported mechanism schema {}", response.schema_version),
             ));
         }
         if response.mapping.is_empty() || response.operations.is_empty() {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "mechanism response",
                 "mapping and operations must be non-empty",
             ));

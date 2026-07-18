@@ -10,7 +10,7 @@ use chem_kernel::{
     validate_trusted,
 };
 
-use crate::{AgentError, ValidatedStaticOutcome};
+use crate::{AgentError, AgentErrorKind, ValidatedStaticOutcome};
 
 #[derive(Debug, Clone)]
 pub struct ReviewedFamilyMatch {
@@ -157,7 +157,13 @@ pub fn match_reviewed_family(
                     .collect::<Vec<_>>();
                 if let Ok(derived) = catalogue
                     .derive_generalized_products(&rule.id, &reactant_inputs)
-                    .map_err(|error| AgentError::new("family match", error.to_string()))?
+                    .map_err(|error| {
+                        AgentError::from_source(
+                            AgentErrorKind::CompilationFailure,
+                            "family match",
+                            error,
+                        )
+                    })?
                     && let Some(product_species) =
                         bind_declared_products(&derived, &declared_products, catalogue)
                 {
@@ -165,7 +171,13 @@ pub fn match_reviewed_family(
                     inputs.extend(derived);
                     if let Ok(selected) = catalogue
                         .elaborate_generalized_rule(&rule.id, &inputs)
-                        .map_err(|error| AgentError::new("family match", error.to_string()))?
+                        .map_err(|error| {
+                            AgentError::from_source(
+                                AgentErrorKind::CompilationFailure,
+                                "family match",
+                                error,
+                            )
+                        })?
                     {
                         let mut role_species = ordered
                             .iter()
@@ -240,13 +252,18 @@ pub fn compile_reviewed_animation(
         &family.selected,
         catalogue,
     )
-    .map_err(|error| AgentError::new("family expansion", error.to_string()))?;
-    let identity = CurrentArtifactIdentity::from_expanded(&expanded)
-        .map_err(|error| AgentError::new("family expansion", error.to_string()))?;
-    let validated = validate_trusted(&expanded, catalogue)
-        .map_err(|error| AgentError::new("family validation", error.to_string()))?;
-    let frames = generate_frames(&validated, identity)
-        .map_err(|error| AgentError::new("family frames", error.to_string()))?;
+    .map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family expansion", error)
+    })?;
+    let identity = CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family expansion", error)
+    })?;
+    let validated = validate_trusted(&expanded, catalogue).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family validation", error)
+    })?;
+    let frames = generate_frames(&validated, identity).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family frames", error)
+    })?;
     Ok(ReviewedAnimationOutcome {
         static_outcome: outcome.mark_reviewed(),
         frames,
