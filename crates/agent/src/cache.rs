@@ -20,7 +20,9 @@ use crate::{
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
-const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 3;
+// Version 4 migrates cache paths after generated species identities changed
+// from delimiter hashing to a versioned length-prefixed digest contract.
+const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 4;
 const MAX_CACHE_BYTES: u64 = 2 * 1024 * 1024;
 static CACHE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -678,6 +680,7 @@ mod tests {
         let mut value: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache JSON");
         assert_eq!(value["schema_version"], json!(3));
+        assert_eq!(value["compiler_contract_version"], json!(4));
         assert!(value["claim"].get("origin").is_none());
         assert!(value["claim"].get("solver_reason").is_none());
 

@@ -238,8 +238,7 @@ pub fn compile_claim_outcome(
             {
                 Ok(generated)
             } else {
-                let id_material = format!("{}\0{formula}", product.name);
-                let digest = ContentDigest::sha256(id_material.as_bytes()).to_hex();
+                let digest = generated_species_identity_digest(&product.name, &formula).to_hex();
                 let id = SpeciesId::from_str(&format!("dynamic.s{}", &digest[..24])).map_err(
                     |error| {
                         AgentError::from_source(
@@ -622,8 +621,7 @@ fn generated_outcome_species(
     phase: Phase,
     inventory: &ElementInventory,
 ) -> Option<OutcomeSpecies> {
-    let digest =
-        ContentDigest::sha256(format!("{display_name}\0{formula_text}").as_bytes()).to_hex();
+    let digest = generated_species_identity_digest(display_name, formula_text).to_hex();
     let id = SpeciesId::from_str(&format!("generated.s{}", &digest[..24])).ok()?;
     let structure_id = StructureId::new(format!("generated.{}", &digest[..24])).ok()?;
     // Name-keyed canonical structures first: an inventory maps to one
@@ -698,8 +696,7 @@ fn generated_product(
         ) {
             continue;
         }
-        let digest =
-            ContentDigest::sha256(format!("{}\0{formula}", product.name).as_bytes()).to_hex();
+        let digest = generated_species_identity_digest(&product.name, formula).to_hex();
         let structure_id = StructureId::new(format!("generated.{}", &digest[..24])).ok()?;
         if let Some(structure) = chem_domain::structure_from_smiles(structure_id, &hint.value)
             && *structure.formula() == inventory
@@ -815,6 +812,16 @@ fn ascii_formula_key(value: &str) -> String {
             other => other,
         })
         .collect()
+}
+
+fn generated_species_identity_digest(display_name: &str, formula: &str) -> ContentDigest {
+    let mut material = Vec::new();
+    for field in ["generated_species_identity", "2", display_name, formula] {
+        material.extend_from_slice(field.len().to_string().as_bytes());
+        material.push(b':');
+        material.extend_from_slice(field.as_bytes());
+    }
+    ContentDigest::sha256(&material)
 }
 
 fn validate_atomic_numbers(authored: &[u8], resolved: &ResolvedSpecies) -> Result<(), AgentError> {
@@ -1116,7 +1123,7 @@ mod tests {
     }
 
     #[test]
-    fn formula_only_reactant_identity_is_atom_order_canonical_and_count_bound() {
+    fn generated_reactant_identity_is_versioned_atom_order_canonical_and_count_bound() {
         let identities = registry();
         let request = |atomic_numbers| ReactionBuildRequest {
             reactants: vec![
@@ -1146,6 +1153,10 @@ mod tests {
             panic!("reordered formula-only request must resolve")
         };
         assert_eq!(first[0].id(), reordered[0].id());
+        assert_eq!(
+            first[0].id().as_str(),
+            "generated.s1b9906418c6c2f68f315698c"
+        );
 
         let error = resolve_request_identities(&request(vec![6, 1, 1]), &identities)
             .expect_err("the formula and composed atom count must agree");

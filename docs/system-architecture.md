@@ -219,6 +219,11 @@ identities, context, identity/catalogue snapshots, and claim/compiler/mechanism
 contract versions. It stores only untrusted claim/presentation recipes;
 offline load reconstructs every capability through current validators.
 
+On-the-fly species and structure IDs hash versioned, length-prefixed display
+name and normalized formula-text fields. Generated identity contract changes
+increment the dynamic compiler contract version, moving cache lookups to a new
+namespace instead of replaying entries compiled with old IDs.
+
 Builder overlays have one typed presentation authority. A dynamic identity,
 progress, failure, or result modal outranks toolbar panels and drag feedback;
 while it is open, the composer prompt and background builder input are inert.

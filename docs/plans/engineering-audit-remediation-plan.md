@@ -280,14 +280,31 @@ second defense.
 
 Verdict: **Not confirmed as a collision bug; low hardening.**
 
-Evidence: `crates/agent/src/outcome.rs:231`, `:612`, and `:688` hash
+Status: **Completed 2026-07-19.**
+
+Evidence: before this slice, three sites in `crates/agent/src/outcome.rs` hashed
 `name + NUL + formula`. The accepted formula grammar excludes NUL, so the last
-delimiter uniquely separates the two fields even if a display name contains
+delimiter uniquely separated the two fields even if a display name contained
 NUL. No collision in the accepted domain was demonstrated.
 
 Recommendation: hash canonical serialization or length-prefixed fields to
 make injectivity obvious and future-proof, with a cache/version migration if
 the resulting IDs are persisted.
+
+Resolution:
+
+- All generated and formula-only product identity sites now hash one versioned
+  sequence of length-prefixed `display_name` and normalized formula-text
+  fields.
+- The generated species, generated structure, and formula-only product ID
+  namespaces continue to share that single digest contract.
+- Dynamic compiler contract version 4 moves cache paths away from entries
+  compiled with the previous delimiter-derived IDs; cache schema v3 remains
+  unchanged because the envelope shape did not change.
+- This slice moved ahead of its original AUD-012 prerequisite because explicit
+  length-prefixing no longer depends on the semantic JSON canonicalization
+  conventions that AUD-012 will establish. The remaining numbered order is
+  unchanged.
 
 ## Priority 1 — typed interior surfaces
 
@@ -784,7 +801,7 @@ assembly internals.
 | ---: | --- | --- | --- |
 | 14 | AUD-018 | Merge the two expansion tails now that private HIR construction exists; equivalent inputs must produce equivalent provenance. | AUD-001 |
 | 15 | AUD-012 | Replace JSON key sniffing after expansion has one assembly path, preventing a second digest rewrite later. | AUD-001, AUD-018 |
-| 16 | AUD-009 | Move generated identity hashes to structured inputs while canonical serialization conventions are already under review. | AUD-012 |
+| 16 | AUD-009 | Completed early with an explicit length-prefixed contract independent of semantic JSON canonicalization. | None |
 | 17 | AUD-011 | Parse site/instance references once at the validated catalogue seam before schema and catalogue module work. | AUD-024 |
 | 18 | AUD-020 | Generate or mechanically diff the public schema after the typed reference model is settled. | AUD-011 |
 | 19 | AUD-010 | Replace CST node-kind strings with a closed enum before optimizing ownership of the CST. | None |

@@ -144,7 +144,9 @@ Drive Iced update logic through fake providers and deterministic messages:
   dependencies in packaged-provider prompts;
 - claim/source failure and one targeted retry;
 - mechanism diagnostics and two-operation-repair limit;
-- cache-v3 offline replay and digest staleness;
+- cache-v3 offline replay, compiler-contract migration, and digest staleness;
+- exact versioned generated-species identities derived from length-prefixed
+  name and normalized formula-text fields;
 - source edits invalidating the simulation;
 - switching providers without losing the experiment;
 - stale asynchronous results being ignored.
