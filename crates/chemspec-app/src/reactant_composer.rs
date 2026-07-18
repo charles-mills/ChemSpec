@@ -1319,24 +1319,39 @@ impl<Message> iced::widget::canvas::Program<Message> for HoldWheel {
 
 pub fn formula(atoms: &[u8]) -> String {
     let atoms = chemistry::standardize_elemental_draft(atoms);
-    let mut order = Vec::new();
-    let mut counts = BTreeMap::<u8, usize>::new();
-    for atomic_number in &atoms {
-        if !counts.contains_key(atomic_number) {
-            order.push(*atomic_number);
+    if let Some(preview) = composition_catalogue::trusted_preview(atoms.iter().copied()) {
+        return nomenclature::display_formula(&preview.formula);
+    }
+    hill_formula(&atoms)
+}
+
+fn hill_formula(atoms: &[u8]) -> String {
+    let mut counts = BTreeMap::<&str, usize>::new();
+    for atomic_number in atoms {
+        if let Some(element) = elements::by_atomic_number(*atomic_number) {
+            *counts.entry(element.symbol).or_default() += 1;
         }
-        *counts.entry(*atomic_number).or_default() += 1;
+    }
+    let mut order = Vec::with_capacity(counts.len());
+    if counts.contains_key("C") {
+        order.push("C");
+        if counts.contains_key("H") {
+            order.push("H");
+        }
+    }
+    for symbol in counts.keys().copied() {
+        if !order.contains(&symbol) {
+            order.push(symbol);
+        }
     }
 
     order
         .into_iter()
-        .fold(String::new(), |mut formula, atomic_number| {
-            if let Some(element) = elements::by_atomic_number(atomic_number) {
-                formula.push_str(element.symbol);
-                let count = counts.get(&atomic_number).copied().unwrap_or(1);
-                if count > 1 {
-                    formula.push_str(&subscript(count));
-                }
+        .fold(String::new(), |mut formula, symbol| {
+            formula.push_str(symbol);
+            let count = counts.get(symbol).copied().unwrap_or(1);
+            if count > 1 {
+                formula.push_str(&subscript(count));
             }
             formula
         })
@@ -1417,6 +1432,21 @@ mod tests {
         update(&mut state, Message::AddElement(1));
         assert_eq!(draft_names(&state), [None, None]);
         assert_eq!(draft_formulae(&state)[0], formula(reactants(&state).0));
+    }
+
+    #[test]
+    fn manual_formula_order_is_canonical_and_input_independent() {
+        assert_eq!(formula(&[17, 11]), "NaCl");
+        assert_eq!(formula(&[11, 17]), "NaCl");
+
+        let tantalum_pentoxide = [8, 73, 8, 8, 73, 8, 8];
+        assert_eq!(formula(&tantalum_pentoxide), "Ta₂O₅");
+    }
+
+    #[test]
+    fn unresolved_inventories_use_hill_order() {
+        assert_eq!(hill_formula(&[8, 1, 6, 1]), "CH₂O");
+        assert_eq!(hill_formula(&[54, 36]), "KrXe");
     }
 
     #[test]
@@ -1606,7 +1636,7 @@ mod tests {
         for atomic_number in [37, 6, 8, 8] {
             update(&mut state, Message::AddElement(atomic_number));
         }
-        assert_eq!(formula(reactants(&state).0), "RbCO₂");
+        assert_eq!(formula(reactants(&state).0), "CO₂Rb");
         assert!(composition_catalogue::recognize(reactants(&state).0.iter().copied()).is_none());
     }
 

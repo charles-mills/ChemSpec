@@ -2102,6 +2102,41 @@ struct LatticeGroup {
     pairs: Vec<(usize, usize)>,
 }
 
+fn lattice_cell(index: usize, columns: usize) -> (usize, usize) {
+    let row = index / columns;
+    let along = index % columns;
+    let column = if row.is_multiple_of(2) {
+        along
+    } else {
+        columns - 1 - along
+    };
+    (row, column)
+}
+
+fn attach_unpaired_lattice_members(signs: &[i64], columns: usize, pairs: &mut Vec<(usize, usize)>) {
+    for index in 0..signs.len() {
+        if pairs
+            .iter()
+            .any(|(left, right)| *left == index || *right == index)
+        {
+            continue;
+        }
+        let (row, column) = lattice_cell(index, columns);
+        let nearest = signs
+            .iter()
+            .enumerate()
+            .filter(|(_, sign)| **sign == -signs[index])
+            .min_by_key(|(candidate, _)| {
+                let (candidate_row, candidate_column) = lattice_cell(*candidate, columns);
+                row.abs_diff(candidate_row) + column.abs_diff(candidate_column)
+            })
+            .map(|(candidate, _)| candidate);
+        if let Some(nearest) = nearest {
+            pairs.push((index, nearest));
+        }
+    }
+}
+
 fn member_component(frame: &StructuralFrame, member: (usize, usize)) -> &RenderIonicComponent {
     &frame.ionic_associations[member.0].components[member.1]
 }
@@ -2183,13 +2218,7 @@ fn lattice_groups(frame: &StructuralFrame) -> Vec<LatticeGroup> {
                     pairs.push((index, index + 1));
                 }
                 // The cell directly below, skipping row-turn duplicates.
-                let row = index / columns;
-                let along = index % columns;
-                let column = if row.is_multiple_of(2) {
-                    along
-                } else {
-                    columns - 1 - along
-                };
+                let (row, column) = lattice_cell(index, columns);
                 let below = (row + 1) * columns
                     + if (row + 1).is_multiple_of(2) {
                         column
@@ -2200,6 +2229,11 @@ fn lattice_groups(frame: &StructuralFrame) -> Vec<LatticeGroup> {
                     pairs.push((index, below));
                 }
             }
+            // Non-1:1 salts exhaust the minority sign before every majority
+            // ion has an opposite-charge grid neighbour. Attach each such
+            // leftover to its nearest opposite-charge cell so every validated
+            // component participates in the same illustrative lattice.
+            attach_unpaired_lattice_members(&signs, columns, &mut pairs);
             LatticeGroup {
                 members,
                 columns,
@@ -2440,10 +2474,14 @@ fn draw_atom_transition(
             }
             clearance
         };
+        let before_is_metallic = is_metallic_site(before, id);
+        let after_is_metallic = is_metallic_site(after, id);
         draw_charge_transition(
             frame,
             before_atom,
             after_atom,
+            before_is_metallic,
+            after_is_metallic,
             position,
             badge_clearance,
             progress,
@@ -2452,6 +2490,42 @@ fn draw_atom_transition(
             &bond_angles,
         );
     }
+}
+
+fn is_metallic_site(frame: &StructuralFrame, atom_id: &str) -> bool {
+    frame
+        .metallic_domains
+        .iter()
+        .any(|domain| domain.sites.iter().any(|site| site == atom_id))
+}
+
+fn displayed_charge(atom: Option<&AtomState>, is_metallic: bool) -> i16 {
+    if is_metallic {
+        // A metallic site's positive core is balanced by its separately
+        // rendered share of the delocalized electron domain. Presenting the
+        // core value alone as an ionic charge would mislabel a neutral metal.
+        0
+    } else {
+        atom.map_or(0, |atom| atom.formal_charge)
+    }
+}
+
+fn shows_static_lewis_electrons(element: &str) -> bool {
+    !elements::SUPPORTED.iter().any(|candidate| {
+        candidate.symbol == element && candidate.category == elements::Category::TransitionMetal
+    })
+}
+
+fn domain_shows_stationary_electrons(
+    before: &StructuralFrame,
+    after: &StructuralFrame,
+    domain: &RenderMetallicDomain,
+) -> bool {
+    domain.sites.iter().all(|site| {
+        atom(after, site)
+            .or_else(|| atom(before, site))
+            .is_none_or(|state| shows_static_lewis_electrons(&state.element))
+    })
 }
 
 /// Directions of every covalent bond touching an atom in either frame.
@@ -2544,6 +2618,12 @@ fn draw_electron_transition(
     scale: f32,
     bond_angles: &[f32],
 ) {
+    if before
+        .or(after)
+        .is_some_and(|atom| !shows_static_lewis_electrons(&atom.element))
+    {
+        return;
+    }
     let delta = electron_state_delta(before, after);
     if operation_moves_atom_electrons(operations, atom_id) {
         let before_positions = before.map_or_else(Vec::new, |atom| {
@@ -2733,6 +2813,8 @@ fn draw_charge_transition(
     frame: &mut canvas::Frame,
     before: Option<&AtomState>,
     after: Option<&AtomState>,
+    before_is_metallic: bool,
+    after_is_metallic: bool,
     center: Point,
     clearance: f32,
     progress: f32,
@@ -2758,8 +2840,8 @@ fn draw_charge_transition(
     );
     let offset = (clearance + 6.0) * scale;
     let badge = center + Vector::new(angle.cos() * offset, angle.sin() * offset);
-    let before_charge = before.map_or(0, |atom| atom.formal_charge);
-    let after_charge = after.map_or(0, |atom| atom.formal_charge);
+    let before_charge = displayed_charge(before, before_is_metallic);
+    let after_charge = displayed_charge(after, after_is_metallic);
     if before_charge == after_charge {
         draw_charge(frame, badge, after_charge, alpha, scale);
     } else {
@@ -2871,21 +2953,23 @@ fn draw_metallic_transition(
         } else {
             domain.delocalized_electrons
         };
-        for electron in 0..stationary_electrons {
-            let angle = (phase * 0.16
-                + f32::from(electron) / f32::from(stationary_electrons.max(1)))
-            .fract()
-                * std::f32::consts::TAU;
-            let electron_position =
-                center + Vector::new(angle.cos() * halo_radius, angle.sin() * halo_radius);
-            frame.fill(
-                &Path::circle(electron_position, 3.0 * scale),
-                Color::WHITE.scale_alpha(alpha * 0.94),
-            );
-            frame.fill(
-                &Path::circle(electron_position, 7.0 * scale),
-                ACCENT.scale_alpha(alpha * 0.12),
-            );
+        if domain_shows_stationary_electrons(before, after, domain) {
+            for electron in 0..stationary_electrons {
+                let angle = (phase * 0.16
+                    + f32::from(electron) / f32::from(stationary_electrons.max(1)))
+                .fract()
+                    * std::f32::consts::TAU;
+                let electron_position =
+                    center + Vector::new(angle.cos() * halo_radius, angle.sin() * halo_radius);
+                frame.fill(
+                    &Path::circle(electron_position, 3.0 * scale),
+                    Color::WHITE.scale_alpha(alpha * 0.94),
+                );
+                frame.fill(
+                    &Path::circle(electron_position, 7.0 * scale),
+                    ACCENT.scale_alpha(alpha * 0.12),
+                );
+            }
         }
     }
 }
@@ -2987,6 +3071,15 @@ fn draw_metallic_membership_motion(
     phase: f32,
     scale: f32,
 ) {
+    if atom(after, site)
+        .or_else(|| atom(before, site))
+        .is_some_and(|state| !shows_static_lewis_electrons(&state.element))
+    {
+        // Releasing a transition-metal site's complete bookkeeping state is
+        // not a learner-visible electron transfer. The typed transfer
+        // operation draws only the electrons that actually move in reaction.
+        return;
+    }
     let Some(site_center) = positions.get(site).copied() else {
         return;
     };
@@ -3645,6 +3738,71 @@ mod tests {
     }
 
     #[test]
+    fn metallic_site_core_charge_is_not_presented_as_an_ion() {
+        let nickel = AtomState {
+            id: "nickel".to_owned(),
+            element: "Ni".to_owned(),
+            formal_charge: 10,
+            non_bonding_electrons: 0,
+            unpaired_electrons: 0,
+        };
+        let metallic_frame = RenderFrame {
+            atoms: vec![nickel.clone()],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: vec![RenderMetallicDomain {
+                id: "nickel-domain".to_owned(),
+                sites: vec![nickel.id.clone()],
+                delocalized_electrons: 10,
+            }],
+        };
+
+        assert!(is_metallic_site(&metallic_frame, &nickel.id));
+        assert_eq!(
+            displayed_charge(Some(&nickel), is_metallic_site(&metallic_frame, &nickel.id)),
+            0
+        );
+        assert_eq!(displayed_charge(Some(&nickel), false), 10);
+
+        let nickel_ion = AtomState {
+            formal_charge: 2,
+            non_bonding_electrons: 8,
+            unpaired_electrons: 2,
+            ..nickel
+        };
+        assert_eq!(displayed_charge(Some(&nickel_ion), false), 2);
+    }
+
+    #[test]
+    fn transition_metals_omit_static_lewis_and_domain_electron_dots() {
+        let nickel = AtomState {
+            id: "nickel".to_owned(),
+            element: "Ni".to_owned(),
+            formal_charge: 10,
+            non_bonding_electrons: 0,
+            unpaired_electrons: 0,
+        };
+        let frame = RenderFrame {
+            atoms: vec![nickel.clone()],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: vec![RenderMetallicDomain {
+                id: "nickel-domain".to_owned(),
+                sites: vec![nickel.id.clone()],
+                delocalized_electrons: 10,
+            }],
+        };
+
+        assert!(!shows_static_lewis_electrons("Ni"));
+        assert!(!domain_shows_stationary_electrons(
+            &frame,
+            &frame,
+            &frame.metallic_domains[0]
+        ));
+        assert!(shows_static_lewis_electrons("O"));
+    }
+
+    #[test]
     fn ionic_association_anchors_to_the_charged_atom_in_a_polyatomic_component() {
         let frame = RenderFrame {
             atoms: vec![
@@ -3838,6 +3996,65 @@ mod tests {
                 "{sodium}-{chloride} gap {gap} vs Na-Na {na_gap} / Cl-Cl {cl_gap}"
             );
         }
+    }
+
+    #[test]
+    fn non_one_to_one_lattice_keeps_every_ion_in_the_product_cluster() {
+        let mut atoms = vec![ion_atom("ta1", "Ta", 5), ion_atom("ta2", "Ta", 5)];
+        atoms.extend((1..=5).map(|index| ion_atom(&format!("o{index}"), "O", -2)));
+        let frame = RenderFrame {
+            atoms,
+            covalent_bonds: Vec::new(),
+            ionic_associations: vec![RenderIonicAssociation {
+                id: "tantalum-pentoxide".to_owned(),
+                components: vec![
+                    RenderIonicComponent {
+                        atoms: vec!["ta1".to_owned()],
+                        charge: 5,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["ta2".to_owned()],
+                        charge: 5,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o1".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o2".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o3".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o4".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o5".to_owned()],
+                        charge: -2,
+                    },
+                ],
+            }],
+            metallic_domains: Vec::new(),
+        };
+
+        let groups = lattice_groups(&frame);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].members.len(), 7);
+        assert!(groups[0].members.iter().enumerate().all(|(index, _)| {
+            groups[0]
+                .pairs
+                .iter()
+                .any(|(left, right)| *left == index || *right == index)
+        }));
+        assert_eq!(connected_components(&frame).len(), 1);
+
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(1600.0, 900.0));
+        let positions = layout_ordered(&frame, &connected_components(&frame), bounds);
+        assert_eq!(positions.len(), 7);
     }
 
     #[test]
