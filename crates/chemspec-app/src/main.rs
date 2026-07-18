@@ -885,6 +885,9 @@ impl PlaybackSpeed {
 
 #[derive(Debug, Clone)]
 enum Message {
+    /// Web demo only: open the ChemSpec repository in a new tab.
+    #[cfg(target_arch = "wasm32")]
+    DemoRepoLinkOpened,
     WindowResized(Size),
     DumpFrame,
     FrameCaptured(std::path::PathBuf, iced::window::Screenshot),
@@ -1738,6 +1741,21 @@ impl App {
             Message::BuilderPanelToggled(panel) => {
                 if self.dynamic_modal_kind().is_none() {
                     self.builder_panel = (self.builder_panel != Some(panel)).then_some(panel);
+                }
+            }
+            #[cfg(target_arch = "wasm32")]
+            Message::DemoRepoLinkOpened => {
+                const REPO_URL: &str = "https://github.com/charles-mills/ChemSpec";
+                if let Some(window) = web_sys::window() {
+                    // Popup blockers may reject the new tab (returns None);
+                    // fall back to navigating in place so the link always works.
+                    let opened = window
+                        .open_with_url_and_target(REPO_URL, "_blank")
+                        .ok()
+                        .flatten();
+                    if opened.is_none() {
+                        let _ = window.location().set_href(REPO_URL);
+                    }
                 }
             }
             Message::BuilderPanelClosed => self.builder_panel = None,
@@ -4303,7 +4321,30 @@ impl App {
             "Settings — coming soon",
         );
 
-        row![space().width(Fill), sketch, conditions, help, settings,]
+        #[cfg(target_arch = "wasm32")]
+        let demo_disclaimer = {
+            use iced::widget::{rich_text, span};
+            row![
+                icons::alert(16.0, color::MUTED),
+                rich_text![
+                    span("This is a demo of ChemSpec, ").color(color::MUTED),
+                    span("download the app")
+                        .color(color::ACCENT)
+                        .underline(true)
+                        .link(()),
+                    span(" for the full experience, including integration with Codex.")
+                        .color(color::MUTED),
+                ]
+                .on_link_click(|()| Message::DemoRepoLinkOpened)
+                .size(type_scale::CAPTION),
+            ]
+            .spacing(spacing::XS)
+            .align_y(Center)
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        let demo_disclaimer = row![];
+
+        row![demo_disclaimer, space().width(Fill), sketch, conditions, help, settings,]
             .spacing(spacing::XS)
             .align_y(Center)
             .into()
