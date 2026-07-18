@@ -991,7 +991,6 @@ package with:
 cargo fmt --all --check
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
-cargo run -p chems-conformance -- validate
 ```
 
 Provider contract, balancing, evidence, cache, and application transition tests
