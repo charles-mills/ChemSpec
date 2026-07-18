@@ -469,6 +469,8 @@ fn validate(
     catalogue: &ValidatedCatalogueBundle,
 ) -> Result<StructuralDerivation, KernelError> {
     validate_identity(expanded, catalogue)?;
+    crate::claim_consistency::validate(expanded, catalogue)
+        .map_err(|failure| KernelError::invalid(failure.kernel_code(), failure.message(), None))?;
     validate_operation_sequence(expanded)?;
     revalidate_mapping(expanded)?;
     let valence = bound_valence_premises(expanded, catalogue)?;
@@ -1581,26 +1583,452 @@ mod tests {
         ValidatedCatalogueBundle,
     };
     use chem_domain::{
-        Atom, AtomGroup, AtomGroupId, AtomId, BondOrder, CovalentBond, CovalentBondId,
-        CovalentDelocalization, CovalentDelocalizationId, EffectiveBondOrder, ElectronAllocation,
-        ElectronState, ElectronTransition, ElementSymbol, IonicAssociation, IonicAssociationId,
-        MetallicDomain, MetallicDomainId, MetallicJoinAllocation, MetallicReleaseAllocation,
-        StructuralGraph, StructuralOperation, StructuralOperationId, StructuralOperationInput,
-        StructureInstanceId,
+        Atom, AtomGroup, AtomGroupId, AtomId, BondOrder, ContentDigest, CovalentBond,
+        CovalentBondId, CovalentDelocalization, CovalentDelocalizationId, EffectiveBondOrder,
+        ElectronAllocation, ElectronState, ElectronTransition, ElementSymbol, IonicAssociation,
+        IonicAssociationId, MetallicDomain, MetallicDomainId, MetallicJoinAllocation,
+        MetallicReleaseAllocation, StructuralGraph, StructuralOperation, StructuralOperationId,
+        StructuralOperationInput, StructureInstanceId,
     };
     use serde_json::Value;
 
     use crate::{
         ExpandedElectronContribution, ExpandedIonicComponent, ExpandedOperation, Provenance,
+        expand_review_candidate, validate_review_candidate,
     };
 
     use super::{
         KernelFailureClass, StructuralLedger, WorkingState, final_bond_identity,
-        require_matching_final_bonds, validate_conservation, validate_valence,
+        require_matching_final_bonds, validate_conservation, validate_trusted, validate_valence,
     };
 
     fn atom(id: &str, charge: i16, local: u8, unpaired: u8) -> Atom {
         element_atom(id, "H", charge, local, unpaired)
+    }
+
+    fn canonical_expansion() -> (crate::ExpandedStructuralReaction, ValidatedCatalogueBundle) {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let catalogue = ValidatedCatalogueBundle::from_json(
+            &fs::read(root.join("conformance/catalogue/lithium-rule-001.catalogue.json")).unwrap(),
+        )
+        .unwrap();
+        let source =
+            fs::read_to_string(root.join("conformance/expansion/canonical-expansion-001.chems"))
+                .unwrap();
+        let evidence =
+            fs::read(root.join("conformance/observations/lithium-observations-001.input.json"))
+                .unwrap();
+        let expanded = expand_review_candidate(
+            "canonical-expansion-001.chems",
+            &source,
+            &catalogue,
+            &evidence,
+        )
+        .unwrap();
+        (expanded, catalogue)
+    }
+
+    fn claim_consistency_code(surface: &str, boundary: &str) -> String {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let oracle: Value = serde_json::from_slice(
+            &fs::read(
+                root.join("conformance/validation-kernel/claim-consistency-001.expected.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        oracle[surface][boundary].as_str().unwrap().to_owned()
+    }
+
+    fn trusted_catalogue() -> chem_catalogue::TrustedCatalogue {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let catalogue =
+            fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json")).unwrap();
+        let review = fs::read(root.join("catalogue/reviews/core-chemistry.review.json")).unwrap();
+        let envelope: chem_catalogue::CatalogueEnvelope =
+            serde_json::from_slice(&catalogue).unwrap();
+        let review_value: Value = serde_json::from_slice(&review).unwrap();
+        chem_catalogue::TrustedCatalogue::from_canonical_json(
+            &catalogue,
+            &review,
+            chem_catalogue::CatalogueTrustPolicy::new(
+                envelope.digest,
+                ContentDigest::of_json(&review_value).unwrap(),
+            ),
+        )
+        .unwrap()
+    }
+
+    fn reconstruct(
+        expanded: crate::ExpandedStructuralReaction,
+        catalogue: &ValidatedCatalogueBundle,
+    ) -> Result<crate::ExpandedStructuralReaction, crate::ExpansionError> {
+        crate::ExpandedStructuralReaction::checked(
+            crate::ExpandedStructuralReactionParts {
+                claim: expanded.claim,
+                reactant_instances: expanded.reactant_instances,
+                product_instances: expanded.product_instances,
+                atom_provenance: expanded.atom_provenance,
+                mapping: expanded.mapping,
+                mapping_entry_provenance: expanded.mapping_entry_provenance,
+                mapping_provenance: expanded.mapping_provenance,
+                operations: expanded.operations,
+                premises: expanded.premises,
+                premise_provenance: expanded.premise_provenance,
+            },
+            catalogue,
+        )
+    }
+
+    #[derive(Clone, Copy)]
+    enum DeclarationMutation {
+        DisplayName,
+        FormulaText,
+        Species,
+        Charge,
+        Phase,
+    }
+
+    fn mutate_declaration(
+        expanded: &mut crate::ExpandedStructuralReaction,
+        mutation: DeclarationMutation,
+    ) {
+        let rewrite = |term: &chem_domain::ReactionTerm, target: bool| {
+            let charge_target = matches!(mutation, DeclarationMutation::Charge)
+                && (term.species().as_str().ends_with("LithiumMetal")
+                    || term.species().as_str().ends_with("LithiumHydroxide"));
+            let charge = if charge_target {
+                chem_domain::Charge::from_magnitude(
+                    num_bigint::BigUint::from(1_u8),
+                    chem_domain::ChargeSign::Positive,
+                )
+                .unwrap()
+            } else {
+                term.charge().clone()
+            };
+            chem_domain::reaction_term(
+                chem_domain::UnbalancedReactionTerm {
+                    species: if target && matches!(mutation, DeclarationMutation::Species) {
+                        "fictional.lithium".parse().unwrap()
+                    } else {
+                        term.species().clone()
+                    },
+                    display_name: if target && matches!(mutation, DeclarationMutation::DisplayName)
+                    {
+                        "fictional learner name".to_owned()
+                    } else {
+                        term.display_name().to_owned()
+                    },
+                    formula_text: if target && matches!(mutation, DeclarationMutation::FormulaText)
+                    {
+                        "DefinitelyNotLithium".to_owned()
+                    } else {
+                        term.formula_text().to_owned()
+                    },
+                    formula: term.formula().clone(),
+                    charge,
+                    phase: if target && matches!(mutation, DeclarationMutation::Phase) {
+                        chem_domain::Phase::Gas
+                    } else {
+                        term.phase()
+                    },
+                },
+                term.coefficient(),
+            )
+            .unwrap()
+        };
+        let reactants = expanded
+            .claim
+            .declaration
+            .reactants()
+            .iter()
+            .enumerate()
+            .map(|(index, term)| rewrite(term, index == 0))
+            .collect();
+        let products = expanded
+            .claim
+            .declaration
+            .products()
+            .iter()
+            .map(|term| rewrite(term, false))
+            .collect();
+        expanded.claim.declaration = chem_domain::ReactionDeclaration::from_balanced(
+            reactants,
+            products,
+            expanded.claim.declaration.required_context(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn fictional_equation_metadata_cannot_cross_kernel_validation() {
+        let (mut expanded, catalogue) = canonical_expansion();
+        expanded.claim.equation[0].coefficient += 1;
+
+        let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+        assert_eq!(error.code(), claim_consistency_code("equation", "kernel"));
+
+        let (mut wrong_side, catalogue) = canonical_expansion();
+        wrong_side.claim.equation[0].side = crate::ReactionSideKind::Product;
+        assert_eq!(
+            validate_review_candidate(&wrong_side, &catalogue)
+                .unwrap_err()
+                .code(),
+            "CHEMS-K003"
+        );
+
+        let (mut wrong_binding, catalogue) = canonical_expansion();
+        wrong_binding.claim.equation[0].binding = "water".to_owned();
+        assert_eq!(
+            validate_review_candidate(&wrong_binding, &catalogue)
+                .unwrap_err()
+                .code(),
+            "CHEMS-K003"
+        );
+    }
+
+    #[test]
+    fn fictional_formula_metadata_cannot_cross_kernel_validation() {
+        let (mut expanded, catalogue) = canonical_expansion();
+        let fictional_formula = BTreeMap::from([("Li".to_owned(), 1), ("O".to_owned(), 1)]);
+        expanded.claim.reactants.get_mut("lithium").unwrap().formula = fictional_formula.clone();
+        expanded
+            .claim
+            .equation
+            .iter_mut()
+            .find(|term| term.binding == "lithium")
+            .unwrap()
+            .formula = fictional_formula;
+
+        let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+        assert_eq!(
+            error.code(),
+            claim_consistency_code("structure_metadata", "kernel")
+        );
+
+        let (mut wrong_representation, catalogue) = canonical_expansion();
+        wrong_representation
+            .claim
+            .reactants
+            .get_mut("lithium")
+            .unwrap()
+            .representation = chem_domain::RepresentationKind::Molecular;
+        wrong_representation
+            .claim
+            .equation
+            .iter_mut()
+            .find(|term| term.binding == "lithium")
+            .unwrap()
+            .representation = chem_domain::RepresentationKind::Molecular;
+        assert_eq!(
+            validate_review_candidate(&wrong_representation, &catalogue)
+                .unwrap_err()
+                .code(),
+            "CHEMS-K004"
+        );
+    }
+
+    #[test]
+    fn fictional_declaration_metadata_cannot_cross_kernel_validation() {
+        let (mut expanded, catalogue) = canonical_expansion();
+        expanded.claim.declaration = chem_domain::ReactionDeclaration::from_balanced(
+            expanded.claim.declaration.reactants().to_vec(),
+            expanded.claim.declaration.products().to_vec(),
+            "fictional context",
+        )
+        .unwrap();
+
+        let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+        assert_eq!(
+            error.code(),
+            claim_consistency_code("declaration", "kernel")
+        );
+
+        for mutation in [
+            DeclarationMutation::DisplayName,
+            DeclarationMutation::FormulaText,
+            DeclarationMutation::Species,
+            DeclarationMutation::Charge,
+            DeclarationMutation::Phase,
+        ] {
+            let (mut fictional_copy, catalogue) = canonical_expansion();
+            mutate_declaration(&mut fictional_copy, mutation);
+            assert_eq!(
+                validate_review_candidate(&fictional_copy, &catalogue)
+                    .unwrap_err()
+                    .code(),
+                claim_consistency_code("declaration", "kernel")
+            );
+        }
+    }
+
+    #[test]
+    fn checked_constructor_rejects_fictional_claim_metadata() {
+        let (mut expanded, catalogue) = canonical_expansion();
+        expanded.claim.equation[0].coefficient += 1;
+
+        let error = reconstruct(expanded, &catalogue).unwrap_err();
+        assert_eq!(
+            error.code(),
+            claim_consistency_code("equation", "expansion")
+        );
+
+        let (mut expanded, catalogue) = canonical_expansion();
+        expanded
+            .claim
+            .reactants
+            .get_mut("lithium")
+            .unwrap()
+            .declaration
+            .formula_text = "LiO".to_owned();
+        let error = reconstruct(expanded, &catalogue).unwrap_err();
+        assert_eq!(
+            error.code(),
+            claim_consistency_code("structure_metadata", "expansion")
+        );
+
+        let (mut expanded, catalogue) = canonical_expansion();
+        expanded.claim.declaration = chem_domain::ReactionDeclaration::from_balanced(
+            expanded.claim.declaration.reactants().to_vec(),
+            expanded.claim.declaration.products().to_vec(),
+            "fictional context",
+        )
+        .unwrap();
+        let error = reconstruct(expanded, &catalogue).unwrap_err();
+        assert_eq!(
+            error.code(),
+            claim_consistency_code("declaration", "expansion")
+        );
+
+        let (mut expanded, catalogue) = canonical_expansion();
+        expanded.claim.evidence.observations[0].subject_binding = "lithium".to_owned();
+        let error = reconstruct(expanded, &catalogue).unwrap_err();
+        assert_eq!(
+            error.code(),
+            claim_consistency_code("observation", "expansion")
+        );
+    }
+
+    #[test]
+    fn fictional_trusted_claim_cannot_produce_validated_frames() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let catalogue = trusted_catalogue();
+        let source =
+            fs::read_to_string(root.join("conformance/expansion/canonical-expansion-001.chems"))
+                .unwrap();
+        let mut evidence: Value = serde_json::from_slice(
+            &fs::read(root.join("conformance/observations/lithium-observations-001.input.json"))
+                .unwrap(),
+        )
+        .unwrap();
+        evidence["claims"][1]["subject"] = Value::String("alkali metal".to_owned());
+        let evidence = serde_json::to_vec(&evidence).unwrap();
+        let expanded = crate::expand_trusted(
+            "canonical-expansion-001.chems",
+            &source,
+            &catalogue,
+            &evidence,
+        )
+        .unwrap();
+
+        let mut equation = expanded.clone();
+        equation.expanded.claim.equation[0].coefficient += 1;
+        assert_eq!(
+            validate_trusted(&equation, &catalogue).unwrap_err().code(),
+            claim_consistency_code("equation", "kernel")
+        );
+
+        let mut structure = expanded.clone();
+        structure
+            .expanded
+            .claim
+            .reactants
+            .get_mut("lithium")
+            .unwrap()
+            .declaration
+            .formula_text = "LiO".to_owned();
+        assert_eq!(
+            validate_trusted(&structure, &catalogue).unwrap_err().code(),
+            claim_consistency_code("structure_metadata", "kernel")
+        );
+
+        let mut declaration = expanded.clone();
+        declaration.expanded.claim.declaration = chem_domain::ReactionDeclaration::from_balanced(
+            declaration.expanded.claim.declaration.reactants().to_vec(),
+            declaration.expanded.claim.declaration.products().to_vec(),
+            "fictional context",
+        )
+        .unwrap();
+        assert_eq!(
+            validate_trusted(&declaration, &catalogue)
+                .unwrap_err()
+                .code(),
+            claim_consistency_code("declaration", "kernel")
+        );
+
+        let mut observation = expanded.clone();
+        observation.expanded.claim.evidence.observations[0].subject_binding = "metal".to_owned();
+        assert_eq!(
+            validate_trusted(&observation, &catalogue)
+                .unwrap_err()
+                .code(),
+            claim_consistency_code("observation", "kernel")
+        );
+
+        let mut generalized_copy = expanded;
+        generalized_copy.expanded.claim.evidence.observations[0].predicate =
+            chem_catalogue::ObservationPredicate::Forms;
+        assert_eq!(
+            validate_trusted(&generalized_copy, &catalogue)
+                .unwrap_err()
+                .code(),
+            claim_consistency_code("observation", "kernel")
+        );
+    }
+
+    #[test]
+    fn fictional_observation_metadata_cannot_cross_kernel_validation() {
+        let (expanded, catalogue) = canonical_expansion();
+
+        let mut wrong_subject = expanded.clone();
+        wrong_subject.claim.evidence.observations[0].subject_binding = "lithium".to_owned();
+        assert_eq!(
+            validate_review_candidate(&wrong_subject, &catalogue)
+                .unwrap_err()
+                .code(),
+            "CHEMS-K006"
+        );
+
+        let mut wrong_value = expanded.clone();
+        wrong_value.claim.evidence.observations[0].value = Some("invented".to_owned());
+        assert_eq!(
+            validate_review_candidate(&wrong_value, &catalogue)
+                .unwrap_err()
+                .code(),
+            "CHEMS-K006"
+        );
+
+        let mut wrong_provenance = expanded;
+        wrong_provenance.claim.evidence.observations[0]
+            .provenance
+            .evidence
+            .clear();
+        assert_eq!(
+            validate_review_candidate(&wrong_provenance, &catalogue)
+                .unwrap_err()
+                .code(),
+            "CHEMS-K006"
+        );
+
+        let (mut wrong_evidence_subject, catalogue) = canonical_expansion();
+        wrong_evidence_subject.claim.evidence.observations[0].evidence_subject =
+            "invented learner copy".to_owned();
+        assert_eq!(
+            validate_review_candidate(&wrong_evidence_subject, &catalogue)
+                .unwrap_err()
+                .code(),
+            "CHEMS-K006"
+        );
     }
 
     fn element_atom(id: &str, element: &str, charge: i16, local: u8, unpaired: u8) -> Atom {

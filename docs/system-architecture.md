@@ -152,6 +152,20 @@ all proof-relevant premise IDs
 canonical expanded certificate and digest
 ```
 
+`ExpandedStructuralReaction` and its embedded `ResolvedReactionClaim` expose
+read-only accessors, not public proof-relevant fields. Both source and dynamic
+elaboration converge on one crate-restricted checked constructor. That
+constructor rejects disagreement between equation terms, formula summaries,
+catalogue-expanded instances, the checked declaration and required context,
+or typed observation subjects and provenance. Callers therefore cannot build
+or mutate a structurally plausible expansion with fictional learner-facing
+metadata.
+
+The structural kernel repeats these claim-consistency checks before executing
+operations. Constructor checking makes inconsistent HIR unrepresentable to
+ordinary callers; kernel rechecking remains defense in depth against internal
+regressions and stale serialized or test fixtures.
+
 ### `ValidatedStructuralReaction`
 
 ```text

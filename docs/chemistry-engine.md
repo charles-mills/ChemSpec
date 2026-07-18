@@ -36,6 +36,15 @@ checks language identity, catalogue digest, structures, coefficients, equation,
 roles, evidence references, mapping, graph steps, electron state,
 conservation, and final products.
 
+Expansion itself converges on a single restricted constructor. Before an
+expanded value exists, that constructor checks the equation against resolved
+bindings, formula summaries against catalogue-expanded instance graphs, the
+checked declaration and required context against the claim, and observation
+subjects and provenance against the resolved sides and evidence packet. The
+result exposes immutable accessors only. The kernel repeats the same four
+claim-level checks before graph execution, so neither hand-built internal HIR
+nor later regressions can turn valid structure into fictional display copy.
+
 ## Trusted catalogue
 
 The immutable catalogue contains:

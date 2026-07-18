@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "equation": { "expansion": "CHEMS-X037", "kernel": "CHEMS-K003" },
+  "structure_metadata": { "expansion": "CHEMS-X038", "kernel": "CHEMS-K004" },
+  "declaration": { "expansion": "CHEMS-X039", "kernel": "CHEMS-K005" },
+  "observation": { "expansion": "CHEMS-X040", "kernel": "CHEMS-K006" }
+}

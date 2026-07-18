@@ -54,14 +54,14 @@ fn evidence() -> Vec<u8> {
 fn canonical_source_expands_without_executing_operations() {
     let expanded = canonical_expansion();
     assert_eq!(
-        expanded.claim.catalogue.trust,
+        expanded.claim().catalogue().trust,
         CatalogueTrust::ReviewCandidate
     );
-    assert_eq!(expanded.reactant_instances.len(), 4);
-    assert_eq!(expanded.product_instances.len(), 3);
-    assert_eq!(expanded.mapping.entries().len(), 8);
-    assert_eq!(expanded.operations.len(), 12);
-    assert_eq!(expanded.premises.len(), 8);
+    assert_eq!(expanded.reactant_instances().len(), 4);
+    assert_eq!(expanded.product_instances().len(), 3);
+    assert_eq!(expanded.mapping().entries().len(), 8);
+    assert_eq!(expanded.operations().len(), 12);
+    assert_eq!(expanded.premises().len(), 8);
     assert!(expanded.render_certificate().contains("status: unexecuted"));
     assert_eq!(
         expanded.render_certificate().as_bytes(),
@@ -90,10 +90,10 @@ fn independent_oracle_agrees_on_instances_atoms_mapping_and_operation_order() {
     ))
     .unwrap();
     assert_eq!(oracle["catalogue"], "ChemSpec.Theoretical@1");
-    assert_eq!(oracle["rule"], expanded.claim.rule.rule.as_str());
+    assert_eq!(oracle["rule"], expanded.claim().rule().rule.as_str());
 
     let actual_reactants = expanded
-        .reactant_instances
+        .reactant_instances()
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
@@ -105,7 +105,7 @@ fn independent_oracle_agrees_on_instances_atoms_mapping_and_operation_order() {
         .collect::<BTreeSet<_>>();
     assert_eq!(actual_reactants, expected_reactants);
     let actual_products = expanded
-        .product_instances
+        .product_instances()
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
@@ -118,7 +118,7 @@ fn independent_oracle_agrees_on_instances_atoms_mapping_and_operation_order() {
     assert_eq!(actual_products, expected_products);
 
     let actual_atoms = expanded
-        .reactant_instances
+        .reactant_instances()
         .values()
         .flat_map(|instance| instance.instance.graph().atoms().values())
         .map(|atom| (atom.id().to_string(), atom.element().to_string()))
@@ -143,7 +143,7 @@ fn independent_oracle_agrees_on_instances_atoms_mapping_and_operation_order() {
         })
         .collect::<BTreeSet<_>>();
     let actual_mapping = expanded
-        .mapping
+        .mapping()
         .entries()
         .iter()
         .map(|(source, product)| (source.to_string(), product.to_string()))
@@ -157,7 +157,7 @@ fn independent_oracle_agrees_on_instances_atoms_mapping_and_operation_order() {
         .map(|operation| operation["kind"].as_str().unwrap())
         .collect::<Vec<_>>();
     let actual_kinds = expanded
-        .operations
+        .operations()
         .iter()
         .map(|operation| match operation.operation.view() {
             StructuralOperationView::ReconfigureElectrons { .. } => "reconfigure_electrons",
@@ -183,7 +183,7 @@ fn independent_oracle_agrees_on_instances_atoms_mapping_and_operation_order() {
 #[test]
 fn operation_templates_expand_to_exact_bound_endpoints_and_ionic_components() {
     let expanded = canonical_expansion();
-    match expanded.operations[0].operation.view() {
+    match expanded.operations()[0].operation.view() {
         StructuralOperationView::ReleaseMetallic {
             site,
             domain,
@@ -199,7 +199,7 @@ fn operation_templates_expand_to_exact_bound_endpoints_and_ionic_components() {
         }
         operation => panic!("unexpected operation: {operation:?}"),
     }
-    match expanded.operations[4].operation.view() {
+    match expanded.operations()[4].operation.view() {
         StructuralOperationView::TransferElectron {
             donor,
             acceptor,
@@ -212,14 +212,14 @@ fn operation_templates_expand_to_exact_bound_endpoints_and_ionic_components() {
         }
         operation => panic!("unexpected operation: {operation:?}"),
     }
-    match expanded.operations[6].operation.view() {
+    match expanded.operations()[6].operation.view() {
         StructuralOperationView::FormCovalent { left, right, .. } => {
             assert_eq!(left.as_str(), "water[1].h1");
             assert_eq!(right.as_str(), "water[2].h1");
         }
         operation => panic!("unexpected operation: {operation:?}"),
     }
-    let ionic = &expanded.operations[7];
+    let ionic = &expanded.operations()[7];
     assert_eq!(ionic.ionic_components.len(), 2);
     assert_eq!(ionic.ionic_components[0].expected_charge, 1);
     assert_eq!(ionic.ionic_components[1].expected_charge, -1);
@@ -243,7 +243,7 @@ fn operation_templates_expand_to_exact_bound_endpoints_and_ionic_components() {
             .into_iter()
             .collect()
     );
-    match expanded.operations[9].operation.view() {
+    match expanded.operations()[9].operation.view() {
         StructuralOperationView::AssignProduct { atoms, product } => {
             assert_eq!(product.as_str(), "lithiumHydroxide[1]");
             assert_eq!(atoms.len(), 3);
@@ -285,12 +285,12 @@ fn equivalent_declaration_order_has_identical_semantic_hir() {
     let second =
         expand_review_candidate("second.chems", &reordered, &catalogue, &evidence()).unwrap();
     assert_ne!(
-        first.claim.source.bytes_digest,
-        second.claim.source.bytes_digest
+        first.claim().source().bytes_digest,
+        second.claim().source().bytes_digest
     );
     assert_eq!(
-        first.claim.source.semantic_digest,
-        second.claim.source.semantic_digest
+        first.claim().source().semantic_digest,
+        second.claim().source().semantic_digest
     );
     assert_eq!(
         first.semantic_digest().unwrap(),
@@ -305,43 +305,16 @@ fn equivalent_declaration_order_has_identical_semantic_hir() {
         first.render_provenance_report(),
         second.render_provenance_report()
     );
-    assert_eq!(first.mapping, second.mapping);
-    assert_eq!(first.operations.len(), second.operations.len());
-    for (left, right) in first.operations.iter().zip(&second.operations) {
+    assert_eq!(first.mapping(), second.mapping());
+    assert_eq!(first.operations().len(), second.operations().len());
+    for (left, right) in first.operations().iter().zip(second.operations()) {
         assert_eq!(left.operation, right.operation);
     }
 }
 
-#[test]
-fn every_derived_value_retains_source_catalogue_and_evidence_provenance() {
-    let expanded = canonical_expansion();
-    assert_eq!(
-        expanded.claim.evidence.trust,
-        EvidenceTrust::ExternalUntrusted
-    );
-    for binding in expanded
-        .claim
-        .reactants
-        .values()
-        .chain(expanded.claim.products.values())
-    {
-        assert!(!binding.provenance.source.is_empty());
-        assert!(!binding.provenance.catalogue.is_empty());
-    }
-    for instance in expanded
-        .reactant_instances
-        .values()
-        .chain(expanded.product_instances.values())
-    {
-        assert!(!instance.provenance.source.is_empty());
-        assert!(!instance.provenance.catalogue.is_empty());
-    }
-    for operation in &expanded.operations {
-        assert!(!operation.provenance.source.is_empty());
-        assert!(!operation.provenance.catalogue.is_empty());
-    }
+fn assert_operation_premises(expanded: &chem_kernel::ExpandedStructuralReaction) {
     let premise_set = |operation: usize| {
-        expanded.operations[operation]
+        expanded.operations()[operation]
             .provenance
             .catalogue
             .iter()
@@ -369,10 +342,41 @@ fn every_derived_value_retains_source_catalogue_and_evidence_provenance() {
         .into_iter()
         .collect()
     );
+}
+
+#[test]
+fn every_derived_value_retains_source_catalogue_and_evidence_provenance() {
+    let expanded = canonical_expansion();
+    assert_eq!(
+        expanded.claim().evidence().trust,
+        EvidenceTrust::ExternalUntrusted
+    );
+    for binding in expanded
+        .claim()
+        .reactants()
+        .values()
+        .chain(expanded.claim().products().values())
+    {
+        assert!(!binding.provenance.source.is_empty());
+        assert!(!binding.provenance.catalogue.is_empty());
+    }
+    for instance in expanded
+        .reactant_instances()
+        .values()
+        .chain(expanded.product_instances().values())
+    {
+        assert!(!instance.provenance.source.is_empty());
+        assert!(!instance.provenance.catalogue.is_empty());
+    }
+    for operation in expanded.operations() {
+        assert!(!operation.provenance.source.is_empty());
+        assert!(!operation.provenance.catalogue.is_empty());
+    }
+    assert_operation_premises(&expanded);
     assert_eq!(
         expanded
-            .claim
-            .model
+            .claim()
+            .model()
             .provenance
             .catalogue
             .iter()
@@ -382,17 +386,17 @@ fn every_derived_value_retains_source_catalogue_and_evidence_provenance() {
             .into_iter()
             .collect()
     );
-    assert_eq!(expanded.atom_provenance.len(), 16);
+    assert_eq!(expanded.atom_provenance().len(), 16);
     assert!(
-        expanded.atom_provenance.values().all(|provenance| {
+        expanded.atom_provenance().values().all(|provenance| {
             !provenance.source.is_empty() && !provenance.catalogue.is_empty()
         })
     );
-    assert!(!expanded.mapping_provenance.source.is_empty());
-    assert!(!expanded.mapping_provenance.catalogue.is_empty());
-    assert_eq!(expanded.mapping_entry_provenance.len(), 8);
+    assert!(!expanded.mapping_provenance().source.is_empty());
+    assert!(!expanded.mapping_provenance().catalogue.is_empty());
+    assert_eq!(expanded.mapping_entry_provenance().len(), 8);
     assert_eq!(
-        expanded.mapping_entry_provenance[&"water[1].h1".parse().unwrap()]
+        expanded.mapping_entry_provenance()[&"water[1].h1".parse().unwrap()]
             .premises
             .iter()
             .map(ToString::to_string)
@@ -405,11 +409,14 @@ fn every_derived_value_retains_source_catalogue_and_evidence_provenance() {
         .into_iter()
         .collect()
     );
-    assert_eq!(expanded.premise_provenance.len(), expanded.premises.len());
-    for (premise, origin) in &expanded.premise_provenance {
+    assert_eq!(
+        expanded.premise_provenance().len(),
+        expanded.premises().len()
+    );
+    for (premise, origin) in expanded.premise_provenance() {
         assert!(origin.premises.contains(premise));
     }
-    for observation in &expanded.claim.evidence.observations {
+    for observation in &expanded.claim().evidence().observations {
         assert!(!observation.provenance.source.is_empty());
         assert!(!observation.provenance.catalogue.is_empty());
         assert!(!observation.provenance.evidence.is_empty());

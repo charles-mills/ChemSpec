@@ -3,11 +3,13 @@ use std::{
     ops::Deref,
 };
 
-use chem_catalogue::{EventModel, ObservationPredicate, RequestRelation, SequenceModel};
+use chem_catalogue::{
+    EventModel, ObservationPredicate, RequestRelation, SequenceModel, ValidatedCatalogueBundle,
+};
 use chem_domain::{
-    AtomGroup, AtomId, AtomMapping, ClaimId, ContentDigest, EvidenceSourceId, PremiseId,
-    ReactionDeclaration, ReactionRuleId, RepresentationKind, StructuralOperation, StructureId,
-    StructureInstance,
+    AtomGroup, AtomId, AtomMapping, Charge, ClaimId, ContentDigest, EvidenceSourceId, Phase,
+    PremiseId, ReactionDeclaration, ReactionRuleId, RepresentationKind, SpeciesId,
+    StructuralOperation, StructureId, StructureInstance,
 };
 use chems_lang::ByteSpan;
 use serde::Serialize;
@@ -115,6 +117,16 @@ pub struct CatalogueReference {
 
 /// One resolved authored structure declaration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ResolvedDeclarationBinding {
+    pub species: SpeciesId,
+    pub display_name: String,
+    pub formula_text: String,
+    pub charge: Charge,
+    pub phase: Phase,
+}
+
+/// One resolved authored structure declaration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedStructureBinding {
     pub side: ReactionSideKind,
     pub name: String,
@@ -122,6 +134,8 @@ pub struct ResolvedStructureBinding {
     pub structure: StructureId,
     pub formula: BTreeMap<String, u64>,
     pub representation: RepresentationKind,
+    #[serde(skip_serializing)]
+    pub declaration: ResolvedDeclarationBinding,
     pub provenance: Provenance,
 }
 
@@ -187,6 +201,16 @@ pub struct ResolvedGeneralizedRuleApplication {
 }
 
 /// One typed observation linked to source, packet claim, and catalogue premise.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolvedObservationCompatibility {
+    pub predicate: ObservationPredicate,
+    pub subject_binding: String,
+    pub value: Option<String>,
+    pub evidence_subject: String,
+    pub premise: PremiseId,
+}
+
+/// One typed observation linked to source, packet claim, and catalogue premise.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedObservation {
     pub predicate: ObservationPredicate,
@@ -195,6 +219,8 @@ pub struct ResolvedObservation {
     pub claim: ClaimId,
     pub evidence_subject: String,
     pub provenance: Provenance,
+    #[serde(skip_serializing)]
+    pub(crate) compatibility: ResolvedObservationCompatibility,
 }
 
 /// Evidence packet identity and typed observations retained by HIR.
@@ -242,23 +268,79 @@ pub struct ExpandedIonicComponent {
 /// Fully resolved authored claim before structural execution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedReactionClaim {
-    pub source: SourceReference,
-    pub catalogue: CatalogueReference,
-    pub reaction: String,
-    pub reactants: BTreeMap<String, ResolvedStructureBinding>,
-    pub products: BTreeMap<String, ResolvedStructureBinding>,
-    pub equation: Vec<ResolvedEquationTerm>,
+    pub(crate) source: SourceReference,
+    pub(crate) catalogue: CatalogueReference,
+    pub(crate) reaction: String,
+    pub(crate) reactants: BTreeMap<String, ResolvedStructureBinding>,
+    pub(crate) products: BTreeMap<String, ResolvedStructureBinding>,
+    pub(crate) equation: Vec<ResolvedEquationTerm>,
     #[serde(skip_serializing)]
-    pub declaration: ReactionDeclaration,
-    pub model: ResolvedModel,
-    pub evidence: ResolvedEvidence,
-    pub rule: ResolvedRuleApplication,
+    pub(crate) declaration: ReactionDeclaration,
+    pub(crate) model: ResolvedModel,
+    pub(crate) evidence: ResolvedEvidence,
+    pub(crate) rule: ResolvedRuleApplication,
+}
+
+impl ResolvedReactionClaim {
+    #[must_use]
+    pub const fn source(&self) -> &SourceReference {
+        &self.source
+    }
+    #[must_use]
+    pub const fn catalogue(&self) -> &CatalogueReference {
+        &self.catalogue
+    }
+    #[must_use]
+    pub fn reaction(&self) -> &str {
+        &self.reaction
+    }
+    #[must_use]
+    pub const fn reactants(&self) -> &BTreeMap<String, ResolvedStructureBinding> {
+        &self.reactants
+    }
+    #[must_use]
+    pub const fn products(&self) -> &BTreeMap<String, ResolvedStructureBinding> {
+        &self.products
+    }
+    #[must_use]
+    pub fn equation(&self) -> &[ResolvedEquationTerm] {
+        &self.equation
+    }
+    #[must_use]
+    pub const fn declaration(&self) -> &ReactionDeclaration {
+        &self.declaration
+    }
+    #[must_use]
+    pub const fn model(&self) -> &ResolvedModel {
+        &self.model
+    }
+    #[must_use]
+    pub const fn evidence(&self) -> &ResolvedEvidence {
+        &self.evidence
+    }
+    #[must_use]
+    pub const fn rule(&self) -> &ResolvedRuleApplication {
+        &self.rule
+    }
 }
 
 /// Typed deterministic structural HIR. It contains no executed graph states.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExpandedStructuralReaction {
-    pub schema_version: u32,
+    pub(crate) schema_version: u32,
+    pub(crate) claim: ResolvedReactionClaim,
+    pub(crate) reactant_instances: BTreeMap<String, ExpandedInstance>,
+    pub(crate) product_instances: BTreeMap<String, ExpandedInstance>,
+    pub(crate) atom_provenance: BTreeMap<AtomId, Provenance>,
+    pub(crate) mapping: AtomMapping,
+    pub(crate) mapping_entry_provenance: BTreeMap<AtomId, CatalogueOrigin>,
+    pub(crate) mapping_provenance: Provenance,
+    pub(crate) operations: Vec<ExpandedOperation>,
+    pub(crate) premises: BTreeSet<PremiseId>,
+    pub(crate) premise_provenance: BTreeMap<PremiseId, CatalogueOrigin>,
+}
+
+pub(crate) struct ExpandedStructuralReactionParts {
     pub claim: ResolvedReactionClaim,
     pub reactant_instances: BTreeMap<String, ExpandedInstance>,
     pub product_instances: BTreeMap<String, ExpandedInstance>,
@@ -288,6 +370,86 @@ impl Deref for TrustedExpandedStructuralReaction {
 }
 
 impl ExpandedStructuralReaction {
+    #[must_use]
+    pub const fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+    #[must_use]
+    pub const fn claim(&self) -> &ResolvedReactionClaim {
+        &self.claim
+    }
+    #[must_use]
+    pub const fn reactant_instances(&self) -> &BTreeMap<String, ExpandedInstance> {
+        &self.reactant_instances
+    }
+    #[must_use]
+    pub const fn product_instances(&self) -> &BTreeMap<String, ExpandedInstance> {
+        &self.product_instances
+    }
+    #[must_use]
+    pub const fn atom_provenance(&self) -> &BTreeMap<AtomId, Provenance> {
+        &self.atom_provenance
+    }
+    #[must_use]
+    pub const fn mapping(&self) -> &AtomMapping {
+        &self.mapping
+    }
+    #[must_use]
+    pub const fn mapping_entry_provenance(&self) -> &BTreeMap<AtomId, CatalogueOrigin> {
+        &self.mapping_entry_provenance
+    }
+    #[must_use]
+    pub const fn mapping_provenance(&self) -> &Provenance {
+        &self.mapping_provenance
+    }
+    #[must_use]
+    pub fn operations(&self) -> &[ExpandedOperation] {
+        &self.operations
+    }
+    #[must_use]
+    pub const fn premises(&self) -> &BTreeSet<PremiseId> {
+        &self.premises
+    }
+    #[must_use]
+    pub const fn premise_provenance(&self) -> &BTreeMap<PremiseId, CatalogueOrigin> {
+        &self.premise_provenance
+    }
+
+    pub(crate) fn checked(
+        parts: ExpandedStructuralReactionParts,
+        catalogue: &ValidatedCatalogueBundle,
+    ) -> Result<Self, ExpansionError> {
+        let ExpandedStructuralReactionParts {
+            claim,
+            reactant_instances,
+            product_instances,
+            atom_provenance,
+            mapping,
+            mapping_entry_provenance,
+            mapping_provenance,
+            operations,
+            premises,
+            premise_provenance,
+        } = parts;
+        let expanded = Self {
+            schema_version: 1,
+            claim,
+            reactant_instances,
+            product_instances,
+            atom_provenance,
+            mapping,
+            mapping_entry_provenance,
+            mapping_provenance,
+            operations,
+            premises,
+            premise_provenance,
+        };
+        crate::claim_consistency::validate(&expanded, catalogue).map_err(|failure| {
+            ExpansionError::invalid(failure.expansion_code(), failure.message(), None)
+        })?;
+        Ok(expanded)
+    }
+
     /// Serializes the complete HIR, including exact source locations.
     ///
     /// # Errors

@@ -1060,7 +1060,7 @@ fn validate_request_source(
     )
     .map_err(|error| error.to_string())?;
     let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
-    let declaration = expanded.claim.declaration.clone();
+    let declaration = expanded.claim().declaration().clone();
     let current =
         CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
     let validated = validate_trusted(&expanded, catalogue).map_err(|error| error.to_string())?;
@@ -1077,13 +1077,13 @@ fn catalogue_macroscopic_reaction(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     catalogue: &TrustedCatalogue,
 ) -> Option<MacroscopicReaction> {
-    let rule = &expanded.claim.rule.rule;
+    let rule = &expanded.claim().rule().rule;
     let resolve = |binding: &str,
                    resolved: &chem_kernel::ResolvedStructureBinding,
                    role: MacroscopicMaterialRole| {
         let rule_role = expanded
-            .claim
-            .rule
+            .claim()
+            .rule()
             .bindings
             .values()
             .find(|candidate| candidate.binding == binding)
@@ -1099,15 +1099,15 @@ fn catalogue_macroscopic_reaction(
             })
     };
     let mut materials =
-        Vec::with_capacity(expanded.claim.reactants.len() + expanded.claim.products.len());
-    for (binding, material) in &expanded.claim.reactants {
+        Vec::with_capacity(expanded.claim().reactants().len() + expanded.claim().products().len());
+    for (binding, material) in expanded.claim().reactants() {
         materials.push(resolve(
             binding,
             material,
             MacroscopicMaterialRole::Reactant,
         )?);
     }
-    for (binding, material) in &expanded.claim.products {
+    for (binding, material) in expanded.claim().products() {
         materials.push(resolve(
             binding,
             material,

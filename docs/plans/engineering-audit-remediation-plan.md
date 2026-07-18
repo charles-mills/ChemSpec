@@ -64,6 +64,13 @@ The most important corrections to the report are:
 
 Verdict: **Confirmed; critical.**
 
+Status: **Completed 2026-07-18.** Expansion now has a single checked,
+crate-restricted constructor; proof-relevant claim and HIR fields have no
+public mutation path; and the kernel independently rechecks equation,
+formula/instance, declaration/context, and observation/provenance consistency
+before structural execution (`CHEMS-K003` through `CHEMS-K006`). Adversarial
+tests cover each learner-facing metadata class and constructor rejection.
+
 Evidence:
 
 - `ResolvedReactionClaim` and `ExpandedStructuralReaction` expose ordinary

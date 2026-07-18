@@ -1001,7 +1001,7 @@ mod tests {
             &evidence,
         )
         .expect("parsed declaration");
-        assert_eq!(outcome.declaration(), &parsed.claim.declaration);
+        assert_eq!(outcome.declaration(), parsed.claim().declaration());
     }
 
     #[test]
