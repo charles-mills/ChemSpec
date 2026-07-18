@@ -91,23 +91,6 @@ expansion, complete atom mapping, exact electron allocations, and the ordered
 structural-operation template. The kernel validates the expanded result in
 full; `by apply` cannot select or omit checks.
 
-## Documentation
-
-- [Documentation map](docs/README.md)
-- [Product specification](docs/product-spec.md)
-- [The `.chems` language](docs/chems-language.md)
-- [Normative `.chems` specification](docs/chems-specification.md)
-- [Structural architecture](docs/structural-chems-architecture.md)
-- [Generalized chemistry rules](docs/generalized-chemistry-rules.md)
-- [Trusted catalogue coverage](docs/catalogue-coverage.md)
-- [Chemistry engine](docs/chemistry-engine.md)
-- [System architecture](docs/system-architecture.md)
-- [Macroscopic 3D visual system](docs/macroscopic-visual-system.md)
-- [Agent workflow and providers](docs/agent-workflow.md)
-- [Active plans](docs/plans/README.md)
-- [Verification strategy](docs/verification.md)
-- [Conformance fixtures](conformance/README.md)
-
 ## Workspace
 
 The Rust workspace separates pure structural values, language tooling,
@@ -132,7 +115,7 @@ dynamic provider uses a Codex subscription through the local `codex` binary.
 Codex binary remains the default provider. The startup UI reserves BYOK/API as
 a possible provider-neutral backup, but it is not connected and neither a
 direct API implementation nor a hosted backend is required by the current
-[dynamic reaction rebuild](docs/plans/dynamic-reaction-rebuild-plan.md).
+dynamic reaction rebuild.
 
 Application preferences are selected on first launch and can be changed from
 the Builder settings menu. ChemSpec persists the app mode and whether chemical
