@@ -563,6 +563,7 @@ dependencies = [
  "chems-lang",
  "console_error_panic_hook",
  "directories",
+ "fastrand",
  "glam",
  "iced",
  "serde",

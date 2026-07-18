@@ -769,6 +769,17 @@ impl ReactionRequest {
         composition_catalogue::trusted_preview_by_structure_id(structure)
     }
 
+    /// The composer draft inventories that resolve to this request, in the
+    /// request's own participant order.
+    fn draft_atoms(self) -> [Vec<u8>; 2] {
+        if let Some(definition) = self.definition() {
+            return definition.participants.map(registry_participant_atoms);
+        }
+        self.legacy_participants()
+            .expect("non-registry requests define legacy participants")
+            .map(participant_atoms)
+    }
+
     /// Exact reviewed reactant graphs used only to identify particles in the
     /// 3D presentation. The models are projected from the same host-pinned
     /// catalogue as the product preview and never participate in validation.
@@ -829,6 +840,55 @@ pub fn requests() -> impl Iterator<Item = ReactionRequest> {
     ReactionRequest::ALL
         .into_iter()
         .chain((0..EXPERIENCE_DEFINITIONS.len()).map(ReactionRequest::registry))
+}
+
+fn participant_atoms(participant: DraftParticipant) -> Vec<u8> {
+    match participant {
+        DraftParticipant::Atom(atomic_number) => vec![atomic_number],
+        DraftParticipant::Composition(id) => composition_atoms(id),
+    }
+}
+
+fn composition_atoms(id: CompositionId) -> Vec<u8> {
+    composition_catalogue::SUPPORTED
+        .iter()
+        .find(|preview| preview.id == id)
+        .expect("request composition is recognized by the composer")
+        .atoms
+        .iter()
+        .flat_map(|(atomic_number, count)| std::iter::repeat_n(*atomic_number, usize::from(*count)))
+        .collect()
+}
+
+fn registry_participant_atoms(participant: ExperienceParticipantDefinition) -> Vec<u8> {
+    match participant {
+        ExperienceParticipantDefinition::Element(atomic_number) => vec![atomic_number],
+        ExperienceParticipantDefinition::Composition(formula) => composition_catalogue::SUPPORTED
+            .iter()
+            .find(|preview| preview.formula == formula)
+            .unwrap_or_else(|| panic!("registry composition `{formula}` is not recognized"))
+            .atoms
+            .iter()
+            .flat_map(|(atomic_number, count)| {
+                std::iter::repeat_n(*atomic_number, usize::from(*count))
+            })
+            .collect(),
+    }
+}
+
+/// Reactant atom inventories for every supported request, grouped by
+/// family. The dice roll samples a family first so one large family
+/// (the registry's ion pairs alone outnumber every showcase reaction)
+/// cannot drown out the visibly dramatic chemistry.
+pub fn roll_candidates() -> Vec<(ReactionFamily, Vec<[Vec<u8>; 2]>)> {
+    let mut by_family = BTreeMap::<ReactionFamily, Vec<[Vec<u8>; 2]>>::new();
+    for request in requests() {
+        by_family
+            .entry(request.family())
+            .or_default()
+            .push(request.draft_atoms());
+    }
+    by_family.into_iter().collect()
 }
 
 fn alkali_water_source(metal: AlkaliMetal) -> String {
@@ -1687,40 +1747,24 @@ mod tests {
     use super::*;
     use chem_domain::{Phase, RepresentationKind};
 
-    fn participant_atoms(participant: DraftParticipant) -> Vec<u8> {
-        match participant {
-            DraftParticipant::Atom(atomic_number) => vec![atomic_number],
-            DraftParticipant::Composition(id) => composition_atoms(id),
-        }
-    }
-
-    fn composition_atoms(id: CompositionId) -> Vec<u8> {
-        composition_catalogue::SUPPORTED
-            .iter()
-            .find(|preview| preview.id == id)
-            .expect("request composition is recognized by the composer")
-            .atoms
-            .iter()
-            .flat_map(|(atomic_number, count)| {
-                std::iter::repeat_n(*atomic_number, usize::from(*count))
-            })
-            .collect()
-    }
-
-    fn registry_participant_atoms(participant: ExperienceParticipantDefinition) -> Vec<u8> {
-        match participant {
-            ExperienceParticipantDefinition::Element(atomic_number) => vec![atomic_number],
-            ExperienceParticipantDefinition::Composition(formula) => {
-                composition_catalogue::SUPPORTED
-                    .iter()
-                    .find(|preview| preview.formula == formula)
-                    .unwrap_or_else(|| panic!("registry composition `{formula}` is not recognized"))
-                    .atoms
-                    .iter()
-                    .flat_map(|(atomic_number, count)| {
-                        std::iter::repeat_n(*atomic_number, usize::from(*count))
-                    })
-                    .collect()
+    #[test]
+    fn every_roll_candidate_resolves_to_runnable_chemistry() {
+        let pool = roll_candidates();
+        assert_eq!(pool.len(), 9, "every reaction family is rollable");
+        for (family, members) in pool {
+            assert!(!members.is_empty(), "family {family:?} has no candidates");
+            for [first, second] in members {
+                let first = standardize_elemental_draft(&first);
+                let second = standardize_elemental_draft(&second);
+                assert!(
+                    matches!(
+                        resolve_drafts(&first, &second),
+                        DraftResolution::Supported(_)
+                            | DraftResolution::Multiple(_)
+                            | DraftResolution::Screened(_)
+                    ),
+                    "family {family:?} candidate {first:?} + {second:?} does not resolve locally"
+                );
             }
         }
     }

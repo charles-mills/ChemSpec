@@ -26,6 +26,7 @@ rust-version = "1.96"
 version = "0.1.0"
 
 [workspace.dependencies]
+fastrand = "2"
 jsonschema = { version = "0.40", default-features = false }
 iced = { version = "=0.14.0", features = ["canvas", "svg", "tokio"] }
 num-bigint = { version = "0.4", features = ["serde"] }

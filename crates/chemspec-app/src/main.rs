@@ -2129,6 +2129,7 @@ impl App {
     fn builder_input_ready(&self) -> bool {
         if matches!(self.dynamic.build, DynamicBuildState::Running { .. })
             || reactant_composer::editing(&self.reactant_composer).is_some()
+            || reactant_composer::roll_engaged(&self.reactant_composer)
         {
             return false;
         }
@@ -2226,11 +2227,17 @@ impl App {
             return Task::none();
         }
         if !matches!(message, reactant_composer::Message::StartReactionRequested) {
-            // Presentation-only motion (ambient orbit and prompt fades) must
-            // never cancel a running build or wipe a finished result; only
-            // actual draft edits invalidate dynamic state.
+            // Presentation-only motion (ambient orbit, prompt fades, dice
+            // rolls) must never cancel a running build or wipe a finished
+            // result; only actual draft edits invalidate dynamic state.
             if message.is_presentation_only() {
+                let was_rolling = reactant_composer::roll_engaged(&self.reactant_composer);
                 reactant_composer::update(&mut self.reactant_composer, message);
+                // A finished roll has written both drafts; surface the
+                // "press space" prompt for the settled reaction.
+                if was_rolling && !reactant_composer::roll_engaged(&self.reactant_composer) {
+                    self.sync_builder_submit_prompt();
+                }
                 return Task::none();
             }
             self.cancel_dynamic_work();
@@ -4286,6 +4293,27 @@ impl App {
 
     #[allow(clippy::too_many_lines)]
     fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
+        // The die tumbles through its faces while a roll spins; idle it rests
+        // on one face and a press starts a roll.
+        let spin_ticks = reactant_composer::roll_spin_ticks(&self.reactant_composer);
+        let dice = Self::toolbar_tooltip(
+            button(icons::dice(
+                spin_ticks.map_or(0, |ticks| usize::try_from(ticks / 5).unwrap_or(0)),
+                20.0,
+                if spin_ticks.is_some() {
+                    color::ACCENT
+                } else {
+                    color::TEXT_SOFT
+                },
+            ))
+            .on_press_maybe(spin_ticks.is_none().then_some(Message::ReactantComposer(
+                reactant_composer::Message::RollRequested,
+            )))
+            .padding(spacing::XS)
+            .style(theme::secondary_button),
+            "Roll a random reaction",
+        );
+
         let conditions_selected =
             self.builder_panel == Some(BuilderPanel::Conditions) || self.dynamic.context.is_some();
         let conditions_color = if conditions_selected {
@@ -4388,6 +4416,7 @@ impl App {
         row![
             demo_disclaimer,
             space().width(Fill),
+            dice,
             sketch,
             conditions,
             help,
