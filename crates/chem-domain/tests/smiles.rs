@@ -25,7 +25,11 @@ fn organic_molecules_parse_with_implicit_hydrogens() {
     assert_eq!(ethanol.representation(), RepresentationKind::Molecular);
     assert_eq!(
         counts(&ethanol),
-        [("C".to_owned(), 2), ("H".to_owned(), 6), ("O".to_owned(), 1)]
+        [
+            ("C".to_owned(), 2),
+            ("H".to_owned(), 6),
+            ("O".to_owned(), 1)
+        ]
     );
 
     let ether = structure_from_smiles(id("t.ether"), "COC").expect("dimethyl ether");
@@ -49,10 +53,7 @@ fn organic_molecules_parse_with_implicit_hydrogens() {
 #[test]
 fn rings_parse_and_benzene_keeps_its_resonance_annotation() {
     let benzene = structure_from_smiles(id("t.benzene"), "C1=CC=CC=C1").expect("benzene");
-    assert_eq!(
-        counts(&benzene),
-        [("C".to_owned(), 6), ("H".to_owned(), 6)]
-    );
+    assert_eq!(counts(&benzene), [("C".to_owned(), 6), ("H".to_owned(), 6)]);
     // 6 ring bonds + 6 C-H bonds; the Kekulé alternation is delocalized.
     assert_eq!(benzene.graph().covalent_bonds().len(), 12);
     assert!(
@@ -67,8 +68,8 @@ fn rings_parse_and_benzene_keeps_its_resonance_annotation() {
 
 #[test]
 fn ions_parse_into_ionic_structures() {
-    let salt =
-        structure_from_smiles(id("t.ammonium-cyanate"), "[NH4+].[O-]C#N").expect("ammonium cyanate");
+    let salt = structure_from_smiles(id("t.ammonium-cyanate"), "[NH4+].[O-]C#N")
+        .expect("ammonium cyanate");
     assert_eq!(salt.representation(), RepresentationKind::Ionic);
     assert_eq!(salt.graph().system_net_charge(), 0);
     assert!(
@@ -82,13 +83,13 @@ fn ions_parse_into_ionic_structures() {
 #[test]
 fn out_of_subset_input_fails_closed() {
     for bad in [
-        "C%12CC%12",    // multi-digit ring closures stay out of subset
-        "CC(",          // unbalanced branch
-        "C1CC",         // unclosed ring
-        "C=",           // dangling bond
-        "CC.O",         // neutral multi-component
+        "C%12CC%12",     // multi-digit ring closures stay out of subset
+        "CC(",           // unbalanced branch
+        "C1CC",          // unclosed ring
+        "C=",            // dangling bond
+        "CC.O",          // neutral multi-component
         "[NH4+].[NH4+]", // non-zero net charge
-        "Xx",           // junk element
+        "Xx",            // junk element
         "",
     ] {
         assert!(
@@ -153,14 +154,10 @@ fn written_smiles_is_a_canonical_identity() {
         );
     }
     // And distinct isomers stay distinct.
-    let ethanol = smiles_from_structure(
-        &structure_from_smiles(id("t.canon"), "CCO").unwrap(),
-    )
-    .unwrap();
-    let ether = smiles_from_structure(
-        &structure_from_smiles(id("t.canon"), "COC").unwrap(),
-    )
-    .unwrap();
+    let ethanol =
+        smiles_from_structure(&structure_from_smiles(id("t.canon"), "CCO").unwrap()).unwrap();
+    let ether =
+        smiles_from_structure(&structure_from_smiles(id("t.canon"), "COC").unwrap()).unwrap();
     assert_ne!(ethanol, ether);
 }
 
@@ -184,7 +181,10 @@ fn double_bond_stereo_round_trips_and_distinguishes_isomers() {
             .graph()
             .covalent_bonds()
             .values()
-            .find_map(|bond| bond.stereo().map(chem_domain::DoubleBondStereo::arrangement))
+            .find_map(|bond| {
+                bond.stereo()
+                    .map(chem_domain::DoubleBondStereo::arrangement)
+            })
     };
     for (structure, expected) in [
         (&trans, StereoArrangement::Trans),
@@ -226,8 +226,14 @@ fn aromatic_lowercase_kekulizes() {
         15,
         "C7H8"
     );
-    assert!(structure_from_smiles(id("t.arom"), "c1ccc2ccccc2c1").is_some(), "naphthalene");
-    assert!(structure_from_smiles(id("t.arom"), "c1ccncc1").is_some(), "pyridine");
+    assert!(
+        structure_from_smiles(id("t.arom"), "c1ccc2ccccc2c1").is_some(),
+        "naphthalene"
+    );
+    assert!(
+        structure_from_smiles(id("t.arom"), "c1ccncc1").is_some(),
+        "pyridine"
+    );
     // Kekulization is structural, not thermodynamic: strained rings with
     // a valid matching (cyclobutadiene) parse; only unmatchable notation
     // fails closed.
@@ -250,7 +256,10 @@ fn tetrahedral_chirality_round_trips_and_distinguishes_enantiomers() {
         .iter()
         .map(|structure| structure.graph().digest().unwrap().to_hex())
         .collect();
-    assert_ne!(digests[0], digests[1], "enantiomers are distinct identities");
+    assert_ne!(
+        digests[0], digests[1],
+        "enantiomers are distinct identities"
+    );
     assert_ne!(digests[0], digests[2]);
     // The canonical form is a fixed point and distinguishes enantiomers.
     let written_r = smiles_from_structure(&r_form).expect("writable");

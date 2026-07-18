@@ -98,9 +98,9 @@ fn branch_signature(
     visited.insert(centre);
     visited.insert(branch);
     let mut sphere = vec![branch.clone()];
-    let mut signature = vec![vec![
-        atomic_number(graph.atoms().get(branch)?.element().as_str())?,
-    ]];
+    let mut signature = vec![vec![atomic_number(
+        graph.atoms().get(branch)?.element().as_str(),
+    )?]];
     while !sphere.is_empty() {
         let mut next = Vec::new();
         let mut numbers = Vec::new();

@@ -305,7 +305,10 @@ fn stereo_prefixed(structure: &chem_domain::StructureDefinition, name: String) -
         .graph()
         .covalent_bonds()
         .values()
-        .filter_map(|bond| bond.stereo().map(chem_domain::DoubleBondStereo::arrangement))
+        .filter_map(|bond| {
+            bond.stereo()
+                .map(chem_domain::DoubleBondStereo::arrangement)
+        })
         .collect();
     let centres: Vec<_> = structure
         .graph()
@@ -496,10 +499,9 @@ fn segment_formula(
         if rest.len() < length || !rest[..length].iter().all(u8::is_ascii_lowercase) {
             continue;
         }
-        let Some(symbol) = chem_domain::ELEMENT_SYMBOLS
-            .iter()
-            .find(|symbol| symbol.len() == length && symbol.to_lowercase().as_bytes() == &rest[..length])
-        else {
+        let Some(symbol) = chem_domain::ELEMENT_SYMBOLS.iter().find(|symbol| {
+            symbol.len() == length && symbol.to_lowercase().as_bytes() == &rest[..length]
+        }) else {
             continue;
         };
         let digits = rest[length..]
@@ -782,7 +784,6 @@ mod tests {
             Some("iron(II) sulfate")
         );
     }
-
 
     #[test]
     fn case_insensitive_formulas_resolve_common_classroom_input() {

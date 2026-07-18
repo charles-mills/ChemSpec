@@ -1,3 +1,4 @@
 /target/
+/crates/chemspec-app/dist/
 *.chems~
 

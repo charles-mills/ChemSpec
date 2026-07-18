@@ -35,8 +35,7 @@ pub use claim::{
     ClaimObservationPredicate, ClaimPhase, ClaimProduct, ClaimSource, LabelledStructure,
     MechanismCleavageAllocation, MechanismEscalationRequest, MechanismEscalationResponse,
     MechanismHomolytic, MechanismMapping, MechanismOperation, MechanismSpecies, NoReactionReason,
-    ReactionClaim,
-    StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
+    ReactionClaim, StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
 };
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,

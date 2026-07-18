@@ -8,10 +8,10 @@
 //! lowercase, no stereochemistry, no isotopes. Anything outside the subset
 //! parses to None: a wrong molecule is worse than none.
 
+use crate::formula::ElementSymbol;
 use crate::generate::{SolvedUnit, build_molecular, ionic_structure};
 use crate::identity::{AtomId, StructureId};
 use crate::periodic::{ELEMENT_SYMBOLS, valence_electrons_of};
-use crate::formula::ElementSymbol;
 use crate::structural::{BondOrder, ElementInventory, RepresentationKind, StructureDefinition};
 
 /// Elements writable without brackets, with their implicit-hydrogen valence.
@@ -89,10 +89,10 @@ fn parse(smiles: &str) -> Option<Vec<Component>> {
     let mut position = 0;
 
     let bond = |component: &mut Component,
-                    previous: &mut Option<usize>,
-                    pending: &mut Option<u8>,
-                    direction: &mut Option<bool>,
-                    next: usize| {
+                previous: &mut Option<usize>,
+                pending: &mut Option<u8>,
+                direction: &mut Option<bool>,
+                next: usize| {
         if let Some(left) = *previous {
             let explicit = pending.take();
             let aromatic_default = explicit.is_none()
@@ -194,8 +194,7 @@ fn parse(smiles: &str) -> Option<Vec<Component>> {
             b'[' => {
                 let close = position + bytes[position..].iter().position(|byte| *byte == b']')?;
                 let atom = parse_bracket(&smiles[position + 1..close])?;
-                let hydrogen_marker =
-                    atom.chiral.is_some() && atom.explicit_hydrogens == Some(1);
+                let hydrogen_marker = atom.chiral.is_some() && atom.explicit_hydrogens == Some(1);
                 if atom.chiral.is_some() && atom.explicit_hydrogens.unwrap_or(0) > 1 {
                     // A stereocentre cannot carry two hydrogens.
                     return None;
@@ -393,10 +392,7 @@ fn parse_bracket(inner: &str) -> Option<ParsedAtom> {
     };
     let mut hydrogens = 0_u8;
     if let Some(after) = rest.strip_prefix('H') {
-        let digits = after
-            .bytes()
-            .take_while(u8::is_ascii_digit)
-            .count();
+        let digits = after.bytes().take_while(u8::is_ascii_digit).count();
         hydrogens = if digits == 0 {
             1
         } else {
@@ -685,9 +681,11 @@ fn decorate_molecular(
         .atoms()
         .values()
         .map(|atom| {
-            let slot = chirality.iter().find_map(|(index, neighbours, handedness)| {
-                (atom_id(*index)? == *atom.id()).then_some((neighbours, *handedness))
-            });
+            let slot = chirality
+                .iter()
+                .find_map(|(index, neighbours, handedness)| {
+                    (atom_id(*index)? == *atom.id()).then_some((neighbours, *handedness))
+                });
             match slot {
                 Some((neighbours, handedness)) => {
                     let listed = [
@@ -794,19 +792,14 @@ const fn order_symbol(order: BondOrder) -> &'static str {
 }
 
 #[allow(clippy::too_many_lines)]
-fn write_component(
-    structure: &StructureDefinition,
-    members: &[&AtomId],
-) -> Option<String> {
+fn write_component(structure: &StructureDefinition, members: &[&AtomId]) -> Option<String> {
     use std::collections::{BTreeMap, BTreeSet};
     let graph = structure.graph();
     let member_set: BTreeSet<_> = members.iter().copied().collect();
     // Adjacency over heavy atoms; hydrogens fold into counts.
-    let mut neighbours: BTreeMap<&AtomId, Vec<(&AtomId, BondOrder)>> =
-        BTreeMap::new();
+    let mut neighbours: BTreeMap<&AtomId, Vec<(&AtomId, BondOrder)>> = BTreeMap::new();
     let mut hydrogen_counts: BTreeMap<&AtomId, u8> = BTreeMap::new();
-    let is_hydrogen =
-        |id: &AtomId| graph.atoms()[id].element().as_str() == "H";
+    let is_hydrogen = |id: &AtomId| graph.atoms()[id].element().as_str() == "H";
     for bond in graph.covalent_bonds().values() {
         let (left, right) = (bond.left(), bond.right());
         if !member_set.contains(left) || !member_set.contains(right) {
@@ -814,8 +807,14 @@ fn write_component(
         }
         match (is_hydrogen(left), is_hydrogen(right)) {
             (false, false) => {
-                neighbours.entry(left).or_default().push((right, bond.order()));
-                neighbours.entry(right).or_default().push((left, bond.order()));
+                neighbours
+                    .entry(left)
+                    .or_default()
+                    .push((right, bond.order()));
+                neighbours
+                    .entry(right)
+                    .or_default()
+                    .push((left, bond.order()));
             }
             (false, true) => *hydrogen_counts.entry(left).or_default() += 1,
             (true, false) => *hydrogen_counts.entry(right).or_default() += 1,
@@ -835,9 +834,7 @@ fn write_component(
     for list in neighbours.values_mut() {
         list.sort_by_key(|(neighbour, order)| (ranks.get(*neighbour).copied(), *order));
     }
-    let start = *heavy
-        .iter()
-        .min_by_key(|id| ranks.get(**id).copied())?;
+    let start = *heavy.iter().min_by_key(|id| ranks.get(**id).copied())?;
 
     // Iterative DFS emitting atoms, branches, and ring-closure digits.
     let mut visited = BTreeSet::new();
@@ -850,8 +847,7 @@ fn write_component(
     };
     // First pass: find ring-closure edges via DFS.
     let mut stack = vec![start];
-    let mut parents: BTreeMap<&AtomId, &AtomId> =
-        BTreeMap::new();
+    let mut parents: BTreeMap<&AtomId, &AtomId> = BTreeMap::new();
     visited.insert(start);
     while let Some(current) = stack.pop() {
         for (neighbour, order) in neighbours.get(current).into_iter().flatten() {
@@ -896,8 +892,7 @@ fn write_component(
         if !member_set.contains(bond.left()) {
             continue;
         }
-        let right_position =
-            stereo.arrangement() == crate::structural::StereoArrangement::Cis;
+        let right_position = stereo.arrangement() == crate::structural::StereoArrangement::Cis;
         for (endpoint, reference, position) in [
             (bond.left(), stereo.left_reference(), true),
             (bond.right(), stereo.right_reference(), right_position),
@@ -986,9 +981,7 @@ fn canonical_ranks<'a>(
                         .get(*id)
                         .into_iter()
                         .flatten()
-                        .map(|(neighbour, order)| {
-                            format!("{:?}:{}", order, ranks[*neighbour])
-                        })
+                        .map(|(neighbour, order)| format!("{:?}:{}", order, ranks[*neighbour]))
                         .collect();
                     around.sort();
                     (*id, format!("{}<{}>", ranks[*id], around.join(",")))
@@ -1074,7 +1067,11 @@ fn emit(
             Some((reference, position)) if *order == BondOrder::Single => {
                 // '/' means the later-written atom sits up from the
                 // earlier one; flip when the reference is written first.
-                let up = if *child == reference { *position } else { !*position };
+                let up = if *child == reference {
+                    *position
+                } else {
+                    !*position
+                };
                 output.push(if up { '/' } else { '\\' });
             }
             _ => output.push_str(order_symbol(*order)),

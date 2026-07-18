@@ -31,8 +31,8 @@ fn systematic_names_parse_to_the_expected_structures() {
         ("chloromethane", "CCl"),
         ("hex-3-yne", "CCC#CCC"),
     ] {
-        let named = structure_of(name)
-            .unwrap_or_else(|| panic!("{name} must parse to a structure"));
+        let named =
+            structure_of(name).unwrap_or_else(|| panic!("{name} must parse to a structure"));
         let direct = structure_from_smiles(StructureId::new("t.iupac").unwrap(), smiles)
             .expect("reference smiles parses");
         assert_eq!(
@@ -65,18 +65,15 @@ fn positional_names_produce_distinct_isomers() {
 #[test]
 fn out_of_subset_names_fail_closed() {
     for bad in [
-        "nonane",              // root beyond C8
-        "but-4-ene",           // locant off the chain
-        "dimethylbutane",      // missing locants
-        "2-methyl",            // no root/suffix
-        "benzenol",            // aromatic suffix not in subset
-        "butan-2,3-diol",      // multiple hydroxyls
+        "nonane",         // root beyond C8
+        "but-4-ene",      // locant off the chain
+        "dimethylbutane", // missing locants
+        "2-methyl",       // no root/suffix
+        "benzenol",       // aromatic suffix not in subset
+        "butan-2,3-diol", // multiple hydroxyls
         "gibberish",
         "",
     ] {
-        assert!(
-            smiles_for_name(bad).is_none(),
-            "{bad:?} must not parse"
-        );
+        assert!(smiles_for_name(bad).is_none(), "{bad:?} must not parse");
     }
 }

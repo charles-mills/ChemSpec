@@ -921,10 +921,7 @@ fn generate_canonical_molecule(
 /// only reachable by name. Spellings are matched lowercase with collapsed
 /// whitespace.
 const NAMED_MOLECULES: [(&[&str], &str); 28] = [
-    (
-        &["ammonium cyanate", "nh4ocn", "nh4cno"],
-        "[NH4+].[O-]C#N",
-    ),
+    (&["ammonium cyanate", "nh4ocn", "nh4cno"], "[NH4+].[O-]C#N"),
     (&["methanol", "methyl alcohol"], "CO"),
     (&["ethanol", "ethyl alcohol"], "CCO"),
     (&["dimethyl ether", "methoxymethane"], "COC"),
@@ -951,7 +948,10 @@ const NAMED_MOLECULES: [(&[&str], &str); 28] = [
     (&["cyclobutane"], "C1CCC1"),
     (&["cyclopentane"], "C1CCCC1"),
     (&["cyclohexane"], "C1CCCCC1"),
-    (&["glycerol", "glycerine", "propane-1,2,3-triol"], "OCC(O)CO"),
+    (
+        &["glycerol", "glycerine", "propane-1,2,3-triol"],
+        "OCC(O)CO",
+    ),
 ];
 
 /// Every named molecule as (accepted spellings, subset SMILES); the first
@@ -1471,7 +1471,10 @@ mod tests {
             ("C2H5", vec![("C", 2), ("H", 5)]),
             ("HO2", vec![("H", 1), ("O", 2)]),
         ] {
-            assert!(structure(&pairs).is_none(), "{label} has no valid structure");
+            assert!(
+                structure(&pairs).is_none(),
+                "{label} has no valid structure"
+            );
         }
         // The sibling even-electron compounds still resolve.
         assert!(structure(&[("C", 3), ("H", 6)]).is_some(), "propene");

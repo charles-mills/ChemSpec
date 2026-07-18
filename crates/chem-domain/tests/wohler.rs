@@ -29,9 +29,8 @@ fn ch4n2o_generates_urea() {
         .values()
         .filter(|bond| bond.order() == BondOrder::Double)
         .collect::<Vec<_>>();
-    let element_of = |atom_id: &chem_domain::AtomId| {
-        graph.atoms()[atom_id].element().as_str().to_owned()
-    };
+    let element_of =
+        |atom_id: &chem_domain::AtomId| graph.atoms()[atom_id].element().as_str().to_owned();
     assert_eq!(doubles.len(), 1, "urea has exactly one double bond");
     let mut ends = [
         element_of(doubles[0].left()),

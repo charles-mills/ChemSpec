@@ -1582,10 +1582,8 @@ fn bridged_layout(
     perimeter.push((*second_head).to_owned());
     perimeter.extend(paths[1].iter().rev().cloned());
     let ring_center = place_ring(frame, &perimeter, &[], center, gap, positions);
-    let (Some(&head_a), Some(&head_b)) = (
-        positions.get(*first_head),
-        positions.get(*second_head),
-    ) else {
+    let (Some(&head_a), Some(&head_b)) = (positions.get(*first_head), positions.get(*second_head))
+    else {
         return None;
     };
     let edge = positions
@@ -1720,9 +1718,7 @@ fn ring_systems(adjacency: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<Ve
     if edges < adjacency.len() {
         return None;
     }
-    let core = core_degrees(adjacency)
-        .into_keys()
-        .collect::<BTreeSet<_>>();
+    let core = core_degrees(adjacency).into_keys().collect::<BTreeSet<_>>();
     if core.len() < 3 {
         return None;
     }
@@ -2006,10 +2002,7 @@ fn draw_relationship_transition(
             union_frame.atoms.push(atom.clone());
         }
     }
-    let reveal_of = |id: &str| match (
-        before_ionic.contains_key(id),
-        after_ionic.contains_key(id),
-    ) {
+    let reveal_of = |id: &str| match (before_ionic.contains_key(id), after_ionic.contains_key(id)) {
         (true, true) => 1.0,
         (false, true) => progress,
         (true, false) => 1.0 - progress,
@@ -2109,10 +2102,7 @@ struct LatticeGroup {
     pairs: Vec<(usize, usize)>,
 }
 
-fn member_component(
-    frame: &StructuralFrame,
-    member: (usize, usize),
-) -> &RenderIonicComponent {
+fn member_component(frame: &StructuralFrame, member: (usize, usize)) -> &RenderIonicComponent {
     &frame.ionic_associations[member.0].components[member.1]
 }
 
@@ -3077,9 +3067,8 @@ fn draw_metallic_electron_transfer(
     for index in targets.len()..usize::from(count) {
         let offset =
             f32::from(u8::try_from(index).unwrap_or(u8::MAX)) - (f32::from(count) - 1.0) * 0.5;
-        targets.push(
-            *acceptor_center - along * 26.0 * scale + perpendicular * offset * 9.0 * scale,
-        );
+        targets
+            .push(*acceptor_center - along * 26.0 * scale + perpendicular * offset * 9.0 * scale);
     }
     for (index, target) in targets.into_iter().enumerate().take(usize::from(count)) {
         let index = u8::try_from(index).unwrap_or(u8::MAX);
@@ -3749,8 +3738,12 @@ mod tests {
         assert_eq!(group.members.len(), association.components.len());
         assert!(group.pairs.len() >= association.components.len() - 1);
         assert!(group.pairs.iter().all(|(left, right)| {
-            member_component(&frame, group.members[*left]).charge.signum()
-                != member_component(&frame, group.members[*right]).charge.signum()
+            member_component(&frame, group.members[*left])
+                .charge
+                .signum()
+                != member_component(&frame, group.members[*right])
+                    .charge
+                    .signum()
         }));
         assert_eq!(connected_components(&frame).len(), 1);
 
@@ -4185,9 +4178,8 @@ mod tests {
         }
 
         // Every hydrogen hangs outside the ring system.
-        let system_centroid = centroid_of(&[
-            "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10",
-        ]);
+        let system_centroid =
+            centroid_of(&["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"]);
         for index in 1..=8 {
             assert!(
                 vector_magnitude(positions[&format!("h{index}")] - system_centroid)

@@ -158,7 +158,8 @@ impl Editable {
     fn atom_text(&self, index: usize) -> String {
         let symbol = &self.symbols[index];
         let heavy_orders: u8 = self.neighbours(index).map(|(_, order)| order).sum();
-        let implicit = chem_domain::subset_valence(symbol).map(|valence| valence.saturating_sub(heavy_orders));
+        let implicit =
+            chem_domain::subset_valence(symbol).map(|valence| valence.saturating_sub(heavy_orders));
         if implicit == Some(self.hydrogens[index]) {
             return symbol.clone();
         }
@@ -311,8 +312,7 @@ pub(crate) fn hydroxyls(molecule: &Editable) -> Vec<(usize, usize)> {
             let heavy: Vec<(usize, u8)> = molecule.neighbours(oxygen).collect();
             match heavy.as_slice() {
                 [(carbon, 1)]
-                    if molecule.symbols[*carbon] == "C"
-                        && !carboxyl_carbons.contains(carbon) =>
+                    if molecule.symbols[*carbon] == "C" && !carboxyl_carbons.contains(carbon) =>
                 {
                     Some((*carbon, oxygen))
                 }
@@ -392,7 +392,12 @@ pub(crate) fn dehydrate(molecule: &Editable) -> Option<Editable> {
         .symbols
         .iter()
         .any(|symbol| symbol != "C" && symbol != "O")
-        || molecule.symbols.iter().filter(|symbol| *symbol == "O").count() != 1
+        || molecule
+            .symbols
+            .iter()
+            .filter(|symbol| *symbol == "O")
+            .count()
+            != 1
         || !carboxyls(molecule).is_empty()
     {
         return None;
@@ -491,7 +496,9 @@ pub(crate) fn esterify(acid: &Editable, alcohol: &Editable) -> Option<Editable> 
             .map(|(left, right, order)| (left + offset, right + offset, *order)),
     );
     product.hydrogens[offset + alcohol_oxygen] -= 1;
-    product.bonds.push((acid_carbon, offset + alcohol_oxygen, 1));
+    product
+        .bonds
+        .push((acid_carbon, offset + alcohol_oxygen, 1));
     Some(product)
 }
 
@@ -541,7 +548,9 @@ pub(crate) fn hydrohalogenate(molecule: &Editable, halogen: &str) -> Option<Edit
         product.hydrogens[hydrogen_to] += 1;
         product.symbols.push(halogen.to_owned());
         product.hydrogens.push(0);
-        product.bonds.push((halogen_to, product.symbols.len() - 1, 1));
+        product
+            .bonds
+            .push((halogen_to, product.symbols.len() - 1, 1));
         product
     };
     match molecule.hydrogens[left].cmp(&molecule.hydrogens[right]) {
@@ -607,21 +616,17 @@ pub(crate) fn hydrolyse_ester(molecule: &Editable) -> Option<(Editable, Editable
     let link = ester_link(molecule)?;
     // Split the graph at the acyl-oxygen bond.
     let mut split = molecule.clone();
-    split
-        .bonds
-        .retain(|(l, r, _)| {
-            !((*l == link.acyl_carbon && *r == link.bridge_oxygen)
-                || (*r == link.acyl_carbon && *l == link.bridge_oxygen))
-        });
+    split.bonds.retain(|(l, r, _)| {
+        !((*l == link.acyl_carbon && *r == link.bridge_oxygen)
+            || (*r == link.acyl_carbon && *l == link.bridge_oxygen))
+    });
     split.hydrogens[link.bridge_oxygen] += 1;
     let (mut acid, alcohol_side) = split_components(&split, link.acyl_carbon)?;
     // The acid side gains the water's hydroxyl on its acyl carbon.
     let acyl_local = acid.1;
     acid.0.symbols.push("O".to_owned());
     acid.0.hydrogens.push(1);
-    acid.0
-        .bonds
-        .push((acyl_local, acid.0.symbols.len() - 1, 1));
+    acid.0.bonds.push((acyl_local, acid.0.symbols.len() - 1, 1));
     Some((acid.0, alcohol_side))
 }
 
@@ -656,7 +661,10 @@ fn split_components(molecule: &Editable, marker: usize) -> Option<((Editable, us
         let indices: Vec<usize> = (0..count).filter(|i| component[*i] == label).collect();
         let local = |global: usize| indices.iter().position(|i| *i == global);
         Editable {
-            symbols: indices.iter().map(|i| molecule.symbols[*i].clone()).collect(),
+            symbols: indices
+                .iter()
+                .map(|i| molecule.symbols[*i].clone())
+                .collect(),
             hydrogens: indices.iter().map(|i| molecule.hydrogens[*i]).collect(),
             bonds: molecule
                 .bonds

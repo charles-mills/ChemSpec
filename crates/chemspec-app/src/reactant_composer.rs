@@ -849,7 +849,7 @@ pub fn set_sketched_reactant(state: &mut State, atoms: Vec<u8>, smiles: String) 
     sync_ambient_presentations(state);
 }
 
-#[cfg(test)]
+#[cfg(any(test, target_arch = "wasm32"))]
 pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
     state.drafts = drafts.map(|atoms| ReactantDraft {
         atoms,
