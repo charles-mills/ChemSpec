@@ -977,6 +977,9 @@ pub enum AssetProfile {
     /// Authored solution transition, metal erosion, surface deposition, and
     /// detached-flake modules for a validated metal-displacement process.
     MetalDisplacementAssembly,
+    /// Authored granular reactants, mixing tool, optional warm reaction front,
+    /// ceramic vessel, and persistent solid product.
+    SolidSolidSynthesisAssembly,
     Beaker,
     TestTube,
     ConicalFlask,
@@ -1129,6 +1132,17 @@ pub struct MetalDisplacementVisualProfile {
     pub final_solution: BoundVisualColour,
     pub original_metal: BoundVisualColour,
     pub deposited_metal: BoundVisualColour,
+}
+
+/// Exact validated material bindings for the reusable solid-solid synthesis
+/// clip. The optional reaction-front cue is presentation-only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SolidSolidSynthesisVisualProfile {
+    pub formation_ordinal: u16,
+    pub reactant_a: BoundVisualColour,
+    pub reactant_b: BoundVisualColour,
+    pub product: BoundVisualColour,
+    pub show_reaction_front: bool,
 }
 
 /// Resolve the visual interpretation of a reviewed `.chems` colour value.
@@ -1448,6 +1462,9 @@ pub struct PresentationProfile {
     /// Exact cross-side material bindings for an authorized metal-displacement
     /// assembly. `None` keeps the ordinary reusable-effect renderer.
     pub metal_displacement: Option<MetalDisplacementVisualProfile>,
+    /// Exact solid reactant and product bindings for an authorized generic
+    /// combination assembly.
+    pub solid_solid_synthesis: Option<SolidSolidSynthesisVisualProfile>,
     /// Optional deterministic physical separation shown only after the
     /// validated reaction state has completed.
     pub post_process: Option<MacroscopicProcess>,
@@ -1533,6 +1550,8 @@ pub enum MacroscopicProcess {
     /// A solid metal becomes the cation in an aqueous ionic product while the
     /// solution's original metal cation becomes a different solid metal.
     MetalDisplacement,
+    /// Exactly two solid reactants combine into one solid chemical product.
+    SolidSolidSynthesis,
     CompleteCombustion,
     /// Validated combustion whose exact gaseous products include carbon
     /// monoxide. The renderer does not infer this from a species name.
@@ -1639,6 +1658,7 @@ pub fn compile_phase_driven_profile(
             | MacroscopicProcess::GasEvolutionLiquidLiquid
             | MacroscopicProcess::GasEvolutionSolidLiquid
             | MacroscopicProcess::MetalDisplacement
+            | MacroscopicProcess::SolidSolidSynthesis
             | MacroscopicProcess::SolventEvaporationCrystallization
             | MacroscopicProcess::SurfaceOxidation,
         )
@@ -2128,6 +2148,27 @@ pub fn compile_phase_driven_profile(
             );
         }
     }
+    if reaction.process == Some(MacroscopicProcess::SolidSolidSynthesis)
+        && !effects
+            .iter()
+            .any(|effect| effect.effect == EffectProfile::SolidFormation)
+    {
+        let formation_ordinal =
+            first_product_assignment_ordinal(frames).unwrap_or_else(|| final_ordinal.min(1));
+        for effect in [
+            EffectProfile::SolidFormation,
+            EffectProfile::ReactionActivity,
+        ] {
+            push_process_effect(
+                &mut effects,
+                effect,
+                MacroscopicProcess::SolidSolidSynthesis,
+                formation_ordinal,
+                final_ordinal,
+                reaction.intensity,
+            );
+        }
+    }
     if let Some(
         process @ (MacroscopicProcess::CompleteCombustion
         | MacroscopicProcess::IncompleteCombustion),
@@ -2176,6 +2217,7 @@ pub fn compile_phase_driven_profile(
         precipitation: None,
         gas_evolution: None,
         metal_displacement: None,
+        solid_solid_synthesis: None,
         post_process: (reaction.process
             == Some(MacroscopicProcess::SolventEvaporationCrystallization))
         .then_some(MacroscopicProcess::SolventEvaporationCrystallization),
@@ -2185,6 +2227,7 @@ pub fn compile_phase_driven_profile(
     authorize_precipitation_assembly(&mut profile, Some((reaction, &active)));
     authorize_gas_evolution_assembly(&mut profile, reaction, &active);
     authorize_metal_displacement_assembly(&mut profile, reaction, &active);
+    authorize_solid_solid_synthesis_assembly(&mut profile, reaction, &active);
     Ok(profile)
 }
 
@@ -2908,6 +2951,118 @@ fn authorize_metal_displacement_assembly(
     });
 }
 
+#[allow(clippy::too_many_lines)]
+fn authorize_solid_solid_synthesis_assembly(
+    profile: &mut PresentationProfile,
+    reaction: &MacroscopicReaction,
+    active: &ActiveObservations,
+) {
+    if reaction.process != Some(MacroscopicProcess::SolidSolidSynthesis)
+        || profile.precipitation.is_some()
+        || profile.gas_evolution.is_some()
+        || profile.metal_displacement.is_some()
+        || reaction.materials.iter().any(|material| {
+            material.role == MacroscopicMaterialRole::Product && material.phase == Phase::Gas
+        })
+        || profile.objects.iter().any(|object| {
+            object.role == SceneRole::Vessel
+                && matches!(
+                    object.asset,
+                    AssetProfile::CompleteCombustionAssembly
+                        | AssetProfile::IncompleteCombustionAssembly
+                )
+        })
+    {
+        return;
+    }
+    let reactants = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Reactant)
+        .collect::<Vec<_>>();
+    let [reactant_a, reactant_b] = reactants.as_slice() else {
+        return;
+    };
+    if reactant_a.phase != Phase::Solid || reactant_b.phase != Phase::Solid {
+        return;
+    }
+    let products = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Product)
+        .collect::<Vec<_>>();
+    let [product] = products.as_slice() else {
+        return;
+    };
+    if product.phase != Phase::Solid {
+        return;
+    }
+
+    let formation_observation = active
+        .get(&(product.binding.clone(), ObservationPredicate::Forms))
+        .map(|(ordinal, _)| {
+            (
+                *ordinal,
+                EffectAuthorization::Observation(ObservationPredicate::Forms),
+            )
+        });
+    let formation_process = profile.effects.iter().find_map(|effect| {
+        (effect.effect == EffectProfile::SolidFormation
+            && effect.trigger == ObservationPredicate::Forms
+            && effect.authorization
+                == EffectAuthorization::Process(MacroscopicProcess::SolidSolidSynthesis))
+        .then_some((effect.start_ordinal, effect.authorization))
+    });
+    let Some((formation_ordinal, authorization)) = formation_observation.or(formation_process)
+    else {
+        return;
+    };
+    if !profile.effects.iter().any(|effect| {
+        effect.effect == EffectProfile::SolidFormation
+            && effect.start_ordinal == formation_ordinal
+            && effect.authorization == authorization
+    }) {
+        return;
+    }
+    let Some(vessel) = profile
+        .objects
+        .iter_mut()
+        .find(|object| object.role == SceneRole::Vessel)
+    else {
+        return;
+    };
+    vessel.asset = AssetProfile::SolidSolidSynthesisAssembly;
+
+    let colour_for = |material: &MacroscopicMaterial, fallback| {
+        let base_colour = material.colour.unwrap_or(fallback);
+        let exact = active
+            .get(&(material.binding.clone(), ObservationPredicate::Colour))
+            .and_then(|(ordinal, value)| {
+                value
+                    .as_deref()
+                    .and_then(visual_colour)
+                    .map(|colour| (*ordinal, colour))
+            });
+        BoundVisualColour {
+            binding: material.binding.clone(),
+            base_colour,
+            colour: exact.map_or(base_colour, |(_, colour)| colour),
+            transition_ordinal: exact.map(|(ordinal, _)| ordinal),
+        }
+    };
+    profile.solid_solid_synthesis = Some(SolidSolidSynthesisVisualProfile {
+        formation_ordinal,
+        reactant_a: colour_for(reactant_a, NEUTRAL_METAL),
+        reactant_b: colour_for(reactant_b, OFF_WHITE_PRECIPITATE),
+        product: colour_for(product, NEUTRAL_DEPOSITED_METAL),
+        show_reaction_front: profile.effects.iter().any(|effect| {
+            effect.effect == EffectProfile::ReactionActivity
+                && effect.authorization
+                    == EffectAuthorization::Process(MacroscopicProcess::SolidSolidSynthesis)
+        }),
+    });
+}
+
 type ActiveObservationKey = (String, ObservationPredicate);
 type ActiveObservationValue = (u16, Option<String>);
 type ActiveObservations = BTreeMap<ActiveObservationKey, ActiveObservationValue>;
@@ -3348,6 +3503,7 @@ pub struct ScenePlan {
     pub precipitation: Option<PrecipitationVisualProfile>,
     pub gas_evolution: Option<GasEvolutionVisualProfile>,
     pub metal_displacement: Option<MetalDisplacementVisualProfile>,
+    pub solid_solid_synthesis: Option<SolidSolidSynthesisVisualProfile>,
     pub equation: String,
     pub annotations: Vec<MacroscopicAnnotation>,
     pub timeline: RealWorldTimeline,
@@ -3419,6 +3575,7 @@ pub fn compile_real_world_plan(
     validate_precipitation_profile(profile, &active_observations)?;
     validate_gas_evolution_profile(profile, &active_observations)?;
     validate_metal_displacement_profile(profile, &active_observations)?;
+    validate_solid_solid_synthesis_profile(profile, &active_observations)?;
     if profile.objects.iter().any(|object| {
         (object.role == SceneRole::Product
             && object.observation.is_none()
@@ -3459,6 +3616,7 @@ pub fn compile_real_world_plan(
         precipitation: profile.precipitation.clone(),
         gas_evolution: profile.gas_evolution.clone(),
         metal_displacement: profile.metal_displacement.clone(),
+        solid_solid_synthesis: profile.solid_solid_synthesis.clone(),
         equation: profile.equation.clone(),
         annotations,
         timeline,
@@ -3751,6 +3909,76 @@ fn validate_metal_displacement_profile(
     Ok(())
 }
 
+fn validate_solid_solid_synthesis_profile(
+    profile: &PresentationProfile,
+    active_observations: &[(u16, &FrameObservation)],
+) -> Result<(), PlanError> {
+    let assembly_selected = profile.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && object.asset == AssetProfile::SolidSolidSynthesisAssembly
+    });
+    let Some(synthesis) = &profile.solid_solid_synthesis else {
+        return if assembly_selected {
+            Err(PlanError::InvalidSolidSolidSynthesisProfile)
+        } else {
+            Ok(())
+        };
+    };
+    if !assembly_selected
+        || profile.precipitation.is_some()
+        || profile.gas_evolution.is_some()
+        || profile.metal_displacement.is_some()
+    {
+        return Err(PlanError::InvalidSolidSolidSynthesisProfile);
+    }
+    let exact_product_forms = active_observations.iter().any(|(ordinal, observation)| {
+        *ordinal == synthesis.formation_ordinal
+            && observation.predicate == ObservationPredicate::Forms
+            && observation.subject_binding == synthesis.product.binding
+    });
+    let process_authorized = profile.effects.iter().any(|effect| {
+        effect.effect == EffectProfile::SolidFormation
+            && effect.trigger == ObservationPredicate::Forms
+            && effect.start_ordinal == synthesis.formation_ordinal
+            && effect.authorization
+                == EffectAuthorization::Process(MacroscopicProcess::SolidSolidSynthesis)
+    });
+    let bindings = [
+        synthesis.reactant_a.binding.as_str(),
+        synthesis.reactant_b.binding.as_str(),
+        synthesis.product.binding.as_str(),
+    ];
+    let bindings_are_distinct = bindings
+        .iter()
+        .enumerate()
+        .all(|(index, binding)| !bindings[..index].contains(binding));
+    let exact_colours_match = [
+        &synthesis.reactant_a,
+        &synthesis.reactant_b,
+        &synthesis.product,
+    ]
+    .into_iter()
+    .all(|bound| {
+        active_observations
+            .iter()
+            .find(|(_, observation)| {
+                observation.predicate == ObservationPredicate::Colour
+                    && observation.subject_binding == bound.binding
+            })
+            .is_none_or(|(ordinal, observation)| {
+                observation.value.as_deref().and_then(visual_colour) == Some(bound.colour)
+                    && bound.transition_ordinal == Some(*ordinal)
+            })
+    });
+    if !(exact_product_forms || process_authorized)
+        || !bindings_are_distinct
+        || !exact_colours_match
+    {
+        return Err(PlanError::InvalidSolidSolidSynthesisProfile);
+    }
+    Ok(())
+}
+
 fn effect_authorization_is_compatible(
     effect: EffectProfile,
     predicate: ObservationPredicate,
@@ -3781,6 +4009,9 @@ fn effect_authorization_is_compatible(
                 EffectProfile::SolidFormation
                     | EffectProfile::LiquidMixing
                     | EffectProfile::SurfaceDisturbance
+            ) | (
+                MacroscopicProcess::SolidSolidSynthesis,
+                EffectProfile::SolidFormation | EffectProfile::ReactionActivity
             )
         );
     }
@@ -3876,6 +4107,7 @@ fn object_observation_is_compatible(object: &PresentationObject) -> bool {
         | AssetProfile::IncompleteCombustionAssembly
         | AssetProfile::AqueousPrecipitationAssembly
         | AssetProfile::MetalDisplacementAssembly
+        | AssetProfile::SolidSolidSynthesisAssembly
         | AssetProfile::Beaker
         | AssetProfile::TestTube
         | AssetProfile::ConicalFlask
@@ -3986,6 +4218,9 @@ fn compile_real_world_timeline(
         fit_authored_six_second_duration(&mut beats);
     }
     if profile.metal_displacement.is_some() {
+        fit_authored_six_second_duration(&mut beats);
+    }
+    if profile.solid_solid_synthesis.is_some() {
         fit_authored_six_second_duration(&mut beats);
     }
     RealWorldTimeline { beats }
@@ -4127,6 +4362,7 @@ pub enum PlanError {
     InvalidPrecipitationProfile,
     InvalidGasEvolutionProfile,
     InvalidMetalDisplacementProfile,
+    InvalidSolidSolidSynthesisProfile,
     PresentationRange,
     Digest,
 }
@@ -4164,6 +4400,9 @@ impl fmt::Display for PlanError {
             Self::InvalidMetalDisplacementProfile => formatter.write_str(
                 "metal-displacement assembly lacks exact validated phase, identity, formation, or material bindings",
             ),
+            Self::InvalidSolidSolidSynthesisProfile => formatter.write_str(
+                "solid-solid synthesis assembly lacks exactly two solid reactants, one solid product, or validated formation and colour bindings",
+            ),
             Self::PresentationRange => {
                 formatter.write_str("trusted frames exceed the presentation range")
             }
@@ -4188,8 +4427,9 @@ mod tests {
         ObjectObservationBinding, PresentationEffect, PresentationObject, PresentationProfile,
         PresentationTransform, ReactionVisualInputs, SceneRole, TimelinePosition, VisualColour,
         authorize_gas_evolution_assembly, authorize_metal_displacement_assembly,
-        compile_real_world_timeline, effect_authorization_is_compatible,
-        macroscopic_beat_duration_ms, precipitation_colours_from_materials, visual_colour,
+        authorize_solid_solid_synthesis_assembly, compile_real_world_timeline,
+        effect_authorization_is_compatible, macroscopic_beat_duration_ms,
+        precipitation_colours_from_materials, visual_colour,
     };
 
     fn precipitation_material(
@@ -4283,6 +4523,7 @@ mod tests {
             precipitation: None,
             gas_evolution: None,
             metal_displacement: None,
+            solid_solid_synthesis: None,
             post_process: None,
             equation: "validated equation".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -4330,6 +4571,192 @@ mod tests {
             ("gas-product".to_owned(), ObservationPredicate::Evolves),
             (4, None),
         )])
+    }
+
+    fn solid_synthesis_profile(include_front: bool) -> PresentationProfile {
+        let mut effects = vec![PresentationEffect {
+            effect: EffectProfile::SolidFormation,
+            trigger: ObservationPredicate::Forms,
+            authorization: EffectAuthorization::Process(MacroscopicProcess::SolidSolidSynthesis),
+            intensity: EffectIntensity::Moderate,
+            start_ordinal: 4,
+            end_ordinal: 6,
+            surface_oxide_colour: None,
+        }];
+        if include_front {
+            effects.push(PresentationEffect {
+                effect: EffectProfile::ReactionActivity,
+                trigger: ObservationPredicate::Forms,
+                authorization: EffectAuthorization::Process(
+                    MacroscopicProcess::SolidSolidSynthesis,
+                ),
+                intensity: EffectIntensity::Moderate,
+                start_ordinal: 4,
+                end_ordinal: 6,
+                surface_oxide_colour: None,
+            });
+        }
+        PresentationProfile {
+            id: "solid-solid-synthesis".to_owned(),
+            environment: AssetProfile::LaboratoryBench,
+            objects: vec![PresentationObject {
+                id: "vessel".to_owned(),
+                asset: AssetProfile::Beaker,
+                semantic_identity: "reaction vessel".to_owned(),
+                appearance: AppearanceProfile::LaboratoryNeutral,
+                role: SceneRole::Vessel,
+                transform: PresentationTransform {
+                    translation: [0, 0, 0],
+                    rotation: [0, 0, 0],
+                    scale: [1_000, 1_000, 1_000],
+                },
+                visible_from_ordinal: 0,
+                observation: None,
+                colour_transition: None,
+            }],
+            effects,
+            camera: Vec::new(),
+            precipitation: None,
+            gas_evolution: None,
+            metal_displacement: None,
+            solid_solid_synthesis: None,
+            post_process: None,
+            equation: "validated equation".to_owned(),
+            disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+        }
+    }
+
+    fn solid_synthesis_reaction(materials: Vec<MacroscopicMaterial>) -> MacroscopicReaction {
+        MacroscopicReaction {
+            profile_id: "solid-solid-synthesis".to_owned(),
+            equation: "validated equation".to_owned(),
+            materials,
+            intensity: EffectIntensity::Moderate,
+            process: Some(MacroscopicProcess::SolidSolidSynthesis),
+            fuel_carbon_count: None,
+            surface_oxide_colour: None,
+        }
+    }
+
+    #[test]
+    fn solid_solid_synthesis_uses_exact_catalogue_colours_and_optional_front() {
+        let colours = [
+            VisualColour {
+                red: 0x88,
+                green: 0x8c,
+                blue: 0x90,
+            },
+            VisualColour {
+                red: 0xe7,
+                green: 0xc5,
+                blue: 0x32,
+            },
+            VisualColour {
+                red: 0x31,
+                green: 0x34,
+                blue: 0x37,
+            },
+        ];
+        let reaction = solid_synthesis_reaction(vec![
+            precipitation_material(
+                "reactant-a",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Solid,
+                Some(colours[0]),
+            ),
+            precipitation_material(
+                "reactant-b",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Solid,
+                Some(colours[1]),
+            ),
+            precipitation_material(
+                "product",
+                MacroscopicMaterialRole::Product,
+                Phase::Solid,
+                Some(colours[2]),
+            ),
+        ]);
+        let mut profile = solid_synthesis_profile(false);
+        authorize_solid_solid_synthesis_assembly(&mut profile, &reaction, &BTreeMap::new());
+        let synthesis = profile
+            .solid_solid_synthesis
+            .as_ref()
+            .expect("typed solid layout selects authored synthesis");
+        assert_eq!(synthesis.reactant_a.colour, colours[0]);
+        assert_eq!(synthesis.reactant_b.colour, colours[1]);
+        assert_eq!(synthesis.product.colour, colours[2]);
+        assert!(!synthesis.show_reaction_front);
+        assert!(
+            profile
+                .objects
+                .iter()
+                .any(|object| { object.asset == AssetProfile::SolidSolidSynthesisAssembly })
+        );
+        assert_eq!(
+            compile_real_world_timeline(&profile, 6).duration_ms(),
+            6_000
+        );
+    }
+
+    #[test]
+    fn solid_solid_synthesis_rejects_extra_or_ambiguous_reactants() {
+        let solid = |binding, role| precipitation_material(binding, role, Phase::Solid, None);
+        let mut extra_profile = solid_synthesis_profile(true);
+        let extra = solid_synthesis_reaction(vec![
+            solid("a", MacroscopicMaterialRole::Reactant),
+            solid("b", MacroscopicMaterialRole::Reactant),
+            solid("c", MacroscopicMaterialRole::Reactant),
+            solid("product", MacroscopicMaterialRole::Product),
+        ]);
+        authorize_solid_solid_synthesis_assembly(&mut extra_profile, &extra, &BTreeMap::new());
+        assert!(extra_profile.solid_solid_synthesis.is_none());
+
+        let mut ambiguous_profile = solid_synthesis_profile(true);
+        let ambiguous = solid_synthesis_reaction(vec![
+            solid("a", MacroscopicMaterialRole::Reactant),
+            precipitation_material("b", MacroscopicMaterialRole::Reactant, Phase::Unknown, None),
+            solid("product", MacroscopicMaterialRole::Product),
+        ]);
+        authorize_solid_solid_synthesis_assembly(
+            &mut ambiguous_profile,
+            &ambiguous,
+            &BTreeMap::new(),
+        );
+        assert!(ambiguous_profile.solid_solid_synthesis.is_none());
+    }
+
+    #[test]
+    fn solid_solid_synthesis_uses_conservative_missing_colour_fallbacks() {
+        let reaction = solid_synthesis_reaction(vec![
+            precipitation_material(
+                "reactant-a",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Solid,
+                None,
+            ),
+            precipitation_material(
+                "reactant-b",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Solid,
+                None,
+            ),
+            precipitation_material(
+                "product",
+                MacroscopicMaterialRole::Product,
+                Phase::Solid,
+                None,
+            ),
+        ]);
+        let mut profile = solid_synthesis_profile(true);
+        authorize_solid_solid_synthesis_assembly(&mut profile, &reaction, &BTreeMap::new());
+        let synthesis = profile
+            .solid_solid_synthesis
+            .expect("complete typed layout selects synthesis");
+        assert_eq!(synthesis.reactant_a.colour, super::NEUTRAL_METAL);
+        assert_eq!(synthesis.reactant_b.colour, super::OFF_WHITE_PRECIPITATE);
+        assert_eq!(synthesis.product.colour, super::NEUTRAL_DEPOSITED_METAL);
+        assert!(synthesis.show_reaction_front);
     }
 
     #[test]
@@ -4820,6 +5247,7 @@ mod tests {
             precipitation: None,
             gas_evolution: None,
             metal_displacement: None,
+            solid_solid_synthesis: None,
             post_process: Some(MacroscopicProcess::SolventEvaporationCrystallization),
             equation: "validated reaction".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),

@@ -129,6 +129,9 @@ static GAS_EVOLUTION_SOLID_LIQUID_CLIP: OnceLock<AnimatedClip> = OnceLock::new()
 const METAL_DISPLACEMENT_CLIP_BYTES: &[u8] =
     include_bytes!("../assets/models/metal_displacement.clip");
 static METAL_DISPLACEMENT_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const SYNTHESIS_COMBINATION_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/synthesis_combination.clip");
+static SYNTHESIS_COMBINATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
 
 fn embedded_metal_mesh() -> &'static EmbeddedMesh {
     METAL_MESH.get_or_init(|| {
@@ -192,6 +195,14 @@ fn metal_displacement_clip() -> &'static AnimatedClip {
     METAL_DISPLACEMENT_CLIP.get_or_init(|| {
         AnimatedClip::parse(METAL_DISPLACEMENT_CLIP_BYTES)
             .unwrap_or_else(|error| panic!("embedded metal-displacement clip is invalid: {error}"))
+    })
+}
+
+fn synthesis_combination_clip() -> &'static AnimatedClip {
+    SYNTHESIS_COMBINATION_CLIP.get_or_init(|| {
+        AnimatedClip::parse(SYNTHESIS_COMBINATION_CLIP_BYTES).unwrap_or_else(|error| {
+            panic!("embedded synthesis-combination clip is invalid: {error}")
+        })
     })
 }
 
@@ -746,6 +757,8 @@ impl SceneLayout {
                     | AssetProfile::CompleteCombustionAssembly
                     | AssetProfile::IncompleteCombustionAssembly
                     | AssetProfile::AqueousPrecipitationAssembly
+                    | AssetProfile::MetalDisplacementAssembly
+                    | AssetProfile::SolidSolidSynthesisAssembly
             )
         }) {
             let vessel_center = Vec3::new(0.0, bench_top + 0.90, 0.0);
@@ -1175,6 +1188,17 @@ fn build_scene_with_stage(
     }
     if stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
         add_animated_metal_displacement_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish();
+    }
+    if stage == MacroscopicStage::Reaction && plan.solid_solid_synthesis.is_some() {
+        add_animated_synthesis_combination_assembly(
             &mut meshes,
             plan,
             layout,
@@ -2088,6 +2112,7 @@ fn apply_asset_colour_transition(
             | AssetProfile::IncompleteCombustionAssembly
             | AssetProfile::AqueousPrecipitationAssembly
             | AssetProfile::MetalDisplacementAssembly
+            | AssetProfile::SolidSolidSynthesisAssembly
             | AssetProfile::Beaker
             | AssetProfile::TestTube
             | AssetProfile::ConicalFlask
@@ -4101,6 +4126,9 @@ fn add_animated_metal_displacement_assembly(
         Vec3::ZERO,
     );
     for track in &clip.tracks {
+        if !metal_displacement_track_visible(track.module, frame) {
+            continue;
+        }
         let colour =
             metal_displacement_track_colour(track.colour, displacement, ordinal, ordinal_progress);
         let destination = match (track.pass, track.colour) {
@@ -4109,15 +4137,54 @@ fn add_animated_metal_displacement_assembly(
             (ClipPass::Translucent, _) => &mut meshes.translucent,
             (ClipPass::Emissive, _) => &mut meshes.emissive,
         };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
+        let deposited = matches!(
+            track.module,
+            ClipModule::MetalDeposit | ClipModule::MetalFlakes
         );
+        if deposited {
+            append_animated_track_adjusted(
+                destination,
+                clip,
+                track,
+                frame,
+                layout.bench_top,
+                1.0,
+                colour,
+                1.16,
+                0.012,
+            );
+            append_animated_track_adjusted(
+                &mut meshes.emissive,
+                clip,
+                track,
+                frame,
+                layout.bench_top,
+                1.0,
+                deposit_highlight_colour(colour),
+                1.22,
+                0.026,
+            );
+        } else {
+            append_animated_track(
+                destination,
+                clip,
+                track,
+                frame,
+                layout.bench_top,
+                1.0,
+                colour,
+            );
+        }
+    }
+}
+
+fn metal_displacement_track_visible(module: ClipModule, frame: f32) -> bool {
+    const DEPOSIT_START_FRAME: f32 = 53.0;
+    const FLAKE_START_FRAME: f32 = 103.0;
+    match module {
+        ClipModule::MetalDeposit => frame >= DEPOSIT_START_FRAME,
+        ClipModule::MetalFlakes => frame >= FLAKE_START_FRAME,
+        _ => true,
     }
 }
 
@@ -4153,14 +4220,104 @@ fn metal_displacement_track_colour(
         ]
     };
     match colour {
-        ClipColour::SolutionInitial => rgba(&displacement.initial_solution, 0.34),
-        ClipColour::SolutionFinal => rgba(&displacement.final_solution, 0.34),
+        ClipColour::SolutionInitial => rgba(&displacement.initial_solution, 0.29),
+        ClipColour::SolutionFinal => rgba(&displacement.final_solution, 0.29),
         ClipColour::OriginalMetal => rgba(&displacement.original_metal, 1.0),
         ClipColour::DepositedMetal => rgba(&displacement.deposited_metal, 1.0),
         ClipColour::MetalErosion => [0.12, 0.13, 0.14, 1.0],
         ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
         _ => [0.76, 0.78, 0.80, 1.0],
     }
+}
+
+fn add_animated_synthesis_combination_assembly(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) {
+    let synthesis = plan
+        .solid_solid_synthesis
+        .as_ref()
+        .expect("validated solid-solid synthesis assembly has material bindings");
+    let clip = synthesis_combination_clip();
+    debug_assert_eq!(clip.frame_count, 180);
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    for track in &clip.tracks {
+        if track.module == ClipModule::SynthesisReactionFront && !synthesis.show_reaction_front {
+            continue;
+        }
+        let colour =
+            synthesis_combination_track_colour(track.colour, synthesis, ordinal, ordinal_progress);
+        let destination = match track.pass {
+            ClipPass::Opaque => &mut meshes.opaque,
+            ClipPass::Translucent => &mut meshes.translucent,
+            ClipPass::Emissive => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+}
+
+fn synthesis_combination_track_colour(
+    colour: ClipColour,
+    synthesis: &chem_presentation::SolidSolidSynthesisVisualProfile,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> [f32; 4] {
+    let rgba = |bound: &chem_presentation::BoundVisualColour| {
+        let base = [
+            f32::from(bound.base_colour.red) / 255.0,
+            f32::from(bound.base_colour.green) / 255.0,
+            f32::from(bound.base_colour.blue) / 255.0,
+        ];
+        let target = [
+            f32::from(bound.colour.red) / 255.0,
+            f32::from(bound.colour.green) / 255.0,
+            f32::from(bound.colour.blue) / 255.0,
+        ];
+        let amount = bound
+            .transition_ordinal
+            .map_or(1.0, |start| match ordinal.cmp(&start) {
+                std::cmp::Ordering::Less => 0.0,
+                std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+                std::cmp::Ordering::Greater => 1.0,
+            });
+        [
+            base[0] + (target[0] - base[0]) * amount,
+            base[1] + (target[1] - base[1]) * amount,
+            base[2] + (target[2] - base[2]) * amount,
+            1.0,
+        ]
+    };
+    match colour {
+        ClipColour::ReactantA => rgba(&synthesis.reactant_a),
+        ClipColour::ReactantB => rgba(&synthesis.reactant_b),
+        ClipColour::SynthesisProduct => rgba(&synthesis.product),
+        ClipColour::ReactionFront => [1.0, 0.22, 0.035, 0.58],
+        ClipColour::ReactionVessel => [0.78, 0.74, 0.66, 1.0],
+        ClipColour::MixingTool => [0.46, 0.49, 0.52, 1.0],
+        _ => [0.76, 0.78, 0.80, 1.0],
+    }
+}
+
+fn deposit_highlight_colour(colour: [f32; 4]) -> [f32; 4] {
+    [
+        colour[0] + (1.0 - colour[0]) * 0.28,
+        colour[1] + (1.0 - colour[1]) * 0.28,
+        colour[2] + (1.0 - colour[2]) * 0.28,
+        0.24,
+    ]
 }
 
 fn gas_evolution_track_colour(
@@ -4224,7 +4381,13 @@ fn gas_evolution_track_colour(
         | ClipColour::SolutionFinal
         | ClipColour::OriginalMetal
         | ClipColour::DepositedMetal
-        | ClipColour::MetalErosion => rgba(&gas_evolution.gas_product, 0.18),
+        | ClipColour::MetalErosion
+        | ClipColour::ReactantA
+        | ClipColour::ReactantB
+        | ClipColour::SynthesisProduct
+        | ClipColour::ReactionFront
+        | ClipColour::ReactionVessel
+        | ClipColour::MixingTool => rgba(&gas_evolution.gas_product, 0.18),
     }
 }
 
@@ -4291,7 +4454,13 @@ fn precipitation_track_colour(
         | ClipColour::SolutionFinal
         | ClipColour::OriginalMetal
         | ClipColour::DepositedMetal
-        | ClipColour::MetalErosion => rgba(&precipitation.precipitate, 1.0),
+        | ClipColour::MetalErosion
+        | ClipColour::ReactantA
+        | ClipColour::ReactantB
+        | ClipColour::SynthesisProduct
+        | ClipColour::ReactionFront
+        | ClipColour::ReactionVessel
+        | ClipColour::MixingTool => rgba(&precipitation.precipitate, 1.0),
     }
 }
 
@@ -4316,7 +4485,13 @@ fn combustion_track_colour(colour: ClipColour, fuel: [f32; 4], incomplete: bool)
         | ClipColour::SolutionFinal
         | ClipColour::OriginalMetal
         | ClipColour::DepositedMetal
-        | ClipColour::MetalErosion => fuel,
+        | ClipColour::MetalErosion
+        | ClipColour::ReactantA
+        | ClipColour::ReactantB
+        | ClipColour::SynthesisProduct
+        | ClipColour::ReactionFront
+        | ClipColour::ReactionVessel
+        | ClipColour::MixingTool => fuel,
         ClipColour::FlameOuter if incomplete => [1.0, 0.24, 0.025, 0.58],
         ClipColour::FlameInner if incomplete => [1.0, 0.60, 0.06, 0.82],
         ClipColour::FlameCore if incomplete => [1.0, 0.92, 0.45, 0.96],
@@ -4546,7 +4721,13 @@ fn neutralisation_track_colour(colour: ClipColour, colours: NeutralisationColour
         | ClipColour::SolutionFinal
         | ClipColour::OriginalMetal
         | ClipColour::DepositedMetal
-        | ClipColour::MetalErosion => colours.salt,
+        | ClipColour::MetalErosion
+        | ClipColour::ReactantA
+        | ClipColour::ReactantB
+        | ClipColour::SynthesisProduct
+        | ClipColour::ReactionFront
+        | ClipColour::ReactionVessel
+        | ClipColour::MixingTool => colours.salt,
         ClipColour::ReactiveMetal => [0.88, 0.90, 0.92, 1.0],
         ClipColour::Vapour | ClipColour::ProductPlume | ClipColour::GasCloud => {
             [0.86, 0.90, 0.92, 0.16]
@@ -4593,7 +4774,13 @@ fn animated_track_enabled(
         | ClipModule::OriginalMetal
         | ClipModule::MetalErosion
         | ClipModule::MetalDeposit
-        | ClipModule::MetalFlakes => 0.0,
+        | ClipModule::MetalFlakes
+        | ClipModule::SynthesisReactantA
+        | ClipModule::SynthesisReactantB
+        | ClipModule::SynthesisProduct
+        | ClipModule::SynthesisReactionFront
+        | ClipModule::SynthesisVessel
+        | ClipModule::SynthesisMixingTool => 0.0,
         ClipModule::Flame => unreachable!("flame handled above"),
     };
     let index = u32::try_from(track_index).unwrap_or(u32::MAX);
@@ -4624,7 +4811,13 @@ fn animated_track_colour(colour: ClipColour, style: AnimatedAlkaliWaterStyle) ->
         | ClipColour::SolutionFinal
         | ClipColour::OriginalMetal
         | ClipColour::DepositedMetal
-        | ClipColour::MetalErosion => [0.82, 0.86, 0.88, 0.20],
+        | ClipColour::MetalErosion
+        | ClipColour::ReactantA
+        | ClipColour::ReactantB
+        | ClipColour::SynthesisProduct
+        | ClipColour::ReactionFront
+        | ClipColour::ReactionVessel
+        | ClipColour::MixingTool => [0.82, 0.86, 0.88, 0.20],
         ClipColour::Fuel => [0.88, 0.82, 0.54, 0.30],
         ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
         ClipColour::ProductPlume | ClipColour::GasCloud => [0.86, 0.90, 0.92, 0.16],
@@ -4643,7 +4836,31 @@ fn append_animated_track(
     activity: f32,
     colour: [f32; 4],
 ) {
+    append_animated_track_adjusted(
+        mesh, clip, track, frame, bench_top, activity, colour, 1.0, 0.0,
+    );
+}
+
+#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
+fn append_animated_track_adjusted(
+    mesh: &mut Mesh,
+    clip: &AnimatedClip,
+    track: &ClipTrack,
+    frame: f32,
+    bench_top: f32,
+    activity: f32,
+    colour: [f32; 4],
+    local_scale: f32,
+    normal_offset: f32,
+) {
     const MODEL_SCALE: f32 = 0.45;
+    let centre = if (local_scale - 1.0).abs() <= f32::EPSILON {
+        Vec3::ZERO
+    } else {
+        (0..track.vertex_count).fold(Vec3::ZERO, |sum, vertex_index| {
+            sum + clip.sample(track, vertex_index, frame).position
+        }) / track.vertex_count.max(1) as f32
+    };
     let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
     mesh.vertices.reserve(track.vertex_count);
     mesh.indices.reserve(track.indices.len());
@@ -4688,11 +4905,21 @@ fn append_animated_track(
             | ClipModule::OriginalMetal
             | ClipModule::MetalErosion
             | ClipModule::MetalDeposit
-            | ClipModule::MetalFlakes => {}
+            | ClipModule::MetalFlakes
+            | ClipModule::SynthesisReactantA
+            | ClipModule::SynthesisReactantB
+            | ClipModule::SynthesisProduct
+            | ClipModule::SynthesisReactionFront
+            | ClipModule::SynthesisVessel
+            | ClipModule::SynthesisMixingTool => {}
             ClipModule::VesselAnchor => {
                 unreachable!("anchor tracks are not renderable geometry");
             }
         }
+        if (local_scale - 1.0).abs() > f32::EPSILON {
+            position = centre + (position - centre) * local_scale;
+        }
+        position += normal * normal_offset;
         mesh.vertices.push(Vertex {
             position: (position * MODEL_SCALE + Vec3::Y * bench_top).to_array(),
             normal: normal.to_array(),
@@ -6785,9 +7012,18 @@ mod tests {
         assert_eq!(final_solution[..3], rgb([0xd8, 0xe3, 0xe8]));
         assert_eq!(original[..3], rgb([0xc4, 0xc7, 0xc9]));
         assert_eq!(deposited[..3], rgb([0xb9, 0x68, 0x46]));
-        assert!(initial[3] < 1.0 && final_solution[3] < 1.0);
+        assert!((initial[3] - 0.29).abs() < f32::EPSILON);
+        assert!((final_solution[3] - 0.29).abs() < f32::EPSILON);
         assert!((original[3] - 1.0).abs() < f32::EPSILON);
         assert!((deposited[3] - 1.0).abs() < f32::EPSILON);
+        let highlight = deposit_highlight_colour(deposited);
+        assert!(
+            highlight[..3]
+                .iter()
+                .zip(deposited[..3].iter())
+                .all(|(highlight, base)| highlight > base)
+        );
+        assert!((highlight[3] - 0.24).abs() < f32::EPSILON);
         let erosion =
             metal_displacement_track_colour(ClipColour::MetalErosion, &visual, u16::MAX, 1.0);
         assert!(
@@ -6796,6 +7032,153 @@ mod tests {
                 .zip([0.12, 0.13, 0.14, 1.0])
                 .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
         );
+    }
+
+    #[test]
+    fn synthesis_combination_clip_is_complete_deterministic_and_colour_bound() {
+        let clip = synthesis_combination_clip();
+        assert_eq!(clip.frame_count, 180);
+        assert_eq!(clip.frames_per_second, 30);
+        assert_eq!(clip.tracks.len(), 29);
+        for module in [
+            ClipModule::SynthesisReactantA,
+            ClipModule::SynthesisReactantB,
+            ClipModule::SynthesisProduct,
+            ClipModule::SynthesisReactionFront,
+            ClipModule::SynthesisVessel,
+            ClipModule::SynthesisMixingTool,
+        ] {
+            assert!(clip.tracks.iter().any(|track| track.module == module));
+        }
+        let track = clip.tracks.first().expect("clip has tracks");
+        let first = clip.sample(track, 0, 91.375);
+        let repeated = clip.sample(track, 0, 91.375);
+        assert_eq!(first.position, repeated.position);
+        assert_eq!(first.normal, repeated.normal);
+
+        let bound =
+            |binding: &str, [red, green, blue]: [u8; 3]| chem_presentation::BoundVisualColour {
+                binding: binding.to_owned(),
+                base_colour: VisualColour { red, green, blue },
+                colour: VisualColour { red, green, blue },
+                transition_ordinal: None,
+            };
+        let visual = chem_presentation::SolidSolidSynthesisVisualProfile {
+            formation_ordinal: 3,
+            reactant_a: bound("a", [0x80, 0x84, 0x88]),
+            reactant_b: bound("b", [0xe4, 0xc1, 0x32]),
+            product: bound("product", [0x35, 0x38, 0x3b]),
+            show_reaction_front: true,
+        };
+        assert_eq!(
+            synthesis_combination_track_colour(ClipColour::ReactantA, &visual, u16::MAX, 1.0)[..3],
+            [
+                f32::from(0x80_u8) / 255.0,
+                f32::from(0x84_u8) / 255.0,
+                f32::from(0x88_u8) / 255.0
+            ]
+        );
+        assert_eq!(
+            synthesis_combination_track_colour(
+                ClipColour::SynthesisProduct,
+                &visual,
+                u16::MAX,
+                1.0,
+            )[..3],
+            [
+                f32::from(0x35_u8) / 255.0,
+                f32::from(0x38_u8) / 255.0,
+                f32::from(0x3b_u8) / 255.0
+            ]
+        );
+    }
+
+    #[test]
+    fn deposit_readability_layer_expands_the_authored_silhouette_deterministically() {
+        let clip = metal_displacement_clip();
+        let track = clip
+            .tracks
+            .iter()
+            .find(|track| track.module == ClipModule::MetalDeposit)
+            .expect("deposit track exists");
+        let frame = clip.frame_at_progress(1.0);
+        let mut authored = Mesh::default();
+        append_animated_track(
+            &mut authored,
+            clip,
+            track,
+            frame,
+            0.0,
+            1.0,
+            [0.72, 0.42, 0.28, 1.0],
+        );
+        let mut emphasized = Mesh::default();
+        append_animated_track_adjusted(
+            &mut emphasized,
+            clip,
+            track,
+            frame,
+            0.0,
+            1.0,
+            [0.72, 0.42, 0.28, 1.0],
+            1.16,
+            0.012,
+        );
+        let extent = |mesh: &Mesh| {
+            let (minimum, maximum) = mesh.vertices.iter().fold(
+                (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+                |(minimum, maximum), vertex| {
+                    let position = Vec3::from_array(vertex.position);
+                    (minimum.min(position), maximum.max(position))
+                },
+            );
+            maximum - minimum
+        };
+        let authored_extent = extent(&authored);
+        let emphasized_extent = extent(&emphasized);
+        assert!(emphasized_extent.length() > authored_extent.length() * 1.10);
+
+        let mut replay = Mesh::default();
+        append_animated_track_adjusted(
+            &mut replay,
+            clip,
+            track,
+            frame,
+            0.0,
+            1.0,
+            [0.72, 0.42, 0.28, 1.0],
+            1.16,
+            0.012,
+        );
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&emphasized.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&replay.vertices)
+        );
+        assert_eq!(emphasized.indices, replay.indices);
+    }
+
+    #[test]
+    fn deposit_and_flake_tracks_stay_hidden_until_their_authored_start_frames() {
+        assert!(!metal_displacement_track_visible(
+            ClipModule::MetalDeposit,
+            52.999
+        ));
+        assert!(metal_displacement_track_visible(
+            ClipModule::MetalDeposit,
+            53.0
+        ));
+        assert!(!metal_displacement_track_visible(
+            ClipModule::MetalFlakes,
+            102.999
+        ));
+        assert!(metal_displacement_track_visible(
+            ClipModule::MetalFlakes,
+            103.0
+        ));
+        assert!(metal_displacement_track_visible(
+            ClipModule::OriginalMetal,
+            0.0
+        ));
     }
 
     fn authored_gas_plan(variant: GasEvolutionVariant) -> ScenePlan {
@@ -6991,6 +7374,33 @@ mod tests {
             "zinc",
             "copper",
             "silver",
+        ] {
+            assert!(
+                !renderer.contains(forbidden),
+                "renderer must not branch on `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
+    fn synthesis_renderer_contains_no_reaction_or_species_identity_branch() {
+        let source = include_str!("structural_3d.rs");
+        let start = source
+            .find("fn add_animated_synthesis_combination_assembly")
+            .expect("synthesis renderer exists");
+        let end = source[start..]
+            .find("fn deposit_highlight_colour")
+            .map(|offset| start + offset)
+            .expect("renderer function boundary exists");
+        let renderer = &source[start..end];
+        for forbidden in [
+            "ReactionRequest",
+            "reaction_name",
+            "formula",
+            "species_name",
+            "iron",
+            "sulfur",
+            "zinc",
         ] {
             assert!(
                 !renderer.contains(forbidden),

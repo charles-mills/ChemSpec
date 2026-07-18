@@ -363,10 +363,24 @@ backwards scrub reproduce identical geometry.
 The presentation profile carries four exact role bindings. Active validated
 `.chems` colour observations have first authority, reviewed catalogue
 `macroscopic_materials` RGB is second, and conservative colourless-solution or
-neutral-metal values are the fallback. The renderer preserves liquid opacity
-separately from RGB, keeps both metal slots in the opaque lit pass, leaves
-erosion detail dark neutral, and does not mutate cached colours shared by
-another reaction.
+neutral-metal values are the fallback. A small structure-derived elemental
+fallback distinguishes the two naturally coloured elemental metals, copper
+and gold, when no reviewed RGB record is present; it examines an exact
+single-element metallic structure rather than a reaction, display name, or
+formula string. All other elemental metals retain the conservative neutral
+metal fallback.
+
+The renderer preserves liquid opacity separately from RGB, keeps both metal
+slots in the opaque lit pass, leaves erosion detail dark neutral, and does not
+mutate cached colours shared by another reaction. To keep small authored
+surface crystals legible through the liquid and glass, deposit and detached
+flake tracks receive a modest deterministic silhouette expansion plus a thin
+low-opacity highlight shell. This presentation-only readability layer retains
+the bound product RGB as its base, does not create additional chemistry, and
+samples directly from the same absolute clip frame. Tiny setup geometry is
+culled until the authored module begins: deposit growth at source frame 54 and
+detached flakes at source frame 104. This prevents pre-growth specks without
+changing the clip timing or integrating mutable visibility state.
 
 ### Exposed metal oxidation
 
@@ -787,6 +801,15 @@ validated product-assignment progression is classified upstream. The same
 generic compiler then selects natural flame, hot vapour, gaseous headspace
 motion, and optional liquid-surface disturbance without adding Rust code for
 the reaction or chemical names.
+
+Solid-solid combination uses the same closed process route. Once chemistry has
+validated exactly two solid reactants and one solid product, and excluded the
+more-specific categories, presentation selects the shared six-second granular
+mixing clip. Reactant and product colours remain exact-identity bindings from
+`.chems` observations or reviewed catalogue records. Adding another
+two-solid-to-one-solid reaction therefore requires trusted chemistry data, not
+a renderer branch. Reactions with extra or unknown-phase reactants keep the
+fallback instead of hiding chemically important material.
 
 A genuinely new visual phenomenon should be added vertically:
 

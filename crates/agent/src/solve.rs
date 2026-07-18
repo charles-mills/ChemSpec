@@ -1839,8 +1839,9 @@ mod tests {
         );
         assert_eq!(
             outcome.macroscopic_process(),
-            Some(crate::MacroscopicProcess::MetalDisplacement)
+            Some(crate::MacroscopicProcess::SolventEvaporationCrystallization)
         );
+        assert_eq!(outcome.macroscopic_colour(&outcome.products()[1]), None);
     }
 
     #[test]
@@ -1957,6 +1958,16 @@ mod tests {
         let claim = solve_reaction_claim(&sulfide, &SpeciesRegistry::default()).expect("solved");
         assert_eq!(claim.products[0].formula, "FeS");
         assert_eq!(claim.products[0].name, "iron(II) sulfide");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&sulfide, claim, &SpeciesRegistry::default())
+                .expect("solid synthesis compiles")
+        else {
+            panic!("solid synthesis is static");
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::SolidSolidSynthesis)
+        );
 
         let iodide = request(&[("Fe", &[26]), ("I₂", &[53, 53])]);
         let claim = solve_reaction_claim(&iodide, &SpeciesRegistry::default()).expect("solved");
@@ -2720,6 +2731,15 @@ mod tests {
         assert_eq!(
             outcome.macroscopic_process(),
             Some(crate::MacroscopicProcess::MetalDisplacement)
+        );
+        assert_eq!(
+            outcome.macroscopic_colour(&outcome.reactants()[0]),
+            Some(crate::MacroscopicColour::CopperMetal)
+        );
+        assert_eq!(
+            outcome.macroscopic_colour(&outcome.products()[1]),
+            None,
+            "silver uses the conservative neutral-metal fallback without reviewed RGB"
         );
     }
 

@@ -687,6 +687,7 @@ fn dynamic_macroscopic_reaction(
             MacroscopicProcess::GasEvolutionSolidLiquid
         }
         AgentMacroscopicProcess::MetalDisplacement => MacroscopicProcess::MetalDisplacement,
+        AgentMacroscopicProcess::SolidSolidSynthesis => MacroscopicProcess::SolidSolidSynthesis,
         AgentMacroscopicProcess::CompleteCombustion => MacroscopicProcess::CompleteCombustion,
         AgentMacroscopicProcess::IncompleteCombustion => MacroscopicProcess::IncompleteCombustion,
         AgentMacroscopicProcess::SolventEvaporationCrystallization => {
@@ -710,6 +711,7 @@ fn dynamic_macroscopic_reaction(
                 | MacroscopicProcess::GasEvolutionLiquidLiquid
                 | MacroscopicProcess::GasEvolutionSolidLiquid
                 | MacroscopicProcess::MetalDisplacement
+                | MacroscopicProcess::SolidSolidSynthesis
                 | MacroscopicProcess::SolventEvaporationCrystallization
                 | MacroscopicProcess::SurfaceOxidation,
             )
@@ -6327,7 +6329,22 @@ mod tests {
             dynamic_presentation_profile(frames, outcome, None).expect("presentation compiles");
         assert!(profile.precipitation.is_none());
         assert!(profile.gas_evolution.is_none());
-        assert!(profile.metal_displacement.is_some());
+        let displacement = profile
+            .metal_displacement
+            .as_ref()
+            .expect("metal displacement has exact material bindings");
+        assert_eq!(
+            displacement.deposited_metal.colour,
+            VisualColour {
+                red: 0xb8,
+                green: 0x6a,
+                blue: 0x47,
+            }
+        );
+        assert_ne!(
+            displacement.original_metal.colour,
+            displacement.deposited_metal.colour
+        );
         assert!(profile.objects.iter().any(|object| {
             object.role == chem_presentation::SceneRole::Vessel
                 && object.asset == chem_presentation::AssetProfile::MetalDisplacementAssembly

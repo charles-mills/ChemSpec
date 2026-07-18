@@ -453,6 +453,15 @@ existing beaker, and that C4/C5, C8/C9, C12/C13, and C16/C17 select distinct
 fuel-colour ranges. The plan compiler must reject those process-authorized
 effects for any unrelated process or effect pairing.
 
+Solid-solid synthesis tests require exactly two typed solid reactants, exactly
+one typed solid product, and no gas product. Combustion, surface oxidation, gas
+evolution, aqueous precipitation, metal displacement, and neutralisation must
+retain priority. Extra reactants, unknown phases, and unsupported layouts must
+fall back. The authored clip must retain 180 frames at 30 FPS, bind each exact
+reactant/product identity to its own reaction-scoped RGB, permit only the warm
+reaction-front module to be hidden, and sample byte-identical geometry at the
+same absolute playhead.
+
 Macroscopic coverage tests must compile every supported experience through the
 same production profile-selection path and reject any profile with zero
 effects. Legacy-profile completion tests require the validated `forms`

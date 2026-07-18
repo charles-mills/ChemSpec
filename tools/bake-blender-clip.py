@@ -52,6 +52,12 @@ MODULE_IDS = {
     "metal_erosion": 23,
     "replacement_metal_deposit": 24,
     "deposited_metal_flakes": 25,
+    "reactant_a": 26,
+    "reactant_b": 27,
+    "product": 28,
+    "reaction_front": 29,
+    "reaction_vessel": 30,
+    "mixing_tool": 31,
 }
 COLOUR_SLOT_IDS = {
     "MAT_Glass": 0,
@@ -90,6 +96,12 @@ COLOUR_SLOT_IDS = {
     "MAT_OriginalMetal": 27,
     "MAT_DepositedMetal": 28,
     "MAT_MetalErosion": 29,
+    "MAT_ReactantA": 30,
+    "MAT_ReactantB": 31,
+    "MAT_Product": 32,
+    "MAT_ReactionFront": 33,
+    "MAT_ReactionVessel": 34,
+    "MAT_MixingTool": 35,
 }
 PASS_IDS = {
     "MAT_Reactive_Metal": 0,
@@ -128,6 +140,12 @@ PASS_IDS = {
     "MAT_OriginalMetal": 0,
     "MAT_DepositedMetal": 0,
     "MAT_MetalErosion": 0,
+    "MAT_ReactantA": 0,
+    "MAT_ReactantB": 0,
+    "MAT_Product": 0,
+    "MAT_ReactionFront": 2,
+    "MAT_ReactionVessel": 0,
+    "MAT_MixingTool": 0,
 }
 
 
@@ -215,6 +233,8 @@ def exported_module_for(obj: bpy.types.Object) -> str:
         ("FX_MetalErosion", "metal_erosion"),
         ("GEO_ReplacementMetalDeposit", "replacement_metal_deposit"),
         ("FX_DepositedMetalFlake", "deposited_metal_flakes"),
+        ("GEO_SynthesisCeramicDish", "reaction_vessel"),
+        ("GEO_SynthesisSpatula", "mixing_tool"),
     )
     return next(
         (module for prefix, module in prefixes if name.startswith(prefix)),

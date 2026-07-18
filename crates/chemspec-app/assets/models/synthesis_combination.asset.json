@@ -1,0 +1,39 @@
+{
+  "schema": "chemspec.authored-clip-asset/1",
+  "asset_id": "generic-solid-solid-synthesis-combination",
+  "source_root": "/home/aryan/potassium_water_reaction/synthesis_combination",
+  "source_manifest": "asset_manifest.json",
+  "source_blend": "source/synthesis_combination_reaction.blend",
+  "source_sha256": "d411ca247013b7c13e499bcd3eccf66182890515792d2df1d5cb81a595599613",
+  "interchange_main": "exports/fbx/synthesis_combination_reaction_complete.fbx",
+  "interchange_parts": "exports/fbx/parts",
+  "runtime_bake_source": "source/synthesis_combination_reaction.blend",
+  "runtime_clip": "synthesis_combination.clip",
+  "runtime_sha256": "3da7f4e043c8cc44c49386801f310510eb8bb510b8ca77a6e28450ea2b69e2f3",
+  "runtime_bytes": 3389052,
+  "track_count": 29,
+  "frame_start": 1,
+  "frame_end": 180,
+  "frame_count": 180,
+  "frames_per_second": 30,
+  "duration_seconds": 6,
+  "included_modules": [
+    "reactant_a",
+    "reactant_b",
+    "product",
+    "reaction_front",
+    "reaction_vessel",
+    "mixing_tool"
+  ],
+  "excluded_modules": ["stage"],
+  "material_slots": {
+    "MAT_ReactantA": "first exact solid reactant binding",
+    "MAT_ReactantB": "second exact solid reactant binding",
+    "MAT_Product": "single exact solid product binding",
+    "MAT_ReactionFront": "optional warm presentation-only progress cue",
+    "MAT_ReactionVessel": "authored ceramic dish material",
+    "MAT_MixingTool": "authored metal spatula material"
+  },
+  "selection_authority": "validated exact two-solid-reactant to one-solid-product process after combustion, oxidation, gas evolution, precipitation, metal displacement, and neutralisation are excluded",
+  "virtual_only": true
+}

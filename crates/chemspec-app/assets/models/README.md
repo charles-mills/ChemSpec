@@ -257,8 +257,53 @@ Per-scene colour instances bind `MAT_SolutionInitial`, `MAT_SolutionFinal`,
 `MAT_OriginalMetal`, and `MAT_DepositedMetal` to the exact validated roles.
 Exact `.chems` colour observations outrank reviewed catalogue RGB; missing
 solution colours remain colourless and missing metal colours use conservative
-neutral metallic values. Opacity remains phase-owned, the original/deposited
-metal tracks stay opaque, `MAT_MetalErosion` remains dark neutral, and the
-shared `MAT_Glass` material is preserved. Playback is sampled from the absolute
-six-second reaction playhead, so seek, pause, replay, and backwards scrub are
-deterministic.
+neutral metallic values, except for conservative exact-structure copper/gold
+elemental fallbacks. Opacity remains phase-owned, the original/deposited metal
+tracks stay opaque, `MAT_MetalErosion` remains dark neutral, and the shared
+`MAT_Glass` material is preserved. Deposits and flakes use a restrained
+deterministic silhouette expansion and low-opacity highlight shell so their
+authored growth remains visible through overlapping liquid and glass. Runtime
+also suppresses their tiny source-scene setup geometry until their documented
+start frames: replacement-metal growth begins at source frame 54 and detached
+flakes begin at source frame 104.
+Playback is sampled from the absolute six-second reaction playhead, so seek,
+pause, replay, and backwards scrub are deterministic.
+
+## Generic solid-solid synthesis assembly
+
+`synthesis_combination.clip` is baked from
+`/home/aryan/potassium_water_reaction/synthesis_combination/source/synthesis_combination_reaction.blend`.
+It preserves 29 modular tracks across all 180 frames at 30 FPS. The adjacent
+`synthesis_combination.asset.json` records source/runtime digests, material
+bindings, modules, and the presentation-stage exclusion. The ceramic dish is
+part of this authored layout; the unrelated stage mesh is omitted. The current
+polished source uses closed beveled dish topology, deformed rounded granules,
+staggered mixing and product nucleation, and broken reaction-front bands so it
+remains readable under ChemSpec's sampled-normal lighting without Blender PBR.
+
+Regenerate it with:
+
+```sh
+ALSOFT_DRIVERS=null blender --background \
+  /home/aryan/potassium_water_reaction/synthesis_combination/source/synthesis_combination_reaction.blend \
+  --python tools/bake-blender-clip.py -- \
+  /home/aryan/potassium_water_reaction/synthesis_combination/source/synthesis_combination_reaction.blend \
+  crates/chemspec-app/assets/models/synthesis_combination.clip \
+  --exclude-module stage
+```
+
+Selection requires exactly two validated solid reactants and exactly one
+validated solid product, with no gaseous product. Combustion, surface
+oxidation, gas evolution, precipitation, metal displacement, and
+neutralisation are classified first. Three or more reactants and unknown
+phases retain the generic fallback because ChemSpec has no reviewed rule for
+silently aggregating or omitting solid inputs.
+
+Runtime binds `MAT_ReactantA`, `MAT_ReactantB`, and `MAT_Product` to their exact
+validated identities. Exact `.chems` colour observations outrank reviewed
+catalogue RGB, followed by conservative solid fallbacks. Ceramic
+`MAT_ReactionVessel`, metal `MAT_MixingTool`, and warm emissive
+`MAT_ReactionFront` are presentation materials and never receive chemical
+catalogue colours. The reaction-front module can be suppressed independently.
+All material colours are computed per scene and absolute-playhead sampling
+makes pause, seek, replay, and backwards scrub deterministic.

@@ -76,7 +76,8 @@ pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
         | AssetProfile::CompleteCombustionAssembly
         | AssetProfile::IncompleteCombustionAssembly
         | AssetProfile::AqueousPrecipitationAssembly
-        | AssetProfile::MetalDisplacementAssembly => AssetGeometry::AnimatedAssembly,
+        | AssetProfile::MetalDisplacementAssembly
+        | AssetProfile::SolidSolidSynthesisAssembly => AssetGeometry::AnimatedAssembly,
         AssetProfile::Beaker
         | AssetProfile::TestTube
         | AssetProfile::ConicalFlask

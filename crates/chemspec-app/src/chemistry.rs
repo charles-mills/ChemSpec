@@ -1038,6 +1038,7 @@ fn catalogue_macroscopic_reaction(
                 | MacroscopicProcess::GasEvolutionLiquidLiquid
                 | MacroscopicProcess::GasEvolutionSolidLiquid
                 | MacroscopicProcess::MetalDisplacement
+                | MacroscopicProcess::SolidSolidSynthesis
                 | MacroscopicProcess::SolventEvaporationCrystallization
                 | MacroscopicProcess::SurfaceOxidation,
             )
@@ -1049,6 +1050,7 @@ fn catalogue_macroscopic_reaction(
     })
 }
 
+#[allow(clippy::too_many_lines)]
 fn classify_catalogue_macroscopic_process(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     materials: &[MacroscopicMaterial],
@@ -1098,47 +1100,73 @@ fn classify_catalogue_macroscopic_process(
     if liquid_water && dissolved_ionic_product && mobile_reactants {
         return Some(MacroscopicProcess::SolventEvaporationCrystallization);
     }
-    let (fuel, oxygen) = if has_formula_counts(&first.1.formula, &[("O", 2)]) {
-        (second, first)
-    } else if has_formula_counts(&second.1.formula, &[("O", 2)]) {
-        (first, second)
-    } else {
-        return None;
-    };
-    if fuel.1.representation != RepresentationKind::Molecular
-        || oxygen.1.representation != RepresentationKind::Molecular
-        || !is_carbon_hydrogen_oxygen_fuel(&fuel.1.formula)
-    {
-        return None;
+    let combustion = (|| {
+        let (fuel, oxygen) = if has_formula_counts(&first.1.formula, &[("O", 2)]) {
+            (second, first)
+        } else if has_formula_counts(&second.1.formula, &[("O", 2)]) {
+            (first, second)
+        } else {
+            return None;
+        };
+        if fuel.1.representation != RepresentationKind::Molecular
+            || oxygen.1.representation != RepresentationKind::Molecular
+            || !is_carbon_hydrogen_oxygen_fuel(&fuel.1.formula)
+            || !material_has_phase(
+                oxygen.0,
+                MacroscopicMaterialRole::Reactant,
+                chem_domain::Phase::Gas,
+            )
+        {
+            return None;
+        }
+        let product_is_gas = |binding: &str| {
+            material_has_phase(
+                binding,
+                MacroscopicMaterialRole::Product,
+                chem_domain::Phase::Gas,
+            )
+        };
+        let has_carbon_dioxide = expanded.claim.products.iter().any(|(binding, product)| {
+            product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 2)])
+        });
+        let has_carbon_monoxide = expanded.claim.products.iter().any(|(binding, product)| {
+            product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 1)])
+        });
+        let has_water_vapour = expanded.claim.products.iter().any(|(binding, product)| {
+            product_is_gas(binding) && has_formula_counts(&product.formula, &[("H", 2), ("O", 1)])
+        });
+        if has_carbon_monoxide {
+            Some(MacroscopicProcess::IncompleteCombustion)
+        } else {
+            (has_carbon_dioxide && has_water_vapour)
+                .then_some(MacroscopicProcess::CompleteCombustion)
+        }
+    })();
+    if combustion.is_some() {
+        return combustion;
     }
-    if !material_has_phase(
-        oxygen.0,
-        MacroscopicMaterialRole::Reactant,
-        chem_domain::Phase::Gas,
-    ) {
-        return None;
-    }
-    let product_is_gas = |binding: &str| {
+    let solid_reactants = expanded.claim.reactants.iter().all(|(binding, _)| {
         material_has_phase(
             binding,
-            MacroscopicMaterialRole::Product,
-            chem_domain::Phase::Gas,
+            MacroscopicMaterialRole::Reactant,
+            chem_domain::Phase::Solid,
         )
-    };
-    let has_carbon_dioxide = expanded.claim.products.iter().any(|(binding, product)| {
-        product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 2)])
     });
-    let has_carbon_monoxide = expanded.claim.products.iter().any(|(binding, product)| {
-        product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 1)])
-    });
-    let has_water_vapour = expanded.claim.products.iter().any(|(binding, product)| {
-        product_is_gas(binding) && has_formula_counts(&product.formula, &[("H", 2), ("O", 1)])
-    });
-    if has_carbon_monoxide {
-        Some(MacroscopicProcess::IncompleteCombustion)
-    } else {
-        (has_carbon_dioxide && has_water_vapour).then_some(MacroscopicProcess::CompleteCombustion)
+    if expanded.claim.products.len() != 1 {
+        return None;
     }
+    let (product_binding, _) = expanded.claim.products.iter().next()?;
+    (solid_reactants
+        && material_has_phase(
+            product_binding,
+            MacroscopicMaterialRole::Product,
+            chem_domain::Phase::Solid,
+        )
+        && !materials.iter().any(|material| {
+            material.role == MacroscopicMaterialRole::Product
+                && material.phase == chem_domain::Phase::Gas
+        }))
+    .then_some(MacroscopicProcess::SolidSolidSynthesis)
 }
 
 fn classifies_catalogue_metal_displacement(
@@ -1912,6 +1940,7 @@ pub fn presentation_profile(
         precipitation: None,
         gas_evolution: None,
         metal_displacement: None,
+        solid_solid_synthesis: None,
         post_process,
         equation: request.equation(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),

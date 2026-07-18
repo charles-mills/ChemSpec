@@ -40,6 +40,12 @@ pub(crate) enum ClipModule {
     MetalErosion,
     MetalDeposit,
     MetalFlakes,
+    SynthesisReactantA,
+    SynthesisReactantB,
+    SynthesisProduct,
+    SynthesisReactionFront,
+    SynthesisVessel,
+    SynthesisMixingTool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +87,12 @@ pub(crate) enum ClipColour {
     OriginalMetal,
     DepositedMetal,
     MetalErosion,
+    ReactantA,
+    ReactantB,
+    SynthesisProduct,
+    ReactionFront,
+    ReactionVessel,
+    MixingTool,
 }
 
 #[derive(Debug)]
@@ -292,6 +304,12 @@ impl TryFrom<u8> for ClipModule {
             23 => Ok(Self::MetalErosion),
             24 => Ok(Self::MetalDeposit),
             25 => Ok(Self::MetalFlakes),
+            26 => Ok(Self::SynthesisReactantA),
+            27 => Ok(Self::SynthesisReactantB),
+            28 => Ok(Self::SynthesisProduct),
+            29 => Ok(Self::SynthesisReactionFront),
+            30 => Ok(Self::SynthesisVessel),
+            31 => Ok(Self::SynthesisMixingTool),
             _ => Err("unsupported clip module"),
         }
     }
@@ -345,6 +363,12 @@ impl TryFrom<u8> for ClipColour {
             27 => Ok(Self::OriginalMetal),
             28 => Ok(Self::DepositedMetal),
             29 => Ok(Self::MetalErosion),
+            30 => Ok(Self::ReactantA),
+            31 => Ok(Self::ReactantB),
+            32 => Ok(Self::SynthesisProduct),
+            33 => Ok(Self::ReactionFront),
+            34 => Ok(Self::ReactionVessel),
+            35 => Ok(Self::MixingTool),
             _ => Err("unsupported clip colour"),
         }
     }
