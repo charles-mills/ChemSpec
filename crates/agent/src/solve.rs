@@ -734,110 +734,122 @@ const HEAT_STABLE_CATIONS: [&str; 4] = ["Na", "K", "Rb", "Cs"];
 /// confident no-reaction); electricity electrolyses water.
 fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<Verdict> {
     match context {
-        "electricity" if is_water(reactant.formula()) => Some(Verdict {
+        "electricity" => electrolysis(reactant),
+        "light" => photolysis(reactant),
+        "heat" => thermal_decomposition(reactant),
+        _ => None,
+    }
+}
+
+/// Water electrolysis under an explicit electricity context.
+fn electrolysis(reactant: &StructureDefinition) -> Option<Verdict> {
+    if !is_water(reactant.formula()) {
+        return None;
+    }
+    Some(Verdict {
+        reason: None,
+        products: vec![
+            ClaimProduct {
+                name: "Hydrogen".to_owned(),
+                formula: "H2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+            ClaimProduct {
+                name: "Oxygen".to_owned(),
+                formula: "O2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Evolves,
+            subject: "hydrogen and oxygen gases".to_owned(),
+            value: None,
+        }],
+    })
+}
+
+/// Thermal decomposition and rearrangement families, in deliberate priority
+/// order from specific molecular transformations to ionic-base families.
+fn thermal_decomposition(reactant: &StructureDefinition) -> Option<Verdict> {
+    if let Some(verdict) = wohler_urea_synthesis(reactant) {
+        return Some(verdict);
+    }
+    if let Some(verdict) = solve_dehydration(reactant) {
+        return Some(verdict);
+    }
+    if let Some(verdict) = nitrate_decomposition(reactant) {
+        return Some(verdict);
+    }
+    let (cation, charge, anion_kind) = ionic_base(reactant)?;
+    let stable = HEAT_STABLE_CATIONS.contains(&cation.as_str());
+    let oxide = |cation: &str, charge: u64| {
+        let shared = gcd(charge, 2);
+        let mut counts = BTreeMap::new();
+        counts.insert(cation.to_owned(), 2 / shared);
+        *counts.entry("O".to_owned()).or_insert(0) += charge / shared;
+        counts
+    };
+    let carbon_dioxide = ClaimProduct {
+        name: "carbon dioxide".to_owned(),
+        formula: "CO2".to_owned(),
+        phase: ClaimPhase::Gas,
+        identity_hints: Vec::new(),
+    };
+    let water = ClaimProduct {
+        name: "Water".to_owned(),
+        formula: "H2O".to_owned(),
+        phase: ClaimPhase::Gas,
+        identity_hints: Vec::new(),
+    };
+    let evolves_carbon_dioxide = ClaimObservation {
+        predicate: ClaimObservationPredicate::Evolves,
+        subject: "carbon dioxide gas".to_owned(),
+        value: None,
+    };
+    match anion_kind {
+        // Most metal oxides shrug off heat, but HgO and Ag2O
+        // genuinely decompose; no confident verdict either way.
+        BaseAnion::Oxide => None,
+        BaseAnion::Carbonate | BaseAnion::Hydroxide if stable => Some(Verdict {
+            reason: Some(heat_stable_reason(&cation, anion_kind)),
+            products: Vec::new(),
+            observations: Vec::new(),
+        }),
+        BaseAnion::Carbonate => Some(Verdict {
             reason: None,
             products: vec![
-                ClaimProduct {
-                    name: "Hydrogen".to_owned(),
-                    formula: "H2".to_owned(),
-                    phase: ClaimPhase::Gas,
-                    identity_hints: Vec::new(),
-                },
-                ClaimProduct {
-                    name: "Oxygen".to_owned(),
-                    formula: "O2".to_owned(),
-                    phase: ClaimPhase::Gas,
-                    identity_hints: Vec::new(),
-                },
+                product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
+                carbon_dioxide,
             ],
-            observations: vec![ClaimObservation {
-                predicate: ClaimObservationPredicate::Evolves,
-                subject: "hydrogen and oxygen gases".to_owned(),
-                value: None,
-            }],
+            observations: vec![evolves_carbon_dioxide],
         }),
-        "light" => photolysis(reactant),
-        "heat" => {
-            if let Some(verdict) = wohler_urea_synthesis(reactant) {
-                return Some(verdict);
-            }
-            if let Some(verdict) = solve_dehydration(reactant) {
-                return Some(verdict);
-            }
-            if let Some(verdict) = nitrate_decomposition(reactant) {
-                return Some(verdict);
-            }
-            let (cation, charge, anion_kind) = ionic_base(reactant)?;
-            let stable = HEAT_STABLE_CATIONS.contains(&cation.as_str());
-            let oxide = |cation: &str, charge: u64| {
-                let shared = gcd(charge, 2);
-                let mut counts = BTreeMap::new();
-                counts.insert(cation.to_owned(), 2 / shared);
-                *counts.entry("O".to_owned()).or_insert(0) += charge / shared;
-                counts
-            };
-            let carbon_dioxide = ClaimProduct {
-                name: "carbon dioxide".to_owned(),
-                formula: "CO2".to_owned(),
-                phase: ClaimPhase::Gas,
-                identity_hints: Vec::new(),
-            };
-            let water = ClaimProduct {
-                name: "Water".to_owned(),
-                formula: "H2O".to_owned(),
-                phase: ClaimPhase::Gas,
-                identity_hints: Vec::new(),
-            };
-            let evolves_carbon_dioxide = ClaimObservation {
-                predicate: ClaimObservationPredicate::Evolves,
-                subject: "carbon dioxide gas".to_owned(),
-                value: None,
-            };
-            match anion_kind {
-                // Most metal oxides shrug off heat, but HgO and Ag2O
-                // genuinely decompose; no confident verdict either way.
-                BaseAnion::Oxide => None,
-                BaseAnion::Carbonate | BaseAnion::Hydroxide if stable => Some(Verdict {
-                    reason: Some(heat_stable_reason(&cation, anion_kind)),
-                    products: Vec::new(),
-                    observations: Vec::new(),
-                }),
-                BaseAnion::Carbonate => Some(Verdict {
-                    reason: None,
-                    products: vec![
-                        product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
-                        carbon_dioxide,
-                    ],
-                    observations: vec![evolves_carbon_dioxide],
-                }),
-                BaseAnion::Hydroxide => Some(Verdict {
-                    reason: None,
-                    products: vec![
-                        product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
-                        water,
-                    ],
-                    observations: Vec::new(),
-                }),
-                BaseAnion::Bicarbonate => {
-                    // 2 MHCO3 -> M2CO3 + H2O + CO2 (charge-balanced).
-                    let shared = gcd(charge, 2);
-                    let mut carbonate = BTreeMap::new();
-                    carbonate.insert(cation.clone(), 2 / shared);
-                    *carbonate.entry("C".to_owned()).or_insert(0) += charge / shared;
-                    *carbonate.entry("O".to_owned()).or_insert(0) += 3 * (charge / shared);
-                    Some(Verdict {
-                        reason: None,
-                        products: vec![
-                            product_from_counts(&carbonate, Some((&cation, charge))),
-                            water,
-                            carbon_dioxide,
-                        ],
-                        observations: vec![evolves_carbon_dioxide],
-                    })
-                }
-            }
+        BaseAnion::Hydroxide => Some(Verdict {
+            reason: None,
+            products: vec![
+                product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
+                water,
+            ],
+            observations: Vec::new(),
+        }),
+        BaseAnion::Bicarbonate => {
+            // 2 MHCO3 -> M2CO3 + H2O + CO2 (charge-balanced).
+            let shared = gcd(charge, 2);
+            let mut carbonate = BTreeMap::new();
+            carbonate.insert(cation.clone(), 2 / shared);
+            *carbonate.entry("C".to_owned()).or_insert(0) += charge / shared;
+            *carbonate.entry("O".to_owned()).or_insert(0) += 3 * (charge / shared);
+            Some(Verdict {
+                reason: None,
+                products: vec![
+                    product_from_counts(&carbonate, Some((&cation, charge))),
+                    water,
+                    carbon_dioxide,
+                ],
+                observations: vec![evolves_carbon_dioxide],
+            })
         }
-        _ => None,
     }
 }
 
@@ -2413,6 +2425,21 @@ mod tests {
         // Heat alone does not electrolyse water.
         let heated = contextual("H₂O", &[1, 1, 8], "heat");
         assert!(solve_reaction_claim(&heated, &SpeciesRegistry::default()).is_none());
+    }
+
+    #[test]
+    fn energy_contexts_do_not_cross_activate() {
+        for (name, atoms, context) in [
+            ("H₂O", &[1, 1, 8][..], "light"),
+            ("AgCl", &[47, 17][..], "electricity"),
+            ("CaCO₃", &[20, 6, 8, 8, 8][..], "light"),
+        ] {
+            let request = contextual(name, atoms, context);
+            assert!(
+                solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none(),
+                "{name} unexpectedly reacted under {context}"
+            );
+        }
     }
 
     #[test]
