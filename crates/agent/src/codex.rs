@@ -14,7 +14,7 @@ use std::{
 
 use crate::{
     AgentError, AgentErrorKind, ClaimMode, MechanismEscalationRequest, MechanismEscalationResponse,
-    MechanismProvider, ReactionBuildRequest, ReactionClaim, StructureProposalRequest,
+    MechanismProvider, ProviderClaim, ReactionBuildRequest, StructureProposalRequest,
     StructureProposalResponse,
 };
 
@@ -304,7 +304,7 @@ impl CodexProvider {
         &self,
         request: &ReactionBuildRequest,
         mode: ClaimMode,
-    ) -> Result<ReactionClaim, AgentError> {
+    ) -> Result<ProviderClaim, AgentError> {
         let timeout = FAST_CLAIM_TIMEOUT;
         self.claim_reaction_until(request, mode, Instant::now() + timeout)
     }
@@ -320,7 +320,7 @@ impl CodexProvider {
         request: &ReactionBuildRequest,
         mode: ClaimMode,
         deadline: Instant,
-    ) -> Result<ReactionClaim, AgentError> {
+    ) -> Result<ProviderClaim, AgentError> {
         let preflight = self.preflight_until(deadline)?;
         if !preflight.authenticated {
             return Err(AgentError::new(
@@ -345,7 +345,7 @@ impl CodexProvider {
                 deadline,
                 false,
             )?;
-            match ReactionClaim::from_json(&bytes, mode) {
+            match ProviderClaim::from_json(&bytes, mode) {
                 Ok(claim) => return Ok(claim),
                 Err(error) if attempt == 0 => {
                     prompt = build_claim_prompt(request, mode, Some((&error, &bytes)))?;

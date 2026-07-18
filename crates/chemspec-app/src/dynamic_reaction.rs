@@ -309,10 +309,11 @@ pub(super) fn run_claim(job: ClaimJob) -> Result<ClaimStageResult, BuildFailure>
         });
     }
     // Algorithmic solving comes first: deterministic families need no model.
-    let solved = agent::solve_reaction_claim(&request, &identities);
-    let algorithmic = solved.is_some();
-    let claim = match solved {
-        Some(claim) => claim,
+    let (outcome, provider_claim) = match agent::solve_reaction_claim(&request, &identities) {
+        Some(claim) => (
+            compile_claim_outcome(&request, claim, &identities).map_err(BuildFailure::from)?,
+            None,
+        ),
         None if local => {
             return Err(
                 "This reaction isn't supported in Local Mode — ChemSpec couldn't derive it \
@@ -323,30 +324,36 @@ pub(super) fn run_claim(job: ClaimJob) -> Result<ClaimStageResult, BuildFailure>
         }
         // The provider uses std::time::Instant; this branch never runs on
         // wasm, where Local Mode is forced.
-        None => provider
-            .claim_reaction_until(
-                &request,
-                mode,
-                std::time::Instant::now() + FAST_CLAIM_TIMEOUT,
-            )
-            .map_err(BuildFailure::from)?,
+        None => {
+            let claim = provider
+                .claim_reaction_until(
+                    &request,
+                    mode,
+                    std::time::Instant::now() + FAST_CLAIM_TIMEOUT,
+                )
+                .map_err(BuildFailure::from)?;
+            let outcome = compile_claim_outcome(&request, claim.clone(), &identities)
+                .map_err(BuildFailure::from)?;
+            (outcome, Some(claim))
+        }
     };
     latency.claim_ms = Some(elapsed_millis(started));
-    let outcome =
-        compile_claim_outcome(&request, claim.clone(), &identities).map_err(BuildFailure::from)?;
     if matches!(outcome, CompiledClaimOutcome::Static(_)) {
         latency.static_outcome_ms = Some(elapsed_millis(started));
     }
     // Algorithmic claims are recomputed instantly; only model claims are
     // worth caching.
-    if !algorithmic && let Some(directory) = provider.config().cache_directory.as_deref() {
+    if let (Some(claim), Some(directory)) = (
+        provider_claim.as_ref(),
+        provider.config().cache_directory.as_deref(),
+    ) {
         let _ = store_dynamic_cache(
             directory,
             &request,
             mode,
             &identities,
             &catalogue,
-            &claim,
+            claim,
             None,
             "codex_subscription",
             provider.model_name(),

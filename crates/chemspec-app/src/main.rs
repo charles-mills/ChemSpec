@@ -46,7 +46,7 @@ use agent::{
     reviewed_species_registry, store_dynamic_cache,
 };
 #[cfg(test)]
-use agent::{CompiledClaimOutcome, ReactionClaim, compile_claim_outcome};
+use agent::{CompiledClaimOutcome, ProviderClaim, ReactionClaim, compile_claim_outcome};
 use chem_presentation::{
     AppearanceProfile, AssetProfile, EducationalPlan, EducationalSceneKind, EffectProfile,
     PresentationObject, PresentationProfile, PresentationTransform, ScenePlan, SceneRole,
@@ -2463,7 +2463,7 @@ impl App {
                     });
                 }
                 let mut provider = CodexProvider::new(config);
-                let claim = outcome.claim().clone();
+                let provider_claim = outcome.provider_claim();
                 let presentation = enrich_static_outcome(outcome, &catalogue, &mut provider)
                     .map_err(DynamicBuildFailure::from)?;
                 let recipe = match &presentation {
@@ -2490,9 +2490,11 @@ impl App {
                         retryable: *retryable,
                     }),
                 };
-                if let (Some(recipe), Some(directory)) =
-                    (recipe, provider.config().cache_directory.as_deref())
-                {
+                if let (Some(recipe), Some(claim), Some(directory)) = (
+                    recipe,
+                    provider_claim.as_ref(),
+                    provider.config().cache_directory.as_deref(),
+                ) {
                     let identities =
                         reviewed_species_registry(&catalogue).map_err(DynamicBuildFailure::from)?;
                     let _ = store_dynamic_cache(
@@ -2501,7 +2503,7 @@ impl App {
                         mode,
                         &identities,
                         &catalogue,
-                        &claim,
+                        claim,
                         Some(recipe),
                         "codex_subscription",
                         provider.model_name(),
@@ -3750,9 +3752,7 @@ impl App {
             .as_ref()
             .map_or("", |outcome| match outcome.trust_tier() {
                 TrustTier::Reviewed => "REVIEWED",
-                // Local Mode claims come from the algorithmic solver, so the
-                // unreviewed tier is derived rather than model-asserted.
-                TrustTier::ModelAsserted if self.local_mode() => "DERIVED",
+                TrustTier::Derived => "DERIVED",
                 TrustTier::ModelAsserted => "MODEL ASSERTED",
             })
     }
@@ -3932,7 +3932,7 @@ impl App {
             return space().height(Length::Shrink).into();
         };
         let (title, detail) = match claim.disposition {
-            ClaimDisposition::NoReaction => match &claim.no_reaction_reason {
+            ClaimDisposition::NoReaction => match claim.no_reaction_reason() {
                 Some(reason) => ("No reaction", reason.learner_explanation()),
                 None => ("No supported reaction", claim.required_context.clone()),
             },
@@ -4907,7 +4907,7 @@ mod tests {
             "required_context":"representative educational outcome under the reviewed standard-outcome premise",
             "observations":[], "sources":[], "ambiguity":null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -4946,11 +4946,49 @@ mod tests {
             "sources": [],
             "ambiguity": null
         });
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
         .expect("no-reaction claim")
+        .into_claim()
+    }
+
+    #[test]
+    fn dynamic_trust_label_follows_claim_provenance_not_selected_mode() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "LithiumMetal".into(),
+                    atomic_numbers: vec![3],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "H2O".into(),
+                    atomic_numbers: vec![1, 1, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let solved = agent::solve_reaction_claim(&request, &identities).expect("solved claim");
+        let CompiledClaimOutcome::Static(derived) =
+            compile_claim_outcome(&request, solved, &identities).expect("derived outcome")
+        else {
+            panic!("static derived outcome")
+        };
+        let mut app = App {
+            provider: Some(AppMode::CodexBinary),
+            ..App::default()
+        };
+        app.dynamic.static_outcome = Some(derived);
+        assert_eq!(app.dynamic_trust_label(), "DERIVED");
+
+        app.provider = Some(AppMode::Local);
+        app.dynamic.static_outcome = Some(dynamic_lithium_static());
+        assert_eq!(app.dynamic_trust_label(), "MODEL ASSERTED");
     }
 
     #[test]
@@ -5073,7 +5111,7 @@ mod tests {
             ..App::default()
         };
 
-        let provider_error = ReactionClaim::from_json(b"{}", ClaimMode::Fast)
+        let provider_error = ProviderClaim::from_json(b"{}", ClaimMode::Fast)
             .expect_err("an empty provider claim must be rejected");
         app.update(Message::Dynamic(dynamic_reaction::Message::ClaimFinished {
             run_id: 9,

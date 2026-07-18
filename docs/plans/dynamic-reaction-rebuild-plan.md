@@ -96,6 +96,10 @@ catalogue trust.
 Factual support is a typed ladder, not a boolean:
 
 - **Reviewed** — host-pinned catalogue and generalized family content.
+- **Derived** — a deterministic closed-world solver conclusion. It crosses the
+  same exact balancing and structural gates as a provider claim, but never
+  masquerades as model-authored merely because the app is in an AI-enabled
+  mode.
 - **EvidenceBacked** — a dynamic claim corroborated by bundled outcome data,
   by matching a reviewed family's applicability, or by a fetched and checked
   evidence snapshot.
@@ -133,7 +137,7 @@ structured request
         -> validated local dynamic cache
            -> hit: revalidate and present
            -> miss:
-              -> Codex compact ReactionClaim (model knowledge, no search)
+              -> Codex compact ProviderClaim (model knowledge, no search)
               -> local corroboration: bundled outcomes / family applicability
               -> exact local outcome compiler
               -> typed ReactionDeclaration

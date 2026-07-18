@@ -57,11 +57,120 @@ pub struct ReactionClaim {
     pub observations: Vec<ClaimObservation>,
     pub sources: Vec<ClaimSource>,
     pub ambiguity: Option<ClaimAmbiguity>,
-    /// Physical cause of a confident no-reaction, set only by the
-    /// algorithmic solver. Display copy always comes from
-    /// [`NoReactionReason::learner_explanation`], never from a provider.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub no_reaction_reason: Option<NoReactionReason>,
+    #[serde(skip)]
+    origin: ClaimProvenance,
+    #[serde(skip)]
+    solver_reason: Option<NoReactionReason>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ClaimProvenance {
+    #[default]
+    Provider,
+    Solver,
+}
+
+/// A bounded factual claim decoded from an untrusted provider boundary.
+/// This capability cannot express solver-authored explanation copy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct ProviderClaim(ReactionClaim);
+
+impl<'de> Deserialize<'de> for ProviderClaim {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let claim = ReactionClaim::deserialize(deserializer)?;
+        claim.validate_wire().map_err(serde::de::Error::custom)?;
+        Ok(Self(claim))
+    }
+}
+
+impl std::ops::Deref for ProviderClaim {
+    type Target = ReactionClaim;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ProviderClaim {
+    /// Decodes one bounded provider claim. Solver-only fields are not part of
+    /// this wire type and fail as unknown input.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed provider-output error for malformed or out-of-contract
+    /// bytes.
+    pub fn from_json(bytes: &[u8], _mode: ClaimMode) -> Result<Self, AgentError> {
+        if bytes.len() > MAX_REACTION_CLAIM_BYTES {
+            return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
+                "reaction claim",
+                format!("claim exceeds the {MAX_REACTION_CLAIM_BYTES}-byte contract limit"),
+            ));
+        }
+        let claim: ReactionClaim = serde_json::from_slice(bytes).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "reaction claim",
+                error,
+            )
+        })?;
+        claim.validate_wire()?;
+        Ok(Self(claim))
+    }
+
+    #[must_use]
+    pub fn into_claim(self) -> ReactionClaim {
+        self.0
+    }
+
+    pub(crate) fn from_compiled(claim: ReactionClaim) -> Option<Self> {
+        (!claim.is_solver_authored()).then_some(Self(claim))
+    }
+}
+
+/// A deterministic solver conclusion. Only this capability may carry a
+/// physical no-reaction reason for learner-facing explanation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SolvedClaim(ReactionClaim);
+
+impl std::ops::Deref for SolvedClaim {
+    type Target = ReactionClaim;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Closed provenance-bearing input accepted by the claim compiler.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClaimInput {
+    Provider(ProviderClaim),
+    Solved(SolvedClaim),
+}
+
+impl From<ProviderClaim> for ClaimInput {
+    fn from(claim: ProviderClaim) -> Self {
+        Self::Provider(claim)
+    }
+}
+
+impl From<SolvedClaim> for ClaimInput {
+    fn from(claim: SolvedClaim) -> Self {
+        Self::Solved(claim)
+    }
+}
+
+impl ClaimInput {
+    pub(crate) fn into_claim(self) -> ReactionClaim {
+        match self {
+            Self::Provider(claim) => claim.0,
+            Self::Solved(claim) => claim.0,
+        }
+    }
 }
 
 /// Why a pairing confidently does nothing. Variants carry lowercase
@@ -243,30 +352,38 @@ pub struct ClaimAlternative {
 }
 
 impl ReactionClaim {
-    /// Decodes and validates one bounded provider claim.
-    ///
-    /// # Errors
-    ///
-    /// Returns a typed provider-output error for oversized JSON, schema drift,
-    /// contradictory disposition fields, malformed evidence, or procedural
-    /// content outside `ChemSpec`'s virtual-only boundary.
-    pub fn from_json(bytes: &[u8], _mode: ClaimMode) -> Result<Self, AgentError> {
-        if bytes.len() > MAX_REACTION_CLAIM_BYTES {
-            return Err(AgentError::new(
-                AgentErrorKind::InvalidProviderOutput,
-                "reaction claim",
-                format!("claim exceeds the {MAX_REACTION_CLAIM_BYTES}-byte contract limit"),
-            ));
-        }
-        let claim: Self = serde_json::from_slice(bytes).map_err(|error| {
-            AgentError::from_source(
-                AgentErrorKind::InvalidProviderOutput,
-                "reaction claim",
-                error,
-            )
-        })?;
-        claim.validate_wire()?;
-        Ok(claim)
+    pub(crate) fn solved(
+        disposition: ClaimDisposition,
+        products: Vec<ClaimProduct>,
+        required_context: String,
+        observations: Vec<ClaimObservation>,
+        solver_reason: Option<NoReactionReason>,
+    ) -> SolvedClaim {
+        SolvedClaim(Self {
+            schema_version: REACTION_CLAIM_SCHEMA_VERSION,
+            disposition,
+            products,
+            required_context,
+            observations,
+            sources: Vec::new(),
+            ambiguity: None,
+            origin: ClaimProvenance::Solver,
+            solver_reason,
+        })
+    }
+
+    #[must_use]
+    pub const fn no_reaction_reason(&self) -> Option<&NoReactionReason> {
+        self.solver_reason.as_ref()
+    }
+
+    #[must_use]
+    pub const fn provenance(&self) -> ClaimProvenance {
+        self.origin
+    }
+
+    pub(crate) const fn is_solver_authored(&self) -> bool {
+        matches!(self.origin, ClaimProvenance::Solver)
     }
 
     pub(crate) fn validate_wire(&self) -> Result<(), AgentError> {
@@ -278,7 +395,7 @@ impl ReactionClaim {
                 format!("unsupported claim schema {}", self.schema_version),
             ));
         }
-        if self.no_reaction_reason.is_some() && self.disposition != ClaimDisposition::NoReaction {
+        if self.solver_reason.is_some() && self.disposition != ClaimDisposition::NoReaction {
             return Err(AgentError::new(
                 AgentErrorKind::InvalidProviderOutput,
                 "reaction claim",
@@ -1443,7 +1560,7 @@ mod tests {
     #[test]
     fn rubidium_water_claim_has_no_structural_ledger() {
         let bytes = serde_json::to_vec(&rubidium_claim()).expect("claim JSON");
-        let claim = ReactionClaim::from_json(&bytes, ClaimMode::Fast).expect("valid claim");
+        let claim = ProviderClaim::from_json(&bytes, ClaimMode::Fast).expect("valid claim");
         assert_eq!(claim.products.len(), 2);
         let text = String::from_utf8(bytes).expect("UTF-8 JSON");
         for forbidden in [
@@ -1464,7 +1581,7 @@ mod tests {
         let mut unknown = rubidium_claim();
         unknown["procedure"] = json!("none");
         assert!(
-            ReactionClaim::from_json(
+            ProviderClaim::from_json(
                 &serde_json::to_vec(&unknown).expect("unknown JSON"),
                 ClaimMode::Fast
             )
@@ -1474,7 +1591,7 @@ mod tests {
         let mut missing = rubidium_claim();
         missing.as_object_mut().expect("object").remove("products");
         assert!(
-            ReactionClaim::from_json(
+            ProviderClaim::from_json(
                 &serde_json::to_vec(&missing).expect("missing JSON"),
                 ClaimMode::Fast
             )
@@ -1483,7 +1600,7 @@ mod tests {
 
         let mut procedural = rubidium_claim();
         procedural["required_context"] = json!("Heat to 80 C and stir for ten minutes");
-        let error = ReactionClaim::from_json(
+        let error = ProviderClaim::from_json(
             &serde_json::to_vec(&procedural).expect("procedural JSON"),
             ClaimMode::Fast,
         )
@@ -1493,7 +1610,7 @@ mod tests {
         let mut empty_context = rubidium_claim();
         empty_context["required_context"] = json!("");
         assert!(
-            ReactionClaim::from_json(
+            ProviderClaim::from_json(
                 &serde_json::to_vec(&empty_context).expect("empty context JSON"),
                 ClaimMode::Fast
             )
@@ -1505,7 +1622,7 @@ mod tests {
     fn claim_text_limit_uses_json_schema_character_count() {
         let mut at_limit = rubidium_claim();
         at_limit["products"][0]["name"] = json!("é".repeat(300));
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&at_limit).expect("bounded claim JSON"),
             ClaimMode::Fast,
         )
@@ -1513,7 +1630,7 @@ mod tests {
 
         let mut over_limit = rubidium_claim();
         over_limit["products"][0]["name"] = json!("é".repeat(301));
-        let error = ReactionClaim::from_json(
+        let error = ProviderClaim::from_json(
             &serde_json::to_vec(&over_limit).expect("oversized claim JSON"),
             ClaimMode::Fast,
         )
@@ -1522,7 +1639,7 @@ mod tests {
     }
 
     fn assert_invalid_claim(value: &serde_json::Value, expected: &str) {
-        let error = ReactionClaim::from_json(
+        let error = ProviderClaim::from_json(
             &serde_json::to_vec(value).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1540,7 +1657,7 @@ mod tests {
 
         let mut products_at_limit = rubidium_claim();
         products_at_limit["products"] = json!(vec![product.clone(); 16]);
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&products_at_limit).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1550,7 +1667,7 @@ mod tests {
 
         let mut context = rubidium_claim();
         context["required_context"] = json!("x".repeat(1_000));
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&context).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1560,7 +1677,7 @@ mod tests {
 
         let mut formula = rubidium_claim();
         formula["products"][0]["formula"] = json!("X".repeat(200));
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&formula).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1571,7 +1688,7 @@ mod tests {
         let hint = json!({"kind":"registry_id", "value":"x".repeat(500)});
         let mut hints = rubidium_claim();
         hints["products"][0]["identity_hints"] = json!(vec![hint.clone(); 12]);
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&hints).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1585,7 +1702,7 @@ mod tests {
         let observation = json!({"predicate":"evolves", "subject":"x".repeat(300), "value":null});
         let mut observations = rubidium_claim();
         observations["observations"] = json!(vec![observation; 16]);
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&observations).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1615,7 +1732,7 @@ mod tests {
         };
         let mut sources = rubidium_claim();
         sources["sources"] = json!((0..4).map(source).collect::<Vec<_>>());
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&sources).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1645,7 +1762,7 @@ mod tests {
                 "alternatives":vec![alternative.clone(); 8]
             }
         });
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1798,7 +1915,7 @@ mod tests {
             "sources": [],
             "ambiguity": null
         });
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&no_reaction).expect("no reaction"),
             ClaimMode::Fast,
         )
@@ -1820,7 +1937,7 @@ mod tests {
                 ]
             }
         });
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&ambiguous).expect("ambiguous"),
             ClaimMode::Fast,
         )
@@ -1984,7 +2101,7 @@ mod tests {
     }
 
     #[test]
-    fn no_reaction_reason_only_rides_a_no_reaction() {
+    fn provider_claim_rejects_solver_only_no_reaction_reason() {
         let no_reaction = json!({
             "schema_version": 1,
             "disposition": "no_reaction",
@@ -1993,28 +2110,12 @@ mod tests {
             "observations": [], "sources": [], "ambiguity": null,
             "no_reaction_reason": {"below_hydrogen": {"metal": "copper"}}
         });
-        let claim = ReactionClaim::from_json(
+        let error = ProviderClaim::from_json(
             &serde_json::to_vec(&no_reaction).expect("claim JSON"),
             ClaimMode::Fast,
         )
-        .expect("reasoned no-reaction");
-        assert!(
-            claim
-                .no_reaction_reason
-                .expect("reason")
-                .learner_explanation()
-                .starts_with("Copper sits below hydrogen")
-        );
-
-        let mut misplaced = no_reaction;
-        misplaced["disposition"] = json!("unsupported");
-        assert!(
-            ReactionClaim::from_json(
-                &serde_json::to_vec(&misplaced).expect("claim JSON"),
-                ClaimMode::Fast,
-            )
-            .is_err()
-        );
+        .expect_err("a provider cannot author solver-only explanation copy");
+        assert!(error.to_string().contains("no_reaction_reason"));
     }
 
     #[test]

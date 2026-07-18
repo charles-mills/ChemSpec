@@ -95,6 +95,8 @@ Required outcome:
 
 Verdict: **Confirmed; high.**
 
+Status: **Completed 2026-07-18 in the audit remediation commit.**
+
 Evidence:
 
 - `ReactionClaim::no_reaction_reason` is deserializable with
@@ -1042,4 +1044,57 @@ For each completed slice, append:
 - Remaining boundary: deterministic in-process JSON, cache, and fake-provider
   tests exercise this contract. No live provider, credential, network, GPU,
   macOS, or Windows behavior is required or claimed.
+- Follow-ups: none.
+
+### 2026-07-18 — AUD-002 Typed claim provenance
+
+- Completion: this audit remediation commit.
+- Contract and code: provider decoding now yields an opaque `ProviderClaim`,
+  deterministic solving yields an opaque `SolvedClaim`, and the claim compiler
+  accepts only the closed `ClaimInput` union of those capabilities. Shared
+  factual `ReactionClaim` data retains private origin after compilation; only
+  `SolvedClaim` construction can attach a typed physical
+  `NoReactionReason`.
+- Provider boundary: `no_reaction_reason` is absent from the provider wire
+  type, so `deny_unknown_fields` rejects it in direct provider JSON and cache
+  envelopes. `ProviderClaim` owns the single public JSON constructor and its
+  custom deserializer re-applies the AUD-008 wire validator for every serde
+  adapter.
+- Provenance and presentation: solver-authored static outcomes receive the
+  distinct `TrustTier::Derived`; provider outcomes remain `ModelAsserted`, and
+  reviewed-family corroboration can still upgrade either to `Reviewed`. The UI
+  now renders the tier directly, independent of Local/Codex mode. Only an
+  outcome retaining provider provenance can recover a claim for cache writes,
+  so solver results cannot be persisted as provider assertions.
+- Cache compatibility: cache schema and compiler contract remain v3 because
+  persisted entries were already provider-only and the transparent
+  `ProviderClaim` serialization preserves the existing flat JSON shape. Tests
+  assert the v3 marker, absence of wrapper/provenance fields, successful normal
+  replay, and rejection of hostile solver-only fields.
+- Red evidence: provider JSON carrying `no_reaction_reason` decoded
+  successfully and exposed its learner explanation before this slice. The app
+  integration then failed exhaustiveness/type checking when `Derived`,
+  `ProviderClaim`, and `SolvedClaim` replaced the mode-based provenance hack.
+- Regression coverage: hostile provider and cache JSON fail closed;
+  deterministic and provider claims retain distinct typed provenance; compiled
+  solver/provider outcomes receive `Derived`/`ModelAsserted`; and an app test
+  proves the displayed label follows claim origin even when the selected mode
+  says the opposite.
+- Review: the Spec pass found no code-level requirement gap. The Standards pass
+  found one middle-man decoder seam (`ReactionClaim::from_json` returning a
+  `ProviderClaim`); decoding was consolidated on `ProviderClaim::from_json`,
+  all callers were migrated, and the reviewer confirmed the finding resolved.
+- Verification passed:
+  `cargo test -p agent --all-targets` (152 passed, 2 live probes ignored);
+  `cargo test -p chemspec-app --all-targets` (203 passed);
+  `cargo test -p chemspec-app dynamic_trust_label_follows_claim_provenance_not_selected_mode`;
+  `cargo fmt --all --check`;
+  `cargo test --workspace --all-targets`;
+  `cargo clippy --workspace --all-targets -- -D warnings`; and
+  `git diff --check`. Cargo verification used the isolated target directory
+  `/tmp/chemspec-aud002`.
+- Remaining boundary: deterministic JSON/cache fixtures and in-process solver,
+  provider, compiler, and app-state tests exercise this capability split. No
+  live provider, credential, network, GPU, macOS, or Windows behavior is
+  required or claimed.
 - Follow-ups: none.

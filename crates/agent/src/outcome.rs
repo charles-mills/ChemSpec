@@ -11,13 +11,14 @@ use num_bigint::BigUint;
 
 use crate::{
     AgentError, AgentErrorKind, ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind,
-    ClaimPhase, ClaimProduct, ReactionBuildRequest, ReactionClaim,
+    ClaimInput, ClaimPhase, ClaimProduct, ProviderClaim, ReactionBuildRequest, ReactionClaim,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrustTier {
     Reviewed,
+    Derived,
     ModelAsserted,
 }
 
@@ -94,6 +95,14 @@ impl ValidatedStaticOutcome {
     #[must_use]
     pub const fn trust_tier(&self) -> TrustTier {
         self.trust_tier
+    }
+
+    /// Recovers the cacheable provider capability only when this outcome
+    /// originated at the provider boundary. Solver outcomes deliberately
+    /// cannot be converted into provider claims.
+    #[must_use]
+    pub fn provider_claim(&self) -> Option<ProviderClaim> {
+        ProviderClaim::from_compiled(self.claim.clone())
     }
 
     #[must_use]
@@ -204,9 +213,10 @@ pub enum RequestIdentityResolution {
 /// mismatch, invalid product formulae, or any exact balance failure.
 pub fn compile_claim_outcome(
     request: &ReactionBuildRequest,
-    claim: ReactionClaim,
+    claim: impl Into<ClaimInput>,
     identities: &SpeciesRegistry,
 ) -> Result<CompiledClaimOutcome, AgentError> {
+    let claim = claim.into().into_claim();
     validate_request_shape(request)?;
     validate_selected_context_binding(request, &claim)?;
     match claim.disposition {
@@ -269,7 +279,11 @@ pub fn compile_claim_outcome(
     .map_err(|error| {
         AgentError::from_source(AgentErrorKind::CompilationFailure, "outcome balance", error)
     })?;
-    let trust_tier = TrustTier::ModelAsserted;
+    let trust_tier = if claim.is_solver_authored() {
+        TrustTier::Derived
+    } else {
+        TrustTier::ModelAsserted
+    };
     let equation = format_equation(&declaration);
     Ok(CompiledClaimOutcome::Static(ValidatedStaticOutcome {
         declaration,
@@ -900,7 +914,7 @@ mod tests {
     use chem_catalogue::{CatalogueEnvelope, TrustedCatalogue, ValidatedCatalogueBundle};
     use serde_json::json;
 
-    use crate::{ClaimMode, ReactantInput, ReactionClaim, reviewed_species_registry};
+    use crate::{ClaimMode, ReactantInput, reviewed_species_registry};
 
     fn registry() -> SpeciesRegistry {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -936,7 +950,7 @@ mod tests {
             "sources":[],
             "ambiguity":null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim bytes"),
             ClaimMode::Fast,
         )
@@ -967,6 +981,10 @@ mod tests {
         };
         assert_eq!(outcome.equation(), "2 Li + 2 H2O → H2 + 2 LiOH");
         assert_eq!(outcome.trust_tier(), TrustTier::ModelAsserted);
+        assert_eq!(
+            outcome.claim().provenance(),
+            crate::ClaimProvenance::Provider
+        );
         assert!(outcome.products().iter().all(OutcomeSpecies::has_structure));
 
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -1004,7 +1022,7 @@ mod tests {
             "required_context":"ordinary contact",
             "observations":[], "sources":[], "ambiguity":null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim bytes"),
             ClaimMode::Fast,
         )
@@ -1039,7 +1057,7 @@ mod tests {
 
     #[test]
     fn formula_only_reactant_compiles_and_enters_structure_escalation() {
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&json!({
                 "schema_version": 1,
                 "disposition": "reaction",
@@ -1188,7 +1206,7 @@ mod tests {
             panic!("AgCl should be reviewed")
         };
         request.reactants[0].species_id = Some(species.id.clone());
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&json!({
                 "schema_version": 1,
                 "disposition": "reaction",
@@ -1225,7 +1243,7 @@ mod tests {
             }],
             selected_context: Some("light".into()),
         };
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&json!({
                 "schema_version": 1,
                 "disposition": "reaction",
@@ -1291,7 +1309,7 @@ mod tests {
             "required_context":"ordinary contact","observations":[],"sources":[],"ambiguity":null
         });
         let parsed =
-            ReactionClaim::from_json(&serde_json::to_vec(&claim).unwrap(), ClaimMode::Fast)
+            ProviderClaim::from_json(&serde_json::to_vec(&claim).unwrap(), ClaimMode::Fast)
                 .unwrap();
         let error = compile_claim_outcome(
             &ReactionBuildRequest {
@@ -1379,7 +1397,7 @@ mod tests {
                 "ambiguity":null
             }"#;
         let claim =
-            ReactionClaim::from_json(claim_json.as_bytes(), ClaimMode::Fast).expect("claim");
+            ProviderClaim::from_json(claim_json.as_bytes(), ClaimMode::Fast).expect("claim");
 
         let CompiledClaimOutcome::Static(outcome) =
             compile_claim_outcome(&request, claim, &registry()).expect("balanced static outcome")

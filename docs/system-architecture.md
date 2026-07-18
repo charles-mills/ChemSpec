@@ -18,7 +18,7 @@ structured reaction request
      -> hit: selected production rule
      -> miss: stable identity resolution + generated structures
         -> algorithmic reaction solver (families, confident no-reactions)
-           -> miss: cache-v3 lookup, then provider ReactionClaim
+           -> miss: cache-v3 lookup, then provider ProviderClaim
         -> exact local balance + checked ReactionDeclaration
         -> private ValidatedStaticOutcome (no frames)
         -> algorithmic graph-diff mechanism derivation
@@ -130,15 +130,15 @@ structural-rule and kernel boundary.
 
 ## Shared contracts
 
-### `ReactionClaim`
+### `ProviderClaim` / `SolvedClaim`
 
 ```text
-closed disposition
-factual product names, formulae, and phases
-required context and typed qualitative observations
-direct source locations and claim-field mappings
-typed ambiguity alternatives
-no structures, coefficients, mapping, operations, or internal trust
+shared closed ReactionClaim facts
+  -> ProviderClaim: bounded untrusted wire/cache capability
+  -> SolvedClaim: deterministic solver capability, optionally carrying a
+     typed physical no-reaction reason
+compiler retains Provider versus Solver provenance as ModelAsserted or Derived
+neither capability contains structures, coefficients, mappings, or operations
 ```
 
 ### `ExpandedStructuralReaction`

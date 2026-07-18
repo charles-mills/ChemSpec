@@ -1579,8 +1579,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        ClaimMode, CompiledClaimOutcome, FamilyMatchOutcome, ReactantInput, ReactionBuildRequest,
-        ReactionClaim, compile_claim_outcome, match_reviewed_family, reviewed_species_registry,
+        ClaimMode, CompiledClaimOutcome, FamilyMatchOutcome, ProviderClaim, ReactantInput,
+        ReactionBuildRequest, compile_claim_outcome, match_reviewed_family,
+        reviewed_species_registry,
     };
 
     fn trusted() -> TrustedCatalogue {
@@ -1605,7 +1606,7 @@ mod tests {
             "required_context": "representative educational outcome under the reviewed standard-outcome premise",
             "observations": [], "sources": [], "ambiguity": null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1645,7 +1646,7 @@ mod tests {
             "required_context": context,
             "observations": [], "sources": [], "ambiguity": null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )

@@ -6,9 +6,10 @@
 //! combustion, oxide hydration and slaking, metal + water, single, double,
 //! and halogen displacement with solubility rules, heat/light/electricity
 //! decomposition, and confident no-reactions (noble gases, metal pairs,
-//! light-stable and inert pairings). The output is an ordinary
-//! [`ReactionClaim`]; downstream exact balancing and structural validation
-//! gate it exactly like a model claim. Anything outside these families
+//! light-stable and inert pairings). The output is a typed [`SolvedClaim`];
+//! downstream exact balancing and structural validation gate its factual data
+//! exactly like a provider claim while preserving its deterministic provenance.
+//! Anything outside these families
 //! returns None so the caller can fall back to the model.
 
 use std::collections::BTreeMap;
@@ -21,8 +22,8 @@ use chem_domain::{
 use crate::{
     ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind, ClaimObservation,
     ClaimObservationPredicate, ClaimPhase, ClaimProduct, NoReactionReason, OutcomeSpecies,
-    ReactionBuildRequest, ReactionClaim, RequestIdentityResolution,
-    claim::REACTION_CLAIM_SCHEMA_VERSION, organic, resolve_request_identities,
+    ReactionBuildRequest, ReactionClaim, RequestIdentityResolution, SolvedClaim, organic,
+    resolve_request_identities,
 };
 
 /// Donor elements that make a proton-donor site an acid site in practice;
@@ -35,7 +36,7 @@ const ACIDIC_DONORS: [&str; 6] = ["O", "F", "Cl", "Br", "I", "S"];
 pub fn solve_reaction_claim(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
-) -> Option<ReactionClaim> {
+) -> Option<SolvedClaim> {
     if !(1..=2).contains(&request.reactants.len()) {
         return None;
     }
@@ -75,16 +76,13 @@ pub fn solve_reaction_claim(
     } else {
         ClaimDisposition::Reaction
     };
-    Some(ReactionClaim {
-        schema_version: REACTION_CLAIM_SCHEMA_VERSION,
+    Some(ReactionClaim::solved(
         disposition,
-        products: verdict.products,
-        required_context: request.selected_context.clone().unwrap_or_default(),
-        observations: verdict.observations,
-        sources: Vec::new(),
-        ambiguity: None,
-        no_reaction_reason: verdict.reason,
-    })
+        verdict.products,
+        request.selected_context.clone().unwrap_or_default(),
+        verdict.observations,
+        verdict.reason,
+    ))
 }
 
 /// A solved outcome: an empty product list is a confident "no reaction",
@@ -1855,6 +1853,7 @@ mod tests {
         let registry = SpeciesRegistry::default();
         let claim = solve_reaction_claim(&request, &registry).expect("solved");
         assert_eq!(claim.disposition, ClaimDisposition::Reaction);
+        assert_eq!(claim.provenance(), crate::ClaimProvenance::Solver);
         let formulas = claim
             .products
             .iter()
@@ -1865,6 +1864,7 @@ mod tests {
         let CompiledClaimOutcome::Static(outcome) = outcome else {
             panic!("expected static outcome");
         };
+        assert_eq!(outcome.trust_tier(), crate::TrustTier::Derived);
         assert!(
             outcome.equation().contains("Na2SO4"),
             "{}",
@@ -2000,7 +2000,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert_eq!(
-            claim.no_reaction_reason,
+            claim.no_reaction_reason().cloned(),
             Some(NoReactionReason::BelowHydrogen {
                 metal: "copper".to_owned()
             })
@@ -2710,7 +2710,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert_eq!(
-            claim.no_reaction_reason,
+            claim.no_reaction_reason().cloned(),
             Some(NoReactionReason::LessActiveMetal {
                 metal: "copper".to_owned(),
                 displaced: "zinc".to_owned()
@@ -2732,7 +2732,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert_eq!(
-            claim.no_reaction_reason,
+            claim.no_reaction_reason().cloned(),
             Some(NoReactionReason::AllProductsSoluble)
         );
     }
@@ -2893,7 +2893,7 @@ mod tests {
             assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
             assert!(claim.products.is_empty());
             assert!(
-                claim.no_reaction_reason.is_some(),
+                claim.no_reaction_reason().is_some(),
                 "reason for {reactants:?}"
             );
         };
@@ -2925,7 +2925,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert!(
-            claim.no_reaction_reason.is_some(),
+            claim.no_reaction_reason().is_some(),
             "reason for {reactants:?}"
         );
     }

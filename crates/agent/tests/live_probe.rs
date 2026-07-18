@@ -2,8 +2,8 @@
 
 use agent::{
     ClaimMode, CodexProvider, CodexProviderConfig, CompiledClaimOutcome,
-    MechanismEscalationOutcome, MechanismProvider, ReactantInput, ReactionBuildRequest,
-    ReactionClaim, compile_claim_outcome, compile_mechanism_request, derive_mechanism,
+    MechanismEscalationOutcome, MechanismProvider, ProviderClaim, ReactantInput,
+    ReactionBuildRequest, compile_claim_outcome, compile_mechanism_request, derive_mechanism,
     resolve_request_identities_with_catalogue, reviewed_species_registry,
 };
 use chem_catalogue::TrustedCatalogue;
@@ -32,7 +32,7 @@ fn live_mechanism_probe() {
         "observations": [], "sources": [], "ambiguity": null
     });
     let claim =
-        ReactionClaim::from_json(&serde_json::to_vec(&claim).unwrap(), ClaimMode::Fast).unwrap();
+        ProviderClaim::from_json(&serde_json::to_vec(&claim).unwrap(), ClaimMode::Fast).unwrap();
     let mut request = ReactionBuildRequest {
         reactants: [
             ReactantInput {
@@ -97,7 +97,7 @@ fn live_mechanism_probe() {
 fn live_reactant_structure_escalation_probe() {
     let trusted = trusted();
     let identities = reviewed_species_registry(&trusted).unwrap();
-    let claim = ReactionClaim::from_json(
+    let claim = ProviderClaim::from_json(
         &serde_json::to_vec(&serde_json::json!({
             "schema_version": 1,
             "disposition": "reaction",

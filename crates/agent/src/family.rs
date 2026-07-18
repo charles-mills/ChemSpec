@@ -398,7 +398,7 @@ mod tests {
     use super::*;
     use crate::{
         ClaimMode, CompiledClaimOutcome, MechanismEscalationRequest, MechanismEscalationResponse,
-        MechanismProvider, ReactantInput, ReactionBuildRequest, ReactionClaim,
+        MechanismProvider, ProviderClaim, ReactantInput, ReactionBuildRequest,
         compile_claim_outcome, reviewed_species_registry,
     };
 
@@ -442,7 +442,7 @@ mod tests {
             "observations":[],"sources":[],"ambiguity":null
         });
         let claim =
-            ReactionClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
+            ProviderClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
                 .expect("claim contract");
         let compiled = compile_claim_outcome(
             &ReactionBuildRequest {
@@ -500,7 +500,7 @@ mod tests {
             "observations":[],"sources":[],"ambiguity":null
         });
         let claim =
-            ReactionClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
+            ProviderClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
                 .expect("claim contract");
         let compiled = compile_claim_outcome(
             &ReactionBuildRequest {

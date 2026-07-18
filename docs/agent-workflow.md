@@ -7,7 +7,7 @@ for genuine unknowns and is never a chemistry authority. On a reviewed
 catalogue miss the solver attempts the claim itself; on a solver miss, Codex
 may provide two narrowly separated untrusted artefacts:
 
-1. a compact factual `ReactionClaim`; and
+1. a compact factual `ProviderClaim`; and
 2. only when neither the graph-diff deriver nor local reviewed-family
    matching can animate the outcome, a mapping and ordered operation
    proposal over host-labelled structures.
@@ -87,11 +87,18 @@ become chemistry results.
 
 ## Compact claim contract
 
-`ReactionClaim` is a closed schema containing only disposition, products,
+`ProviderClaim` is an opaque capability decoded from a closed `ReactionClaim`
+wire schema containing only disposition, products,
 required context, qualitative observations, direct source locations, and typed
 ambiguity. Disposition is one of `reaction`, `no_reaction`, `ambiguous`, or
 `unsupported`. Unknown fields, missing required fields, unsafe procedural
 content, oversize output, and inconsistent dispositions fail closed.
+
+The deterministic solver instead returns `SolvedClaim`. Both capabilities feed
+the same exact claim compiler, but only `SolvedClaim` can carry a typed physical
+`NoReactionReason`; provider JSON and cache bytes cannot express that field.
+The compiler preserves this origin as `Derived` versus `ModelAsserted` rather
+than asking the application to infer provenance from its current mode.
 
 The source-locating call receives an immutable displayed claim and may change
 only its `sources` array. Any product, observation, context, disposition, or

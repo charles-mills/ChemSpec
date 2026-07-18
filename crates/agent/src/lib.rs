@@ -31,11 +31,12 @@ pub use cache::{
 };
 pub use claim::{
     ClaimAlternative, ClaimAmbiguity, ClaimAmbiguityKind, ClaimDisposition, ClaimField,
-    ClaimIdentityHint, ClaimIdentityHintKind, ClaimMode, ClaimObservation,
-    ClaimObservationPredicate, ClaimPhase, ClaimProduct, ClaimSource, LabelledStructure,
-    MechanismCleavageAllocation, MechanismEscalationRequest, MechanismEscalationResponse,
-    MechanismHomolytic, MechanismMapping, MechanismOperation, MechanismSpecies, NoReactionReason,
-    ReactionClaim, StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
+    ClaimIdentityHint, ClaimIdentityHintKind, ClaimInput, ClaimMode, ClaimObservation,
+    ClaimObservationPredicate, ClaimPhase, ClaimProduct, ClaimProvenance, ClaimSource,
+    LabelledStructure, MechanismCleavageAllocation, MechanismEscalationRequest,
+    MechanismEscalationResponse, MechanismHomolytic, MechanismMapping, MechanismOperation,
+    MechanismSpecies, NoReactionReason, ProviderClaim, ReactionClaim, SolvedClaim,
+    StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
 };
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,

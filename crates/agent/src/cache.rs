@@ -14,7 +14,7 @@ use crate::claim::{
 };
 use crate::{
     AgentError, AgentErrorKind, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome,
-    FamilyMatchOutcome, MechanismEscalationResponse, ReactionBuildRequest, ReactionClaim,
+    FamilyMatchOutcome, MechanismEscalationResponse, ProviderClaim, ReactionBuildRequest,
     StructureProposalResponse, TrustTier, compile_claim_outcome, compile_reviewed_animation,
     match_reviewed_family, resolve_request_species, validate_escalated_response_with_structures,
 };
@@ -61,7 +61,7 @@ struct DynamicCacheEnvelope {
     identity_snapshot: ContentDigest,
     catalogue_digest: ContentDigest,
     claim_digest: ContentDigest,
-    claim: ReactionClaim,
+    claim: ProviderClaim,
     trust_tier: TrustTier,
     presentation: Option<DynamicCachePresentation>,
 }
@@ -180,7 +180,7 @@ pub fn store_dynamic_cache(
     mode: ClaimMode,
     identities: &SpeciesRegistry,
     catalogue: &TrustedCatalogue,
-    claim: &ReactionClaim,
+    claim: &ProviderClaim,
     presentation: Option<DynamicCachePresentation>,
     provider: &str,
     model: &str,
@@ -354,7 +354,7 @@ fn request_binding(
     Ok(ContentDigest::sha256(&bytes))
 }
 
-fn claim_digest(claim: &ReactionClaim) -> Result<ContentDigest, AgentError> {
+fn claim_digest(claim: &ProviderClaim) -> Result<ContentDigest, AgentError> {
     let bytes = serde_json::to_vec(claim).map_err(|error| {
         AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
     })?;
@@ -397,7 +397,7 @@ mod tests {
         }
     }
 
-    fn claim() -> ReactionClaim {
+    fn claim() -> ProviderClaim {
         let value = json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -408,7 +408,7 @@ mod tests {
             "required_context":"representative educational outcome under the reviewed standard-outcome premise",
             "observations":[], "sources":[], "ambiguity":null
         });
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&value).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -629,10 +629,12 @@ mod tests {
         .expect("store valid cache entry");
         let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
             .expect("cache path");
-        let mut envelope: DynamicCacheEnvelope =
+        let mut envelope: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache entry");
-        envelope.claim.products[0].name = "x".repeat(301);
-        envelope.claim_digest = claim_digest(&envelope.claim).expect("updated digest");
+        envelope["claim"]["products"][0]["name"] = json!("x".repeat(301));
+        let claim_bytes = serde_json::to_vec(&envelope["claim"]).expect("claim bytes");
+        envelope["claim_digest"] =
+            serde_json::to_value(ContentDigest::sha256(&claim_bytes)).expect("updated digest");
         fs::write(
             &path,
             serde_json::to_vec(&envelope).expect("tampered cache entry"),
@@ -653,6 +655,55 @@ mod tests {
         assert!(
             path.exists(),
             "a rejected entry remains a cache miss artifact"
+        );
+        fs::remove_dir_all(directory).expect("cleanup");
+    }
+
+    #[test]
+    fn v3_cache_rejects_provider_injected_solver_reason_without_shape_drift() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let request = request();
+        let directory = std::env::temp_dir().join(format!(
+            "chemspec-cache-provenance-test-{}-{}",
+            std::process::id(),
+            CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        store_dynamic_cache(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &trusted,
+            &claim(),
+            None,
+            "fake",
+            "offline",
+        )
+        .expect("store v3 provider claim");
+        let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
+            .expect("cache path");
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache JSON");
+        assert_eq!(value["schema_version"], json!(3));
+        assert!(value["claim"].get("origin").is_none());
+        assert!(value["claim"].get("solver_reason").is_none());
+
+        value["claim"]["no_reaction_reason"] = json!({"below_hydrogen":{"metal":"copper"}});
+        let hostile = serde_json::to_vec(&value).expect("hostile cache JSON");
+        let error = serde_json::from_slice::<DynamicCacheEnvelope>(&hostile)
+            .expect_err("cache decoding must reject solver-only provider fields");
+        assert!(error.to_string().contains("no_reaction_reason"));
+        fs::write(&path, hostile).expect("write hostile cache entry");
+        assert!(
+            load_dynamic_cache(
+                Some(&directory),
+                &request,
+                ClaimMode::Fast,
+                &identities,
+                &trusted,
+            )
+            .is_none()
         );
         fs::remove_dir_all(directory).expect("cleanup");
     }
