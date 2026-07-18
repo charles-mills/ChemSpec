@@ -5,6 +5,7 @@
 //! through the catalogue fast path or a staged dynamic claim whose static and
 //! animated capabilities cross separate deterministic validation boundaries.
 
+mod blocking;
 mod chemistry;
 mod composition_catalogue;
 mod elements;
@@ -26,7 +27,7 @@ mod theme;
 use std::{
     ops::Deref,
     sync::{
-        Arc,
+        Arc, Weak,
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
     },
@@ -1280,6 +1281,25 @@ enum DynamicBuildState {
     Failed(String),
 }
 
+#[derive(Debug, Default)]
+struct DynamicWorkerShutdown {
+    cancellation: Option<Weak<AtomicBool>>,
+}
+
+impl DynamicWorkerShutdown {
+    fn watch(&mut self, cancellation: &Arc<AtomicBool>) {
+        self.cancellation = Some(Arc::downgrade(cancellation));
+    }
+}
+
+impl Drop for DynamicWorkerShutdown {
+    fn drop(&mut self) {
+        if let Some(cancellation) = self.cancellation.as_ref().and_then(Weak::upgrade) {
+            cancellation.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DynamicBuildStage {
     Claim,
@@ -1374,6 +1394,7 @@ struct App {
     dynamic_details_open: bool,
     dynamic_build: DynamicBuildState,
     dynamic_cancellation: Option<Arc<AtomicBool>>,
+    dynamic_worker_shutdown: DynamicWorkerShutdown,
     dynamic_progress: Option<CodexProgressEvent>,
     dynamic_progress_receiver: Option<Receiver<CodexProgressEvent>>,
     dynamic_started_at: Option<Instant>,
@@ -1433,6 +1454,7 @@ impl Default for App {
             dynamic_details_open: false,
             dynamic_build: DynamicBuildState::Idle,
             dynamic_cancellation: None,
+            dynamic_worker_shutdown: DynamicWorkerShutdown::default(),
             dynamic_progress: None,
             dynamic_progress_receiver: None,
             dynamic_started_at: None,
@@ -2184,6 +2206,7 @@ impl App {
                 let run_id = self.next_dynamic_run_id;
                 self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
                 let cancellation = Arc::new(AtomicBool::new(false));
+                self.dynamic_worker_shutdown.watch(&cancellation);
                 self.dynamic_cancellation = Some(cancellation.clone());
                 self.dynamic_build = DynamicBuildState::Running {
                     run_id,
@@ -2644,11 +2667,12 @@ impl App {
             stage: DynamicBuildStage::Claim,
         };
         let cancellation = Arc::new(AtomicBool::new(false));
+        self.dynamic_worker_shutdown.watch(&cancellation);
         config.cancellation = Some(cancellation.clone());
         config.progress = Some(self.reset_dynamic_progress_channel());
         self.dynamic_cancellation = Some(cancellation);
         Task::perform(
-            async move {
+            blocking::run(move || {
                 let started = Instant::now();
                 let mut latency = LatencyMilestones::default();
                 let provider = CodexProvider::new(config);
@@ -2733,7 +2757,7 @@ impl App {
                     presentation: None,
                     latency,
                 })
-            },
+            }),
             move |result| Message::DynamicClaimFinished {
                 run_id,
                 result: Box::new(result),
@@ -2763,7 +2787,7 @@ impl App {
             }
         };
         Task::perform(
-            async move {
+            blocking::run(move || {
                 if local {
                     // Reviewed-family and algorithmic mechanisms only; model
                     // escalation is explicitly unsupported, so a static
@@ -2835,7 +2859,7 @@ impl App {
                     );
                 }
                 Ok(presentation)
-            },
+            }),
             move |result| Message::DynamicPresentationFinished {
                 run_id,
                 result: Box::new(result),
@@ -6420,6 +6444,18 @@ mod tests {
             result: Box::new(Err("late completion".into())),
         });
         assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+    }
+
+    #[test]
+    fn dropping_app_signals_dynamic_cancellation() {
+        let cancellation = Arc::new(AtomicBool::new(false));
+        {
+            let mut app = App::default();
+            app.dynamic_worker_shutdown.watch(&cancellation);
+            app.dynamic_cancellation = Some(cancellation.clone());
+        }
+
+        assert!(cancellation.load(Ordering::Relaxed));
     }
 
     #[test]
