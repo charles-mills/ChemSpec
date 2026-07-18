@@ -122,6 +122,12 @@ Drive Iced update logic through fake providers and deterministic messages:
 - provider unavailable;
 - Codex signed out or using the wrong auth method;
 - API key absent or rejected;
+- first launch versus a valid persisted app mode;
+- malformed, oversized, or future-version preference files failing closed;
+- atomic preference replacement and stale save completions being ignored;
+- responsive settings composition at compact and desktop dimensions;
+- formula/name presentation switching without changing the checked reaction
+  declaration, with exact-formula fallback when no deterministic name exists;
 - normal event progression;
 - cancellation, child termination, and timeout;
 - malformed or unknown JSONL events;
@@ -143,11 +149,33 @@ Reaction-builder presentation tests additionally check that shell counts and
 outer-electron counts come from curated element metadata, grouped atomic
 layouts are deterministic, reduced motion disables orbital ticks, and forming
 a composition retains exactly one model for each member atom. Stage 4 tests
-check exact, order-independent reaction-candidate matching; unrecognised inputs
-remain disabled; recognized catalogue misses stay enabled with the exact
-**Codex will build this reaction** status; and stale completions cannot replace
-a newer generation. These checks do not confer validation or authorize
-simulation playback.
+check exact, order-independent reaction-candidate matching; catalogue system
+errors remain disabled; recognized catalogue misses stay enabled with the exact
+**Press space to ask Codex** prompt in Codex mode; locally unsolved inputs
+immediately suggest Codex without enabling submission; closing the dynamic
+modal restores the applicable prompt; and stale completions cannot replace a
+newer generation. Overlay-transition tests also prove that a dynamic modal is
+the only active overlay, clears an intervening toolbar panel on completion,
+blocks composer mutation and Space routing while open, exposes its verdict in
+the accessibility title, and never supplies competing inline dynamic copy.
+Screen-transition tests start with a fully revealed prompt, leave the builder,
+return through the shared navigation boundary, verify that its normal entrance
+fade restarts, advance subsequent motion ticks, and prove that obsolete
+fade-out intent cannot survive the transition. A separate new-reaction test
+proves that **Build another reaction** clears the completed drafts, result
+surfaces, conditions, and sketch state while an ordinary Return preserves the
+composition.
+Composer identity tests require typed names to retain conventional formula
+order until manually edited. Condition tests require one or two non-empty
+reactants to reach a request containing the selected context and forbid a
+conditioned question from opening an unconditioned catalogue animation.
+Keyboard-transition tests require rapid submit/continue key presses to leave a
+new structural screen playing while preserving normal Space playback control
+after its deterministic settling state completes. Outcome-choice tests require
+arrow navigation to operate over the live choice count without assuming a
+fixed cardinality. Smoke-title tests require the native title to follow every
+live screen reached from a builder-launched bundle.
+These checks do not confer validation or authorize simulation playback.
 
 Stage 5 tests prove that both plans derive from the same current trusted
 `SimulationFrames` generation; source edits stale both pages immediately; and

@@ -13,7 +13,8 @@ gate, not a scope ceiling.
 ## Milestone 1 — definitive structural language
 
 Complete the fixed Slices 0–6 in
-[`chems-implementation-plan.md`](chems-implementation-plan.md), with every slice
+[`chems-implementation-plan.md`](../archive/plans/chems-implementation-plan.md),
+with every slice
 verified and independently reviewed before the next begins.
 
 Exit evidence:

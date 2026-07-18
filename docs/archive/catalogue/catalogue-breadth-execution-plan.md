@@ -4,7 +4,7 @@ Status: implemented, externally attested, promoted, and pinned as part of the
 `core-chemistry` trusted aggregate.
 
 This plan implements the four generalized reaction families fixed by
-`docs/implementation-plan.md`. Every finite binding is exercised through the
+`docs/plans/implementation-plan.md`. Every finite binding is exercised through the
 ordinary `.chems` parser, generalized elaborator, structural kernel, and frame
 generator in `crates/chems-cli/tests/authoring.rs`.
 

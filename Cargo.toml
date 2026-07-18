@@ -12,9 +12,14 @@ members = [
 resolver = "3"
 
 [workspace.package]
-authors = ["Charles Mills"]
+authors = [
+    "Aryan Saini <vikram4king@googlemail.com>",
+    "Charles Mills <charlesrjmills@gmail.com>",
+    "Oliver Robbins <oliver.robbins11@gmail.com>",
+    "Patryk <patryktv198@gmail.com>",
+]
 edition = "2024"
-homepage = "https://charlesmills.dev"
+homepage = "https://github.com/charles-mills/ChemSpec"
 license = "MIT"
 repository = "https://github.com/charles-mills/ChemSpec"
 rust-version = "1.96"

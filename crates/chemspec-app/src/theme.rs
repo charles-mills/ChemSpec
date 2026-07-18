@@ -370,6 +370,26 @@ pub fn inset(_: &Theme) -> container::Style {
         .border(border_style(color::LINE_STRONG, 1.0, radius::CONTROL))
 }
 
+/// Dimmed backdrop behind the dynamic-build modal.
+pub fn overlay_scrim(_: &Theme) -> container::Style {
+    container::Style::default().background(Color {
+        a: 0.55,
+        ..Color::BLACK
+    })
+}
+
+/// The dynamic-build modal panel itself.
+pub fn overlay_panel(_: &Theme) -> container::Style {
+    container::Style::default()
+        .background(color::PANEL)
+        .border(border_style(color::LINE_STRONG, 1.0, radius::FRAME))
+        .shadow(Shadow {
+            color: color::SHADOW.scale_alpha(0.45),
+            offset: Vector::new(0.0, 18.0),
+            blur_radius: 48.0,
+        })
+}
+
 pub fn media_bar(_: &Theme) -> container::Style {
     container::Style::default()
         .background(color::CANVAS_RAISED.scale_alpha(0.98))

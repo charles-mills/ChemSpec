@@ -1,0 +1,4 @@
+- [`docs/`]() contains persistent products documents.
+- [`plans/`](plans/) contains active work.
+- [`backlog/`](backlog/) contains explicitly deferred, unapproved proposals.
+- [`archive/`](archive/) contains completed implementation plans, handoffs, reviews, change notes, superseded contracts, and visual-QA evidence.

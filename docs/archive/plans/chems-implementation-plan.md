@@ -14,9 +14,10 @@ slice's acceptance criteria or is deferred outside this language plan.
 
 The normative source contract consists of:
 
-- [`chems-specification.md`](chems-specification.md);
-- [`../grammar/chems.ebnf`](../grammar/chems.ebnf);
-- the requirement registry and fixtures under [`../conformance`](../conformance);
+- [`chems-specification.md`](../../chems-specification.md);
+- [`grammar/chems.ebnf`](../../../grammar/chems.ebnf);
+- the requirement registry and fixtures under
+  [`conformance`](../../../conformance);
 - the reviewed catalogue schemas; and
 - the acceptance criteria in this plan.
 

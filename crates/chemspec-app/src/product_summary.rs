@@ -13,6 +13,7 @@ use iced::widget::canvas::{self, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Size, Theme, Vector};
 
 use crate::fonts;
+use crate::settings::ChemicalLabels;
 use crate::theme::{LAB_DARK, chemistry_color, color};
 
 #[derive(Debug, Clone)]
@@ -165,12 +166,15 @@ impl ProductModel {
     }
 
     #[must_use]
-    pub fn display_name(&self) -> String {
-        let mut name = title_case(&self.name);
+    pub fn primary_label(&self, labels: ChemicalLabels) -> String {
+        let mut label = match labels {
+            ChemicalLabels::Formulae => self.formula.clone(),
+            ChemicalLabels::Names => title_case(&self.name),
+        };
         if self.coefficient > 1 {
-            let _ = write!(name, "  ×{}", self.coefficient);
+            let _ = write!(label, "  ×{}", self.coefficient);
         }
-        name
+        label
     }
 
     #[must_use]
@@ -191,12 +195,17 @@ impl ProductModel {
 pub struct Product3dScene {
     data: SummaryData,
     elapsed_ms: u64,
+    labels: ChemicalLabels,
 }
 
 impl Product3dScene {
     #[must_use]
-    pub const fn new(data: SummaryData, elapsed_ms: u64) -> Self {
-        Self { data, elapsed_ms }
+    pub const fn new(data: SummaryData, elapsed_ms: u64, labels: ChemicalLabels) -> Self {
+        Self {
+            data,
+            elapsed_ms,
+            labels,
+        }
     }
 }
 
@@ -218,7 +227,14 @@ impl<Message> canvas::Program<Message> for Product3dScene {
         let rotation = self.elapsed_ms as f32 / 18_000.0 * std::f32::consts::TAU;
         for (index, (product, center)) in self.data.products.iter().zip(slots).enumerate() {
             let phase = rotation + index as f32 * 0.43;
-            draw_product_3d(&mut frame, product, center, phase, bounds.size());
+            draw_product_3d(
+                &mut frame,
+                product,
+                center,
+                phase,
+                bounds.size(),
+                self.labels,
+            );
         }
         vec![frame.into_geometry()]
     }
@@ -386,6 +402,7 @@ fn draw_product_3d(
     center: Point,
     rotation: f32,
     bounds: Size,
+    labels: ChemicalLabels,
 ) {
     let scale = (bounds.width.min(bounds.height) / 410.0).clamp(0.55, 1.2);
     let coordinates = model_coordinates(product);
@@ -449,7 +466,7 @@ fn draw_product_3d(
             perspective,
         );
     }
-    draw_formula(frame, product, center, 102.0 * scale, 0.94);
+    draw_primary_label(frame, product, center, 102.0 * scale, 0.94, labels);
 }
 
 fn draw_bond_2d(
@@ -539,15 +556,16 @@ fn draw_atom(
     }
 }
 
-fn draw_formula(
+fn draw_primary_label(
     frame: &mut canvas::Frame,
     product: &ProductModel,
     center: Point,
     vertical_offset: f32,
     alpha: f32,
+    labels: ChemicalLabels,
 ) {
     frame.fill_text(canvas::Text {
-        content: product.formula.clone(),
+        content: product.primary_label(labels),
         position: center + Vector::new(0.0, vertical_offset),
         color: color::TEXT.scale_alpha(alpha),
         size: iced::Pixels(15.0),

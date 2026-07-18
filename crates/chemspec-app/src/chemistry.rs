@@ -850,6 +850,7 @@ fn halogen_displacement_source(displacing: Halogen, displaced: Halogen) -> Strin
 pub struct TrustedRun {
     frames: SimulationFrames,
     macroscopic: Option<MacroscopicReaction>,
+    declaration: chem_domain::ReactionDeclaration,
 }
 
 impl TrustedRun {
@@ -865,12 +866,18 @@ impl TrustedRun {
     pub const fn macroscopic(&self) -> Option<&MacroscopicReaction> {
         self.macroscopic.as_ref()
     }
+
+    #[must_use]
+    pub const fn declaration(&self) -> &chem_domain::ReactionDeclaration {
+        &self.declaration
+    }
 }
 
 #[derive(Debug)]
 struct ValidatedRequestArtifacts {
     frames: SimulationFrames,
     macroscopic: Option<MacroscopicReaction>,
+    declaration: chem_domain::ReactionDeclaration,
 }
 
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
@@ -900,6 +907,7 @@ fn build_run(request: ReactionRequest) -> Result<TrustedRun, String> {
     Ok(TrustedRun {
         frames: validated.frames,
         macroscopic: validated.macroscopic,
+        declaration: validated.declaration,
     })
 }
 
@@ -924,6 +932,7 @@ fn validate_request_source(
     )
     .map_err(|error| error.to_string())?;
     let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
+    let declaration = expanded.claim.declaration.clone();
     let current =
         CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
     let validated = validate_trusted(&expanded, catalogue).map_err(|error| error.to_string())?;
@@ -931,6 +940,7 @@ fn validate_request_source(
     Ok(ValidatedRequestArtifacts {
         frames,
         macroscopic,
+        declaration,
     })
 }
 
@@ -1104,9 +1114,8 @@ pub enum DraftResolution {
 
 impl DraftResolution {
     #[must_use]
-    pub fn message(&self, local: bool) -> Option<&str> {
+    pub fn inline_message(&self) -> Option<&str> {
         match self {
-            Self::Supported(_) => None,
             Self::Multiple(_) => Some("Choose one reviewed product outcome."),
             Self::Screened(assessment) => Some(match &assessment.outcome {
                 OxygenOutcome::Representative { .. } => {
@@ -1116,16 +1125,13 @@ impl DraftResolution {
                 | OxygenOutcome::Ambiguous { reason }
                 | OxygenOutcome::Unsupported { reason } => reason,
             }),
-            Self::ExplicitlyUnsupported(_) | Self::Uncatalogued => Some(if local {
-                "Local Mode will try to derive this reaction"
-            } else {
-                "Codex will build this reaction"
-            }),
-            Self::Unrecognized => Some(if local {
-                "Local Mode will try to derive these compounds"
-            } else {
-                "Codex will identify and build these compounds"
-            }),
+            // Dynamic workflow copy belongs exclusively to the builder prompt
+            // before launch and the modal after launch. Returning no inline
+            // message makes a competing background status unrepresentable.
+            Self::Supported(_)
+            | Self::ExplicitlyUnsupported(_)
+            | Self::Uncatalogued
+            | Self::Unrecognized => None,
             Self::SystemError(_) => Some("The trusted chemistry catalogue is unavailable."),
         }
     }
@@ -1288,7 +1294,20 @@ pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
         return DraftResolution::Uncatalogued;
     }
 
+    // A draft the structure generator can build is understood chemistry that
+    // simply has no reviewed catalogue experience: route it to derivation as
+    // Uncatalogued instead of claiming the compounds are unrecognized.
+    if draft_is_understood(first) && draft_is_understood(second) {
+        return DraftResolution::Uncatalogued;
+    }
+
     DraftResolution::Unrecognized
+}
+
+/// Whether one draft names chemistry the app understands: a bare element or
+/// any composition the catalogue or structure generator can realize.
+fn draft_is_understood(atoms: &[u8]) -> bool {
+    matches!(atoms, [_]) || composition_catalogue::trusted_preview(atoms.iter().copied()).is_some()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -13,6 +13,9 @@ animation pipeline — the model is a fallback, never a shortcut.
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
 
+ChemSpec is built collaboratively. See [Contributors](CONTRIBUTORS.md) for the
+team credited from the project's Git history.
+
 <img alt="image" src="https://github.com/user-attachments/assets/adbbfc91-d12c-4244-b28d-2f04f31b82e8" />
 
 ## Product contract
@@ -88,24 +91,6 @@ expansion, complete atom mapping, exact electron allocations, and the ordered
 structural-operation template. The kernel validates the expanded result in
 full; `by apply` cannot select or omit checks.
 
-## Documentation
-
-- [Product specification](docs/product-spec.md)
-- [The `.chems` language](docs/chems-language.md)
-- [Normative `.chems` specification](docs/chems-specification.md)
-- [Structural architecture](docs/structural-chems-architecture.md)
-- [`.chems` implementation plan](docs/chems-implementation-plan.md)
-- [Generalized chemistry rules (locked forward design)](docs/generalized-chemistry-rules.md)
-- [Generalized rules implementation plan](docs/generalized-rules-implementation-plan.md)
-- [Catalogue candidate and Luna handoff](docs/luna-catalogue-handoff.md)
-- [Chemistry engine](docs/chemistry-engine.md)
-- [System architecture](docs/system-architecture.md)
-- [Macroscopic 3D visual system](docs/macroscopic-visual-system.md)
-- [Agent workflow and providers](docs/agent-workflow.md)
-- [Dynamic reaction outcome rebuild plan](docs/dynamic-reaction-rebuild-plan.md)
-- [Verification strategy](docs/verification.md)
-- [Conformance fixtures](conformance/README.md)
-
 ## Workspace
 
 The Rust workspace separates pure structural values, language tooling,
@@ -130,7 +115,14 @@ dynamic provider uses a Codex subscription through the local `codex` binary.
 Codex binary remains the default provider. The startup UI reserves BYOK/API as
 a possible provider-neutral backup, but it is not connected and neither a
 direct API implementation nor a hosted backend is required by the current
-[dynamic reaction rebuild](docs/dynamic-reaction-rebuild-plan.md).
+dynamic reaction rebuild.
+
+Application preferences are selected on first launch and can be changed from
+the Builder settings menu. ChemSpec persists the app mode and whether chemical
+labels use formulae (`H₂O`) or deterministic names (`water`) in the operating
+system's standard per-user configuration directory. Names fall back to the
+exact formula when the chemistry engine cannot derive one. API mode remains
+visible but unavailable; settings never store API keys or other credentials.
 
 ## Chemistry status
 
@@ -168,7 +160,18 @@ cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo run -p chemspec-app
+
+# Verify a reaction outcome headlessly (names or formulae), no GUI:
+cargo run -p chemspec-app -- react sodium water
+cargo run -p chemspec-app -- react HCl NaOH
+cargo run -p chemspec-app -- react --verbose sodium water
 ```
+
+`chemspec-app react <reactant> <reactant>` resolves the pair through the same
+path the app uses and prints the balanced equation, products, and frame count as
+JSON. Add `--verbose` (`-v`) to also emit the full frame artifact (`animation`)
+and its `digest`. Exit code `0` means a reaction ran, `1` means no single
+reaction, `2` means bad input.
 
 ### macOS visual smoke tests
 

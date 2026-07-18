@@ -5,7 +5,7 @@ Status: **draft, not reviewed, not attested**. Nothing here may enter
 re-attested against the regenerated aggregate digest.
 
 Provenance: gaps found by `cargo run -p agent --bin corpus-expectation-audit`
-(see `docs/dynamic-reaction-rebuild-plan.md`). Corpus cases currently expect
+(see `docs/plans/dynamic-reaction-rebuild-plan.md`). Corpus cases currently expect
 `invalid` for these inputs — that is honest and intentional; do not change
 expectations before content lands.
 

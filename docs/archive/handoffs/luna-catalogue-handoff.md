@@ -16,7 +16,7 @@ Populate the assigned ChemSpec catalogue candidate content exactly as designed.
 
 Authoritative design sections
 docs/generalized-chemistry-rules.md
-docs/generalized-rules-implementation-plan.md, Slice G6 only
+docs/archive/plans/generalized-rules-implementation-plan.md, Slice G6 only
 docs/chems-specification.md, generalized catalogue and lowering sections
 
 Allowed files and crates

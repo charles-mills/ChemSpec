@@ -131,7 +131,16 @@ with the declared side coefficients, catalogue formula summaries, and
 representation kinds after canonical term matching. Reordering terms does not
 change meaning; changing a coefficient, formula, side, or kind does.
 
-The arrow is `->`. Formula tokens contain no horizontal whitespace.
+The arrow is `->`. Formula tokens contain no horizontal whitespace. An element
+or parenthesized-group count may use either ASCII digits or the corresponding
+Unicode subscript digits `₀` through `₉`. A count uses one digit style
+throughout, is positive, and has no leading zero. Subscript counts normalize to
+ASCII before formula comparison; the lossless CST retains the authored bytes
+and byte spans, while the canonical formatter writes ASCII digits. Equation
+coefficients, versions, and identifiers remain ASCII-only. Formula adducts may
+use either ASCII `.` or the Unicode middle dot `·` as their separator; middle
+dot normalizes to ASCII `.` under the same lossless-input and canonical-output
+rules.
 
 ## Structural identity
 
@@ -510,8 +519,9 @@ comments, whitespace, and indentation tokens described here.
 
 Source is UTF-8. An optional leading UTF-8 BOM is accepted but omitted by the
 formatter. NUL bytes, invalid UTF-8, non-ASCII source whitespace, and tabs are
-lexical errors. UTF-8 is permitted in comments only; identifiers and keywords
-are ASCII.
+lexical errors. Outside comments, non-ASCII source is limited to Unicode
+subscript digits and the middle dot in formula notation; identifiers and
+keywords are ASCII.
 
 ### Horizontal whitespace
 

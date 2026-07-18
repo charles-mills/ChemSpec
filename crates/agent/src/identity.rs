@@ -336,6 +336,12 @@ fn species_from_structure(
         .map_err(|error| AgentError::new("species identity", error.to_string()))?;
     let mut aliases = BTreeSet::new();
     aliases.insert(normalize_alias(display_name));
+    // The canonical subset SMILES is a label-insensitive identity: two
+    // relabelings of one molecule share it, isomers never do.
+    let mut external_identifiers = BTreeSet::<ExternalIdentifier>::new();
+    if let Some(canonical) = chem_domain::smiles_from_structure(structure) {
+        external_identifiers.insert(ExternalIdentifier::CanonicalSmiles(canonical));
+    }
     ResolvedSpecies::validate_identity(
         ResolvedSpeciesInput {
             id: id.clone(),
@@ -354,7 +360,7 @@ fn species_from_structure(
                     .map_err(|error| AgentError::new("species identity", error.to_string()))?,
                 digest: chem_domain::ContentDigest::sha256(&canonical_graph),
             }),
-            external_identifiers: BTreeSet::<ExternalIdentifier>::new(),
+            external_identifiers,
             stereochemistry_policy: StereochemistryPolicy::Unspecified,
             tautomer_policy: TautomerPolicy::ExactTautomer,
             protonation_policy: protonation_policy(structure),
@@ -662,7 +668,7 @@ fn catalogue_formula(
         })
 }
 
-fn inventory_formula(inventory: &chem_domain::ElementInventory) -> String {
+pub(crate) fn inventory_formula(inventory: &chem_domain::ElementInventory) -> String {
     inventory
         .elements()
         .iter()

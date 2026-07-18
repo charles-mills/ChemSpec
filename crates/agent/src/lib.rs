@@ -10,9 +10,11 @@ mod claim;
 mod codex;
 mod family;
 mod identity;
+mod iupac_name;
 mod mechanism;
 mod mechanize;
 mod naming;
+mod organic;
 mod outcome;
 mod presentation;
 mod solve;
@@ -32,8 +34,8 @@ pub use claim::{
     ClaimIdentityHint, ClaimIdentityHintKind, ClaimMode, ClaimObservation,
     ClaimObservationPredicate, ClaimPhase, ClaimProduct, ClaimSource, LabelledStructure,
     MechanismCleavageAllocation, MechanismEscalationRequest, MechanismEscalationResponse,
-    MechanismHomolytic, MechanismMapping, MechanismOperation, MechanismSpecies, ReactionClaim,
-    StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
+    MechanismHomolytic, MechanismMapping, MechanismOperation, MechanismSpecies, NoReactionReason,
+    ReactionClaim, StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
 };
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,
@@ -53,7 +55,9 @@ pub use mechanism::{
     UnsupportedMechanismProvider, compile_mechanism_request, derive_mechanism,
     validate_escalated_response, validate_escalated_response_with_structures,
 };
-pub use naming::{composition_from_name, compound_name, ion_pair_name, structure_name};
+pub use naming::{
+    composition_from_name, compound_name, ion_pair_name, molecular_graph_name, structure_name,
+};
 pub use outcome::{
     CompiledClaimOutcome, MacroscopicProcess, OutcomeSpecies, ReactantIdentityAmbiguity,
     RequestIdentityResolution, TrustTier, ValidatedStaticOutcome, compile_claim_outcome,

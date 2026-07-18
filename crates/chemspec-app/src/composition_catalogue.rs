@@ -232,6 +232,19 @@ pub struct PreviewAtom {
     pub formal_charge: i16,
     pub non_bonding_electrons: u8,
     pub unpaired_electrons: u8,
+    /// Tetrahedral stereocentre descriptor, when the source graph carries
+    /// one; absent for the common achiral case.
+    pub chirality: Option<PreviewChirality>,
+}
+
+/// A stereocentre in preview index space: the four bonded neighbours (as
+/// indices into `TrustedCompositionPreview::atoms`, in the order the
+/// handedness is defined against) plus the winding of the last three viewed
+/// from the first listed neighbour toward the centre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreviewChirality {
+    pub neighbours: [usize; 4],
+    pub handedness: chem_domain::TetrahedralHandedness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -268,6 +281,32 @@ pub fn trusted_preview(
     let catalogue = chemistry::trusted_catalogue().ok()?;
     resolve_with_catalogue(catalogue, atomic_numbers.iter().copied())
         .or_else(|| generated_preview(&atomic_numbers))
+}
+
+/// Preview for a draft the user named: name-keyed canonical structures
+/// (ammonium cyanate vs urea) outrank the composition lookup, which can
+/// only ever answer with one structure per inventory.
+pub fn trusted_preview_named(
+    name: &str,
+    atomic_numbers: impl IntoIterator<Item = u8>,
+) -> Option<TrustedCompositionPreview> {
+    let atomic_numbers = atomic_numbers.into_iter().collect::<Vec<_>>();
+    let named = || {
+        let mut counts = std::collections::BTreeMap::new();
+        for number in &atomic_numbers {
+            let symbol = chem_domain::ElementSymbol::new(chem_domain::symbol_of(*number)?).ok()?;
+            *counts.entry(symbol).or_insert(0_u64) += 1;
+        }
+        let inventory = chem_domain::ElementInventory::new(counts).ok()?;
+        let structure = chem_domain::generate_named_structure(
+            chem_domain::StructureId::new("generated.named-preview").ok()?,
+            name,
+            &inventory,
+        )?;
+        let formula = conventional_formula(&structure);
+        preview_from_definition(&structure, &formula)
+    };
+    named().or_else(|| trusted_preview(atomic_numbers))
 }
 
 /// Structural preview straight from the generator: no catalogue involved.
@@ -444,23 +483,38 @@ fn preview_from_definition(
     formula: &str,
 ) -> Option<TrustedCompositionPreview> {
     let graph = definition.graph();
-    let mut atom_indices = BTreeMap::new();
-    let atoms = graph
+    let atom_indices = graph
         .atoms()
         .values()
         .enumerate()
-        .map(|(index, atom)| {
-            atom_indices.insert(atom.id().clone(), index);
+        .map(|(index, atom)| (atom.id().clone(), index))
+        .collect::<BTreeMap<_, _>>();
+    let atoms = graph
+        .atoms()
+        .values()
+        .map(|atom| {
             let element = elements::SUPPORTED
                 .iter()
                 .find(|candidate| candidate.symbol == atom.element().as_str())?;
             let electrons = atom.electrons();
+            // Listed neighbours map to indices the same way bonds do below.
+            let chirality = atom.chirality().and_then(|descriptor| {
+                let mut listed = [0_usize; 4];
+                for (slot, id) in descriptor.neighbours().iter().enumerate() {
+                    listed[slot] = *atom_indices.get(id)?;
+                }
+                Some(PreviewChirality {
+                    neighbours: listed,
+                    handedness: descriptor.handedness(),
+                })
+            });
             Some(PreviewAtom {
                 label: atom.id().as_str().to_owned(),
                 atomic_number: element.atomic_number,
                 formal_charge: electrons.formal_charge(),
                 non_bonding_electrons: electrons.non_bonding_electrons(),
                 unpaired_electrons: electrons.unpaired_electrons(),
+                chirality,
             })
         })
         .collect::<Option<Vec<_>>>()?;
@@ -509,7 +563,7 @@ fn preview_from_definition(
 
     Some(TrustedCompositionPreview {
         structure_id: definition.id().as_str().to_owned(),
-        formula: display_formula(formula),
+        formula: crate::nomenclature::display_formula(formula),
         name: agent::structure_name(definition),
         atoms,
         covalent_bonds,
@@ -678,25 +732,6 @@ fn previews_are_isomorphic(
     )
 }
 
-fn display_formula(formula: &str) -> String {
-    formula
-        .chars()
-        .map(|character| match character {
-            '0' => '₀',
-            '1' => '₁',
-            '2' => '₂',
-            '3' => '₃',
-            '4' => '₄',
-            '5' => '₅',
-            '6' => '₆',
-            '7' => '₇',
-            '8' => '₈',
-            '9' => '₉',
-            _ => character,
-        })
-        .collect()
-}
-
 fn charge_topology(positive: &[usize], negative: &[usize]) -> Vec<PreviewIonicLink> {
     let shared = positive.len().min(negative.len());
     if shared == 0 {
@@ -794,6 +829,25 @@ mod tests {
         assert_eq!(magnesium_fluoride.formula, "MgF₂");
         assert!(magnesium_fluoride.covalent_bonds().is_empty());
         assert_eq!(magnesium_fluoride.ionic_links().len(), 2);
+    }
+
+    #[test]
+    fn named_previews_distinguish_the_wohler_pair() {
+        let atoms = [7, 1, 1, 1, 1, 7, 6, 8];
+        let cyanate = trusted_preview_named("ammonium cyanate", atoms)
+            .expect("named ammonium cyanate preview");
+        assert!(
+            !cyanate.ionic_links().is_empty(),
+            "ammonium cyanate previews as an ionic salt"
+        );
+        let urea = trusted_preview(atoms).expect("composition preview");
+        assert!(
+            urea.ionic_links().is_empty(),
+            "the bare CH4N2O composition previews as covalent urea"
+        );
+        // An unknown name falls back to the composition preview.
+        let fallback = trusted_preview_named("mystery compound", atoms).expect("fallback preview");
+        assert!(fallback.ionic_links().is_empty());
     }
 
     #[test]

@@ -192,16 +192,43 @@ fn lex_regular_token(
             let Some(character) = source[*index..].chars().next() else {
                 return;
             };
+            if is_subscript_digit(character) {
+                let start = *index;
+                while *index < source.len() {
+                    let Some(character) = source[*index..].chars().next() else {
+                        break;
+                    };
+                    if !is_subscript_digit(character) {
+                        break;
+                    }
+                    *index += character.len_utf8();
+                }
+                push_token(raw, TokenKind::SubscriptNumber, source, start, *index);
+                return;
+            }
+            if character == '·' {
+                let end = *index + character.len_utf8();
+                push_token(raw, TokenKind::MiddleDot, source, *index, end);
+                *index = end;
+                return;
+            }
             let end = *index + character.len_utf8();
             push_token(raw, TokenKind::Invalid, source, *index, end);
             diagnostics.push(Diagnostic::lexical(
                 "CHEMS-L008",
-                "non-ASCII characters are allowed only in comments",
+                "non-ASCII characters are allowed only in comments and formula notation",
                 ByteSpan::new(*index, end),
             ));
             *index = end;
         }
     }
+}
+
+const fn is_subscript_digit(character: char) -> bool {
+    matches!(
+        character,
+        '₀' | '₁' | '₂' | '₃' | '₄' | '₅' | '₆' | '₇' | '₈' | '₉'
+    )
 }
 
 fn lex_block_comment(

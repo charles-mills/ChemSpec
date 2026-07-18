@@ -23,10 +23,14 @@ use crate::chemistry;
 use crate::composition_catalogue;
 use crate::elements;
 use crate::fonts;
+use crate::nomenclature;
 use crate::particle_visualization::{AmbientReactantDiagram, ambient_footprint};
+use crate::settings::ChemicalLabels;
 use crate::theme::{self, color, motion, space as spacing, type_scale};
 
-const MAX_ATOMS_PER_REACTANT: usize = 12;
+// Matches the domain generator's structure cap so name-resolved organics
+// (butane, esters) fit in one slot.
+const MAX_ATOMS_PER_REACTANT: usize = 24;
 
 const SENTENCE_FONT: Font = fonts::MEDIUM;
 const FORMULA_FONT: Font = fonts::SEMIBOLD;
@@ -49,6 +53,17 @@ impl ActiveReactant {
 #[derive(Debug, Default)]
 struct ReactantDraft {
     atoms: Vec<u8>,
+    /// The user's typed name when the draft came from name entry. Names can
+    /// identify a species its element inventory alone cannot (ammonium
+    /// cyanate vs urea), so the name travels with the draft until any
+    /// manual atom edit invalidates it.
+    name: Option<String>,
+    /// Canonical presentation formula resolved once with the typed identity.
+    /// Keeping it beside the name avoids rebuilding a structure on every
+    /// animation frame just to display conventional element order.
+    display_formula: Option<String>,
+    /// Canonical deterministic name resolved with the same preview identity.
+    display_name: Option<String>,
 }
 
 /// An in-flight press on a slot: a quick release clicks (select or undo),
@@ -98,8 +113,16 @@ impl Default for AmbientPlacement {
 #[derive(Debug, Default)]
 struct AmbientPresentation {
     atoms: Vec<u8>,
+    name: Option<String>,
     reveal: f32,
     placement: AmbientPlacement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PromptTarget {
+    Hidden,
+    Submit,
+    TryCodex,
 }
 
 #[derive(Debug)]
@@ -114,7 +137,7 @@ pub struct State {
     editing: Option<ActiveReactant>,
     name_input: String,
     name_feedback: Option<String>,
-    submit_available: bool,
+    prompt_target: PromptTarget,
     prompt_reveal: f32,
 }
 
@@ -134,7 +157,7 @@ impl Default for State {
             editing: None,
             name_input: String::new(),
             name_feedback: None,
-            submit_available: false,
+            prompt_target: PromptTarget::Hidden,
             prompt_reveal: 0.0,
         }
     }
@@ -157,6 +180,17 @@ pub enum Message {
     StartReactionRequested,
     AnimationTick,
     PromptAnimationTick,
+}
+
+impl Message {
+    /// Presentation-only messages animate the composer without changing any
+    /// draft content. The app must not treat them as edits: edits cancel an
+    /// in-flight dynamic build and clear its result, and these fire on a
+    /// timer whenever ambient models are on screen.
+    #[must_use]
+    pub const fn is_presentation_only(&self) -> bool {
+        matches!(self, Self::AnimationTick | Self::PromptAnimationTick)
+    }
 }
 
 pub fn update(state: &mut State, message: Message) {
@@ -195,7 +229,11 @@ pub fn update(state: &mut State, message: Message) {
                 return;
             }
             if state.active == reactant {
-                state.drafts[reactant.index()].atoms.pop();
+                let draft = &mut state.drafts[reactant.index()];
+                draft.atoms.pop();
+                draft.name = None;
+                draft.display_formula = None;
+                draft.display_name = None;
             } else {
                 state.active = reactant;
             }
@@ -207,11 +245,19 @@ pub fn update(state: &mut State, message: Message) {
             }
         }
         Message::Undo => {
-            state.drafts[state.active.index()].atoms.pop();
+            let draft = &mut state.drafts[state.active.index()];
+            draft.atoms.pop();
+            draft.name = None;
+            draft.display_formula = None;
+            draft.display_name = None;
             state.limit_reached = false;
         }
         Message::ClearActive => {
-            state.drafts[state.active.index()].atoms.clear();
+            let draft = &mut state.drafts[state.active.index()];
+            draft.atoms.clear();
+            draft.name = None;
+            draft.display_formula = None;
+            draft.display_name = None;
             state.limit_reached = false;
         }
         Message::BeginNameEntry(reactant) => {
@@ -232,36 +278,42 @@ pub fn update(state: &mut State, message: Message) {
             state.name_feedback = None;
         }
         Message::StartReactionRequested => {}
-        Message::AnimationTick => {
-            if state
-                .ambient
-                .iter()
-                .any(|ambient| !ambient.atoms.is_empty())
-            {
-                state.orbital_phase = (state.orbital_phase + motion::ORBIT_STEP) % 1.0;
-            }
-            step_ambient_presentations(state);
-            if let Some(hold) = &mut state.holding
-                && !hold.completed
-                && !state.drafts[hold.slot.index()].atoms.is_empty()
-            {
-                hold.progress += motion::HOLD_CLEAR_STEP;
-                if hold.progress >= 1.0 {
-                    hold.completed = true;
-                    state.drafts[hold.slot.index()].atoms.clear();
-                    state.limit_reached = false;
-                }
-            }
-        }
+        Message::AnimationTick => animation_tick(state),
         Message::PromptAnimationTick => {
-            if state.submit_available {
-                state.prompt_reveal = (state.prompt_reveal + motion::PROMPT_FADE_STEP).min(1.0);
-            } else {
+            if state.prompt_target == PromptTarget::Hidden {
                 state.prompt_reveal = (state.prompt_reveal - motion::PROMPT_FADE_STEP).max(0.0);
+            } else {
+                state.prompt_reveal = (state.prompt_reveal + motion::PROMPT_FADE_STEP).min(1.0);
             }
         }
     }
     sync_ambient_presentations(state);
+}
+
+fn animation_tick(state: &mut State) {
+    if state
+        .ambient
+        .iter()
+        .any(|ambient| !ambient.atoms.is_empty())
+    {
+        state.orbital_phase = (state.orbital_phase + motion::ORBIT_STEP) % 1.0;
+    }
+    step_ambient_presentations(state);
+    if let Some(hold) = &mut state.holding
+        && !hold.completed
+        && !state.drafts[hold.slot.index()].atoms.is_empty()
+    {
+        hold.progress += motion::HOLD_CLEAR_STEP;
+        if hold.progress >= 1.0 {
+            hold.completed = true;
+            let draft = &mut state.drafts[hold.slot.index()];
+            draft.atoms.clear();
+            draft.name = None;
+            draft.display_formula = None;
+            draft.display_name = None;
+            state.limit_reached = false;
+        }
+    }
 }
 
 /// Each motion family subscribes only while it is active. Ambient models use
@@ -289,8 +341,8 @@ pub fn subscription(state: &State) -> Subscription<Message> {
 }
 
 fn prompt_is_animating(state: &State) -> bool {
-    (state.submit_available && state.prompt_reveal < 1.0)
-        || (!state.submit_available && state.prompt_reveal > 0.0)
+    (state.prompt_target != PromptTarget::Hidden && state.prompt_reveal < 1.0)
+        || (state.prompt_target == PromptTarget::Hidden && state.prompt_reveal > 0.0)
 }
 
 fn sync_ambient_presentations(state: &mut State) {
@@ -299,8 +351,10 @@ fn sync_ambient_presentations(state: &mut State) {
         if !draft.atoms.is_empty() {
             appeared[index] = ambient.atoms.is_empty();
             ambient.atoms.clone_from(&draft.atoms);
+            ambient.name.clone_from(&draft.name);
         } else if ambient.reveal <= f32::EPSILON {
             ambient.atoms.clear();
+            ambient.name = None;
         }
     }
     refresh_ambient_targets(state);
@@ -594,13 +648,12 @@ fn submit_name(state: &mut State) {
         return;
     }
     let filled = match split_reactant_names(&input).as_slice() {
-        [only] => resolve_named(only).map(|atoms| {
-            state.drafts[state.active.index()].atoms = atoms;
+        [only] => resolve_named(only).map(|draft| {
+            state.drafts[state.active.index()] = draft;
         }),
-        [first, second] => resolve_named(first).and_then(|first| {
-            resolve_named(second).map(|second| {
-                state.drafts[0].atoms = first;
-                state.drafts[1].atoms = second;
+        [first, second] => resolve_named(first).and_then(|first_draft| {
+            resolve_named(second).map(|second_draft| {
+                state.drafts = [first_draft, second_draft];
             })
         }),
         _ => Err("Reactions here take at most two reactants".to_owned()),
@@ -633,7 +686,7 @@ fn split_reactant_names(input: &str) -> Vec<&str> {
     if words.len() > 1 { words } else { vec![input] }
 }
 
-fn resolve_named(input: &str) -> Result<Vec<u8>, String> {
+fn resolve_named(input: &str) -> Result<ReactantDraft, String> {
     let Some(atoms) = chemistry::atoms_from_name(input) else {
         return Err(format!(
             "“{input}” isn’t recognised — try a name like “copper(II) sulfate” or a formula like CuSO4"
@@ -648,19 +701,32 @@ fn resolve_named(input: &str) -> Result<Vec<u8>, String> {
     {
         return Err(format!("Element {unknown} is not in the library yet"));
     }
-    Ok(atoms)
+    let preview = composition_catalogue::trusted_preview_named(input, atoms.iter().copied());
+    let display_formula = preview
+        .as_ref()
+        .map_or_else(|| formula(&atoms), |preview| preview.formula.clone());
+    let display_name = preview.and_then(|preview| preview.name);
+    Ok(ReactantDraft {
+        atoms,
+        name: Some(input.to_owned()),
+        display_formula: Some(display_formula),
+        display_name,
+    })
 }
 
 fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
     if elements::by_atomic_number(atomic_number).is_none() {
         return;
     }
-    let atoms = &mut state.drafts[reactant.index()].atoms;
-    if atoms.len() >= MAX_ATOMS_PER_REACTANT {
+    let draft = &mut state.drafts[reactant.index()];
+    if draft.atoms.len() >= MAX_ATOMS_PER_REACTANT {
         state.limit_reached = true;
         return;
     }
-    atoms.push(atomic_number);
+    draft.atoms.push(atomic_number);
+    draft.name = None;
+    draft.display_formula = None;
+    draft.display_name = None;
     state.limit_reached = false;
 }
 
@@ -678,6 +744,45 @@ pub fn resolution(state: &State) -> chemistry::DraftResolution {
 
 pub fn reactants(state: &State) -> (&[u8], &[u8]) {
     (&state.drafts[0].atoms, &state.drafts[1].atoms)
+}
+
+/// The typed name behind each draft, when the draft came from name entry
+/// and survives unedited. A name can identify a species its inventory
+/// cannot (ammonium cyanate vs urea).
+#[must_use]
+pub fn draft_names(state: &State) -> [Option<&str>; 2] {
+    [
+        state.drafts[0].name.as_deref(),
+        state.drafts[1].name.as_deref(),
+    ]
+}
+
+/// User-facing formulae for the current drafts. Name-resolved drafts retain
+/// conventional formula order (`NaCl`, not inventory-sorted `ClNa`).
+#[must_use]
+#[cfg(test)]
+pub fn draft_formulae(state: &State) -> [String; 2] {
+    state.drafts.each_ref().map(|draft| {
+        draft
+            .display_formula
+            .clone()
+            .unwrap_or_else(|| formula(&draft.atoms))
+    })
+}
+
+#[must_use]
+pub fn draft_labels(state: &State, labels: ChemicalLabels) -> [String; 2] {
+    state.drafts.each_ref().map(|draft| {
+        let formula = draft
+            .display_formula
+            .clone()
+            .unwrap_or_else(|| formula(&draft.atoms));
+        let name = draft.display_name.clone().or_else(|| {
+            composition_catalogue::trusted_preview(draft.atoms.iter().copied())
+                .and_then(|preview| preview.name)
+        });
+        nomenclature::display_species(labels, name.as_deref(), &formula)
+    })
 }
 
 #[must_use]
@@ -699,18 +804,90 @@ pub fn name_input_id(reactant: ActiveReactant) -> iced::widget::Id {
 }
 
 pub fn set_submit_available(state: &mut State, available: bool) {
-    state.submit_available = available;
+    state.prompt_target = if available {
+        PromptTarget::Submit
+    } else {
+        PromptTarget::Hidden
+    };
+}
+
+pub fn show_try_codex_notice(state: &mut State) {
+    state.prompt_target = PromptTarget::TryCodex;
 }
 
 #[cfg(test)]
 #[must_use]
 pub const fn submit_available(state: &State) -> bool {
-    state.submit_available
+    matches!(state.prompt_target, PromptTarget::Submit)
 }
 
 #[cfg(test)]
+#[must_use]
+pub const fn try_codex_notice_visible(state: &State) -> bool {
+    matches!(state.prompt_target, PromptTarget::TryCodex)
+}
+
+#[cfg(test)]
+#[must_use]
+pub const fn prompt_reveal(state: &State) -> f32 {
+    state.prompt_reveal
+}
+
+/// Starts a builder-entry prompt from the beginning of its normal fade. The
+/// app calls this only when crossing back into the builder; prompt intent is
+/// still derived separately from the current reaction and provider.
+pub fn restart_prompt_reveal(state: &mut State) {
+    state.prompt_reveal = 0.0;
+}
+
+/// Begins a genuinely new composition while preserving the ambient atoms long
+/// enough for their ordinary exit animation. This is intentionally different
+/// from returning to the builder, which keeps the current drafts intact.
+pub fn clear_reaction(state: &mut State) {
+    state.drafts = [ReactantDraft::default(), ReactantDraft::default()];
+    state.active = ActiveReactant::First;
+    state.limit_reached = false;
+    state.holding = None;
+    state.editing = None;
+    state.name_input.clear();
+    state.name_feedback = None;
+    state.prompt_target = PromptTarget::Hidden;
+    state.prompt_reveal = 0.0;
+    sync_ambient_presentations(state);
+}
+
+/// Fills the active slot with a sketched structure: the full atom inventory
+/// (implicit hydrogens included) plus its SMILES as the draft name, which
+/// the dynamic pipeline resolves back into the exact drawn structure.
+pub fn set_sketched_reactant(state: &mut State, atoms: Vec<u8>, smiles: String) {
+    let draft = &mut state.drafts[state.active.index()];
+    let preview = composition_catalogue::trusted_preview_named(&smiles, atoms.iter().copied());
+    let display_formula = preview
+        .as_ref()
+        .map_or_else(|| formula(&atoms), |preview| preview.formula.clone());
+    let display_name = preview.and_then(|preview| preview.name);
+    draft.atoms = atoms;
+    draft.name = Some(smiles);
+    draft.display_formula = Some(display_formula);
+    draft.display_name = display_name;
+    state.limit_reached = false;
+    state.editing = None;
+    state.name_input.clear();
+    state.name_feedback = None;
+    for ambient in &mut state.ambient {
+        *ambient = AmbientPresentation::default();
+    }
+    sync_ambient_presentations(state);
+}
+
+#[cfg(any(test, target_arch = "wasm32"))]
 pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
-    state.drafts = drafts.map(|atoms| ReactantDraft { atoms });
+    state.drafts = drafts.map(|atoms| ReactantDraft {
+        atoms,
+        name: None,
+        display_formula: None,
+        display_name: None,
+    });
     state.active = ActiveReactant::First;
     state.limit_reached = false;
     state.editing = None;
@@ -727,6 +904,8 @@ pub fn replace_reactants(state: &mut State, drafts: [Vec<u8>; 2]) {
 pub fn ambient_view(state: &State) -> Element<'static, Message> {
     let first_atoms = state.ambient[0].atoms.clone();
     let second_atoms = state.ambient[1].atoms.clone();
+    let first_name = state.ambient[0].name.clone();
+    let second_name = state.ambient[1].name.clone();
     let first_reveal = theme::ease_in_out(state.ambient[0].reveal);
     let second_reveal = theme::ease_in_out(state.ambient[1].reveal);
     let first_anchor = state.ambient[0].placement.current;
@@ -758,6 +937,7 @@ pub fn ambient_view(state: &State) -> Element<'static, Message> {
         row![
             canvas(AmbientReactantDiagram::new(
                 first_atoms.clone(),
+                first_name.as_deref(),
                 phase,
                 first_reveal,
                 scale,
@@ -769,6 +949,7 @@ pub fn ambient_view(state: &State) -> Element<'static, Message> {
             .height(Fill),
             canvas(AmbientReactantDiagram::new(
                 second_atoms.clone(),
+                second_name.as_deref(),
                 phase + 0.31,
                 second_reveal,
                 scale,
@@ -798,12 +979,12 @@ fn ambient_layout_extent(size: Size) -> f32 {
 pub fn view(
     state: &State,
     library_drag: Option<u8>,
-    build_status: Option<String>,
     local: bool,
+    labels: ChemicalLabels,
     compact: bool,
 ) -> Element<'static, Message> {
-    let sentence = sentence(state, library_drag, compact);
-    let prompt = reaction_prompt(state, build_status, local, compact);
+    let sentence = sentence(state, library_drag, labels, compact);
+    let prompt = reaction_prompt(state, local, compact);
 
     container(
         column![sentence, prompt]
@@ -827,7 +1008,12 @@ pub fn view(
 
 /// Wide layouts phrase the equation as the product's canonical question;
 /// compact layouts fall back to the denser `X + Y` equation form.
-fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'static, Message> {
+fn sentence(
+    state: &State,
+    library_drag: Option<u8>,
+    labels: ChemicalLabels,
+    compact: bool,
+) -> Element<'static, Message> {
     let word = |content: &'static str| {
         text(content)
             .size(if compact {
@@ -838,8 +1024,8 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
             .font(SENTENCE_FONT)
             .color(color::TEXT_SOFT)
     };
-    let first = slot(state, ActiveReactant::First, library_drag, compact);
-    let second = slot(state, ActiveReactant::Second, library_drag, compact);
+    let first = slot(state, ActiveReactant::First, library_drag, labels, compact);
+    let second = slot(state, ActiveReactant::Second, library_drag, labels, compact);
 
     let sentence = if compact {
         row![
@@ -873,12 +1059,7 @@ fn sentence(state: &State, library_drag: Option<u8>, compact: bool) -> Element<'
         .into()
 }
 
-fn reaction_prompt(
-    state: &State,
-    build_status: Option<String>,
-    local: bool,
-    compact: bool,
-) -> Element<'static, Message> {
+fn reaction_prompt(state: &State, local: bool, compact: bool) -> Element<'static, Message> {
     let resolution = resolution(state);
     let both_present = state.drafts.iter().all(|draft| !draft.atoms.is_empty());
     let status_color = if resolution.is_system_error() {
@@ -886,24 +1067,14 @@ fn reaction_prompt(
     } else {
         color::WARNING
     };
-    let resolution_status = both_present
-        .then_some(&resolution)
-        .filter(|resolution| {
-            !matches!(
-                resolution,
-                chemistry::DraftResolution::Supported(_)
-                    | chemistry::DraftResolution::Multiple(_)
-                    | chemistry::DraftResolution::Screened(_)
-            )
-        })
-        .and_then(|resolution| resolution.message(local))
-        .map(|message| {
-            text(message.to_owned())
-                .size(type_scale::CAPTION)
-                .color(status_color)
-        });
-    let show_prompt =
-        state.submit_available || state.prompt_reveal > 0.0 || resolution_status.is_none();
+    let resolution_status = resolution_status_message(&resolution, both_present).map(|message| {
+        text(message.to_owned())
+            .size(type_scale::CAPTION)
+            .color(status_color)
+    });
+    let show_prompt = state.prompt_target != PromptTarget::Hidden
+        || state.prompt_reveal > 0.0
+        || resolution_status.is_none();
     let mut content = column![].spacing(spacing::XS).align_x(Center);
     if let Some(feedback) = &state.name_feedback {
         content = content.push(
@@ -911,23 +1082,24 @@ fn reaction_prompt(
                 .size(type_scale::CAPTION)
                 .color(color::WARNING),
         );
-    } else if let Some(message) = build_status {
-        content = content.push(text(message).size(type_scale::CAPTION).color(color::ACCENT));
     } else if show_prompt {
         let reveal = theme::ease_in_out(state.prompt_reveal);
         content = content.push(
             button(
-                text("Press spacebar to find out")
-                    .size(if compact {
-                        type_scale::BODY_LARGE
-                    } else {
-                        type_scale::TITLE
-                    })
-                    .font(SENTENCE_FONT),
+                text(if state.prompt_target == PromptTarget::TryCodex {
+                    "Try using Codex mode for this reaction"
+                } else {
+                    prompt_copy(&resolution, local)
+                })
+                .size(if compact {
+                    type_scale::BODY_LARGE
+                } else {
+                    type_scale::TITLE
+                })
+                .font(SENTENCE_FONT),
             )
             .on_press_maybe(
-                state
-                    .submit_available
+                (state.prompt_target == PromptTarget::Submit)
                     .then_some(Message::StartReactionRequested),
             )
             .padding(0)
@@ -944,16 +1116,67 @@ fn reaction_prompt(
         .into()
 }
 
+fn uses_codex_prompt(resolution: &chemistry::DraftResolution, local: bool) -> bool {
+    !local && is_dynamic_resolution(resolution)
+}
+
+fn is_dynamic_resolution(resolution: &chemistry::DraftResolution) -> bool {
+    matches!(
+        resolution,
+        chemistry::DraftResolution::ExplicitlyUnsupported(_)
+            | chemistry::DraftResolution::Uncatalogued
+            | chemistry::DraftResolution::Unrecognized
+    )
+}
+
+fn prompt_copy(resolution: &chemistry::DraftResolution, local: bool) -> &'static str {
+    if uses_codex_prompt(resolution, local) {
+        "Press space to ask Codex"
+    } else {
+        "Press space to find out"
+    }
+}
+
+fn resolution_status_message(
+    resolution: &chemistry::DraftResolution,
+    both_present: bool,
+) -> Option<&str> {
+    both_present
+        .then_some(resolution)
+        .filter(|resolution| {
+            !matches!(
+                resolution,
+                chemistry::DraftResolution::Supported(_)
+                    | chemistry::DraftResolution::Multiple(_)
+                    | chemistry::DraftResolution::Screened(_)
+            ) && !is_dynamic_resolution(resolution)
+        })
+        .and_then(chemistry::DraftResolution::inline_message)
+}
+
 fn slot(
     state: &State,
     reactant: ActiveReactant,
     library_drag: Option<u8>,
+    labels: ChemicalLabels,
     compact: bool,
 ) -> Element<'static, Message> {
     let atoms = &state.drafts[reactant.index()].atoms;
     let selected = state.active == reactant;
     let state_color = slot_state_color(atoms);
-    let draft_formula = formula(atoms);
+    let draft_formula = state.drafts[reactant.index()]
+        .display_formula
+        .clone()
+        .unwrap_or_else(|| formula(atoms));
+    let display_name = state.drafts[reactant.index()]
+        .display_name
+        .clone()
+        .or_else(|| {
+            composition_catalogue::trusted_preview(atoms.iter().copied())
+                .and_then(|preview| preview.name)
+        });
+    let draft_label =
+        nomenclature::display_species(labels, display_name.as_deref(), &draft_formula);
 
     let empty = draft_formula.is_empty();
     if empty && state.editing == Some(reactant) {
@@ -971,13 +1194,17 @@ fn slot(
             .style(theme::request_input)
             .into();
     }
-    let label = text(if empty { "?".to_owned() } else { draft_formula })
-        .size(if compact {
-            type_scale::TITLE
-        } else {
-            type_scale::DISPLAY
+    let label = text(if empty { "?".to_owned() } else { draft_label })
+        .size(match (labels, compact) {
+            (ChemicalLabels::Formulae, true) | (ChemicalLabels::Names, false) => type_scale::TITLE,
+            (ChemicalLabels::Formulae, false) => type_scale::DISPLAY,
+            (ChemicalLabels::Names, true) => type_scale::BODY_LARGE,
         })
-        .font(FORMULA_FONT)
+        .font(if labels == ChemicalLabels::Formulae {
+            FORMULA_FONT
+        } else {
+            SENTENCE_FONT
+        })
         .color(if empty { color::MUTED } else { color::TEXT });
 
     let chip = container(label)
@@ -1145,6 +1372,16 @@ mod tests {
     }
 
     #[test]
+    fn sketched_reactants_fill_the_active_slot() {
+        let mut state = State::default();
+        update(&mut state, Message::SelectReactant(ActiveReactant::Second));
+        set_sketched_reactant(&mut state, vec![6, 6, 1, 1, 1, 1, 1, 1], "CC".to_owned());
+
+        assert_eq!(reactants(&state).1, [6, 6, 1, 1, 1, 1, 1, 1]);
+        assert_eq!(draft_names(&state), [None, Some("CC")]);
+    }
+
+    #[test]
     fn typed_names_fill_the_active_slot() {
         let mut state = State::default();
         update(
@@ -1167,6 +1404,52 @@ mod tests {
         update(&mut state, Message::NameSubmitted);
         assert!(state.name_feedback.is_some());
         assert_eq!(reactants(&state).1, [1, 11, 8]);
+    }
+
+    #[test]
+    fn typed_names_keep_their_canonical_display_formula_until_manually_edited() {
+        let mut state = State::default();
+        update(&mut state, Message::NameInput("sodium chloride".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+
+        assert_eq!(draft_formulae(&state), ["NaCl", ""]);
+
+        update(&mut state, Message::AddElement(1));
+        assert_eq!(draft_names(&state), [None, None]);
+        assert_eq!(draft_formulae(&state)[0], formula(reactants(&state).0));
+    }
+
+    #[test]
+    fn chemical_label_preference_switches_the_same_resolved_draft() {
+        let mut state = State::default();
+        update(&mut state, Message::NameInput("water".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+
+        assert_eq!(draft_labels(&state, ChemicalLabels::Formulae)[0], "H₂O");
+        assert_eq!(draft_labels(&state, ChemicalLabels::Names)[0], "water");
+        assert_eq!(reactants(&state).0, [1, 1, 8]);
+    }
+
+    #[test]
+    fn typed_names_travel_with_drafts_until_edited() {
+        let mut state = State::default();
+        update(
+            &mut state,
+            Message::NameInput("ammonium cyanate".to_owned()),
+        );
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(draft_names(&state), [Some("ammonium cyanate"), None]);
+
+        // Any manual atom edit invalidates the name.
+        update(&mut state, Message::AddElement(1));
+        assert_eq!(draft_names(&state), [None, None]);
+
+        // Separator entry names both slots.
+        update(&mut state, Message::NameInput("urea + water".to_owned()));
+        update(&mut state, Message::NameSubmitted);
+        assert_eq!(draft_names(&state), [Some("urea"), Some("water")]);
+        update(&mut state, Message::Undo);
+        assert_eq!(draft_names(&state), [None, Some("water")]);
     }
 
     #[test]
@@ -1199,6 +1482,19 @@ mod tests {
             update(&mut state, Message::PromptAnimationTick);
         }
         assert!(state.prompt_reveal.abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn try_codex_notice_uses_the_prompt_fade_without_enabling_submission() {
+        let mut state = State::default();
+
+        show_try_codex_notice(&mut state);
+
+        assert!(!submit_available(&state));
+        assert_eq!(state.prompt_target, PromptTarget::TryCodex);
+        assert!(prompt_is_animating(&state));
+        update(&mut state, Message::PromptAnimationTick);
+        assert!(state.prompt_reveal > 0.0);
     }
 
     #[test]
@@ -1284,20 +1580,24 @@ mod tests {
             resolution(&state),
             chemistry::DraftResolution::Supported(_)
         ));
+        assert_eq!(
+            prompt_copy(&resolution(&state), false),
+            "Press space to find out"
+        );
 
         state.drafts[1].atoms = vec![11, 9];
         assert!(can_start_reaction(&state));
         let resolution = resolution(&state);
         assert_eq!(
-            resolution.message(false),
-            Some("Codex will build this reaction")
+            resolution.inline_message(),
+            None,
+            "dynamic states must never supply a competing inline status"
         );
-        assert_eq!(
-            resolution.message(true),
-            Some("Local Mode will try to derive this reaction")
-        );
+        assert_eq!(prompt_copy(&resolution, false), "Press space to ask Codex");
+        assert_eq!(prompt_copy(&resolution, true), "Press space to find out");
+        assert_eq!(resolution_status_message(&resolution, true), None);
         set_submit_available(&mut state, true);
-        let _ = reaction_prompt(&state, None, false, false);
+        let _ = reaction_prompt(&state, false, false);
     }
 
     #[test]
@@ -1311,17 +1611,17 @@ mod tests {
     }
 
     #[test]
-    fn two_unrecognised_compounds_can_enter_dynamic_structure_resolution() {
+    fn two_generated_compounds_resolve_as_uncatalogued_derivation_input() {
         let mut state = State::default();
         state.drafts[0].atoms = vec![1, 1, 16, 8, 8, 8, 8];
         state.drafts[1].atoms = vec![11, 8, 1];
 
         assert_eq!(formula(&state.drafts[0].atoms), "H₂SO₄");
         assert_eq!(formula(&state.drafts[1].atoms), "NaOH");
-        assert_eq!(resolution(&state), chemistry::DraftResolution::Unrecognized);
+        assert_eq!(resolution(&state), chemistry::DraftResolution::Uncatalogued);
         assert!(can_start_reaction(&state));
         set_submit_available(&mut state, true);
-        let _ = reaction_prompt(&state, None, true, false);
+        let _ = reaction_prompt(&state, true, false);
     }
 
     #[test]

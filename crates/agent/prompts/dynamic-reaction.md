@@ -50,7 +50,10 @@ Return one JSON object and no prose or Markdown. It has exactly these fields:
   and `identity_hints`. Phase is `aqueous`, `solid`, `liquid`, `gas`, or
   `unknown`. Each identity hint has exactly `kind` and `value`; allowed kinds
   are `inchi`, `inchi_key`, `canonical_smiles`, `isomeric_smiles`,
-  `pub_chem_cid`, and `registry_id`.
+  `pub_chem_cid`, and `registry_id`. For any organic product whose formula
+  admits more than one constitutional isomer, include a `canonical_smiles`
+  hint naming the exact structure (Kekulé form, no aromatic lowercase);
+  the host resolves it into the drawn structure.
 - `required_context`: one short, non-procedural context or limitation.
 - `observations`: records with exactly `predicate`, `subject`, and `value`.
   Predicate is `evolves`, `disappears`, `forms`, or `colour`. `value` is a

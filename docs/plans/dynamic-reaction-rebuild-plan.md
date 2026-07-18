@@ -2,9 +2,11 @@
 
 ## Status and decision
 
-This is the implementation plan for replacing the current model-authored
-electron-ledger path on catalogue misses. It governs `DYN-104` through
-`DYN-112` in [the repository implementation plan](implementation-plan.md).
+This is the implementation plan for replacing the model-authored
+electron-ledger path on catalogue misses and completing the coverage and
+experience work that follows it. It governs `DYN-104` through `DYN-119` in
+[the repository implementation plan](implementation-plan.md) and this plan's
+Phase 2 section.
 
 The provider decision is fixed:
 
@@ -109,10 +111,17 @@ of sources is honest; an unverified citation pretending to be a gate is not.
 a conflict, and verification always runs before a dynamic result is exported
 or proposed as a family candidate.
 
-The UI should not shout this provenance distinction. The builder may continue
-to say **Codex will build this reaction**. The result should use ordinary copy
-and a concise model disclosure, not large `VALIDATED` or `MADE BY AI` banners.
-The internal state remains explicit and typed.
+The UI should not shout this provenance distinction. A ready catalogue path
+uses **Press space to find out**; a ready Codex fallback uses the identical
+prompt treatment and motion with **Press space to ask Codex**. That prompt
+fades away while the dynamic modal is open and fades back in if the modal is
+closed. The modal is the exclusive owner of dynamic progress, failure, and
+outcome copy: no inline status, toolbar panel, drag overlay, or builder
+shortcut may remain active beneath it. Local Mode may use the same line for an
+immediate, non-actionable **Try using Codex mode for this reaction** notice when
+the deterministic solver declines. The result should use ordinary copy and a
+concise model disclosure, not large `VALIDATED` or `MADE BY AI` banners. The
+internal state remains explicit and typed.
 
 ## Runtime architecture
 

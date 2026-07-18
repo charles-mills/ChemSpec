@@ -1,26 +1,31 @@
 pub mod acidity;
+pub mod cip;
 pub mod formula;
 pub mod generate;
 pub mod identity;
+pub mod iupac;
 pub mod material;
 pub mod periodic;
 pub mod reaction;
 pub mod scalar;
 pub mod serialization;
+pub mod smiles;
 pub mod species;
 pub mod state;
 pub mod structural;
 pub mod unit;
 
 pub use acidity::{BronstedAcidProfile, ProtonDonorSite, classify_bronsted_acid};
+pub use cip::{StereoDescriptor, stereocentre_descriptor};
 pub use formula::{
     Charge, ChargeSign, Count, Element, ElementId, ElementRegistry, ElementSymbol, FormulaError,
     FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,
 };
 pub use generate::{
     activity_rank, anion_valence_charge, aqueous_cation_charge, common_cation_charge,
-    displaces_hydrogen_from_acids, electronegativity, generate_structure,
-    has_variable_cation_charge, lowest_cation_charge,
+    displaces_hydrogen_from_acids, electronegativity, generate_named_structure, generate_structure,
+    has_variable_cation_charge, lowest_cation_charge, named_molecule_smiles, named_molecules,
+    resolved_name_smiles,
 };
 pub use identity::{
     AssumptionKindId, AssumptionKindKind, AssumptionPremiseId, AssumptionPremiseKind, AtomGroupId,
@@ -37,6 +42,7 @@ pub use identity::{
     StructuralOperationIdKind, StructureId, StructureInstanceId, StructureInstanceKind,
     StructureKind, SubstanceId, SubstanceKind, VesselId, VesselKind,
 };
+pub use iupac::smiles_for_name;
 pub use material::{
     AnalyticalComponent, DerivedInput, DerivedQuantity, DerivedQuantityRule, Material,
     MaterialForm, PreparedComponent, QuantityDerivation, ResolvedSpecies, ResolvedSpeciesInput,
@@ -51,6 +57,9 @@ pub use reaction::{
 };
 pub use scalar::{ExactScalar, ScalarError, SourceDecimal, SourceDecimalError, WrittenPrecision};
 pub use serialization::{CanonicalJsonError, canonical_json, lowercase_hex, sha256};
+pub use smiles::{
+    smiles_from_structure, structure_from_heavy_graph, structure_from_smiles, subset_valence,
+};
 pub use species::{
     CachedIdentityRecord, CanonicalSpeciesSerialization, ExternalIdentifier, IdentityCacheEnvelope,
     IdentityConfidence, IdentityProvenance, ProtonationPolicy, SpeciesAmbiguity,
@@ -64,11 +73,12 @@ pub use state::{
 };
 pub use structural::{
     Atom, AtomGroup, AtomMapping, BondOrder, CovalentBond, CovalentDelocalization,
-    CovalentElectronOrigin, EffectiveBondOrder, ElectronAllocation, ElectronState,
-    ElectronTransition, ElementInventory, IonicAssociation, MetallicDomain, MetallicJoinAllocation,
-    MetallicReleaseAllocation, ReactionSide, RepresentationKind, StructuralError, StructuralGraph,
-    StructuralOperation, StructuralOperationInput, StructuralOperationView, StructureDefinition,
-    StructureInstance, canonical_structural_json, structural_digest,
+    CovalentElectronOrigin, DoubleBondStereo, EffectiveBondOrder, ElectronAllocation,
+    ElectronState, ElectronTransition, ElementInventory, IonicAssociation, MetallicDomain,
+    MetallicJoinAllocation, MetallicReleaseAllocation, ReactionSide, RepresentationKind,
+    StereoArrangement, StructuralError, StructuralGraph, StructuralOperation,
+    StructuralOperationInput, StructuralOperationView, StructureDefinition, StructureInstance,
+    TetrahedralChirality, TetrahedralHandedness, canonical_structural_json, structural_digest,
 };
 pub use unit::{
     Dimension, DimensionError, Quantity, QuantityConversion, QuantityError, ResolvedUnit,

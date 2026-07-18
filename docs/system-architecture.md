@@ -114,7 +114,11 @@ construct chemical state.
 Composes request states, provider selection, visible workflow, source editing,
 expanded-certificate inspection, diagnostics, derivations, paired playback,
 guided 2D and macroscopic 3D views, and overview. Only the application depends
-on Iced and GPU presentation.
+on Iced and GPU presentation. It also owns versioned per-user preferences for
+app mode and chemical label presentation. Formula/name selection changes only
+the projection of already checked identities; it cannot alter source,
+declarations, validation, frames, or catalogue meaning. Preference files never
+contain provider credentials.
 
 ### Oxygen screening boundary
 
@@ -198,6 +202,39 @@ Dynamic cache v3 is separate from authored `.chems`. It binds stable request
 identities, context, identity/catalogue snapshots, and claim/compiler/mechanism
 contract versions. It stores only untrusted claim/presentation recipes;
 offline load reconstructs every capability through current validators.
+
+Builder overlays have one typed presentation authority. A dynamic identity,
+progress, failure, or result modal outranks toolbar panels and drag feedback;
+while it is open, the composer prompt and background builder input are inert.
+Closing it restores the prompt derived from the current reactants and provider,
+and a generation-scoped completion reopens it while clearing any intervening
+toolbar panel. Dynamic workflow copy is never duplicated in the composer.
+
+All runtime navigation crosses one screen-entry transition. That transition
+clears screen-owned transient state and recomputes the builder prompt from the
+destination screen, current reactants, provider, and modal state before the
+next view or subscription observes it. Returning to the builder preserves the
+current reaction and restarts the normal prompt entrance motion. Starting
+another reaction is a separate typed intent that clears the completed question,
+result surfaces, conditions, and sketch state. Prompt intent has one typed
+value; opacity is animation progress only and never decides whether the prompt
+should exist. Direct screen assignment outside initialization and tests is
+forbidden.
+
+Typed reactant identity owns its canonical display formula until a manual atom
+edit invalidates that identity. Conditions are reaction-request source, not
+decorative builder state: a selected condition makes either non-empty slot a
+valid request, empty slots are removed at handoff, and the conditioned request
+always crosses the dynamic solver/provider and validation path rather than
+falling through to an unconditioned catalogue result.
+
+Screen-level playback shortcuts are distinct from pointer playback intents.
+Structural entry uses a typed `Inactive -> Settling -> Ready` input state. The
+settling phase advances with structural animation time, preventing queued
+submit/continue keys from mutating the newly entered screen without depending
+on wall-clock scheduling. Pointer playback explicitly arms immediately.
+Smoke-window titles are derived from the live screen at the same navigation
+boundary, not from the launch argument.
 
 ## Platform decision
 
