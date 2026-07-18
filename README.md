@@ -1,6 +1,51 @@
-The project was built for the Education category of [OpenAI Build Week 2026](https://openai.devpost.com/).
+# ChemSpec
 
-ChemSpec is a chemistry exploration app, giving educators and learners the ability to select arbitrary reactions and watch them play. It provides both a 2D molecular animation taken step-by-step, or a 3D "human-perspective" view. It includes local, offline support for a massive range of reactions; and where it cannot assess the outcome locally, Codex is consulted to build the reaction live.
+ChemSpec is a chemistry exploration app built for the Education category of
+[OpenAI Build Week 2026](https://openai.devpost.com/). Learners construct a
+reaction question, follow its structural changes atom by atom, and then see a
+macroscopic 3D interpretation of the same validated outcome.
+
+**[Try the web demo](https://charles-mills.github.io/ChemSpec/) · [Project documentation](docs/README.md)**
+
+The reviewed catalogue and algorithmic solver handle supported chemistry
+locally. When both decline, the desktop app can consult the user's signed-in
+Codex installation, then validate the proposal before it is allowed to drive a
+simulation.
+
+## What ChemSpec Does
+
+Chemistry equations describe inputs and outputs, but they do not make it easy
+to see which atoms persist, which relationships change, or how those changes
+relate to visible observations. ChemSpec connects those views in one guided
+experience for secondary-school learners, educators, and introductory
+chemistry students.
+
+1. **Ask:** construct reactants from the periodic table or enter a recognised
+   name or formula.
+2. **Resolve:** use a reviewed reaction or derive the outcome with the local
+   solver, falling back to Codex only when local methods decline.
+3. **Inspect:** follow stable atoms, bonds, ionic associations, electron
+   transfers, products, and observations through the structural 2D sequence.
+4. **Observe:** continue into an illustrative macroscopic 3D view compiled from
+   the same validated reaction.
+5. **Explain:** inspect the equation, products, structural derivation, and the
+   provenance of model-proposed results.
+
+Unlike a fixed collection of prerecorded animations, ChemSpec lets a learner
+pose the question. It still declines chemistry that it cannot represent or
+validate instead of turning a plausible model answer into a trusted result.
+
+## Reactions to Try
+
+These examples were checked through the same headless resolution and reaction
+path used by the application:
+
+| Reactants | Outcome | Frames |
+| --- | --- | ---: |
+| `sodium` + `water` | `2Na + 2H2O -> 2NaOH + H2` | 13 |
+| `HCl` + `NaOH` | `HCl + NaOH -> NaCl + H2O` | 8 |
+| `AgNO3` + `NaCl` | `AgNO3 + NaCl -> AgCl + NaNO3` | 7 |
+| `HCl` + `NaHCO3` | `HCl + NaHCO3 -> NaCl + H2O + CO2` | 14 |
 
 ## How We Used Codex and GPT-5.6
 
@@ -19,6 +64,8 @@ The provider setup screen preserves this process in the repository. Its
 normalized side-by-side comparison, the changes made after inspection, and the
 final result. That entire QA process was captured and recorded autonomously by
 GPT-5.6 Sol.
+
+![Provider setup reference and implementation comparison](docs/archive/qa/provider-setup/provider-setup-comparison.png)
 
 ### Engineering with Codex
 
@@ -53,3 +100,126 @@ proposed mechanism through the same deterministic chemistry kernel used for
 offline reactions. If it cannot validate the result, it declines to animate
 it. The complete boundary is documented in the
 [agent workflow](docs/agent-workflow.md).
+
+## How ChemSpec Works
+
+```text
+reaction request
+  -> reviewed catalogue fast path
+  -> algorithmic reaction solver
+     -> miss: revalidated cache, then Codex claim
+  -> exact balancing and checked declaration
+  -> local graph-difference or reviewed-family mechanism
+     -> miss: bounded Codex mapping and operation proposal
+  -> deterministic chemistry kernel
+  -> validated renderer-independent frames
+  -> structural 2D and macroscopic 3D presentation
+```
+
+The governing rule is simple:
+
+> Codex proposes; ChemSpec validates.
+
+Codex cannot construct a trusted chemistry value, and the application cannot
+mark one as valid. The validator and chemistry kernel sit between every local,
+cached, or model-proposed result and the simulation. The full crate boundaries
+and contracts are documented in the [system architecture](docs/system-architecture.md).
+
+## Running ChemSpec
+
+### Web demo
+
+Open the [ChemSpec web demo](https://charles-mills.github.io/ChemSpec/) in a
+browser with WebGPU support. The web build runs in local mode: browser
+sandboxes cannot invoke the installed Codex CLI, so catalogue and algorithmic
+outcomes remain available while live Codex fallback does not.
+
+### Desktop app
+
+The workspace pins Rust `1.96.1`; `rustup` will select it from
+`rust-toolchain.toml`.
+
+```sh
+git clone https://github.com/charles-mills/ChemSpec.git
+cd ChemSpec
+cargo run -p chemspec-app
+```
+
+With [`just`](https://github.com/casey/just) installed, the equivalent command
+is `just run`. Version tags trigger the release pipeline, which builds a
+Windows MSI, a Linux AppImage and standalone binary, and a universal macOS DMG.
+These packages are unsigned.
+
+Local chemistry does not require an account or network connection. To use the
+dynamic fallback, install the
+[Codex CLI](https://github.com/openai/codex), sign in with a ChatGPT account,
+and confirm that the session is available:
+
+```sh
+codex login
+codex login status
+```
+
+ChemSpec checks the binary, version, authentication status, and required CLI
+capabilities at startup. It does not read Codex credential files.
+
+## Headless Verification
+
+The `react` subcommand runs the same reactant resolution and reaction path as
+the GUI without opening a window. It prints the selected outcome as JSON:
+
+```sh
+cargo run -p chemspec-app -- react sodium water
+cargo run -p chemspec-app -- react HCl NaOH
+cargo run -p chemspec-app -- react --verbose sodium water
+```
+
+`--verbose` includes the complete renderer-independent frame artifact and its
+stable digest. To run the repository's normal CI gate locally:
+
+```sh
+cargo fmt --all --check
+cargo test --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+Meaningful chemistry and simulation behavior is tested without a GPU. Native
+startup, packaging, live Codex access, and GPU rendering require their separate
+smoke checks; they are not inferred from unit tests. See the complete
+[verification strategy](docs/verification.md).
+
+## Trust, Scope, and Safety
+
+- Exact chemistry quantities use rational and decimal representations rather
+  than binary floating point.
+- Raw or stale model output cannot enter the simulation.
+- A model-proposed mechanism must pass the same conservation and structural
+  validation as a locally derived one.
+- Unsupported, invalid, and provider-failure states remain distinct.
+- ChemSpec is an educational explanatory model, not a laboratory procedure,
+  kinetics engine, or molecular-dynamics system.
+
+The detailed boundaries are recorded in the [product specification](docs/product-spec.md),
+[chemistry engine](docs/chemistry-engine.md), and [safety policy](docs/safety.md).
+
+## Technology
+
+- Rust 2024, pinned to Rust `1.96.1`
+- Iced `0.14.0` for the Elm-style desktop and web application
+- Iced Canvas and shader primitives for deterministic 2D and 3D presentation
+- Exact domain types, a custom `.chems 1` language, and a deterministic
+  structural validation kernel
+- The local Codex CLI for bounded dynamic reaction claims and mechanism
+  proposals
+
+The workspace is divided into domain, language, catalogue, kernel, agent,
+presentation, and application crates. See [crates/README.md](crates/README.md)
+for the map.
+
+## Team and License
+
+ChemSpec was built by Aryan Saini, Charles Mills, Oliver Robbins, and Patryk for
+OpenAI Build Week 2026. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for contributor
+details.
+
+ChemSpec is released under the [MIT License](LICENSE).
