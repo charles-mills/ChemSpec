@@ -1205,7 +1205,7 @@ fn screen_keyboard_message(
 #[derive(Debug, Clone)]
 enum RenderableFrames {
     Catalogue(chem_kernel::SimulationFrames),
-    Dynamic(chem_kernel::ValidatedDynamicFrames),
+    ReviewCandidate(chem_kernel::ValidatedReviewCandidateFrames),
 }
 
 impl Deref for RenderableFrames {
@@ -1214,7 +1214,7 @@ impl Deref for RenderableFrames {
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Catalogue(frames) => frames,
-            Self::Dynamic(frames) => frames,
+            Self::ReviewCandidate(frames) => frames,
         }
     }
 }
@@ -2201,7 +2201,10 @@ impl App {
         if self.dynamic.static_outcome.take().is_some()
             || self.dynamic.claim.take().is_some()
             || self.dynamic.presentation.take().is_some()
-            || matches!(&self.validated_frames, Some(RenderableFrames::Dynamic(_)))
+            || matches!(
+                &self.validated_frames,
+                Some(RenderableFrames::ReviewCandidate(_))
+            )
         {
             self.validated_frames = None;
             self.validated_declaration = None;
@@ -2528,7 +2531,7 @@ impl App {
                 Some(RenderableFrames::Catalogue(outcome.frames().clone()))
             }
             DynamicPresentationOutcome::Escalated(outcome) => {
-                Some(RenderableFrames::Dynamic(outcome.frames().clone()))
+                Some(RenderableFrames::ReviewCandidate(outcome.frames().clone()))
             }
             DynamicPresentationOutcome::Static { .. } => None,
         };

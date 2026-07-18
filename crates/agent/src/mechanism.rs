@@ -18,8 +18,8 @@ use chem_domain::{
     RepresentationKind, SpeciesId, StructureDefinition, StructureId,
 };
 use chem_kernel::{
-    ValidatedDynamicFrames, expand_proposed_declaration, inspect_review_candidate_frames,
-    validate_review_candidate,
+    ValidatedReviewCandidateFrames, expand_proposed_declaration,
+    project_validated_review_candidate_frames, validate_review_candidate,
 };
 
 use crate::{
@@ -65,7 +65,7 @@ struct MechanismRole {
 #[derive(Debug, Clone)]
 pub struct EscalatedMechanismOutcome {
     static_outcome: ValidatedStaticOutcome,
-    frames: ValidatedDynamicFrames,
+    frames: ValidatedReviewCandidateFrames,
     repair_count: usize,
     structure_repair_count: usize,
 }
@@ -77,7 +77,7 @@ impl EscalatedMechanismOutcome {
     }
 
     #[must_use]
-    pub const fn frames(&self) -> &ValidatedDynamicFrames {
+    pub const fn frames(&self) -> &ValidatedReviewCandidateFrames {
         &self.frames
     }
 
@@ -600,7 +600,7 @@ fn compile_mechanism(
     context: &MechanismContext,
     response: &MechanismEscalationResponse,
     catalogue: &ValidatedCatalogueBundle,
-) -> Result<ValidatedDynamicFrames, AgentError> {
+) -> Result<ValidatedReviewCandidateFrames, AgentError> {
     response.validate_wire()?;
     validate_response_labels(context, response)?;
     let provisional_bundle = provisional_mechanism_bundle(context, response, catalogue)?;
@@ -646,11 +646,9 @@ fn compile_mechanism(
             error,
         )
     })?;
-    Ok(inspect_review_candidate_frames(&derivation)
-        .map_err(|error| {
-            AgentError::from_source(AgentErrorKind::KernelRejection, "mechanism frames", error)
-        })?
-        .into_validated_dynamic())
+    project_validated_review_candidate_frames(&derivation).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "mechanism frames", error)
+    })
 }
 
 fn dynamic_mechanism_rule(

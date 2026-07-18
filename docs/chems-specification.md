@@ -678,15 +678,18 @@ no concrete lithium fallback.
 
 ## Generalized member frame projection
 
-Frame projection remains private to validated chemistry in production. Tests
-may project review-candidate derivations inside the kernel crate to compare them
-with independently authored frame oracles. The catalogue-authoring compiler may
-request the same internal projection only as a serialized-only
-`ReviewCandidateFrameInspection`; that type cannot convert or dereference to
-the trusted `SimulationFrames` renderer input. Every supported family member
-must preserve its exact element labels, electron states, edges, ionic
-components, product membership, operation sequence, and change sequence. No
-generic parameter, selector, template, or match value may appear in a frame.
+Frame projection remains private to kernel-validated chemistry. A validated
+review-candidate derivation projects directly to
+`ValidatedReviewCandidateFrames`, an immutable renderer-readable capability
+that retains `trust: review_candidate`. No separate inspection or approval
+event is implied: catalogue authoring serializes this capability for review,
+while the dynamic runtime may present it with its review-candidate disclosure.
+Neither use promotes it to the host-pinned `ValidatedStructuralReaction`
+capability. Tests may use the same projection to compare candidates with
+independently authored frame oracles. Every supported family member must
+preserve its exact element labels, electron states, edges, ionic components,
+product membership, operation sequence, and change sequence. No generic
+parameter, selector, template, or match value may appear in a frame.
 
 ## Canonical complete source
 

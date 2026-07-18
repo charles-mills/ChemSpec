@@ -440,11 +440,11 @@ StaticOutcome
 
 EscalatedMechanismOutcome
   StaticOutcome
-  ValidatedDynamicFrames (model-proposed, kernel-validated)
+  ValidatedReviewCandidateFrames (model-proposed, kernel-validated)
 
 ReviewedAnimationOutcome
   StaticOutcome
-  ValidatedDynamicFrames
+  SimulationFrames (host-pinned catalogue provenance)
 ```
 
 Both animated capabilities expose identical playback and 2D/3D timeline

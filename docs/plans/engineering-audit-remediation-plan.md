@@ -48,11 +48,10 @@ The most important corrections to the report are:
 - Message routing in the app does not silently ignore new root variants. The
   top-level match is exhaustive and the subrouters use explicit
   `unreachable!` guards. The enum and file are still too large.
-- `into_validated_dynamic` does not bypass structural validation. Its input is
-  created from a review-candidate derivation that crossed the kernel. A
-  separate inspection witness may improve the capability model, but the
-  absence of one is a product-review policy question rather than the same
-  exploit as mutable public HIR metadata.
+- The former `into_validated_dynamic` did not bypass structural validation. Its
+  input was created from a review-candidate derivation that crossed the kernel.
+  AUD-003 removed that misleading inspection/promotion vocabulary after making
+  the product-review policy explicit.
 - The NUL-delimited dynamic species digest is not shown to be non-injective in
   the accepted domain: the formula parser rejects NUL, making the final
   delimiter recoverable even if a name contains NUL. Length-prefixed or
@@ -134,14 +133,15 @@ Required outcome:
 
 Verdict: **Partly confirmed; medium design hardening.**
 
+Status: **Completed 2026-07-19.**
+
 Evidence:
 
-- `CandidateDynamicFrames::into_validated_dynamic` at
-  `crates/chem-kernel/src/frames.rs:471` is an unconditional capability
-  conversion.
-- Its only production caller, `crates/agent/src/mechanism.rs:625`, first calls
-  `validate_review_candidate` and `inspect_review_candidate_frames`; therefore
-  structural validation is not skipped.
+- Before this slice, `ReviewCandidateFrameInspection::into_validated_dynamic`
+  was an unconditional capability conversion.
+- Its only production caller first called `validate_review_candidate` and
+  `inspect_review_candidate_frames`; therefore structural validation was not
+  skipped.
 - The durable architecture explicitly allows deterministically validated
   review-candidate frames to remain renderer-readable while retaining
   review-candidate provenance.
@@ -154,6 +154,16 @@ Required decision:
   witness consumed by the conversion. If not, rename the types and method so
   they describe the actual validated-but-unreviewed capability without
   implying a manual inspection.
+
+Decision and resolution:
+
+- Deterministic kernel validation, not an additional host or manual approval
+  event, is the presentation gate for dynamic review-candidate frames.
+- `project_validated_review_candidate_frames` now returns
+  `ValidatedReviewCandidateFrames` directly. The old inspection wrapper and
+  unconditional `into_validated_dynamic` conversion were removed.
+- The capability dereferences to immutable `SimulationFrames` for authoring and
+  rendering, while its embedded provenance remains `review_candidate`.
 
 ### AUD-004 — Terminate Unix process groups without `/bin/kill`
 

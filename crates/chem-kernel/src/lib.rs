@@ -33,9 +33,9 @@ pub use evidence::{
 pub use frames::{
     CurrentArtifactIdentity, FrameAtom, FrameAtomGroup, FrameChange, FrameCovalentEdge, FrameError,
     FrameFailureClass, FrameIonicAssociation, FrameMetallicDomain, FrameModelDisclosure,
-    FrameObservation, FrameOperation, FrameTrace, ObservationStatus,
-    ReviewCandidateFrameInspection, SimulationFrame, SimulationFrames, ValidatedDynamicFrames,
-    generate_frames, inspect_review_candidate_frames,
+    FrameObservation, FrameOperation, FrameTrace, ObservationStatus, SimulationFrame,
+    SimulationFrames, ValidatedReviewCandidateFrames, generate_frames,
+    project_validated_review_candidate_frames,
 };
 pub use hir::{
     CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidenceTrust,
