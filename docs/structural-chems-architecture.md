@@ -200,7 +200,7 @@ structural truth.
 ## Implementation sequence
 
 The complete, fixed implementation sequence is defined in the
-[`.chems` implementation plan](chems-implementation-plan.md):
+[archived `.chems` implementation plan](archive/plans/chems-implementation-plan.md):
 
 0. definitive language and conformance contract;
 1. structural domain;

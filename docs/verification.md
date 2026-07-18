@@ -122,6 +122,12 @@ Drive Iced update logic through fake providers and deterministic messages:
 - provider unavailable;
 - Codex signed out or using the wrong auth method;
 - API key absent or rejected;
+- first launch versus a valid persisted app mode;
+- malformed, oversized, or future-version preference files failing closed;
+- atomic preference replacement and stale save completions being ignored;
+- responsive settings composition at compact and desktop dimensions;
+- formula/name presentation switching without changing the checked reaction
+  declaration, with exact-formula fallback when no deterministic name exists;
 - normal event progression;
 - cancellation, child termination, and timeout;
 - malformed or unknown JSONL events;

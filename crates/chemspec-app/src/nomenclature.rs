@@ -2,8 +2,48 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use chem_domain::FormulaComposition;
+use chem_domain::{FormulaComposition, ReactionDeclaration, ReactionTerm};
 use chem_kernel::{SimulationFrame, SimulationFrames};
+
+use crate::settings::ChemicalLabels;
+
+/// Chooses the configured user-facing label without changing the stable
+/// species identity. Names are used only when the chemistry pipeline supplied
+/// one; otherwise name mode falls back to the exact formula.
+pub fn display_species(labels: ChemicalLabels, name: Option<&str>, formula: &str) -> String {
+    match labels {
+        ChemicalLabels::Formulae => display_formula(formula),
+        ChemicalLabels::Names => name
+            .filter(|name| !name.trim().is_empty())
+            .map_or_else(|| display_formula(formula), str::to_owned),
+    }
+}
+
+/// Formats a checked reaction declaration using either exact formulae or its
+/// checked display names. Coefficients come from the declaration and are never
+/// inferred from display text.
+pub fn display_declaration(declaration: &ReactionDeclaration, labels: ChemicalLabels) -> String {
+    let side = |terms: &[ReactionTerm]| {
+        terms
+            .iter()
+            .map(|term| {
+                let species =
+                    display_species(labels, Some(term.display_name()), term.formula_text());
+                if term.coefficient() == 1 {
+                    species
+                } else {
+                    format!("{} {species}", term.coefficient())
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    format!(
+        "{} → {}",
+        side(declaration.reactants()),
+        side(declaration.products())
+    )
+}
 
 /// Formats an ASCII catalogue equation for display without changing its
 /// trusted source representation. Stoichiometric coefficients remain normal
@@ -243,7 +283,9 @@ fn formula_text(counts: &BTreeMap<String, u64>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{display_equation, display_formula};
+    use crate::settings::ChemicalLabels;
+
+    use super::{display_equation, display_formula, display_species};
 
     #[test]
     fn display_equations_preserve_coefficients_and_format_formulae() {
@@ -268,5 +310,18 @@ mod tests {
         assert_eq!(display_formula("CH₄"), "CH₄");
         assert_eq!(display_formula("version1.2"), "version1.2");
         assert_eq!(display_formula("2"), "2");
+    }
+
+    #[test]
+    fn chemical_labels_use_names_with_an_exact_formula_fallback() {
+        assert_eq!(
+            display_species(ChemicalLabels::Names, Some("water"), "H2O"),
+            "water"
+        );
+        assert_eq!(
+            display_species(ChemicalLabels::Formulae, Some("water"), "H2O"),
+            "H₂O"
+        );
+        assert_eq!(display_species(ChemicalLabels::Names, None, "IF7"), "IF₇");
     }
 }

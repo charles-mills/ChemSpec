@@ -27,6 +27,7 @@ chem-domain = { path = "../chem-domain" }
 chem-kernel = { path = "../chem-kernel" }
 chem-presentation = { path = "../chem-presentation" }
 chems-lang = { path = "../chems-lang" }
+directories = "6.0"
 glam = "0.25.0"
 iced.workspace = true
 serde = { version = "1.0", features = ["derive"] }

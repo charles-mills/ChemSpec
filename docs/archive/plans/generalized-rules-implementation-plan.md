@@ -1,7 +1,7 @@
 # Generalized rules implementation plan
 
 > **Status:** fixed implementation queue for the locked
-> [generalized chemistry design](generalized-chemistry-rules.md). G0 through G6
+> [generalized chemistry design](../../generalized-chemistry-rules.md). G0 through G6
 > are implemented, independently reviewed, and complete.
 
 ## Purpose
@@ -36,7 +36,7 @@ design and this fixed plan explicitly before Luna resumes. Luna must not resolve
 the contradiction by inventing semantics.
 
 The original G0 handoff remains as implementation history at
-[`handoffs/generalized-rules-g0-luna.md`](handoffs/generalized-rules-g0-luna.md).
+[`generalized-rules-g0-luna.md`](../handoffs/generalized-rules-g0-luna.md).
 
 ## Global constraints
 

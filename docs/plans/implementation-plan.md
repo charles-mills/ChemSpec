@@ -4,7 +4,8 @@
 
 This plan coordinates the product around the definitive structural `.chems 1`
 language. Detailed language execution is governed by the fixed seven-slice
-[`.chems` implementation plan](chems-implementation-plan.md). Product tasks may
+[`.chems` implementation plan](../archive/plans/chems-implementation-plan.md).
+Product tasks may
 consume those contracts but must not invent alternate language semantics.
 
 The submission deadline is **Tuesday, 21 July 2026 at 17:00 PDT**. The canonical
@@ -212,10 +213,11 @@ the product's chemistry ceiling.
 6. Add broader reactions only after the canonical vertical path is complete.
 
 Catalogue breadth uses the implemented
-[generalized chemistry design](generalized-chemistry-rules.md): reviewed element
+[generalized chemistry design](../generalized-chemistry-rules.md): reviewed element
 facts derive classifications, parameterized structure applications construct
 exact graphs, and typed family rewrites compile into the existing concrete
-kernel operations. Its fixed [G0–G6 implementation queue](generalized-rules-implementation-plan.md)
+kernel operations. Its fixed
+[G0–G6 implementation queue](../archive/plans/generalized-rules-implementation-plan.md)
 is complete. The first generated catalogue now has a host-selected AI review
 attestation and both exact digests committed to the trust root.
 
@@ -223,10 +225,11 @@ attestation and both exact digests committed to the trust root.
 
 - The complete language, catalogue, generalized-rule, kernel, and frame crates
   are integrated with the Iced workspace.
-- The 118-element identity catalogue and generalized alkali-water family cross
-  the pinned AI trust attestation. Li, Na, and K each cross trusted expansion,
-  kernel validation, and frame generation in the desktop application; the
-  other 115 element identities have no implied reaction coverage.
+- The promoted catalogue crosses the pinned AI trust attestation and contains
+  205 finite experiences across the established generalized families,
+  elemental oxygen, fixed-charge main-group ion pairs, and finite covalent
+  combinations. The 118-element registry still provides identity metadata,
+  not universal reaction coverage.
 - `chem-presentation` compiles deterministic guided scenes and a macroscopic
   scene plan from the same trusted `SimulationFrames` generation.
 - The guided Canvas renderer consumes exact atoms, covalent/dative edges, ionic
@@ -250,21 +253,14 @@ attestation and both exact digests committed to the trust root.
   integration, independent corpus review, and cross-platform release evidence
   remain.
 
-## Next catalogue breadth
+## Catalogue breadth status
 
-The next chemistry queue is four generalized reaction families, not one file or
-rule per reactant pair:
-
-1. precipitation from supported aqueous ionic combinations;
-2. acid-base neutralization;
-3. acid-carbonate gas evolution; and
-4. single displacement for an explicitly bounded activity-series domain.
-
-Combustion is an optional fifth family after those four. Each family still needs
-finite supported cases, exact structure applications, observations, evidence,
-negative fixtures, and its own digest-bound trust update. Element identity in
-the 118-record registry never implies that an element participates in one of
-these families.
+The original generalized-family breadth queue is implemented, reviewed, and
+pinned. Current finite coverage and its machine-readable authorities are
+summarized in [`../catalogue-coverage.md`](../catalogue-coverage.md). Further
+content ideas are explicitly deferred under `../backlog/` and are not release
+commitments until independently reviewed and promoted through the same
+digest-bound trust process.
 
 ## Integration gates
 

@@ -124,5 +124,5 @@ failed. Invalid source and unsupported chemistry remain distinct.
 - [Normative specification](chems-specification.md)
 - [Normative grammar](../grammar/chems.ebnf)
 - [Structural architecture](structural-chems-architecture.md)
-- [Implementation plan](chems-implementation-plan.md)
+- [Completed implementation plan](archive/plans/chems-implementation-plan.md)
 - [Conformance contract](../conformance/README.md)

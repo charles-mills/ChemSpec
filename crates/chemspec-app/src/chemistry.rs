@@ -904,6 +904,7 @@ fn halogen_displacement_source(displacing: Halogen, displaced: Halogen) -> Strin
 pub struct TrustedRun {
     frames: SimulationFrames,
     macroscopic: Option<MacroscopicReaction>,
+    declaration: chem_domain::ReactionDeclaration,
 }
 
 impl TrustedRun {
@@ -919,12 +920,18 @@ impl TrustedRun {
     pub const fn macroscopic(&self) -> Option<&MacroscopicReaction> {
         self.macroscopic.as_ref()
     }
+
+    #[must_use]
+    pub const fn declaration(&self) -> &chem_domain::ReactionDeclaration {
+        &self.declaration
+    }
 }
 
 #[derive(Debug)]
 struct ValidatedRequestArtifacts {
     frames: SimulationFrames,
     macroscopic: Option<MacroscopicReaction>,
+    declaration: chem_domain::ReactionDeclaration,
 }
 
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
@@ -954,6 +961,7 @@ fn build_run(request: ReactionRequest) -> Result<TrustedRun, String> {
     Ok(TrustedRun {
         frames: validated.frames,
         macroscopic: validated.macroscopic,
+        declaration: validated.declaration,
     })
 }
 
@@ -978,6 +986,7 @@ fn validate_request_source(
     )
     .map_err(|error| error.to_string())?;
     let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
+    let declaration = expanded.claim.declaration.clone();
     let current =
         CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
     let validated = validate_trusted(&expanded, catalogue).map_err(|error| error.to_string())?;
@@ -985,6 +994,7 @@ fn validate_request_source(
     Ok(ValidatedRequestArtifacts {
         frames,
         macroscopic,
+        declaration,
     })
 }
 
