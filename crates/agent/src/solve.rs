@@ -32,7 +32,6 @@ const ACIDIC_DONORS: [&str; 6] = ["O", "F", "Cl", "Br", "I", "S"];
 /// Attempts to solve the request without a model. Returns a fully formed
 /// reaction claim, or None when no deterministic family applies.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn solve_reaction_claim(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
@@ -65,75 +64,11 @@ pub fn solve_reaction_claim(
     let verdict = if species.len() == 1 {
         solve_decomposition(optional_structures[0]?, pair_context.as_deref()?)?
     } else {
-        let identity_verdict = solve_trivial_no_reaction(
+        solve_binary_reaction(
             (&compositions[0], optional_structures[0]),
             (&compositions[1], optional_structures[1]),
-        );
-        let structures = move || Some((optional_structures[0]?, optional_structures[1]?));
-        identity_verdict.or_else(|| {
-            let (first, second) = structures()?;
-            let structures = [first, second];
-            solve_acid_base(structures[0], structures[1])
-                .or_else(|| solve_acid_base(structures[1], structures[0]))
-                .or_else(|| solve_acid_metal(structures[0], structures[1]))
-                .or_else(|| solve_acid_metal(structures[1], structures[0]))
-                .or_else(|| {
-                    solve_alcohol_oxidation(structures[0], structures[1], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_alcohol_oxidation(structures[1], structures[0], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_incomplete_combustion(
-                        structures[0],
-                        structures[1],
-                        pair_context.as_deref(),
-                    )
-                })
-                .or_else(|| {
-                    solve_incomplete_combustion(
-                        structures[1],
-                        structures[0],
-                        pair_context.as_deref(),
-                    )
-                })
-                .or_else(|| solve_combustion(structures[0], structures[1]))
-                .or_else(|| solve_combustion(structures[1], structures[0]))
-                .or_else(|| {
-                    solve_ester_hydrolysis(structures[0], structures[1], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_ester_hydrolysis(structures[1], structures[0], pair_context.as_deref())
-                })
-                .or_else(|| solve_hydrohalogenation(structures[0], structures[1]))
-                .or_else(|| solve_hydrohalogenation(structures[1], structures[0]))
-                .or_else(|| solve_alkene_addition(structures[0], structures[1]))
-                .or_else(|| solve_alkene_addition(structures[1], structures[0]))
-                .or_else(|| {
-                    solve_substitution(structures[0], structures[1], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_substitution(structures[1], structures[0], pair_context.as_deref())
-                })
-                .or_else(|| solve_esterification(structures[0], structures[1]))
-                .or_else(|| solve_esterification(structures[1], structures[0]))
-                .or_else(|| solve_oxide_water(structures[0], structures[1]))
-                .or_else(|| solve_oxide_water(structures[1], structures[0]))
-                .or_else(|| solve_metal_water(structures[0], structures[1]))
-                .or_else(|| solve_metal_water(structures[1], structures[0]))
-                .or_else(|| solve_single_displacement(structures[0], structures[1]))
-                .or_else(|| solve_single_displacement(structures[1], structures[0]))
-                .or_else(|| solve_halogen_displacement(structures[0], structures[1]))
-                .or_else(|| solve_halogen_displacement(structures[1], structures[0]))
-                .or_else(|| solve_double_displacement(structures[0], structures[1]))
-                .or_else(|| {
-                    solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
-                        reason: None,
-                        products,
-                        observations: Vec::new(),
-                    })
-                })
-        })?
+            pair_context.as_deref(),
+        )?
     };
     let disposition = if verdict.products.is_empty() {
         ClaimDisposition::NoReaction
@@ -158,6 +93,97 @@ struct Verdict {
     products: Vec<ClaimProduct>,
     observations: Vec<ClaimObservation>,
     reason: Option<NoReactionReason>,
+}
+
+type BinaryFamilySolver = fn(&StructureDefinition, &StructureDefinition) -> Option<Verdict>;
+type ContextualBinaryFamilySolver =
+    fn(&StructureDefinition, &StructureDefinition, Option<&str>) -> Option<Verdict>;
+
+/// A binary request with one place responsible for direction-independent
+/// family matching. Individual family solvers may keep their natural
+/// substrate/reagent ordering without every caller duplicating the retry.
+#[derive(Clone, Copy)]
+struct BinaryReactants<'a> {
+    first: &'a StructureDefinition,
+    second: &'a StructureDefinition,
+}
+
+impl<'a> BinaryReactants<'a> {
+    const fn new(first: &'a StructureDefinition, second: &'a StructureDefinition) -> Self {
+        Self { first, second }
+    }
+
+    fn solve_either_order(self, solver: BinaryFamilySolver) -> Option<Verdict> {
+        solver(self.first, self.second).or_else(|| solver(self.second, self.first))
+    }
+
+    fn solve_either_order_with_context(
+        self,
+        context: Option<&str>,
+        solver: ContextualBinaryFamilySolver,
+    ) -> Option<Verdict> {
+        solver(self.first, self.second, context)
+            .or_else(|| solver(self.second, self.first, context))
+    }
+}
+
+/// Runs binary solver phases in their governing precedence order.
+fn solve_binary_reaction(
+    first: (&BTreeMap<String, u64>, Option<&StructureDefinition>),
+    second: (&BTreeMap<String, u64>, Option<&StructureDefinition>),
+    context: Option<&str>,
+) -> Option<Verdict> {
+    // This phase only needs stable element identity, so it must precede the
+    // structure gate for formula-only reactants.
+    if let Some(verdict) = solve_trivial_no_reaction(first, second) {
+        return Some(verdict);
+    }
+
+    let reactants = BinaryReactants::new(first.1?, second.1?);
+    solve_context_sensitive_families(reactants, context)
+        .or_else(|| solve_symmetric_binary_families(reactants))
+        .or_else(|| solve_synthesis_fallback(reactants))
+}
+
+/// Context refines these outcomes, so they take precedence over an
+/// unconditioned family that can also match the same reactants.
+fn solve_context_sensitive_families(
+    reactants: BinaryReactants<'_>,
+    context: Option<&str>,
+) -> Option<Verdict> {
+    reactants
+        .solve_either_order_with_context(context, solve_alcohol_oxidation)
+        .or_else(|| reactants.solve_either_order_with_context(context, solve_incomplete_combustion))
+        .or_else(|| reactants.solve_either_order_with_context(context, solve_ester_hydrolysis))
+        .or_else(|| reactants.solve_either_order_with_context(context, solve_substitution))
+}
+
+/// Direction-independent binary families. The pair wrapper applies every
+/// directional solver in both reactant orders; double displacement already
+/// treats its two salts symmetrically and therefore runs once.
+fn solve_symmetric_binary_families(reactants: BinaryReactants<'_>) -> Option<Verdict> {
+    reactants
+        .solve_either_order(solve_acid_base)
+        .or_else(|| reactants.solve_either_order(solve_acid_metal))
+        .or_else(|| reactants.solve_either_order(solve_combustion))
+        .or_else(|| reactants.solve_either_order(solve_hydrohalogenation))
+        .or_else(|| reactants.solve_either_order(solve_alkene_addition))
+        .or_else(|| reactants.solve_either_order(solve_esterification))
+        .or_else(|| reactants.solve_either_order(solve_oxide_water))
+        .or_else(|| reactants.solve_either_order(solve_metal_water))
+        .or_else(|| reactants.solve_either_order(solve_single_displacement))
+        .or_else(|| reactants.solve_either_order(solve_halogen_displacement))
+        .or_else(|| solve_double_displacement(reactants.first, reactants.second))
+}
+
+/// Last-resort deterministic construction after all more specific families
+/// have declined.
+fn solve_synthesis_fallback(reactants: BinaryReactants<'_>) -> Option<Verdict> {
+    solve_synthesis(reactants.first, reactants.second).map(|products| Verdict {
+        reason: None,
+        products,
+        observations: Vec::new(),
+    })
 }
 
 /// One element symbol as its lowercase display name ("Cu" → "copper").
@@ -1736,6 +1762,91 @@ mod tests {
             }],
             selected_context: Some(context.to_owned()),
         }
+    }
+
+    fn resolved_pair(
+        request: &ReactionBuildRequest,
+        registry: &SpeciesRegistry,
+    ) -> [StructureDefinition; 2] {
+        let RequestIdentityResolution::Resolved(species) =
+            resolve_request_identities(request, registry).expect("resolved identities")
+        else {
+            panic!("expected unambiguous identities");
+        };
+        let mut species = species.into_iter();
+        let structure = |species: OutcomeSpecies| match species {
+            OutcomeSpecies::Resolved(resolved) => resolved.structure.expect("generated structure"),
+            OutcomeSpecies::FormulaOnly { .. } => panic!("expected resolved structure"),
+        };
+        [
+            structure(species.next().expect("first reactant")),
+            structure(species.next().expect("second reactant")),
+        ]
+    }
+
+    #[test]
+    fn contextual_phase_wins_real_overlaps_in_either_reactant_order() {
+        let registry = SpeciesRegistry::default();
+        let overlap = |reactants: &[(&str, &[u8])],
+                       context: &str,
+                       contextual_product: &str,
+                       general_product: &str| {
+            let contextual_request = ReactionBuildRequest {
+                selected_context: Some(context.to_owned()),
+                ..request(reactants)
+            };
+            let [first, second] = resolved_pair(&contextual_request, &registry);
+
+            for pair in [
+                BinaryReactants::new(&first, &second),
+                BinaryReactants::new(&second, &first),
+            ] {
+                let contextual = solve_context_sensitive_families(pair, Some(context))
+                    .expect("contextual family also matches");
+                let general = solve_symmetric_binary_families(pair)
+                    .expect("unconditioned family also matches");
+                assert_eq!(contextual.products[0].formula, contextual_product);
+                assert_eq!(general.products[0].formula, general_product);
+            }
+
+            for ordered_reactants in [[reactants[0], reactants[1]], [reactants[1], reactants[0]]] {
+                let ordered_request = ReactionBuildRequest {
+                    selected_context: Some(context.to_owned()),
+                    ..request(&ordered_reactants)
+                };
+                let claim = solve_reaction_claim(&ordered_request, &registry).expect("solved");
+                assert_eq!(claim.products[0].formula, contextual_product);
+            }
+        };
+
+        overlap(
+            &[
+                ("ethanol", &[6, 6, 8, 1, 1, 1, 1, 1, 1]),
+                ("oxygen", &[8, 8]),
+            ],
+            "catalyst",
+            "C2H4O",
+            "CO2",
+        );
+        overlap(
+            &[("methane", &[6, 1, 1, 1, 1]), ("oxygen", &[8, 8])],
+            "limited oxygen",
+            "CO",
+            "CO2",
+        );
+    }
+
+    #[test]
+    fn synthesis_is_an_explicit_last_resort_phase() {
+        let registry = SpeciesRegistry::default();
+        let request = request(&[("hydrogen", &[1, 1]), ("chlorine", &[17, 17])]);
+        let [first, second] = resolved_pair(&request, &registry);
+        let reactants = BinaryReactants::new(&first, &second);
+
+        assert!(solve_context_sensitive_families(reactants, None).is_none());
+        assert!(solve_symmetric_binary_families(reactants).is_none());
+        let synthesis = solve_synthesis_fallback(reactants).expect("synthesis fallback");
+        assert_eq!(synthesis.products[0].formula, "HCl");
     }
 
     #[test]
