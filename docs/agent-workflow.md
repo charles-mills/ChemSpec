@@ -128,9 +128,12 @@ bounded repair loop; at most two operation-level repairs receive the exact
 bounded validation diagnostic. Cancellation, timeout, unavailable capability,
 authentication, transport, cache, and other operational failures return
 immediately with their original typed error and are never shown to the provider
-as repair feedback. Repair exhaustion preserves the static outcome and exposes
-a retry affordance. Formula-only products never enter escalation because
-ChemSpec does not fabricate unknown graphs.
+as repair feedback. A structure proposal request is re-derived canonically from
+the validated static outcome at adoption: count, ordered IDs, names, formulas,
+and reactant-before-product position must match exactly before any proposed
+graph is validated or attached. Repair exhaustion preserves the static outcome
+and exposes a retry affordance. Formula-only products never enter escalation
+because ChemSpec does not fabricate unknown graphs.
 
 ## Cache v3
 

@@ -102,6 +102,18 @@ fn missing_species(outcome: &ValidatedStaticOutcome) -> Vec<MissingSpecies> {
     missing
 }
 
+fn proposal_species(missing: &[MissingSpecies]) -> Vec<StructureProposalSpecies> {
+    missing
+        .iter()
+        .enumerate()
+        .map(|(ordinal, species)| StructureProposalSpecies {
+            id: format!("DynamicStructure{}", ordinal + 1),
+            name: species.name.clone(),
+            formula: species.formula.clone(),
+        })
+        .collect()
+}
+
 /// Builds the fixed structure-escalation request for an outcome, or `None`
 /// when every species already has a reviewed structure.
 #[must_use]
@@ -161,15 +173,7 @@ pub fn structure_proposal_request(
         .collect();
     Some(StructureProposalRequest {
         schema_version: STRUCTURE_PROPOSAL_SCHEMA_VERSION,
-        species: missing
-            .iter()
-            .enumerate()
-            .map(|(ordinal, species)| StructureProposalSpecies {
-                id: format!("DynamicStructure{}", ordinal + 1),
-                name: species.name.clone(),
-                formula: species.formula.clone(),
-            })
-            .collect(),
+        species: proposal_species(&missing),
         neutral_valence,
         supported_states,
         metallic_states,
@@ -200,6 +204,13 @@ pub fn adopt_proposed_structures(
             AgentErrorKind::InvalidProviderOutput,
             "structure adoption",
             "request does not describe this outcome's missing species",
+        ));
+    }
+    if request.species != proposal_species(&missing) {
+        return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            "structure adoption",
+            "request does not exactly describe this outcome's missing species",
         ));
     }
     let premise_id = PremiseId::from_str(DYNAMIC_STRUCTURE_PREMISE).map_err(|error| {

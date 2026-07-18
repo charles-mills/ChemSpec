@@ -654,8 +654,9 @@ Acceptance:
 - an escalated mechanism is always disclosed as model-proposed, never as a
   reviewed or experimentally established sequence;
 - mechanism responses cannot introduce species, structures, coefficients, or
-  unknown atom labels; structure proposals cannot alter requested species,
-  ids, formulas, the claim, or the balance;
+  unknown atom labels; structure adoption re-derives the canonical request and
+  structure proposals cannot alter requested species, ordered ids, names,
+  formulas, reactant/product position, the claim, or the balance;
 - exhausted escalation stays retryable without discarding the validated
   static outcome; and
 - no unvalidated product graph is ever displayed.

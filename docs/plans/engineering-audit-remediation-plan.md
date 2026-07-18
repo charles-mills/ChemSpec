@@ -150,7 +150,7 @@ Required decision:
 
 Verdict: **Confirmed; critical on NixOS.**
 
-Status: **Completed 2026-07-18 in the working tree (uncommitted).**
+Status: **Completed 2026-07-18 in commit `d7a1df4`.**
 
 Evidence:
 
@@ -173,7 +173,7 @@ Required outcome:
 
 Verdict: **Confirmed; high.**
 
-Status: **Completed 2026-07-18 in the working tree (uncommitted).**
+Status: **Completed 2026-07-18 in commit `d7a1df4`.**
 
 Evidence:
 
@@ -200,7 +200,7 @@ Required outcome:
 
 Verdict: **Confirmed; high.**
 
-Status: **Completed 2026-07-18 in the working tree (uncommitted).**
+Status: **Completed 2026-07-18 in commit `d7a1df4`.**
 
 Evidence: `propose_with_provider` in
 `crates/agent/src/mechanism.rs:428` converts every provider error to a string,
@@ -218,6 +218,8 @@ Required outcome:
 ### AUD-007 — Bind structure proposal requests to exact missing species
 
 Verdict: **Confirmed; high.**
+
+Status: **Completed 2026-07-18 in the audit remediation commit.**
 
 Evidence:
 
@@ -856,7 +858,7 @@ For each completed slice, append:
 
 ### 2026-07-18 — AUD-004 Unix process-tree termination
 
-- Completion: working tree, uncommitted.
+- Completion: commit `d7a1df4`.
 - Contract and code: the agent's Unix process adapter now sends `TERM` and
   `KILL` directly to the child process group through safe `rustix` APIs,
   retains the final direct-child kill/reap fallback, and no longer depends on
@@ -886,7 +888,7 @@ For each completed slice, append:
 
 ### 2026-07-18 — AUD-005 Covalent delocalization identity
 
-- Completion: working tree, uncommitted.
+- Completion: commit `d7a1df4`.
 - Contract and code: structure instantiation and ordinary covalent-order
   changes now preserve typed delocalization; final bond equality compares the
   full resonance-domain/effective-order annotation; frame projection has an
@@ -926,7 +928,7 @@ For each completed slice, append:
 
 ### 2026-07-18 — AUD-006 Typed provider repair boundary
 
-- Completion: working tree, uncommitted.
+- Completion: commit `d7a1df4`.
 - Contract and code: mechanism and structure proposal loops now admit only
   `InvalidProviderOutput` and `KernelRejection` to bounded repair. Every other
   `AgentErrorKind` returns immediately through the new typed `Failed` outcome;
@@ -958,4 +960,41 @@ For each completed slice, append:
   failed once during a parallel agent run with `ProviderUnavailable`, then
   passed focused and in the repeated full agent run; its strict assertion was
   retained unchanged.
+- Follow-ups: none.
+
+### 2026-07-18 — AUD-007 Exact structure-request binding
+
+- Completion: this audit remediation commit.
+- Contract and code: structure adoption now compares every request entry with
+  the validated outcome's canonical missing-species sequence before validating
+  or attaching any graph. The binding covers count, generated ordinal ID,
+  exact display name, exact formula text, reactant-before-product position, and
+  order; response IDs and formulas remain independently checked afterward.
+- Red evidence: a same-count request that replaced `DynamicStructure1` with
+  `SubstitutedStructure1` and supplied a matching valid graph was adopted, and
+  the substituted ID became the outcome graph identity. A changed name was
+  also ignored. A changed formula and graph using the equivalent `H8C3O`
+  spelling were accepted for the outcome's original `C3H8O` species.
+- Regression coverage: independent tests reject same-count wrong ID, name,
+  formula, cross-side substitution, and order with the stable typed
+  `InvalidProviderOutput`/`structure adoption` boundary. Existing successful
+  structure escalation continues to prove that the canonical request adopts a
+  valid graph and unlocks the mechanism path.
+- Review: the two-axis review found no documented-standard or spec failures.
+  Its one substantive maintainability smell—duplicated canonical generated-ID
+  construction—was removed by sharing the typed `proposal_species` builder
+  between request creation and adoption. Explicit hostile tests remain beside
+  their existing end-to-end fixtures for readability.
+- Verification passed:
+  `cargo test -p agent --lib structure_adoption_rejects_same_count -- --nocapture`
+  (5 passed);
+  `cargo test -p agent --all-targets` (141 passed, 2 live probes ignored);
+  `cargo fmt --all --check`;
+  `cargo test --workspace --all-targets`;
+  `cargo clippy --workspace --all-targets -- -D warnings`; and
+  `git diff --check`. Cargo verification used the isolated target directory
+  `/tmp/chemspec-aud007`.
+- Remaining boundary: deterministic in-process fixtures exercise request and
+  graph adoption. No live provider, credential, network, GPU, macOS, or Windows
+  behavior is required or claimed.
 - Follow-ups: none.

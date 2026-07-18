@@ -2577,6 +2577,70 @@ mod tests {
         );
     }
 
+    fn missing_reactant_and_product_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
+        static_outcome_for(
+            trusted,
+            [
+                ("C3H8O", vec![6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1, 1]),
+                ("O2", vec![8, 8]),
+            ],
+            &json!([
+                {"name":"propane diol","formula":"C3H8O2","phase":"liquid","identity_hints":[]}
+            ]),
+        )
+    }
+
+    fn empty_structure_response() -> StructureProposalResponse {
+        StructureProposalResponse {
+            schema_version: crate::claim::STRUCTURE_PROPOSAL_SCHEMA_VERSION,
+            structures: Vec::new(),
+        }
+    }
+
+    fn assert_request_binding_error(error: &AgentError) {
+        assert_eq!(error.kind(), AgentErrorKind::InvalidProviderOutput);
+        assert_eq!(error.context(), "structure adoption");
+        assert_eq!(
+            error.message(),
+            "request does not exactly describe this outcome's missing species"
+        );
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_cross_side_request() {
+        let trusted = trusted();
+        let outcome = missing_reactant_and_product_outcome(&trusted);
+        let mut request = structure_proposal_request(&outcome, &trusted)
+            .expect("reactant and product structure request");
+        let first_name = request.species[0].name.clone();
+        let first_formula = request.species[0].formula.clone();
+        request.species[0].name = request.species[1].name.clone();
+        request.species[0].formula = request.species[1].formula.clone();
+        request.species[1].name = first_name;
+        request.species[1].formula = first_formula;
+
+        let error =
+            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &trusted)
+                .expect_err("a product request must not occupy the reactant position");
+
+        assert_request_binding_error(&error);
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_reordered_request() {
+        let trusted = trusted();
+        let outcome = missing_reactant_and_product_outcome(&trusted);
+        let mut request = structure_proposal_request(&outcome, &trusted)
+            .expect("reactant and product structure request");
+        request.species.swap(0, 1);
+
+        let error =
+            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &trusted)
+                .expect_err("request order must retain its outcome binding");
+
+        assert_request_binding_error(&error);
+    }
+
     /// Ethylene + methanol: the product C3H8O is structurally ambiguous
     /// (1-propanol vs 2-propanol tie), so the generator declines and the
     /// model escalation path stays exercised.
@@ -2634,6 +2698,58 @@ mod tests {
             .expect("structure JSON"),
         )
         .expect("structure contract")
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_wrong_request_id() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let mut request =
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        request.species[0].id = "SubstitutedStructure1".to_owned();
+        let mut response = ether_structure();
+        let LabelledStructure::Molecular { id, .. } = &mut response.structures[0] else {
+            panic!("ether fixture must be molecular")
+        };
+        id.clone_from(&request.species[0].id);
+
+        let error = adopt_proposed_structures(&outcome, &request, &response, &trusted)
+            .expect_err("a substituted request id must not bind to the outcome");
+
+        assert_request_binding_error(&error);
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_wrong_request_name() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let mut request =
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        request.species[0].name = "substituted product".to_owned();
+
+        let error = adopt_proposed_structures(&outcome, &request, &ether_structure(), &trusted)
+            .expect_err("a substituted request name must not bind to the outcome");
+
+        assert_request_binding_error(&error);
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_wrong_request_formula() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let mut request =
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        request.species[0].formula = "H8C3O".to_owned();
+        let mut response = ether_structure();
+        let LabelledStructure::Molecular { formula, .. } = &mut response.structures[0] else {
+            panic!("ether fixture must be molecular")
+        };
+        formula.clone_from(&request.species[0].formula);
+
+        let error = adopt_proposed_structures(&outcome, &request, &response, &trusted)
+            .expect_err("a substituted request formula must not bind to the outcome");
+
+        assert_request_binding_error(&error);
     }
 
     #[test]
