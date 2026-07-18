@@ -32,6 +32,7 @@ const TEXT_SOFT: Color = color::TEXT_SOFT;
 pub struct SceneContext {
     kind: EducationalSceneKind,
     equation: Option<String>,
+    electricity: bool,
 }
 
 impl SceneContext {
@@ -39,11 +40,17 @@ impl SceneContext {
         Self {
             kind,
             equation: None,
+            electricity: false,
         }
     }
 
     pub fn with_equation(mut self, equation: Option<String>) -> Self {
         self.equation = equation;
+        self
+    }
+
+    pub fn with_electricity(mut self, electricity: bool) -> Self {
+        self.electricity = electricity;
         self
     }
 }
@@ -870,6 +877,7 @@ impl canvas::Program<DragEvent> for Diagram {
                 action,
                 self.ambient_progress,
                 scale,
+                shows_transfer_motion(self.context.electricity),
             );
         }
 
@@ -899,6 +907,10 @@ impl canvas::Program<DragEvent> for Diagram {
 
         vec![frame.into_geometry()]
     }
+}
+
+const fn shows_transfer_motion(electricity: bool) -> bool {
+    !electricity
 }
 
 /// Eased structural-motion progress: a gentle lead-in, then the action
@@ -3025,6 +3037,7 @@ fn draw_operation_motion(
     progress: f32,
     phase: f32,
     scale: f32,
+    show_transfer_motion: bool,
 ) {
     for operation in operations {
         match operation {
@@ -3033,7 +3046,7 @@ fn draw_operation_motion(
                 acceptor,
                 count,
                 ..
-            } => draw_metallic_electron_transfer(
+            } if show_transfer_motion => draw_metallic_electron_transfer(
                 frame, before, after, donor_site, acceptor, *count, positions, progress, phase,
                 scale,
             ),
@@ -3050,7 +3063,8 @@ fn draw_operation_motion(
             }
             StructuralOperation::AssociateIonic { .. }
             | StructuralOperation::AssignProduct { .. }
-            | StructuralOperation::Other { .. } => {}
+            | StructuralOperation::Other { .. }
+            | StructuralOperation::TransferMetallicElectron { .. } => {}
         }
     }
 }
@@ -4647,6 +4661,12 @@ mod tests {
         let lines = wrap_words(source, 18);
         assert_eq!(lines.join(" "), source);
         assert!(lines.len() > 1);
+    }
+
+    #[test]
+    fn electricity_suppresses_direct_interionic_electron_motion() {
+        assert!(!shows_transfer_motion(true));
+        assert!(shows_transfer_motion(false));
     }
 
     #[test]

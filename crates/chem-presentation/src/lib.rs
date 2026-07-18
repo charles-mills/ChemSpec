@@ -167,7 +167,10 @@ impl EducationalPlan {
 /// Returns an error if frames are absent, non-contiguous, missing their
 /// validated operation, or cannot provide their bound generation digest.
 #[allow(clippy::too_many_lines)]
-pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<EducationalPlan, PlanError> {
+pub fn compile_educational_plan(
+    frames: &SimulationFrames,
+    required_context: &str,
+) -> Result<EducationalPlan, PlanError> {
     let sequence = frames.frames();
     let first = sequence.first().ok_or(PlanError::MissingFrames)?;
     let last = sequence.last().ok_or(PlanError::MissingFrames)?;
@@ -205,8 +208,12 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
             .active_operation()
             .ok_or(PlanError::MissingOperation(first_after.ordinal()))?;
         let signature = operation_signature(before, first_after, first_operation.operation.view());
-        let first_narration =
-            operation_narration(before, first_after, first_operation.operation.view());
+        let first_narration = operation_narration(
+            before,
+            first_after,
+            first_operation.operation.view(),
+            required_context,
+        );
         let mut affected = first_narration
             .explanation
             .target_atoms
@@ -225,6 +232,7 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
                 candidate_before,
                 candidate_after,
                 candidate_operation.operation.view(),
+                required_context,
             );
             let candidate_atoms = candidate_narration
                 .explanation
@@ -281,8 +289,12 @@ pub fn compile_educational_plan(frames: &SimulationFrames) -> Result<Educational
                 let active = operation_after
                     .active_operation()
                     .ok_or(PlanError::MissingOperation(operation_after.ordinal()))?;
-                let narration =
-                    operation_narration(operation_before, operation_after, active.operation.view());
+                let narration = operation_narration(
+                    operation_before,
+                    operation_after,
+                    active.operation.view(),
+                    required_context,
+                );
                 Ok(EducationalOperation {
                     before: operation_before.trace().state_digest,
                     after: operation_after.trace().state_digest,
@@ -637,6 +649,7 @@ fn operation_narration(
     before: &SimulationFrame,
     after: &SimulationFrame,
     operation: StructuralOperationView<'_>,
+    required_context: &str,
 ) -> OperationNarration {
     let (context, explanation, target_atoms) = match operation {
         StructuralOperationView::ReconfigureElectrons { transition } => (
@@ -777,22 +790,32 @@ fn operation_narration(
             acceptor,
             count,
             ..
-        } => (
-            format!(
-                "{} → {} · {count} {}",
-                atom_symbol(before, after, donor),
-                atom_symbol(before, after, acceptor),
-                plural(count.into(), "electron")
-            ),
-            if count == 1 {
-                "An electron jumps from one atom to the other: the giver becomes more positive and the receiver more negative."
-                    .to_owned()
+        } => {
+            let donor_symbol = atom_symbol(before, after, donor);
+            let acceptor_symbol = atom_symbol(before, after, acceptor);
+            let electrons = plural(count.into(), "electron");
+            if required_context.eq_ignore_ascii_case("electricity") {
+                let (context, explanation) = electrolysis_transfer_text(
+                    &donor_symbol,
+                    &acceptor_symbol,
+                    count,
+                    &electrons,
+                );
+                (context, explanation, atom_targets([donor, acceptor]))
             } else {
-                "Electrons jump from one atom to the other: the giver becomes more positive and the receiver more negative."
-                    .to_owned()
-            },
-            atom_targets([donor, acceptor]),
-        ),
+                (
+                    format!("{donor_symbol} → {acceptor_symbol} · {count} {electrons}"),
+                    if count == 1 {
+                        "An electron jumps from one atom to the other: the giver becomes more positive and the receiver more negative."
+                            .to_owned()
+                    } else {
+                        "Electrons jump from one atom to the other: the giver becomes more positive and the receiver more negative."
+                            .to_owned()
+                    },
+                    atom_targets([donor, acceptor]),
+                )
+            }
+        }
         StructuralOperationView::AssignProduct { atoms, .. } => (
             count_phrase(atoms.len(), "atom", "regrouped"),
             "These atoms now make up a finished product — every atom from the reactants is still here, just regrouped."
@@ -809,7 +832,13 @@ fn operation_narration(
     OperationNarration {
         context: ContextLabel {
             kind,
-            title: operation_title(operation).to_owned(),
+            title: if required_context.eq_ignore_ascii_case("electricity")
+                && matches!(operation, StructuralOperationView::TransferElectron { .. })
+            {
+                "ELECTROLYSIS · ELECTRON FLOW".to_owned()
+            } else {
+                operation_title(operation).to_owned()
+            },
             text: context,
             target_atoms: target_atoms.clone(),
             connector,
@@ -821,6 +850,20 @@ fn operation_narration(
             connector,
         },
     }
+}
+
+fn electrolysis_transfer_text(
+    donor: &str,
+    acceptor: &str,
+    count: u8,
+    electrons: &str,
+) -> (String, String) {
+    (
+        format!("Anode: {donor} transfers {count} {electrons}"),
+        format!(
+            "Cathode: {acceptor} receives {count} {electrons}. Oxidation occurs at the anode and reduction at the cathode; electrons travel through the external circuit, not directly between these ions."
+        ),
+    )
 }
 
 fn atom_symbol(before: &SimulationFrame, after: &SimulationFrame, atom: &AtomId) -> String {
@@ -2262,8 +2305,18 @@ mod tests {
     use super::{
         EducationalPlan, EducationalScene, EducationalSceneKind, EffectIntensity, EffectProfile,
         FlamePalette, PresentationEffect, ReactionVisualInputs, TimelinePosition, VisualColour,
-        macroscopic_beat_duration_ms, visual_colour,
+        electrolysis_transfer_text, macroscopic_beat_duration_ms, visual_colour,
     };
+
+    #[test]
+    fn electrolysis_transfer_copy_uses_electrodes_not_direct_ion_motion() {
+        let (anode, cathode) = electrolysis_transfer_text("Cl", "Ag", 1, "electron");
+        assert_eq!(anode, "Anode: Cl transfers 1 electron");
+        assert!(cathode.starts_with("Cathode: Ag receives 1 electron."));
+        assert!(cathode.contains("external circuit"));
+        assert!(cathode.contains("not directly between these ions"));
+        assert!(!cathode.contains("jumps"));
+    }
 
     #[test]
     fn visual_colours_support_reviewed_names_and_exact_rgb_without_schema_changes() {

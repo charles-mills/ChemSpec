@@ -91,6 +91,9 @@ ordinary workspace tests:
 - end-to-end animation tests: each solved family drives structure
   generation, graph-diff mechanism derivation, kernel validation, and frame
   projection while asserting **zero model calls**;
+- aqueous-electrolysis tests cover halide and oxoanion discharge with active,
+  depositable, and spectator cations, including exact contextual-water balance
+  and complete structural frames;
 - provider-path tests with fakes: structured-output failure, bounded repair,
   escalated mechanism validation, and cache-v3 replay.
 

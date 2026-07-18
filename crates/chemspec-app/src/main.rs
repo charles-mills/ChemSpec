@@ -2403,12 +2403,19 @@ impl App {
         let Ok(identities) = reviewed_species_registry(catalogue) else {
             return false;
         };
-        let request = self.dynamic_build_request();
-        let Ok(RequestIdentityResolution::Resolved(_)) =
+        let mut request = self.dynamic_build_request();
+        let Ok(RequestIdentityResolution::Resolved(resolved)) =
             resolve_request_identities_with_catalogue(&request, &identities, catalogue)
         else {
             return false;
         };
+        for (input, species) in request.reactants.iter_mut().zip(resolved) {
+            if let OutcomeSpecies::Resolved(species) = species
+                && identities.get(&species.id).is_some()
+            {
+                input.species_id = Some(species.id);
+            }
+        }
         agent::solve_reaction_claim(&request, &identities).is_none()
     }
 
@@ -3349,8 +3356,20 @@ impl App {
                 .as_ref()
                 .ok_or_else(|| "validated frames are unavailable".to_owned())?
                 .clone();
-            let educational_plan =
-                compile_educational_plan(&frames).map_err(|error| error.to_string())?;
+            let required_context = self
+                .dynamic_static
+                .as_ref()
+                .map_or_else(
+                    || {
+                        self.validated_declaration
+                            .as_ref()
+                            .map(chem_domain::ReactionDeclaration::required_context)
+                    },
+                    |dynamic| Some(dynamic.declaration().required_context()),
+                )
+                .ok_or_else(|| "validated declaration is unavailable".to_owned())?;
+            let educational_plan = compile_educational_plan(&frames, required_context)
+                .map_err(|error| error.to_string())?;
             let (profile, reactant_previews, product_preview, declaration) =
                 if let Some(dynamic) = &self.dynamic_static {
                     (
@@ -3676,7 +3695,13 @@ impl App {
             timeline_position.scene_index,
             animation.educational_plan.scenes.len(),
         )
-        .with_equation(equation.clone());
+        .with_equation(equation.clone())
+        .with_electricity(
+            animation
+                .declaration
+                .required_context()
+                .eq_ignore_ascii_case("electricity"),
+        );
         let diagram_canvas: Element<'_, structural_2d::DragEvent> =
             canvas(structural_2d::Diagram::new(
                 before_frame,
@@ -5523,6 +5548,83 @@ mod tests {
         assert_eq!(request.reactants[0].display, "CH₄");
         assert_eq!(request.selected_context.as_deref(), Some("light"));
     }
+
+    #[test]
+    fn sodium_chloride_electrolysis_crosses_the_reviewed_identity_path() {
+        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let mut request = ReactionBuildRequest {
+            reactants: vec![ReactantInput {
+                display: "NaCl".to_owned(),
+                atomic_numbers: vec![11, 17],
+                species_id: None,
+            }],
+            selected_context: Some("electricity".to_owned()),
+        };
+        let RequestIdentityResolution::Resolved(resolved) =
+            resolve_request_identities_with_catalogue(&request, &identities, catalogue)
+                .expect("reviewed resolution")
+        else {
+            panic!("NaCl should resolve to one reviewed identity")
+        };
+        let OutcomeSpecies::Resolved(species) = &resolved[0] else {
+            panic!("NaCl should have a reviewed structure")
+        };
+        request.reactants[0].species_id = Some(species.id.clone());
+        let claim = agent::solve_reaction_claim(&request, &identities)
+            .expect("NaCl electrolysis should solve locally");
+        assert_eq!(
+            claim
+                .products
+                .iter()
+                .map(|product| product.formula.as_str())
+                .collect::<Vec<_>>(),
+            ["NaOH", "H2", "Cl2"]
+        );
+        let outcome = compile_claim_outcome(&request, claim, &identities)
+            .expect("NaCl electrolysis should balance");
+        let CompiledClaimOutcome::Static(outcome) = outcome else {
+            panic!("NaCl electrolysis should be static")
+        };
+        let mut provider = CodexProvider::new(CodexProviderConfig::from_environment());
+        let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+            .expect("NaCl electrolysis should animate");
+        let DynamicPresentationOutcome::Escalated(animated) = presentation else {
+            panic!("NaCl electrolysis should use its algorithmic mechanism")
+        };
+        let plan = compile_educational_plan(animated.frames(), "electricity")
+            .expect("NaCl electrolysis plan");
+        let labels = plan
+            .scenes
+            .iter()
+            .flat_map(|scene| &scene.cues)
+            .filter_map(|cue| match cue {
+                chem_presentation::EducationalCue::ShowContext { label } => {
+                    Some(label.text.as_str())
+                }
+                chem_presentation::EducationalCue::ShowExplanation { label } => {
+                    Some(label.text.as_str())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(labels.iter().any(|text| text.starts_with("Anode:")));
+        assert!(labels.iter().any(|text| text.starts_with("Cathode:")));
+
+        let mut app = App {
+            provider: Some(AppMode::Local),
+            dynamic_context: Some(DynamicRequestContext::Electricity),
+            screen: Screen::Builder,
+            ..App::default()
+        };
+        reactant_composer::replace_reactants(
+            &mut app.reactant_composer,
+            [vec![11, 17], Vec::new()],
+        );
+        assert!(app.builder_input_ready());
+        assert!(!app.local_solver_declines());
+        assert!(app.builder_can_submit());
+    }
     /// Catalogue graphs pack all cations of one kind into a single atom
     /// group (both `Na+` of `Na2CO3` share one group), which used to defeat
     /// `ionic_salt`'s one-atom-per-cation-group assumption and return None
@@ -6669,7 +6771,8 @@ mod tests {
     fn educational_context_does_not_repeat_what_changed_copy() {
         for request in chemistry::ReactionRequest::ALL {
             let run = chemistry::run(request).expect("pinned request validates");
-            let plan = compile_educational_plan(run.frames()).expect("educational plan compiles");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
             let mut compared = 0;
 
             for scene in &plan.scenes {
@@ -6716,7 +6819,8 @@ mod tests {
                 .frames()
                 .iter()
                 .any(|frame| !frame.observations().is_empty());
-            let plan = compile_educational_plan(run.frames()).expect("educational plan compiles");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
             let observation_scenes = plan
                 .scenes
                 .iter()
