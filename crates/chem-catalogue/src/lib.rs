@@ -10,6 +10,7 @@ mod generalized_elaboration;
 mod model;
 mod oxygen;
 mod pattern;
+mod validation;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -275,120 +276,8 @@ impl ValidatedCatalogueBundle {
     ///
     /// Returns a typed system error for invalid metadata, digest, structure,
     /// premise, evidence, review, mapping, applicability, or rule templates.
-    #[allow(clippy::too_many_lines)]
     pub fn validate(envelope: CatalogueEnvelope) -> Result<Self, CatalogueError> {
-        validate_metadata(&envelope.bundle)?;
-        let computed = envelope.computed_digest()?;
-        if computed != envelope.digest {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::DigestMismatch,
-                format!("declared {} but computed {computed}", envelope.digest),
-            ));
-        }
-
-        let mut document = envelope.bundle;
-        normalize_document(&mut document);
-        let evidence = index_evidence(&document.evidence)?;
-        let premises = index_premises(&document.premises, &evidence)?;
-        if matches!(document.publication, PublicationKind::Production) {
-            validate_production_reviews(&document.premises)?;
-        }
-        let (elements, element_categories, element_category_members, element_membership_provenance) =
-            validate_elements_and_categories(
-                &document.elements,
-                &document.element_categories,
-                &premises,
-            )?;
-        let structural_traits = index_structural_traits(&document.structural_traits, &premises)?;
-        let valence_premises = validate_valence_premises(&document.valence_premises, &premises)?;
-        let (mut structures, mut structure_premises) =
-            validate_structures(&document.structures, &premises, &document.valence_premises)?;
-        let mut structure_traits = validate_concrete_structure_traits(
-            &document.structures,
-            &structures,
-            &document.structural_traits,
-            &structural_traits,
-            &premises,
-        )?;
-        let g1 = validate_structure_templates_and_applications(
-            &document.structure_templates,
-            &document.structure_applications,
-            &document.elements,
-            &elements,
-            &element_category_members,
-            &element_membership_provenance,
-            &document.structural_traits,
-            &structural_traits,
-            &premises,
-            &document.valence_premises,
-            &mut structures,
-            &mut structure_premises,
-            &mut structure_traits,
-        )?;
-        let graph_patterns = pattern::validate_graph_patterns(
-            &document.graph_patterns,
-            &elements,
-            &document.structural_traits,
-            &structural_traits,
-            &premises,
-        )?;
-        let generalized_rules = generalized::validate_generalized_rules(
-            &document.generalized_rules,
-            &element_category_members,
-            &element_membership_provenance,
-            &structures,
-            &structure_premises,
-            &structure_traits,
-            &document.structural_traits,
-            &structural_traits,
-            &document.structure_templates,
-            &g1.templates,
-            &document.structure_applications,
-            &document.graph_patterns,
-            &graph_patterns,
-            &premises,
-        )?;
-        let rules = validate_rules(
-            &document.rules,
-            &structures,
-            &structure_premises,
-            &valence_premises,
-            &document.valence_premises,
-            &premises,
-        )?;
-        ensure_rule_namespaces_disjoint(&rules, &generalized_rules)?;
-        let macroscopic_materials = validate_macroscopic_materials(
-            &document.macroscopic_materials,
-            &structures,
-            &rules,
-            &generalized_rules,
-            &document.generalized_rules,
-            &premises,
-        )?;
-
-        Ok(Self {
-            digest: envelope.digest,
-            document,
-            structures,
-            structure_premises,
-            premises,
-            evidence,
-            valence_premises,
-            rules,
-            elements,
-            element_categories,
-            element_category_members,
-            element_membership_provenance,
-            structural_traits,
-            structure_templates: g1.templates,
-            structure_applications: g1.applications,
-            structure_aliases: g1.aliases,
-            structure_traits,
-            structure_application_provenance: g1.provenance,
-            graph_patterns,
-            generalized_rules,
-            macroscopic_materials,
-        })
+        validation::validate(envelope)
     }
 
     #[must_use]
@@ -1542,28 +1431,43 @@ struct G1Indexes {
     provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
 }
 
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+struct G1ValidationContext<'a> {
+    templates: &'a [StructureTemplateRecord],
+    applications: &'a [StructureTemplateApplicationRecord],
+    elements: &'a [ElementRecord],
+    element_index: &'a BTreeMap<ElementSymbol, usize>,
+    category_members: &'a BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
+    membership_provenance:
+        &'a BTreeMap<(ElementSymbol, ElementCategoryId), ElementMembershipProvenance>,
+    trait_definitions: &'a [StructuralTraitDefinitionRecord],
+    trait_index: &'a BTreeMap<StructuralTraitId, usize>,
+    premises: &'a BTreeMap<PremiseId, usize>,
+    valence: &'a [ValencePremiseRecord],
+    structures: &'a mut BTreeMap<StructureId, StructureDefinition>,
+    structure_premises: &'a mut BTreeMap<StructureId, BTreeSet<PremiseId>>,
+    structure_traits:
+        &'a mut BTreeMap<StructureId, BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>>,
+}
+
+#[allow(clippy::too_many_lines)]
 fn validate_structure_templates_and_applications(
-    templates: &[StructureTemplateRecord],
-    applications: &[StructureTemplateApplicationRecord],
-    elements: &[ElementRecord],
-    element_index: &BTreeMap<ElementSymbol, usize>,
-    category_members: &BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
-    membership_provenance: &BTreeMap<
-        (ElementSymbol, ElementCategoryId),
-        ElementMembershipProvenance,
-    >,
-    trait_definitions: &[StructuralTraitDefinitionRecord],
-    trait_index: &BTreeMap<StructuralTraitId, usize>,
-    premises: &BTreeMap<PremiseId, usize>,
-    valence: &[ValencePremiseRecord],
-    structures: &mut BTreeMap<StructureId, StructureDefinition>,
-    structure_premises: &mut BTreeMap<StructureId, BTreeSet<PremiseId>>,
-    structure_traits: &mut BTreeMap<
-        StructureId,
-        BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>,
-    >,
+    context: G1ValidationContext<'_>,
 ) -> Result<G1Indexes, CatalogueError> {
+    let G1ValidationContext {
+        templates,
+        applications,
+        elements,
+        element_index,
+        category_members,
+        membership_provenance,
+        trait_definitions,
+        trait_index,
+        premises,
+        valence,
+        structures,
+        structure_premises,
+        structure_traits,
+    } = context;
     let template_index = index_structure_templates(
         templates,
         element_index,
