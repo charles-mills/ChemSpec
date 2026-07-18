@@ -3167,7 +3167,7 @@ impl App {
                 .spacing(spacing::XS)
                 .height(Fill),
         )
-        .style(theme::frame)
+        .style(theme::app_background)
         .padding(spacing::SM)
         .width(Fill)
         .height(Fill)
@@ -3187,7 +3187,7 @@ impl App {
             ]
             .spacing(spacing::SM),
         )
-        .style(theme::frame)
+        .style(theme::app_background)
         .padding(spacing::MD)
         .width(Fill)
         .height(Fill)
@@ -3423,7 +3423,7 @@ impl App {
                 .spacing(spacing::XS)
                 .height(Fill),
         )
-        .style(theme::frame)
+        .style(theme::app_background)
         .padding(spacing::SM)
         .width(Fill)
         .height(Fill)
@@ -4181,7 +4181,7 @@ impl App {
             .spacing(spacing::SM)
             .height(Fill),
         )
-        .style(theme::frame)
+        .style(theme::app_background)
         .padding(spacing::SM)
         .width(Fill)
         .height(Fill)
