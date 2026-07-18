@@ -18,8 +18,18 @@ use iced::{Rectangle, wgpu};
 use crate::composition_catalogue::TrustedCompositionPreview;
 use crate::scene_registry::{self, AssetGeometry, EffectDynamics, EffectGeometry};
 
-const MAX_VERTICES: u64 = 32_768;
-const MAX_INDICES: u64 = 98_304;
+const MAX_VERTICES: u64 = 65_536;
+const MAX_INDICES: u64 = 196_608;
+const MSAA_SAMPLES: u32 = 4;
+
+/// Logical margin between the molecular inset and the widget edges.
+pub const INSET_MARGIN: f32 = 14.0;
+
+/// Logical side length of the square molecular inset for a widget size.
+/// `main.rs` uses the same function to place the caption above the inset.
+pub fn molecular_inset_side(width: f32, height: f32) -> f32 {
+    (width.min(height) * 0.26).clamp(120.0, 230.0)
+}
 
 #[derive(Debug, Clone)]
 pub struct Scene {
@@ -60,7 +70,7 @@ impl<Message> Program<Message> for Scene {
         _cursor: iced::mouse::Cursor,
         _bounds: Rectangle,
     ) -> Self::Primitive {
-        let (vertices, indices, opaque_index_count, transparent_index_count) = build_scene(
+        let batches = build_scene(
             &self.plan,
             self.moment.ordinal,
             self.moment.ordinal_progress,
@@ -70,10 +80,7 @@ impl<Message> Program<Message> for Scene {
         let camera = fixed_camera_pose(&self.plan);
         let focus_target = SceneLayout::resolve(&self.plan).camera_target;
         ScenePrimitive {
-            vertices,
-            indices,
-            opaque_index_count,
-            transparent_index_count,
+            batches,
             yaw: camera.yaw,
             pitch: camera.pitch,
             view_height: camera.view_height,
@@ -101,78 +108,241 @@ struct CameraUniform {
 
 #[derive(Debug)]
 pub struct ScenePrimitive {
-    vertices: Vec<Vertex>,
-    indices: Vec<u32>,
-    opaque_index_count: u32,
-    transparent_index_count: u32,
+    batches: SceneBatches,
     yaw: f32,
     pitch: f32,
     view_height: f32,
     focus_target: Vec3,
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct PanelUniform {
+    top: [f32; 4],
+    bottom: [f32; 4],
+    border: [f32; 4],
+    /// x: border width in uv units, y: vignette strength.
+    params: [f32; 4],
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+#[allow(clippy::struct_field_names)]
+struct SceneRanges {
+    opaque_end: u32,
+    translucent_end: u32,
+    glass_end: u32,
+    emissive_end: u32,
+    inset_end: u32,
+}
+
 #[derive(Debug)]
 pub struct ScenePipeline {
     opaque_pipeline: wgpu::RenderPipeline,
-    transparent_pipeline: wgpu::RenderPipeline,
+    translucent_pipeline: wgpu::RenderPipeline,
+    glass_back_pipeline: wgpu::RenderPipeline,
+    glass_front_pipeline: wgpu::RenderPipeline,
     additive_pipeline: wgpu::RenderPipeline,
+    panel_pipeline: wgpu::RenderPipeline,
+    blit_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-    uniform_buffer: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
-    depth: Option<DepthTarget>,
-    opaque_index_count: u32,
-    transparent_index_count: u32,
-    index_count: u32,
+    camera_buffer: wgpu::Buffer,
+    camera_group: wgpu::BindGroup,
+    inset_camera_group: wgpu::BindGroup,
+    scene_panel_group: wgpu::BindGroup,
+    inset_panel_group: wgpu::BindGroup,
+    blit_layout: wgpu::BindGroupLayout,
+    blit_sampler: wgpu::Sampler,
+    format: wgpu::TextureFormat,
+    offscreen: Option<OffscreenTargets>,
+    ranges: SceneRanges,
     physical_bounds: [u32; 4],
+    inset_viewport: Option<[f32; 4]>,
 }
 
+/// Widget-sized 4x multisampled scene target with its single-sample resolve
+/// texture; the resolve is composited into the application frame by the blit
+/// pass.
 #[derive(Debug)]
-struct DepthTarget {
-    _texture: wgpu::Texture,
-    view: wgpu::TextureView,
+struct OffscreenTargets {
+    msaa_view: wgpu::TextureView,
+    resolve_view: wgpu::TextureView,
+    depth_view: wgpu::TextureView,
+    blit_group: wgpu::BindGroup,
     size: [u32; 2],
 }
 
+/// Longest renderable prefix under the GPU budget: the whole scene when it
+/// fits, otherwise every triangle whose vertices landed inside the vertex
+/// budget. Batches append the macroscopic scene before the inset, so an
+/// overflow sheds the inset and late effects instead of blanking the frame.
+fn budget_prefix(vertex_len: usize, indices: &[u32]) -> (usize, usize) {
+    let vertex_budget = usize::try_from(MAX_VERTICES).unwrap_or(usize::MAX);
+    let index_budget = usize::try_from(MAX_INDICES).unwrap_or(usize::MAX);
+    if vertex_len <= vertex_budget && indices.len() <= index_budget {
+        return (vertex_len, indices.len());
+    }
+    let vertex_limit = vertex_len.min(vertex_budget);
+    let index_limit = indices.len().min(index_budget);
+    let mut cut = 0;
+    while cut < index_limit && (indices[cut] as usize) < vertex_limit {
+        cut += 1;
+    }
+    (vertex_limit, cut - cut % 3)
+}
+
+/// Fixed inset camera: the molecular layout is normalized to fit a unit-ish
+/// sphere, so a static orthographic frame always contains it.
+fn inset_camera_uniform() -> CameraUniform {
+    let eye = Quat::from_rotation_y(0.60) * Quat::from_rotation_x(-0.38) * Vec3::new(0.0, 0.0, 6.0);
+    let view = Mat4::look_at_rh(eye, Vec3::ZERO, Vec3::Y);
+    let projection = Mat4::orthographic_rh(-1.12, 1.12, -1.12, 1.12, 0.1, 20.0);
+    CameraUniform {
+        view_projection: (projection * view).to_cols_array_2d(),
+        key_direction: [-0.55, -0.88, -0.48, 0.0],
+        fill_direction: [0.70, -0.45, 0.55, 0.0],
+        camera_position: [eye.x, eye.y, eye.z, 1.0],
+    }
+}
+
+const SCENE_PANEL: PanelUniform = PanelUniform {
+    top: [0.080, 0.098, 0.120, 1.0],
+    bottom: [0.028, 0.036, 0.047, 1.0],
+    border: [0.0; 4],
+    params: [0.0, 0.50, 0.0, 0.0],
+};
+
+const INSET_PANEL: PanelUniform = PanelUniform {
+    top: [0.095, 0.114, 0.137, 1.0],
+    bottom: [0.055, 0.067, 0.082, 1.0],
+    border: [0.26, 0.36, 0.45, 1.0],
+    params: [0.012, 0.30, 0.0, 0.0],
+};
+
 impl shader::Pipeline for ScenePipeline {
     #[allow(clippy::too_many_lines)]
-    fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("chemspec structural 3d shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("structural_3d.wgsl").into()),
         });
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let post_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("chemspec structural 3d post shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("structural_3d_post.wgsl").into()),
+        });
+        let uniform_entry = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+        let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("chemspec structural 3d camera layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+            entries: &[uniform_entry(0)],
+        });
+        let panel_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d panel layout"),
+            entries: &[uniform_entry(0)],
+        });
+        let blit_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d blit layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
         });
-        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("chemspec structural 3d camera"),
-            size: std::mem::size_of::<CameraUniform>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("chemspec structural 3d camera group"),
-            layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("chemspec structural 3d pipeline layout"),
-            bind_group_layouts: &[&bind_group_layout],
+        let uniform_buffer = |label: &'static str, size: u64| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        };
+        let camera_size = std::mem::size_of::<CameraUniform>() as u64;
+        let panel_size = std::mem::size_of::<PanelUniform>() as u64;
+        let camera_buffer = uniform_buffer("chemspec structural 3d camera", camera_size);
+        let inset_camera_buffer = uniform_buffer("chemspec structural 3d inset camera", camera_size);
+        let scene_panel_buffer = uniform_buffer("chemspec structural 3d scene panel", panel_size);
+        let inset_panel_buffer = uniform_buffer("chemspec structural 3d inset panel", panel_size);
+        queue.write_buffer(
+            &inset_camera_buffer,
+            0,
+            bytemuck::bytes_of(&inset_camera_uniform()),
+        );
+        queue.write_buffer(&scene_panel_buffer, 0, bytemuck::bytes_of(&SCENE_PANEL));
+        queue.write_buffer(&inset_panel_buffer, 0, bytemuck::bytes_of(&INSET_PANEL));
+        let single_group = |label: &'static str,
+                            layout: &wgpu::BindGroupLayout,
+                            buffer: &wgpu::Buffer| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(label),
+                layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: buffer.as_entire_binding(),
+                }],
+            })
+        };
+        let camera_group = single_group(
+            "chemspec structural 3d camera group",
+            &camera_layout,
+            &camera_buffer,
+        );
+        let inset_camera_group = single_group(
+            "chemspec structural 3d inset camera group",
+            &camera_layout,
+            &inset_camera_buffer,
+        );
+        let scene_panel_group = single_group(
+            "chemspec structural 3d scene panel group",
+            &panel_layout,
+            &scene_panel_buffer,
+        );
+        let inset_panel_group = single_group(
+            "chemspec structural 3d inset panel group",
+            &panel_layout,
+            &inset_panel_buffer,
+        );
+        let scene_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d pipeline layout"),
+                bind_group_layouts: &[&camera_layout],
+                push_constant_ranges: &[],
+            });
+        let panel_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d panel pipeline layout"),
+                bind_group_layouts: &[&panel_layout],
+                push_constant_ranges: &[],
+            });
+        let blit_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("chemspec structural 3d blit pipeline layout"),
+            bind_group_layouts: &[&blit_layout],
             push_constant_ranges: &[],
         });
+        let msaa_state = wgpu::MultisampleState {
+            count: MSAA_SAMPLES,
+            ..wgpu::MultisampleState::default()
+        };
         let create_pipeline = |label: &'static str,
                                blend: Option<wgpu::BlendState>,
                                depth_write_enabled: bool,
@@ -180,7 +350,7 @@ impl shader::Pipeline for ScenePipeline {
                                fragment_entry: &'static str| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
-                layout: Some(&layout),
+                layout: Some(&scene_pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vertex"),
@@ -213,7 +383,7 @@ impl shader::Pipeline for ScenePipeline {
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
-                multisample: wgpu::MultisampleState::default(),
+                multisample: msaa_state,
                 multiview: None,
                 cache: None,
             })
@@ -223,14 +393,28 @@ impl shader::Pipeline for ScenePipeline {
             None,
             true,
             Some(wgpu::Face::Back),
-            "fragment",
+            "fragment_solid",
         );
-        let transparent_pipeline = create_pipeline(
-            "chemspec structural 3d transparent pipeline",
+        let translucent_pipeline = create_pipeline(
+            "chemspec structural 3d translucent pipeline",
             Some(wgpu::BlendState::ALPHA_BLENDING),
             false,
             None,
-            "fragment",
+            "fragment_liquid",
+        );
+        let glass_back_pipeline = create_pipeline(
+            "chemspec structural 3d glass back pipeline",
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+            false,
+            Some(wgpu::Face::Front),
+            "fragment_glass",
+        );
+        let glass_front_pipeline = create_pipeline(
+            "chemspec structural 3d glass front pipeline",
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+            false,
+            Some(wgpu::Face::Back),
+            "fragment_glass",
         );
         let additive_pipeline = create_pipeline(
             "chemspec structural 3d additive flame pipeline",
@@ -246,10 +430,76 @@ impl shader::Pipeline for ScenePipeline {
             None,
             "emissive_fragment",
         );
+        let panel_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("chemspec structural 3d panel pipeline"),
+            layout: Some(&panel_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &post_shader,
+                entry_point: Some("panel_vertex"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &post_shader,
+                entry_point: Some("panel_fragment"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: msaa_state,
+            multiview: None,
+            cache: None,
+        });
+        let blit_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("chemspec structural 3d blit pipeline"),
+            layout: Some(&blit_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &post_shader,
+                entry_point: Some("blit_vertex"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &post_shader,
+                entry_point: Some("blit_fragment"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+        let blit_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("chemspec structural 3d blit sampler"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..wgpu::SamplerDescriptor::default()
+        });
         Self {
             opaque_pipeline,
-            transparent_pipeline,
+            translucent_pipeline,
+            glass_back_pipeline,
+            glass_front_pipeline,
             additive_pipeline,
+            panel_pipeline,
+            blit_pipeline,
             vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("chemspec structural 3d vertices"),
                 size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
@@ -262,13 +512,18 @@ impl shader::Pipeline for ScenePipeline {
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
-            uniform_buffer,
-            bind_group,
-            depth: None,
-            opaque_index_count: 0,
-            transparent_index_count: 0,
-            index_count: 0,
+            camera_buffer,
+            camera_group,
+            inset_camera_group,
+            scene_panel_group,
+            inset_panel_group,
+            blit_layout,
+            blit_sampler,
+            format,
+            offscreen: None,
+            ranges: SceneRanges::default(),
             physical_bounds: [0; 4],
+            inset_viewport: None,
         }
     }
 }
@@ -279,7 +534,8 @@ impl shader::Primitive for ScenePrimitive {
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_precision_loss,
-        clippy::cast_sign_loss
+        clippy::cast_sign_loss,
+        clippy::too_many_lines
     )]
     fn prepare(
         &self,
@@ -298,55 +554,113 @@ impl shader::Primitive for ScenePrimitive {
             width,
             height,
         ];
-        let viewport_size = viewport.physical_size();
-        let depth_size = [viewport_size.width.max(1), viewport_size.height.max(1)];
         if pipeline
-            .depth
+            .offscreen
             .as_ref()
-            .is_none_or(|depth| depth.size != depth_size)
+            .is_none_or(|offscreen| offscreen.size != [width, height])
         {
-            let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("chemspec structural 3d depth"),
-                size: wgpu::Extent3d {
-                    width: depth_size[0],
-                    height: depth_size[1],
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Depth32Float,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
+            let colour_target = |label: &'static str, samples: u32, usage| {
+                device
+                    .create_texture(&wgpu::TextureDescriptor {
+                        label: Some(label),
+                        size: wgpu::Extent3d {
+                            width,
+                            height,
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count: 1,
+                        sample_count: samples,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: pipeline.format,
+                        usage,
+                        view_formats: &[],
+                    })
+                    .create_view(&wgpu::TextureViewDescriptor::default())
+            };
+            let msaa_view = colour_target(
+                "chemspec structural 3d msaa colour",
+                MSAA_SAMPLES,
+                wgpu::TextureUsages::RENDER_ATTACHMENT,
+            );
+            let resolve_view = colour_target(
+                "chemspec structural 3d resolve colour",
+                1,
+                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            );
+            let depth_view = device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some("chemspec structural 3d depth"),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: MSAA_SAMPLES,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Depth32Float,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                })
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let blit_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("chemspec structural 3d blit group"),
+                layout: &pipeline.blit_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&resolve_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(&pipeline.blit_sampler),
+                    },
+                ],
             });
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            pipeline.depth = Some(DepthTarget {
-                _texture: texture,
-                view,
-                size: depth_size,
+            pipeline.offscreen = Some(OffscreenTargets {
+                msaa_view,
+                resolve_view,
+                depth_view,
+                blit_group,
+                size: [width, height],
             });
         }
-        if self.vertices.len() as u64 > MAX_VERTICES || self.indices.len() as u64 > MAX_INDICES {
-            pipeline.opaque_index_count = 0;
-            pipeline.transparent_index_count = 0;
-            pipeline.index_count = 0;
-            return;
-        }
+        let batches = &self.batches;
+        let (vertex_count, prefix_len) = budget_prefix(batches.vertices.len(), &batches.indices);
         queue.write_buffer(
             &pipeline.vertex_buffer,
             0,
-            bytemuck::cast_slice(&self.vertices),
+            bytemuck::cast_slice(&batches.vertices[..vertex_count]),
         );
         queue.write_buffer(
             &pipeline.index_buffer,
             0,
-            bytemuck::cast_slice(&self.indices),
+            bytemuck::cast_slice(&batches.indices[..prefix_len]),
         );
-        pipeline.index_count = u32::try_from(self.indices.len()).unwrap_or(u32::MAX);
-        pipeline.opaque_index_count = self.opaque_index_count.min(pipeline.index_count);
-        pipeline.transparent_index_count = self
-            .transparent_index_count
-            .clamp(pipeline.opaque_index_count, pipeline.index_count);
+        let index_count = u32::try_from(prefix_len).unwrap_or(u32::MAX);
+        let opaque_end = batches.opaque_end.min(index_count);
+        let translucent_end = batches.translucent_end.clamp(opaque_end, index_count);
+        let glass_end = batches.glass_end.clamp(translucent_end, index_count);
+        let emissive_end = batches.emissive_end.clamp(glass_end, index_count);
+        let inset_end = batches.inset_end.clamp(emissive_end, index_count);
+        pipeline.ranges = SceneRanges {
+            opaque_end,
+            translucent_end,
+            glass_end,
+            emissive_end,
+            inset_end,
+        };
+        // The compact layout hides the caption, so hide the inset with it.
+        pipeline.inset_viewport = (inset_end > emissive_end
+            && bounds.width >= crate::theme::breakpoint::MOBILE)
+            .then(|| {
+                let side = molecular_inset_side(bounds.width, bounds.height) * scale;
+                let margin = INSET_MARGIN * scale;
+                let x = width as f32 - side - margin;
+                let y = height as f32 - side - margin;
+                (x >= 0.0 && y >= 0.0).then_some([x, y, side, side])
+            })
+            .flatten();
 
         let aspect = width as f32 / height.max(1) as f32;
         let reaction_target = self.focus_target;
@@ -372,10 +686,10 @@ impl shader::Primitive for ScenePrimitive {
             fill_direction: [0.70, -0.45, 0.55, 0.0],
             camera_position: [eye.x, eye.y, eye.z, 1.0],
         };
-        queue.write_buffer(&pipeline.uniform_buffer, 0, bytemuck::bytes_of(&uniform));
+        queue.write_buffer(&pipeline.camera_buffer, 0, bytemuck::bytes_of(&uniform));
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
     fn render(
         &self,
         pipeline: &Self::Pipeline,
@@ -383,7 +697,9 @@ impl shader::Primitive for ScenePrimitive {
         target: &wgpu::TextureView,
         clip_bounds: &Rectangle<u32>,
     ) {
-        let Some(depth) = &pipeline.depth else { return };
+        let Some(offscreen) = &pipeline.offscreen else {
+            return;
+        };
         let [x, y, width, height] = pipeline.physical_bounds;
         let scissor_x = clip_bounds.x.max(x);
         let scissor_y = clip_bounds.y.max(y);
@@ -400,8 +716,73 @@ impl shader::Primitive for ScenePrimitive {
         if scissor_width == 0 || scissor_height == 0 {
             return;
         }
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("chemspec structural 3d render pass"),
+        let ranges = pipeline.ranges;
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d scene pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &offscreen.msaa_view,
+                    depth_slice: None,
+                    resolve_target: Some(&offscreen.resolve_view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Discard,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &offscreen.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.set_pipeline(&pipeline.panel_pipeline);
+            pass.set_bind_group(0, &pipeline.scene_panel_group, &[]);
+            pass.draw(0..3, 0..1);
+            pass.set_bind_group(0, &pipeline.camera_group, &[]);
+            if ranges.opaque_end > 0 {
+                pass.set_pipeline(&pipeline.opaque_pipeline);
+                pass.draw_indexed(0..ranges.opaque_end, 0, 0..1);
+            }
+            // Back faces of the glass first, then interior volumes, then the
+            // glass front: the beaker reads as an enclosing shell around its
+            // contents instead of a single unsorted transparent batch.
+            if ranges.translucent_end < ranges.glass_end {
+                pass.set_pipeline(&pipeline.glass_back_pipeline);
+                pass.draw_indexed(ranges.translucent_end..ranges.glass_end, 0, 0..1);
+            }
+            if ranges.opaque_end < ranges.translucent_end {
+                pass.set_pipeline(&pipeline.translucent_pipeline);
+                pass.draw_indexed(ranges.opaque_end..ranges.translucent_end, 0, 0..1);
+            }
+            if ranges.translucent_end < ranges.glass_end {
+                pass.set_pipeline(&pipeline.glass_front_pipeline);
+                pass.draw_indexed(ranges.translucent_end..ranges.glass_end, 0, 0..1);
+            }
+            if ranges.glass_end < ranges.emissive_end {
+                pass.set_pipeline(&pipeline.additive_pipeline);
+                pass.draw_indexed(ranges.glass_end..ranges.emissive_end, 0, 0..1);
+            }
+            if let Some([inset_x, inset_y, inset_width, inset_height]) = pipeline.inset_viewport
+                && ranges.emissive_end < ranges.inset_end
+            {
+                pass.set_viewport(inset_x, inset_y, inset_width, inset_height, 0.0, 1.0);
+                pass.set_pipeline(&pipeline.panel_pipeline);
+                pass.set_bind_group(0, &pipeline.inset_panel_group, &[]);
+                pass.draw(0..3, 0..1);
+                pass.set_pipeline(&pipeline.opaque_pipeline);
+                pass.set_bind_group(0, &pipeline.inset_camera_group, &[]);
+                pass.draw_indexed(ranges.emissive_end..ranges.inset_end, 0, 0..1);
+            }
+        }
+        let mut composite = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("chemspec structural 3d composite pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 depth_slice: None,
@@ -411,40 +792,15 @@ impl shader::Primitive for ScenePrimitive {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Discard,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-        pass.set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
-        pass.set_scissor_rect(scissor_x, scissor_y, scissor_width, scissor_height);
-        pass.set_pipeline(&pipeline.opaque_pipeline);
-        pass.set_bind_group(0, &pipeline.bind_group, &[]);
-        pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-        pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
-        if pipeline.opaque_index_count < pipeline.transparent_index_count {
-            pass.set_pipeline(&pipeline.transparent_pipeline);
-            pass.draw_indexed(
-                pipeline.opaque_index_count..pipeline.transparent_index_count,
-                0,
-                0..1,
-            );
-        }
-        if pipeline.transparent_index_count < pipeline.index_count {
-            pass.set_pipeline(&pipeline.additive_pipeline);
-            pass.draw_indexed(
-                pipeline.transparent_index_count..pipeline.index_count,
-                0,
-                0..1,
-            );
-        }
+        composite.set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
+        composite.set_scissor_rect(scissor_x, scissor_y, scissor_width, scissor_height);
+        composite.set_pipeline(&pipeline.blit_pipeline);
+        composite.set_bind_group(0, &offscreen.blit_group, &[]);
+        composite.draw(0..3, 0..1);
     }
 }
 
@@ -593,7 +949,7 @@ fn build_scene(
     progress: f32,
     reactant_previews: &[TrustedCompositionPreview],
     product_preview: Option<&TrustedCompositionPreview>,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32) {
+) -> SceneBatches {
     let mut meshes = SceneMeshes::default();
     let layout = SceneLayout::resolve(plan);
     let final_ordinal = plan
@@ -627,11 +983,10 @@ fn build_scene(
         phase,
         None,
     );
-    let mut reactant_index = 0_usize;
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
-            // Consumption/replacement shrink (exact-model swap) composes
-            // with the reviewed formation grow-in: both live in [0, 1].
+            // Consumption/replacement shrink composes with the reviewed
+            // formation grow-in: both live in [0, 1].
             let scale = object_scale_from_effects(plan, object.role, ordinal, progress)
                 * object_replacement_scale(plan, object, ordinal, progress)
                 * object_formation_scale(object, ordinal, progress);
@@ -641,45 +996,23 @@ fn build_scene(
             } else {
                 vibration
             };
-            let preview = match object.role {
-                SceneRole::Reactant => {
-                    let preview = reactant_previews.get(reactant_index);
-                    reactant_index += 1;
-                    preview
-                }
-                SceneRole::Product => product_preview,
-                _ => None,
-            };
-            // A completed consumption or product-replacement transition
-            // removes the reactant from the scene. Keeping a minimum scale
-            // here left a misleading residue beside exact product models.
+            // A completed consumption removes the reactant from the scene.
             if scale <= f32::EPSILON {
                 continue;
             }
-            if let Some(preview) = preview {
-                instantiate_molecule(
-                    &mut meshes.opaque,
-                    preview,
-                    &object.transform,
-                    scale,
-                    layout.object_offset(object) + motion.translation + object_vibration,
-                    motion.rotation,
-                );
-            } else {
-                instantiate_asset(
-                    &mut meshes,
-                    object.asset,
-                    object.appearance,
-                    &object.transform,
-                    scale,
-                    layout.object_offset(object) + motion.translation + object_vibration,
-                    motion.rotation,
-                    stable_seed(&object.id),
-                    visual_inputs,
-                    phase,
-                    object_colour_transition(object, ordinal, progress),
-                );
-            }
+            instantiate_asset(
+                &mut meshes,
+                object.asset,
+                object.appearance,
+                &object.transform,
+                scale,
+                layout.object_offset(object) + motion.translation + object_vibration,
+                motion.rotation,
+                stable_seed(&object.id),
+                visual_inputs,
+                phase,
+                object_colour_transition(object, ordinal, progress),
+            );
         }
     }
     for effect in &plan.effects {
@@ -695,7 +1028,41 @@ fn build_scene(
             );
         }
     }
+    // The molecular model lives in its own corner inset, never inside the
+    // macroscopic scene: the beaker shows what an observer would see, the
+    // inset shows the sub-microscopic story at its own scale.
+    if let Some(preview) =
+        active_molecular_preview(plan, ordinal, reactant_previews, product_preview)
+    {
+        let identity = PresentationTransform {
+            translation: [0, 0, 0],
+            rotation: [0, 0, 0],
+            scale: [1000, 1000, 1000],
+        };
+        let spin = Quat::from_rotation_y(phase * 0.45);
+        instantiate_molecule(&mut meshes.inset, preview, &identity, 1.0, Vec3::ZERO, spin);
+    }
     meshes.finish()
+}
+
+/// The preview shown in the molecular inset: the product once any product
+/// object has reached its trusted visibility ordinal, otherwise the first
+/// reactant with a reviewed structure.
+// ponytail: single reactant only; cycle through reactants if that ever reads
+// as an omission.
+pub fn active_molecular_preview<'preview>(
+    plan: &ScenePlan,
+    ordinal: u16,
+    reactant_previews: &'preview [TrustedCompositionPreview],
+    product_preview: Option<&'preview TrustedCompositionPreview>,
+) -> Option<&'preview TrustedCompositionPreview> {
+    let product_visible = plan.objects.iter().any(|object| {
+        object.role == SceneRole::Product && object.visible_from_ordinal <= ordinal
+    });
+    if product_visible && product_preview.is_some() {
+        return product_preview;
+    }
+    reactant_previews.first()
 }
 
 fn scene_effect_colours(plan: &ScenePlan, ordinal: u16, progress: f32) -> EffectColours {
@@ -1399,46 +1766,24 @@ fn instantiate_asset(
                 Vec3::new(20.0, 0.28, 10.0) * scale,
                 color,
             );
-            add_disc(
-                &mut meshes.translucent,
-                position + Vec3::new(0.0, 0.148, 0.0),
-                1.30,
-                [0.01, 0.02, 0.025, 0.22],
-            );
         }
         AssetGeometry::CylindricalVessel => {
-            let bottom = position + Vec3::new(0.0, -0.55 * scale.y, 0.0);
-            let top = position + Vec3::new(0.0, 0.95 * scale.y, 0.0);
+            let bottom = position.y - 0.55 * scale.y;
+            let top = position.y + 0.95 * scale.y;
             let radius = 0.92 * scale.x;
-            add_ring(
+            let thickness = (0.035 * scale.x).max(0.022);
+            add_lathe(
                 &mut meshes.glass,
-                top,
-                radius,
-                0.028,
-                [0.62, 0.84, 0.94, 0.28],
+                Vec3::new(position.x, 0.0, position.z),
+                &beaker_profile(bottom, top, radius, thickness),
+                color,
             );
-            add_ring(
-                &mut meshes.glass,
-                bottom,
-                radius * 0.96,
-                0.018,
-                [0.52, 0.76, 0.88, 0.16],
-            );
-            add_cylinder_wall(&mut meshes.glass, bottom, top, radius, color);
-            add_disc(
-                &mut meshes.glass,
-                bottom + Vec3::new(0.0, 0.018, 0.0),
-                radius * 0.95,
-                [0.48, 0.72, 0.84, 0.10],
-            );
-            let spout = top + Vec3::new(radius * 0.93, 0.025, 0.0);
-            add_sphere(
-                &mut meshes.glass,
-                spout,
-                0.075 * scale.x,
-                [0.62, 0.84, 0.94, 0.22],
-                4,
-                6,
+            // Soft contact shadow grounding the vessel on the bench.
+            add_soft_disc(
+                &mut meshes.translucent,
+                Vec3::new(position.x, bottom + 0.004, position.z),
+                radius * 1.45,
+                [0.0, 0.005, 0.01, 0.38],
             );
         }
         AssetGeometry::LiquidCylinder => {
@@ -1510,6 +1855,10 @@ fn instantiate_asset(
     rotate_mesh_vertices(&mut meshes.glass, glass_start, position, rotation);
 }
 
+/// Classic ball-and-stick proportion: ball radius as a fraction of the van
+/// der Waals radius, leaving the bonds visible between atoms.
+const BALL_RADIUS_FRACTION: f32 = 0.30;
+
 /// Renders the exact reviewed structural preview as a compact ball-and-stick
 /// model. This replaces generic particle clusters whenever the active request
 /// exposes an unambiguous catalogue graph.
@@ -1525,11 +1874,15 @@ fn instantiate_molecule(
     let scale = transform_scale(transform) * scale_multiplier;
     let uniform_scale = (scale.x + scale.y + scale.z) / 3.0;
     let rotation = rotation_offset * transform_rotation(transform);
-    let positions = molecular_positions(preview);
+    let layout = molecular_layout(preview);
+    let world_unit = layout.units_per_angstrom * uniform_scale;
     let start = mesh.vertices.len();
 
     for bond in preview.covalent_bonds() {
-        let (Some(left), Some(right)) = (positions.get(bond.start), positions.get(bond.end)) else {
+        let (Some(left), Some(right)) = (
+            layout.positions.get(bond.start),
+            layout.positions.get(bond.end),
+        ) else {
             continue;
         };
         add_molecular_bond(
@@ -1537,28 +1890,34 @@ fn instantiate_molecule(
             center + *left * uniform_scale,
             center + *right * uniform_scale,
             bond.order,
-            uniform_scale,
-            [0.54, 0.66, 0.78, 1.0],
+            world_unit,
+            molecular_atom_color(preview.atoms[bond.start].atomic_number),
+            molecular_atom_color(preview.atoms[bond.end].atomic_number),
         );
     }
     for link in preview.ionic_links() {
-        let (Some(left), Some(right)) = (positions.get(link.start), positions.get(link.end)) else {
+        let (Some(left), Some(right)) = (
+            layout.positions.get(link.start),
+            layout.positions.get(link.end),
+        ) else {
             continue;
         };
+        let ionic = [0.30, 0.78, 0.96, 1.0];
         add_molecular_bond(
             mesh,
             center + *left * uniform_scale,
             center + *right * uniform_scale,
             1,
-            uniform_scale * 0.72,
-            [0.30, 0.78, 0.96, 1.0],
+            world_unit * 0.6,
+            ionic,
+            ionic,
         );
     }
-    for (atom, position) in preview.atoms.iter().zip(positions) {
+    for (atom, position) in preview.atoms.iter().zip(&layout.positions) {
         add_sphere(
             mesh,
-            center + position * uniform_scale,
-            molecular_atom_radius(atom.atomic_number) * uniform_scale,
+            center + *position * uniform_scale,
+            vdw_radius_angstrom(atom.atomic_number) * BALL_RADIUS_FRACTION * world_unit,
             molecular_atom_color(atom.atomic_number),
             8,
             12,
@@ -1567,13 +1926,16 @@ fn instantiate_molecule(
     rotate_mesh_vertices(mesh, start, center, rotation);
 }
 
+/// Each bond is split at its midpoint and half-coloured by the atom it
+/// touches — the standard ball-and-stick convention.
 fn add_molecular_bond(
     mesh: &mut Mesh,
     start: Vec3,
     end: Vec3,
     order: u8,
-    scale: f32,
-    color: [f32; 4],
+    world_unit: f32,
+    start_color: [f32; 4],
+    end_color: [f32; 4],
 ) {
     let direction = (end - start).normalize_or_zero();
     let perpendicular = if direction.cross(Vec3::Y).length_squared() > 0.01 {
@@ -1581,103 +1943,1290 @@ fn add_molecular_bond(
     } else {
         direction.cross(Vec3::X).normalize_or_zero()
     };
+    // Parallel-line spacing for double and triple bonds, in ångströms.
     let offsets: &[f32] = match order {
         1 => &[0.0],
-        2 => &[-0.032, 0.032],
-        _ => &[-0.052, 0.0, 0.052],
+        2 => &[-0.17, 0.17],
+        _ => &[-0.28, 0.0, 0.28],
     };
+    let radius = 0.13 * world_unit;
+    let midpoint = (start + end) * 0.5;
     for offset in offsets {
-        let offset = perpendicular * *offset * scale;
-        add_cylinder(mesh, start + offset, end + offset, 0.022 * scale, color);
+        let offset = perpendicular * *offset * world_unit;
+        add_cylinder(mesh, start + offset, midpoint + offset, radius, start_color);
+        add_cylinder(mesh, midpoint + offset, end + offset, radius, end_color);
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
-fn molecular_positions(preview: &TrustedCompositionPreview) -> Vec<Vec3> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MolecularLink {
+    Covalent,
+    Ionic,
+}
+
+struct MolecularLayout {
+    /// Scene-unit position per preview atom.
+    positions: Vec<Vec3>,
+    /// Scene units per ångström after fitting the model to the vessel frame.
+    units_per_angstrom: f32,
+}
+
+/// Embeds the reviewed bond graph in 3D with VSEPR electron-domain angles and
+/// covalent-radius bond lengths. Lone pairs come straight from the preview's
+/// non-bonding electron counts, so bent water, pyramidal ammonia, and
+/// pentagonal-bipyramidal IF7 all fall out of the same rule.
+#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+fn molecular_layout(preview: &TrustedCompositionPreview) -> MolecularLayout {
+    const BASE_UNITS_PER_ANGSTROM: f32 = 0.50;
+    const MIN_HALF_EXTENT: f32 = 0.34;
+    const MAX_HALF_EXTENT: f32 = 0.88;
     let atom_count = preview.atoms.len();
     if atom_count == 0 {
-        return Vec::new();
-    }
-    if atom_count == 1 {
-        return vec![Vec3::ZERO];
+        return MolecularLayout {
+            positions: Vec::new(),
+            units_per_angstrom: BASE_UNITS_PER_ANGSTROM,
+        };
     }
 
-    let mut adjacency = vec![Vec::<usize>::new(); atom_count];
-    for (left, right) in preview
+    // Neighbour lists as (other, bond order, kind), covalent entries first so
+    // real bonds claim VSEPR slots before ionic associations take the
+    // remaining lone-pair directions.
+    let mut neighbours: Vec<Vec<(usize, u8, MolecularLink)>> = vec![Vec::new(); atom_count];
+    let links = preview
         .covalent_bonds()
         .iter()
-        .map(|bond| (bond.start, bond.end))
+        .map(|bond| (bond.start, bond.end, bond.order, MolecularLink::Covalent))
         .chain(
             preview
                 .ionic_links()
                 .iter()
-                .map(|link| (link.start, link.end)),
-        )
-    {
-        if left < atom_count && right < atom_count && !adjacency[left].contains(&right) {
-            adjacency[left].push(right);
-            adjacency[right].push(left);
+                .map(|link| (link.start, link.end, 1, MolecularLink::Ionic)),
+        );
+    for (left, right, order, kind) in links {
+        if left < atom_count
+            && right < atom_count
+            && left != right
+            && !neighbours[left].iter().any(|(other, _, _)| *other == right)
+        {
+            neighbours[left].push((right, order, kind));
+            neighbours[right].push((left, order, kind));
         }
     }
-
-    if atom_count == 2 {
-        return vec![Vec3::new(-0.34, 0.0, 0.0), Vec3::new(0.34, 0.0, 0.0)];
+    for list in &mut neighbours {
+        list.sort_by_key(|(other, _, kind)| (*kind == MolecularLink::Ionic, *other));
     }
+    let covalent_degree = |atom: usize| {
+        neighbours[atom]
+            .iter()
+            .filter(|(_, _, kind)| *kind == MolecularLink::Covalent)
+            .count()
+    };
 
-    if let Some(root) = adjacency
-        .iter()
-        .position(|neighbours| neighbours.len() == atom_count - 1)
-    {
-        let mut positions = vec![Vec3::ZERO; atom_count];
-        let neighbours = &adjacency[root];
-        if neighbours.len() == 7 {
-            positions[neighbours[0]] = Vec3::new(0.0, 0.52, 0.0);
-            positions[neighbours[1]] = Vec3::new(0.0, -0.52, 0.0);
-            for (index, neighbour) in neighbours.iter().copied().skip(2).enumerate() {
-                let angle = std::f32::consts::TAU * index as f32 / 5.0;
-                positions[neighbour] = Vec3::new(angle.cos() * 0.52, 0.0, angle.sin() * 0.52);
+    // Positions are laid out in ångströms, then normalized to scene units.
+    let mut positions = vec![Vec3::ZERO; atom_count];
+    let mut placed = vec![false; atom_count];
+    let mut parent_map: Vec<Option<usize>> = vec![None; atom_count];
+    let mut cursor_x = f32::NEG_INFINITY;
+    for seed in 0..atom_count {
+        if placed[seed] {
+            continue;
+        }
+        let mut in_component = vec![false; atom_count];
+        in_component[seed] = true;
+        let mut stack = vec![seed];
+        let mut component = Vec::new();
+        let mut edge_ends = 0_usize;
+        while let Some(atom) = stack.pop() {
+            component.push(atom);
+            for (other, _, _) in &neighbours[atom] {
+                edge_ends += 1;
+                if !in_component[*other] {
+                    in_component[*other] = true;
+                    stack.push(*other);
+                }
+            }
+        }
+        let mut queue = std::collections::VecDeque::new();
+        if edge_ends / 2 >= component.len() && component.len() > 2 {
+            if let Some(ring) = simple_ring(&component, &neighbours) {
+                place_lone_ring(preview, &neighbours, &ring, &mut positions, &mut placed);
+                place_ring_substituents(
+                    preview,
+                    &neighbours,
+                    &ring,
+                    Vec3::ZERO,
+                    Vec3::Y,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
+            } else if let Some(rings) = fused_ring_system(&component, &neighbours) {
+                place_fused_rings(
+                    preview,
+                    &neighbours,
+                    &rings,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
+            } else if let Some((first, second)) = spiro_rings(&component, &neighbours) {
+                place_spiro_rings(
+                    preview,
+                    &neighbours,
+                    &first,
+                    &second,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
+            } else if let Some((main_ring, bridge, tail_slot)) =
+                bridged_bicyclic(&component, &neighbours)
+            {
+                place_bridged_bicyclic(
+                    preview,
+                    &neighbours,
+                    &main_ring,
+                    &bridge,
+                    tail_slot,
+                    &mut positions,
+                    &mut placed,
+                    &mut parent_map,
+                    &mut queue,
+                );
+            } else {
+                // ponytail: cages (P4) and multi-bridge polycyclics that
+                // resist an edge-fused, spiro, or single-bridge
+                // decomposition still fall back to a regular polygon with
+                // true edge lengths; replace with a proper 3D cage embedder
+                // if those ever matter visually.
+                let mut length_sum = 0.0_f32;
+                let mut length_count = 0_u32;
+                for atom in &component {
+                    for (other, order, kind) in &neighbours[*atom] {
+                        length_sum += bond_length_angstrom(
+                            preview.atoms[*atom].atomic_number,
+                            preview.atoms[*other].atomic_number,
+                            *order,
+                            *kind,
+                        );
+                        length_count += 1;
+                    }
+                }
+                let edge = length_sum / length_count.max(1) as f32;
+                let polygon_radius =
+                    edge / (2.0 * (std::f32::consts::PI / component.len() as f32).sin());
+                for (slot, atom) in component.iter().copied().enumerate() {
+                    let angle = std::f32::consts::TAU * slot as f32 / component.len() as f32;
+                    positions[atom] =
+                        Vec3::new(angle.cos() * polygon_radius, 0.0, angle.sin() * polygon_radius);
+                    placed[atom] = true;
+                }
             }
         } else {
-            let golden_angle = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
-            for (index, neighbour) in neighbours.iter().copied().enumerate() {
-                let y = 1.0 - 2.0 * (index as f32 + 0.5) / neighbours.len() as f32;
-                let radius = (1.0 - y * y).sqrt();
-                let angle = golden_angle * index as f32;
-                positions[neighbour] =
-                    Vec3::new(angle.cos() * radius, y, angle.sin() * radius) * 0.52;
+            let root = component
+                .iter()
+                .copied()
+                .max_by_key(|atom| (covalent_degree(*atom), std::cmp::Reverse(*atom)))
+                .unwrap_or(seed);
+            placed[root] = true;
+            queue.push_back(root);
+        }
+        while let Some(atom) = queue.pop_front() {
+            let lone_pairs = usize::from(preview.atoms[atom].non_bonding_electrons / 2);
+            let slots = (covalent_degree(atom) + lone_pairs).max(neighbours[atom].len());
+            let directions = vsepr_directions(slots);
+            let mut oriented = directions;
+            let mut next_slot = 0_usize;
+            if let Some(parent) = parent_map[atom] {
+                let to_parent = (positions[parent] - positions[atom]).normalize_or_zero();
+                let mut orientation = Quat::from_rotation_arc(oriented[0], to_parent);
+                // Torsion: point the next branch away from the
+                // grandparent for staggered, zigzag chains.
+                if let (Some(grandparent), true) = (parent_map[parent], oriented.len() > 1) {
+                    let reference = (positions[grandparent] - positions[parent])
+                        .reject_from_normalized(to_parent);
+                    let candidate =
+                        (orientation * oriented[1]).reject_from_normalized(to_parent);
+                    if reference.length_squared() > 1e-6 && candidate.length_squared() > 1e-6 {
+                        let from = candidate.normalize();
+                        let to = (-reference).normalize();
+                        let angle = from.cross(to).dot(to_parent).atan2(from.dot(to));
+                        orientation = Quat::from_axis_angle(to_parent, angle) * orientation;
+                    }
+                }
+                for direction in &mut oriented {
+                    *direction = orientation * *direction;
+                }
+                next_slot = 1;
+            }
+            let mut pending: Vec<(usize, u8, MolecularLink, Vec3)> = Vec::new();
+            for (other, order, kind) in &neighbours[atom] {
+                if placed[*other] {
+                    continue;
+                }
+                let direction = oriented.get(next_slot).copied().unwrap_or(-oriented[0]);
+                next_slot += 1;
+                pending.push((*other, *order, *kind, direction));
+            }
+            enforce_chirality(preview, atom, &positions, &placed, &mut pending);
+            for (other, order, kind, direction) in pending {
+                let length = bond_length_angstrom(
+                    preview.atoms[atom].atomic_number,
+                    preview.atoms[other].atomic_number,
+                    order,
+                    kind,
+                );
+                positions[other] = positions[atom] + direction * length;
+                placed[other] = true;
+                parent_map[other] = Some(atom);
+                queue.push_back(other);
             }
         }
-        return positions;
+        // Disconnected fragments sit side by side instead of overlapping.
+        let (min_x, max_x) = component.iter().fold(
+            (f32::INFINITY, f32::NEG_INFINITY),
+            |(minimum, maximum), atom| {
+                (minimum.min(positions[*atom].x), maximum.max(positions[*atom].x))
+            },
+        );
+        let shift = if cursor_x.is_finite() {
+            cursor_x + 1.2 - min_x
+        } else {
+            0.0
+        };
+        for atom in &component {
+            positions[*atom].x += shift;
+        }
+        cursor_x = max_x + shift;
     }
 
-    (0..atom_count)
-        .map(|index| {
-            let angle = std::f32::consts::TAU * index as f32 / atom_count as f32;
-            Vec3::new(angle.cos() * 0.48, 0.0, angle.sin() * 0.48)
+    let centroid = positions.iter().copied().sum::<Vec3>() / atom_count as f32;
+    let mut extent = 0.0_f32;
+    for (atom, position) in preview.atoms.iter().zip(&mut positions) {
+        *position -= centroid;
+        extent = extent.max(
+            position.length() + vdw_radius_angstrom(atom.atomic_number) * BALL_RADIUS_FRACTION,
+        );
+    }
+    let mut units_per_angstrom = BASE_UNITS_PER_ANGSTROM;
+    if extent * units_per_angstrom > MAX_HALF_EXTENT {
+        units_per_angstrom = MAX_HALF_EXTENT / extent;
+    } else if extent * units_per_angstrom < MIN_HALF_EXTENT && extent > f32::EPSILON {
+        units_per_angstrom = MIN_HALF_EXTENT / extent;
+    }
+    for position in &mut positions {
+        *position *= units_per_angstrom;
+    }
+    MolecularLayout {
+        positions,
+        units_per_angstrom,
+    }
+}
+
+/// Signed volume `det[(p1-p0), (p2-p0), (p3-p0)]` over a stereocentre's four
+/// listed neighbour positions. Convention (validated by unit test): looking
+/// from the first listed neighbour toward the centre, the remaining three
+/// wind counterclockwise when the volume is NEGATIVE, clockwise when
+/// POSITIVE.
+fn chirality_signed_volume(corners: [Vec3; 4]) -> f32 {
+    (corners[1] - corners[0])
+        .cross(corners[2] - corners[0])
+        .dot(corners[3] - corners[0])
+}
+
+/// Reassigns a chiral atom's outgoing VSEPR direction slots — before any
+/// subtree is laid out, so the swap is free — so the finished tetrahedron
+/// matches the declared handedness. All four corners sit on rays from the
+/// centre, so swapping two listed neighbours' slots flips the parity.
+/// Ring stereocentres (more than one listed neighbour already placed) are
+/// out of scope and left alone.
+fn enforce_chirality(
+    preview: &TrustedCompositionPreview,
+    atom: usize,
+    positions: &[Vec3],
+    placed: &[bool],
+    pending: &mut [(usize, u8, MolecularLink, Vec3)],
+) {
+    let Some(chirality) = preview.atoms[atom].chirality else {
+        return;
+    };
+    if chirality
+        .neighbours
+        .iter()
+        .filter(|neighbour| placed[**neighbour])
+        .count()
+        > 1
+    {
+        return;
+    }
+    let corner = |neighbour: usize| {
+        if placed[neighbour] {
+            return Some(positions[neighbour]);
+        }
+        let (_, order, kind, direction) =
+            pending.iter().find(|(other, ..)| *other == neighbour)?;
+        let length = bond_length_angstrom(
+            preview.atoms[atom].atomic_number,
+            preview.atoms[neighbour].atomic_number,
+            *order,
+            *kind,
+        );
+        Some(positions[atom] + *direction * length)
+    };
+    let mut corners = [Vec3::ZERO; 4];
+    for (slot, neighbour) in chirality.neighbours.iter().enumerate() {
+        let Some(position) = corner(*neighbour) else {
+            return;
+        };
+        corners[slot] = position;
+    }
+    let volume = chirality_signed_volume(corners);
+    let wants_negative = chirality.handedness
+        == chem_domain::TetrahedralHandedness::Counterclockwise;
+    if (volume < 0.0) == wants_negative {
+        return;
+    }
+    let swappable: Vec<usize> = pending
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (other, ..))| chirality.neighbours.contains(other).then_some(index))
+        .collect();
+    if let [first, .., last] = swappable.as_slice() {
+        let direction = pending[*first].3;
+        pending[*first].3 = pending[*last].3;
+        pending[*last].3 = direction;
+    }
+}
+
+/// Orders a component's cycle atoms when they form exactly one simple ring:
+/// leaves prune away until only the 2-core remains, and that core must be a
+/// single cycle (every core atom keeps exactly two core neighbours). Fused
+/// rings, spiro joints, and cages return `None`.
+fn simple_ring(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<Vec<usize>> {
+    let (in_core, degree) = two_core(component, neighbours);
+    let core: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| in_core[*atom])
+        .collect();
+    if core.len() < 3 || core.iter().any(|atom| degree[*atom] != 2) {
+        return None;
+    }
+    let mut ring = vec![core[0]];
+    let mut previous = usize::MAX;
+    loop {
+        let current = *ring.last().expect("ring starts non-empty");
+        let next = neighbours[current]
+            .iter()
+            .map(|(other, _, _)| *other)
+            .find(|other| in_core[*other] && *other != previous)?;
+        if next == ring[0] {
+            break;
+        }
+        previous = current;
+        ring.push(next);
+    }
+    (ring.len() == core.len()).then_some(ring)
+}
+
+/// Leaf-prunes a component down to its 2-core: `(membership, core degree)`
+/// indexed by atom.
+fn two_core(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> (Vec<bool>, Vec<usize>) {
+    let mut in_core = vec![false; neighbours.len()];
+    let mut degree = vec![0_usize; neighbours.len()];
+    for atom in component {
+        in_core[*atom] = true;
+        degree[*atom] = neighbours[*atom].len();
+    }
+    let mut leaves: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| degree[*atom] <= 1)
+        .collect();
+    while let Some(atom) = leaves.pop() {
+        in_core[atom] = false;
+        for (other, _, _) in &neighbours[atom] {
+            if in_core[*other] {
+                degree[*other] -= 1;
+                if degree[*other] == 1 {
+                    leaves.push(*other);
+                }
+            }
+        }
+    }
+    (in_core, degree)
+}
+
+/// Decomposes a component's 2-core into edge-fused smallest rings
+/// (naphthalene, anthracene): one smallest cycle per core edge,
+/// deduplicated, then ordered so every ring after the first shares exactly
+/// one edge — and no other atoms — with the rings before it. Bridged
+/// bicyclics, cages (norbornane, P4), and linked-but-unfused rings return
+/// `None` and keep the polygon fallback.
+fn fused_ring_system(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<Vec<Vec<usize>>> {
+    let (in_core, _) = two_core(component, neighbours);
+    let core: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| in_core[*atom])
+        .collect();
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    for atom in &core {
+        for (other, _, _) in &neighbours[*atom] {
+            if in_core[*other] && *atom < *other {
+                edges.push((*atom, *other));
+            }
+        }
+    }
+    if core.len() < 4 || edges.len() <= core.len() {
+        return None;
+    }
+    let mut rings: Vec<Vec<usize>> = Vec::new();
+    for (start, end) in &edges {
+        let ring = smallest_cycle_through_edge(*start, *end, &in_core, neighbours)?;
+        if !rings
+            .iter()
+            .any(|known| known.len() == ring.len() && ring.iter().all(|atom| known.contains(atom)))
+        {
+            rings.push(ring);
+        }
+    }
+    // One independent cycle per extra edge is the edge-fused signature;
+    // cages (P4, cubane) surface more distinct smallest rings than that.
+    if rings.len() != edges.len() - core.len() + 1 {
+        return None;
+    }
+    let edge_key = |left: usize, right: usize| (left.min(right), left.max(right));
+    let ring_edges = |ring: &[usize]| -> Vec<(usize, usize)> {
+        (0..ring.len())
+            .map(|slot| edge_key(ring[slot], ring[(slot + 1) % ring.len()]))
+            .collect()
+    };
+    let mut ordered = vec![rings.swap_remove(0)];
+    let mut fused_edges: Vec<(usize, usize)> = ring_edges(&ordered[0]);
+    let mut fused_atoms: Vec<usize> = ordered[0].clone();
+    while !rings.is_empty() {
+        let next = rings.iter().position(|ring| {
+            ring_edges(ring)
+                .iter()
+                .any(|edge| fused_edges.contains(edge))
+        })?;
+        let ring = rings.swap_remove(next);
+        let shared_edges = ring_edges(&ring)
+            .iter()
+            .filter(|edge| fused_edges.contains(edge))
+            .count();
+        let shared_atoms = ring
+            .iter()
+            .filter(|atom| fused_atoms.contains(atom))
+            .count();
+        if shared_edges != 1 || shared_atoms != 2 {
+            return None;
+        }
+        fused_edges.extend(ring_edges(&ring));
+        for atom in &ring {
+            if !fused_atoms.contains(atom) {
+                fused_atoms.push(*atom);
+            }
+        }
+        ordered.push(ring);
+    }
+    (fused_atoms.len() == core.len()).then_some(ordered)
+}
+
+/// Smallest cycle containing a core edge: BFS between its endpoints with
+/// the edge itself removed. `None` for bridges, whose removal disconnects
+/// the endpoints.
+fn smallest_cycle_through_edge(
+    start: usize,
+    end: usize,
+    in_core: &[bool],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<Vec<usize>> {
+    let mut previous: Vec<Option<usize>> = vec![None; neighbours.len()];
+    previous[start] = Some(start);
+    let mut queue = std::collections::VecDeque::from([start]);
+    while let Some(atom) = queue.pop_front() {
+        for (other, _, _) in &neighbours[atom] {
+            if !in_core[*other] || previous[*other].is_some() || (atom == start && *other == end) {
+                continue;
+            }
+            previous[*other] = Some(atom);
+            if *other == end {
+                let mut cycle = vec![end];
+                let mut walk = end;
+                while walk != start {
+                    walk = previous[walk].unwrap_or(start);
+                    cycle.push(walk);
+                }
+                return Some(cycle);
+            }
+            queue.push_back(*other);
+        }
+    }
+    None
+}
+
+/// Mean ring edge length, `ring_pucker` lift, and the projected
+/// circumradius that keeps each edge (chord² + lift-difference²) at the
+/// target bond length.
+#[allow(clippy::cast_precision_loss)]
+fn ring_metrics(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    ring: &[usize],
+) -> (f32, f32) {
+    let mut edge_sum = 0.0_f32;
+    for (slot, atom) in ring.iter().copied().enumerate() {
+        let next = ring[(slot + 1) % ring.len()];
+        edge_sum += ring_bond_length(preview, neighbours, atom, next);
+    }
+    let edge = edge_sum / ring.len() as f32;
+    let lift = ring_pucker(ring, neighbours, edge);
+    let chord = (edge * edge - 4.0 * lift * lift).sqrt();
+    let radius = chord / (2.0 * (std::f32::consts::PI / ring.len() as f32).sin());
+    (lift, radius)
+}
+
+/// Places one ring as a regular polygon around the origin in the XZ plane.
+/// Saturated even rings pucker into a chair/crown: alternate atoms lift
+/// above/below the plane per `ring_pucker`.
+#[allow(clippy::cast_precision_loss)]
+fn place_lone_ring(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    ring: &[usize],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+) {
+    let (lift, radius) = ring_metrics(preview, neighbours, ring);
+    for (slot, atom) in ring.iter().copied().enumerate() {
+        let angle = std::f32::consts::TAU * slot as f32 / ring.len() as f32;
+        let side = if slot.is_multiple_of(2) { lift } else { -lift };
+        positions[atom] = Vec3::new(angle.cos() * radius, side, angle.sin() * radius);
+        placed[atom] = true;
+    }
+}
+
+/// Lays out an edge-fused ring system: all-saturated systems of one even
+/// ring size pucker into linked chairs/crowns, everything else (aromatics,
+/// mixed systems like tetralin, mixed ring sizes) stays coplanar regular
+/// polygons — the first ring sits flat around the origin, and every later
+/// ring extends across its single shared edge, away from the ring that
+/// owns it, the classic fused-polygon construction for naphthalene-style
+/// aromatics.
+// ponytail: mixed aromatic/saturated fused systems (tetralin) and
+// mixed-size saturated ones (hydrindane) stay planar; per-ring puckering
+// against an already-curved neighbour if those visuals ever matter.
+#[allow(clippy::cast_precision_loss)]
+fn place_fused_rings(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    rings: &[Vec<usize>],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    let uniform = rings.iter().all(|ring| ring.len() == rings[0].len());
+    let puckered = rings
+        .iter()
+        .all(|ring| ring_metrics(preview, neighbours, ring).0 > f32::EPSILON);
+    if uniform && puckered {
+        place_fused_chairs(preview, neighbours, rings, positions, placed, parent_map, queue);
+        return;
+    }
+    let mut centers: Vec<Vec3> = Vec::with_capacity(rings.len());
+    for (index, ring) in rings.iter().enumerate() {
+        let count = ring.len() as f32;
+        let sector = std::f32::consts::PI / count;
+        if index == 0 {
+            let edge_sum: f32 = (0..ring.len())
+                .map(|slot| {
+                    ring_bond_length(preview, neighbours, ring[slot], ring[(slot + 1) % ring.len()])
+                })
+                .sum();
+            let radius = edge_sum / count / (2.0 * sector.sin());
+            for (slot, atom) in ring.iter().copied().enumerate() {
+                let angle = 2.0 * sector * slot as f32;
+                positions[atom] = Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
+                placed[atom] = true;
+            }
+            centers.push(Vec3::ZERO);
+            continue;
+        }
+        // The one ring edge whose endpoints both already exist is the
+        // fusion edge; the new polygon extends away from the ring that
+        // placed it.
+        let Some(shared_slot) = (0..ring.len())
+            .find(|slot| placed[ring[*slot]] && placed[ring[(slot + 1) % ring.len()]])
+        else {
+            centers.push(Vec3::ZERO);
+            continue;
+        };
+        let start = ring[shared_slot];
+        let second = ring[(shared_slot + 1) % ring.len()];
+        let owner_center = rings[..index]
+            .iter()
+            .zip(&centers)
+            .find(|(earlier, _)| earlier.contains(&start) && earlier.contains(&second))
+            .map_or(Vec3::ZERO, |(_, center)| *center);
+        let midpoint = (positions[start] + positions[second]) * 0.5;
+        let outward = (midpoint - owner_center).normalize_or_zero();
+        let half_edge = (positions[second] - positions[start]).length() * 0.5;
+        let center = midpoint + outward * (half_edge / sector.tan());
+        let radius = half_edge / sector.sin();
+        let from_center = positions[start] - center;
+        let start_angle = from_center.z.atan2(from_center.x);
+        let vertex = |sign: f32, slot: usize| {
+            let angle = start_angle + sign * 2.0 * sector * slot as f32;
+            center + Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius)
+        };
+        // Walk the cycle from the fusion edge; the step sign that lands
+        // slot 1 on the edge's far atom orients the rest of the polygon.
+        let sign = if vertex(1.0, 1).distance(positions[second])
+            <= vertex(-1.0, 1).distance(positions[second])
+        {
+            1.0
+        } else {
+            -1.0
+        };
+        for slot in 2..ring.len() {
+            let atom = ring[(shared_slot + slot) % ring.len()];
+            if !placed[atom] {
+                positions[atom] = vertex(sign, slot);
+                placed[atom] = true;
+            }
+        }
+        centers.push(center);
+    }
+    for (ring, center) in rings.iter().zip(&centers) {
+        place_ring_substituents(
+            preview, neighbours, ring, *center, Vec3::Y, positions, placed, parent_map, queue,
+        );
+    }
+}
+
+/// Edge-fused all-saturated rings of one even size pucker into linked
+/// chairs/crowns: the first ring is the standard chair, and every later
+/// ring is the point reflection of the ring owning its fusion edge through
+/// that edge's midpoint. Bond midpoints are inversion centres of the
+/// diamond lattice, so the reflected ring is a congruent chair extending
+/// trans across the fusion — trans-decalin geometry.
+#[allow(clippy::cast_precision_loss)]
+fn place_fused_chairs(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    rings: &[Vec<usize>],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    place_lone_ring(preview, neighbours, &rings[0], positions, placed);
+    for (index, ring) in rings.iter().enumerate().skip(1) {
+        let count = ring.len();
+        // The one ring edge whose endpoints both already exist is the
+        // fusion edge; reflect the owning ring through its midpoint.
+        let Some(shared_slot) =
+            (0..count).find(|slot| placed[ring[*slot]] && placed[ring[(slot + 1) % count]])
+        else {
+            continue;
+        };
+        let start = ring[shared_slot];
+        let second = ring[(shared_slot + 1) % count];
+        let Some(owner) = rings[..index]
+            .iter()
+            .find(|earlier| earlier.contains(&start) && earlier.contains(&second))
+        else {
+            continue;
+        };
+        let owner_slot = owner
+            .iter()
+            .position(|atom| *atom == start)
+            .expect("the fusion edge's owner contains both endpoints");
+        // Walking the new ring onward from the fusion edge mirrors walking
+        // the owner backward from `start`, so counterparts pair off slot by
+        // slot in opposite cycle directions.
+        let forward = owner[(owner_slot + 1) % count] == second;
+        let midpoint = (positions[start] + positions[second]) * 0.5;
+        for step in 1..count - 1 {
+            let atom = ring[(shared_slot + 1 + step) % count];
+            if placed[atom] {
+                continue;
+            }
+            let counterpart_slot = if forward {
+                (owner_slot + count - step) % count
+            } else {
+                (owner_slot + step) % count
+            };
+            positions[atom] = midpoint * 2.0 - positions[owner[counterpart_slot]];
+            placed[atom] = true;
+        }
+    }
+    for ring in rings {
+        let center =
+            ring.iter().map(|atom| positions[*atom]).sum::<Vec3>() / ring.len() as f32;
+        place_ring_substituents(
+            preview, neighbours, ring, center, Vec3::Y, positions, placed, parent_map, queue,
+        );
+    }
+}
+
+/// Two rings sharing exactly one atom (spiro): the 2-core has one degree-4
+/// hub whose ring walks partition the rest into two degree-2 cycles.
+/// Returns both cycles, each starting at the hub.
+fn spiro_rings(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<(Vec<usize>, Vec<usize>)> {
+    let (in_core, degree) = two_core(component, neighbours);
+    let core: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| in_core[*atom])
+        .collect();
+    let hub = *core.iter().find(|atom| degree[**atom] == 4)?;
+    if core
+        .iter()
+        .any(|atom| *atom != hub && degree[*atom] != 2)
+    {
+        return None;
+    }
+    let walk = |first: usize| -> Option<Vec<usize>> {
+        let mut ring = vec![hub, first];
+        for _ in 0..core.len() {
+            let current = *ring.last().expect("ring starts non-empty");
+            let previous = ring[ring.len() - 2];
+            let next = neighbours[current]
+                .iter()
+                .map(|(other, _, _)| *other)
+                .find(|other| in_core[*other] && *other != previous)?;
+            if next == hub {
+                return (ring.len() >= 3).then_some(ring);
+            }
+            ring.push(next);
+        }
+        None
+    };
+    let hub_neighbours: Vec<usize> = neighbours[hub]
+        .iter()
+        .map(|(other, _, _)| *other)
+        .filter(|other| in_core[*other])
+        .collect();
+    let first = walk(*hub_neighbours.first()?)?;
+    let start = hub_neighbours
+        .iter()
+        .copied()
+        .find(|other| !first.contains(other))?;
+    let second = walk(start)?;
+    (first.len() + second.len() - 1 == core.len()
+        && second.iter().all(|atom| *atom == hub || !first.contains(atom)))
+    .then_some((first, second))
+}
+
+/// Spiro pair: the first ring lies about the origin as usual, and the
+/// second stands in the perpendicular plane through the shared atom —
+/// spanned by that atom's outward radial and the vertical — so the four
+/// ring bonds at the shared atom spread roughly tetrahedrally.
+#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
+fn place_spiro_rings(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    first: &[usize],
+    second: &[usize],
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    place_lone_ring(preview, neighbours, first, positions, placed);
+    let hub = second[0];
+    let hub_position = positions[hub];
+    let outward = Vec3::new(hub_position.x, 0.0, hub_position.z).normalize_or_zero();
+    let (lift, radius) = ring_metrics(preview, neighbours, second);
+    let inward = -outward;
+    let normal = inward.cross(Vec3::Y).normalize_or_zero();
+    // The hub sits at the second ring's slot-0 vertex: solve the centre so
+    // that vertex (radial + pucker lift) lands exactly on the placed hub.
+    let center = hub_position + outward * radius - normal * lift;
+    for (slot, atom) in second.iter().copied().enumerate() {
+        if placed[atom] {
+            continue;
+        }
+        let angle = std::f32::consts::TAU * slot as f32 / second.len() as f32;
+        let side = if slot.is_multiple_of(2) { lift } else { -lift };
+        positions[atom] =
+            center + (inward * angle.cos() + Vec3::Y * angle.sin()) * radius + normal * side;
+        placed[atom] = true;
+    }
+    place_ring_substituents(
+        preview, neighbours, first, Vec3::ZERO, Vec3::Y, positions, placed, parent_map, queue,
+    );
+    let second_center =
+        second.iter().map(|atom| positions[*atom]).sum::<Vec3>() / second.len() as f32;
+    place_ring_substituents(
+        preview,
+        neighbours,
+        second,
+        second_center,
+        normal,
+        positions,
+        placed,
+        parent_map,
+        queue,
+    );
+}
+
+/// Bridged bicyclic: exactly two degree-3 bridgeheads joined by three
+/// disjoint paths, none of them a bare edge (that shape is edge-fused and
+/// handled earlier). Returns the main ring — first bridgehead, longest
+/// path, second bridgehead, second-longest path reversed — plus the
+/// shortest path's interior atoms ordered from the first bridgehead, and
+/// the second bridgehead's slot in the main ring.
+fn bridged_bicyclic(
+    component: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+) -> Option<(Vec<usize>, Vec<usize>, usize)> {
+    let (in_core, degree) = two_core(component, neighbours);
+    let core: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|atom| in_core[*atom])
+        .collect();
+    let bridgeheads: Vec<usize> = core
+        .iter()
+        .copied()
+        .filter(|atom| degree[*atom] == 3)
+        .collect();
+    let [head, tail] = bridgeheads.as_slice() else {
+        return None;
+    };
+    if core
+        .iter()
+        .any(|atom| !bridgeheads.contains(atom) && degree[*atom] != 2)
+    {
+        return None;
+    }
+    let mut paths: Vec<Vec<usize>> = Vec::new();
+    for (first, _, _) in &neighbours[*head] {
+        if !in_core[*first] {
+            continue;
+        }
+        let mut interior = Vec::new();
+        let mut previous = *head;
+        let mut current = *first;
+        for _ in 0..=core.len() {
+            if current == *tail {
+                break;
+            }
+            if current == *head {
+                return None;
+            }
+            interior.push(current);
+            let next = neighbours[current]
+                .iter()
+                .map(|(other, _, _)| *other)
+                .find(|other| in_core[*other] && *other != previous)?;
+            previous = current;
+            current = next;
+        }
+        if current != *tail {
+            return None;
+        }
+        paths.push(interior);
+    }
+    if paths.len() != 3 {
+        return None;
+    }
+    paths.sort_by_key(|path| std::cmp::Reverse(path.len()));
+    if paths[2].is_empty()
+        || 2 + paths.iter().map(Vec::len).sum::<usize>() != core.len()
+    {
+        return None;
+    }
+    let tail_slot = 1 + paths[0].len();
+    let mut main_ring = vec![*head];
+    main_ring.append(&mut paths[0]);
+    main_ring.push(*tail);
+    main_ring.extend(paths[1].iter().rev());
+    Some((main_ring, std::mem::take(&mut paths[2]), tail_slot))
+}
+
+/// Lays the main ring (the two longest bridges) as a lone — puckered when
+/// saturated — ring, then lifts the shortest bridge on a circular arc in
+/// the plane of the bridgehead axis and the ring normal, bulging away from
+/// the ring so every bridge bond keeps its target length.
+#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
+fn place_bridged_bicyclic(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    main_ring: &[usize],
+    bridge: &[usize],
+    tail_slot: usize,
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    place_lone_ring(preview, neighbours, main_ring, positions, placed);
+    let head = main_ring[0];
+    let tail = main_ring[tail_slot];
+    let head_position = positions[head];
+    let tail_position = positions[tail];
+    let span = tail_position - head_position;
+    let distance = span.length();
+    let axis = span / distance.max(f32::EPSILON);
+    let midpoint = (head_position + tail_position) * 0.5;
+    let up = Vec3::Y.reject_from_normalized(axis).normalize_or_zero();
+    let chain: Vec<usize> = std::iter::once(head)
+        .chain(bridge.iter().copied())
+        .chain(std::iter::once(tail))
+        .collect();
+    let segments = bridge.len() + 1;
+    let length = (0..segments)
+        .map(|slot| ring_bond_length(preview, neighbours, chain[slot], chain[slot + 1]))
+        .sum::<f32>()
+        / segments as f32;
+    let ratio = distance / length;
+    let mut previous = head;
+    if ratio >= segments as f32 * 0.999 {
+        // ponytail: a bridge with no slack (unsaturated main rings can
+        // stretch the bridgehead span past the bond budget) degrades to
+        // evenly spaced points on the axis; a boat main ring would make
+        // room if that visual ever matters.
+        for (slot, atom) in bridge.iter().copied().enumerate() {
+            positions[atom] =
+                head_position + span * ((slot + 1) as f32 / segments as f32);
+            placed[atom] = true;
+            parent_map[atom] = Some(previous);
+            queue.push_back(atom);
+            previous = atom;
+        }
+    } else {
+        // Circular arc through both bridgeheads: bisect on the per-segment
+        // subtended angle until the end-to-end chord matches the
+        // bridgehead distance, then sweep the interior points.
+        let mut low = f32::EPSILON;
+        let mut high = std::f32::consts::TAU / segments as f32 - f32::EPSILON;
+        for _ in 0..60 {
+            let phi = (low + high) * 0.5;
+            let chord = (segments as f32 * phi * 0.5).sin() / (phi * 0.5).sin();
+            if chord > ratio {
+                low = phi;
+            } else {
+                high = phi;
+            }
+        }
+        let phi = (low + high) * 0.5;
+        let arc_radius = length / (2.0 * (phi * 0.5).sin());
+        let half_sweep = segments as f32 * phi * 0.5;
+        let center = midpoint
+            - up * (arc_radius * arc_radius - distance * distance * 0.25)
+                .max(0.0)
+                .sqrt();
+        for (slot, atom) in bridge.iter().copied().enumerate() {
+            let theta = -half_sweep + (slot + 1) as f32 * phi;
+            positions[atom] = center + (up * theta.cos() + axis * theta.sin()) * arc_radius;
+            placed[atom] = true;
+            parent_map[atom] = Some(previous);
+            queue.push_back(atom);
+            previous = atom;
+        }
+    }
+    place_ring_substituents(
+        preview, neighbours, main_ring, Vec3::ZERO, Vec3::Y, positions, placed, parent_map,
+        queue,
+    );
+}
+
+/// Substituents take the directions the ring leaves free: in-plane radial
+/// for trigonal ring atoms, half-tetrahedral tilts above/below the plane
+/// (alternating around the ring) for tetrahedral ones. The tilt side
+/// follows the atom's own `ring_pucker` lift along `normal` — axial first,
+/// equatorial-ish second — falling back to slot parity for flat rings.
+/// Subtrees continue through the shared BFS loop via `queue`.
+#[allow(clippy::too_many_arguments)]
+fn place_ring_substituents(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    ring: &[usize],
+    ring_center: Vec3,
+    normal: Vec3,
+    positions: &mut [Vec3],
+    placed: &mut [bool],
+    parent_map: &mut [Option<usize>],
+    queue: &mut std::collections::VecDeque<usize>,
+) {
+    for (slot, atom) in ring.iter().copied().enumerate() {
+        let radial = (positions[atom] - ring_center).normalize_or_zero();
+        let lift = (positions[atom] - ring_center).dot(normal);
+        let axial_sign = if lift.abs() > 1e-4 {
+            lift.signum()
+        } else if slot.is_multiple_of(2) {
+            1.0
+        } else {
+            -1.0
+        };
+        let lone_pairs = usize::from(preview.atoms[atom].non_bonding_electrons / 2);
+        let bonded = neighbours[atom]
+            .iter()
+            .filter(|(_, _, kind)| *kind == MolecularLink::Covalent)
+            .count();
+        let steric = (bonded + lone_pairs).max(neighbours[atom].len());
+        let mut branch = 0_usize;
+        for (other, order, kind) in &neighbours[atom] {
+            if placed[*other] {
+                continue;
+            }
+            let direction = if steric <= 3 {
+                radial
+            } else {
+                let side = if branch.is_multiple_of(2) { axial_sign } else { -axial_sign };
+                (radial / 3.0_f32.sqrt() + normal * side * (2.0 / 3.0_f32).sqrt()).normalize()
+            };
+            branch += 1;
+            let length = bond_length_angstrom(
+                preview.atoms[atom].atomic_number,
+                preview.atoms[*other].atomic_number,
+                *order,
+                *kind,
+            );
+            positions[*other] = positions[atom] + direction * length;
+            placed[*other] = true;
+            parent_map[*other] = Some(atom);
+            queue.push_back(*other);
+        }
+    }
+}
+
+/// Length of the bond between two consecutive ring atoms.
+fn ring_bond_length(
+    preview: &TrustedCompositionPreview,
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    atom: usize,
+    next: usize,
+) -> f32 {
+    let (order, kind) = neighbours[atom]
+        .iter()
+        .find(|(other, _, _)| *other == next)
+        .map_or((1, MolecularLink::Covalent), |(_, order, kind)| {
+            (*order, *kind)
+        });
+    bond_length_angstrom(
+        preview.atoms[atom].atomic_number,
+        preview.atoms[next].atomic_number,
+        order,
+        kind,
+    )
+}
+
+/// Out-of-plane lift for a simple ring's alternating chair/crown pucker.
+///
+/// Zero for planar rings: any ring bond of order ≥ 2 marks the delocalized
+/// or aromatic case (benzene's Kekulé alternation always surfaces at least
+/// one double bond in the preview's localized orders). Even-membered
+/// saturated rings pucker; six-membered use the exact tetrahedral chair
+/// lift (edge/6, cyclohexane's ~0.5 Å spread), larger crowns a slightly
+/// deeper fraction that lands S8 at its observed ±0.45 Å.
+// ponytail: odd saturated rings (cyclopentane) stay flat; an envelope flap
+// can replace this if that visual ever matters.
+fn ring_pucker(
+    ring: &[usize],
+    neighbours: &[Vec<(usize, u8, MolecularLink)>],
+    edge: f32,
+) -> f32 {
+    let planar = ring.iter().enumerate().any(|(slot, atom)| {
+        let next = ring[(slot + 1) % ring.len()];
+        neighbours[*atom]
+            .iter()
+            .any(|(other, order, _)| *other == next && *order >= 2)
+    });
+    if planar || !ring.len().is_multiple_of(2) {
+        0.0
+    } else if ring.len() == 6 {
+        edge / 6.0
+    } else {
+        edge * 0.22
+    }
+}
+
+/// Ideal electron-domain directions per steric number. Axial slots come first
+/// for bipyramids so bonds fill axial positions before equatorial ones,
+/// leaving lone pairs equatorial exactly as VSEPR prescribes.
+#[allow(clippy::cast_precision_loss)]
+fn vsepr_directions(count: usize) -> Vec<Vec3> {
+    let equatorial = |slots: usize| {
+        (0..slots).map(move |slot| {
+            let angle = std::f32::consts::TAU * slot as f32 / slots as f32;
+            Vec3::new(angle.cos(), 0.0, angle.sin())
         })
-        .collect()
-}
-
-fn molecular_atom_radius(atomic_number: u8) -> f32 {
-    crate::elements::by_atomic_number(atomic_number).map_or(0.11, |element| {
-        0.075 + f32::from(element.period.min(6)) * 0.012
-    })
-}
-
-const fn molecular_atom_color(atomic_number: u8) -> [f32; 4] {
-    match atomic_number {
-        1 => [0.92, 0.95, 1.0, 1.0],
-        6 => [0.20, 0.24, 0.30, 1.0],
-        7 => [0.24, 0.42, 0.92, 1.0],
-        8 => [0.90, 0.24, 0.24, 1.0],
-        9 => [0.46, 0.88, 0.38, 1.0],
-        15 => [0.95, 0.55, 0.20, 1.0],
-        16 => [0.95, 0.82, 0.24, 1.0],
-        17 => [0.28, 0.76, 0.36, 1.0],
-        35 => [0.66, 0.24, 0.18, 1.0],
-        53 => [0.48, 0.26, 0.72, 1.0],
-        _ => [0.40, 0.68, 0.82, 1.0],
+    };
+    match count {
+        0 | 1 => vec![Vec3::X],
+        2 => vec![Vec3::X, -Vec3::X],
+        3 => equatorial(3).collect(),
+        4 => {
+            let corner = 1.0 / 3.0_f32.sqrt();
+            vec![
+                Vec3::new(corner, corner, corner),
+                Vec3::new(corner, -corner, -corner),
+                Vec3::new(-corner, corner, -corner),
+                Vec3::new(-corner, -corner, corner),
+            ]
+        }
+        5 => [Vec3::Y, -Vec3::Y].into_iter().chain(equatorial(3)).collect(),
+        6 => vec![Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z],
+        7 => [Vec3::Y, -Vec3::Y].into_iter().chain(equatorial(5)).collect(),
+        count => {
+            let golden_angle = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
+            (0..count)
+                .map(|slot| {
+                    let y = 1.0 - 2.0 * (slot as f32 + 0.5) / count as f32;
+                    let radius = (1.0 - y * y).sqrt();
+                    let angle = golden_angle * slot as f32;
+                    Vec3::new(angle.cos() * radius, y, angle.sin() * radius)
+                })
+                .collect()
+        }
     }
+}
+
+fn bond_length_angstrom(left: u8, right: u8, order: u8, kind: MolecularLink) -> f32 {
+    let sum = covalent_radius_angstrom(left) + covalent_radius_angstrom(right);
+    match kind {
+        MolecularLink::Ionic => sum * 1.25,
+        MolecularLink::Covalent => {
+            sum * match order {
+                0 | 1 => 1.0,
+                2 => 0.87,
+                _ => 0.78,
+            }
+        }
+    }
+}
+
+/// Covalent radii in ångströms (Cordero et al., 2008); elements outside the
+/// reviewed reaction scope fall back to a period-based estimate.
+fn covalent_radius_angstrom(atomic_number: u8) -> f32 {
+    match atomic_number {
+        1 => 0.31,
+        2 => 0.28,
+        3 => 1.28,
+        4 => 0.96,
+        5 => 0.84,
+        6 => 0.76,
+        7 => 0.71,
+        8 => 0.66,
+        9 => 0.57,
+        10 => 0.58,
+        11 => 1.66,
+        12 => 1.41,
+        13 => 1.21,
+        14 => 1.11,
+        15 => 1.07,
+        16 => 1.05,
+        17 => 1.02,
+        18 => 1.06,
+        19 => 2.03,
+        20 => 1.76,
+        25 | 50 | 53 => 1.39,
+        26 | 29 => 1.32,
+        30 => 1.22,
+        35 => 1.20,
+        47 => 1.45,
+        56 => 2.15,
+        82 => 1.46,
+        other => crate::elements::by_atomic_number(other)
+            .map_or(1.20, |element| 0.15 + 0.28 * f32::from(element.period)),
+    }
+}
+
+/// Van der Waals radii in ångströms (Bondi/Alvarez); the covalent radius plus
+/// a constant approximates elements without a tabulated value.
+fn vdw_radius_angstrom(atomic_number: u8) -> f32 {
+    match atomic_number {
+        1 => 1.10,
+        2 => 1.40,
+        3 => 1.81,
+        6 => 1.70,
+        7 => 1.55,
+        8 => 1.52,
+        9 => 1.47,
+        10 => 1.54,
+        11 => 2.27,
+        12 => 1.73,
+        13 => 1.84,
+        14 => 2.10,
+        15 | 16 => 1.80,
+        17 => 1.75,
+        18 => 1.88,
+        19 => 2.75,
+        20 => 2.31,
+        26 => 2.05,
+        29 => 1.96,
+        30 => 2.01,
+        35 => 1.85,
+        47 => 2.11,
+        53 => 1.98,
+        other => covalent_radius_angstrom(other) + 0.75,
+    }
+}
+
+/// Standard CPK colours (Jmol convention) so models read the same as any
+/// chemistry textbook; unlisted elements use the conventional fallback pink.
+fn molecular_atom_color(atomic_number: u8) -> [f32; 4] {
+    let rgb: [u8; 3] = match atomic_number {
+        1 => [255, 255, 255],
+        2 => [217, 255, 255],
+        3 => [204, 128, 255],
+        4 => [194, 255, 0],
+        5 => [255, 181, 181],
+        6 => [144, 144, 144],
+        7 => [48, 80, 248],
+        8 => [255, 13, 13],
+        9 => [144, 224, 80],
+        10 => [179, 227, 245],
+        11 => [171, 92, 242],
+        12 => [138, 255, 0],
+        13 => [191, 166, 166],
+        14 => [240, 200, 160],
+        15 => [255, 128, 0],
+        16 => [255, 255, 48],
+        17 => [31, 240, 31],
+        18 => [128, 209, 227],
+        19 => [143, 64, 212],
+        20 => [61, 255, 0],
+        25 => [156, 122, 199],
+        26 => [224, 102, 51],
+        29 => [200, 128, 51],
+        30 => [125, 128, 176],
+        35 => [166, 41, 41],
+        47 => [192, 192, 192],
+        50 => [102, 128, 128],
+        53 => [148, 0, 148],
+        56 => [0, 201, 0],
+        82 => [87, 89, 97],
+        _ => [255, 20, 147],
+    };
+    [
+        f32::from(rgb[0]) / 255.0,
+        f32::from(rgb[1]) / 255.0,
+        f32::from(rgb[2]) / 255.0,
+        1.0,
+    ]
 }
 
 #[allow(clippy::similar_names, clippy::too_many_lines)]
@@ -1911,6 +3460,15 @@ fn add_flame_plume(
         return;
     }
     let colours = flame_colours(palette);
+    // Additive light pool: the flame visibly illuminates the surface it
+    // burns on, with a subtle seeded flicker.
+    let flicker = 0.86 + 0.14 * (phase * 7.3 + seed_phase(seed, 11)).sin();
+    add_soft_disc(
+        &mut meshes.emissive,
+        source + Vec3::new(0.0, 0.012, 0.0),
+        dynamics.spread * (1.1 + 0.3 * flicker),
+        alpha(colours.core, 0.24 * envelope * flicker),
+    );
     for index in 0..dynamics.particle_count {
         let index = u32::from(index);
         let rise_speed = 0.78 + seeded_unit(seed, index, 1) * 0.64;
@@ -2263,15 +3821,110 @@ fn add_flat_triangle(mesh: &mut Mesh, a: Vec3, b: Vec3, c: Vec3, color: [f32; 4]
 
 fn appearance_color(profile: AppearanceProfile) -> [f32; 4] {
     match profile {
-        AppearanceProfile::LaboratoryNeutral => [0.16, 0.20, 0.23, 1.0],
-        AppearanceProfile::ClearGlass => [0.46, 0.70, 0.82, 0.09],
-        AppearanceProfile::Water => [0.36, 0.62, 0.74, 0.28],
+        // Warm neutral bench: value/hue separation from the cool glass and
+        // backdrop so the coloured chemistry stays the hero of the frame.
+        AppearanceProfile::LaboratoryNeutral => [0.21, 0.185, 0.165, 1.0],
+        AppearanceProfile::ClearGlass => [0.60, 0.70, 0.76, 0.05],
+        AppearanceProfile::Water => [0.32, 0.60, 0.75, 0.30],
         AppearanceProfile::AqueousColourless => [0.72, 0.79, 0.82, 0.18],
         AppearanceProfile::WhitePrecipitate => [0.94, 0.96, 1.0, 0.92],
         AppearanceProfile::CreamPrecipitate => [0.94, 0.88, 0.68, 0.92],
         AppearanceProfile::YellowPrecipitate => [0.94, 0.82, 0.28, 0.92],
         AppearanceProfile::AlkaliMetal => [0.72, 0.76, 0.78, 1.0],
         AppearanceProfile::MetalSilver => [0.72, 0.80, 0.88, 1.0],
+    }
+}
+
+/// Revolves a 2D `(radius, y)` profile around the vertical axis through
+/// `center` with smoothed normals, for vessel bodies with real wall
+/// thickness, rolled lips, and floors.
+#[allow(clippy::cast_possible_truncation)]
+fn add_lathe(mesh: &mut Mesh, center: Vec3, profile: &[(f32, f32)], color: [f32; 4]) {
+    const SEGMENTS: u16 = 28;
+    if profile.len() < 2 {
+        return;
+    }
+    let mut profile_normals = vec![glam::Vec2::ZERO; profile.len()];
+    for index in 0..profile.len() - 1 {
+        let delta_radius = profile[index + 1].0 - profile[index].0;
+        let delta_y = profile[index + 1].1 - profile[index].1;
+        let normal = glam::Vec2::new(delta_y, -delta_radius).normalize_or_zero();
+        profile_normals[index] += normal;
+        profile_normals[index + 1] += normal;
+    }
+    for normal in &mut profile_normals {
+        *normal = normal.normalize_or_zero();
+    }
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    for ((radius, y), normal) in profile.iter().zip(&profile_normals) {
+        for segment in 0..=SEGMENTS {
+            let angle = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
+            let direction = Vec3::new(angle.cos(), 0.0, angle.sin());
+            mesh.vertices.push(Vertex {
+                position: (center + direction * *radius + Vec3::Y * *y).to_array(),
+                normal: (direction * normal.x + Vec3::Y * normal.y).to_array(),
+                color,
+            });
+        }
+    }
+    let stride = u32::from(SEGMENTS) + 1;
+    for ring in 0..profile.len() as u32 - 1 {
+        for segment in 0..u32::from(SEGMENTS) {
+            let current = base + ring * stride + segment;
+            let next = current + stride;
+            mesh.indices.extend_from_slice(&[
+                current,
+                next,
+                current + 1,
+                current + 1,
+                next,
+                next + 1,
+            ]);
+        }
+    }
+}
+
+/// Beaker cross-section from the outer floor up the outer wall, over a rolled
+/// lip, and back down the inner wall to the inner floor.
+fn beaker_profile(bottom: f32, top: f32, radius: f32, thickness: f32) -> Vec<(f32, f32)> {
+    let lip = radius + thickness * 0.9;
+    let inner = radius - thickness;
+    vec![
+        (radius * 0.06, bottom),
+        (radius * 0.90, bottom),
+        (radius, bottom + 0.05),
+        (radius, top - 0.06),
+        (lip, top - 0.012),
+        (lip - thickness * 0.4, top + 0.016),
+        (inner, top - 0.035),
+        (inner, bottom + thickness + 0.012),
+        (radius * 0.06, bottom + thickness),
+    ]
+}
+
+/// Radially faded disc: full colour at the centre, transparent at the rim.
+/// Used as a cheap soft contact shadow.
+fn add_soft_disc(mesh: &mut Mesh, center: Vec3, radius: f32, color: [f32; 4]) {
+    const SEGMENTS: u16 = 24;
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: center.to_array(),
+        normal: Vec3::Y.to_array(),
+        color,
+    });
+    let edge_color = [color[0], color[1], color[2], 0.0];
+    for segment in 0..=SEGMENTS {
+        let angle = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
+        mesh.vertices.push(Vertex {
+            position: (center + Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius))
+                .to_array(),
+            normal: Vec3::Y.to_array(),
+            color: edge_color,
+        });
+    }
+    for segment in 0..u32::from(SEGMENTS) {
+        mesh.indices
+            .extend_from_slice(&[base, base + 2 + segment, base + 1 + segment]);
     }
 }
 
@@ -2307,40 +3960,62 @@ struct Mesh {
     indices: Vec<u32>,
 }
 
+#[derive(Debug, Default)]
+struct SceneBatches {
+    vertices: Vec<Vertex>,
+    indices: Vec<u32>,
+    opaque_end: u32,
+    translucent_end: u32,
+    glass_end: u32,
+    emissive_end: u32,
+    inset_end: u32,
+}
+
 #[derive(Default)]
 struct SceneMeshes {
     opaque: Mesh,
     translucent: Mesh,
     glass: Mesh,
     emissive: Mesh,
+    inset: Mesh,
 }
 
 impl SceneMeshes {
-    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32, u32) {
+    fn finish(self) -> SceneBatches {
         let mut vertices = Vec::with_capacity(
             self.opaque.vertices.len()
                 + self.translucent.vertices.len()
                 + self.glass.vertices.len()
-                + self.emissive.vertices.len(),
+                + self.emissive.vertices.len()
+                + self.inset.vertices.len(),
         );
         let mut indices = Vec::with_capacity(
             self.opaque.indices.len()
                 + self.translucent.indices.len()
                 + self.glass.indices.len()
-                + self.emissive.indices.len(),
+                + self.emissive.indices.len()
+                + self.inset.indices.len(),
         );
+        let boundary = |indices: &Vec<u32>| u32::try_from(indices.len()).unwrap_or(u32::MAX);
         append_mesh(&mut vertices, &mut indices, self.opaque);
-        let opaque_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
+        let opaque_end = boundary(&indices);
         append_mesh(&mut vertices, &mut indices, self.translucent);
+        let translucent_end = boundary(&indices);
         append_mesh(&mut vertices, &mut indices, self.glass);
-        let transparent_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
+        let glass_end = boundary(&indices);
         append_mesh(&mut vertices, &mut indices, self.emissive);
-        (
+        let emissive_end = boundary(&indices);
+        append_mesh(&mut vertices, &mut indices, self.inset);
+        let inset_end = boundary(&indices);
+        SceneBatches {
             vertices,
             indices,
-            opaque_index_count,
-            transparent_index_count,
-        )
+            opaque_end,
+            translucent_end,
+            glass_end,
+            emissive_end,
+            inset_end,
+        }
     }
 }
 
@@ -2426,28 +4101,6 @@ fn add_cylinder(mesh: &mut Mesh, start: Vec3, end: Vec3, radius: f32, color: [f3
         let top = base + u32::from(SIDES) + 1 + u32::from(side);
         mesh.indices
             .extend_from_slice(&[bottom, top, bottom + 1, bottom + 1, top, top + 1]);
-    }
-}
-
-fn add_cylinder_wall(mesh: &mut Mesh, bottom: Vec3, top: Vec3, radius: f32, color: [f32; 4]) {
-    const SIDES: u16 = 32;
-    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-    for level in [bottom, top] {
-        for side in 0..=SIDES {
-            let angle = std::f32::consts::TAU * f32::from(side) / f32::from(SIDES);
-            let normal = Vec3::new(angle.cos(), 0.0, angle.sin());
-            mesh.vertices.push(Vertex {
-                position: (level + normal * radius).to_array(),
-                normal: normal.to_array(),
-                color,
-            });
-        }
-    }
-    for side in 0..SIDES {
-        let lower = base + u32::from(side);
-        let upper = base + u32::from(SIDES) + 1 + u32::from(side);
-        mesh.indices
-            .extend_from_slice(&[lower, upper, lower + 1, lower + 1, upper, upper + 1]);
     }
 }
 
@@ -2915,7 +4568,7 @@ mod tests {
                         seed: 91,
                     }),
                 );
-                meshes.finish().0
+                meshes.finish().vertices
             };
             let base = render(None);
             let mixing = render(Some(0.5));
@@ -3204,22 +4857,23 @@ mod tests {
         let first = build_scene(&plan, 3, 0.5, &[], None);
         let second = build_scene(&plan, 3, 0.5, &[], None);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&first.0),
-            bytemuck::cast_slice::<Vertex, u8>(&second.0)
+            bytemuck::cast_slice::<Vertex, u8>(&first.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&second.vertices)
         );
-        assert_eq!(first.1, second.1);
-        assert!(first.2 > 0, "the scene must contain opaque depth geometry");
+        assert_eq!(first.indices, second.indices);
+        assert!(first.opaque_end > 0, "the scene must contain opaque depth geometry");
         assert!(
-            usize::try_from(first.2).is_ok_and(|count| count < first.1.len()),
+            usize::try_from(first.glass_end).is_ok_and(|count| count <= first.indices.len())
+                && first.glass_end > first.opaque_end,
             "glass, liquid, and effects must remain in the transparent pass"
         );
         assert!(
-            usize::try_from(first.3).is_ok_and(|count| count <= first.1.len()),
+            usize::try_from(first.emissive_end).is_ok_and(|count| count <= first.indices.len()),
             "the additive pass boundary must remain inside the batched index buffer"
         );
-        assert!(first.0.iter().any(|vertex| vertex.position[2].abs() > 0.1));
+        assert!(first.vertices.iter().any(|vertex| vertex.position[2].abs() > 0.1));
         assert!(
-            first.0.len() > 100,
+            first.vertices.len() > 100,
             "diorama should include reusable scene assets"
         );
     }
@@ -3232,13 +4886,13 @@ mod tests {
         let preview = request
             .product_preview()
             .expect("reviewed IF7 graph exists");
-        let positions = molecular_positions(&preview);
+        let layout = molecular_layout(&preview);
         let iodine = preview
             .atoms
             .iter()
             .position(|atom| atom.atomic_number == 53)
             .expect("IF7 contains iodine");
-        assert_eq!(positions.len(), 8);
+        assert_eq!(layout.positions.len(), 8);
         assert!(
             preview
                 .covalent_bonds()
@@ -3255,7 +4909,7 @@ mod tests {
             Some(&preview),
         );
         for color in [molecular_atom_color(9), molecular_atom_color(53)] {
-            assert!(scene.0.iter().any(|vertex| {
+            assert!(scene.vertices.iter().any(|vertex| {
                 vertex
                     .color
                     .iter()
@@ -3263,6 +4917,865 @@ mod tests {
                     .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
             }));
         }
+    }
+
+    #[test]
+    fn vsepr_layout_bends_water_and_keeps_carbon_dioxide_linear() {
+        let angle_at = |layout: &MolecularLayout, apex: usize, left: usize, right: usize| {
+            let first = (layout.positions[left] - layout.positions[apex]).normalize();
+            let second = (layout.positions[right] - layout.positions[apex]).normalize();
+            first.dot(second).clamp(-1.0, 1.0).acos().to_degrees()
+        };
+
+        let water = crate::composition_catalogue::trusted_preview([8, 1, 1])
+            .expect("water preview resolves");
+        let oxygen = water
+            .atoms
+            .iter()
+            .position(|atom| atom.atomic_number == 8)
+            .expect("water contains oxygen");
+        let hydrogens: Vec<usize> = water
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        let layout = molecular_layout(&water);
+        let bend = angle_at(&layout, oxygen, hydrogens[0], hydrogens[1]);
+        assert!(
+            (100.0..116.0).contains(&bend),
+            "water must bend near the tetrahedral angle, got {bend}"
+        );
+        let bond_lengths: Vec<f32> = hydrogens
+            .iter()
+            .map(|hydrogen| (layout.positions[*hydrogen] - layout.positions[oxygen]).length())
+            .collect();
+        assert!((bond_lengths[0] - bond_lengths[1]).abs() < 0.001);
+
+        let carbon_dioxide = crate::composition_catalogue::trusted_preview([6, 8, 8])
+            .expect("carbon dioxide preview resolves");
+        let carbon = carbon_dioxide
+            .atoms
+            .iter()
+            .position(|atom| atom.atomic_number == 6)
+            .expect("CO2 contains carbon");
+        let oxygens: Vec<usize> = carbon_dioxide
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 8).then_some(index))
+            .collect();
+        let layout = molecular_layout(&carbon_dioxide);
+        let spread = angle_at(&layout, carbon, oxygens[0], oxygens[1]);
+        assert!(spread > 175.0, "CO2 must stay linear, got {spread}");
+    }
+
+    #[test]
+    fn benzene_lays_out_as_a_planar_hexagon_with_radial_hydrogens() {
+        let benzene =
+            crate::composition_catalogue::trusted_preview([6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1])
+                .expect("benzene preview resolves");
+        let carbons: Vec<usize> = benzene
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        let hydrogens: Vec<usize> = benzene
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 6);
+        assert_eq!(hydrogens.len(), 6);
+
+        let layout = molecular_layout(&benzene);
+        // The whole molecule is coplanar: sp2 ring carbons keep their
+        // hydrogens in the ring plane.
+        let plane_y = layout.positions[carbons[0]].y;
+        for position in &layout.positions {
+            assert!((position.y - plane_y).abs() < 0.001);
+        }
+        // Regular hexagon: equal radii from the ring centre and equal
+        // bonded C-C distances.
+        let ring_center = carbons
+            .iter()
+            .map(|carbon| layout.positions[*carbon])
+            .sum::<Vec3>()
+            / 6.0;
+        let radii: Vec<f32> = carbons
+            .iter()
+            .map(|carbon| (layout.positions[*carbon] - ring_center).length())
+            .collect();
+        for radius in &radii {
+            assert!((radius - radii[0]).abs() < 0.001);
+        }
+        let ring_bonds: Vec<f32> = benzene
+            .covalent_bonds()
+            .iter()
+            .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
+            .map(|bond| (layout.positions[bond.start] - layout.positions[bond.end]).length())
+            .collect();
+        assert_eq!(ring_bonds.len(), 6, "the Kekulé ring closes with six C-C bonds");
+        for length in &ring_bonds {
+            assert!((length - ring_bonds[0]).abs() < 0.001);
+        }
+        // Each hydrogen bonds to exactly one carbon and points radially
+        // outward from it.
+        for hydrogen in &hydrogens {
+            let bonds: Vec<_> = benzene
+                .covalent_bonds()
+                .iter()
+                .filter(|bond| bond.start == *hydrogen || bond.end == *hydrogen)
+                .collect();
+            assert_eq!(bonds.len(), 1);
+            let carbon = if bonds[0].start == *hydrogen {
+                bonds[0].end
+            } else {
+                bonds[0].start
+            };
+            assert!(carbons.contains(&carbon));
+            let outward =
+                (layout.positions[*hydrogen] - layout.positions[carbon]).normalize();
+            let radial = (layout.positions[carbon] - ring_center).normalize();
+            assert!(
+                outward.dot(radial) > 0.999,
+                "hydrogen must extend the ring radius, got dot {}",
+                outward.dot(radial)
+            );
+        }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn naphthalene_lays_out_as_two_coplanar_edge_fused_hexagons() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.naphthalene").expect("valid structure id"),
+            "C1=CC=C2C=CC=CC2=C1",
+        )
+        .expect("naphthalene Kekulé SMILES parses");
+        let naphthalene =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C10H8")
+                .expect("naphthalene preview projects");
+        let carbons: Vec<usize> = naphthalene
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        let hydrogens: Vec<usize> = naphthalene
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 10);
+        assert_eq!(hydrogens.len(), 8);
+
+        let layout = molecular_layout(&naphthalene);
+        // The whole fused aromatic system is coplanar.
+        let plane_y = layout.positions[carbons[0]].y;
+        for position in &layout.positions {
+            assert!((position.y - plane_y).abs() < 0.001);
+        }
+        // No collapsed geometry: every atom pair keeps at least a bonding
+        // distance apart (in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+        // Every bonded C-C pair spans one regular-hexagon edge.
+        let ring_bonds: Vec<f32> = naphthalene
+            .covalent_bonds()
+            .iter()
+            .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
+            .map(|bond| (layout.positions[bond.start] - layout.positions[bond.end]).length())
+            .collect();
+        assert_eq!(ring_bonds.len(), 11, "10 carbons close two fused hexagons");
+        let edge = ring_bonds[0];
+        for length in &ring_bonds {
+            assert!((length - edge).abs() < 0.001);
+        }
+        // The two junction carbons (three carbon neighbours each) share
+        // exactly one bond: the fusion edge.
+        let carbon_neighbours = |atom: usize| {
+            naphthalene
+                .covalent_bonds()
+                .iter()
+                .filter(|bond| {
+                    (bond.start == atom && carbons.contains(&bond.end))
+                        || (bond.end == atom && carbons.contains(&bond.start))
+                })
+                .count()
+        };
+        let junctions: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon) == 3)
+            .collect();
+        assert_eq!(junctions.len(), 2);
+        assert!(
+            naphthalene.covalent_bonds().iter().any(|bond| {
+                junctions.contains(&bond.start) && junctions.contains(&bond.end)
+            }),
+            "the junction carbons are directly bonded"
+        );
+        // The two hexagon centres sit an apothem either side of the fusion
+        // edge; every carbon lies one circumradius (= edge) from exactly
+        // one centre, junctions from both.
+        let midpoint = (layout.positions[junctions[0]] + layout.positions[junctions[1]]) * 0.5;
+        let along = (layout.positions[junctions[1]] - layout.positions[junctions[0]]).normalize();
+        let perpendicular = Vec3::new(-along.z, 0.0, along.x);
+        let apothem = edge * 3.0_f32.sqrt() * 0.5;
+        let centers = [
+            midpoint + perpendicular * apothem,
+            midpoint - perpendicular * apothem,
+        ];
+        for center in &centers {
+            let members = carbons
+                .iter()
+                .filter(|carbon| {
+                    ((layout.positions[**carbon] - *center).length() - edge).abs() < 0.005
+                })
+                .count();
+            assert_eq!(members, 6, "each fused ring is a regular hexagon");
+        }
+        // Each hydrogen points radially outward, in-plane, from its
+        // carbon's own hexagon.
+        for hydrogen in &hydrogens {
+            let bonds: Vec<_> = naphthalene
+                .covalent_bonds()
+                .iter()
+                .filter(|bond| bond.start == *hydrogen || bond.end == *hydrogen)
+                .collect();
+            assert_eq!(bonds.len(), 1);
+            let carbon = if bonds[0].start == *hydrogen {
+                bonds[0].end
+            } else {
+                bonds[0].start
+            };
+            let own_center = centers
+                .iter()
+                .find(|center| {
+                    ((layout.positions[carbon] - **center).length() - edge).abs() < 0.005
+                })
+                .expect("every hydrogen-bearing carbon sits on one hexagon");
+            let outward = (layout.positions[*hydrogen] - layout.positions[carbon]).normalize();
+            let radial = (layout.positions[carbon] - *own_center).normalize();
+            assert!(
+                outward.dot(radial) > 0.99,
+                "hydrogen must extend its hexagon radius, got dot {}",
+                outward.dot(radial)
+            );
+        }
+    }
+
+    #[test]
+    fn sulfur_crown_keeps_all_eight_atoms_evenly_on_one_ring() {
+        let sulfur = crate::composition_catalogue::trusted_preview([16; 8])
+            .expect("S8 preview resolves");
+        assert_eq!(sulfur.atoms.len(), 8);
+        let layout = molecular_layout(&sulfur);
+        let center = layout.positions.iter().copied().sum::<Vec3>() / 8.0;
+        let radii: Vec<f32> = layout
+            .positions
+            .iter()
+            .map(|position| (*position - center).length())
+            .collect();
+        for radius in &radii {
+            assert!((radius - radii[0]).abs() < 0.001, "octagon atoms share one radius");
+        }
+        let bond_lengths: Vec<f32> = sulfur
+            .covalent_bonds()
+            .iter()
+            .map(|bond| (layout.positions[bond.start] - layout.positions[bond.end]).length())
+            .collect();
+        assert_eq!(bond_lengths.len(), 8, "the S8 ring closes with eight bonds");
+        for length in &bond_lengths {
+            assert!((length - bond_lengths[0]).abs() < 0.001);
+        }
+        // Crown pucker: every sulfur lifts the same distance out of the
+        // ring plane, and bonded neighbours sit on opposite sides.
+        for position in &layout.positions {
+            assert!(
+                position.y.abs() / layout.units_per_angstrom > 0.1,
+                "S8 puckers out of the ring plane"
+            );
+            assert!((position.y.abs() - layout.positions[0].y.abs()).abs() < 0.001);
+        }
+        for bond in sulfur.covalent_bonds() {
+            assert!(
+                layout.positions[bond.start].y * layout.positions[bond.end].y < 0.0,
+                "bonded sulfurs alternate above/below the ring plane"
+            );
+        }
+        // Bonded neighbours sit on adjacent polygon slots: every bond spans
+        // one octagon step in projection, never a chord across the ring.
+        let angle_of = |atom: usize| {
+            let offset = layout.positions[atom] - center;
+            offset.z.atan2(offset.x)
+        };
+        for bond in sulfur.covalent_bonds() {
+            let mut delta = (angle_of(bond.start) - angle_of(bond.end)).abs();
+            if delta > std::f32::consts::PI {
+                delta = std::f32::consts::TAU - delta;
+            }
+            assert!(
+                (delta - std::f32::consts::TAU / 8.0).abs() < 0.01,
+                "every bond spans one octagon step, got {delta}"
+            );
+        }
+    }
+
+    #[test]
+    fn cyclohexane_lays_out_as_a_chair() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.cyclohexane").expect("valid structure id"),
+            "C1CCCCC1",
+        )
+        .expect("cyclohexane SMILES parses");
+        let cyclohexane =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C6H12")
+                .expect("cyclohexane preview projects");
+        let carbons: Vec<usize> = cyclohexane
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        let hydrogens: Vec<usize> = cyclohexane
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 6);
+        assert_eq!(hydrogens.len(), 12);
+
+        let layout = molecular_layout(&cyclohexane);
+        let bonded = |left: usize, right: usize| {
+            cyclohexane.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        // Walk the carbon ring in bond order.
+        let mut ring = vec![carbons[0]];
+        while ring.len() < 6 {
+            let current = *ring.last().expect("ring starts non-empty");
+            let next = carbons
+                .iter()
+                .copied()
+                .find(|carbon| !ring.contains(carbon) && bonded(current, *carbon))
+                .expect("the carbon ring closes");
+            ring.push(next);
+        }
+        assert!(bonded(ring[5], ring[0]));
+        // Chair: equal signed lifts from the carbon mean plane, alternating
+        // around the ring — three carbons above, three below.
+        let mean_y = ring.iter().map(|carbon| layout.positions[*carbon].y).sum::<f32>() / 6.0;
+        let lifts: Vec<f32> = ring
+            .iter()
+            .map(|carbon| layout.positions[*carbon].y - mean_y)
+            .collect();
+        for (slot, lift) in lifts.iter().enumerate() {
+            assert!(
+                lift.abs() / layout.units_per_angstrom > 0.1,
+                "ring carbons pucker out of plane"
+            );
+            assert!((lift.abs() - lifts[0].abs()).abs() < 0.001);
+            assert!(
+                lift * lifts[(slot + 1) % 6] < 0.0,
+                "adjacent ring carbons sit on opposite sides of the plane"
+            );
+        }
+        // All six C-C bonds keep one length.
+        let ring_bonds: Vec<f32> = (0..6)
+            .map(|slot| {
+                (layout.positions[ring[slot]] - layout.positions[ring[(slot + 1) % 6]]).length()
+            })
+            .collect();
+        for length in &ring_bonds {
+            assert!((length - ring_bonds[0]).abs() < 0.001);
+        }
+        // Every carbon carries exactly two hydrogens at one C-H length.
+        let mut hydrogen_bond_lengths = Vec::new();
+        for carbon in &carbons {
+            let attached: Vec<usize> = hydrogens
+                .iter()
+                .copied()
+                .filter(|hydrogen| bonded(*carbon, *hydrogen))
+                .collect();
+            assert_eq!(attached.len(), 2);
+            for hydrogen in attached {
+                hydrogen_bond_lengths
+                    .push((layout.positions[hydrogen] - layout.positions[*carbon]).length());
+            }
+        }
+        assert_eq!(hydrogen_bond_lengths.len(), 12, "every hydrogen bonds to one ring carbon");
+        for length in &hydrogen_bond_lengths {
+            assert!((length - hydrogen_bond_lengths[0]).abs() < 0.001);
+        }
+        // No collapsed geometry: every atom pair keeps at least a bonding
+        // distance apart (in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+    }
+
+    /// Centroid and unit normal (Newell's method) of an ordered ring.
+    #[allow(clippy::cast_precision_loss)]
+    fn ring_plane(points: &[Vec3]) -> (Vec3, Vec3) {
+        let centroid = points.iter().copied().sum::<Vec3>() / points.len() as f32;
+        let mut normal = Vec3::ZERO;
+        for (slot, point) in points.iter().enumerate() {
+            let next = points[(slot + 1) % points.len()];
+            normal += (*point - centroid).cross(next - centroid);
+        }
+        (centroid, normal.normalize())
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn decalin_lays_out_as_two_edge_fused_chairs() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.decalin").expect("valid structure id"),
+            "C1CCC2CCCCC2C1",
+        )
+        .expect("decalin SMILES parses");
+        let decalin =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C10H18")
+                .expect("decalin preview projects");
+        let carbons: Vec<usize> = decalin
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        let hydrogens: Vec<usize> = decalin
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 1).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 10);
+        assert_eq!(hydrogens.len(), 18);
+
+        let layout = molecular_layout(&decalin);
+        let bonded = |left: usize, right: usize| {
+            decalin.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        let carbon_neighbours = |atom: usize| -> Vec<usize> {
+            carbons
+                .iter()
+                .copied()
+                .filter(|carbon| bonded(atom, *carbon))
+                .collect()
+        };
+        // The two ring-junction carbons are directly bonded.
+        let junctions: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon).len() == 3)
+            .collect();
+        assert_eq!(junctions.len(), 2);
+        assert!(bonded(junctions[0], junctions[1]));
+        // Walk each four-carbon path between the junctions into a ring.
+        let rings: Vec<Vec<usize>> = carbon_neighbours(junctions[0])
+            .into_iter()
+            .filter(|carbon| *carbon != junctions[1])
+            .map(|start| {
+                let mut ring = vec![junctions[0], start];
+                while *ring.last().expect("ring starts non-empty") != junctions[1] {
+                    let current = *ring.last().expect("ring starts non-empty");
+                    let next = carbon_neighbours(current)
+                        .into_iter()
+                        .find(|carbon| !ring.contains(carbon))
+                        .expect("the path reaches the far junction");
+                    ring.push(next);
+                }
+                ring
+            })
+            .collect();
+        assert_eq!(rings.len(), 2);
+        // Each ring is a chair about its own best-fit plane: equal-magnitude
+        // signed lifts alternating around the ring.
+        for ring in &rings {
+            assert_eq!(ring.len(), 6);
+            let points: Vec<Vec3> = ring.iter().map(|atom| layout.positions[*atom]).collect();
+            let (centroid, normal) = ring_plane(&points);
+            let lifts: Vec<f32> = points
+                .iter()
+                .map(|point| (*point - centroid).dot(normal))
+                .collect();
+            for (slot, lift) in lifts.iter().enumerate() {
+                assert!(
+                    lift.abs() / layout.units_per_angstrom > 0.1,
+                    "chair carbons pucker out of the ring plane, got {lift}"
+                );
+                assert!((lift.abs() - lifts[0].abs()).abs() < 0.005);
+                assert!(
+                    lift * lifts[(slot + 1) % 6] < 0.0,
+                    "adjacent ring carbons sit on opposite sides of the plane"
+                );
+            }
+        }
+        // All eleven C-C bonds keep one length.
+        let ring_bonds: Vec<f32> = decalin
+            .covalent_bonds()
+            .iter()
+            .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
+            .map(|bond| (layout.positions[bond.start] - layout.positions[bond.end]).length())
+            .collect();
+        assert_eq!(ring_bonds.len(), 11, "10 carbons close two fused hexagons");
+        for length in &ring_bonds {
+            assert!((length - ring_bonds[0]).abs() < 0.005);
+        }
+        // No collapsed geometry (distances in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+        // Hydrogens: one per junction carbon, two elsewhere, all at one C-H
+        // length.
+        let mut hydrogen_bond_lengths = Vec::new();
+        for carbon in &carbons {
+            let attached: Vec<usize> = hydrogens
+                .iter()
+                .copied()
+                .filter(|hydrogen| bonded(*carbon, *hydrogen))
+                .collect();
+            let expected = if junctions.contains(carbon) { 1 } else { 2 };
+            assert_eq!(attached.len(), expected);
+            for hydrogen in attached {
+                hydrogen_bond_lengths
+                    .push((layout.positions[hydrogen] - layout.positions[*carbon]).length());
+            }
+        }
+        assert_eq!(hydrogen_bond_lengths.len(), 18);
+        for length in &hydrogen_bond_lengths {
+            assert!((length - hydrogen_bond_lengths[0]).abs() < 0.005);
+        }
+    }
+
+    #[test]
+    fn spiro_nonane_stands_its_two_rings_in_crossed_planes() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.spiro-nonane").expect("valid structure id"),
+            "C1CCC2(C1)CCCC2",
+        )
+        .expect("spiro[4.4]nonane SMILES parses");
+        let spiro =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C9H16")
+                .expect("spiro[4.4]nonane preview projects");
+        let carbons: Vec<usize> = spiro
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 9);
+
+        let layout = molecular_layout(&spiro);
+        let bonded = |left: usize, right: usize| {
+            spiro.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        let carbon_neighbours = |atom: usize| -> Vec<usize> {
+            carbons
+                .iter()
+                .copied()
+                .filter(|carbon| bonded(atom, *carbon))
+                .collect()
+        };
+        // Exactly one spiro carbon carries four ring bonds.
+        let hubs: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon).len() == 4)
+            .collect();
+        assert_eq!(hubs.len(), 1);
+        let hub = hubs[0];
+        // Walk both rings out from the hub.
+        let mut rings: Vec<Vec<usize>> = Vec::new();
+        for start in carbon_neighbours(hub) {
+            if rings.iter().any(|ring| ring.contains(&start)) {
+                continue;
+            }
+            let mut ring = vec![hub, start];
+            loop {
+                let current = *ring.last().expect("ring starts non-empty");
+                let previous = ring[ring.len() - 2];
+                let next = carbon_neighbours(current)
+                    .into_iter()
+                    .find(|carbon| *carbon != previous)
+                    .expect("ring carbons keep two ring bonds");
+                if next == hub {
+                    break;
+                }
+                ring.push(next);
+            }
+            rings.push(ring);
+        }
+        assert_eq!(rings.len(), 2, "two rings meet at the spiro carbon");
+        // Equal bond lengths within each ring.
+        for ring in &rings {
+            assert_eq!(ring.len(), 5);
+            let lengths: Vec<f32> = (0..ring.len())
+                .map(|slot| {
+                    layout.positions[ring[slot]]
+                        .distance(layout.positions[ring[(slot + 1) % ring.len()]])
+                })
+                .collect();
+            for length in &lengths {
+                assert!((length - lengths[0]).abs() < 0.005);
+            }
+        }
+        // The hub's four ring-bond directions spread out: no two closer
+        // than ~60 degrees.
+        let directions: Vec<Vec3> = carbon_neighbours(hub)
+            .into_iter()
+            .map(|carbon| (layout.positions[carbon] - layout.positions[hub]).normalize())
+            .collect();
+        for (index, left) in directions.iter().enumerate() {
+            for right in &directions[index + 1..] {
+                assert!(
+                    left.dot(*right) < 0.52,
+                    "spiro ring bonds crowd together, dot {}",
+                    left.dot(*right)
+                );
+            }
+        }
+        // No collapsed geometry (distances in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+    }
+
+    #[test]
+    fn norbornane_arcs_its_one_carbon_bridge_over_the_main_ring() {
+        let structure = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("test.norbornane").expect("valid structure id"),
+            "C1CC2CCC1C2",
+        )
+        .expect("norbornane SMILES parses");
+        let norbornane =
+            crate::composition_catalogue::preview_from_validated_structure(&structure, "C7H12")
+                .expect("norbornane preview projects");
+        let carbons: Vec<usize> = norbornane
+            .atoms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, atom)| (atom.atomic_number == 6).then_some(index))
+            .collect();
+        assert_eq!(carbons.len(), 7);
+
+        let layout = molecular_layout(&norbornane);
+        let bonded = |left: usize, right: usize| {
+            norbornane.covalent_bonds().iter().any(|bond| {
+                (bond.start == left && bond.end == right)
+                    || (bond.start == right && bond.end == left)
+            })
+        };
+        let carbon_neighbours = |atom: usize| -> Vec<usize> {
+            carbons
+                .iter()
+                .copied()
+                .filter(|carbon| bonded(atom, *carbon))
+                .collect()
+        };
+        // Two bridgeheads, and one bridge carbon bonded to both of them.
+        let bridgeheads: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| carbon_neighbours(*carbon).len() == 3)
+            .collect();
+        assert_eq!(bridgeheads.len(), 2);
+        let bridge_carbons: Vec<usize> = carbons
+            .iter()
+            .copied()
+            .filter(|carbon| {
+                let neighbours = carbon_neighbours(*carbon);
+                neighbours.len() == 2
+                    && neighbours.iter().all(|other| bridgeheads.contains(other))
+            })
+            .collect();
+        assert_eq!(bridge_carbons.len(), 1);
+        let bridge = bridge_carbons[0];
+        // Walk the six-carbon main ring (everything except the bridge).
+        let start = carbon_neighbours(bridgeheads[0])
+            .into_iter()
+            .find(|carbon| *carbon != bridge)
+            .expect("the bridgehead joins the main ring");
+        let mut main_ring = vec![bridgeheads[0], start];
+        while main_ring.len() < 6 {
+            let current = *main_ring.last().expect("ring starts non-empty");
+            let next = carbon_neighbours(current)
+                .into_iter()
+                .find(|carbon| *carbon != bridge && !main_ring.contains(carbon))
+                .expect("the main ring closes");
+            main_ring.push(next);
+        }
+        assert!(bonded(main_ring[5], main_ring[0]));
+        // The bridge carbon rises out of the main ring's best-fit plane.
+        let points: Vec<Vec3> = main_ring
+            .iter()
+            .map(|atom| layout.positions[*atom])
+            .collect();
+        let (centroid, normal) = ring_plane(&points);
+        let bridge_lift =
+            (layout.positions[bridge] - centroid).dot(normal).abs() / layout.units_per_angstrom;
+        assert!(
+            bridge_lift > 0.3,
+            "the bridge carbon must arc over the ring plane, got {bridge_lift}"
+        );
+        // Every C-C bond keeps its target length.
+        let target = bond_length_angstrom(6, 6, 1, MolecularLink::Covalent)
+            * layout.units_per_angstrom;
+        let ring_bonds: Vec<f32> = norbornane
+            .covalent_bonds()
+            .iter()
+            .filter(|bond| carbons.contains(&bond.start) && carbons.contains(&bond.end))
+            .map(|bond| layout.positions[bond.start].distance(layout.positions[bond.end]))
+            .collect();
+        assert_eq!(ring_bonds.len(), 8, "norbornane closes with eight C-C bonds");
+        for length in &ring_bonds {
+            assert!(
+                (length - target).abs() < target * 0.01,
+                "C-C bond drifted from its target: {length} vs {target}"
+            );
+        }
+        // No collapsed geometry (distances in ångströms).
+        for (index, left) in layout.positions.iter().enumerate() {
+            for right in &layout.positions[index + 1..] {
+                assert!(left.distance(*right) / layout.units_per_angstrom > 0.7);
+            }
+        }
+    }
+
+    #[test]
+    fn signed_volume_convention_matches_handedness_semantics() {
+        // Hand-built regular tetrahedron around the origin. First listed
+        // neighbour at +Z; viewer at +Z looking toward the centre sees the
+        // XY plane in its usual orientation, and p1 (0°) → p2 (120°) →
+        // p3 (240°) winds counterclockwise: `Counterclockwise` handedness.
+        let half = 3.0_f32.sqrt() / 2.0;
+        let counterclockwise = [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, -0.5),
+            Vec3::new(-0.5, half, -0.5),
+            Vec3::new(-0.5, -half, -0.5),
+        ];
+        assert!(
+            chirality_signed_volume(counterclockwise) < 0.0,
+            "counterclockwise winding must give a negative signed volume"
+        );
+        // Swapping two neighbours yields the mirror image: `Clockwise`.
+        let clockwise = [
+            counterclockwise[0],
+            counterclockwise[2],
+            counterclockwise[1],
+            counterclockwise[3],
+        ];
+        assert!(chirality_signed_volume(clockwise) > 0.0);
+    }
+
+    #[test]
+    fn enantiomer_layouts_mirror_each_other_at_the_stereocentre() {
+        let butanol = |smiles: &str, id: &str| {
+            let structure = chem_domain::structure_from_smiles(
+                chem_domain::StructureId::new(id).expect("valid structure id"),
+                smiles,
+            )
+            .expect("butan-2-ol SMILES parses");
+            let preview = crate::composition_catalogue::preview_from_validated_structure(
+                &structure, "C4H10O",
+            )
+            .expect("butan-2-ol preview projects");
+            let chirality = preview
+                .atoms
+                .iter()
+                .find_map(|atom| atom.chirality)
+                .expect("the stereocentre survives preview projection");
+            let layout = molecular_layout(&preview);
+            let corners = chirality.neighbours.map(|index| layout.positions[index]);
+            (chirality.handedness, chirality_signed_volume(corners))
+        };
+        let (left_hand, left_volume) = butanol("C[C@H](O)CC", "test.butan-2-ol-at");
+        let (right_hand, right_volume) = butanol("C[C@@H](O)CC", "test.butan-2-ol-at-at");
+        assert_ne!(left_hand, right_hand, "enantiomers carry opposite descriptors");
+        assert!(
+            left_volume * right_volume < 0.0,
+            "enantiomer layouts must mirror: {left_volume} vs {right_volume}"
+        );
+        for (hand, volume) in [(left_hand, left_volume), (right_hand, right_volume)] {
+            match hand {
+                chem_domain::TetrahedralHandedness::Counterclockwise => assert!(
+                    volume < 0.0,
+                    "counterclockwise centre laid out clockwise ({volume})"
+                ),
+                chem_domain::TetrahedralHandedness::Clockwise => assert!(
+                    volume > 0.0,
+                    "clockwise centre laid out counterclockwise ({volume})"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn budget_overflow_sheds_the_tail_instead_of_blanking_the_scene() {
+        let in_budget = budget_prefix(1_000, &[0, 1, 2, 3, 4, 5]);
+        assert_eq!(in_budget, (1_000, 6));
+
+        let vertex_budget = usize::try_from(MAX_VERTICES).expect("budget fits usize");
+        let over = vertex_budget + 10;
+        let overflow_vertex = u32::try_from(vertex_budget).expect("budget fits u32");
+        // Two triangles inside the budget, then one referencing overflowing
+        // vertices: the prefix keeps the first two and stays triangle-aligned.
+        let indices = [0, 1, 2, 3, 4, 5, overflow_vertex, 6, 7];
+        let (vertices, prefix) = budget_prefix(over, &indices);
+        assert_eq!(vertices, vertex_budget);
+        assert_eq!(prefix, 6, "the cut must land on a whole triangle");
+    }
+
+    #[test]
+    fn molecular_model_renders_only_in_the_inset_batch() {
+        let request = chemistry::ReactionRequest::from_id("covalent-i-f-if7")
+            .expect("reviewed IF7 request exists");
+        let plan = plan_for(request);
+        let final_ordinal = plan.timeline.beats.last().unwrap().end_ordinal;
+        let preview = request.product_preview().expect("IF7 preview exists");
+
+        let without_previews = build_scene(&plan, final_ordinal, 1.0, &[], None);
+        assert_eq!(
+            without_previews.emissive_end, without_previews.inset_end,
+            "no reviewed preview means no inset geometry"
+        );
+
+        let with_preview = build_scene(&plan, final_ordinal, 1.0, &[], Some(&preview));
+        assert!(
+            with_preview.inset_end > with_preview.emissive_end,
+            "the reviewed product preview populates the inset batch"
+        );
+        // The macroscopic batches are identical with and without the preview:
+        // molecules never appear inside the observable scene.
+        assert_eq!(with_preview.emissive_end, without_previews.emissive_end);
+        assert!(
+            active_molecular_preview(&plan, 0, &[], Some(&preview)).is_none(),
+            "the product model stays hidden before its visibility ordinal"
+        );
     }
 
     #[test]
@@ -3291,7 +5804,7 @@ mod tests {
             .min()
             .expect("alkali-water profile has observation-backed effects");
         let reacting = build_scene(&plan, reacting_ordinal, 0.5, &[], None);
-        assert!(reacting.0.len() > before.0.len());
+        assert!(reacting.vertices.len() > before.vertices.len());
         assert!(plan.effects.iter().any(|effect| {
             effect.effect == EffectProfile::SurfaceDisturbance
                 || effect.effect == EffectProfile::SplashEmitter
@@ -3313,7 +5826,7 @@ mod tests {
             .expect("reviewed potassium profile selects the generic flame emitter");
         let potassium_mesh = build_scene(&potassium, flame.start_ordinal, 0.5, &[], None);
         assert!(
-            usize::try_from(potassium_mesh.3).is_ok_and(|start| start < potassium_mesh.1.len()),
+            potassium_mesh.glass_end < potassium_mesh.emissive_end,
             "emissive cores and sparks use the final additive batch"
         );
 
@@ -3325,10 +5838,7 @@ mod tests {
                 .any(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_)))
         );
         let lithium_mesh = build_scene(&lithium, flame.start_ordinal, 0.5, &[], None);
-        assert_eq!(
-            usize::try_from(lithium_mesh.3).expect("index boundary fits usize"),
-            lithium_mesh.1.len()
-        );
+        assert_eq!(lithium_mesh.glass_end, lithium_mesh.emissive_end);
     }
 
     #[test]
@@ -3358,8 +5868,8 @@ mod tests {
                     .zip(expected)
                     .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
             };
-            assert!(!before.0.iter().any(has_expected_colour));
-            assert!(visible.0.iter().any(has_expected_colour));
+            assert!(!before.vertices.iter().any(has_expected_colour));
+            assert!(visible.vertices.iter().any(has_expected_colour));
         }
     }
 
@@ -3432,8 +5942,8 @@ mod tests {
             None,
         );
         let active = build_scene(&plan, mixing.start_ordinal, 0.5, &[], None);
-        assert!(active.0.len() > before.0.len());
-        assert!(active.1.len() > before.1.len());
+        assert!(active.vertices.len() > before.vertices.len());
+        assert!(active.indices.len() > before.indices.len());
 
         let colourless = appearance_color(AppearanceProfile::AqueousColourless);
         assert!((colourless[2] - colourless[0]).abs() < 0.12);
@@ -3499,8 +6009,8 @@ mod tests {
             0.0,
             None,
         );
-        let (unrotated, _, _, _) = unrotated_meshes.finish();
-        let (rotated, _, _, _) = rotated_meshes.finish();
+        let unrotated = unrotated_meshes.finish().vertices;
+        let rotated = rotated_meshes.finish().vertices;
 
         assert_eq!(unrotated.len(), rotated.len());
         assert_ne!(
@@ -3530,11 +6040,11 @@ mod tests {
             0.0,
             None,
         );
-        let (vertices, _, opaque_indices, _) = meshes.finish();
+        let batches = meshes.finish();
 
-        assert!(opaque_indices > 0, "the floor remains opaque geometry");
+        assert!(batches.opaque_end > 0, "the floor remains opaque geometry");
         assert!(
-            vertices.iter().all(|vertex| vertex.position[1] < 0.0),
+            batches.vertices.iter().all(|vertex| vertex.position[1] < 0.0),
             "the environment must not add a vertical wall above the floor"
         );
     }

@@ -44,8 +44,9 @@ fn anion_root(symbol: &str) -> Option<&'static str> {
 type IonUnit = &'static [(&'static str, u64)];
 
 /// (name, one anion unit, charge) for the common polyatomic anions.
-const POLYATOMIC_ANIONS: [(&str, IonUnit, u64); 11] = [
+const POLYATOMIC_ANIONS: [(&str, IonUnit, u64); 12] = [
     ("hydroxide", &[("H", 1), ("O", 1)], 1),
+    ("cyanate", &[("C", 1), ("N", 1), ("O", 1)], 1),
     ("carbonate", &[("C", 1), ("O", 3)], 2),
     ("hydrogen carbonate", &[("C", 1), ("H", 1), ("O", 3)], 1),
     ("nitrate", &[("N", 1), ("O", 3)], 1),
@@ -226,11 +227,12 @@ pub(crate) fn binary_molecular_name(counts: &BTreeMap<String, u64>) -> Option<St
 /// and used as a last-resort display fallback, but lose to a systematic
 /// name (`HCl` gas is "hydrogen chloride"; the acid name belongs to the
 /// solution).
-const TRIVIAL_NAMES: [(&str, IonUnit, bool); 11] = [
+const TRIVIAL_NAMES: [(&str, IonUnit, bool); 12] = [
     ("water", &[("H", 2), ("O", 1)], true),
     ("ammonia", &[("N", 1), ("H", 3)], true),
     ("methane", &[("C", 1), ("H", 4)], true),
     ("benzene", &[("C", 6), ("H", 6)], true),
+    ("urea", &[("C", 1), ("H", 4), ("N", 2), ("O", 1)], true),
     ("hydrochloric acid", &[("H", 1), ("Cl", 1)], false),
     ("sulfuric acid", &[("H", 2), ("S", 1), ("O", 4)], false),
     ("sulfurous acid", &[("H", 2), ("S", 1), ("O", 3)], false),
@@ -251,12 +253,27 @@ fn trivial_name(counts: &BTreeMap<String, u64>, display_only: bool) -> Option<&'
         .map(|(name, _, _)| *name)
 }
 
+/// Display name for an explicit molecular graph (hydrogens as atoms), as
+/// animation frames carry them: recognised named molecules by exact graph
+/// match, None otherwise — a wrong name is worse than none.
+#[must_use]
+pub fn molecular_graph_name(symbols: &[&str], bonds: &[(usize, usize, u8)]) -> Option<String> {
+    let editable = crate::organic::editable_from_explicit(symbols, bonds)?;
+    crate::organic::recognised_name(&editable)
+}
+
 /// English name for a whole validated structure: element names for
-/// elements, trivial names, salt nomenclature (using the structure's own
-/// cation charge), and prefix names for molecular binaries. None when the
-/// compound is outside these rules — a wrong name is worse than none.
+/// elements, trivial names, recognised organic molecules by graph, salt
+/// nomenclature (using the structure's own cation charge), and prefix
+/// names for molecular binaries. None when the compound is outside these
+/// rules — a wrong name is worse than none.
 #[must_use]
 pub fn structure_name(structure: &chem_domain::StructureDefinition) -> Option<String> {
+    if let Some(editable) = crate::organic::Editable::from_structure(structure)
+        && let Some(name) = crate::organic::recognised_name(&editable)
+    {
+        return Some(stereo_prefixed(structure, name));
+    }
     let counts = structure
         .formula()
         .elements()
@@ -280,21 +297,62 @@ pub fn structure_name(structure: &chem_domain::StructureDefinition) -> Option<St
     }
 }
 
+/// Prefixes a molecular name with its stereochemistry when exactly one
+/// descriptor is present and decisive; richer stereo stays unprefixed
+/// rather than half-described.
+fn stereo_prefixed(structure: &chem_domain::StructureDefinition, name: String) -> String {
+    let arrangements: Vec<_> = structure
+        .graph()
+        .covalent_bonds()
+        .values()
+        .filter_map(|bond| bond.stereo().map(chem_domain::DoubleBondStereo::arrangement))
+        .collect();
+    let centres: Vec<_> = structure
+        .graph()
+        .atoms()
+        .values()
+        .filter(|atom| atom.chirality().is_some())
+        .map(|atom| atom.id().clone())
+        .collect();
+    match (arrangements.as_slice(), centres.as_slice()) {
+        ([chem_domain::StereoArrangement::Cis], []) => format!("cis-{name}"),
+        ([chem_domain::StereoArrangement::Trans], []) => format!("trans-{name}"),
+        ([], [centre]) => match chem_domain::stereocentre_descriptor(structure, centre) {
+            Some(chem_domain::StereoDescriptor::R) => format!("(R)-{name}"),
+            Some(chem_domain::StereoDescriptor::S) => format!("(S)-{name}"),
+            None => name,
+        },
+        _ => name,
+    }
+}
+
 /// Element counts for a user-typed compound: a formula (`CuSO4`,
 /// `Mg(NO3)2`), an element or compound name ("oxygen", "copper(II)
 /// sulfate", "carbon dioxide", "water"), in classroom nomenclature.
 #[must_use]
 pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
     let trimmed = input.trim();
-    // Formulas are case-sensitive; try the input verbatim first.
+    // Strings with SMILES-only shapes — reused ring-closure digits,
+    // brackets, bond or stereo symbols — mean SMILES even when the formula
+    // grammar could also read them: "C1CCC2CCCCC2C1" is decalin, not C12.
+    if smiles_intent(trimmed)
+        && let Some(counts) = smiles_composition(trimmed)
+    {
+        return Some(counts);
+    }
+    // Formulas are case-sensitive; try the input verbatim first. The parser
+    // only checks symbol shape, so require every symbol to be a real element
+    // ("HCL" parses as H-C-L; the junk "L" must fall through to the
+    // case-insensitive reading instead of poisoning the result).
     if let Ok(formula) = FormulaComposition::parse(trimmed) {
-        return Some(
-            formula
-                .elements()
-                .iter()
-                .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
-                .collect(),
-        );
+        let counts = formula
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+            .collect::<BTreeMap<String, u64>>();
+        if counts.keys().all(|symbol| element_name(symbol).is_some()) {
+            return Some(counts);
+        }
     }
     // British spellings and spaced numerals normalize away.
     let name = trimmed
@@ -305,6 +363,24 @@ pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
     let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
     if let Some((_, unit, _)) = TRIVIAL_NAMES.iter().find(|(known, _, _)| *known == name) {
         return Some(scaled(unit, 1, BTreeMap::new()));
+    }
+    // Named molecules and systematic names (organics, mostly) resolve
+    // through their subset SMILES: names identify isomers a composition
+    // cannot.
+    if let Some(smiles) = chem_domain::resolved_name_smiles(&name)
+        && let Some(structure) = chem_domain::structure_from_smiles(
+            chem_domain::StructureId::new("named.composition").ok()?,
+            &smiles,
+        )
+    {
+        return Some(
+            structure
+                .formula()
+                .elements()
+                .iter()
+                .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+                .collect(),
+        );
     }
     if let Some(symbol) = element_by_name(&name) {
         // Standard states: diatomic gases and the P4/S8 allotropes.
@@ -317,7 +393,160 @@ pub fn composition_from_name(input: &str) -> Option<BTreeMap<String, u64>> {
         return Some([(symbol.to_owned(), count)].into());
     }
     let words = name.split(' ').collect::<Vec<_>>();
-    salt_composition(&words).or_else(|| molecular_composition(&words))
+    salt_composition(&words)
+        .or_else(|| molecular_composition(&words))
+        .or_else(|| case_insensitive_formula(trimmed))
+        .or_else(|| smiles_composition(trimmed))
+}
+
+/// A string shaped like SMILES rather than a formula: bond, branch,
+/// bracket, or stereo characters, or a ring-closure digit used twice.
+fn smiles_intent(input: &str) -> bool {
+    if input
+        .chars()
+        .any(|character| "[]()=#@/\\".contains(character))
+    {
+        return true;
+    }
+    let mut seen = [0_u8; 10];
+    for byte in input.bytes().filter(u8::is_ascii_digit) {
+        seen[usize::from(byte - b'0')] += 1;
+    }
+    seen.iter().any(|count| *count >= 2)
+}
+
+/// Subset SMILES typed straight into the composer ("c1ccccc1",
+/// "C[C@H](O)CC"): case-sensitive, tried last so formulas and names win.
+/// The typed text rides along as the draft display, which the identity
+/// seam parses back into the exact structure.
+fn smiles_composition(input: &str) -> Option<BTreeMap<String, u64>> {
+    let structure = chem_domain::structure_from_smiles(
+        chem_domain::StructureId::new("typed.smiles").ok()?,
+        input,
+    )?;
+    Some(
+        structure
+            .formula()
+            .elements()
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str().to_owned(), *count))
+            .collect(),
+    )
+}
+
+/// Formula typed without conventional capitalisation (`hcl`, `NAOH`,
+/// `h2so4`). Case-folded formulas can be ambiguous (`hno3` reads as H-N-O₃
+/// or H-No₃, `cuso4` as Cu-S-O₄ or C-U-S-O₄), so every segmentation is
+/// enumerated and ambiguity is resolved by asking the structure generator
+/// which candidates are actually buildable chemistry. Anything still
+/// ambiguous after that is rejected: a wrong parse is worse than none.
+// ponytail: no parentheses support — `mg(no3)2` still needs proper case.
+fn case_insensitive_formula(input: &str) -> Option<BTreeMap<String, u64>> {
+    let folded = input.to_lowercase();
+    if folded.len() > 32 || !folded.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+        return None;
+    }
+    // A bare element symbol wins outright: `mg` is magnesium, `si` is
+    // silicon, `co` is cobalt (carbon monoxide is reachable as `CO` or
+    // "carbon monoxide").
+    if folded.bytes().all(|byte| byte.is_ascii_lowercase())
+        && let Some(symbol) = chem_domain::ELEMENT_SYMBOLS
+            .iter()
+            .find(|symbol| symbol.to_lowercase() == folded)
+    {
+        return Some([((*symbol).to_owned(), 1)].into());
+    }
+
+    let mut candidates = Vec::new();
+    segment_formula(folded.as_bytes(), &mut BTreeMap::new(), &mut candidates);
+    candidates.sort();
+    candidates.dedup();
+    if let [composition] = candidates.as_slice() {
+        return Some(composition.clone());
+    }
+    // Several readings: keep the ones the structure generator can actually
+    // build, then prefer the reading with more distinct elements (`co2` is
+    // carbon dioxide, not a cobalt cluster).
+    let mut buildable = candidates
+        .into_iter()
+        .filter(structure_exists)
+        .collect::<Vec<_>>();
+    buildable.sort_by_key(|composition| std::cmp::Reverse(composition.len()));
+    match buildable.as_slice() {
+        [composition] => Some(composition.clone()),
+        [first, second, ..] if first.len() > second.len() => Some(first.clone()),
+        _ => None,
+    }
+}
+
+/// Recursively segments a case-folded formula into element symbols with
+/// optional counts, collecting every complete reading.
+fn segment_formula(
+    rest: &[u8],
+    prefix: &mut BTreeMap<String, u64>,
+    out: &mut Vec<BTreeMap<String, u64>>,
+) {
+    if rest.is_empty() {
+        if !prefix.is_empty() {
+            out.push(prefix.clone());
+        }
+        return;
+    }
+    for length in [2_usize, 1] {
+        if rest.len() < length || !rest[..length].iter().all(u8::is_ascii_lowercase) {
+            continue;
+        }
+        let Some(symbol) = chem_domain::ELEMENT_SYMBOLS
+            .iter()
+            .find(|symbol| symbol.len() == length && symbol.to_lowercase().as_bytes() == &rest[..length])
+        else {
+            continue;
+        };
+        let digits = rest[length..]
+            .iter()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count();
+        let count = if digits == 0 {
+            1
+        } else {
+            match std::str::from_utf8(&rest[length..length + digits])
+                .ok()
+                .and_then(|digits| digits.parse::<u64>().ok())
+            {
+                Some(count) if count > 0 => count,
+                _ => continue,
+            }
+        };
+        *prefix.entry((*symbol).to_owned()).or_insert(0) += count;
+        segment_formula(&rest[length + digits..], prefix, out);
+        let entry = prefix.get_mut(*symbol).expect("just inserted");
+        if *entry > count {
+            *entry -= count;
+        } else {
+            prefix.remove(*symbol);
+        }
+    }
+}
+
+/// Whether the structure generator can build one coherent structure from
+/// this composition — the chemistry oracle used to reject nonsense readings.
+fn structure_exists(composition: &BTreeMap<String, u64>) -> bool {
+    let Ok(counts) = composition
+        .iter()
+        .map(|(symbol, count)| {
+            chem_domain::ElementSymbol::new(symbol.as_str()).map(|symbol| (symbol, *count))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()
+    else {
+        return false;
+    };
+    let Ok(inventory) = chem_domain::ElementInventory::new(counts) else {
+        return false;
+    };
+    let Ok(id) = chem_domain::StructureId::new("naming.case-fold-probe") else {
+        return false;
+    };
+    chem_domain::generate_structure(id, &inventory).is_some()
 }
 
 fn element_by_name(name: &str) -> Option<&'static str> {
@@ -554,6 +783,61 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn case_insensitive_formulas_resolve_common_classroom_input() {
+        let counts = |pairs: &[(&str, u64)]| {
+            pairs
+                .iter()
+                .map(|(symbol, count)| ((*symbol).to_owned(), *count))
+                .collect::<BTreeMap<String, u64>>()
+        };
+        // Casing mistakes users actually make.
+        for input in ["hcl", "HCL", "hCl"] {
+            assert_eq!(
+                composition_from_name(input),
+                Some(counts(&[("H", 1), ("Cl", 1)])),
+                "{input}"
+            );
+        }
+        for input in ["naoh", "NAOH"] {
+            assert_eq!(
+                composition_from_name(input),
+                Some(counts(&[("Na", 1), ("O", 1), ("H", 1)])),
+                "{input}"
+            );
+        }
+        assert_eq!(
+            composition_from_name("h2so4"),
+            Some(counts(&[("H", 2), ("S", 1), ("O", 4)]))
+        );
+        // Ambiguous case-folded readings resolve to real chemistry: hno3
+        // could read H-No3 (nobelium) and cuso4 could read C-U-S-O4
+        // (uranium); the structure oracle keeps the sensible parse.
+        assert_eq!(
+            composition_from_name("hno3"),
+            Some(counts(&[("H", 1), ("N", 1), ("O", 3)]))
+        );
+        assert_eq!(
+            composition_from_name("cuso4"),
+            Some(counts(&[("Cu", 1), ("S", 1), ("O", 4)]))
+        );
+        assert_eq!(
+            composition_from_name("co2"),
+            Some(counts(&[("C", 1), ("O", 2)]))
+        );
+        assert_eq!(
+            composition_from_name("caco3"),
+            Some(counts(&[("Ca", 1), ("C", 1), ("O", 3)]))
+        );
+        // A bare symbol is the element, whatever the case.
+        assert_eq!(composition_from_name("mg"), Some(counts(&[("Mg", 1)])));
+        assert_eq!(composition_from_name("si"), Some(counts(&[("Si", 1)])));
+        // Junk still fails instead of guessing.
+        assert_eq!(composition_from_name("xyz"), None);
+        assert_eq!(composition_from_name("acid"), None);
+    }
+
     #[test]
     fn compound_names_prefer_systematic_over_acid_aliases() {
         // HCl gas is hydrogen chloride; the acid name belongs to solution.
@@ -628,6 +912,22 @@ mod tests {
             composition("ammonium chloride").as_deref(),
             Some("Cl1 H4 N1")
         );
+        // SMILES-intent strings beat the formula grammar; plain formulas
+        // with brackets or repeated digits still fall through to formulas.
+        assert_eq!(
+            composition("C1CCC2CCCCC2C1").as_deref(),
+            Some("C10 H18"),
+            "decalin SMILES, not the formula C12"
+        );
+        assert_eq!(composition("c1ccccc1").as_deref(), Some("C6 H6"));
+        assert_eq!(composition("Mg(NO3)2").as_deref(), Some("Mg1 N2 O6"));
+        assert_eq!(composition("C6H6").as_deref(), Some("C6 H6"));
+        // The Wöhler pair: distinct names, one shared composition.
+        assert_eq!(
+            composition("ammonium cyanate").as_deref(),
+            Some("C1 H4 N2 O1")
+        );
+        assert_eq!(composition("urea").as_deref(), Some("C1 H4 N2 O1"));
         // Molecular binaries.
         assert_eq!(composition("carbon dioxide").as_deref(), Some("C1 O2"));
         assert_eq!(composition("carbon monoxide").as_deref(), Some("C1 O1"));

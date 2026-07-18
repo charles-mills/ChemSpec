@@ -1,7 +1,9 @@
 [package]
 name = "chems-cli"
+authors.workspace = true
 description = "Command-line source, formatting, and expansion inspection for ChemSpec"
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

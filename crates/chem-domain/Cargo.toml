@@ -1,7 +1,9 @@
 [package]
 name = "chem-domain"
+authors.workspace = true
 description = "Exact values and stable chemistry types for ChemSpec"
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

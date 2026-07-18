@@ -1,7 +1,9 @@
 [package]
 name = "chem-catalogue"
+authors.workspace = true
 description = "Immutable reviewed chemistry facts and catalogue validation for ChemSpec"
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

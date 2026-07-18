@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use chem_domain::FormulaComposition;
 use chem_kernel::{SimulationFrame, SimulationFrames};
 
 /// Formats an ASCII catalogue equation for display without changing its
@@ -22,23 +23,74 @@ fn display_equation_token(token: &str) -> String {
         return token.to_owned();
     }
 
-    let characters = token.chars().collect::<Vec<_>>();
-    let mut formatted = String::with_capacity(token.len());
-    for (index, character) in characters.iter().copied().enumerate() {
-        let previous = index.checked_sub(1).and_then(|index| characters.get(index));
-        let formula_count = character.is_ascii_digit()
-            && previous.is_some_and(|previous| {
-                previous.is_ascii_alphabetic()
-                    || previous.is_ascii_digit()
-                    || matches!(previous, ')' | ']')
-            });
-        formatted.push(if formula_count {
-            subscript_digit(character)
-        } else {
-            character
+    let (formula, suffix) = token
+        .rsplit_once('[')
+        .map_or((token, ""), |(formula, suffix)| {
+            let suffix = suffix.strip_suffix(']').unwrap_or_default();
+            if matches!(suffix, "molecular" | "ion" | "ionic" | "metallic") {
+                (formula, &token[formula.len()..])
+            } else {
+                (token, "")
+            }
         });
+    let mut displayed = display_formula(formula);
+    displayed.push_str(suffix);
+    displayed
+}
+
+/// Renders one valid formula using conventional chemical typography.
+///
+/// Internal formulae stay canonical ASCII. Invalid text is returned unchanged
+/// so versions, coefficients, diagnostics, and arbitrary prose are never
+/// mistaken for chemistry.
+pub fn display_formula(formula: &str) -> String {
+    let canonical = formula
+        .chars()
+        .map(ascii_formula_character)
+        .collect::<String>();
+    if FormulaComposition::parse(&canonical).is_err() {
+        return formula.to_owned();
+    }
+
+    let mut formatted = String::with_capacity(canonical.len());
+    let mut adduct_multiplier = false;
+    for character in canonical.chars() {
+        match character {
+            '.' => {
+                formatted.push('·');
+                adduct_multiplier = true;
+            }
+            digit if digit.is_ascii_digit() => {
+                formatted.push(if adduct_multiplier {
+                    digit
+                } else {
+                    subscript_digit(digit)
+                });
+            }
+            other => {
+                adduct_multiplier = false;
+                formatted.push(other);
+            }
+        }
     }
     formatted
+}
+
+const fn ascii_formula_character(character: char) -> char {
+    match character {
+        '·' => '.',
+        '₀' => '0',
+        '₁' => '1',
+        '₂' => '2',
+        '₃' => '3',
+        '₄' => '4',
+        '₅' => '5',
+        '₆' => '6',
+        '₇' => '7',
+        '₈' => '8',
+        '₉' => '9',
+        other => other,
+    }
 }
 
 const fn subscript_digit(digit: char) -> char {
@@ -87,8 +139,39 @@ pub(crate) fn product_name(
         }
     }
     ionic_pair_name(frame, product_atoms)
+        .or_else(|| organic_graph_name(frame, product_atoms))
         .or_else(|| agent::compound_name(&counts, None))
         .unwrap_or_else(|| formula_text(&counts))
+}
+
+/// Names recognised organic molecules from the product's exact bond graph;
+/// composition-based naming cannot tell isomers apart, the graph can.
+fn organic_graph_name(
+    frame: &SimulationFrame,
+    product_atoms: &BTreeSet<chem_domain::AtomId>,
+) -> Option<String> {
+    let ordered: Vec<&chem_domain::AtomId> = product_atoms.iter().collect();
+    let index_of = |target: &chem_domain::AtomId| ordered.iter().position(|atom| *atom == target);
+    let symbols = ordered
+        .iter()
+        .map(|atom| Some(frame.atoms().get(*atom)?.element.as_str()))
+        .collect::<Option<Vec<_>>>()?;
+    let bonds = frame
+        .covalent_edges()
+        .values()
+        .filter(|edge| {
+            product_atoms.contains(&edge.left) || product_atoms.contains(&edge.right)
+        })
+        .map(|edge| {
+            let order = match edge.order {
+                chem_domain::BondOrder::Single => 1,
+                chem_domain::BondOrder::Double => 2,
+                chem_domain::BondOrder::Triple => 3,
+            };
+            Some((index_of(&edge.left)?, index_of(&edge.right)?, order))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    agent::molecular_graph_name(&symbols, &bonds)
 }
 
 /// Names an ionic product from the exact cation and anion unit its
@@ -162,7 +245,7 @@ fn formula_text(counts: &BTreeMap<String, u64>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::display_equation;
+    use super::{display_equation, display_formula};
 
     #[test]
     fn display_equations_preserve_coefficients_and_format_formulae() {
@@ -172,5 +255,20 @@ mod tests {
             display_equation("2 Fe + 3 O2 → Fe2O3"),
             "2 Fe + 3 O₂ → Fe₂O₃"
         );
+        assert_eq!(
+            display_equation("CuSO4.5H2O[ionic] -> CuSO₄·5H₂O[ionic]"),
+            "CuSO₄·5H₂O[ionic] → CuSO₄·5H₂O[ionic]"
+        );
+    }
+
+    #[test]
+    fn valid_formulae_use_chemical_typography_and_invalid_text_is_unchanged() {
+        assert_eq!(display_formula("CH4"), "CH₄");
+        assert_eq!(display_formula("C10H22"), "C₁₀H₂₂");
+        assert_eq!(display_formula("Ca(OH)2"), "Ca(OH)₂");
+        assert_eq!(display_formula("CuSO4.12H2O"), "CuSO₄·12H₂O");
+        assert_eq!(display_formula("CH₄"), "CH₄");
+        assert_eq!(display_formula("version1.2"), "version1.2");
+        assert_eq!(display_formula("2"), "2");
     }
 }

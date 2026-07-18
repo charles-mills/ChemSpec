@@ -39,6 +39,81 @@ pub struct ReactionClaim {
     pub observations: Vec<ClaimObservation>,
     pub sources: Vec<ClaimSource>,
     pub ambiguity: Option<ClaimAmbiguity>,
+    /// Physical cause of a confident no-reaction, set only by the
+    /// algorithmic solver. Display copy always comes from
+    /// [`NoReactionReason::learner_explanation`], never from a provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub no_reaction_reason: Option<NoReactionReason>,
+}
+
+/// Why a pairing confidently does nothing. Variants carry lowercase
+/// element or compound display names ("copper"), not symbols.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NoReactionReason {
+    /// The metal cannot displace hydrogen from acids or water.
+    BelowHydrogen { metal: String },
+    /// The metal is less active than the dissolved cation it would displace.
+    LessActiveMetal { metal: String, displaced: String },
+    /// The halogen is no more reactive than the one already in the salt.
+    LessReactiveHalogen { incoming: String, resident: String },
+    /// Partner exchange would only produce two more soluble salts.
+    AllProductsSoluble,
+    /// A light noble gas with a full outer shell.
+    NobleGas { element: String },
+    /// Two elemental metals: alloys are mixtures, not reactions.
+    TwoMetals,
+    /// Both portions are the same closed-shell substance.
+    SameSubstance,
+    /// An alkali-metal carbonate or hydroxide that shrugs off heating.
+    HeatStable { compound: String },
+    /// A recognised metal oxide that neither dissolves nor slakes.
+    OxideInertInWater { metal: String },
+}
+
+impl NoReactionReason {
+    /// Classroom-voice explanation of why nothing happens.
+    #[must_use]
+    pub fn learner_explanation(&self) -> String {
+        let capitalize = |word: &str| {
+            let mut chars = word.chars();
+            chars.next().map_or_else(String::new, |first| {
+                first.to_uppercase().collect::<String>() + chars.as_str()
+            })
+        };
+        match self {
+            Self::BelowHydrogen { metal } => format!(
+                "{} sits below hydrogen in the activity series, so it cannot displace hydrogen — dilute acids and water leave it untouched.",
+                capitalize(metal)
+            ),
+            Self::LessActiveMetal { metal, displaced } => format!(
+                "{} is less active than {displaced}, so it cannot push {displaced} out of its dissolved salt.",
+                capitalize(metal)
+            ),
+            Self::LessReactiveHalogen { incoming, resident } if incoming == resident => format!(
+                "The salt already contains {resident} — there is nothing new for {incoming} to displace."
+            ),
+            Self::LessReactiveHalogen { incoming, resident } => format!(
+                "{} is less reactive than {resident}, so it cannot displace {resident} from its salt.",
+                capitalize(incoming)
+            ),
+            Self::AllProductsSoluble => "Swapping partners would only make two more soluble salts — every ion stays dissolved, so nothing new forms.".to_owned(),
+            Self::NobleGas { element } => format!(
+                "{} already has a full outer shell of electrons, so it has no drive to share, gain, or lose any.",
+                capitalize(element)
+            ),
+            Self::TwoMetals => "Two metals can melt together into an alloy, but that is a mixture — no bonds form or break, so it is not a reaction.".to_owned(),
+            Self::SameSubstance => "Both portions are the same substance, so there is nothing new for them to form.".to_owned(),
+            Self::HeatStable { compound } => format!(
+                "{} is heat-stable: the alkali-metal carbonates and hydroxides stay intact at Bunsen temperatures.",
+                capitalize(compound)
+            ),
+            Self::OxideInertInWater { metal } => format!(
+                "{} oxide does not react with water — it simply settles as an insoluble solid.",
+                capitalize(metal)
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -175,6 +250,14 @@ impl ReactionClaim {
             return Err(AgentError::new(
                 "reaction claim",
                 format!("unsupported claim schema {}", self.schema_version),
+            ));
+        }
+        if self.no_reaction_reason.is_some()
+            && self.disposition != ClaimDisposition::NoReaction
+        {
+            return Err(AgentError::new(
+                "reaction claim",
+                "only a no-reaction claim may carry a no-reaction reason",
             ));
         }
         match self.disposition {
@@ -768,5 +851,53 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn no_reaction_reason_only_rides_a_no_reaction() {
+        let no_reaction = json!({
+            "schema_version": 1,
+            "disposition": "no_reaction",
+            "products": [],
+            "required_context": "standard conditions",
+            "observations": [], "sources": [], "ambiguity": null,
+            "no_reaction_reason": {"below_hydrogen": {"metal": "copper"}}
+        });
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&no_reaction).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("reasoned no-reaction");
+        assert!(
+            claim
+                .no_reaction_reason
+                .expect("reason")
+                .learner_explanation()
+                .starts_with("Copper sits below hydrogen")
+        );
+
+        let mut misplaced = no_reaction;
+        misplaced["disposition"] = json!("unsupported");
+        assert!(
+            ReactionClaim::from_json(
+                &serde_json::to_vec(&misplaced).expect("claim JSON"),
+                ClaimMode::Fast,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn same_halogen_copy_explains_nothing_to_displace() {
+        let same = NoReactionReason::LessReactiveHalogen {
+            incoming: "chlorine".to_owned(),
+            resident: "chlorine".to_owned(),
+        };
+        assert!(same.learner_explanation().contains("already contains"));
+        let weaker = NoReactionReason::LessReactiveHalogen {
+            incoming: "bromine".to_owned(),
+            resident: "chlorine".to_owned(),
+        };
+        assert!(weaker.learner_explanation().starts_with("Bromine is less reactive"));
     }
 }

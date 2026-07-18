@@ -1,0 +1,30 @@
+chems 1
+use catalog ChemSpec.Theoretical@1
+
+reaction FormulaSubscripts where
+  reactants
+    hydrocarbon := 1 of Decane
+    calciumHydroxide := 1 of CalciumHydroxide
+    hydrate := 1 of CopperSulfatePentahydrate
+
+  products
+    hydrocarbonProduct := 1 of Decane
+    calciumHydroxideProduct := 1 of CalciumHydroxide
+    hydrateProduct := 1 of CopperSulfatePentahydrate
+
+  equation
+    C₁₀H₂₂[molecular] + Ca(OH)₂[ionic] + CuSO₄·5H₂O[ionic]
+    -> C10H22[molecular] + Ca(OH)2[ionic] + CuSO4.5H2O[ionic]
+
+  model
+    event := representative
+    sequence := explanatory
+
+  observe from Evidence.FormulaSubscripts@1
+    product hydrocarbonProduct forms claim R1
+
+  by
+    apply Rules.FormulaSubscripts
+      hydrocarbon := hydrocarbon
+      calciumHydroxide := calciumHydroxide
+      hydrate := hydrate

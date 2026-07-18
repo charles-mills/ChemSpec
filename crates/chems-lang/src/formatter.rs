@@ -95,13 +95,27 @@ fn format_tokens(tokens: &[Token], comments: &[CommentAttachment]) -> String {
                 );
                 indent_if_needed(&mut output, indentation, &mut line_start);
                 let next = next_ordinary(tokens, index + 1);
-                if previous.is_some_and(|kind| needs_space(kind, token.kind, next))
+                let follows_formula_count =
+                    matches!(token.kind, TokenKind::Word | TokenKind::LeftParen)
+                        && previous == Some(TokenKind::Number)
+                        && previous_ordinary(tokens, index, 2).is_some_and(|kind| {
+                            matches!(
+                                kind,
+                                TokenKind::Dot | TokenKind::MiddleDot | TokenKind::RightParen
+                            )
+                        });
+                if !follows_formula_count
+                    && previous.is_some_and(|kind| needs_space(kind, token.kind, next))
                     && !output.ends_with(' ')
                 {
                     output.push(' ');
                 }
                 if token.kind == TokenKind::Arrow {
                     output.push_str(ARROW_MARKER);
+                } else if token.kind == TokenKind::SubscriptNumber {
+                    output.extend(token.text.chars().map(ascii_formula_character));
+                } else if token.kind == TokenKind::MiddleDot {
+                    output.push('.');
                 } else {
                     output.push_str(&token.text);
                 }
@@ -208,17 +222,44 @@ fn next_ordinary(tokens: &[Token], from: usize) -> Option<TokenKind> {
         .map(|token| token.kind)
 }
 
+fn previous_ordinary(tokens: &[Token], before: usize, count: usize) -> Option<TokenKind> {
+    tokens[..before]
+        .iter()
+        .rev()
+        .filter(|token| {
+            !token.kind.is_trivia()
+                && !matches!(
+                    token.kind,
+                    TokenKind::Indent | TokenKind::Dedent | TokenKind::Newline | TokenKind::Eof
+                )
+        })
+        .nth(count.saturating_sub(1))
+        .map(|token| token.kind)
+}
+
 fn needs_space(previous: TokenKind, current: TokenKind, next: Option<TokenKind>) -> bool {
+    if current == TokenKind::SubscriptNumber
+        || (previous == TokenKind::SubscriptNumber
+            && matches!(current, TokenKind::Word | TokenKind::LeftParen))
+        || (previous == TokenKind::RightParen && current == TokenKind::Word)
+    {
+        return false;
+    }
     if matches!(
         current,
         TokenKind::Dot
+            | TokenKind::MiddleDot
             | TokenKind::At
             | TokenKind::RightParen
             | TokenKind::LeftBracket
             | TokenKind::RightBracket
     ) || matches!(
         previous,
-        TokenKind::Dot | TokenKind::At | TokenKind::LeftParen | TokenKind::LeftBracket
+        TokenKind::Dot
+            | TokenKind::MiddleDot
+            | TokenKind::At
+            | TokenKind::LeftParen
+            | TokenKind::LeftBracket
     ) {
         return false;
     }
@@ -244,6 +285,22 @@ fn needs_space(previous: TokenKind, current: TokenKind, next: Option<TokenKind>)
         return true;
     }
     !matches!(next, Some(TokenKind::RightBracket | TokenKind::RightParen))
+}
+
+const fn ascii_formula_character(character: char) -> char {
+    match character {
+        '₀' => '0',
+        '₁' => '1',
+        '₂' => '2',
+        '₃' => '3',
+        '₄' => '4',
+        '₅' => '5',
+        '₆' => '6',
+        '₇' => '7',
+        '₈' => '8',
+        '₉' => '9',
+        other => other,
+    }
 }
 
 fn trim_trailing_space(output: &mut String) {

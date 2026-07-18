@@ -3,6 +3,7 @@
     { "name": "utf8_bom", "bytes_hex": "efbbbf6368656d7320310a" },
     { "name": "crlf", "bytes_hex": "6368656d7320310d0a" },
     { "name": "bare_cr", "bytes_hex": "6368656d7320310d" },
+    { "name": "unicode_formula_notation", "source": "CuSO₄·5H₂O" },
     { "name": "nested_comment_utf8", "source": "/- alpha /- beta -/ γ -/" }
   ],
   "reserved_words": [

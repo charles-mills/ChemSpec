@@ -13,6 +13,9 @@ animation pipeline — the model is a fallback, never a shortcut.
 The project is being built for the Education category of
 [OpenAI Build Week](https://openai.devpost.com/).
 
+ChemSpec is built collaboratively. See [Contributors](CONTRIBUTORS.md) for the
+team credited from the project's Git history.
+
 <img alt="image" src="https://github.com/user-attachments/assets/adbbfc91-d12c-4244-b28d-2f04f31b82e8" />
 
 ## Product contract
@@ -168,7 +171,18 @@ cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo run -p chemspec-app
+
+# Verify a reaction outcome headlessly (names or formulae), no GUI:
+cargo run -p chemspec-app -- react sodium water
+cargo run -p chemspec-app -- react HCl NaOH
+cargo run -p chemspec-app -- react --verbose sodium water
 ```
+
+`chemspec-app react <reactant> <reactant>` resolves the pair through the same
+path the app uses and prints the balanced equation, products, and frame count as
+JSON. Add `--verbose` (`-v`) to also emit the full frame artifact (`animation`)
+and its `digest`. Exit code `0` means a reaction ran, `1` means no single
+reaction, `2` means bad input.
 
 ### macOS visual smoke tests
 

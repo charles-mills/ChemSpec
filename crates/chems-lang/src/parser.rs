@@ -734,7 +734,10 @@ impl Parser<'_> {
         self.begin("formula");
         let position = self.position;
         let mut valid = self.parse_formula_segment();
-        while self.at_kind(TokenKind::Dot) {
+        while matches!(
+            self.peek_kind(),
+            Some(TokenKind::Dot | TokenKind::MiddleDot)
+        ) {
             self.bump();
             if self.at_kind(TokenKind::Number) {
                 valid &= self.parse_positive_integer().is_some();
@@ -744,8 +747,9 @@ impl Parser<'_> {
         let formula = self.semantic[position..self.position]
             .iter()
             .filter_map(|index| self.tokens.get(*index))
-            .map(|token| token.text.as_str())
-            .collect::<String>();
+            .flat_map(|token| token.text.chars())
+            .map(ascii_formula_character)
+            .collect();
         self.finish(!valid);
         valid.then_some(formula)
     }
@@ -789,12 +793,17 @@ impl Parser<'_> {
         }
         let accepts_external_count = parts.last().is_some_and(|part| part.count.is_none());
         self.bump();
-        if accepts_external_count && self.at_kind(TokenKind::Number) {
+        if accepts_external_count
+            && matches!(
+                self.peek_kind(),
+                Some(TokenKind::Number | TokenKind::SubscriptNumber)
+            )
+        {
             let count = self
                 .current_token()
-                .expect("number token is present")
+                .expect("formula count token is present")
                 .clone();
-            if count.text.starts_with('0') {
+            if formula_count_starts_with_zero(&count.text) {
                 self.error(
                     "CHEMS-P003",
                     "expected a positive integer without a leading zero",
@@ -815,8 +824,11 @@ impl Parser<'_> {
         let valid = if self.eat_kind(TokenKind::LeftParen) {
             let nested = self.parse_formula_segment();
             self.expect_kind(TokenKind::RightParen, "`)`");
-            if self.at_kind(TokenKind::Number) {
-                let _ = self.parse_positive_integer();
+            if matches!(
+                self.peek_kind(),
+                Some(TokenKind::Number | TokenKind::SubscriptNumber)
+            ) {
+                let _ = self.parse_formula_positive_integer();
             }
             nested
         } else {
@@ -961,6 +973,30 @@ impl Parser<'_> {
         self.bump();
         self.finish(false);
         Some(token.text)
+    }
+
+    fn parse_formula_positive_integer(&mut self) -> Option<String> {
+        self.begin("positive-integer");
+        let Some(token) = self.current_token().cloned() else {
+            self.expected("a positive integer");
+            self.finish(true);
+            return None;
+        };
+        if !matches!(token.kind, TokenKind::Number | TokenKind::SubscriptNumber)
+            || formula_count_starts_with_zero(&token.text)
+        {
+            self.error(
+                "CHEMS-P003",
+                "expected a positive integer without a leading zero",
+                token.span,
+            );
+            self.bump_unexpected();
+            self.finish(true);
+            return None;
+        }
+        self.bump();
+        self.finish(false);
+        Some(token.text.chars().map(ascii_formula_character).collect())
     }
 
     fn begin(&mut self, kind: &str) {
@@ -1313,6 +1349,30 @@ fn formula_word_parts(token: &Token) -> Vec<FormulaWordPart> {
         });
     }
     parts
+}
+
+const fn ascii_formula_character(character: char) -> char {
+    match character {
+        '·' => '.',
+        '₀' => '0',
+        '₁' => '1',
+        '₂' => '2',
+        '₃' => '3',
+        '₄' => '4',
+        '₅' => '5',
+        '₆' => '6',
+        '₇' => '7',
+        '₈' => '8',
+        '₉' => '9',
+        other => other,
+    }
+}
+
+fn formula_count_starts_with_zero(value: &str) -> bool {
+    value
+        .chars()
+        .next()
+        .is_some_and(|character| matches!(ascii_formula_character(character), '0'))
 }
 
 fn is_reserved(word: &str) -> bool {

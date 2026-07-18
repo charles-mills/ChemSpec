@@ -10,6 +10,7 @@ const ALERT_CIRCLE: &[u8] = include_bytes!("../assets/icons/majesticons/alert-ci
 const ARROW_RIGHT: &[u8] = include_bytes!("../assets/icons/majesticons/arrow-right-line.svg");
 const ATOM: &[u8] = include_bytes!("../assets/icons/majesticons/atom-2-line.svg");
 const HELP: &[u8] = include_bytes!("../assets/icons/help-circle-line.svg");
+const PENCIL: &[u8] = include_bytes!("../assets/icons/pencil-line.svg");
 const SETTINGS: &[u8] = include_bytes!("../assets/icons/settings-line.svg");
 
 fn icon(bytes: &'static [u8], size: f32, color: Color) -> Svg<'static> {
@@ -45,6 +46,10 @@ pub fn atom(size: f32, color: Color) -> Svg<'static> {
 
 pub fn help(size: f32, color: Color) -> Svg<'static> {
     icon(HELP, size, color)
+}
+
+pub fn pencil(size: f32, color: Color) -> Svg<'static> {
+    icon(PENCIL, size, color)
 }
 
 pub fn settings(size: f32, color: Color) -> Svg<'static> {

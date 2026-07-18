@@ -33,11 +33,17 @@ const EXCITED_ANCHOR: f32 = 0.6;
 const EXCITEMENT_DECAY: f32 = 0.985;
 /// Speed (virtual px/s) at which a knocked atom counts as fully excited.
 const EXCITING_SPEED: f32 = 700.0;
+/// Electrostatic pull between formal charges, felt only by excited atoms so
+/// calm choreography is never disturbed. Clamped near contact and capped in
+/// charge product so hard repulsion always wins over attraction.
+const CHARGE_STRENGTH: f32 = 5_000.0;
 
 #[derive(Debug, Clone)]
 pub struct AtomSpec {
     pub id: String,
     pub radius: f32,
+    /// Formal charge in elementary-charge units; drives drag-time attraction.
+    pub charge: f32,
     pub seed: Point,
 }
 
@@ -83,6 +89,7 @@ struct Body {
     position: Point,
     velocity: Vector,
     radius: f32,
+    charge: f32,
     /// 0 = calm (tracks choreography exactly), 1 = fully springy.
     excitement: f32,
 }
@@ -177,10 +184,12 @@ impl Simulation {
                     position: atom.seed,
                     velocity: Vector::new(0.0, 0.0),
                     radius: atom.radius,
+                    charge: atom.charge,
                     excitement: 0.0,
                 },
                 |existing| Body {
                     radius: atom.radius,
+                    charge: atom.charge,
                     ..existing
                 },
             );
@@ -206,6 +215,7 @@ impl Simulation {
                 let delta = body_a.position - body_b.position;
                 let distance = length(delta).max(1.0);
                 let desired = body_a.radius + body_b.radius + 26.0;
+                let direction = delta * (1.0 / distance);
                 if distance < desired * 2.2 {
                     // Hard contact always wins over anchors.
                     let contact = if distance < body_a.radius + body_b.radius {
@@ -214,7 +224,20 @@ impl Simulation {
                         1.0
                     };
                     let push = contact * REPULSION * (desired * desired) / (distance * distance);
-                    let direction = delta * (1.0 / distance);
+                    add(&mut forces, a, direction * push);
+                    add(&mut forces, b, direction * -push);
+                }
+                // Electrostatics: opposite charges attract, like repel, but
+                // only excited atoms feel it — calm playback stays authored.
+                // The distance floor keeps peak attraction below contact
+                // repulsion so ions can never be pulled into overlap.
+                let product = (body_a.charge * body_b.charge).clamp(-2.0, 2.0);
+                let excitement = body_a.excitement.max(body_b.excitement);
+                if product != 0.0 && excitement > 0.01 && distance < desired * 6.0 {
+                    let effective = distance.max(desired * 2.0);
+                    let push = CHARGE_STRENGTH * product * (desired * desired)
+                        / (effective * effective)
+                        * excitement;
                     add(&mut forces, a, direction * push);
                     add(&mut forces, b, direction * -push);
                 }
@@ -300,12 +323,26 @@ mod tests {
     use super::*;
 
     fn spec(atoms: &[(&str, f32, Point)], springs: &[(&str, &str, f32)]) -> WorldSpec {
+        charged_spec(
+            &atoms
+                .iter()
+                .map(|(id, radius, seed)| (*id, *radius, 0.0, *seed))
+                .collect::<Vec<_>>(),
+            springs,
+        )
+    }
+
+    fn charged_spec(
+        atoms: &[(&str, f32, f32, Point)],
+        springs: &[(&str, &str, f32)],
+    ) -> WorldSpec {
         WorldSpec {
             atoms: atoms
                 .iter()
-                .map(|(id, radius, seed)| AtomSpec {
+                .map(|(id, radius, charge, seed)| AtomSpec {
                     id: (*id).to_owned(),
                     radius: *radius,
+                    charge: *charge,
                     seed: *seed,
                 })
                 .collect(),
@@ -320,13 +357,54 @@ mod tests {
                 .collect(),
             anchors: atoms
                 .iter()
-                .map(|(id, _, seed)| Anchor {
+                .map(|(id, _, _, seed)| Anchor {
                     atom: (*id).to_owned(),
                     home: *seed,
                     strength: 10.0,
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn excited_opposite_charges_attract_and_like_charges_repel() {
+        let seats = |charge_b: f32| {
+            let world = charged_spec(
+                &[
+                    ("a", 24.0, 1.0, Point::new(700.0, 450.0)),
+                    ("b", 24.0, charge_b, Point::new(960.0, 450.0)),
+                ],
+                &[],
+            );
+            let mut simulation = Simulation::default();
+            for _ in 0..100 {
+                simulation.step(&world);
+            }
+            // Holding an ion keeps it excited; its charge should tug the
+            // calm neighbour off its anchor, by charge sign.
+            simulation.begin_drag(
+                &DragTarget::Atom("a".to_owned()),
+                simulation.positions()["a"],
+            );
+            for _ in 0..300 {
+                simulation.step(&world);
+            }
+            let positions = simulation.positions();
+            let delta = positions["a"] - positions["b"];
+            delta.x.hypot(delta.y)
+        };
+
+        let neutral = seats(0.0);
+        let attracted = seats(-1.0);
+        let repelled = seats(1.0);
+        assert!(
+            attracted < neutral - 3.0,
+            "opposite charges pull closer: {attracted} vs neutral {neutral}"
+        );
+        assert!(
+            repelled > neutral + 3.0,
+            "like charges push apart: {repelled} vs neutral {neutral}"
+        );
     }
 
     #[test]
