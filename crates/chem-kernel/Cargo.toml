@@ -1,7 +1,9 @@
 [package]
 name = "chem-kernel"
+authors.workspace = true
 description = "Trusted typed elaboration and derivation kernel for ChemSpec"
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

@@ -12,8 +12,8 @@ description = "ChemSpec desktop application"
 [package.metadata.packager]
 product-name = "ChemSpec"
 identifier = "dev.charlesmills.chemspec"
-publisher = "Charles Mills"
-homepage = "https://charlesmills.dev"
+publisher = "ChemSpec contributors"
+homepage = "https://github.com/charles-mills/ChemSpec"
 category = "Education"
 license-file = "../../LICENSE"
 icons = ["../../target/packaging/*.png"]

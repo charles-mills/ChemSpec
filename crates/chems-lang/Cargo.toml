@@ -1,7 +1,9 @@
 [package]
 name = "chems-lang"
+authors.workspace = true
 description = "Lossless source frontend and formatter for .chems"
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
