@@ -694,6 +694,22 @@ struct ObjectMotion {
 }
 
 #[derive(Debug, Clone, Copy)]
+struct StirrerPose {
+    lower: Vec3,
+    upper: Vec3,
+    visibility: f32,
+    submerged: f32,
+    activity: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct EffectMoment {
+    ordinal: u16,
+    progress: f32,
+    stage: MacroscopicStage,
+}
+
+#[derive(Debug, Clone, Copy)]
 struct AssetColourTransition {
     target: VisualColour,
     progress: f32,
@@ -844,6 +860,15 @@ fn build_scene_with_stage(
         .map_or(ordinal, |beat| beat.end_ordinal);
     let mut visual_inputs =
         ReactionVisualInputs::from_effects(&plan.effects, ordinal, progress, final_ordinal);
+    gate_stirrer_driven_liquid_turbulence(
+        &mut visual_inputs,
+        plan,
+        layout,
+        ordinal,
+        progress,
+        stage,
+        final_ordinal,
+    );
     let post_process = post_process_visual_state(plan, stage, stage_progress);
     visual_inputs.bubble_rate = visual_inputs.bubble_rate.max(post_process.boiling);
     visual_inputs.vapour_generation_rate = visual_inputs
@@ -946,8 +971,11 @@ fn build_scene_with_stage(
             instantiate_effect(
                 &mut meshes,
                 effect,
-                ordinal,
-                progress,
+                EffectMoment {
+                    ordinal,
+                    progress,
+                    stage,
+                },
                 animated_layout,
                 effect_seed(plan, effect),
                 effect_colours,
@@ -1943,12 +1971,16 @@ fn instantiate_asset(
 fn instantiate_effect(
     meshes: &mut SceneMeshes,
     effect: &PresentationEffect,
-    ordinal: u16,
-    progress: f32,
+    moment: EffectMoment,
     layout: SceneLayout,
     seed: u64,
     colours: EffectColours,
 ) {
+    let EffectMoment {
+        ordinal,
+        progress,
+        stage,
+    } = moment;
     let dynamics = scene_registry::effect_dynamics(effect.effect, effect.intensity);
     let effect_progress = effect_progress(effect, ordinal, progress);
     let envelope = effect_envelope(dynamics, effect_progress);
@@ -2213,15 +2245,30 @@ fn instantiate_effect(
             }
         }
         EffectGeometry::MixingCurrents => {
+            if stage != MacroscopicStage::Reaction {
+                return;
+            }
+            let stirrer = stirring_apparatus_authorized(layout, effect)
+                .then(|| stirring_pose(layout, effect_progress, seed));
+            let (mixing_center, mixing_envelope) =
+                stirrer.map_or((layout.liquid_center, envelope), |pose| {
+                    (
+                        Vec3::new(pose.lower.x, layout.liquid_center.y, pose.lower.z),
+                        envelope * pose.activity,
+                    )
+                });
             add_mixing_currents(
                 &mut meshes.translucent,
-                layout.liquid_center,
+                mixing_center,
                 dynamics,
-                envelope,
+                mixing_envelope,
                 phase,
                 seed,
                 colours.liquid,
             );
+            if let Some(pose) = stirrer {
+                add_stirring_apparatus(meshes, layout, pose, effect_progress, seed, colours.liquid);
+            }
         }
         EffectGeometry::SplashDroplets => {
             for index in 0..count {
@@ -2757,6 +2804,267 @@ fn add_liquid_volume(
     );
 }
 
+const STIRRER_ENTRY_END: f32 = 0.24;
+const STIRRER_EXIT_START: f32 = 0.76;
+
+fn stirring_apparatus_authorized(layout: SceneLayout, effect: &PresentationEffect) -> bool {
+    layout.has_liquid && effect.effect == EffectProfile::LiquidMixing
+}
+
+fn gate_stirrer_driven_liquid_turbulence(
+    inputs: &mut ReactionVisualInputs,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    ordinal: u16,
+    progress: f32,
+    stage: MacroscopicStage,
+    final_ordinal: u16,
+) {
+    let stirring_activity = plan
+        .effects
+        .iter()
+        .filter(|effect| effect.start_ordinal <= ordinal && ordinal <= effect.end_ordinal)
+        .filter(|effect| stirring_apparatus_authorized(layout, effect))
+        .map(|effect| {
+            if stage == MacroscopicStage::Reaction {
+                stirring_pose(
+                    layout,
+                    effect_progress(effect, ordinal, progress),
+                    effect_seed(plan, effect),
+                )
+                .activity
+            } else {
+                0.0
+            }
+        })
+        .reduce(f32::max);
+    let Some(stirring_activity) = stirring_activity else {
+        return;
+    };
+
+    // Preserve turbulence from independently authorized bubbling, splashing,
+    // heat, or surface disturbance. Only the LiquidMixing contribution waits
+    // for the rod's active stroke.
+    let independent_turbulence = plan
+        .effects
+        .iter()
+        .filter(|effect| effect.effect != EffectProfile::LiquidMixing)
+        .filter(|effect| effect.start_ordinal <= ordinal && ordinal <= effect.end_ordinal)
+        .map(|effect| {
+            ReactionVisualInputs::from_effects(
+                std::slice::from_ref(effect),
+                ordinal,
+                progress,
+                final_ordinal,
+            )
+            .liquid_turbulence
+        })
+        .sum::<f32>()
+        .min(1.0);
+    let mixing_turbulence = (inputs.liquid_turbulence - independent_turbulence).max(0.0);
+    inputs.liquid_turbulence =
+        (independent_turbulence + mixing_turbulence * stirring_activity).min(1.0);
+}
+
+/// Absolute, deterministic motion for a reusable glass stirring rod. The entry
+/// and withdrawal use curved paths around the vessel rim, while the active
+/// phase follows a slightly irregular ellipse with velocity-dependent lean.
+/// No mutable rigid-body state is required, so seeking reconstructs the same
+/// pose without letting presentation physics alter reaction meaning.
+fn stirring_pose(layout: SceneLayout, progress: f32, seed: u64) -> StirrerPose {
+    let progress = progress.clamp(0.0, 1.0);
+    let vessel_rim = layout.vessel_center.y + 0.91 * layout.vessel_scale.y;
+    let shaft_height = (layout.vessel_scale.y * 1.28).clamp(1.06, 1.62);
+    let active_pose = |active_age: f32| {
+        let active_age = active_age.clamp(0.0, 1.0);
+        let travel = natural_stirring_travel(active_age, seed);
+        let turns = 2.35 + seeded_unit(seed, 0, 111) * 0.52;
+        let angle = seed_phase(seed, 112) + travel * turns * std::f32::consts::TAU;
+        let radius = layout.vessel_scale.x
+            * (0.18
+                + (angle * 1.73 + seed_phase(seed, 113)).sin() * 0.020
+                + (angle * 0.61 + seed_phase(seed, 114)).cos() * 0.012);
+        let lower = Vec3::new(
+            layout.vessel_center.x + angle.cos() * radius,
+            layout.liquid_surface
+                - (layout.liquid_surface - layout.liquid_center.y).max(0.18) * 0.78
+                + (angle * 1.31 + seed_phase(seed, 115)).sin() * 0.010,
+            layout.vessel_center.z + angle.sin() * radius * 0.78,
+        );
+        let tangent = Vec3::new(-angle.sin(), 0.0, angle.cos() * 0.78).normalize_or_zero();
+        let hand_lag = 0.095
+            + (angle * 0.83 + seed_phase(seed, 116)).sin() * 0.018
+            + seeded_unit(seed, 0, 117) * 0.012;
+        let upper = lower
+            + Vec3::new(
+                -tangent.x * hand_lag + (seeded_unit(seed, 0, 118) - 0.5) * 0.055,
+                shaft_height,
+                -tangent.z * hand_lag + (seeded_unit(seed, 0, 119) - 0.5) * 0.045,
+            );
+        (lower, upper)
+    };
+
+    let (lower, upper, submerged, activity) = if progress < STIRRER_ENTRY_END {
+        let age = progress / STIRRER_ENTRY_END;
+        let travel = smoother_step(age);
+        let (active_lower, active_upper) = active_pose(0.0);
+        let start_lower = Vec3::new(
+            layout.vessel_center.x + layout.vessel_scale.x * 1.18,
+            vessel_rim + 0.42,
+            layout.vessel_center.z + layout.vessel_scale.z * 0.40,
+        );
+        let start_upper = start_lower + Vec3::new(-0.12, shaft_height, 0.08);
+        let control_lower = Vec3::new(
+            layout.vessel_center.x + layout.vessel_scale.x * 0.68,
+            vessel_rim + 0.30,
+            layout.vessel_center.z + layout.vessel_scale.z * 0.24,
+        );
+        let control_upper = control_lower + Vec3::new(-0.10, shaft_height, 0.06);
+        (
+            quadratic_curve(start_lower, control_lower, active_lower, travel),
+            quadratic_curve(start_upper, control_upper, active_upper, travel),
+            smoother_step((age - 0.56) / 0.44),
+            0.0,
+        )
+    } else if progress < STIRRER_EXIT_START {
+        let age = (progress - STIRRER_ENTRY_END) / (STIRRER_EXIT_START - STIRRER_ENTRY_END);
+        let (lower, upper) = active_pose(age);
+        let attack = smoother_step(age / 0.16);
+        let release = 1.0 - smoother_step((age - 0.80) / 0.20);
+        (lower, upper, 1.0, attack * release)
+    } else {
+        let age = (progress - STIRRER_EXIT_START) / (1.0 - STIRRER_EXIT_START);
+        let travel = smoother_step(age);
+        let (active_lower, active_upper) = active_pose(1.0);
+        let end_lower = Vec3::new(
+            layout.vessel_center.x + layout.vessel_scale.x * 1.16,
+            vessel_rim + 0.46,
+            layout.vessel_center.z - layout.vessel_scale.z * 0.36,
+        );
+        let end_upper = end_lower + Vec3::new(-0.10, shaft_height, -0.08);
+        let control_lower = Vec3::new(
+            layout.vessel_center.x + layout.vessel_scale.x * 0.58,
+            vessel_rim + 0.34,
+            layout.vessel_center.z - layout.vessel_scale.z * 0.22,
+        );
+        let control_upper = control_lower + Vec3::new(-0.08, shaft_height, -0.06);
+        (
+            quadratic_curve(active_lower, control_lower, end_lower, travel),
+            quadratic_curve(active_upper, control_upper, end_upper, travel),
+            1.0 - smoother_step(age / 0.44),
+            0.0,
+        )
+    };
+    let visibility =
+        smoother_step(progress / 0.045) * (1.0 - smoother_step((progress - 0.94) / 0.06));
+    StirrerPose {
+        lower,
+        upper,
+        visibility,
+        submerged,
+        activity,
+    }
+}
+
+fn natural_stirring_travel(progress: f32, seed: u64) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+    let window = (std::f32::consts::PI * progress).sin();
+    let broad = (progress * std::f32::consts::TAU * 2.1 + seed_phase(seed, 120)).sin() * 0.018;
+    let fine = (progress * std::f32::consts::TAU * 4.7 + seed_phase(seed, 121)).sin() * 0.006;
+    (progress + window * (broad + fine)).clamp(0.0, 1.0)
+}
+
+fn quadratic_curve(start: Vec3, control: Vec3, end: Vec3, progress: f32) -> Vec3 {
+    start
+        .lerp(control, progress)
+        .lerp(control.lerp(end, progress), progress)
+}
+
+fn add_stirring_apparatus(
+    meshes: &mut SceneMeshes,
+    layout: SceneLayout,
+    pose: StirrerPose,
+    progress: f32,
+    seed: u64,
+    liquid_color: [f32; 4],
+) {
+    if pose.visibility <= 0.001 {
+        return;
+    }
+    let axis = (pose.upper - pose.lower).normalize_or_zero();
+    if axis.length_squared() <= f32::EPSILON {
+        return;
+    }
+
+    let glass = alpha([0.68, 0.86, 0.94, 0.52], pose.visibility);
+    let highlight = alpha([0.94, 0.98, 1.0, 0.72], pose.visibility);
+    add_cylinder(&mut meshes.glass, pose.lower, pose.upper, 0.022, glass);
+    let highlight_offset = Vec3::new(0.007, 0.0, 0.006);
+    add_cylinder(
+        &mut meshes.glass,
+        pose.lower + highlight_offset,
+        pose.upper + highlight_offset,
+        0.0045,
+        highlight,
+    );
+    add_sphere(&mut meshes.glass, pose.lower, 0.023, glass, 4, 6);
+    add_sphere(&mut meshes.glass, pose.upper, 0.023, glass, 4, 6);
+
+    let grip_start = pose.upper - axis * 0.19;
+    let grip_end = pose.upper + axis * 0.045;
+    add_cylinder(
+        &mut meshes.translucent,
+        grip_start,
+        grip_end,
+        0.038,
+        alpha([0.12, 0.20, 0.24, 0.96], pose.visibility),
+    );
+    add_sphere(
+        &mut meshes.translucent,
+        grip_start,
+        0.041,
+        alpha([0.56, 0.78, 0.84, 0.68], pose.visibility),
+        4,
+        6,
+    );
+
+    if pose.activity > 0.001 {
+        let wake_center = Vec3::new(pose.lower.x, layout.liquid_surface + 0.015, pose.lower.z);
+        for ring in 0..3_u8 {
+            let ring_index = u32::from(ring);
+            let ring_factor = f32::from(ring);
+            let cycle = (progress * (3.2 + seeded_unit(seed, ring_index, 122) * 0.8)
+                + ring_factor * 0.31)
+                .fract();
+            add_ring(
+                &mut meshes.translucent,
+                wake_center,
+                0.055 + normalized_drag_distance(cycle, 0.42) * (0.12 + ring_factor * 0.025),
+                0.006 + (1.0 - cycle) * 0.006,
+                alpha(
+                    mix_color(liquid_color, [0.92, 0.97, 0.99, 0.54], 0.64),
+                    pose.activity * (1.0 - smoother_step(cycle)) * 0.48,
+                ),
+            );
+        }
+    }
+
+    let withdrawal = ((progress - STIRRER_EXIT_START) / (1.0 - STIRRER_EXIT_START)).clamp(0.0, 1.0);
+    let film = (std::f32::consts::PI * withdrawal).sin().max(0.0)
+        * (1.0 - pose.submerged)
+        * pose.visibility;
+    if film > 0.001 {
+        add_sphere(
+            &mut meshes.translucent,
+            pose.lower - axis * 0.012,
+            0.014 + seeded_unit(seed, 0, 123) * 0.006,
+            alpha(liquid_color, film * 0.82),
+            4,
+            6,
+        );
+    }
+}
+
 /// Subsurface flow tracers for a typed liquid-mixing event. The ribbons are a
 /// stylised refraction cue rather than additional matter: their helical path
 /// follows a seeded vortex, descends into the bulk liquid, and fades at both
@@ -2771,6 +3079,9 @@ fn add_mixing_currents(
     liquid_color: [f32; 4],
 ) {
     const SEGMENTS: u16 = 14;
+    if envelope <= 0.001 {
+        return;
+    }
     let current_count = dynamics.particle_count.clamp(3, 6);
     for current in 0..current_count {
         let current = u32::from(current);
@@ -3764,6 +4075,297 @@ mod tests {
     }
 
     #[test]
+    fn stirring_apparatus_is_selected_from_generic_mixing_and_existing_liquid() {
+        let neutralization = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let mixing = neutralization
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::LiquidMixing)
+            .expect("neutralization has typed liquid mixing");
+        assert!(stirring_apparatus_authorized(
+            SceneLayout::resolve(&neutralization),
+            mixing
+        ));
+
+        let gas_to_liquid = plan_for(
+            chemistry::ReactionRequest::from_id("oxygen-hydrogen-oxygen")
+                .expect("hydrogen oxidation exists"),
+        );
+        let mixing = gas_to_liquid
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::LiquidMixing)
+            .expect("liquid product has generic mixing");
+        assert!(
+            !stirring_apparatus_authorized(SceneLayout::resolve(&gas_to_liquid), mixing),
+            "forming a liquid from gases must not invent a stirring procedure"
+        );
+        assert!(
+            neutralization
+                .effects
+                .iter()
+                .filter(|effect| effect.effect != EffectProfile::LiquidMixing)
+                .all(|effect| !stirring_apparatus_authorized(
+                    SceneLayout::resolve(&neutralization),
+                    effect
+                )),
+            "non-mixing effects must never select the apparatus"
+        );
+    }
+
+    #[test]
+    fn stirrer_enters_on_a_curve_moves_naturally_and_clears_the_vessel() {
+        let plan = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let layout = SceneLayout::resolve(&plan);
+        let seed = 91;
+        let start = stirring_pose(layout, 0.0, seed);
+        let entry_middle = stirring_pose(layout, STIRRER_ENTRY_END * 0.5, seed);
+        let entry_end = stirring_pose(layout, STIRRER_ENTRY_END, seed);
+        let straight_middle = start.lower.lerp(entry_end.lower, 0.5);
+        assert!(entry_middle.lower.distance(straight_middle) > 0.035);
+        assert!(start.visibility <= f32::EPSILON);
+        assert!(entry_end.submerged > 0.99);
+
+        let active = [
+            stirring_pose(layout, 0.36, seed),
+            stirring_pose(layout, 0.47, seed),
+            stirring_pose(layout, 0.58, seed),
+        ];
+        for pose in active {
+            let radial = Vec3::new(
+                pose.lower.x - layout.vessel_center.x,
+                0.0,
+                pose.lower.z - layout.vessel_center.z,
+            )
+            .length();
+            assert!(pose.lower.y < layout.liquid_surface);
+            assert!(radial < layout.vessel_scale.x * 0.34);
+            assert!(pose.activity > 0.5);
+        }
+        let first_distance = active[0].lower.distance(active[1].lower);
+        let second_distance = active[1].lower.distance(active[2].lower);
+        assert!(
+            (first_distance - second_distance).abs() > 0.002,
+            "seeded angular travel should avoid constant-speed robotic motion"
+        );
+
+        let withdrawal = stirring_pose(layout, 0.91, seed);
+        let complete = stirring_pose(layout, 1.0, seed);
+        let vessel_rim = layout.vessel_center.y + 0.91 * layout.vessel_scale.y;
+        assert!(withdrawal.lower.y > layout.liquid_surface);
+        assert!(complete.lower.y > vessel_rim);
+        assert!(complete.visibility <= f32::EPSILON);
+
+        let before_entry_boundary = stirring_pose(layout, STIRRER_ENTRY_END - 0.0001, seed);
+        let after_entry_boundary = stirring_pose(layout, STIRRER_ENTRY_END, seed);
+        let before_exit_boundary = stirring_pose(layout, STIRRER_EXIT_START - 0.0001, seed);
+        let after_exit_boundary = stirring_pose(layout, STIRRER_EXIT_START, seed);
+        assert!(
+            before_entry_boundary
+                .lower
+                .distance(after_entry_boundary.lower)
+                < 0.005
+        );
+        assert!(
+            before_exit_boundary
+                .lower
+                .distance(after_exit_boundary.lower)
+                < 0.005
+        );
+    }
+
+    #[test]
+    fn stirring_geometry_is_deterministic_and_disappears_after_withdrawal() {
+        let plan = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let layout = SceneLayout::resolve(&plan);
+        let render = |progress| {
+            let mut meshes = SceneMeshes::default();
+            add_stirring_apparatus(
+                &mut meshes,
+                layout,
+                stirring_pose(layout, progress, 73),
+                progress,
+                73,
+                appearance_color(AppearanceProfile::AqueousColourless),
+            );
+            meshes
+        };
+        let first = render(0.5);
+        let repeated = render(0.5);
+        assert!(!first.glass.vertices.is_empty());
+        assert!(!first.translucent.vertices.is_empty());
+        assert_eq!(first.glass.indices, repeated.glass.indices);
+        assert_eq!(first.translucent.indices, repeated.translucent.indices);
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&first.glass.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated.glass.vertices)
+        );
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&first.translucent.vertices),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated.translucent.vertices)
+        );
+
+        let complete = render(1.0);
+        assert!(complete.glass.vertices.is_empty());
+        assert!(complete.translucent.vertices.is_empty());
+    }
+
+    #[test]
+    fn stirring_apparatus_never_leaks_into_post_reaction_separation() {
+        let plan = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let layout = SceneLayout::resolve(&plan);
+        let effect = plan
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::LiquidMixing)
+            .expect("neutralization has typed liquid mixing");
+        let colours = scene_effect_colours(&plan, effect.end_ordinal, 0.5);
+        let render = |stage| {
+            let mut meshes = SceneMeshes::default();
+            instantiate_effect(
+                &mut meshes,
+                effect,
+                EffectMoment {
+                    ordinal: effect.end_ordinal,
+                    progress: 0.5,
+                    stage,
+                },
+                layout,
+                effect_seed(&plan, effect),
+                colours,
+            );
+            meshes
+        };
+
+        let reaction = render(MacroscopicStage::Reaction);
+        let separation = render(MacroscopicStage::CrystalGrowth);
+        assert!(!reaction.glass.vertices.is_empty());
+        assert!(
+            separation.glass.vertices.is_empty() && separation.translucent.vertices.is_empty(),
+            "reaction-stage stirring geometry must not persist into crystallisation"
+        );
+    }
+
+    #[test]
+    fn liquid_mixing_waits_until_the_inserted_stirrer_actually_moves() {
+        let plan = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let layout = SceneLayout::resolve(&plan);
+        let dynamics =
+            scene_registry::effect_dynamics(EffectProfile::LiquidMixing, EffectIntensity::Moderate);
+        let seed = 91;
+        let inserted = stirring_pose(layout, STIRRER_ENTRY_END * 0.92, seed);
+        assert!(inserted.submerged > 0.8);
+        assert!(inserted.activity <= f32::EPSILON);
+
+        let mut waiting = Mesh::default();
+        add_mixing_currents(
+            &mut waiting,
+            layout.liquid_center,
+            dynamics,
+            inserted.activity,
+            0.8,
+            seed,
+            appearance_color(AppearanceProfile::AqueousColourless),
+        );
+        assert!(
+            waiting.vertices.is_empty(),
+            "an immersed but stationary rod must not start liquid mixing"
+        );
+
+        let moving = stirring_pose(layout, 0.43, seed);
+        assert!(moving.activity > 0.5);
+        let mut active = Mesh::default();
+        add_mixing_currents(
+            &mut active,
+            layout.liquid_center,
+            dynamics,
+            moving.activity,
+            1.1,
+            seed,
+            appearance_color(AppearanceProfile::AqueousColourless),
+        );
+        assert!(
+            !active.vertices.is_empty(),
+            "mixing currents must begin once the immersed rod starts moving"
+        );
+
+        let mut mixing_only = plan;
+        mixing_only
+            .effects
+            .retain(|effect| effect.effect == EffectProfile::LiquidMixing);
+        let effect = mixing_only
+            .effects
+            .first()
+            .expect("the isolated mixing effect remains");
+        let sample_at = |target: f32| {
+            let span = f32::from(
+                effect
+                    .end_ordinal
+                    .saturating_sub(effect.start_ordinal)
+                    .saturating_add(1),
+            );
+            let mut ordinal = effect.start_ordinal;
+            let mut progress = target * span;
+            while progress >= 1.0 {
+                ordinal = ordinal.saturating_add(1);
+                progress -= 1.0;
+            }
+            (ordinal, progress)
+        };
+        let final_ordinal = mixing_only
+            .timeline
+            .beats
+            .last()
+            .map_or(effect.end_ordinal, |beat| beat.end_ordinal);
+        let gated_inputs_at = |target| {
+            let (ordinal, progress) = sample_at(target);
+            let mut inputs = ReactionVisualInputs::from_effects(
+                &mixing_only.effects,
+                ordinal,
+                progress,
+                final_ordinal,
+            );
+            let ungated = inputs.liquid_turbulence;
+            gate_stirrer_driven_liquid_turbulence(
+                &mut inputs,
+                &mixing_only,
+                layout,
+                ordinal,
+                progress,
+                MacroscopicStage::Reaction,
+                final_ordinal,
+            );
+            (ungated, inputs.liquid_turbulence)
+        };
+        let (ungated_waiting, gated_waiting) = gated_inputs_at(STIRRER_ENTRY_END * 0.92);
+        assert!(ungated_waiting > 0.0);
+        assert!(
+            gated_waiting <= f32::EPSILON,
+            "LiquidMixing turbulence must wait for the active stirring stroke"
+        );
+        let (_, gated_active) = gated_inputs_at(0.43);
+        assert!(
+            gated_active > 0.0,
+            "LiquidMixing turbulence must ramp up once stirring starts"
+        );
+    }
+
+    #[test]
     fn distinct_gas_reaction_families_drive_the_same_generic_visual_channels() {
         let plans = [
             canonical_plan(),
@@ -4115,8 +4717,11 @@ mod tests {
             instantiate_effect(
                 &mut meshes,
                 effect,
-                effect.start_ordinal,
-                0.64,
+                EffectMoment {
+                    ordinal: effect.start_ordinal,
+                    progress: 0.64,
+                    stage: MacroscopicStage::Reaction,
+                },
                 layout,
                 effect_seed(&plan, effect),
                 scene_effect_colours(&plan, effect.start_ordinal, 0.64),

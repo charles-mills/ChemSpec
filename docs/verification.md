@@ -217,6 +217,16 @@ different reaction families using the same effect profiles. Seeking the same
 position must reconstruct the same geometry and fixed camera pose without
 reaction-name branches or hidden mutable particle state.
 
+Stirring-apparatus tests require selection only from a typed `LiquidMixing`
+effect plus an existing liquid `Contents` asset. A gas-only reaction that forms
+a liquid product must not gain an invented stirrer. Entry and withdrawal paths
+must be curved and continuous at their stage boundaries; active samples must
+remain inside the vessel, below the liquid surface, and use non-uniform seeded
+angular travel. Repeated samples must be byte-identical, the local liquid wake
+must move with the rod, no mixing-current geometry or `LiquidMixing`
+turbulence may appear while the immersed rod is stationary, and all apparatus
+and mixing-current geometry must be absent after withdrawal completes.
+
 Neutralization regression tests require its trusted disappearance and formation
 observations to authorize deterministic liquid mixing and surface motion. The
 same test prohibits gas, bubbles, precipitate, flame, and product-phase assets,

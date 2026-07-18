@@ -45,7 +45,7 @@ The current generic visual mapping is:
 | `GasRelease` | gas generation and a conservative pressure contribution |
 | `VapourRelease` | buoyant hot-vapour/condensing-mist cue, heat, and mild expansion |
 | `SurfaceDisturbance` | liquid turbulence |
-| `LiquidMixing` | subsurface rotational flow and liquid turbulence |
+| `LiquidMixing` | subsurface rotational flow, liquid turbulence, and—when an existing liquid contents phase is present—a reusable virtual stirring rod |
 | `SplashEmitter` | droplets, turbulence, and pressure impulse |
 | `SolidFormation` | dry solid nucleation and faceted growth |
 | `PrecipitateFormation` / `Clouding` | precipitate generation |
@@ -269,6 +269,18 @@ macroscopic phase colour rather than using a hardcoded blue or white.
   subsurface helical flow tracers so convection remains readable in an
   otherwise colourless solution without pretending that new coloured matter
   exists.
+- A typed `LiquidMixing` effect in a scene with an existing liquid `Contents`
+  volume adds one reusable virtual glass stirring rod. It enters around the
+  vessel rim on a curved path, immerses before the main flow develops, follows
+  a seeded elliptical stirring path with non-uniform angular travel and
+  velocity-dependent lean, then withdraws along a separate curve. Local wake
+  rings, subsurface currents, and the `LiquidMixing` share of liquid turbulence
+  remain at zero during insertion and immersion, then ramp with the rod's
+  active stroke. Independently authorized bubbling, splashing, heat, and
+  surface disturbance remain unaffected. A small liquid film can trail the
+  withdrawing tip. The apparatus is absent for non-mixing effects and for
+  gas-only reactants that merely form a liquid product. Selection uses typed
+  effects and phase assets, never reaction or species names.
 - Bubbles remain discrete because bubbles are visible macroscopic interfaces.
   Their rise, wobble, size, birth phase, and fade are seeded and reproducible.
 - Dry solid products use staggered nuclei that grow outward into independently
@@ -384,6 +396,12 @@ validated heat can loft them. An explicit `evolves` observation instead selects
 the mixed/buoyant route. Exact heavier-than-air versus lighter-than-air behavior
 requires future reviewed generic material metadata rather than a chemical-name
 branch.
+
+The stirring rod follows the same absolute-playhead rule. Entry, immersion,
+active stirring, and withdrawal are renderer motion inside the already
+authorized `LiquidMixing` interval; they do not add a chemistry stage, alter
+trusted ordinals, or claim a laboratory procedure. The persistent virtual-only
+disclosure remains the authority for the presentation.
 
 The procedural choices follow established real-time graphics guidance:
 
