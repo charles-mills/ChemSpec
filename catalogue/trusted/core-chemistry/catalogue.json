@@ -1,5 +1,5 @@
 {
-  "digest": "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2",
+  "digest": "21554e27814f572ceee6aba9f5b1a22c42ac02a2fee3901d66e19aa783d19334",
   "bundle": {
     "schema_version": 1,
     "name": "ChemSpec.Theoretical",
@@ -38,6 +38,51 @@
         "publication_date": "2022-05-04",
         "retrieved_on": "2026-07-14",
         "usage": "Element symbols, names, atomic numbers, and conventional table placement; candidate group and block fields are covered by the host-selected AI review"
+      },
+      {
+        "id": "evidence.nist.webbook.carbon",
+        "title": "NIST Chemistry WebBook, SRD 69: Carbon",
+        "publisher": "National Institute of Standards and Technology",
+        "locator": "Carbon; condensed-phase and phase-change data",
+        "reference": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440440",
+        "retrieved_on": "2026-07-18",
+        "usage": "Ambient macroscopic solid-phase fact for elemental carbon"
+      },
+      {
+        "id": "evidence.nist.webbook.carbon-dioxide",
+        "title": "NIST Chemistry WebBook, SRD 69: Carbon dioxide",
+        "publisher": "National Institute of Standards and Technology",
+        "locator": "Carbon dioxide; gas-phase thermochemistry and phase-change data",
+        "reference": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389",
+        "retrieved_on": "2026-07-18",
+        "usage": "Ambient macroscopic gas-phase fact for carbon dioxide"
+      },
+      {
+        "id": "evidence.nist.webbook.hydrogen",
+        "title": "NIST Chemistry WebBook, SRD 69: Hydrogen",
+        "publisher": "National Institute of Standards and Technology",
+        "locator": "Molecular hydrogen; gas-phase thermochemistry and phase-change data",
+        "reference": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740",
+        "retrieved_on": "2026-07-18",
+        "usage": "Ambient macroscopic gas-phase fact for molecular hydrogen"
+      },
+      {
+        "id": "evidence.nist.webbook.oxygen",
+        "title": "NIST Chemistry WebBook, SRD 69: Oxygen",
+        "publisher": "National Institute of Standards and Technology",
+        "locator": "Molecular oxygen; gas-phase thermochemistry and phase-change data",
+        "reference": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782447",
+        "retrieved_on": "2026-07-18",
+        "usage": "Ambient macroscopic gas-phase fact for molecular oxygen"
+      },
+      {
+        "id": "evidence.nist.webbook.water",
+        "title": "NIST Chemistry WebBook, SRD 69: Water",
+        "publisher": "National Institute of Standards and Technology",
+        "locator": "Water; condensed-phase thermochemistry and phase-change data",
+        "reference": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C7732185",
+        "retrieved_on": "2026-07-18",
+        "usage": "Ambient macroscopic liquid-phase fact for water"
       },
       {
         "id": "evidence.openstax.chemistry-2e",
@@ -235,6 +280,66 @@
         "statement": "The hydrogen halide acid is compatible with the authored observation predicate disappears for this family outcome.",
         "evidence": [
           "evidence.openstax.chemistry-2e.acid-base"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.material.carbon-dioxide.standard-phase",
+        "statement": "Carbon dioxide is represented as a gas in the ambient educational macroscopic presentation context.",
+        "evidence": [
+          "evidence.nist.webbook.carbon-dioxide"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.material.carbon.standard-phase",
+        "statement": "Elemental carbon is represented as a solid in the ambient educational macroscopic presentation context.",
+        "evidence": [
+          "evidence.nist.webbook.carbon"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.material.hydrogen.standard-phase",
+        "statement": "Molecular hydrogen is represented as a gas in the ambient educational macroscopic presentation context.",
+        "evidence": [
+          "evidence.nist.webbook.hydrogen"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.material.oxygen.standard-phase",
+        "statement": "Molecular oxygen is represented as a gas in the ambient educational macroscopic presentation context.",
+        "evidence": [
+          "evidence.nist.webbook.oxygen"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.material.water.standard-phase",
+        "statement": "Water is represented as a liquid in the ambient educational macroscopic presentation context.",
+        "evidence": [
+          "evidence.nist.webbook.water"
         ],
         "review": {
           "status": "provisional",
@@ -70488,6 +70593,92 @@
           "premise.rule.element-oxygen.representative-outcomes",
           "premise.structure.element-oxygen.structural-models",
           "premise.valence.element-oxygen.closed-domain"
+        ]
+      }
+    ],
+    "macroscopic_materials": [
+      {
+        "structure": "CForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.carbon.standard-phase"
+        ]
+      },
+      {
+        "structure": "CarbonDioxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.carbon-dioxide.standard-phase"
+        ]
+      },
+      {
+        "structure": "CGroup14Dioxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.carbon-dioxide.standard-phase"
+        ]
+      },
+      {
+        "structure": "Hydrogen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.hydrogen.standard-phase"
+        ]
+      },
+      {
+        "structure": "HydrogenForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.hydrogen.standard-phase"
+        ]
+      },
+      {
+        "structure": "Oxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.oxygen.standard-phase"
+        ]
+      },
+      {
+        "structure": "Water",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "liquid"
+        },
+        "premise_ids": [
+          "premise.material.water.standard-phase"
         ]
       }
     ]

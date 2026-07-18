@@ -9,6 +9,7 @@ mod chemistry;
 mod composition_catalogue;
 mod elements;
 mod fonts;
+mod gas_fluid;
 mod icons;
 mod nomenclature;
 mod particle_visualization;
@@ -34,17 +35,18 @@ use std::{
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
-    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones, OutcomeSpecies,
-    ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest, ReactionClaim,
-    RequestIdentityResolution, TrustTier, ValidatedStaticOutcome, compile_claim_outcome,
-    enrich_static_outcome, load_dynamic_cache, resolve_request_identities_with_catalogue,
-    reviewed_species_registry, store_dynamic_cache,
+    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones,
+    MacroscopicProcess as AgentMacroscopicProcess, OutcomeSpecies, ReactantIdentityAmbiguity,
+    ReactantInput, ReactionBuildRequest, ReactionClaim, RequestIdentityResolution, TrustTier,
+    ValidatedStaticOutcome, compile_claim_outcome, enrich_static_outcome, load_dynamic_cache,
+    resolve_request_identities_with_catalogue, reviewed_species_registry, store_dynamic_cache,
 };
 use chem_domain::SpeciesId;
 use chem_presentation::{
-    AppearanceProfile, AssetProfile, EducationalPlan, EducationalSceneKind, EffectProfile,
-    PresentationObject, PresentationProfile, PresentationTransform, ScenePlan, SceneRole,
-    TimelinePosition, compile_educational_plan, compile_real_world_plan,
+    EducationalPlan, EducationalSceneKind, EffectProfile, MacroscopicMaterial,
+    MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction, MacroscopicStage,
+    PresentationProfile, ScenePlan, TimelinePosition, compile_educational_plan,
+    compile_phase_driven_profile, compile_real_world_plan, complete_generic_visual_profile,
 };
 use iced::widget::{
     button, canvas, column, container, responsive, row, rule, scrollable, slider, space, stack,
@@ -442,11 +444,14 @@ fn sync_educational_frame(animation: &mut StructuralAnimation) {
 
 const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
     match effect {
+        EffectProfile::ReactionActivity => "Reaction motion",
         EffectProfile::BubbleEmitter => "Interface bubbles",
         EffectProfile::GasRelease => "Gas release",
+        EffectProfile::VapourRelease => "Hot vapour",
         EffectProfile::SurfaceDisturbance => "Surface motion",
         EffectProfile::LiquidMixing => "Liquid mixing",
         EffectProfile::ObjectShrinkage => "Reactant consumption",
+        EffectProfile::SolidFormation => "Solid formation",
         EffectProfile::PrecipitateFormation => "Precipitate formation",
         EffectProfile::Clouding => "Solution clouding",
         EffectProfile::ColourTransition => "Colour transition",
@@ -524,46 +529,57 @@ fn codex_available() -> bool {
 }
 
 fn dynamic_presentation_profile(
-    _frames: &chem_kernel::SimulationFrames,
-    equation: &str,
-) -> PresentationProfile {
-    let transform = |translation, scale| PresentationTransform {
-        translation,
-        rotation: [0, 0, 0],
-        scale,
+    frames: &chem_kernel::SimulationFrames,
+    outcome: &ValidatedStaticOutcome,
+) -> Result<PresentationProfile, String> {
+    let material = |species: &OutcomeSpecies, role| {
+        Some(MacroscopicMaterial {
+            binding: species.id().to_string(),
+            semantic_identity: species.display_name().to_owned(),
+            role,
+            phase: outcome.macroscopic_phase(species),
+            representation: species.representation()?,
+        })
     };
-    PresentationProfile {
-        id: "dynamic-validated".to_owned(),
-        environment: AssetProfile::LaboratoryBench,
-        objects: vec![
-            PresentationObject {
-                id: "vessel".to_owned(),
-                asset: AssetProfile::Beaker,
-                semantic_identity: "virtual reaction vessel".to_owned(),
-                appearance: AppearanceProfile::ClearGlass,
-                role: SceneRole::Vessel,
-                transform: transform([0, 0, 0], [1_100, 1_100, 1_100]),
-                visible_from_ordinal: 0,
-                observation: None,
-                colour_transition: None,
-            },
-            PresentationObject {
-                id: "contents".to_owned(),
-                asset: AssetProfile::LiquidVolume,
-                semantic_identity: "representative reaction contents".to_owned(),
-                appearance: AppearanceProfile::AqueousColourless,
-                role: SceneRole::Contents,
-                transform: transform([0, -150, 0], [1_000, 850, 1_000]),
-                visible_from_ordinal: 0,
-                observation: None,
-                colour_transition: None,
-            },
-        ],
-        effects: Vec::new(),
-        camera: Vec::new(),
-        equation: equation.to_owned(),
-        disclosure: "Representative virtual presentation.".to_owned(),
+    let materials = outcome
+        .reactants()
+        .iter()
+        .filter_map(|species| material(species, MacroscopicMaterialRole::Reactant))
+        .chain(
+            outcome
+                .products()
+                .iter()
+                .filter_map(|species| material(species, MacroscopicMaterialRole::Product)),
+        )
+        .collect::<Vec<_>>();
+    if materials.len() != outcome.reactants().len() + outcome.products().len() {
+        return Err("validated dynamic species lack renderer-readable structures".to_owned());
     }
+    let process = outcome.macroscopic_process().map(|process| match process {
+        AgentMacroscopicProcess::CompleteCombustion => MacroscopicProcess::CompleteCombustion,
+        AgentMacroscopicProcess::SolventEvaporationCrystallization => {
+            MacroscopicProcess::SolventEvaporationCrystallization
+        }
+    });
+    let profile = compile_phase_driven_profile(
+        frames,
+        &MacroscopicReaction {
+            profile_id: format!(
+                "presentation.dynamic.{}",
+                outcome.declaration().digest().to_hex()
+            ),
+            equation: outcome.equation().to_owned(),
+            materials,
+            intensity: if process == Some(MacroscopicProcess::CompleteCombustion) {
+                chem_presentation::EffectIntensity::Strong
+            } else {
+                chem_presentation::EffectIntensity::Moderate
+            },
+            process,
+        },
+    )
+    .map_err(|error| error.to_string())?;
+    complete_generic_visual_profile(frames, profile).map_err(|error| error.to_string())
 }
 
 fn launch_state() -> App {
@@ -951,7 +967,6 @@ struct StructuralAnimation {
     frames: RenderableFrames,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
-    reactant_previews: Vec<composition_catalogue::TrustedCompositionPreview>,
     product_preview: Option<composition_catalogue::TrustedCompositionPreview>,
     equation: String,
     educational_playhead_ms: u64,
@@ -2377,26 +2392,23 @@ impl App {
                 .clone();
             let educational_plan =
                 compile_educational_plan(&frames).map_err(|error| error.to_string())?;
-            let (profile, reactant_previews, product_preview, equation) =
-                if let Some(dynamic) = &self.dynamic_static {
-                    (
-                        dynamic_presentation_profile(&frames, dynamic.equation()),
-                        Vec::new(),
-                        None,
-                        dynamic.equation().to_owned(),
-                    )
-                } else {
-                    (
-                        chemistry::presentation_profile_with_catalogue(
-                            self.active_request,
-                            &frames,
-                            self.validated_macroscopic.as_ref(),
-                        )?,
-                        self.active_request.reactant_previews(),
-                        self.active_request.product_preview(),
-                        self.active_request.equation(),
-                    )
-                };
+            let (profile, product_preview, equation) = if let Some(dynamic) = &self.dynamic_static {
+                (
+                    dynamic_presentation_profile(&frames, dynamic)?,
+                    None,
+                    dynamic.equation().to_owned(),
+                )
+            } else {
+                (
+                    chemistry::presentation_profile_with_catalogue(
+                        self.active_request,
+                        &frames,
+                        self.validated_macroscopic.as_ref(),
+                    )?,
+                    self.active_request.product_preview(),
+                    self.active_request.equation(),
+                )
+            };
             let real_world_plan =
                 compile_real_world_plan(&frames, &profile).map_err(|error| error.to_string())?;
             let home_timeline = structural_2d::home_timeline(frames.frames());
@@ -2404,7 +2416,6 @@ impl App {
                 frames,
                 educational_plan,
                 real_world_plan,
-                reactant_previews,
                 product_preview,
                 equation,
                 educational_playhead_ms: 0,
@@ -2832,6 +2843,7 @@ impl App {
                     .color(color::TEXT),
                     space().width(Fill),
                 ]
+                .spacing(spacing::XS)
                 .align_y(Center),
                 diagram,
                 controls,
@@ -2916,47 +2928,84 @@ impl App {
         .on_press_maybe(at_end.then_some(Message::ContinueToSummary))
         .padding([spacing::XS, spacing::SM])
         .style(theme::primary_button);
+        let process_annotation = match moment.stage {
+            MacroscopicStage::Reaction => None,
+            MacroscopicStage::HeatingPreparation => Some((
+                "VIRTUAL SEPARATION · HEATING",
+                "The completed solution is positioned over a virtual heat source; this is a separate presentation step, not further reaction chemistry.",
+            )),
+            MacroscopicStage::SolventBoiling => Some((
+                "VIRTUAL SEPARATION · EVAPORATION",
+                "Nucleate boiling lowers the solvent level while buoyant vapour leaves the open vessel.",
+            )),
+            MacroscopicStage::CrystalGrowth => Some((
+                "VIRTUAL SEPARATION · CRYSTALLISATION",
+                "As the remaining solvent disappears, the already-validated dissolved ionic product nucleates and grows as a crystal residue.",
+            )),
+        };
         let active_annotation = real_world_plan.annotations.iter().rfind(|annotation| {
             annotation.start_ordinal <= moment.ordinal && moment.ordinal <= annotation.end_ordinal
         });
-        let active_effects = real_world_plan
-            .effects
-            .iter()
-            .filter(|effect| {
-                effect.start_ordinal <= moment.ordinal && moment.ordinal <= effect.end_ordinal
-            })
-            .map(|effect| macroscopic_effect_label(effect.effect))
-            .collect::<Vec<_>>()
-            .join("  ·  ");
-        let mut annotation = active_annotation.map_or_else(
+        let active_effects = match moment.stage {
+            MacroscopicStage::Reaction => real_world_plan
+                .effects
+                .iter()
+                .filter(|effect| {
+                    effect.start_ordinal <= moment.ordinal && moment.ordinal <= effect.end_ordinal
+                })
+                .map(|effect| macroscopic_effect_label(effect.effect))
+                .collect::<Vec<_>>()
+                .join("  ·  "),
+            MacroscopicStage::HeatingPreparation => "Beaker lift  ·  Burner ignition".to_owned(),
+            MacroscopicStage::SolventBoiling => {
+                "Wall nucleation  ·  Bubble detachment  ·  Vapour flow".to_owned()
+            }
+            MacroscopicStage::CrystalGrowth => {
+                "Solvent decay  ·  Crystal nucleation  ·  Faceted growth".to_owned()
+            }
+        };
+        let mut annotation = process_annotation.map_or_else(
             || {
-                column![
-                    text("REVIEWED SCENE")
-                        .size(type_scale::MICRO)
-                        .color(color::ACCENT),
-                    text(nomenclature::display_equation(&real_world_plan.equation))
-                        .size(type_scale::BODY_LARGE)
-                        .color(color::TEXT),
-                ]
+                active_annotation.map_or_else(
+                    || {
+                        column![
+                            text("REVIEWED SCENE")
+                                .size(type_scale::MICRO)
+                                .color(color::ACCENT),
+                            text(nomenclature::display_equation(&real_world_plan.equation))
+                                .size(type_scale::BODY_LARGE)
+                                .color(color::TEXT),
+                        ]
+                    },
+                    |annotation| {
+                        let mut content = column![
+                            text(annotation.title.as_str())
+                                .size(type_scale::MICRO)
+                                .color(color::ACCENT),
+                            text(annotation.text.as_str())
+                                .size(type_scale::BODY_LARGE)
+                                .color(color::TEXT),
+                        ]
+                        .spacing(spacing::XXS);
+                        if !active_effects.is_empty() {
+                            content = content.push(
+                                text(active_effects.clone())
+                                    .size(type_scale::MICRO)
+                                    .color(color::TEXT_SOFT),
+                            );
+                        }
+                        content
+                    },
+                )
             },
-            |annotation| {
-                let mut content = column![
-                    text(annotation.title.as_str())
+            |(title, body)| {
+                column![
+                    text(title).size(type_scale::MICRO).color(color::ACCENT),
+                    text(body).size(type_scale::BODY_LARGE).color(color::TEXT),
+                    text(active_effects.clone())
                         .size(type_scale::MICRO)
-                        .color(color::ACCENT),
-                    text(annotation.text.as_str())
-                        .size(type_scale::BODY_LARGE)
-                        .color(color::TEXT),
+                        .color(color::TEXT_SOFT),
                 ]
-                .spacing(spacing::XXS);
-                if !active_effects.is_empty() {
-                    content = content.push(
-                        text(active_effects.clone())
-                            .size(type_scale::MICRO)
-                            .color(color::TEXT_SOFT),
-                    );
-                }
-                content
             },
         );
         let product_visible = real_world_plan.objects.iter().any(|object| {
@@ -2965,19 +3014,15 @@ impl App {
         });
         if product_visible && let Some(preview) = &animation.product_preview {
             annotation = annotation.push(
-                text(format!("Molecular model · {}", preview.formula))
+                text(format!("Macroscopic product · {}", preview.formula))
                     .size(type_scale::MICRO)
                     .color(color::TEXT_SOFT),
             );
         }
-        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
-            real_world_plan,
-            moment,
-            &animation.reactant_previews,
-            animation.product_preview.as_ref(),
-        ))
-        .width(Fill)
-        .height(Fill);
+        let scene_view =
+            iced::widget::Shader::new(structural_3d::Scene::new(real_world_plan, moment))
+                .width(Fill)
+                .height(Fill);
         let model_disclosure = if compact {
             "VIRTUAL MODEL · NOT A LAB PROCEDURE"
         } else {
@@ -3080,14 +3125,15 @@ impl App {
                         text("VALIDATED 3D MODEL")
                             .size(type_scale::MICRO)
                             .color(color::ACCENT),
-                        text("Illustrative molecular and macroscopic view")
+                        text("Illustrative macroscopic reaction view")
                             .size(if compact {
                                 type_scale::BODY_LARGE
                             } else {
                                 type_scale::TITLE
                             })
                             .color(color::TEXT),
-                    ],
+                    ]
+                    .spacing(spacing::XXS),
                     space().width(Fill),
                     if compact {
                         text("").size(type_scale::MICRO)
@@ -3097,6 +3143,7 @@ impl App {
                             .color(color::MUTED)
                     },
                 ]
+                .spacing(spacing::XS)
                 .align_y(Center),
                 scene,
                 controls,
@@ -3968,6 +4015,52 @@ mod tests {
         outcome
     }
 
+    fn dynamic_methane_static() -> ValidatedStaticOutcome {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let claim = serde_json::json!({
+            "schema_version": 1,
+            "disposition": "reaction",
+            "products": [
+                {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
+                {"name":"water","formula":"H2O","phase":"gas","identity_hints":[]}
+            ],
+            "required_context":"complete combustion in oxygen",
+            "observations":[
+                {"predicate":"forms","subject":"carbon dioxide and water vapour","value":null}
+            ],
+            "sources":[],
+            "ambiguity":null
+        });
+        let claim = ReactionClaim::from_json(
+            &serde_json::to_vec(&claim).expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let request = ReactionBuildRequest {
+            reactants: [
+                ReactantInput {
+                    display: "CH4".into(),
+                    atomic_numbers: vec![6, 1, 1, 1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ]
+            .to_vec(),
+            selected_context: None,
+        };
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &identities).expect("compiled")
+        else {
+            panic!("static outcome")
+        };
+        outcome
+    }
+
     #[test]
     fn local_mode_is_preselected_and_continues_without_codex() {
         let mut app = App::default();
@@ -3975,6 +4068,48 @@ mod tests {
         assert_eq!(app.screen, Screen::ProviderSetup);
         app.update(Message::ProviderContinue);
         assert_eq!(app.screen, Screen::Builder);
+    }
+
+    #[test]
+    fn dynamic_combustion_compiles_phase_aware_flame_vapour_and_gas_reactants() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let mut provider = agent::UnsupportedMechanismProvider;
+        let presentation =
+            enrich_static_outcome(dynamic_methane_static(), catalogue, &mut provider)
+                .expect("combustion animation");
+        let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
+            match &presentation {
+                DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Escalated(animated) => {
+                    (animated.static_outcome(), animated.frames())
+                }
+                DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                    panic!("combustion should animate: {diagnostic}")
+                }
+            };
+        let profile =
+            dynamic_presentation_profile(frames, outcome).expect("phase-driven combustion profile");
+
+        assert!(profile.objects.iter().any(|object| {
+            object.role == chem_presentation::SceneRole::Reactant
+                && object.asset == chem_presentation::AssetProfile::GasCloud
+        }));
+        assert!(profile.effects.iter().any(|effect| {
+            matches!(
+                effect.effect,
+                EffectProfile::FlameEmitter(chem_presentation::FlamePalette::Natural)
+            )
+        }));
+        assert!(
+            profile
+                .effects
+                .iter()
+                .any(|effect| effect.effect == EffectProfile::VapourRelease)
+        );
+        compile_real_world_plan(frames, &profile)
+            .expect("typed process effects cross macroscopic plan validation");
     }
 
     #[test]

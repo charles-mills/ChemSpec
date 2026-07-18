@@ -201,6 +201,12 @@ before the alpha-blended liquid/effect/glass pass and the bounded additive flame
 core pass, all use the same depth-tested Iced target, and clear glass does not
 incorrectly hide opaque scene geometry.
 
+The macroscopic renderer API must not accept exact molecular previews. Tests
+must prove that reactions with reviewed atom/bond graphs still instantiate
+their typed liquid, faceted-solid, or gas-density assets in Structural 3D.
+Ball-and-stick geometry remains confined to the dedicated structural and
+product-inspection views.
+
 Reusable motion tests additionally require continuous absolute effect phase
 across ordinal boundaries, deterministic seeded particle variation, smooth
 attack and release for transient effects, persistence for accumulated effects,
@@ -216,6 +222,24 @@ observations to authorize deterministic liquid mixing and surface motion. The
 same test prohibits gas, bubbles, precipitate, flame, and product-phase assets,
 and requires the colourless material to remain less blue and more transparent
 than the stylised water material.
+
+Post-neutralisation separation tests operate after that regression boundary.
+They require a typed solvent-evaporation/crystallisation process, three appended
+presentation beats, and an unchanged final trusted ordinal. The heating beat
+must lift the vessel without moving the camera and place a blue apparatus flame
+under the vessel rather than on the liquid. The boiling beat must lower the
+liquid monotonically, use deterministic wall/floor nucleation, bubble growth
+and detachment, surface bursts, agitation, and an advected vapour volume. The
+crystallisation beat must fully remove the illustrative solvent, extinguish the
+burner, and leave deterministic persistent faceted salt geometry.
+
+Process-selection tests require structurally checked acid capability, an ionic
+base, liquid water, and an aqueous ionic product for dynamic reactions. The
+reviewed legacy neutralisation family must reach the same typed process while
+acid/carbonate gas evolution, precipitation, combustion, and phase-unknown
+outcomes remain excluded. UI checks must retain the virtual-only disclosure and
+label all appended beats as a separate virtual separation, never as further
+reaction chemistry.
 
 Colour tests require named and exact `Rgb.HexRRGGBB` values to resolve
 deterministically, malformed or observation-mismatched values to fail with a
@@ -261,8 +285,10 @@ context, unknown structure/rule/role and premise references to fail with
 `CHEMS-C024`, and duplicate contexts to fail deterministically. Generic
 phase-combination tests cover solid + gas -> gas without bubbles, gas + gas ->
 liquid without precipitate, and aqueous reactants -> solid with settling
-precipitate. The compiler input contains bindings and phases but no reaction
-name.
+precipitate. Live-profile tests additionally require the reviewed hydrogen,
+oxygen, and water records to route the hydrogen-oxidation experience through
+gas reactants and a liquid product rather than its phase-unknown solid
+fallback. The compiler input contains bindings and phases but no reaction name.
 
 Flame tests additionally require deterministic faceted plume geometry, separate
 alpha body and additive core/spark batches, palette preservation, and a smooth
@@ -270,6 +296,47 @@ bounded lifecycle. The reviewed alkali-water profile test must prove that
 potassium selects a strong lilac generic flame emitter at the trusted gas
 observation while lithium and sodium remain flame-free. A flame-test colour
 alone is not ignition metadata.
+
+Gas-phase motion tests require gaseous reactants to begin inside the vessel
+headspace, remain bounded there, and use seeded buoyancy, drag, and curl without
+the gravity-drop or rigid-spin path used for added solids and liquids. Fluid
+tests require byte-identical density and velocity for the same seed and
+playhead, impermeable vessel walls and floor below the rim, an open domain
+above the rim, wind-responsive centre of mass, and a lower centre of mass for a
+cool dense field than for a hot buoyant field. They also require concentration
+to diffuse into neighbouring fluid cells without entering solid cells and a
+contained field to occupy at least 72 percent of the available headspace at the
+tested activity point. Persistent-product tests require a lower centre of mass
+than mixed headspace gas, a seeded irregular upper density interface that rises
+with product formation, horizontal vessel-wide extent, and non-zero entrainment
+above the interface. The same role/phase route must work for chemically
+different gas products without a reaction-name branch, while an `evolves`
+product must remain mixed and retain its open-rim plume instead of inheriting
+the dense-layer default. Gas-rendering tests
+require a depth-sorted soft volume with varying exponential optical depth,
+visible field extent, non-zero simulated flow, flattened retained-interface
+splats, continuous retained headspace plus open-rim plume, and no replacement
+shell mesh or visible bead field. Performance regressions additionally require
+redraws within the same quantized 18 Hz solver step to reuse the same cached
+density and velocity storage, while the next fixed step produces a distinct
+field. The cache must remain bounded and cache keys must include the stable seed
+and every solver control.
+Complete-combustion tests require classification from exact
+validated element counts, molecular representation, gaseous products, and
+product assignment—not reaction or species names—and must prove that the
+generic plan authorizes natural surface flame and hot-vapour channels. The plan
+compiler must reject those process-authorized effects for any other process or
+effect pairing.
+
+Macroscopic coverage tests must compile every supported experience through the
+same production profile-selection path and reject any profile with zero
+effects. Legacy-profile completion tests require the validated `forms`
+observation to add phase-neutral `ReactionActivity`, gas product assets to add
+`GasRelease`, and dry solid product assets to add `SolidFormation` without
+reaction-name checks. Phase-unknown tests must prove that this fallback does
+not invent liquid, gas, precipitation, flame, or colour. Dry-solid renderer
+tests require staggered, seeded faceted nucleation distinct from
+gravity-settling precipitation and byte-identical geometry for replay.
 
 Educational timeline tests additionally cover variable-duration totals, exact
 scene boundaries, zero-duration scenes, end clamping, and position-to-elapsed
@@ -324,9 +391,10 @@ their active trusted observations, reject premature effects and mismatched
 values, and separately preserve the validated white, cream, and yellow
 silver-halide appearances through scene geometry. The alkali-water comparison
 separately verifies reviewed potassium ignition against lithium and sodium
-non-ignition without a renderer identity branch. Effect-free profiles are
-checked for a single liquid volume without transparent overdraw. The complete
-application-path tests cover the original 36 independently authored request
+non-ignition without a renderer identity branch. Legacy profiles are checked
+for generic validated-progress completion and liquid profiles retain a single
+volume without transparent overdraw. The complete application-path tests cover
+the original 36 independently authored request
 fixtures plus representative single- and multi-outcome registry routes. They
 require the same trusted digest to reach frames, the 2D plan, and the 3D plan
 before a simulation screen transition succeeds. Periodic-table tests require all 118 atomic

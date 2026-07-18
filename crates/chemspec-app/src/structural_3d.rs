@@ -1,46 +1,39 @@
-//! Depth-tested low-poly rendering of reviewed macroscopic scene plans and
-//! exact catalogue-projected molecular identities.
+//! Depth-tested low-poly rendering of reviewed macroscopic scene plans.
 //!
-//! The renderer consumes already-reviewed atoms and bonds for presentation;
-//! it never infers structure, parses source, or selects reaction rules.
+//! Exact atoms and bonds remain available to the dedicated structural views.
+//! This renderer consumes only trusted macroscopic assets and effects; it never
+//! infers structure, parses source, or selects reaction rules.
 
 use bytemuck::{Pod, Zeroable};
+use chem_catalogue::ObservationPredicate;
 use chem_presentation::{
     AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, FlamePalette,
-    PresentationColourTransition, PresentationEffect, PresentationObject, PresentationTransform,
-    ReactionVisualInputs, SceneRole, VisualColour,
+    MacroscopicStage, PresentationColourTransition, PresentationEffect, PresentationObject,
+    PresentationTransform, ReactionVisualInputs, SceneRole, VisualColour,
 };
 use chem_presentation::{RealWorldPosition, ScenePlan};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use iced::widget::shader::{self, Program};
 use iced::{Rectangle, wgpu};
 
-use crate::composition_catalogue::TrustedCompositionPreview;
+use crate::gas_fluid::{GasFlowControls, GasFluidVolume};
 use crate::scene_registry::{self, AssetGeometry, EffectDynamics, EffectGeometry};
 
 const MAX_VERTICES: u64 = 32_768;
 const MAX_INDICES: u64 = 98_304;
+const MAX_GAS_SPLATS: u64 = 4_096;
 
 #[derive(Debug, Clone)]
 pub struct Scene {
     plan: ScenePlan,
     moment: RealWorldPosition,
-    reactant_previews: Vec<TrustedCompositionPreview>,
-    product_preview: Option<TrustedCompositionPreview>,
 }
 
 impl Scene {
-    pub fn new(
-        plan: &ScenePlan,
-        moment: RealWorldPosition,
-        reactant_previews: &[TrustedCompositionPreview],
-        product_preview: Option<&TrustedCompositionPreview>,
-    ) -> Self {
+    pub fn new(plan: &ScenePlan, moment: RealWorldPosition) -> Self {
         Self {
             plan: plan.clone(),
             moment,
-            reactant_previews: reactant_previews.to_vec(),
-            product_preview: product_preview.cloned(),
         }
     }
 }
@@ -60,20 +53,26 @@ impl<Message> Program<Message> for Scene {
         _cursor: iced::mouse::Cursor,
         _bounds: Rectangle,
     ) -> Self::Primitive {
-        let (vertices, indices, opaque_index_count, transparent_index_count) = build_scene(
-            &self.plan,
-            self.moment.ordinal,
-            self.moment.ordinal_progress,
-            &self.reactant_previews,
-            self.product_preview.as_ref(),
-        );
+        let (vertices, indices, opaque_index_count, transparent_index_count, mut gas_splats) =
+            build_scene_at(&self.plan, self.moment);
         let camera = fixed_camera_pose(&self.plan);
         let focus_target = SceneLayout::resolve(&self.plan).camera_target;
+        let eye = focus_target
+            + Quat::from_rotation_y(camera.yaw)
+                * Quat::from_rotation_x(camera.pitch)
+                * Vec3::new(0.0, 0.0, 8.0);
+        let view_direction = (focus_target - eye).normalize_or_zero();
+        gas_splats.sort_by(|left, right| {
+            let left_depth = (Vec3::from_array(left.center) - eye).dot(view_direction);
+            let right_depth = (Vec3::from_array(right.center) - eye).dot(view_direction);
+            right_depth.total_cmp(&left_depth)
+        });
         ScenePrimitive {
             vertices,
             indices,
             opaque_index_count,
             transparent_index_count,
+            gas_splats,
             yaw: camera.yaw,
             pitch: camera.pitch,
             view_height: camera.view_height,
@@ -92,6 +91,17 @@ struct Vertex {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct GasSplat {
+    center: [f32; 3],
+    radius: f32,
+    color: [f32; 4],
+    flow: [f32; 3],
+    density: f32,
+    layering: f32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct CameraUniform {
     view_projection: [[f32; 4]; 4],
     key_direction: [f32; 4],
@@ -105,6 +115,7 @@ pub struct ScenePrimitive {
     indices: Vec<u32>,
     opaque_index_count: u32,
     transparent_index_count: u32,
+    gas_splats: Vec<GasSplat>,
     yaw: f32,
     pitch: f32,
     view_height: f32,
@@ -116,14 +127,17 @@ pub struct ScenePipeline {
     opaque_pipeline: wgpu::RenderPipeline,
     transparent_pipeline: wgpu::RenderPipeline,
     additive_pipeline: wgpu::RenderPipeline,
+    gas_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    gas_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     depth: Option<DepthTarget>,
     opaque_index_count: u32,
     transparent_index_count: u32,
     index_count: u32,
+    gas_count: u32,
     physical_bounds: [u32; 4],
 }
 
@@ -246,10 +260,57 @@ impl shader::Pipeline for ScenePipeline {
             None,
             "emissive_fragment",
         );
+        let gas_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("chemspec structural 3d volumetric gas pipeline"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("gas_vertex"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<GasSplat>() as u64,
+                    step_mode: wgpu::VertexStepMode::Instance,
+                    attributes: &wgpu::vertex_attr_array![
+                        3 => Float32x3,
+                        4 => Float32,
+                        5 => Float32x4,
+                        6 => Float32x3,
+                        7 => Float32,
+                        8 => Float32
+                    ],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("gas_fragment"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: None,
+                ..wgpu::PrimitiveState::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
         Self {
             opaque_pipeline,
             transparent_pipeline,
             additive_pipeline,
+            gas_pipeline,
             vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("chemspec structural 3d vertices"),
                 size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
@@ -262,12 +323,19 @@ impl shader::Pipeline for ScenePipeline {
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
+            gas_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("chemspec structural 3d gas splats"),
+                size: MAX_GAS_SPLATS * std::mem::size_of::<GasSplat>() as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
             uniform_buffer,
             bind_group,
             depth: None,
             opaque_index_count: 0,
             transparent_index_count: 0,
             index_count: 0,
+            gas_count: 0,
             physical_bounds: [0; 4],
         }
     }
@@ -330,6 +398,7 @@ impl shader::Primitive for ScenePrimitive {
             pipeline.opaque_index_count = 0;
             pipeline.transparent_index_count = 0;
             pipeline.index_count = 0;
+            pipeline.gas_count = 0;
             return;
         }
         queue.write_buffer(
@@ -342,6 +411,16 @@ impl shader::Primitive for ScenePrimitive {
             0,
             bytemuck::cast_slice(&self.indices),
         );
+        if self.gas_splats.len() as u64 <= MAX_GAS_SPLATS {
+            queue.write_buffer(
+                &pipeline.gas_buffer,
+                0,
+                bytemuck::cast_slice(&self.gas_splats),
+            );
+            pipeline.gas_count = u32::try_from(self.gas_splats.len()).unwrap_or(u32::MAX);
+        } else {
+            pipeline.gas_count = 0;
+        }
         pipeline.index_count = u32::try_from(self.indices.len()).unwrap_or(u32::MAX);
         pipeline.opaque_index_count = self.opaque_index_count.min(pipeline.index_count);
         pipeline.transparent_index_count = self
@@ -429,6 +508,12 @@ impl shader::Primitive for ScenePrimitive {
         pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
         pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
+        if pipeline.gas_count > 0 {
+            pass.set_pipeline(&pipeline.gas_pipeline);
+            pass.set_vertex_buffer(0, pipeline.gas_buffer.slice(..));
+            pass.draw(0..6, 0..pipeline.gas_count);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+        }
         if pipeline.opaque_index_count < pipeline.transparent_index_count {
             pass.set_pipeline(&pipeline.transparent_pipeline);
             pass.draw_indexed(
@@ -452,6 +537,8 @@ impl shader::Primitive for ScenePrimitive {
 struct SceneLayout {
     bench_top: f32,
     vessel_center: Vec3,
+    vessel_scale: Vec3,
+    has_liquid: bool,
     liquid_center: Vec3,
     liquid_surface: f32,
     reaction_point: Vec3,
@@ -507,6 +594,8 @@ impl SceneLayout {
         Self {
             bench_top,
             vessel_center,
+            vessel_scale,
+            has_liquid: contents.is_some(),
             liquid_center,
             liquid_surface,
             reaction_point,
@@ -519,6 +608,11 @@ impl SceneLayout {
         let target = match object.role {
             SceneRole::Vessel => self.vessel_center,
             SceneRole::Contents => self.liquid_center,
+            SceneRole::Reactant if object.asset == AssetProfile::GasCloud => Vec3::new(
+                self.vessel_center.x + source.x,
+                self.liquid_surface + 0.30,
+                self.vessel_center.z + source.z,
+            ),
             SceneRole::Reactant => Vec3::new(
                 self.reaction_point.x + source.x,
                 self.reaction_point.y,
@@ -556,6 +650,41 @@ impl SceneLayout {
         self.reaction_point += motion;
         self
     }
+
+    fn gas_volume(self) -> (Vec3, Vec3) {
+        let vessel_floor = self.bench_top + 0.055 * self.vessel_scale.y;
+        let vessel_rim = self.vessel_center.y + 0.91 * self.vessel_scale.y;
+        let volume_floor = if self.has_liquid {
+            self.liquid_surface + 0.025
+        } else {
+            vessel_floor
+        };
+        let available_height = (vessel_rim - volume_floor).max(0.28);
+        (
+            Vec3::new(
+                self.vessel_center.x,
+                volume_floor + available_height * 0.5,
+                self.vessel_center.z,
+            ),
+            Vec3::new(
+                self.vessel_scale.x * 0.98,
+                available_height * 0.52,
+                self.vessel_scale.z * 0.98,
+            ),
+        )
+    }
+
+    fn with_liquid_fraction(mut self, fraction: f32) -> Self {
+        let fraction = fraction.clamp(0.0, 1.0);
+        let half_above = self.liquid_surface - self.liquid_center.y;
+        let full_height = half_above / 0.54 * 1.06;
+        let bottom = self.liquid_surface - full_height;
+        let height = full_height * fraction;
+        self.liquid_center.y = bottom + height * (0.52 / 1.06);
+        self.liquid_surface = bottom + height;
+        self.reaction_point.y = self.liquid_surface + 0.065;
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -578,6 +707,89 @@ struct EffectColours {
     gas: [f32; 4],
 }
 
+#[derive(Debug, Clone, Copy)]
+struct PostProcessVisualState {
+    active: bool,
+    lift: f32,
+    flame: f32,
+    boiling: f32,
+    vapour: f32,
+    liquid_fraction: f32,
+    crystal_growth: f32,
+}
+
+// A visible air gap is important in the fixed orthographic view: with a
+// smaller displacement the transparent vessel makes the external flame read
+// as though it is burning inside the liquid.
+const HEATING_LIFT: f32 = 0.48;
+
+impl Default for PostProcessVisualState {
+    fn default() -> Self {
+        Self {
+            active: false,
+            lift: 0.0,
+            flame: 0.0,
+            boiling: 0.0,
+            vapour: 0.0,
+            liquid_fraction: 1.0,
+            crystal_growth: 0.0,
+        }
+    }
+}
+
+fn post_process_visual_state(
+    plan: &ScenePlan,
+    stage: MacroscopicStage,
+    progress: f32,
+) -> PostProcessVisualState {
+    if plan.post_process
+        != Some(chem_presentation::MacroscopicProcess::SolventEvaporationCrystallization)
+    {
+        return PostProcessVisualState::default();
+    }
+    let progress = progress.clamp(0.0, 1.0);
+    match stage {
+        MacroscopicStage::Reaction => PostProcessVisualState::default(),
+        MacroscopicStage::HeatingPreparation => {
+            let spring = 1.0
+                - (-7.4 * progress).exp()
+                    * ((10.5 * progress).cos() + 0.70 * (10.5 * progress).sin());
+            PostProcessVisualState {
+                active: true,
+                lift: spring.clamp(0.0, 1.08) * HEATING_LIFT,
+                flame: normalized_exponential_response((progress - 0.34) / 0.66, 4.4),
+                ..PostProcessVisualState::default()
+            }
+        }
+        MacroscopicStage::SolventBoiling => {
+            let evaporation = smoother_step(progress);
+            let attack = normalized_exponential_response(progress / 0.14, 4.8);
+            let release = normalized_exponential_decay((progress - 0.90) / 0.10, 3.4);
+            PostProcessVisualState {
+                active: true,
+                lift: HEATING_LIFT,
+                flame: 0.96,
+                boiling: attack * release,
+                vapour: attack * (0.72 + progress * 0.28),
+                liquid_fraction: 1.0 - evaporation * 0.86,
+                crystal_growth: smoother_step((progress - 0.78) / 0.22) * 0.18,
+            }
+        }
+        MacroscopicStage::CrystalGrowth => {
+            let residual = 1.0 - smoother_step(progress / 0.58);
+            PostProcessVisualState {
+                active: true,
+                lift: HEATING_LIFT,
+                flame: normalized_exponential_decay(progress / 0.48, 4.6),
+                boiling: normalized_exponential_decay(progress / 0.24, 5.2),
+                vapour: normalized_exponential_decay(progress / 0.68, 3.2),
+                liquid_fraction: 0.14 * residual,
+                crystal_growth: 0.18 + smoother_step(progress) * 0.82,
+            }
+        }
+    }
+}
+
 impl Default for ObjectMotion {
     fn default() -> Self {
         Self {
@@ -587,13 +799,42 @@ impl Default for ObjectMotion {
     }
 }
 
+#[cfg(test)]
 fn build_scene(
     plan: &ScenePlan,
     ordinal: u16,
     progress: f32,
-    reactant_previews: &[TrustedCompositionPreview],
-    product_preview: Option<&TrustedCompositionPreview>,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32) {
+) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    build_scene_with_stage(
+        plan,
+        ordinal,
+        progress,
+        MacroscopicStage::Reaction,
+        progress,
+    )
+}
+
+fn build_scene_at(
+    plan: &ScenePlan,
+    moment: RealWorldPosition,
+) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    build_scene_with_stage(
+        plan,
+        moment.ordinal,
+        moment.ordinal_progress,
+        moment.stage,
+        moment.beat_progress,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn build_scene_with_stage(
+    plan: &ScenePlan,
+    ordinal: u16,
+    progress: f32,
+    stage: MacroscopicStage,
+    stage_progress: f32,
+) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let mut meshes = SceneMeshes::default();
     let layout = SceneLayout::resolve(plan);
     let final_ordinal = plan
@@ -601,14 +842,29 @@ fn build_scene(
         .beats
         .last()
         .map_or(ordinal, |beat| beat.end_ordinal);
-    let visual_inputs =
+    let mut visual_inputs =
         ReactionVisualInputs::from_effects(&plan.effects, ordinal, progress, final_ordinal);
+    let post_process = post_process_visual_state(plan, stage, stage_progress);
+    visual_inputs.bubble_rate = visual_inputs.bubble_rate.max(post_process.boiling);
+    visual_inputs.vapour_generation_rate = visual_inputs
+        .vapour_generation_rate
+        .max(post_process.vapour);
+    visual_inputs.gas_generation_rate = visual_inputs
+        .gas_generation_rate
+        .max(post_process.vapour * 0.72);
+    visual_inputs.liquid_turbulence = visual_inputs
+        .liquid_turbulence
+        .max(post_process.boiling * 0.92);
+    visual_inputs.heat_output = visual_inputs.heat_output.max(post_process.flame * 0.76);
+    visual_inputs.flame_rate = visual_inputs.flame_rate.max(post_process.flame);
     let phase = continuous_phase(ordinal, progress);
     let reaction_motion = reaction_surface_motion(plan, ordinal, progress);
     let vibration = container_vibration_offset(visual_inputs, phase, plan_seed(plan));
     let effect_colours = scene_effect_colours(plan, ordinal, progress);
+    let vessel_motion = vibration + Vec3::Y * post_process.lift;
     let animated_layout = layout
-        .with_vessel_motion(vibration)
+        .with_vessel_motion(vessel_motion)
+        .with_liquid_fraction(post_process.liquid_fraction)
         .with_reaction_motion(reaction_motion);
     instantiate_asset(
         &mut meshes,
@@ -625,30 +881,22 @@ fn build_scene(
         0,
         visual_inputs,
         phase,
+        1.0,
         None,
     );
-    let mut reactant_index = 0_usize;
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
             // Consumption/replacement shrink (exact-model swap) composes
             // with the reviewed formation grow-in: both live in [0, 1].
-            let scale = object_scale_from_effects(plan, object.role, ordinal, progress)
-                * object_replacement_scale(plan, object, ordinal, progress)
-                * object_formation_scale(object, ordinal, progress);
+            let persistent_scale = object_scale_from_effects(plan, object.role, ordinal, progress)
+                * object_replacement_scale(plan, object, ordinal, progress);
+            let formation_scale = object_formation_scale(object, ordinal, progress);
+            let scale = persistent_scale * formation_scale;
             let motion = object_motion(plan, object, ordinal, progress, reaction_motion);
             let object_vibration = if object.role == SceneRole::Environment {
                 Vec3::ZERO
             } else {
-                vibration
-            };
-            let preview = match object.role {
-                SceneRole::Reactant => {
-                    let preview = reactant_previews.get(reactant_index);
-                    reactant_index += 1;
-                    preview
-                }
-                SceneRole::Product => product_preview,
-                _ => None,
+                vessel_motion
             };
             // A completed consumption or product-replacement transition
             // removes the reactant from the scene. Keeping a minimum scale
@@ -656,14 +904,20 @@ fn build_scene(
             if scale <= f32::EPSILON {
                 continue;
             }
-            if let Some(preview) = preview {
-                instantiate_molecule(
-                    &mut meshes.opaque,
-                    preview,
-                    &object.transform,
-                    scale,
-                    layout.object_offset(object) + motion.translation + object_vibration,
-                    motion.rotation,
+            // Exact structural previews never enter this macroscopic
+            // presentation. Every phase uses its reviewed physical asset:
+            // gas density, mobile liquid, or faceted solid material.
+            if object.asset == AssetProfile::GasCloud {
+                instantiate_plan_gas_asset(
+                    &mut meshes,
+                    object,
+                    animated_layout,
+                    persistent_scale,
+                    formation_scale,
+                    stable_seed(&object.id),
+                    visual_inputs,
+                    phase,
+                    object_colour_transition(object, ordinal, progress),
                 );
             } else {
                 instantiate_asset(
@@ -677,6 +931,11 @@ fn build_scene(
                     stable_seed(&object.id),
                     visual_inputs,
                     phase,
+                    if object.role == SceneRole::Contents {
+                        post_process.liquid_fraction
+                    } else {
+                        1.0
+                    },
                     object_colour_transition(object, ordinal, progress),
                 );
             }
@@ -694,6 +953,16 @@ fn build_scene(
                 effect_colours,
             );
         }
+    }
+    if post_process.active {
+        add_evaporation_crystallization_process(
+            &mut meshes,
+            animated_layout,
+            post_process,
+            plan_seed(plan),
+            effect_colours,
+            stage_progress,
+        );
     }
     meshes.finish()
 }
@@ -824,36 +1093,43 @@ fn object_scale_from_effects(
     ordinal: u16,
     progress: f32,
 ) -> f32 {
-    let profile = match role {
-        SceneRole::Reactant => Some((EffectProfile::ObjectShrinkage, false)),
-        SceneRole::Product => Some((EffectProfile::PrecipitateFormation, true)),
-        _ => None,
+    let grows = match role {
+        SceneRole::Reactant => false,
+        SceneRole::Product => true,
+        _ => return 1.0,
     };
-    let Some((profile, grows)) = profile else {
+    let effect_matches_role = |effect: EffectProfile| match role {
+        SceneRole::Reactant => effect == EffectProfile::ObjectShrinkage,
+        SceneRole::Product => matches!(
+            effect,
+            EffectProfile::PrecipitateFormation | EffectProfile::SolidFormation
+        ),
+        _ => false,
+    };
+    let Some(effect) = plan
+        .effects
+        .iter()
+        .find(|effect| effect_matches_role(effect.effect) && effect.start_ordinal <= ordinal)
+    else {
         return 1.0;
     };
-    plan.effects
-        .iter()
-        .find(|effect| effect.effect == profile && effect.start_ordinal <= ordinal)
-        .map_or(1.0, |effect| {
-            let span = f32::from(
-                effect
-                    .end_ordinal
-                    .saturating_sub(effect.start_ordinal)
-                    .saturating_add(1),
-            );
-            let elapsed = if ordinal > effect.end_ordinal {
-                span
-            } else {
-                f32::from(ordinal.saturating_sub(effect.start_ordinal)) + progress
-            };
-            let extent = normalized_exponential_response(elapsed / span, 2.6);
-            if grows {
-                0.12 + extent * 0.88
-            } else {
-                (1.0 - extent).max(0.0)
-            }
-        })
+    let span = f32::from(
+        effect
+            .end_ordinal
+            .saturating_sub(effect.start_ordinal)
+            .saturating_add(1),
+    );
+    let elapsed = if ordinal > effect.end_ordinal {
+        span
+    } else {
+        f32::from(ordinal.saturating_sub(effect.start_ordinal)) + progress
+    };
+    let extent = normalized_exponential_response(elapsed / span, 2.6);
+    if grows {
+        0.12 + extent * 0.88
+    } else {
+        (1.0 - extent).max(0.0)
+    }
 }
 
 /// Cross-fades reaction profiles that have no observation-backed
@@ -878,10 +1154,12 @@ fn object_replacement_scale(
         .effects
         .iter()
         .any(|effect| effect.effect == EffectProfile::ObjectShrinkage);
-    let has_formation_effect = plan
-        .effects
-        .iter()
-        .any(|effect| effect.effect == EffectProfile::PrecipitateFormation);
+    let has_formation_effect = plan.effects.iter().any(|effect| {
+        matches!(
+            effect.effect,
+            EffectProfile::PrecipitateFormation | EffectProfile::SolidFormation
+        )
+    });
 
     match object.role {
         SceneRole::Reactant if !has_consumption_effect => match ordinal.cmp(&replacement_ordinal) {
@@ -907,13 +1185,16 @@ fn object_motion(
         return ObjectMotion::default();
     }
     let seed = stable_seed(&object.id) ^ plan_seed(plan);
+    let phase = continuous_phase(ordinal, progress);
+    if object.asset == AssetProfile::GasCloud {
+        return gas_reactant_motion(seed, phase, reaction_motion);
+    }
     let arrival_progress = reactant_arrival_progress(plan, object, ordinal, progress);
     let introduction = gravitational_drop_offset(seed, arrival_progress);
     let contact_age = (continuous_phase(ordinal, progress)
         - f32::from(reactant_contact_ordinal(plan, object)))
     .max(0.0);
     let impact = damped_impact_offset(seed, contact_age);
-    let phase = continuous_phase(ordinal, progress);
     let activity = reaction_motion.length().min(1.0);
     let spin_axis = Vec3::new(
         0.42 + seeded_unit(seed, 0, 51) * 0.36,
@@ -941,6 +1222,14 @@ fn object_motion(
         rotation: Quat::from_euler(EulerRot::XYZ, pitch, 0.0, roll)
             * impact_rotation
             * flight_rotation,
+    }
+}
+
+fn gas_reactant_motion(seed: u64, phase: f32, reaction_motion: Vec3) -> ObjectMotion {
+    let flow = curl_like_flow(phase * 0.58, seed, 0);
+    ObjectMotion {
+        translation: Vec3::new(flow.x, flow.y * 0.34, flow.z) * 0.075 + reaction_motion * 0.22,
+        rotation: Quat::IDENTITY,
     }
 }
 
@@ -1132,12 +1421,15 @@ const fn observation_seed(predicate: chem_catalogue::ObservationPredicate) -> u6
 
 const fn effect_profile_seed(effect: EffectProfile) -> u64 {
     match effect {
+        EffectProfile::ReactionActivity => 0x243f_6a88_85a3_08d3,
         EffectProfile::BubbleEmitter => 0x9e37_79b9_7f4a_7c15,
         EffectProfile::GasRelease => 0xd1b5_4a32_d192_ed03,
+        EffectProfile::VapourRelease => 0x1f83_d9ab_fb41_bd6b,
         EffectProfile::SurfaceDisturbance => 0x94d0_49bb_1331_11eb,
         EffectProfile::LiquidMixing => 0x3f84_d5b5_b547_0917,
         EffectProfile::SplashEmitter => 0x8538_ec85_5c19_1b69,
         EffectProfile::ObjectShrinkage => 0xda94_2042_e4dd_58b5,
+        EffectProfile::SolidFormation => 0x1319_8a2e_0370_7344,
         EffectProfile::PrecipitateFormation => 0xa409_3822_299f_31d0,
         EffectProfile::Clouding => 0x082e_fa98_ec4e_6c89,
         EffectProfile::ColourTransition => 0x4528_21e6_38d0_1377,
@@ -1149,6 +1441,7 @@ const fn effect_profile_seed(effect: EffectProfile) -> u64 {
 const fn flame_palette_seed(palette: FlamePalette) -> u64 {
     match palette {
         FlamePalette::Natural => 0x3c6e_f372_fe94_f82b,
+        FlamePalette::BurnerBlue => 0xbb67_ae85_84ca_a73b,
         FlamePalette::Crimson => 0xa54f_f53a_5f1d_36f1,
         FlamePalette::YellowOrange => 0x510e_527f_ade6_82d1,
         FlamePalette::Lilac => 0x9b05_688c_2b3e_6c1f,
@@ -1234,7 +1527,9 @@ fn reaction_surface_motion(plan: &ScenePlan, ordinal: u16, progress: f32) -> Vec
         .filter(|effect| {
             matches!(
                 effect.effect,
-                EffectProfile::SurfaceDisturbance | EffectProfile::LiquidMixing
+                EffectProfile::ReactionActivity
+                    | EffectProfile::SurfaceDisturbance
+                    | EffectProfile::LiquidMixing
             ) && effect.start_ordinal <= ordinal
                 && ordinal <= effect.end_ordinal
         })
@@ -1320,6 +1615,14 @@ fn rotate_mesh_vertices(mesh: &mut Mesh, start: usize, pivot: Vec3, rotation: Qu
     }
 }
 
+fn rotate_gas_splats(splats: &mut [GasSplat], start: usize, pivot: Vec3, rotation: Quat) {
+    for splat in &mut splats[start..] {
+        let center = Vec3::from_array(splat.center);
+        splat.center = (pivot + rotation * (center - pivot)).to_array();
+        splat.flow = (rotation * Vec3::from_array(splat.flow)).to_array();
+    }
+}
+
 fn apply_asset_colour_transition(
     mesh: &mut Mesh,
     start: usize,
@@ -1370,6 +1673,103 @@ fn apply_asset_colour_transition(
     }
 }
 
+fn apply_gas_colour_transition(
+    splats: &mut [GasSplat],
+    start: usize,
+    center: Vec3,
+    transition: AssetColourTransition,
+) {
+    if transition.progress <= f32::EPSILON {
+        return;
+    }
+    for splat in &mut splats[start..] {
+        let position = Vec3::from_array(splat.center);
+        let offset = position - center;
+        let position_seed = transition.seed
+            ^ u64::from(position.x.to_bits()).rotate_left(7)
+            ^ u64::from(position.y.to_bits()).rotate_left(23)
+            ^ u64::from(position.z.to_bits()).rotate_left(41);
+        let noise = seeded_unit(position_seed, 0, 119);
+        let delay = (noise * 0.34 + offset.y.max(0.0) * 0.04).clamp(0.0, 0.40);
+        let local_progress = (transition.progress * 1.40 - delay).clamp(0.0, 1.0);
+        splat.color = mix_visual_colour(
+            splat.color,
+            transition.target,
+            smoother_step(local_progress),
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn instantiate_plan_gas_asset(
+    meshes: &mut SceneMeshes,
+    object: &PresentationObject,
+    layout: SceneLayout,
+    persistent_scale: f32,
+    formation_scale: f32,
+    seed: u64,
+    visual_inputs: ReactionVisualInputs,
+    phase: f32,
+    colour_transition: Option<AssetColourTransition>,
+) {
+    debug_assert_eq!(object.asset, AssetProfile::GasCloud);
+    let (center, scale) = layout.gas_volume();
+    let gas_color = if object.appearance == AppearanceProfile::LaboratoryNeutral {
+        // A colourless gas is physically invisible. This restrained neutral
+        // density cue deliberately visualizes concentration for education
+        // without implying soot or a species-specific colour.
+        [0.82, 0.86, 0.82, 0.52]
+    } else {
+        appearance_color(object.appearance)
+    };
+    let persistent_scale = persistent_scale.clamp(0.0, 1.35);
+    let formation_scale = formation_scale.clamp(0.0, 1.0);
+    let source_strength = (0.48 + visual_inputs.gas_generation_rate * 0.52) * persistent_scale;
+    let retained_product = object.role == SceneRole::Product
+        && object
+            .observation
+            .as_ref()
+            .is_some_and(|observation| observation.predicate == ObservationPredicate::Forms);
+    let density = source_strength
+        * if object.role == SceneRole::Product {
+            formation_scale
+        } else {
+            1.0
+        };
+    let controls = if retained_product {
+        GasFlowControls::retained_product(
+            source_strength,
+            visual_inputs.liquid_turbulence,
+            visual_inputs.heat_output,
+            visual_inputs.pressure_impulse,
+            formation_scale,
+            seed,
+        )
+    } else {
+        GasFlowControls::contained(
+            source_strength,
+            visual_inputs.liquid_turbulence,
+            visual_inputs.heat_output,
+            visual_inputs.pressure_impulse,
+            seed,
+        )
+    };
+    let gas_start = meshes.gas.len();
+    add_gas_density_field(
+        &mut meshes.gas,
+        center,
+        scale,
+        gas_color,
+        seed,
+        phase,
+        density,
+        controls,
+    );
+    if let Some(transition) = colour_transition {
+        apply_gas_colour_transition(&mut meshes.gas, gas_start, center, transition);
+    }
+}
+
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn instantiate_asset(
     meshes: &mut SceneMeshes,
@@ -1382,6 +1782,7 @@ fn instantiate_asset(
     variation_seed: u64,
     visual_inputs: ReactionVisualInputs,
     phase: f32,
+    liquid_fraction: f32,
     colour_transition: Option<AssetColourTransition>,
 ) {
     let position = transform_translation(transform) + position_offset;
@@ -1391,6 +1792,7 @@ fn instantiate_asset(
     let opaque_start = meshes.opaque.vertices.len();
     let translucent_start = meshes.translucent.vertices.len();
     let glass_start = meshes.glass.vertices.len();
+    let gas_start = meshes.gas.len();
     match scene_registry::asset_geometry(asset) {
         AssetGeometry::Bench => {
             add_box(
@@ -1442,10 +1844,21 @@ fn instantiate_asset(
             );
         }
         AssetGeometry::LiquidCylinder => {
+            let liquid_fraction = liquid_fraction.clamp(0.0, 1.0);
+            if liquid_fraction <= 0.004 {
+                return;
+            }
+            let liquid_bottom = position.y - 0.52 * scale.y;
+            let liquid_scale = Vec3::new(scale.x, scale.y * liquid_fraction, scale.z);
+            let liquid_center = Vec3::new(
+                position.x,
+                liquid_bottom + 0.52 * liquid_scale.y,
+                position.z,
+            );
             add_liquid_volume(
                 &mut meshes.translucent,
-                position,
-                scale,
+                liquid_center,
+                liquid_scale,
                 color,
                 visual_inputs.liquid_turbulence,
                 phase,
@@ -1473,14 +1886,28 @@ fn instantiate_asset(
             );
         }
         AssetGeometry::GasCluster => {
-            add_gas_volume(
-                &mut meshes.translucent,
+            let gas_color = if appearance == AppearanceProfile::LaboratoryNeutral {
+                // Colourless gas still needs restrained contrast against the
+                // blue-grey glass for an educational macroscopic view.
+                [0.82, 0.86, 0.82, 0.52]
+            } else {
+                color
+            };
+            add_gas_density_field(
+                &mut meshes.gas,
                 position,
                 scale,
-                color,
+                gas_color,
                 variation_seed,
                 phase,
                 0.58 + visual_inputs.gas_generation_rate * 0.42,
+                GasFlowControls::contained(
+                    0.58 + visual_inputs.gas_generation_rate * 0.42,
+                    visual_inputs.liquid_turbulence,
+                    visual_inputs.heat_output,
+                    visual_inputs.pressure_impulse,
+                    variation_seed,
+                ),
             );
         }
     }
@@ -1499,6 +1926,7 @@ fn instantiate_asset(
             position,
             transition,
         );
+        apply_gas_colour_transition(&mut meshes.gas, gas_start, position, transition);
     }
     rotate_mesh_vertices(&mut meshes.opaque, opaque_start, position, rotation);
     rotate_mesh_vertices(
@@ -1508,176 +1936,7 @@ fn instantiate_asset(
         rotation,
     );
     rotate_mesh_vertices(&mut meshes.glass, glass_start, position, rotation);
-}
-
-/// Renders the exact reviewed structural preview as a compact ball-and-stick
-/// model. This replaces generic particle clusters whenever the active request
-/// exposes an unambiguous catalogue graph.
-fn instantiate_molecule(
-    mesh: &mut Mesh,
-    preview: &TrustedCompositionPreview,
-    transform: &PresentationTransform,
-    scale_multiplier: f32,
-    position_offset: Vec3,
-    rotation_offset: Quat,
-) {
-    let center = transform_translation(transform) + position_offset;
-    let scale = transform_scale(transform) * scale_multiplier;
-    let uniform_scale = (scale.x + scale.y + scale.z) / 3.0;
-    let rotation = rotation_offset * transform_rotation(transform);
-    let positions = molecular_positions(preview);
-    let start = mesh.vertices.len();
-
-    for bond in preview.covalent_bonds() {
-        let (Some(left), Some(right)) = (positions.get(bond.start), positions.get(bond.end)) else {
-            continue;
-        };
-        add_molecular_bond(
-            mesh,
-            center + *left * uniform_scale,
-            center + *right * uniform_scale,
-            bond.order,
-            uniform_scale,
-            [0.54, 0.66, 0.78, 1.0],
-        );
-    }
-    for link in preview.ionic_links() {
-        let (Some(left), Some(right)) = (positions.get(link.start), positions.get(link.end)) else {
-            continue;
-        };
-        add_molecular_bond(
-            mesh,
-            center + *left * uniform_scale,
-            center + *right * uniform_scale,
-            1,
-            uniform_scale * 0.72,
-            [0.30, 0.78, 0.96, 1.0],
-        );
-    }
-    for (atom, position) in preview.atoms.iter().zip(positions) {
-        add_sphere(
-            mesh,
-            center + position * uniform_scale,
-            molecular_atom_radius(atom.atomic_number) * uniform_scale,
-            molecular_atom_color(atom.atomic_number),
-            8,
-            12,
-        );
-    }
-    rotate_mesh_vertices(mesh, start, center, rotation);
-}
-
-fn add_molecular_bond(
-    mesh: &mut Mesh,
-    start: Vec3,
-    end: Vec3,
-    order: u8,
-    scale: f32,
-    color: [f32; 4],
-) {
-    let direction = (end - start).normalize_or_zero();
-    let perpendicular = if direction.cross(Vec3::Y).length_squared() > 0.01 {
-        direction.cross(Vec3::Y).normalize()
-    } else {
-        direction.cross(Vec3::X).normalize_or_zero()
-    };
-    let offsets: &[f32] = match order {
-        1 => &[0.0],
-        2 => &[-0.032, 0.032],
-        _ => &[-0.052, 0.0, 0.052],
-    };
-    for offset in offsets {
-        let offset = perpendicular * *offset * scale;
-        add_cylinder(mesh, start + offset, end + offset, 0.022 * scale, color);
-    }
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn molecular_positions(preview: &TrustedCompositionPreview) -> Vec<Vec3> {
-    let atom_count = preview.atoms.len();
-    if atom_count == 0 {
-        return Vec::new();
-    }
-    if atom_count == 1 {
-        return vec![Vec3::ZERO];
-    }
-
-    let mut adjacency = vec![Vec::<usize>::new(); atom_count];
-    for (left, right) in preview
-        .covalent_bonds()
-        .iter()
-        .map(|bond| (bond.start, bond.end))
-        .chain(
-            preview
-                .ionic_links()
-                .iter()
-                .map(|link| (link.start, link.end)),
-        )
-    {
-        if left < atom_count && right < atom_count && !adjacency[left].contains(&right) {
-            adjacency[left].push(right);
-            adjacency[right].push(left);
-        }
-    }
-
-    if atom_count == 2 {
-        return vec![Vec3::new(-0.34, 0.0, 0.0), Vec3::new(0.34, 0.0, 0.0)];
-    }
-
-    if let Some(root) = adjacency
-        .iter()
-        .position(|neighbours| neighbours.len() == atom_count - 1)
-    {
-        let mut positions = vec![Vec3::ZERO; atom_count];
-        let neighbours = &adjacency[root];
-        if neighbours.len() == 7 {
-            positions[neighbours[0]] = Vec3::new(0.0, 0.52, 0.0);
-            positions[neighbours[1]] = Vec3::new(0.0, -0.52, 0.0);
-            for (index, neighbour) in neighbours.iter().copied().skip(2).enumerate() {
-                let angle = std::f32::consts::TAU * index as f32 / 5.0;
-                positions[neighbour] = Vec3::new(angle.cos() * 0.52, 0.0, angle.sin() * 0.52);
-            }
-        } else {
-            let golden_angle = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
-            for (index, neighbour) in neighbours.iter().copied().enumerate() {
-                let y = 1.0 - 2.0 * (index as f32 + 0.5) / neighbours.len() as f32;
-                let radius = (1.0 - y * y).sqrt();
-                let angle = golden_angle * index as f32;
-                positions[neighbour] =
-                    Vec3::new(angle.cos() * radius, y, angle.sin() * radius) * 0.52;
-            }
-        }
-        return positions;
-    }
-
-    (0..atom_count)
-        .map(|index| {
-            let angle = std::f32::consts::TAU * index as f32 / atom_count as f32;
-            Vec3::new(angle.cos() * 0.48, 0.0, angle.sin() * 0.48)
-        })
-        .collect()
-}
-
-fn molecular_atom_radius(atomic_number: u8) -> f32 {
-    crate::elements::by_atomic_number(atomic_number).map_or(0.11, |element| {
-        0.075 + f32::from(element.period.min(6)) * 0.012
-    })
-}
-
-const fn molecular_atom_color(atomic_number: u8) -> [f32; 4] {
-    match atomic_number {
-        1 => [0.92, 0.95, 1.0, 1.0],
-        6 => [0.20, 0.24, 0.30, 1.0],
-        7 => [0.24, 0.42, 0.92, 1.0],
-        8 => [0.90, 0.24, 0.24, 1.0],
-        9 => [0.46, 0.88, 0.38, 1.0],
-        15 => [0.95, 0.55, 0.20, 1.0],
-        16 => [0.95, 0.82, 0.24, 1.0],
-        17 => [0.28, 0.76, 0.36, 1.0],
-        35 => [0.66, 0.24, 0.18, 1.0],
-        53 => [0.48, 0.26, 0.72, 1.0],
-        _ => [0.40, 0.68, 0.82, 1.0],
-    }
+    rotate_gas_splats(&mut meshes.gas, gas_start, position, rotation);
 }
 
 #[allow(clippy::similar_names, clippy::too_many_lines)]
@@ -1697,6 +1956,33 @@ fn instantiate_effect(
     let count = dynamics.particle_count;
     let surface_point = layout.reaction_point;
     match scene_registry::effect_geometry(effect.effect) {
+        EffectGeometry::ReactionFront => {
+            let front_colour = mix_color(
+                mix_color(colours.liquid, colours.gas, 0.46),
+                colours.solid,
+                0.22,
+            );
+            for ring in 0..3_u8 {
+                let ring_index = u32::from(ring);
+                let ring_factor = f32::from(ring);
+                let delay = seeded_unit(seed, ring_index, 1) * 0.22;
+                let age = ((effect_progress - delay) / (1.0 - delay)).clamp(0.0, 1.0);
+                let expansion = normalized_drag_distance(age, 0.56);
+                let flow = curl_like_flow(phase * (0.44 + ring_factor * 0.08), seed, ring_index)
+                    * dynamics.turbulence
+                    * 0.055;
+                add_ring(
+                    &mut meshes.translucent,
+                    surface_point + Vec3::new(flow.x, 0.012 + flow.y * 0.18, flow.z),
+                    0.055 + expansion * dynamics.spread * (0.52 + ring_factor * 0.12),
+                    0.006 + (1.0 - expansion) * 0.009,
+                    alpha(
+                        front_colour,
+                        envelope * (1.0 - smoother_step(age)) * (0.34 - ring_factor * 0.06),
+                    ),
+                );
+            }
+        }
         EffectGeometry::SettlingShards => {
             for index in 0..count {
                 let index = u32::from(index);
@@ -1735,6 +2021,52 @@ fn instantiate_effect(
                 );
             }
         }
+        EffectGeometry::NucleatingSolid => {
+            for index in 0..count {
+                let index = u32::from(index);
+                let birth = seeded_unit(seed, index, 1) * 0.64;
+                let age = ((effect_progress - birth) / 0.30).clamp(0.0, 1.0);
+                let growth = normalized_exponential_response(age, 4.2);
+                if growth <= f32::EPSILON {
+                    continue;
+                }
+                let angle = seeded_unit(seed, index, 2) * std::f32::consts::TAU;
+                let radius = (0.06 + seeded_unit(seed, index, 3) * dynamics.spread * 0.34) * growth;
+                let height =
+                    (-0.10 + seeded_unit(seed, index, 4) * (0.18 + dynamics.lift * 0.20)) * growth;
+                let curl = curl_like_flow(phase * 0.36, seed, index)
+                    * dynamics.turbulence
+                    * 0.07
+                    * (1.0 - growth);
+                let point = surface_point
+                    + Vec3::new(angle.cos() * radius, height, angle.sin() * radius)
+                    + curl;
+                let shard_seed = seed ^ u64::from(index).wrapping_mul(0x94d0_49bb_1331_11eb);
+                let axis = Vec3::new(
+                    seeded_unit(seed, index, 5) - 0.5,
+                    0.45 + seeded_unit(seed, index, 6) * 0.55,
+                    seeded_unit(seed, index, 7) - 0.5,
+                )
+                .normalize_or_zero();
+                let rotation = Quat::from_axis_angle(
+                    axis,
+                    growth * (0.35 + seeded_unit(seed, index, 8) * 0.65) * std::f32::consts::PI,
+                );
+                let shard_radius = (0.018 + seeded_unit(seed, index, 9) * 0.032) * growth;
+                add_shard(
+                    &mut meshes.translucent,
+                    point,
+                    Vec3::new(
+                        shard_radius * 0.72,
+                        shard_radius * 1.55,
+                        shard_radius * 0.62,
+                    ),
+                    rotation,
+                    alpha(colours.solid, envelope * growth * 0.86),
+                    shard_seed,
+                );
+            }
+        }
         EffectGeometry::RisingBubbles => {
             for index in 0..count {
                 let index = u32::from(index);
@@ -1769,8 +2101,53 @@ fn instantiate_effect(
             }
         }
         EffectGeometry::EscapingGas => {
+            if effect.trigger == ObservationPredicate::Forms {
+                // `forms` plus a separately reviewed gas phase authorizes
+                // in-vessel product expansion, not a claim that gas visibly
+                // vents from a liquid. The persistent product asset and this
+                // transient current therefore share the retained regime.
+                let (center, scale) = layout.gas_volume();
+                add_gas_density_field(
+                    &mut meshes.gas,
+                    center,
+                    scale,
+                    alpha(colours.gas, envelope * 0.44),
+                    seed.rotate_left(17),
+                    phase * dynamics.rate,
+                    envelope * 0.52,
+                    GasFlowControls::retained_product(
+                        envelope * 0.66,
+                        dynamics.turbulence,
+                        0.12 + dynamics.lift * 0.10,
+                        envelope * 0.20,
+                        effect_progress,
+                        seed.rotate_left(17),
+                    ),
+                );
+                return;
+            }
             let rise = normalized_terminal_distance(effect_progress, 3.6);
             let drift = curl_like_flow(phase * 0.44, seed, 0) * dynamics.turbulence * 0.12;
+            // Gas first occupies and mixes through the headspace. The second
+            // field below continues through the open rim as a dissipating
+            // plume; both are driven by the same typed gas-release effect.
+            let headspace_center = surface_point + drift * 0.35 + Vec3::new(0.0, 0.31, 0.0);
+            add_gas_density_field(
+                &mut meshes.gas,
+                headspace_center,
+                Vec3::new(0.68, 0.34, 0.68),
+                alpha(colours.gas, envelope * 0.78),
+                seed.rotate_left(17),
+                phase * dynamics.rate,
+                envelope,
+                GasFlowControls::contained(
+                    envelope,
+                    dynamics.turbulence,
+                    0.18 + envelope * 0.18,
+                    envelope * 0.24,
+                    seed.rotate_left(17),
+                ),
+            );
             let center =
                 surface_point + drift + Vec3::new(0.0, 0.16 + rise * dynamics.lift * 0.72, 0.0);
             let cloud_scale = Vec3::new(
@@ -1778,14 +2155,41 @@ fn instantiate_effect(
                 0.32 + dynamics.lift * (0.50 + rise * 0.42),
                 0.30 + dynamics.spread * (0.52 + rise * 0.30),
             );
-            add_gas_volume(
-                &mut meshes.translucent,
+            add_gas_density_field(
+                &mut meshes.gas,
                 center,
                 cloud_scale,
                 alpha(colours.gas, envelope),
                 seed,
                 phase * dynamics.rate,
                 envelope,
+                GasFlowControls::escaping(envelope, dynamics.turbulence, dynamics.lift, seed),
+            );
+        }
+        EffectGeometry::EscapingVapour => {
+            let rise = normalized_terminal_distance(effect_progress, 4.8);
+            let drift = curl_like_flow(phase * 0.56, seed, 0) * dynamics.turbulence * 0.16;
+            let center =
+                surface_point + drift + Vec3::new(0.0, 0.12 + rise * dynamics.lift * 0.86, 0.0);
+            let vapour = mix_color(colours.gas, [0.92, 0.95, 0.96, 0.24], 0.82);
+            add_gas_density_field(
+                &mut meshes.gas,
+                center,
+                Vec3::new(
+                    0.26 + dynamics.spread * (0.44 + rise * 0.38),
+                    0.34 + dynamics.lift * (0.48 + rise * 0.52),
+                    0.26 + dynamics.spread * (0.42 + rise * 0.32),
+                ),
+                alpha(vapour, envelope * (0.74 + (1.0 - rise) * 0.18)),
+                seed,
+                phase * dynamics.rate,
+                envelope,
+                GasFlowControls::escaping(
+                    envelope,
+                    dynamics.turbulence,
+                    dynamics.lift.max(0.72),
+                    seed,
+                ),
             );
         }
         EffectGeometry::SurfaceRipples => {
@@ -1865,6 +2269,261 @@ fn instantiate_effect(
     }
 }
 
+fn add_evaporation_crystallization_process(
+    meshes: &mut SceneMeshes,
+    layout: SceneLayout,
+    state: PostProcessVisualState,
+    seed: u64,
+    colours: EffectColours,
+    stage_progress: f32,
+) {
+    add_heating_rig(meshes, layout, state, seed, stage_progress);
+    if state.boiling > 0.002 && state.liquid_fraction > 0.006 {
+        add_nucleate_boiling(
+            &mut meshes.translucent,
+            layout,
+            state.boiling,
+            stage_progress,
+            seed,
+            colours.liquid,
+        );
+    }
+    if state.vapour > 0.002 {
+        let centre = Vec3::new(
+            layout.vessel_center.x,
+            layout
+                .liquid_surface
+                .max(layout.bench_top + state.lift + 0.10)
+                + 0.28,
+            layout.vessel_center.z,
+        );
+        add_gas_density_field(
+            &mut meshes.gas,
+            centre,
+            Vec3::new(0.46, 0.74, 0.46),
+            [0.88, 0.92, 0.93, 0.34 * state.vapour],
+            seed.rotate_left(23),
+            stage_progress * 4.2,
+            state.vapour,
+            GasFlowControls::escaping(
+                state.vapour,
+                0.48 + state.boiling * 0.34,
+                0.92,
+                seed.rotate_left(23),
+            ),
+        );
+    }
+    if state.crystal_growth > 0.002 {
+        add_crystallizing_salt(
+            &mut meshes.opaque,
+            layout,
+            state.crystal_growth,
+            seed.rotate_left(37),
+            colours.solid,
+        );
+    }
+}
+
+fn add_heating_rig(
+    meshes: &mut SceneMeshes,
+    layout: SceneLayout,
+    state: PostProcessVisualState,
+    seed: u64,
+    stage_progress: f32,
+) {
+    let reveal = (state.lift / HEATING_LIFT).clamp(0.0, 1.0);
+    if reveal <= 0.002 {
+        return;
+    }
+    let centre = Vec3::new(
+        layout.vessel_center.x,
+        layout.bench_top,
+        layout.vessel_center.z,
+    );
+    let vessel_bottom = layout.bench_top + state.lift;
+    let support_y = vessel_bottom - 0.035;
+    let metal = [0.20, 0.24, 0.28, 1.0];
+    let burner = [0.12, 0.17, 0.22, 1.0];
+    add_cylinder(
+        &mut meshes.opaque,
+        centre + Vec3::Y * 0.018,
+        centre + Vec3::Y * (0.105 * reveal),
+        0.13 * reveal,
+        burner,
+    );
+    add_ring(
+        &mut meshes.opaque,
+        Vec3::new(centre.x, support_y, centre.z),
+        0.57 * reveal,
+        0.022,
+        metal,
+    );
+    for leg in 0..3_u8 {
+        let angle = std::f32::consts::TAU * f32::from(leg) / 3.0 + seed_phase(seed, 151) * 0.04;
+        let foot = centre + Vec3::new(angle.cos() * 0.48, 0.025, angle.sin() * 0.48);
+        let top = Vec3::new(
+            centre.x + angle.cos() * 0.50 * reveal,
+            support_y,
+            centre.z + angle.sin() * 0.50 * reveal,
+        );
+        add_cylinder(&mut meshes.opaque, foot, top, 0.016, metal);
+    }
+    if state.flame > 0.002 {
+        let dynamics = scene_registry::effect_dynamics(
+            EffectProfile::FlameEmitter(FlamePalette::BurnerBlue),
+            EffectIntensity::Moderate,
+        );
+        add_flame_plume(
+            meshes,
+            centre + Vec3::Y * 0.10,
+            FlamePalette::BurnerBlue,
+            EffectDynamics {
+                particle_count: dynamics.particle_count.min(15),
+                spread: dynamics.spread * 0.72,
+                lift: (vessel_bottom - layout.bench_top - 0.10).max(0.12),
+                turbulence: dynamics.turbulence * 0.58,
+                ..dynamics
+            },
+            state.flame,
+            stage_progress * 3.6 + 0.17,
+            seed.rotate_left(11),
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_nucleate_boiling(
+    mesh: &mut Mesh,
+    layout: SceneLayout,
+    intensity: f32,
+    progress: f32,
+    seed: u64,
+    liquid_colour: [f32; 4],
+) {
+    let liquid_half_height = layout.liquid_surface - layout.liquid_center.y;
+    let liquid_height = liquid_half_height / 0.54 * 1.06;
+    if liquid_height <= 0.015 {
+        return;
+    }
+    let bottom = layout.liquid_surface - liquid_height;
+    let radius = 0.68;
+    let bubble_colour = mix_color(liquid_colour, [0.92, 0.97, 0.99, 0.50], 0.72);
+    for site in 0..28_u32 {
+        let cycle_rate = 3.2 + seeded_unit(seed, site, 161) * 2.8;
+        let cycle = (progress * cycle_rate + seeded_unit(seed, site, 162)).fract();
+        let angle = seeded_unit(seed, site, 163) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, site, 164).sqrt() * radius;
+        let site_point = Vec3::new(
+            layout.vessel_center.x + angle.cos() * radial,
+            bottom + 0.018,
+            layout.vessel_center.z + angle.sin() * radial,
+        );
+        let attachment_end = 0.24 + seeded_unit(seed, site, 165) * 0.12;
+        let coalesced = site % 7 == 0;
+        let base_radius =
+            (0.018 + seeded_unit(seed, site, 166) * 0.034) * if coalesced { 1.55 } else { 1.0 };
+        if cycle < attachment_end {
+            let growth = smoother_step(cycle / attachment_end);
+            add_sphere(
+                mesh,
+                site_point,
+                base_radius * (0.16 + growth * 0.84) * intensity.sqrt(),
+                alpha(bubble_colour, intensity * growth * 0.62),
+                7,
+                10,
+            );
+            continue;
+        }
+        let age = ((cycle - attachment_end) / (1.0 - attachment_end)).clamp(0.0, 1.0);
+        let rise = normalized_terminal_distance(age, 4.8);
+        let vertical = rise * liquid_height * 1.08;
+        let drift = curl_like_flow(progress * 9.0, seed, site) * (0.018 + rise * 0.065) * intensity;
+        let point = site_point + Vec3::new(drift.x, vertical, drift.z);
+        if point.y < layout.liquid_surface {
+            let expansion = 1.0 + rise * (0.34 + seeded_unit(seed, site, 167) * 0.28);
+            add_sphere(
+                mesh,
+                point,
+                base_radius * expansion * intensity.sqrt(),
+                alpha(
+                    bubble_colour,
+                    intensity * (1.0 - smoother_step((age - 0.88) / 0.12)) * 0.66,
+                ),
+                7,
+                10,
+            );
+        } else if age < 0.96 {
+            let burst = ((age - 0.82) / 0.14).clamp(0.0, 1.0);
+            add_ring(
+                mesh,
+                Vec3::new(point.x, layout.liquid_surface + 0.012, point.z),
+                base_radius * (0.72 + burst * 2.6),
+                0.006 + (1.0 - burst) * 0.008,
+                alpha(
+                    bubble_colour,
+                    intensity * (1.0 - smoother_step(burst)) * 0.72,
+                ),
+            );
+        }
+    }
+}
+
+fn add_crystallizing_salt(
+    mesh: &mut Mesh,
+    layout: SceneLayout,
+    progress: f32,
+    seed: u64,
+    colour: [f32; 4],
+) {
+    let progress = progress.clamp(0.0, 1.0);
+    let floor = Vec3::new(
+        layout.vessel_center.x,
+        layout.bench_top + stateful_vessel_floor_offset(layout) + 0.035,
+        layout.vessel_center.z,
+    );
+    let crystal_colour = mix_color(colour, [0.93, 0.95, 0.92, 1.0], 0.42);
+    for index in 0..48_u32 {
+        let birth = seeded_unit(seed, index, 171) * 0.72;
+        let age = ((progress - birth) / (1.0 - birth).max(0.08)).clamp(0.0, 1.0);
+        if age <= f32::EPSILON {
+            continue;
+        }
+        let growth = normalized_exponential_response(age, 4.6);
+        let angle = seeded_unit(seed, index, 172) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, index, 173).sqrt() * (0.12 + progress * 0.42);
+        let shard_seed = seed ^ u64::from(index).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        let size =
+            (0.022 + seeded_unit(seed, index, 174) * 0.042) * growth * (0.72 + progress * 0.28);
+        let tier = f32::from((index % 3) as u8) * 0.003 * growth;
+        let point = floor
+            + Vec3::new(
+                angle.cos() * radial,
+                size * 0.34 + tier,
+                angle.sin() * radial,
+            );
+        let axis = Vec3::new(
+            seeded_unit(seed, index, 175) - 0.5,
+            0.65 + seeded_unit(seed, index, 176) * 0.35,
+            seeded_unit(seed, index, 177) - 0.5,
+        )
+        .normalize_or_zero();
+        let rotation =
+            Quat::from_axis_angle(axis, seeded_unit(seed, index, 178) * std::f32::consts::TAU);
+        add_shard(
+            mesh,
+            point,
+            Vec3::new(size * 0.86, size * 0.82, size * 0.78),
+            rotation,
+            crystal_colour,
+            shard_seed,
+        );
+    }
+}
+
+fn stateful_vessel_floor_offset(layout: SceneLayout) -> f32 {
+    (layout.vessel_center.y - (layout.bench_top + 0.605)).max(0.0)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct FlameColours {
     body_low: [f32; 4],
@@ -1878,6 +2537,11 @@ const fn flame_colours(palette: FlamePalette) -> FlameColours {
             body_low: [1.00, 0.32, 0.04, 0.46],
             body_high: [1.00, 0.74, 0.12, 0.34],
             core: [1.00, 0.90, 0.48, 0.36],
+        },
+        FlamePalette::BurnerBlue => FlameColours {
+            body_low: [0.06, 0.28, 1.00, 0.42],
+            body_high: [0.18, 0.72, 1.00, 0.32],
+            core: [0.72, 0.94, 1.00, 0.38],
         },
         FlamePalette::Crimson => FlameColours {
             body_low: [0.88, 0.05, 0.12, 0.42],
@@ -2182,67 +2846,65 @@ fn liquid_surface_point(
         )
 }
 
-/// Builds one connected, irregular low-poly gas shell. Invisible procedural
-/// parcels are represented by the lobes of this surface; the normal view never
-/// exposes those parcels as molecular beads.
-fn add_gas_volume(
-    mesh: &mut Mesh,
+/// Advances a real low-resolution density/temperature/velocity field, then
+/// converts occupied cells into overlapping soft optical splats. The field
+/// obeys semi-Lagrangian advection, pressure projection, buoyancy, density
+/// weight, drag, wind, vorticity confinement, and an open-rim vessel boundary.
+#[allow(clippy::cast_precision_loss, clippy::too_many_arguments)]
+fn add_gas_density_field(
+    splats: &mut Vec<GasSplat>,
     center: Vec3,
     scale: Vec3,
     color: [f32; 4],
     seed: u64,
     phase: f32,
     density: f32,
+    controls: GasFlowControls,
 ) {
-    const RINGS: u16 = 8;
-    const SECTORS: u16 = 14;
     if density <= 0.01 || color[3] <= 0.001 {
         return;
     }
-    for ring in 0..RINGS {
-        let latitude_a = std::f32::consts::PI * f32::from(ring) / f32::from(RINGS);
-        let latitude_b = std::f32::consts::PI * f32::from(ring + 1) / f32::from(RINGS);
-        for sector in 0..SECTORS {
-            let longitude_a = std::f32::consts::TAU * f32::from(sector) / f32::from(SECTORS);
-            let longitude_b = std::f32::consts::TAU * f32::from(sector + 1) / f32::from(SECTORS);
-            let a = gas_surface_point(center, scale, latitude_a, longitude_a, seed, phase, density);
-            let b = gas_surface_point(center, scale, latitude_b, longitude_a, seed, phase, density);
-            let c = gas_surface_point(center, scale, latitude_b, longitude_b, seed, phase, density);
-            let d = gas_surface_point(center, scale, latitude_a, longitude_b, seed, phase, density);
-            add_flat_triangle(mesh, a, b, c, color);
-            add_flat_triangle(mesh, a, c, d, color);
+    let volume = GasFluidVolume::simulate(seed, phase.max(0.0), controls);
+    let [width, height, depth] = GasFluidVolume::dimensions();
+    let cell_size = Vec3::new(
+        scale.x * 2.0 / (width - 1) as f32,
+        scale.y * 2.0 / (height - 1) as f32,
+        scale.z * 2.0 / (depth - 1) as f32,
+    );
+    for z in 0..depth {
+        for y in 0..height {
+            for x in 0..width {
+                if splats.len() as u64 >= MAX_GAS_SPLATS {
+                    return;
+                }
+                let local_density = volume.density_at(x, y, z) * density;
+                if local_density <= 0.001_5 {
+                    continue;
+                }
+                let normalized = GasFluidVolume::grid_position(x, y, z);
+                let flow = volume.velocity_at(x, y, z) * scale;
+                // Beer-Lambert-style extinction across overlapping grid
+                // cells. Each cell remains translucent, while a complete
+                // view ray through the field builds into thick fog.
+                let optical_alpha =
+                    (1.0 - (-color[3].min(0.62) * local_density * 6.80).exp()).min(0.22);
+                let brightness = (0.94 - local_density.min(1.4) * 0.11).max(0.72);
+                splats.push(GasSplat {
+                    center: (center + normalized * scale).to_array(),
+                    radius: cell_size.max_element() * (0.98 + local_density.min(1.2) * 0.18),
+                    color: [
+                        color[0] * brightness,
+                        color[1] * brightness,
+                        color[2] * brightness,
+                        optical_alpha,
+                    ],
+                    flow: flow.to_array(),
+                    density: local_density,
+                    layering: controls.stratification,
+                });
+            }
         }
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn gas_surface_point(
-    center: Vec3,
-    scale: Vec3,
-    latitude: f32,
-    longitude: f32,
-    seed: u64,
-    phase: f32,
-    density: f32,
-) -> Vec3 {
-    let direction = Vec3::new(
-        latitude.sin() * longitude.cos(),
-        latitude.cos(),
-        latitude.sin() * longitude.sin(),
-    );
-    let lobe_a =
-        (longitude * 3.0 + phase * 0.83 + seed_phase(seed, 41)).sin() * latitude.sin().powi(2);
-    let lobe_b = (latitude * 4.0 - phase * 0.57 + seed_phase(seed, 42)).cos();
-    let lobe_c = (longitude * 5.0 + latitude * 2.0 + seed_phase(seed, 43)).sin();
-    let radius = (0.78 + lobe_a * 0.15 + lobe_b * 0.09 + lobe_c * 0.06)
-        * (0.72 + density.clamp(0.0, 1.0) * 0.28);
-    let curl = Vec3::new(
-        (latitude * 2.0 + phase * 0.47 + seed_phase(seed, 44)).sin(),
-        (longitude * 2.0 - phase * 0.31 + seed_phase(seed, 45)).cos() * 0.35,
-        (latitude + longitude + phase * 0.39 + seed_phase(seed, 46)).sin(),
-    ) * 0.055
-        * density;
-    center + direction * scale * radius + curl
 }
 
 fn add_flat_triangle(mesh: &mut Mesh, a: Vec3, b: Vec3, c: Vec3, color: [f32; 4]) {
@@ -2313,10 +2975,11 @@ struct SceneMeshes {
     translucent: Mesh,
     glass: Mesh,
     emissive: Mesh,
+    gas: Vec<GasSplat>,
 }
 
 impl SceneMeshes {
-    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32, u32) {
+    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
         let mut vertices = Vec::with_capacity(
             self.opaque.vertices.len()
                 + self.translucent.vertices.len()
@@ -2340,6 +3003,7 @@ impl SceneMeshes {
             indices,
             opaque_index_count,
             transparent_index_count,
+            self.gas,
         )
     }
 }
@@ -2646,8 +3310,12 @@ mod tests {
 
     fn plan_for(request: chemistry::ReactionRequest) -> ScenePlan {
         let run = chemistry::run(request).expect("request validates");
-        let profile = chemistry::presentation_profile(request, run.frames())
-            .expect("trusted observations select a presentation profile");
+        let profile = chemistry::presentation_profile_with_catalogue(
+            request,
+            run.frames(),
+            run.macroscopic(),
+        )
+        .expect("trusted observations select a presentation profile");
         compile_real_world_plan(run.frames(), &profile).expect("plan compiles from trusted frames")
     }
 
@@ -2684,9 +3352,9 @@ mod tests {
     }
 
     #[test]
-    fn gas_is_one_seeded_low_poly_volume_instead_of_a_particle_cluster() {
-        let mut first = Mesh::default();
-        add_gas_volume(
+    fn gas_is_a_seeded_advected_soft_volume_instead_of_a_mesh_shell() {
+        let mut first = Vec::new();
+        add_gas_density_field(
             &mut first,
             Vec3::ZERO,
             Vec3::new(0.8, 1.1, 0.7),
@@ -2694,9 +3362,10 @@ mod tests {
             42,
             1.25,
             0.8,
+            GasFlowControls::contained(0.8, 0.52, 0.18, 0.16, 42),
         );
-        let mut repeated = Mesh::default();
-        add_gas_volume(
+        let mut repeated = Vec::new();
+        add_gas_density_field(
             &mut repeated,
             Vec3::ZERO,
             Vec3::new(0.8, 1.1, 0.7),
@@ -2704,13 +3373,63 @@ mod tests {
             42,
             1.25,
             0.8,
+            GasFlowControls::contained(0.8, 0.52, 0.18, 0.16, 42),
         );
 
-        assert!(first.vertices.len() > 300);
-        assert_eq!(first.indices, repeated.indices);
+        assert!(first.len() > 80);
+        assert!(
+            first
+                .iter()
+                .map(|splat| splat.color[3].to_bits())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                > 8,
+            "advected density cells should carry continuously varying optical depth"
+        );
+        assert!(
+            first
+                .iter()
+                .any(|splat| Vec3::from_array(splat.flow).length_squared() > 0.000_001),
+            "the rendered volume must retain its simulated velocity field"
+        );
+        assert!(
+            first.iter().map(|splat| splat.color[3]).fold(0.0, f32::max) > 0.10,
+            "the gas must retain enough optical depth to remain educationally visible"
+        );
+        let bounds = first.iter().fold(
+            (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+            |(minimum, maximum), splat| {
+                let center = Vec3::from_array(splat.center);
+                (minimum.min(center), maximum.max(center))
+            },
+        );
+        let extent = bounds.1 - bounds.0;
+        assert!(
+            extent.x > 0.65 && extent.y > 0.70 && extent.z > 0.55,
+            "the volume should occupy the vessel headspace, not resemble one rigid object"
+        );
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&first.vertices),
-            bytemuck::cast_slice::<Vertex, u8>(&repeated.vertices)
+            bytemuck::cast_slice::<GasSplat, u8>(&first),
+            bytemuck::cast_slice::<GasSplat, u8>(&repeated)
+        );
+    }
+
+    #[test]
+    fn gaseous_reactants_mix_in_place_without_gravity_drop_or_rigid_rotation() {
+        let seed = 0x4f3c_2d1a;
+        let start = gas_reactant_motion(seed, 0.0, Vec3::ZERO);
+        let later = gas_reactant_motion(seed, 1.4, Vec3::new(0.02, 0.0, -0.01));
+        let repeated = gas_reactant_motion(seed, 1.4, Vec3::new(0.02, 0.0, -0.01));
+
+        assert_eq!(later.translation, repeated.translation);
+        assert_eq!(start.rotation, Quat::IDENTITY);
+        assert_eq!(later.rotation, Quat::IDENTITY);
+        assert_ne!(start.translation, later.translation);
+        assert!(start.translation.length() < 0.15);
+        assert!(later.translation.length() < 0.15);
+        assert!(
+            start.translation.y.abs() < 0.08 && later.translation.y.abs() < 0.08,
+            "gas must advect inside the vessel instead of entering from above"
         );
     }
 
@@ -2758,6 +3477,37 @@ mod tests {
                     .all(|(first, second)| (first - second).abs() < f32::EPSILON)
             );
         }
+    }
+
+    #[test]
+    fn legacy_solid_products_receive_seeded_dry_nucleation_instead_of_precipitation() {
+        let request = chemistry::requests()
+            .find(|request| request.family() == chemistry::ReactionFamily::FixedChargeIonPair)
+            .expect("a reviewed ionic combination exists");
+        let plan = plan_for(request);
+        let effect = plan
+            .effects
+            .iter()
+            .find(|effect| effect.effect == EffectProfile::SolidFormation)
+            .expect("solid product asset selects generic dry solid formation");
+        assert!(
+            plan.effects
+                .iter()
+                .all(|effect| effect.effect != EffectProfile::PrecipitateFormation)
+        );
+
+        let early = build_scene(&plan, effect.start_ordinal, 0.05);
+        let formed = build_scene(&plan, effect.start_ordinal, 0.82);
+        let repeated = build_scene(&plan, effect.start_ordinal, 0.82);
+        assert!(
+            formed.0.len() > early.0.len(),
+            "staggered solid nuclei should appear progressively"
+        );
+        assert_eq!(formed.1, repeated.1);
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&formed.0),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated.0)
+        );
     }
 
     #[test]
@@ -2909,13 +3659,25 @@ mod tests {
                     73,
                     ReactionVisualInputs::default(),
                     1.2,
+                    1.0,
                     progress.map(|progress| AssetColourTransition {
                         target,
                         progress,
                         seed: 91,
                     }),
                 );
-                meshes.finish().0
+                let (vertices, _, _, _, gas_splats) = meshes.finish();
+                if asset == AssetProfile::GasCloud {
+                    gas_splats
+                        .into_iter()
+                        .map(|splat| splat.color)
+                        .collect::<Vec<[f32; 4]>>()
+                } else {
+                    vertices
+                        .into_iter()
+                        .map(|vertex| vertex.color)
+                        .collect::<Vec<[f32; 4]>>()
+                }
             };
             let base = render(None);
             let mixing = render(Some(0.5));
@@ -2924,9 +3686,9 @@ mod tests {
             assert_eq!(base.len(), mixing.len());
             assert_eq!(base.len(), final_colour.len());
             assert!(base.iter().zip(&mixing).any(|(base, mixing)| {
-                base.color[..3]
+                base[..3]
                     .iter()
-                    .zip(mixing.color[..3].iter())
+                    .zip(mixing[..3].iter())
                     .any(|(base, mixing)| (base - mixing).abs() > 0.001)
             }));
             assert!(
@@ -2934,17 +3696,17 @@ mod tests {
                     .iter()
                     .zip(&final_colour)
                     .any(|(mixing, final_colour)| {
-                        mixing.color[..3]
+                        mixing[..3]
                             .iter()
-                            .zip(final_colour.color[..3].iter())
+                            .zip(final_colour[..3].iter())
                             .any(|(mixing, final_colour)| (mixing - final_colour).abs() > 0.001)
                     })
             );
             for (base, final_colour) in base.iter().zip(&final_colour) {
-                assert!((base.color[3] - final_colour.color[3]).abs() < f32::EPSILON);
-                assert!((final_colour.color[0] - f32::from(target.red) / 255.0).abs() < 0.000_01);
-                assert!((final_colour.color[1] - f32::from(target.green) / 255.0).abs() < 0.000_01);
-                assert!((final_colour.color[2] - f32::from(target.blue) / 255.0).abs() < 0.000_01);
+                assert!((base[3] - final_colour[3]).abs() < f32::EPSILON);
+                assert!((final_colour[0] - f32::from(target.red) / 255.0).abs() < 0.000_01);
+                assert!((final_colour[1] - f32::from(target.green) / 255.0).abs() < 0.000_01);
+                assert!((final_colour[2] - f32::from(target.blue) / 255.0).abs() < 0.000_01);
             }
         }
     }
@@ -3028,6 +3790,19 @@ mod tests {
             assert!(inputs.gas_generation_rate > 0.0);
             assert!(inputs.bubble_rate > 0.0);
             assert!(inputs.liquid_turbulence > 0.0);
+            let gas_splats = build_scene(&plan, gas_start, 0.5).4;
+            assert!(
+                gas_splats.len() > 220,
+                "a gas-producing reaction should build a dense shared headspace volume"
+            );
+            let (minimum_y, maximum_y) = gas_splats.iter().map(|splat| splat.center[1]).fold(
+                (f32::INFINITY, f32::NEG_INFINITY),
+                |(minimum, maximum), y| (minimum.min(y), maximum.max(y)),
+            );
+            assert!(
+                maximum_y - minimum_y > 0.48,
+                "contained fog and the venting plume should form one vertically continuous volume"
+            );
         }
     }
 
@@ -3201,8 +3976,8 @@ mod tests {
     #[test]
     fn scene_mesh_is_deterministic_macroscopic_and_contains_depth_geometry() {
         let plan = canonical_plan();
-        let first = build_scene(&plan, 3, 0.5, &[], None);
-        let second = build_scene(&plan, 3, 0.5, &[], None);
+        let first = build_scene(&plan, 3, 0.5);
+        let second = build_scene(&plan, 3, 0.5);
         assert_eq!(
             bytemuck::cast_slice::<Vertex, u8>(&first.0),
             bytemuck::cast_slice::<Vertex, u8>(&second.0)
@@ -3225,44 +4000,195 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_if7_graph_renders_distinct_atoms_and_bonds_in_3d() {
+    fn reviewed_if7_graph_remains_exact_while_macroscopic_product_uses_gas_density() {
         let request = chemistry::ReactionRequest::from_id("covalent-i-f-if7")
             .expect("reviewed IF7 request exists");
         let plan = plan_for(request);
         let preview = request
             .product_preview()
             .expect("reviewed IF7 graph exists");
-        let positions = molecular_positions(&preview);
         let iodine = preview
             .atoms
             .iter()
             .position(|atom| atom.atomic_number == 53)
             .expect("IF7 contains iodine");
-        assert_eq!(positions.len(), 8);
+        assert_eq!(preview.atoms.len(), 8);
         assert!(
             preview
                 .covalent_bonds()
                 .iter()
                 .all(|bond| { bond.start == iodine || bond.end == iodine })
         );
+        assert!(plan.objects.iter().any(|object| {
+            object.role == SceneRole::Product && object.asset == AssetProfile::GasCloud
+        }));
 
         let final_ordinal = plan.timeline.beats.last().unwrap().end_ordinal;
-        let scene = build_scene(
-            &plan,
-            final_ordinal,
-            1.0,
-            &request.reactant_previews(),
-            Some(&preview),
-        );
-        for color in [molecular_atom_color(9), molecular_atom_color(53)] {
-            assert!(scene.0.iter().any(|vertex| {
-                vertex
-                    .color
+        let scene = build_scene(&plan, final_ordinal, 1.0);
+        assert!(
+            !scene.4.is_empty()
+                && scene
+                    .4
                     .iter()
-                    .zip(color)
-                    .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
-            }));
+                    .any(|splat| Vec3::from_array(splat.flow).length_squared() > 0.000_001),
+            "the persistent gas product must contribute an advected soft volume"
+        );
+    }
+
+    #[test]
+    fn persistent_gas_products_share_a_vessel_wide_stratified_layer_regime() {
+        for reaction_id in ["oxygen-carbon-oxygen", "covalent-i-f-if7"] {
+            let request =
+                chemistry::ReactionRequest::from_id(reaction_id).expect("reviewed request exists");
+            let plan = plan_for(request);
+            let layout = SceneLayout::resolve(&plan);
+            let product = plan
+                .objects
+                .iter()
+                .find(|object| {
+                    object.role == SceneRole::Product && object.asset == AssetProfile::GasCloud
+                })
+                .unwrap_or_else(|| panic!("{reaction_id} reviewed product is gaseous"));
+            let mut meshes = SceneMeshes::default();
+            instantiate_plan_gas_asset(
+                &mut meshes,
+                product,
+                layout,
+                1.0,
+                1.0,
+                stable_seed(&product.id),
+                ReactionVisualInputs::default(),
+                3.2,
+                None,
+            );
+
+            assert!(
+                meshes.gas.len() > 80,
+                "{reaction_id} should produce continuous occupied density"
+            );
+            assert!(
+                meshes.gas.iter().all(|splat| splat.layering > 0.50),
+                "{reaction_id} should use retained-product stratification"
+            );
+            let (minimum, maximum, weighted_y, mass) = meshes.gas.iter().fold(
+                (
+                    Vec3::splat(f32::INFINITY),
+                    Vec3::splat(f32::NEG_INFINITY),
+                    0.0,
+                    0.0,
+                ),
+                |(minimum, maximum, weighted_y, mass), splat| {
+                    let center = Vec3::from_array(splat.center);
+                    (
+                        minimum.min(center),
+                        maximum.max(center),
+                        weighted_y + center.y * splat.density,
+                        mass + splat.density,
+                    )
+                },
+            );
+            let extent = maximum - minimum;
+            assert!(
+                extent.x > layout.vessel_scale.x
+                    && extent.z > layout.vessel_scale.z
+                    && extent.y > 0.16,
+                "{reaction_id} should occupy the vessel cross-section as fog, not one small blob"
+            );
+            assert!(
+                weighted_y / mass < layout.vessel_center.y,
+                "{reaction_id} should retain most cooled product density in the lower vessel"
+            );
         }
+    }
+
+    #[test]
+    fn gas_forms_stays_in_vessel_while_gas_evolves_can_feed_the_open_rim() {
+        let render_release = |request: chemistry::ReactionRequest| {
+            let plan = plan_for(request);
+            let effect = plan
+                .effects
+                .iter()
+                .find(|effect| effect.effect == EffectProfile::GasRelease)
+                .expect("gas release exists");
+            let layout = SceneLayout::resolve(&plan);
+            let mut meshes = SceneMeshes::default();
+            instantiate_effect(
+                &mut meshes,
+                effect,
+                effect.start_ordinal,
+                0.64,
+                layout,
+                effect_seed(&plan, effect),
+                scene_effect_colours(&plan, effect.start_ordinal, 0.64),
+            );
+            let vessel_rim = layout.vessel_center.y + 0.91 * layout.vessel_scale.y;
+            let mass_above_rim = meshes
+                .gas
+                .iter()
+                .filter(|splat| splat.center[1] > vessel_rim)
+                .map(|splat| splat.density)
+                .sum::<f32>();
+            (effect.trigger, mass_above_rim, meshes.gas.len())
+        };
+
+        let formed = render_release(
+            chemistry::ReactionRequest::from_id("oxygen-carbon-oxygen")
+                .expect("carbon oxygen exists"),
+        );
+        let evolved = render_release(chemistry::ReactionRequest::acid_carbonate_gas_evolution(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+
+        assert_eq!(formed.0, ObservationPredicate::Forms);
+        assert_eq!(evolved.0, ObservationPredicate::Evolves);
+        assert!(formed.2 > 40 && evolved.2 > 40);
+        assert!(
+            formed.1 <= 0.001,
+            "`forms` must not silently claim open-rim venting"
+        );
+        assert!(
+            evolved.1 > 0.01,
+            "`evolves` should feed a continuous open-rim plume"
+        );
+    }
+
+    #[test]
+    fn evolving_gas_product_does_not_inherit_the_dense_layer_default() {
+        let plan = plan_for(chemistry::ReactionRequest::alkali_water(
+            chemistry::AlkaliMetal::Lithium,
+        ));
+        let product = plan
+            .objects
+            .iter()
+            .find(|object| {
+                object.role == SceneRole::Product && object.asset == AssetProfile::GasCloud
+            })
+            .expect("hydrogen gas product exists");
+        assert_eq!(
+            product
+                .observation
+                .as_ref()
+                .map(|observation| observation.predicate),
+            Some(ObservationPredicate::Evolves)
+        );
+        let mut meshes = SceneMeshes::default();
+        instantiate_plan_gas_asset(
+            &mut meshes,
+            product,
+            SceneLayout::resolve(&plan),
+            1.0,
+            1.0,
+            stable_seed(&product.id),
+            ReactionVisualInputs::default(),
+            2.8,
+            None,
+        );
+        assert!(meshes.gas.len() > 80);
+        assert!(
+            meshes.gas.iter().all(|splat| splat.layering == 0.0),
+            "gas that explicitly evolves should stay mixed and use the separate buoyant plume"
+        );
     }
 
     #[test]
@@ -3283,14 +4209,14 @@ mod tests {
     #[test]
     fn lithium_scene_adds_visible_surface_and_reaction_effect_geometry() {
         let plan = canonical_plan();
-        let before = build_scene(&plan, 0, 0.5, &[], None);
+        let before = build_scene(&plan, 0, 0.5);
         let reacting_ordinal = plan
             .effects
             .iter()
             .map(|effect| effect.start_ordinal)
             .min()
             .expect("alkali-water profile has observation-backed effects");
-        let reacting = build_scene(&plan, reacting_ordinal, 0.5, &[], None);
+        let reacting = build_scene(&plan, reacting_ordinal, 0.5);
         assert!(reacting.0.len() > before.0.len());
         assert!(plan.effects.iter().any(|effect| {
             effect.effect == EffectProfile::SurfaceDisturbance
@@ -3311,7 +4237,7 @@ mod tests {
             .iter()
             .find(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_)))
             .expect("reviewed potassium profile selects the generic flame emitter");
-        let potassium_mesh = build_scene(&potassium, flame.start_ordinal, 0.5, &[], None);
+        let potassium_mesh = build_scene(&potassium, flame.start_ordinal, 0.5);
         assert!(
             usize::try_from(potassium_mesh.3).is_ok_and(|start| start < potassium_mesh.1.len()),
             "emissive cores and sparks use the final additive batch"
@@ -3324,7 +4250,7 @@ mod tests {
                 .iter()
                 .any(|effect| matches!(effect.effect, EffectProfile::FlameEmitter(_)))
         );
-        let lithium_mesh = build_scene(&lithium, flame.start_ordinal, 0.5, &[], None);
+        let lithium_mesh = build_scene(&lithium, flame.start_ordinal, 0.5);
         assert_eq!(
             usize::try_from(lithium_mesh.3).expect("index boundary fits usize"),
             lithium_mesh.1.len()
@@ -3348,8 +4274,8 @@ mod tests {
                 .expect("trusted colour transition exists");
             let expected =
                 mix_visual_colour(appearance_color(product.appearance), transition.target, 1.0);
-            let before = build_scene(&plan, transition.start_ordinal, 0.0, &[], None);
-            let visible = build_scene(&plan, transition.start_ordinal, 1.0, &[], None);
+            let before = build_scene(&plan, transition.start_ordinal, 0.0);
+            let visible = build_scene(&plan, transition.start_ordinal, 1.0);
 
             let has_expected_colour = |vertex: &Vertex| {
                 vertex
@@ -3364,7 +4290,7 @@ mod tests {
     }
 
     #[test]
-    fn effect_free_halogen_displacement_does_not_invent_liquid_or_phase_effects() {
+    fn phase_unknown_halogen_displacement_gets_progress_motion_without_inventing_phase() {
         let request = chemistry::ReactionRequest::ALL
             .iter()
             .copied()
@@ -3377,7 +4303,18 @@ mod tests {
                 .iter()
                 .any(|object| object.asset == AssetProfile::LiquidVolume)
         );
-        assert!(plan.effects.is_empty());
+        assert!(plan.effects.iter().any(|effect| {
+            effect.effect == EffectProfile::ReactionActivity
+                && effect.trigger == chem_catalogue::ObservationPredicate::Forms
+        }));
+        assert!(plan.effects.iter().all(|effect| {
+            !matches!(
+                effect.effect,
+                EffectProfile::GasRelease
+                    | EffectProfile::PrecipitateFormation
+                    | EffectProfile::LiquidMixing
+            )
+        }));
         assert!(!plan.objects.iter().any(|object| matches!(
             object.asset,
             AssetProfile::GasCloud | AssetProfile::PrecipitateCloud
@@ -3424,20 +4361,73 @@ mod tests {
             AssetProfile::GasCloud | AssetProfile::PrecipitateCloud
         )));
 
-        let before = build_scene(
-            &plan,
-            mixing.start_ordinal.saturating_sub(1),
-            0.5,
-            &[],
-            None,
-        );
-        let active = build_scene(&plan, mixing.start_ordinal, 0.5, &[], None);
+        let before = build_scene(&plan, mixing.start_ordinal.saturating_sub(1), 0.5);
+        let active = build_scene(&plan, mixing.start_ordinal, 0.5);
         assert!(active.0.len() > before.0.len());
         assert!(active.1.len() > before.1.len());
 
         let colourless = appearance_color(AppearanceProfile::AqueousColourless);
         assert!((colourless[2] - colourless[0]).abs() < 0.12);
         assert!(colourless[3] < appearance_color(AppearanceProfile::Water)[3]);
+    }
+
+    #[test]
+    fn neutralization_separation_boils_solvent_and_grows_deterministic_salt_crystals() {
+        let plan = plan_for(chemistry::ReactionRequest::acid_base_neutralization(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        assert_eq!(
+            plan.post_process,
+            Some(chem_presentation::MacroscopicProcess::SolventEvaporationCrystallization)
+        );
+        let moment = |stage, beat_progress| {
+            let (beat_index, beat) = plan
+                .timeline
+                .beats
+                .iter()
+                .enumerate()
+                .find(|(_, beat)| beat.stage == stage)
+                .expect("post-process beat exists");
+            RealWorldPosition {
+                beat_index,
+                ordinal: beat.end_ordinal,
+                ordinal_progress: beat_progress,
+                beat_progress,
+                stage,
+            }
+        };
+
+        let early_boil = post_process_visual_state(&plan, MacroscopicStage::SolventBoiling, 0.24);
+        let late_boil = post_process_visual_state(&plan, MacroscopicStage::SolventBoiling, 0.82);
+        let finished = post_process_visual_state(&plan, MacroscopicStage::CrystalGrowth, 1.0);
+        assert!(early_boil.liquid_fraction > late_boil.liquid_fraction);
+        assert!(late_boil.boiling > 0.5 && late_boil.vapour > 0.5);
+        assert!(finished.liquid_fraction <= f32::EPSILON);
+        assert!((finished.crystal_growth - 1.0).abs() < f32::EPSILON);
+        assert!(finished.flame <= f32::EPSILON);
+
+        let boiling = build_scene_at(&plan, moment(MacroscopicStage::SolventBoiling, 0.58));
+        assert!(
+            !boiling.4.is_empty(),
+            "boiling solvent must emit an advected vapour volume"
+        );
+        assert!(
+            usize::try_from(boiling.3).is_ok_and(|start| start < boiling.1.len()),
+            "the burner must contribute a separate emissive flame pass"
+        );
+
+        let crystals = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
+        let repeated = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
+        assert!(
+            crystals.2 > boiling.2,
+            "faceted salt residue must add persistent opaque geometry"
+        );
+        assert_eq!(
+            bytemuck::cast_slice::<Vertex, u8>(&crystals.0),
+            bytemuck::cast_slice::<Vertex, u8>(&repeated.0)
+        );
+        assert_eq!(crystals.1, repeated.1);
     }
 
     #[test]
@@ -3483,6 +4473,7 @@ mod tests {
             42,
             ReactionVisualInputs::default(),
             0.0,
+            1.0,
             None,
         );
         let mut rotated_meshes = SceneMeshes::default();
@@ -3497,10 +4488,11 @@ mod tests {
             42,
             ReactionVisualInputs::default(),
             0.0,
+            1.0,
             None,
         );
-        let (unrotated, _, _, _) = unrotated_meshes.finish();
-        let (rotated, _, _, _) = rotated_meshes.finish();
+        let (unrotated, _, _, _, _) = unrotated_meshes.finish();
+        let (rotated, _, _, _, _) = rotated_meshes.finish();
 
         assert_eq!(unrotated.len(), rotated.len());
         assert_ne!(
@@ -3528,9 +4520,10 @@ mod tests {
             0,
             ReactionVisualInputs::default(),
             0.0,
+            1.0,
             None,
         );
-        let (vertices, _, opaque_indices, _) = meshes.finish();
+        let (vertices, _, opaque_indices, _, _) = meshes.finish();
 
         assert!(opaque_indices > 0, "the floor remains opaque geometry");
         assert!(

@@ -5,7 +5,8 @@ use chem_domain::{
     BronstedAcidProfile, Charge, ContentDigest, ElementInventory, ElementSymbol,
     ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
     ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry, SpeciesResolution,
-    StructureId, UnbalancedReactionTerm, classify_bronsted_acid, generate_structure, symbol_of,
+    StructureDefinition, StructureId, UnbalancedReactionTerm, classify_bronsted_acid,
+    generate_structure, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -19,6 +20,15 @@ use crate::{
 pub enum TrustTier {
     Reviewed,
     ModelAsserted,
+}
+
+/// Deterministic macroscopic process established from checked reaction
+/// structure and phase data. Presentation may consume this classification;
+/// it must not rediscover the process from names or renderer assets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MacroscopicProcess {
+    CompleteCombustion,
+    SolventEvaporationCrystallization,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +66,33 @@ impl OutcomeSpecies {
             Self::FormulaOnly { .. } => None,
         }
     }
+
+    #[must_use]
+    pub const fn phase(&self) -> Phase {
+        match self {
+            Self::Resolved(species) => species.phase,
+            Self::FormulaOnly { phase, .. } => *phase,
+        }
+    }
+
+    #[must_use]
+    pub fn display_name(&self) -> &str {
+        match self {
+            Self::Resolved(species) => &species.display_name,
+            Self::FormulaOnly { display_name, .. } => display_name,
+        }
+    }
+
+    #[must_use]
+    pub fn representation(&self) -> Option<RepresentationKind> {
+        match self {
+            Self::Resolved(species) => species
+                .structure
+                .as_ref()
+                .map(StructureDefinition::representation),
+            Self::FormulaOnly { .. } => None,
+        }
+    }
 }
 
 /// Structurally checked static capability. It deliberately exposes no frame
@@ -68,6 +105,7 @@ pub struct ValidatedStaticOutcome {
     claim: ReactionClaim,
     trust_tier: TrustTier,
     equation: String,
+    macroscopic_process: Option<MacroscopicProcess>,
 }
 
 impl ValidatedStaticOutcome {
@@ -99,6 +137,37 @@ impl ValidatedStaticOutcome {
     #[must_use]
     pub fn equation(&self) -> &str {
         &self.equation
+    }
+
+    #[must_use]
+    pub const fn macroscopic_process(&self) -> Option<MacroscopicProcess> {
+        self.macroscopic_process
+    }
+
+    /// Returns the exact claimed product phase after static validation, plus
+    /// process-established reactant phase where the closed classification
+    /// proves it. Other unknown phases remain unknown.
+    #[must_use]
+    pub fn macroscopic_phase(&self, species: &OutcomeSpecies) -> Phase {
+        if let Some(index) = self
+            .products
+            .iter()
+            .position(|product| product.id() == species.id())
+        {
+            return claim_phase(self.claim.products[index].phase);
+        }
+        if self.macroscopic_process == Some(MacroscopicProcess::CompleteCombustion)
+            && self
+                .declaration
+                .reactants()
+                .iter()
+                .find(|term| term.species() == species.id())
+                .is_some_and(is_dioxygen)
+        {
+            Phase::Gas
+        } else {
+            species.phase()
+        }
     }
 
     #[must_use]
@@ -164,6 +233,12 @@ impl ValidatedStaticOutcome {
         }
         self.reactants = reactants;
         self.products = products;
+        self.macroscopic_process = classify_macroscopic_process(
+            &self.declaration,
+            &self.reactants,
+            &self.products,
+            &self.claim,
+        );
         Ok(self)
     }
 
@@ -256,6 +331,8 @@ pub fn compile_claim_outcome(
     .map_err(|error| AgentError::new("outcome balance", error.to_string()))?;
     let trust_tier = TrustTier::ModelAsserted;
     let equation = format_equation(&declaration);
+    let macroscopic_process =
+        classify_macroscopic_process(&declaration, &reactants, &products, &claim);
     Ok(CompiledClaimOutcome::Static(ValidatedStaticOutcome {
         declaration,
         reactants,
@@ -263,7 +340,111 @@ pub fn compile_claim_outcome(
         claim,
         trust_tier,
         equation,
+        macroscopic_process,
     }))
+}
+
+fn classify_macroscopic_process(
+    declaration: &ReactionDeclaration,
+    reactants: &[OutcomeSpecies],
+    products: &[OutcomeSpecies],
+    claim: &ReactionClaim,
+) -> Option<MacroscopicProcess> {
+    let has_structural_acid = reactants.iter().any(|species| {
+        species
+            .bronsted_acid_profile()
+            .is_some_and(|profile| !profile.proton_donor_sites().is_empty())
+    });
+    let has_ionic_base = reactants
+        .iter()
+        .any(|species| species.representation() == Some(RepresentationKind::Ionic));
+    let liquid_water = claim
+        .products
+        .iter()
+        .zip(products)
+        .any(|(claim_product, product)| {
+            claim_phase(claim_product.phase) == Phase::Liquid
+                && product.representation() == Some(RepresentationKind::Molecular)
+                && FormulaComposition::parse(&ascii_formula_key(&claim_product.formula))
+                    .is_ok_and(|formula| has_counts(&formula, &[("H", 2), ("O", 1)]))
+        });
+    let dissolved_ionic_product =
+        claim
+            .products
+            .iter()
+            .zip(products)
+            .any(|(claim_product, product)| {
+                claim_phase(claim_product.phase) == Phase::Aqueous
+                    && product.representation() == Some(RepresentationKind::Ionic)
+            });
+    if claim.products.len() == 2
+        && has_structural_acid
+        && has_ionic_base
+        && liquid_water
+        && dissolved_ionic_product
+    {
+        return Some(MacroscopicProcess::SolventEvaporationCrystallization);
+    }
+
+    let [first, second] = declaration.reactants() else {
+        return None;
+    };
+    let (fuel, oxygen) = if is_dioxygen(first) {
+        (second, first)
+    } else if is_dioxygen(second) {
+        (first, second)
+    } else {
+        return None;
+    };
+    let fuel_species = reactants
+        .iter()
+        .find(|species| species.id() == fuel.species())?;
+    let oxygen_species = reactants
+        .iter()
+        .find(|species| species.id() == oxygen.species())?;
+    if fuel_species.representation() != Some(RepresentationKind::Molecular)
+        || oxygen_species.representation() != Some(RepresentationKind::Molecular)
+        || !is_carbon_hydrogen_oxygen_fuel(fuel.formula())
+    {
+        return None;
+    }
+    let products = &claim.products;
+    let has_carbon_dioxide = products.iter().any(|product| {
+        claim_phase(product.phase) == Phase::Gas
+            && FormulaComposition::parse(&ascii_formula_key(&product.formula))
+                .is_ok_and(|formula| has_counts(&formula, &[("C", 1), ("O", 2)]))
+    });
+    let has_water_vapour = products.iter().any(|product| {
+        claim_phase(product.phase) == Phase::Gas
+            && FormulaComposition::parse(&ascii_formula_key(&product.formula))
+                .is_ok_and(|formula| has_counts(&formula, &[("H", 2), ("O", 1)]))
+    });
+    (products.len() == 2 && has_carbon_dioxide && has_water_vapour)
+        .then_some(MacroscopicProcess::CompleteCombustion)
+}
+
+fn is_dioxygen(term: &chem_domain::ReactionTerm) -> bool {
+    has_counts(term.formula(), &[("O", 2)])
+}
+
+fn is_carbon_hydrogen_oxygen_fuel(formula: &FormulaComposition) -> bool {
+    let elements = formula.elements();
+    elements
+        .keys()
+        .all(|element| matches!(element.as_str(), "C" | "H" | "O"))
+        && elements.keys().any(|element| element.as_str() == "C")
+        && elements.keys().any(|element| element.as_str() == "H")
+}
+
+fn has_counts(formula: &FormulaComposition, expected: &[(&str, u64)]) -> bool {
+    formula.elements().len() == expected.len()
+        && expected.iter().all(|(symbol, count)| {
+            formula
+                .elements()
+                .iter()
+                .find(|(element, _)| element.as_str() == *symbol)
+                .is_some_and(|(_, actual)| actual == count)
+        })
 }
 
 fn resolve_claim_product<'a>(
@@ -1002,6 +1183,11 @@ mod tests {
             OutcomeSpecies::Resolved(species) if species.structure.is_some()
         ));
         assert!(outcome.species_without_structure().is_empty());
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(MacroscopicProcess::CompleteCombustion),
+            "validated C/H fuel + dioxygen -> gaseous CO2 + H2O should carry a typed process"
+        );
     }
 
     #[test]

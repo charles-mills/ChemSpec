@@ -1089,11 +1089,16 @@ fn parse_hex_visual_colour(value: &str) -> Option<VisualColour> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectProfile {
+    /// Phase-neutral secondary motion tied to validated reaction progression.
+    ReactionActivity,
     BubbleEmitter,
     GasRelease,
+    VapourRelease,
     SurfaceDisturbance,
     LiquidMixing,
     ObjectShrinkage,
+    /// Dry or otherwise non-precipitating solid nucleation/growth.
+    SolidFormation,
     PrecipitateFormation,
     Clouding,
     ColourTransition,
@@ -1102,14 +1107,27 @@ pub enum EffectProfile {
     FlameEmitter(FlamePalette),
 }
 
+/// Upstream authority for a reusable macroscopic effect.
+///
+/// Observation authorization remains the normal `.chems` route. A typed
+/// process is available for deterministic chemistry classifications whose
+/// validated dynamic frames do not carry repository evidence observations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectAuthorization {
+    Observation(ObservationPredicate),
+    Process(MacroscopicProcess),
+}
+
 /// Reviewed flame-colour families available to the generic flame renderer.
 ///
 /// Selecting a palette does not assert that a reaction ignites. A trusted
-/// presentation profile must still authorize `FlameEmitter` and bind it to an
-/// observation before the renderer can display it.
+/// presentation profile must still authorize `FlameEmitter` from either a
+/// compatible observation or a closed upstream chemistry process before the
+/// renderer can display it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlamePalette {
     Natural,
+    BurnerBlue,
     Crimson,
     YellowOrange,
     Lilac,
@@ -1126,13 +1144,14 @@ pub enum EffectIntensity {
 pub struct PresentationEffect {
     pub effect: EffectProfile,
     pub trigger: ObservationPredicate,
+    pub authorization: EffectAuthorization,
     pub intensity: EffectIntensity,
     pub start_ordinal: u16,
     pub end_ordinal: u16,
 }
 
 /// Continuous, renderer-independent macroscopic controls compiled from the
-/// currently active, observation-gated presentation effects.
+/// currently active, observation- or process-authorized presentation effects.
 ///
 /// Values are normalized illustrative intensities in `0.0..=1.0`, not measured
 /// kinetic, thermodynamic, or pressure quantities. Missing reviewed metadata
@@ -1142,10 +1161,12 @@ pub struct ReactionVisualInputs {
     pub reaction_progress: f32,
     pub reaction_rate: f32,
     pub gas_generation_rate: f32,
+    pub vapour_generation_rate: f32,
     pub bubble_rate: f32,
     pub pressure_impulse: f32,
     pub heat_output: f32,
     pub liquid_turbulence: f32,
+    pub solid_formation_rate: f32,
     pub precipitate_generation: f32,
     pub colour_transition: f32,
     pub splash_rate: f32,
@@ -1179,81 +1200,108 @@ impl ReactionVisualInputs {
             .iter()
             .filter(|effect| effect.start_ordinal <= ordinal && ordinal <= effect.end_ordinal)
         {
-            let intensity = match effect.intensity {
-                EffectIntensity::Subtle => 0.42,
-                EffectIntensity::Moderate => 0.70,
-                EffectIntensity::Strong => 1.0,
-            };
-            let span = f32::from(
-                effect
-                    .end_ordinal
-                    .saturating_sub(effect.start_ordinal)
-                    .saturating_add(1),
+            apply_effect_inputs(
+                &mut inputs,
+                effect.effect,
+                effect_activity(effect, ordinal, ordinal_progress),
             );
-            let elapsed = f32::from(ordinal.saturating_sub(effect.start_ordinal))
-                + ordinal_progress.clamp(0.0, 1.0);
-            let local_progress = (elapsed / span.max(1.0)).clamp(0.0, 1.0);
-            let attack = exponential_response(local_progress / 0.16, 3.8);
-            let release = 1.0 - exponential_response((local_progress - 0.76) / 0.24, 3.2);
-            let activity = intensity * attack * release;
-            match effect.effect {
-                EffectProfile::BubbleEmitter => {
-                    inputs.bubble_rate += activity;
-                    inputs.liquid_turbulence += activity * 0.28;
-                }
-                EffectProfile::GasRelease => {
-                    inputs.gas_generation_rate += activity;
-                    inputs.pressure_impulse += activity * 0.18;
-                }
-                EffectProfile::SurfaceDisturbance => {
-                    inputs.liquid_turbulence += activity;
-                }
-                EffectProfile::LiquidMixing => {
-                    inputs.liquid_turbulence += activity * 0.88;
-                }
-                EffectProfile::SplashEmitter => {
-                    inputs.splash_rate += activity;
-                    inputs.liquid_turbulence += activity * 0.72;
-                    inputs.pressure_impulse += activity * 0.58;
-                }
-                EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
-                    inputs.precipitate_generation += activity;
-                }
-                EffectProfile::ColourTransition => inputs.colour_transition += activity,
-                EffectProfile::HeatDistortion => inputs.heat_output += activity,
-                EffectProfile::FlameEmitter(_) => {
-                    inputs.flame_rate += activity;
-                    inputs.heat_output += activity * 0.72;
-                    inputs.liquid_turbulence += activity * 0.12;
-                }
-                EffectProfile::ObjectShrinkage => {}
-            }
         }
-        inputs.gas_generation_rate = inputs.gas_generation_rate.min(1.0);
-        inputs.bubble_rate = inputs.bubble_rate.min(1.0);
-        inputs.pressure_impulse = inputs.pressure_impulse.min(1.0);
-        inputs.heat_output = inputs.heat_output.min(1.0);
-        inputs.liquid_turbulence = inputs.liquid_turbulence.min(1.0);
-        inputs.precipitate_generation = inputs.precipitate_generation.min(1.0);
-        inputs.colour_transition = inputs.colour_transition.min(1.0);
-        inputs.splash_rate = inputs.splash_rate.min(1.0);
-        inputs.flame_rate = inputs.flame_rate.min(1.0);
-        inputs.container_vibration = (inputs.bubble_rate * 0.04
-            + inputs.gas_generation_rate * 0.05
-            + inputs.pressure_impulse * 0.30
-            + inputs.liquid_turbulence * 0.16
-            + inputs.splash_rate * 0.25
-            + inputs.flame_rate * 0.12)
-            .min(0.55);
-        inputs.reaction_rate = inputs
-            .gas_generation_rate
-            .max(inputs.bubble_rate)
-            .max(inputs.liquid_turbulence)
-            .max(inputs.precipitate_generation)
-            .max(inputs.colour_transition)
-            .max(inputs.heat_output)
-            .max(inputs.flame_rate);
+        inputs.clamp_and_derive();
         inputs
+    }
+
+    fn clamp_and_derive(&mut self) {
+        self.gas_generation_rate = self.gas_generation_rate.min(1.0);
+        self.vapour_generation_rate = self.vapour_generation_rate.min(1.0);
+        self.bubble_rate = self.bubble_rate.min(1.0);
+        self.pressure_impulse = self.pressure_impulse.min(1.0);
+        self.heat_output = self.heat_output.min(1.0);
+        self.liquid_turbulence = self.liquid_turbulence.min(1.0);
+        self.solid_formation_rate = self.solid_formation_rate.min(1.0);
+        self.precipitate_generation = self.precipitate_generation.min(1.0);
+        self.colour_transition = self.colour_transition.min(1.0);
+        self.splash_rate = self.splash_rate.min(1.0);
+        self.flame_rate = self.flame_rate.min(1.0);
+        self.container_vibration = (self.bubble_rate * 0.04
+            + self.gas_generation_rate * 0.05
+            + self.pressure_impulse * 0.30
+            + self.liquid_turbulence * 0.16
+            + self.solid_formation_rate * 0.05
+            + self.splash_rate * 0.25
+            + self.flame_rate * 0.12)
+            .min(0.55);
+        self.reaction_rate = self
+            .gas_generation_rate
+            .max(self.vapour_generation_rate)
+            .max(self.bubble_rate)
+            .max(self.liquid_turbulence)
+            .max(self.solid_formation_rate)
+            .max(self.precipitate_generation)
+            .max(self.colour_transition)
+            .max(self.heat_output)
+            .max(self.flame_rate);
+    }
+}
+
+fn effect_activity(effect: &PresentationEffect, ordinal: u16, ordinal_progress: f32) -> f32 {
+    let intensity = match effect.intensity {
+        EffectIntensity::Subtle => 0.42,
+        EffectIntensity::Moderate => 0.70,
+        EffectIntensity::Strong => 1.0,
+    };
+    let span = f32::from(
+        effect
+            .end_ordinal
+            .saturating_sub(effect.start_ordinal)
+            .saturating_add(1),
+    );
+    let elapsed =
+        f32::from(ordinal.saturating_sub(effect.start_ordinal)) + ordinal_progress.clamp(0.0, 1.0);
+    let local_progress = (elapsed / span.max(1.0)).clamp(0.0, 1.0);
+    let attack = exponential_response(local_progress / 0.16, 3.8);
+    let release = 1.0 - exponential_response((local_progress - 0.76) / 0.24, 3.2);
+    intensity * attack * release
+}
+
+fn apply_effect_inputs(inputs: &mut ReactionVisualInputs, effect: EffectProfile, activity: f32) {
+    match effect {
+        EffectProfile::ReactionActivity => {
+            inputs.liquid_turbulence += activity * 0.34;
+            inputs.pressure_impulse += activity * 0.05;
+        }
+        EffectProfile::BubbleEmitter => {
+            inputs.bubble_rate += activity;
+            inputs.liquid_turbulence += activity * 0.28;
+        }
+        EffectProfile::GasRelease => {
+            inputs.gas_generation_rate += activity;
+            inputs.pressure_impulse += activity * 0.18;
+        }
+        EffectProfile::VapourRelease => {
+            inputs.vapour_generation_rate += activity;
+            inputs.gas_generation_rate += activity * 0.72;
+            inputs.heat_output += activity * 0.58;
+            inputs.pressure_impulse += activity * 0.10;
+        }
+        EffectProfile::SurfaceDisturbance => inputs.liquid_turbulence += activity,
+        EffectProfile::LiquidMixing => inputs.liquid_turbulence += activity * 0.88,
+        EffectProfile::SplashEmitter => {
+            inputs.splash_rate += activity;
+            inputs.liquid_turbulence += activity * 0.72;
+            inputs.pressure_impulse += activity * 0.58;
+        }
+        EffectProfile::SolidFormation => inputs.solid_formation_rate += activity,
+        EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
+            inputs.precipitate_generation += activity;
+        }
+        EffectProfile::ColourTransition => inputs.colour_transition += activity,
+        EffectProfile::HeatDistortion => inputs.heat_output += activity,
+        EffectProfile::FlameEmitter(_) => {
+            inputs.flame_rate += activity;
+            inputs.heat_output += activity * 0.72;
+            inputs.liquid_turbulence += activity * 0.12;
+        }
+        EffectProfile::ObjectShrinkage => {}
     }
 }
 
@@ -1291,6 +1339,9 @@ pub struct PresentationProfile {
     pub objects: Vec<PresentationObject>,
     pub effects: Vec<PresentationEffect>,
     pub camera: Vec<CameraCue>,
+    /// Optional deterministic physical separation shown only after the
+    /// validated reaction state has completed.
+    pub post_process: Option<MacroscopicProcess>,
     pub equation: String,
     pub disclosure: String,
 }
@@ -1324,6 +1375,17 @@ pub struct MacroscopicReaction {
     pub equation: String,
     pub materials: Vec<MacroscopicMaterial>,
     pub intensity: EffectIntensity,
+    pub process: Option<MacroscopicProcess>,
+}
+
+/// A process classification produced by chemistry, never inferred by the
+/// renderer from reaction or species names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MacroscopicProcess {
+    CompleteCombustion,
+    /// Evaporate a validated liquid solvent and grow its already-validated
+    /// dissolved ionic product as a crystal residue.
+    SolventEvaporationCrystallization,
 }
 
 /// Compiles reusable assets and effects from trusted material phases and typed
@@ -1529,6 +1591,15 @@ pub fn compile_phase_driven_profile(
                             final_ordinal,
                             EffectIntensity::Subtle,
                         );
+                    } else {
+                        push_effect(
+                            &mut effects,
+                            EffectProfile::SolidFormation,
+                            *predicate,
+                            *ordinal,
+                            final_ordinal,
+                            reaction.intensity,
+                        );
                     }
                 }
                 Phase::Aqueous | Phase::Liquid => {
@@ -1632,6 +1703,36 @@ pub fn compile_phase_driven_profile(
             }
         }
     }
+    if reaction.process == Some(MacroscopicProcess::CompleteCombustion) {
+        let start_ordinal =
+            first_product_assignment_ordinal(frames).unwrap_or_else(|| final_ordinal.min(1));
+        push_process_effect(
+            &mut effects,
+            EffectProfile::FlameEmitter(FlamePalette::Natural),
+            MacroscopicProcess::CompleteCombustion,
+            start_ordinal,
+            final_ordinal,
+            EffectIntensity::Strong,
+        );
+        push_process_effect(
+            &mut effects,
+            EffectProfile::VapourRelease,
+            MacroscopicProcess::CompleteCombustion,
+            start_ordinal,
+            final_ordinal,
+            reaction.intensity,
+        );
+        if has_mobile_reactant {
+            push_process_effect(
+                &mut effects,
+                EffectProfile::SurfaceDisturbance,
+                MacroscopicProcess::CompleteCombustion,
+                start_ordinal,
+                final_ordinal,
+                EffectIntensity::Moderate,
+            );
+        }
+    }
 
     Ok(PresentationProfile {
         id: reaction.profile_id.clone(),
@@ -1643,9 +1744,120 @@ pub fn compile_phase_driven_profile(
             start_ordinal: 0,
             end_ordinal: final_ordinal,
         }],
+        post_process: (reaction.process
+            == Some(MacroscopicProcess::SolventEvaporationCrystallization))
+        .then_some(MacroscopicProcess::SolventEvaporationCrystallization),
         equation: reaction.equation.clone(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     })
+}
+
+/// Adds conservative reusable motion to an otherwise inert macroscopic
+/// profile using only its already-authorized object roles/assets and the
+/// validated `forms` observation.
+///
+/// This is primarily the backwards-compatible bridge for reviewed profiles
+/// authored before macroscopic phase records existed. It never changes a
+/// product asset or infers a phase from a reaction/species name.
+///
+/// # Errors
+///
+/// Returns an error when the trusted frame range cannot be represented.
+pub fn complete_generic_visual_profile(
+    frames: &SimulationFrames,
+    mut profile: PresentationProfile,
+) -> Result<PresentationProfile, PhaseDrivenProfileError> {
+    let final_ordinal = frames
+        .frames()
+        .last()
+        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
+        .ok_or(PhaseDrivenProfileError::PresentationRange)?;
+    let forms_ordinal = frames.frames().iter().find_map(|frame| {
+        frame
+            .observations()
+            .iter()
+            .any(|observation| {
+                observation.status == ObservationStatus::Active
+                    && observation.predicate == ObservationPredicate::Forms
+            })
+            .then(|| u16::try_from(frame.ordinal()).ok())
+            .flatten()
+    });
+    let Some(forms_ordinal) = forms_ordinal else {
+        return Ok(profile);
+    };
+    let was_inert = profile.effects.is_empty();
+    if was_inert {
+        push_effect(
+            &mut profile.effects,
+            EffectProfile::ReactionActivity,
+            ObservationPredicate::Forms,
+            forms_ordinal,
+            final_ordinal,
+            EffectIntensity::Subtle,
+        );
+    }
+
+    let has_product = |assets: &[AssetProfile]| {
+        profile
+            .objects
+            .iter()
+            .any(|object| object.role == SceneRole::Product && assets.contains(&object.asset))
+    };
+    let has_gas_release = profile
+        .effects
+        .iter()
+        .any(|effect| effect.effect == EffectProfile::GasRelease);
+    if has_product(&[AssetProfile::GasCloud]) && !has_gas_release {
+        push_effect(
+            &mut profile.effects,
+            EffectProfile::GasRelease,
+            ObservationPredicate::Forms,
+            forms_ordinal,
+            final_ordinal,
+            EffectIntensity::Moderate,
+        );
+    }
+    if has_product(&[
+        AssetProfile::MetalChunk,
+        AssetProfile::MetalStrip,
+        AssetProfile::CrystalCluster,
+        AssetProfile::PowderPile,
+    ]) && !profile.effects.iter().any(|effect| {
+        matches!(
+            effect.effect,
+            EffectProfile::SolidFormation | EffectProfile::PrecipitateFormation
+        )
+    }) {
+        push_effect(
+            &mut profile.effects,
+            EffectProfile::SolidFormation,
+            ObservationPredicate::Forms,
+            forms_ordinal,
+            final_ordinal,
+            EffectIntensity::Moderate,
+        );
+    }
+    if was_inert
+        && profile.objects.iter().any(|object| {
+            matches!(object.role, SceneRole::Contents | SceneRole::Product)
+                && object.asset == AssetProfile::LiquidVolume
+        })
+        && !profile
+            .effects
+            .iter()
+            .any(|effect| effect.effect == EffectProfile::LiquidMixing)
+    {
+        push_effect(
+            &mut profile.effects,
+            EffectProfile::LiquidMixing,
+            ObservationPredicate::Forms,
+            forms_ordinal,
+            final_ordinal,
+            EffectIntensity::Subtle,
+        );
+    }
+    Ok(profile)
 }
 
 type ActiveObservationKey = (String, ObservationPredicate);
@@ -1670,6 +1882,19 @@ fn active_observations_by_binding(
         }
     }
     Ok(active)
+}
+
+fn first_product_assignment_ordinal(frames: &SimulationFrames) -> Option<u16> {
+    frames.frames().iter().find_map(|frame| {
+        matches!(
+            frame
+                .active_operation()
+                .map(|active| active.operation.view()),
+            Some(StructuralOperationView::AssignProduct { .. })
+        )
+        .then(|| u16::try_from(frame.ordinal()).ok())
+        .flatten()
+    })
 }
 
 fn appearance_for_material(material: &MacroscopicMaterial) -> AppearanceProfile {
@@ -1734,6 +1959,28 @@ fn push_effect(
     let candidate = PresentationEffect {
         effect,
         trigger,
+        authorization: EffectAuthorization::Observation(trigger),
+        intensity,
+        start_ordinal,
+        end_ordinal,
+    };
+    if !effects.contains(&candidate) {
+        effects.push(candidate);
+    }
+}
+
+fn push_process_effect(
+    effects: &mut Vec<PresentationEffect>,
+    effect: EffectProfile,
+    process: MacroscopicProcess,
+    start_ordinal: u16,
+    end_ordinal: u16,
+    intensity: EffectIntensity,
+) {
+    let candidate = PresentationEffect {
+        effect,
+        trigger: ObservationPredicate::Forms,
+        authorization: EffectAuthorization::Process(process),
         intensity,
         start_ordinal,
         end_ordinal,
@@ -1788,6 +2035,7 @@ pub struct RealWorldBeat {
     pub end_ordinal: u16,
     pub duration_ms: u32,
     pub camera: CameraCue,
+    pub stage: MacroscopicStage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1801,6 +2049,16 @@ pub struct RealWorldPosition {
     pub ordinal: u16,
     pub ordinal_progress: f32,
     pub beat_progress: f32,
+    pub stage: MacroscopicStage,
+}
+
+/// Presentation-only stages layered after the immutable validated reaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MacroscopicStage {
+    Reaction,
+    HeatingPreparation,
+    SolventBoiling,
+    CrystalGrowth,
 }
 
 impl RealWorldTimeline {
@@ -1828,6 +2086,7 @@ impl RealWorldTimeline {
                 ordinal: beat.end_ordinal,
                 ordinal_progress: 1.0,
                 beat_progress: 1.0,
+                stage: beat.stage,
             });
         }
         let mut remaining_ms = elapsed_ms;
@@ -1856,6 +2115,7 @@ impl RealWorldTimeline {
                 ordinal,
                 ordinal_progress: scaled.fract(),
                 beat_progress,
+                stage: beat.stage,
             });
         }
         None
@@ -1874,6 +2134,7 @@ pub struct ScenePlan {
     pub equation: String,
     pub annotations: Vec<MacroscopicAnnotation>,
     pub timeline: RealWorldTimeline,
+    pub post_process: Option<MacroscopicProcess>,
     pub disclosure: String,
     pub virtual_only_disclosure: String,
 }
@@ -1906,20 +2167,19 @@ pub fn compile_real_world_plan(
                 .map(move |observation| (ordinal, observation))
         })
         .collect::<Vec<_>>();
-    if profile
-        .effects
-        .iter()
-        .any(|effect| !effect_observation_is_compatible(effect.effect, effect.trigger))
-    {
+    if profile.effects.iter().any(|effect| {
+        !effect_authorization_is_compatible(effect.effect, effect.trigger, effect.authorization)
+    }) {
         return Err(PlanError::IncompatibleEffectObservation);
     }
     if profile.effects.iter().any(|effect| {
-        active_observations
-            .iter()
-            .filter(|(_, observation)| observation.predicate == effect.trigger)
-            .map(|(ordinal, _)| *ordinal)
-            .min()
-            .is_none_or(|ordinal| effect.start_ordinal < ordinal)
+        matches!(effect.authorization, EffectAuthorization::Observation(_))
+            && active_observations
+                .iter()
+                .filter(|(_, observation)| observation.predicate == effect.trigger)
+                .map(|(ordinal, _)| *ordinal)
+                .min()
+                .is_none_or(|ordinal| effect.start_ordinal < ordinal)
     }) {
         return Err(PlanError::UnsupportedEffectTrigger);
     }
@@ -1969,6 +2229,7 @@ pub fn compile_real_world_plan(
         equation: profile.equation.clone(),
         annotations,
         timeline,
+        post_process: profile.post_process,
         disclosure: profile.disclosure.clone(),
         virtual_only_disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     })
@@ -2002,21 +2263,42 @@ fn validate_colour_transitions(
     Ok(())
 }
 
-const fn effect_observation_is_compatible(
+fn effect_authorization_is_compatible(
     effect: EffectProfile,
     predicate: ObservationPredicate,
+    authorization: EffectAuthorization,
 ) -> bool {
+    if let EffectAuthorization::Process(process) = authorization {
+        return matches!(
+            (process, effect),
+            (
+                MacroscopicProcess::CompleteCombustion,
+                EffectProfile::FlameEmitter(FlamePalette::Natural)
+                    | EffectProfile::VapourRelease
+                    | EffectProfile::SurfaceDisturbance
+            )
+        );
+    }
+    if !matches!(
+        authorization,
+        EffectAuthorization::Observation(authorized) if authorized == predicate
+    ) {
+        return false;
+    }
     match effect {
-        EffectProfile::BubbleEmitter | EffectProfile::GasRelease => matches!(
-            predicate,
-            ObservationPredicate::Evolves | ObservationPredicate::Forms
-        ),
+        EffectProfile::ReactionActivity
+        | EffectProfile::SolidFormation
+        | EffectProfile::PrecipitateFormation
+        | EffectProfile::Clouding => matches!(predicate, ObservationPredicate::Forms),
+        EffectProfile::BubbleEmitter | EffectProfile::GasRelease | EffectProfile::VapourRelease => {
+            matches!(
+                predicate,
+                ObservationPredicate::Evolves | ObservationPredicate::Forms
+            )
+        }
         EffectProfile::FlameEmitter(_) => matches!(predicate, ObservationPredicate::Evolves),
         EffectProfile::ObjectShrinkage => {
             matches!(predicate, ObservationPredicate::Disappears)
-        }
-        EffectProfile::PrecipitateFormation | EffectProfile::Clouding => {
-            matches!(predicate, ObservationPredicate::Forms)
         }
         EffectProfile::ColourTransition => matches!(predicate, ObservationPredicate::Colour),
         EffectProfile::SurfaceDisturbance
@@ -2100,7 +2382,7 @@ fn compile_real_world_timeline(
         .into_iter()
         .filter(|boundary| *boundary <= final_ordinal.saturating_add(1))
         .collect::<Vec<_>>();
-    let beats = boundaries
+    let mut beats = boundaries
         .windows(2)
         .filter_map(|window| {
             let start_ordinal = window[0];
@@ -2136,10 +2418,29 @@ fn compile_real_world_timeline(
                         start_ordinal,
                         end_ordinal,
                     },
+                    stage: MacroscopicStage::Reaction,
                 }
             })
         })
-        .collect();
+        .collect::<Vec<_>>();
+    if profile.post_process == Some(MacroscopicProcess::SolventEvaporationCrystallization) {
+        let camera = |stage, duration_ms| RealWorldBeat {
+            start_ordinal: final_ordinal,
+            end_ordinal: final_ordinal,
+            duration_ms,
+            camera: CameraCue {
+                behaviour: CameraBehaviour::WideEstablishingShot,
+                start_ordinal: final_ordinal,
+                end_ordinal: final_ordinal,
+            },
+            stage,
+        };
+        beats.extend([
+            camera(MacroscopicStage::HeatingPreparation, 1_200),
+            camera(MacroscopicStage::SolventBoiling, 4_600),
+            camera(MacroscopicStage::CrystalGrowth, 2_800),
+        ]);
+    }
     RealWorldTimeline { beats }
 }
 
@@ -2260,8 +2561,10 @@ mod tests {
     use chem_catalogue::ObservationPredicate;
 
     use super::{
-        EducationalPlan, EducationalScene, EducationalSceneKind, EffectIntensity, EffectProfile,
-        FlamePalette, PresentationEffect, ReactionVisualInputs, TimelinePosition, VisualColour,
+        AssetProfile, EducationalPlan, EducationalScene, EducationalSceneKind, EffectAuthorization,
+        EffectIntensity, EffectProfile, FlamePalette, MacroscopicProcess, MacroscopicStage,
+        PresentationEffect, PresentationProfile, ReactionVisualInputs, TimelinePosition,
+        VisualColour, compile_real_world_timeline, effect_authorization_is_compatible,
         macroscopic_beat_duration_ms, visual_colour,
     };
 
@@ -2338,11 +2641,47 @@ mod tests {
     }
 
     #[test]
+    fn solvent_separation_appends_distinct_post_reaction_beats() {
+        let profile = PresentationProfile {
+            id: "generic-solvent-separation".to_owned(),
+            environment: AssetProfile::LaboratoryBench,
+            objects: Vec::new(),
+            effects: Vec::new(),
+            camera: Vec::new(),
+            post_process: Some(MacroscopicProcess::SolventEvaporationCrystallization),
+            equation: "validated reaction".to_owned(),
+            disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+        };
+        let timeline = compile_real_world_timeline(&profile, 4);
+        let stages = timeline
+            .beats
+            .iter()
+            .map(|beat| beat.stage)
+            .collect::<Vec<_>>();
+        assert!(stages.starts_with(&[MacroscopicStage::Reaction]));
+        assert_eq!(
+            &stages[stages.len() - 3..],
+            &[
+                MacroscopicStage::HeatingPreparation,
+                MacroscopicStage::SolventBoiling,
+                MacroscopicStage::CrystalGrowth,
+            ]
+        );
+        assert_eq!(
+            timeline
+                .locate(timeline.duration_ms())
+                .map(|position| position.stage),
+            Some(MacroscopicStage::CrystalGrowth)
+        );
+    }
+
+    #[test]
     fn visual_inputs_are_inferred_from_typed_effects_without_reaction_identity() {
         let effects = vec![
             PresentationEffect {
                 effect: EffectProfile::BubbleEmitter,
                 trigger: ObservationPredicate::Evolves,
+                authorization: EffectAuthorization::Observation(ObservationPredicate::Evolves),
                 intensity: EffectIntensity::Moderate,
                 start_ordinal: 2,
                 end_ordinal: 6,
@@ -2350,6 +2689,7 @@ mod tests {
             PresentationEffect {
                 effect: EffectProfile::GasRelease,
                 trigger: ObservationPredicate::Evolves,
+                authorization: EffectAuthorization::Observation(ObservationPredicate::Evolves),
                 intensity: EffectIntensity::Moderate,
                 start_ordinal: 2,
                 end_ordinal: 6,
@@ -2374,6 +2714,7 @@ mod tests {
         let effects = [PresentationEffect {
             effect: EffectProfile::FlameEmitter(FlamePalette::Lilac),
             trigger: ObservationPredicate::Evolves,
+            authorization: EffectAuthorization::Observation(ObservationPredicate::Evolves),
             intensity: EffectIntensity::Strong,
             start_ordinal: 2,
             end_ordinal: 6,
@@ -2388,10 +2729,53 @@ mod tests {
     }
 
     #[test]
+    fn validated_combustion_authorizes_natural_flame_and_hot_vapour_channels() {
+        let process = MacroscopicProcess::CompleteCombustion;
+        let effects = [
+            PresentationEffect {
+                effect: EffectProfile::FlameEmitter(FlamePalette::Natural),
+                trigger: ObservationPredicate::Forms,
+                authorization: EffectAuthorization::Process(process),
+                intensity: EffectIntensity::Strong,
+                start_ordinal: 2,
+                end_ordinal: 6,
+            },
+            PresentationEffect {
+                effect: EffectProfile::VapourRelease,
+                trigger: ObservationPredicate::Forms,
+                authorization: EffectAuthorization::Process(process),
+                intensity: EffectIntensity::Strong,
+                start_ordinal: 2,
+                end_ordinal: 6,
+            },
+        ];
+        assert!(effects.iter().all(|effect| {
+            effect_authorization_is_compatible(effect.effect, effect.trigger, effect.authorization)
+        }));
+        assert!(!effect_authorization_is_compatible(
+            EffectProfile::FlameEmitter(FlamePalette::Lilac),
+            ObservationPredicate::Forms,
+            EffectAuthorization::Process(process),
+        ));
+        assert!(!effect_authorization_is_compatible(
+            EffectProfile::GasRelease,
+            ObservationPredicate::Forms,
+            EffectAuthorization::Process(process),
+        ));
+
+        let inputs = ReactionVisualInputs::from_effects(&effects, 4, 0.5, 8);
+        assert!(inputs.flame_rate > 0.9);
+        assert!(inputs.vapour_generation_rate > 0.9);
+        assert!(inputs.gas_generation_rate > 0.5);
+        assert!(inputs.heat_output > 0.9);
+    }
+
+    #[test]
     fn liquid_mixing_drives_flow_without_inventing_gas_or_solid_products() {
         let effects = [PresentationEffect {
             effect: EffectProfile::LiquidMixing,
             trigger: ObservationPredicate::Disappears,
+            authorization: EffectAuthorization::Observation(ObservationPredicate::Disappears),
             intensity: EffectIntensity::Moderate,
             start_ordinal: 2,
             end_ordinal: 6,
@@ -2429,6 +2813,7 @@ mod tests {
         let effects = [PresentationEffect {
             effect: EffectProfile::PrecipitateFormation,
             trigger: ObservationPredicate::Forms,
+            authorization: EffectAuthorization::Observation(ObservationPredicate::Forms),
             intensity: EffectIntensity::Moderate,
             start_ordinal: 2,
             end_ordinal: 6,

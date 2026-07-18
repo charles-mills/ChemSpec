@@ -118,7 +118,14 @@ struct Verdict {
 fn solve_acid_base(acid: &StructureDefinition, base: &StructureDefinition) -> Option<Verdict> {
     let donors = acid_donor_count(acid)?;
     let (cation, cation_charge, anion_kind) = ionic_base(base)?;
+    let conjugate_anion = conjugate_anion(acid, donors)?;
     let salt = conjugate_salt(acid, donors, &cation, cation_charge)?;
+    let mut salt_product = product_from_counts(&salt, Some((&cation, cation_charge)));
+    salt_product.phase = match salt_solubility(&cation, &conjugate_anion) {
+        Some(true) => ClaimPhase::Aqueous,
+        Some(false) => ClaimPhase::Solid,
+        None => ClaimPhase::Unknown,
+    };
     let mut products = vec![
         ClaimProduct {
             name: "Water".to_owned(),
@@ -126,7 +133,7 @@ fn solve_acid_base(acid: &StructureDefinition, base: &StructureDefinition) -> Op
             phase: ClaimPhase::Liquid,
             identity_hints: Vec::new(),
         },
-        product_from_counts(&salt, Some((&cation, cation_charge))),
+        salt_product,
     ];
     let mut observations = Vec::new();
     if matches!(anion_kind, BaseAnion::Carbonate | BaseAnion::Bicarbonate) {
@@ -736,6 +743,17 @@ fn conjugate_salt(
     cation: &str,
     cation_charge: u64,
 ) -> Option<BTreeMap<String, u64>> {
+    let anion = conjugate_anion(acid, donors)?;
+    let shared = gcd(cation_charge, donors);
+    let mut salt = BTreeMap::new();
+    salt.insert(cation.to_owned(), donors / shared);
+    for (symbol, count) in &anion {
+        *salt.entry(symbol.clone()).or_insert(0) += count * (cation_charge / shared);
+    }
+    Some(salt)
+}
+
+fn conjugate_anion(acid: &StructureDefinition, donors: u64) -> Option<BTreeMap<String, u64>> {
     let mut anion = acid
         .formula()
         .elements()
@@ -750,13 +768,7 @@ fn conjugate_salt(
     if anion.is_empty() {
         return None;
     }
-    let shared = gcd(cation_charge, donors);
-    let mut salt = BTreeMap::new();
-    salt.insert(cation.to_owned(), donors / shared);
-    for (symbol, count) in &anion {
-        *salt.entry(symbol.clone()).or_insert(0) += count * (cation_charge / shared);
-    }
-    Some(salt)
+    Some(anion)
 }
 
 /// Element + element → binary compound: stoichiometry from charge/valence
@@ -1299,13 +1311,23 @@ mod tests {
     #[test]
     fn hydrochloric_acid_neutralization_solves() {
         let request = request(&[("HCl", &[1, 17]), ("NaOH", &[11, 8, 1])]);
-        let claim = solve_reaction_claim(&request, &SpeciesRegistry::default()).expect("solved");
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
         let formulas = claim
             .products
             .iter()
             .map(|product| product.formula.as_str())
             .collect::<Vec<_>>();
         assert_eq!(formulas, ["H2O", "NaCl"]);
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome")
+        else {
+            panic!("static neutralization outcome")
+        };
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::SolventEvaporationCrystallization)
+        );
     }
 
     #[test]
