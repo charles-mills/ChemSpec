@@ -104,16 +104,13 @@ Prefer a benign real reaction over fictional chemistry. If fictional substances
 are used, they belong to an explicitly labelled analogy mode and cannot be
 validated against the real chemistry catalogue.
 
-## Virtual-only disclosure
+## Virtual-only boundary
 
-Every experiment displays:
-
-> Virtual educational model—not a laboratory procedure. Do not reproduce
-> without qualified supervision and an appropriate risk assessment.
-
-The language may express quantities for stoichiometric learning, but the
-initial product does not generate apparatus construction, acquisition,
-purification, collection methods, or safety-control bypasses.
+The application remains a virtual educational model. The language may express
+quantities for stoichiometric learning, but the product does not generate
+apparatus construction, acquisition, purification, collection methods, or
+safety-control bypasses. This boundary is enforced by product capability rather
+than a persistent overlay on the simulation.
 
 ## Young users and privacy
 

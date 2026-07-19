@@ -4222,36 +4222,22 @@ impl App {
         ))
         .width(Fill)
         .height(Fill);
-        let model_disclosure = if compact {
-            "VIRTUAL MODEL · NOT A LAB PROCEDURE"
-        } else {
-            "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
-        };
         let inset_caption: Element<'_, Message> = space().width(Length::Shrink).into();
+        let annotation_panel: Element<'_, Message> = if at_end {
+            space().width(Length::Shrink).into()
+        } else {
+            container(annotation)
+                .style(theme::media_bar)
+                .padding([spacing::SM, spacing::MD])
+                .width(if compact { Fill } else { Length::Fixed(440.0) })
+                .into()
+        };
         let annotation_layer = container(
             column![
-                row![
-                    space().width(Fill),
-                    container(
-                        text(model_disclosure)
-                            .size(type_scale::MICRO)
-                            .color(color::TEXT_SOFT),
-                    )
-                    .style(theme::media_bar)
-                    .padding([spacing::XXS, spacing::XS]),
-                ]
-                .width(Fill),
                 space().height(Fill),
-                row![
-                    container(annotation)
-                        .style(theme::media_bar)
-                        .padding([spacing::SM, spacing::MD])
-                        .width(if compact { Fill } else { Length::Fixed(440.0) }),
-                    space().width(Fill),
-                    inset_caption,
-                ]
-                .align_y(iced::Bottom)
-                .width(Fill),
+                row![annotation_panel, space().width(Fill), inset_caption,]
+                    .align_y(iced::Bottom)
+                    .width(Fill),
             ]
             .height(Fill),
         )

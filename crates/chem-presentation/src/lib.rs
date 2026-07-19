@@ -4433,12 +4433,6 @@ fn compile_macroscopic_annotations(
             });
         }
     }
-    annotations.push(MacroscopicAnnotation {
-        start_ordinal: final_ordinal,
-        end_ordinal: final_ordinal,
-        title: "VALIDATED OUTCOME".to_owned(),
-        text: "The validated frame sequence has reached its reviewed outcome.".to_owned(),
-    });
     annotations
 }
 
