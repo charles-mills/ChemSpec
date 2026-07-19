@@ -262,7 +262,12 @@ normals between adjacent authored samples, removing source-frame stepping
 without running Blender, an FBX/GLB importer, armature evaluation, or a second
 physics solver in the application. Clip position is derived from normalized
 wall-clock timeline time rather than reaction ordinal, so unequal chemistry
-beat durations cannot accelerate one section and stretch another. Track
+beat durations cannot accelerate one section and stretch another. A monotonic
+contact-aware cubic time remap reaches the authored water-contact frame after
+about half a second, then spreads the reaction and settling frames across the
+remaining playback. Its two spans share a derivative at contact, preserve
+deterministic seeking and the exact final frame, and leave the six-second
+duration unchanged. Track
 topology and buffer bounds are validated once, and the resulting scene remains
 below the fixed GPU vertex and index budgets. The fixed orthographic camera
 uses a deterministic authored assembly framing and remains noninteractive.
@@ -813,6 +818,56 @@ mixing clip. Reactant and product colours remain exact-identity bindings from
 two-solid-to-one-solid reaction therefore requires trusted chemistry data, not
 a renderer branch. Reactions with extra or unknown-phase reactants keep the
 fallback instead of hiding chemically important material.
+
+Phase-aware synthesis extends that route with two sealed-chamber layouts.
+Exactly one typed solid plus one typed gas producing one typed gas selects the
+solid-gas clip; exactly two typed gases producing one typed gas selects the
+gas-gas clip. Solid-gas binding is independent of equation order, while the two
+gas reactants retain their deterministic validated order. Combustion, surface
+oxidation, aqueous/solid-liquid gas evolution, precipitation, metal
+displacement, and neutralisation remain higher-priority classifications.
+
+Both phase-synthesis clips contain 180 frames at 30 FPS and are sampled from
+the absolute six-second playhead. Their translucent irregular volumes are
+sealed-chamber concentration cues, not smoke, bubbles, molecule models, or
+released plumes. Exact reaction-scoped catalogue RGB values bind the chemical
+slots; absent gas colour uses a pale highly transparent fallback, while the
+glass, neutral frame, and optional warm reaction front remain presentation
+materials. Changing reaction plans replaces the complete binding profile, so
+no prior clip colour or visibility state survives a switch.
+
+The solid-gas clip retains all eight opaque granular solid tracks alongside
+the translucent concentration tracks. The solid slot uses the exact solid
+reactant binding. Reviewed visible colours currently distinguish iodine,
+sulfur, and chlorine, while hydrogen, nitrogen, hydrogen halides, ammonia, and
+hydrogen sulfide deliberately retain the nearly colourless gas fallback rather
+than receiving invented educational colours.
+
+The `.chems 1` format is unchanged. Molecular representation does not establish
+gas phase: a current or future reaction activates these clips only when its
+validated outcome, promoted catalogue material records, or a newly researched
+reaction claim carries the required reaction-scoped typed phases. Dynamic
+claims provide one reactant phase per exact request identity; the compiler
+checks request order and count, prefers reviewed catalogue phase authority,
+and stores the checked result in the same macroscopic phase map consumed by
+static reactions. Promoted standard-state records now route the exact
+hydrogen/chlorine, hydrogen/iodine, hydrogen/sulfur, and nitrogen/hydrogen
+fixtures through their gas-gas or solid-gas assemblies. Dynamic outcomes use
+the same structure-keyed lookup before chemistry classifies their macroscopic
+process; an absent or ambiguous reactant phase still retains the fallback.
+Cached claims are recompiled through this catalogue-aware boundary, and cache
+contract changes invalidate older entries rather than replaying a stale
+fallback classification.
+
+The hydrogen/bromine reviewed fixture uses reaction-role material authority:
+bromine is presented as red-brown reacting vapour and hydrogen bromide as a
+colourless gaseous product, so the local path selects the gas-gas assembly
+without mislabelling ambient liquid bromine as its standard state. For
+researched reactions, the compact claim requests a colour observation whenever
+the exact phase has a characteristic visible bulk colour. Values are restricted
+to the renderer's closed named palette or `Rgb.HexRRGGBB`; the product slot
+transitions at the validated observation ordinal, while absent colour facts
+retain the conservative colourless-gas fallback.
 
 A genuinely new visual phenomenon should be added vertically:
 

@@ -3,10 +3,10 @@ use std::{collections::BTreeMap, str::FromStr};
 use chem_catalogue::ValidatedCatalogueBundle;
 use chem_domain::{
     BronstedAcidProfile, Charge, ContentDigest, ElementInventory, ElementSymbol,
-    ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
-    ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry, SpeciesResolution,
-    StructureDefinition, StructureId, UnbalancedReactionTerm, classify_bronsted_acid,
-    generate_structure, reaction_term, symbol_of,
+    ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, ReactionTerm,
+    RepresentationKind, ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery,
+    SpeciesRegistry, SpeciesResolution, StructureDefinition, StructureId, UnbalancedReactionTerm,
+    classify_bronsted_acid, generate_structure, reaction_term, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -43,6 +43,11 @@ pub enum MacroscopicProcess {
     /// Exactly two validated solid reactants combine into one validated solid
     /// product after more-specific macroscopic processes have been excluded.
     SolidSolidSynthesis,
+    /// Exactly one typed solid and one typed gaseous reactant combine into one
+    /// gaseous product.
+    SolidGasSynthesis,
+    /// Exactly two typed gaseous reactants combine into one gaseous product.
+    GasGasSynthesis,
     CompleteCombustion,
     /// A validated C/H(/O) fuel reacts with dioxygen and carbon monoxide is
     /// one of the exact gaseous products.
@@ -167,10 +172,17 @@ pub struct ValidatedStaticOutcome {
     declaration: ReactionDeclaration,
     reactants: Vec<OutcomeSpecies>,
     products: Vec<OutcomeSpecies>,
+    macroscopic_phases: Box<MacroscopicPhases>,
     claim: ReactionClaim,
     trust_tier: TrustTier,
     equation: String,
     macroscopic_process: Option<MacroscopicProcess>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct MacroscopicPhases {
+    reactants: BTreeMap<SpeciesId, Phase>,
+    products: BTreeMap<SpeciesId, Phase>,
 }
 
 impl ValidatedStaticOutcome {
@@ -255,22 +267,36 @@ impl ValidatedStaticOutcome {
             .iter()
             .position(|product| product.id() == species.id())
         {
+            let resolved_phase = self
+                .macroscopic_phases
+                .products
+                .get(species.id())
+                .copied()
+                .unwrap_or_else(|| species.phase());
             let claimed = claim_phase(self.claim.products[index].phase);
-            return if claimed == Phase::Unknown
-                && self.macroscopic_process == Some(MacroscopicProcess::SolidSolidSynthesis)
-            {
-                solid_synthesis_reactant_phase(species).unwrap_or(claimed)
-            } else {
+            return if claimed != Phase::Unknown {
                 claimed
+            } else if resolved_phase != Phase::Unknown {
+                resolved_phase
+            } else if self.macroscopic_process == Some(MacroscopicProcess::SolidSolidSynthesis) {
+                solid_synthesis_reactant_phase(species).unwrap_or(Phase::Unknown)
+            } else {
+                Phase::Unknown
             };
         }
+        let resolved_phase = self
+            .macroscopic_phases
+            .reactants
+            .get(species.id())
+            .copied()
+            .unwrap_or_else(|| species.phase());
         let Some(term) = self
             .declaration
             .reactants()
             .iter()
             .find(|term| term.species() == species.id())
         else {
-            return species.phase();
+            return resolved_phase;
         };
         match self.macroscopic_process {
             Some(
@@ -279,9 +305,12 @@ impl ValidatedStaticOutcome {
             ) => Phase::Aqueous,
             Some(
                 MacroscopicProcess::GasEvolutionSolidLiquid | MacroscopicProcess::MetalDisplacement,
-            ) => gas_evolution_reactant_phase(species).unwrap_or_else(|| species.phase()),
+            ) => gas_evolution_reactant_phase(species).unwrap_or(resolved_phase),
             Some(MacroscopicProcess::SolidSolidSynthesis) => {
-                solid_synthesis_reactant_phase(species).unwrap_or_else(|| species.phase())
+                solid_synthesis_reactant_phase(species).unwrap_or(resolved_phase)
+            }
+            Some(MacroscopicProcess::SolidGasSynthesis | MacroscopicProcess::GasGasSynthesis) => {
+                resolved_phase
             }
             Some(
                 MacroscopicProcess::CompleteCombustion
@@ -294,7 +323,7 @@ impl ValidatedStaticOutcome {
                 | MacroscopicProcess::SolventEvaporationCrystallization
                 | MacroscopicProcess::SurfaceOxidation,
             )
-            | None => species.phase(),
+            | None => resolved_phase,
         }
     }
 
@@ -407,6 +436,8 @@ impl ValidatedStaticOutcome {
             &self.declaration,
             &self.reactants,
             &self.products,
+            &self.macroscopic_phases.reactants,
+            &self.macroscopic_phases.products,
             &self.claim,
         );
         Ok(self)
@@ -481,6 +512,13 @@ fn compile_claim_outcome_inner(
     let solver_authored = matches!(claim, ClaimInput::Solved(_));
     let claim = claim.into_claim();
     validate_request_shape(request)?;
+    if !claim.reactant_phases.is_empty() && claim.reactant_phases.len() != request.reactants.len() {
+        return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            "reaction claim",
+            "reactant phases must be empty for a legacy claim or contain exactly one phase for each requested reactant in request order",
+        ));
+    }
     validate_selected_context_binding(request, &claim)?;
     let local_aqueous_electrolysis =
         request.selected_context.as_deref() == Some("electricity") && solver_authored;
@@ -629,18 +667,58 @@ fn compile_claim_outcome_inner(
         }
         Err(error) => return Err(error),
     };
+    let mut macroscopic_phases = MacroscopicPhases::default();
+    for (index, species) in reactants.iter().enumerate() {
+        let phase = resolved_macroscopic_phase(species, catalogue)
+            .filter(|phase| *phase != Phase::Unknown)
+            .or_else(|| {
+                claim
+                    .reactant_phases
+                    .get(index)
+                    .copied()
+                    .map(claim_phase)
+                    .filter(|phase| *phase != Phase::Unknown)
+            });
+        if let Some(phase) = phase
+            && phase != Phase::Unknown
+        {
+            macroscopic_phases
+                .reactants
+                .insert(species.id().clone(), phase);
+        }
+    }
+    for (species, product) in products.iter().zip(&claim.products) {
+        let claimed = claim_phase(product.phase);
+        let phase = (claimed != Phase::Unknown)
+            .then_some(claimed)
+            .or_else(|| resolved_macroscopic_phase(species, catalogue));
+        if let Some(phase) = phase
+            && phase != Phase::Unknown
+        {
+            macroscopic_phases
+                .products
+                .insert(species.id().clone(), phase);
+        }
+    }
     let trust_tier = if solver_authored {
         TrustTier::Derived
     } else {
         TrustTier::ModelAsserted
     };
     let equation = format_equation(&declaration);
-    let macroscopic_process =
-        classify_macroscopic_process(&declaration, &reactants, &products, &claim);
+    let macroscopic_process = classify_macroscopic_process(
+        &declaration,
+        &reactants,
+        &products,
+        &macroscopic_phases.reactants,
+        &macroscopic_phases.products,
+        &claim,
+    );
     Ok(CompiledClaimOutcome::Static(ValidatedStaticOutcome {
         declaration,
         reactants,
         products,
+        macroscopic_phases: Box::new(macroscopic_phases),
         claim,
         trust_tier,
         equation,
@@ -652,6 +730,8 @@ fn classify_macroscopic_process(
     declaration: &ReactionDeclaration,
     reactants: &[OutcomeSpecies],
     products: &[OutcomeSpecies],
+    reactant_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
+    product_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
     claim: &ReactionClaim,
 ) -> Option<MacroscopicProcess> {
     if let Some(process) = classifies_combustion(declaration, reactants, claim) {
@@ -663,13 +743,19 @@ fn classify_macroscopic_process(
     if classifies_surface_oxidation(first, second, reactants, products, claim) {
         return Some(MacroscopicProcess::SurfaceOxidation);
     }
-    if let Some(process) = classifies_gas_evolution(reactants, claim) {
+    if let Some(process) = classifies_gas_evolution(reactants, reactant_macroscopic_phases, claim) {
         return Some(process);
     }
     if classifies_aqueous_precipitation(reactants, products, claim) {
         return Some(MacroscopicProcess::AqueousPrecipitation);
     }
-    if classifies_metal_displacement(reactants, products, claim) {
+    if classifies_metal_displacement(
+        reactants,
+        products,
+        reactant_macroscopic_phases,
+        product_macroscopic_phases,
+        claim,
+    ) {
         return Some(MacroscopicProcess::MetalDisplacement);
     }
 
@@ -703,8 +789,25 @@ fn classify_macroscopic_process(
     if has_structural_acid && has_ionic_base && liquid_water && dissolved_ionic_product {
         return Some(MacroscopicProcess::SolventEvaporationCrystallization);
     }
-    classifies_solid_solid_synthesis(reactants, products, claim)
-        .then_some(MacroscopicProcess::SolidSolidSynthesis)
+    if classifies_solid_solid_synthesis(reactants, products, reactant_macroscopic_phases, claim) {
+        return Some(MacroscopicProcess::SolidSolidSynthesis);
+    }
+    // Hydrogen/oxygen burning is intentionally not represented by the
+    // concentration-chamber synthesis asset. Other oxygen-containing
+    // gas/gas combinations remain eligible after the more specific
+    // combustion and surface-oxidation classifiers above have declined.
+    if (is_dioxygen(first) && is_dihydrogen(second))
+        || (is_dioxygen(second) && is_dihydrogen(first))
+    {
+        return None;
+    }
+    classifies_phase_synthesis(
+        reactants,
+        products,
+        reactant_macroscopic_phases,
+        product_macroscopic_phases,
+        claim,
+    )
 }
 
 fn classifies_combustion(
@@ -757,9 +860,14 @@ fn classifies_combustion(
     }
 }
 
+fn is_dihydrogen(term: &ReactionTerm) -> bool {
+    has_counts(term.formula(), &[("H", 2)])
+}
+
 fn classifies_solid_solid_synthesis(
     reactants: &[OutcomeSpecies],
     products: &[OutcomeSpecies],
+    reactant_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
     claim: &ReactionClaim,
 ) -> bool {
     let [first, second] = reactants else {
@@ -771,8 +879,16 @@ fn classifies_solid_solid_synthesis(
     let [claim_product] = claim.products.as_slice() else {
         return false;
     };
-    solid_synthesis_reactant_phase(first) == Some(Phase::Solid)
-        && solid_synthesis_reactant_phase(second) == Some(Phase::Solid)
+    effective_reactant_phase(
+        first,
+        reactant_macroscopic_phases,
+        solid_synthesis_reactant_phase,
+    ) == Some(Phase::Solid)
+        && effective_reactant_phase(
+            second,
+            reactant_macroscopic_phases,
+            solid_synthesis_reactant_phase,
+        ) == Some(Phase::Solid)
         && (claim_phase(claim_product.phase) == Phase::Solid
             || (claim_phase(claim_product.phase) == Phase::Unknown
                 && solid_synthesis_reactant_phase(product) == Some(Phase::Solid)))
@@ -781,6 +897,74 @@ fn classifies_solid_solid_synthesis(
             .products
             .iter()
             .any(|candidate| claim_phase(candidate.phase) == Phase::Gas)
+}
+
+fn classifies_phase_synthesis(
+    reactants: &[OutcomeSpecies],
+    products: &[OutcomeSpecies],
+    reactant_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
+    product_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
+    claim: &ReactionClaim,
+) -> Option<MacroscopicProcess> {
+    let [first, second] = reactants else {
+        return None;
+    };
+    let [product] = products else {
+        return None;
+    };
+    let [claim_product] = claim.products.as_slice() else {
+        return None;
+    };
+    let reactant_phase = |species: &OutcomeSpecies| {
+        reactant_macroscopic_phases
+            .get(species.id())
+            .copied()
+            .unwrap_or_else(|| species.phase())
+    };
+    let product_phase = product_macroscopic_phases
+        .get(product.id())
+        .copied()
+        .unwrap_or_else(|| product.phase());
+    phase_synthesis_process([reactant_phase(first), reactant_phase(second)], {
+        let claimed = claim_phase(claim_product.phase);
+        if claimed == Phase::Unknown {
+            product_phase
+        } else {
+            claimed
+        }
+    })
+}
+
+fn resolved_macroscopic_phase(
+    species: &OutcomeSpecies,
+    catalogue: Option<&ValidatedCatalogueBundle>,
+) -> Option<Phase> {
+    if species.phase() != Phase::Unknown {
+        return Some(species.phase());
+    }
+    let OutcomeSpecies::Resolved(species) = species else {
+        return None;
+    };
+    let structure = species.structure.as_ref()?;
+    catalogue?
+        .macroscopic_material(structure.id(), None)
+        .map(|material| material.phase)
+}
+
+fn phase_synthesis_process(
+    reactant_phases: [Phase; 2],
+    product_phase: Phase,
+) -> Option<MacroscopicProcess> {
+    if product_phase != Phase::Gas {
+        return None;
+    }
+    match reactant_phases {
+        [Phase::Solid, Phase::Gas] | [Phase::Gas, Phase::Solid] => {
+            Some(MacroscopicProcess::SolidGasSynthesis)
+        }
+        [Phase::Gas, Phase::Gas] => Some(MacroscopicProcess::GasGasSynthesis),
+        _ => None,
+    }
 }
 
 fn solid_synthesis_reactant_phase(species: &OutcomeSpecies) -> Option<Phase> {
@@ -813,6 +997,7 @@ fn solid_synthesis_reactant_phase(species: &OutcomeSpecies) -> Option<Phase> {
 
 fn classifies_gas_evolution(
     reactants: &[OutcomeSpecies],
+    reactant_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
     claim: &ReactionClaim,
 ) -> Option<MacroscopicProcess> {
     let [first, second] = reactants else {
@@ -832,8 +1017,16 @@ fn classifies_gas_evolution(
         return None;
     }
     match [
-        gas_evolution_reactant_phase(first)?,
-        gas_evolution_reactant_phase(second)?,
+        effective_reactant_phase(
+            first,
+            reactant_macroscopic_phases,
+            gas_evolution_reactant_phase,
+        )?,
+        effective_reactant_phase(
+            second,
+            reactant_macroscopic_phases,
+            gas_evolution_reactant_phase,
+        )?,
     ] {
         [
             Phase::Aqueous | Phase::Liquid,
@@ -878,9 +1071,36 @@ fn gas_evolution_reactant_phase(species: &OutcomeSpecies) -> Option<Phase> {
     }
 }
 
+fn effective_reactant_phase(
+    species: &OutcomeSpecies,
+    phases: &BTreeMap<SpeciesId, Phase>,
+    fallback: impl FnOnce(&OutcomeSpecies) -> Option<Phase>,
+) -> Option<Phase> {
+    phases
+        .get(species.id())
+        .copied()
+        .filter(|phase| *phase != Phase::Unknown)
+        .or_else(|| fallback(species))
+}
+
+fn effective_product_phase(
+    species: &OutcomeSpecies,
+    claimed: ClaimPhase,
+    phases: &BTreeMap<SpeciesId, Phase>,
+) -> Phase {
+    let claimed = claim_phase(claimed);
+    if claimed == Phase::Unknown {
+        phases.get(species.id()).copied().unwrap_or(Phase::Unknown)
+    } else {
+        claimed
+    }
+}
+
 fn classifies_metal_displacement(
     reactants: &[OutcomeSpecies],
     products: &[OutcomeSpecies],
+    reactant_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
+    product_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
     claim: &ReactionClaim,
 ) -> bool {
     let [first, second] = reactants else {
@@ -900,7 +1120,13 @@ fn classifies_metal_displacement(
         return false;
     }
 
-    let reactant_phase = |species| gas_evolution_reactant_phase(species);
+    let reactant_phase = |species| {
+        effective_reactant_phase(
+            species,
+            reactant_macroscopic_phases,
+            gas_evolution_reactant_phase,
+        )
+    };
     let (original_metal, initial_solution) = match (
         first.representation(),
         reactant_phase(first),
@@ -923,9 +1149,17 @@ fn classifies_metal_displacement(
     };
     let (final_solution, deposited_metal) = match (
         first_product.representation(),
-        claim_phase(first_claim_product.phase),
+        effective_product_phase(
+            first_product,
+            first_claim_product.phase,
+            product_macroscopic_phases,
+        ),
         second_product.representation(),
-        claim_phase(second_claim_product.phase),
+        effective_product_phase(
+            second_product,
+            second_claim_product.phase,
+            product_macroscopic_phases,
+        ),
     ) {
         (
             Some(RepresentationKind::Ionic),
@@ -1768,6 +2002,196 @@ mod tests {
         envelope.digest = envelope.computed_digest().expect("digest");
         let catalogue = ValidatedCatalogueBundle::validate(envelope).expect("valid catalogue");
         reviewed_species_registry(&catalogue).expect("identities")
+    }
+
+    #[test]
+    fn phase_synthesis_requires_exact_supported_typed_layouts() {
+        assert_eq!(
+            phase_synthesis_process([Phase::Solid, Phase::Gas], Phase::Gas),
+            Some(MacroscopicProcess::SolidGasSynthesis)
+        );
+        assert_eq!(
+            phase_synthesis_process([Phase::Gas, Phase::Solid], Phase::Gas),
+            Some(MacroscopicProcess::SolidGasSynthesis)
+        );
+        assert_eq!(
+            phase_synthesis_process([Phase::Gas, Phase::Gas], Phase::Gas),
+            Some(MacroscopicProcess::GasGasSynthesis)
+        );
+        assert_eq!(
+            phase_synthesis_process([Phase::Unknown, Phase::Gas], Phase::Gas),
+            None
+        );
+        assert_eq!(
+            phase_synthesis_process([Phase::Gas, Phase::Gas], Phase::Liquid),
+            None
+        );
+    }
+
+    #[test]
+    fn catalogue_standard_phases_reach_future_dynamic_classification() {
+        let catalogue = trusted();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "hydrogen".into(),
+                    atomic_numbers: vec![1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "chlorine".into(),
+                    atomic_numbers: vec![17, 17],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = ProviderClaim::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "products": [{
+                    "name": "hydrogen chloride",
+                    "formula": "HCl",
+                    "phase": "gas",
+                    "identity_hints": []
+                }],
+                "required_context": "phase-qualified synthesis",
+                "observations": [{
+                    "predicate": "forms",
+                    "subject": "hydrogen chloride",
+                    "value": null
+                }],
+                "sources": [],
+                "ambiguity": null
+            }))
+            .expect("claim bytes"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome_with_catalogue(&request, claim, &identities, &catalogue)
+                .expect("catalogue-backed claim compiles")
+        else {
+            panic!("expected static outcome");
+        };
+
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(MacroscopicProcess::GasGasSynthesis)
+        );
+        assert!(
+            outcome
+                .reactants()
+                .iter()
+                .all(|reactant| outcome.macroscopic_phase(reactant) == Phase::Gas)
+        );
+    }
+
+    #[test]
+    fn researched_reactant_phases_route_uncatalogued_gas_synthesis() {
+        let identities = registry();
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "NO".into(),
+                    atomic_numbers: vec![7, 8],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = ProviderClaim::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "reactant_phases": ["gas", "gas"],
+                "products": [{
+                    "name": "nitrogen dioxide",
+                    "formula": "NO2",
+                    "phase": "gas",
+                    "identity_hints": []
+                }],
+                "required_context": "ordinary gas-phase combination",
+                "observations": [{
+                    "predicate": "forms",
+                    "subject": "nitrogen dioxide",
+                    "value": null
+                }],
+                "sources": [],
+                "ambiguity": null
+            }))
+            .expect("claim bytes"),
+            ClaimMode::Fast,
+        )
+        .expect("claim");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &identities).expect("claim compiles")
+        else {
+            panic!("expected static outcome");
+        };
+
+        assert_eq!(
+            outcome.macroscopic_process(),
+            Some(MacroscopicProcess::GasGasSynthesis)
+        );
+        assert!(
+            outcome
+                .reactants()
+                .iter()
+                .all(|reactant| outcome.macroscopic_phase(reactant) == Phase::Gas)
+        );
+    }
+
+    #[test]
+    fn researched_reactant_phase_count_must_match_request() {
+        let identities = registry();
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "NO".into(),
+                    atomic_numbers: vec![7, 8],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "O2".into(),
+                    atomic_numbers: vec![8, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = ProviderClaim::from_json(
+            &serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "reactant_phases": ["gas"],
+                "products": [{
+                    "name": "nitrogen dioxide",
+                    "formula": "NO2",
+                    "phase": "gas",
+                    "identity_hints": []
+                }],
+                "required_context": "ordinary gas-phase combination",
+                "observations": [],
+                "sources": [],
+                "ambiguity": null
+            }))
+            .expect("claim bytes"),
+            ClaimMode::Fast,
+        )
+        .expect("wire claim remains bounded");
+
+        let error = compile_claim_outcome(&request, claim, &identities)
+            .expect_err("request binding must reject an incomplete phase list");
+        assert_eq!(error.kind(), AgentErrorKind::InvalidProviderOutput);
+        assert_eq!(error.context(), "reaction claim");
     }
 
     #[test]

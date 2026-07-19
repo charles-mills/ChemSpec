@@ -363,12 +363,14 @@ context, unknown structure/rule/role and premise references to fail with
 `CHEMS-C024`, and duplicate contexts to fail deterministically. Generic
 phase-combination tests cover solid + gas -> gas without bubbles, gas + gas ->
 liquid without precipitate, and aqueous reactants -> solid with settling
-precipitate. The proposed hydrogen, oxygen, water, carbon, and carbon-dioxide
+precipitate. The proposed oxygen, water, carbon, and carbon-dioxide
 standard-phase records remain untrusted until a separate exact-digest review is
-promoted. Live-profile tests therefore require those catalogue phases to remain
-`Unknown`; typed compiler and renderer fixtures cover the intended phase
-combinations without conferring catalogue trust. The compiler input contains
-bindings and phases but no reaction name.
+promoted. The phase-synthesis regression exercises the promoted exact
+structure bindings through the production request, catalogue, classifier, and
+presentation selector for H2/I2, H2/S8, H2/Cl2, and N2/H2. Dynamic-claim
+coverage proves that catalogue-resolved reactant phases reach the
+chemistry-owned process classifier; missing records remain `Unknown`. The
+compiler input contains bindings and phases but no reaction name.
 
 Exposed surface-oxidation tests require validated dynamic outcomes with exact
 material phases to reach the typed `SurfaceOxidation` path from structural
@@ -486,6 +488,18 @@ fall back. The authored clip must retain 180 frames at 30 FPS, bind each exact
 reactant/product identity to its own reaction-scoped RGB, permit only the warm
 reaction-front module to be hidden, and sample byte-identical geometry at the
 same absolute playhead.
+
+Phase-synthesis tests require either one typed solid plus one typed gas, in
+either order, or exactly two typed gases, followed by exactly one typed gaseous
+product. A gas product without the matching complete reactant layout is
+insufficient. Combustion and all existing specific process categories retain
+priority, while missing phases, extra reactants, multiple products, and liquid
+layouts fall back. Each embedded clip must contain exactly 180 frames at 30
+FPS, preserve append-only clip module/colour IDs, bind all chemical slots to
+reaction-scoped colours, keep colourless gas translucent, and sample
+byte-identical geometry at the same absolute playhead. Tests must also prove
+the reaction front is independently optional and that chamber glass/frame
+colours do not inherit a chemical binding.
 
 Macroscopic coverage tests must compile every supported experience through the
 same production profile-selection path and reject any profile with zero

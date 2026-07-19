@@ -15,14 +15,15 @@ use crate::claim::{
 use crate::{
     AgentError, AgentErrorKind, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome,
     FamilyMatchOutcome, MechanismEscalationResponse, ProviderClaim, ReactionBuildRequest,
-    StructureProposalResponse, TrustTier, compile_claim_outcome, compile_reviewed_animation,
-    match_reviewed_family, resolve_request_species, validate_escalated_response_with_structures,
+    StructureProposalResponse, TrustTier, compile_claim_outcome_with_catalogue,
+    compile_reviewed_animation, match_reviewed_family, resolve_request_species,
+    validate_escalated_response_with_structures,
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
-// Version 4 migrates cache paths after generated species identities changed
-// from delimiter hashing to a versioned length-prefixed digest contract.
-const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 4;
+// Version 6 refreshes researched claims under the closed visible-colour
+// observation contract in addition to the phase-aware compiler boundary.
+const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 6;
 const MAX_CACHE_BYTES: u64 = 2 * 1024 * 1024;
 static CACHE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -149,7 +150,8 @@ pub fn load_dynamic_cache(
     if trust_tier != TrustTier::ModelAsserted {
         return None;
     }
-    let outcome = compile_claim_outcome(request, claim, identities).ok()?;
+    let outcome =
+        compile_claim_outcome_with_catalogue(request, claim, identities, catalogue).ok()?;
     let presentation = match (&outcome, cached_presentation) {
         (CompiledClaimOutcome::Static(static_outcome), Some(recipe)) => {
             Some(revalidate_presentation(static_outcome.clone(), recipe, catalogue).ok()?)
@@ -193,7 +195,7 @@ pub fn store_dynamic_cache(
     }
     // Recompile before persistence so a provider response alone can never
     // populate the cache.
-    compile_claim_outcome(request, claim.clone(), identities)?;
+    compile_claim_outcome_with_catalogue(request, claim.clone(), identities, catalogue)?;
     let trust_tier = TrustTier::ModelAsserted;
     let path = dynamic_cache_path(directory, request, mode, identities, catalogue)?;
     let envelope = DynamicCacheEnvelope {
@@ -400,7 +402,10 @@ mod tests {
                 {"name":"hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
             ],
             "required_context":"representative educational outcome under the reviewed standard-outcome premise",
-            "observations":[], "sources":[], "ambiguity":null
+            "observations":[
+                {"predicate":"evolves","subject":"hydrogen","value":null}
+            ],
+            "sources":[], "ambiguity":null
         });
         ProviderClaim::from_json(
             &serde_json::to_vec(&value).expect("claim JSON"),
@@ -441,10 +446,17 @@ mod tests {
             &trusted,
         )
         .expect("load validated");
-        assert!(matches!(loaded.outcome, CompiledClaimOutcome::Static(_)));
+        let CompiledClaimOutcome::Static(loaded_outcome) = &loaded.outcome else {
+            panic!("cached outcome remains static")
+        };
+        assert_eq!(
+            loaded_outcome.macroscopic_process(),
+            Some(crate::MacroscopicProcess::GasEvolutionSolidLiquid),
+            "cache loads must retain catalogue-backed phases and generic visual classification"
+        );
         assert!(loaded.presentation.is_none());
         let CompiledClaimOutcome::Static(static_outcome) =
-            compile_claim_outcome(&request, claim.clone(), &identities).expect("compiled")
+            crate::compile_claim_outcome(&request, claim.clone(), &identities).expect("compiled")
         else {
             panic!("static outcome")
         };
@@ -680,7 +692,7 @@ mod tests {
         let mut value: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache JSON");
         assert_eq!(value["schema_version"], json!(3));
-        assert_eq!(value["compiler_contract_version"], json!(4));
+        assert_eq!(value["compiler_contract_version"], json!(6));
         assert!(value["claim"].get("origin").is_none());
         assert!(value["claim"].get("solver_reason").is_none());
 

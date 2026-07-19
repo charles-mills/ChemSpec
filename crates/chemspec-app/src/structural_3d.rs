@@ -10,8 +10,9 @@ use bytemuck::{Pod, Zeroable};
 use chem_catalogue::ObservationPredicate;
 use chem_presentation::{
     AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, FlamePalette,
-    GasEvolutionVariant, MacroscopicStage, PresentationColourTransition, PresentationEffect,
-    PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole, VisualColour,
+    GasEvolutionVariant, MacroscopicStage, PhaseSynthesisVariant, PresentationColourTransition,
+    PresentationEffect, PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole,
+    VisualColour,
 };
 use chem_presentation::{RealWorldPosition, ScenePlan};
 use glam::{EulerRot, Mat4, Quat, Vec3};
@@ -132,6 +133,12 @@ static METAL_DISPLACEMENT_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
 const SYNTHESIS_COMBINATION_CLIP_BYTES: &[u8] =
     include_bytes!("../assets/models/synthesis_combination.clip");
 static SYNTHESIS_COMBINATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const SOLID_GAS_SYNTHESIS_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/solid_gas_synthesis.clip");
+static SOLID_GAS_SYNTHESIS_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const GAS_GAS_SYNTHESIS_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/gas_gas_synthesis.clip");
+static GAS_GAS_SYNTHESIS_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
 
 fn embedded_metal_mesh() -> &'static EmbeddedMesh {
     METAL_MESH.get_or_init(|| {
@@ -204,6 +211,21 @@ fn synthesis_combination_clip() -> &'static AnimatedClip {
             panic!("embedded synthesis-combination clip is invalid: {error}")
         })
     })
+}
+
+fn phase_synthesis_clip(variant: PhaseSynthesisVariant) -> &'static AnimatedClip {
+    match variant {
+        PhaseSynthesisVariant::SolidGas => SOLID_GAS_SYNTHESIS_CLIP.get_or_init(|| {
+            AnimatedClip::parse(SOLID_GAS_SYNTHESIS_CLIP_BYTES).unwrap_or_else(|error| {
+                panic!("embedded solid-gas synthesis clip is invalid: {error}")
+            })
+        }),
+        PhaseSynthesisVariant::GasGas => GAS_GAS_SYNTHESIS_CLIP.get_or_init(|| {
+            AnimatedClip::parse(GAS_GAS_SYNTHESIS_CLIP_BYTES).unwrap_or_else(|error| {
+                panic!("embedded gas-gas synthesis clip is invalid: {error}")
+            })
+        }),
+    }
 }
 
 fn parse_embedded_mesh(bytes: &[u8]) -> Result<EmbeddedMesh, &'static str> {
@@ -1208,6 +1230,17 @@ fn build_scene_with_stage(
         );
         return meshes.finish();
     }
+    if stage == MacroscopicStage::Reaction && plan.phase_synthesis.is_some() {
+        add_animated_phase_synthesis_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish();
+    }
     if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel
             && object.asset == AssetProfile::NeutralisationEvaporationAssembly
@@ -2113,6 +2146,8 @@ fn apply_asset_colour_transition(
             | AssetProfile::AqueousPrecipitationAssembly
             | AssetProfile::MetalDisplacementAssembly
             | AssetProfile::SolidSolidSynthesisAssembly
+            | AssetProfile::SolidGasSynthesisAssembly
+            | AssetProfile::GasGasSynthesisAssembly
             | AssetProfile::Beaker
             | AssetProfile::TestTube
             | AssetProfile::ConicalFlask
@@ -3786,6 +3821,60 @@ fn animated_alkali_water_style(plan: &ScenePlan) -> AnimatedAlkaliWaterStyle {
     AnimatedAlkaliWaterStyle { activity, flame }
 }
 
+/// Retimes the authored drop/contact boundary while preserving the exact
+/// six-second absolute playhead and final frame.
+///
+/// Source contact occurs near frame 42/180. It is reached after 8% of runtime
+/// (about 0.48 s), leaving the remaining 92% for reaction and settling motion.
+/// The two cubic-Hermite spans share the same derivative at contact, so there
+/// is no playback-speed jump at the join.
+fn alkali_water_authored_progress(progress: f32) -> f32 {
+    const CONTACT_TIME: f32 = 0.08;
+    const CONTACT_FRAME: f32 = 42.0 / 179.0;
+    const CONTACT_TANGENT: f32 = 1.0;
+    let progress = progress.clamp(0.0, 1.0);
+    if progress <= CONTACT_TIME {
+        cubic_hermite_progress(
+            progress / CONTACT_TIME,
+            0.0,
+            CONTACT_FRAME,
+            CONTACT_TIME,
+            1.0,
+            CONTACT_TANGENT,
+        )
+    } else {
+        let span = 1.0 - CONTACT_TIME;
+        cubic_hermite_progress(
+            (progress - CONTACT_TIME) / span,
+            CONTACT_FRAME,
+            1.0,
+            span,
+            CONTACT_TANGENT,
+            0.72,
+        )
+    }
+}
+
+fn cubic_hermite_progress(
+    progress: f32,
+    start: f32,
+    end: f32,
+    span: f32,
+    start_tangent: f32,
+    end_tangent: f32,
+) -> f32 {
+    let progress_squared = progress * progress;
+    let progress_cubed = progress_squared * progress;
+    let start_basis = 2.0 * progress_cubed - 3.0 * progress_squared + 1.0;
+    let start_tangent_basis = progress_cubed - 2.0 * progress_squared + progress;
+    let end_basis = -2.0 * progress_cubed + 3.0 * progress_squared;
+    let end_tangent_basis = progress_cubed - progress_squared;
+    start_basis * start
+        + start_tangent_basis * span * start_tangent
+        + end_basis * end
+        + end_tangent_basis * span * end_tangent
+}
+
 fn add_animated_alkali_water_assembly(
     meshes: &mut SceneMeshes,
     plan: &ScenePlan,
@@ -3794,7 +3883,7 @@ fn add_animated_alkali_water_assembly(
 ) {
     let clip = alkali_water_clip();
     debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
+    let frame = clip.frame_at_progress(alkali_water_authored_progress(progress));
     let style = animated_alkali_water_style(plan);
     let seed = plan_seed(plan);
     for (track_index, track) in clip.tracks.iter().enumerate() {
@@ -4311,6 +4400,90 @@ fn synthesis_combination_track_colour(
     }
 }
 
+fn add_animated_phase_synthesis_assembly(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) {
+    let synthesis = plan
+        .phase_synthesis
+        .as_ref()
+        .expect("validated phase-synthesis assembly has material bindings");
+    let clip = phase_synthesis_clip(synthesis.variant);
+    debug_assert_eq!(clip.frame_count, 180);
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    for track in &clip.tracks {
+        if track.module == ClipModule::PhaseSynthesisReactionFront && !synthesis.show_reaction_front
+        {
+            continue;
+        }
+        let colour =
+            phase_synthesis_track_colour(track.colour, synthesis, ordinal, ordinal_progress);
+        let destination = match track.pass {
+            ClipPass::Opaque => &mut meshes.opaque,
+            ClipPass::Translucent => &mut meshes.translucent,
+            ClipPass::Emissive => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+}
+
+fn phase_synthesis_track_colour(
+    colour: ClipColour,
+    synthesis: &chem_presentation::PhaseSynthesisVisualProfile,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> [f32; 4] {
+    let rgba = |bound: &chem_presentation::BoundVisualColour, opacity| {
+        let base = [
+            f32::from(bound.base_colour.red) / 255.0,
+            f32::from(bound.base_colour.green) / 255.0,
+            f32::from(bound.base_colour.blue) / 255.0,
+        ];
+        let target = [
+            f32::from(bound.colour.red) / 255.0,
+            f32::from(bound.colour.green) / 255.0,
+            f32::from(bound.colour.blue) / 255.0,
+        ];
+        let amount = bound
+            .transition_ordinal
+            .map_or(1.0, |start| match ordinal.cmp(&start) {
+                std::cmp::Ordering::Less => 0.0,
+                std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+                std::cmp::Ordering::Greater => 1.0,
+            });
+        [
+            base[0] + (target[0] - base[0]) * amount,
+            base[1] + (target[1] - base[1]) * amount,
+            base[2] + (target[2] - base[2]) * amount,
+            opacity,
+        ]
+    };
+    match colour {
+        ClipColour::SolidReactant => rgba(&synthesis.reactant_a, 1.0),
+        ClipColour::GasReactant => rgba(&synthesis.reactant_b, 0.15),
+        ClipColour::GasReactantA => rgba(&synthesis.reactant_a, 0.15),
+        ClipColour::GasReactantB => rgba(&synthesis.reactant_b, 0.17),
+        ClipColour::GasProduct => rgba(&synthesis.product, 0.18),
+        ClipColour::PhaseSynthesisReactionFront => [1.0, 0.28, 0.045, 0.52],
+        ClipColour::ReactionChamberGlass => [0.72, 0.88, 0.94, 0.20],
+        ClipColour::ChamberFrame => [0.30, 0.33, 0.36, 1.0],
+        _ => [0.78, 0.82, 0.84, 1.0],
+    }
+}
+
 fn deposit_highlight_colour(colour: [f32; 4]) -> [f32; 4] {
     [
         colour[0] + (1.0 - colour[0]) * 0.28,
@@ -4387,7 +4560,14 @@ fn gas_evolution_track_colour(
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool => rgba(&gas_evolution.gas_product, 0.18),
+        | ClipColour::MixingTool
+        | ClipColour::GasReactant
+        | ClipColour::GasProduct
+        | ClipColour::PhaseSynthesisReactionFront
+        | ClipColour::ReactionChamberGlass
+        | ClipColour::ChamberFrame
+        | ClipColour::GasReactantA
+        | ClipColour::GasReactantB => rgba(&gas_evolution.gas_product, 0.18),
     }
 }
 
@@ -4460,7 +4640,14 @@ fn precipitation_track_colour(
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool => rgba(&precipitation.precipitate, 1.0),
+        | ClipColour::MixingTool
+        | ClipColour::GasReactant
+        | ClipColour::GasProduct
+        | ClipColour::PhaseSynthesisReactionFront
+        | ClipColour::ReactionChamberGlass
+        | ClipColour::ChamberFrame
+        | ClipColour::GasReactantA
+        | ClipColour::GasReactantB => rgba(&precipitation.precipitate, 1.0),
     }
 }
 
@@ -4491,7 +4678,14 @@ fn combustion_track_colour(colour: ClipColour, fuel: [f32; 4], incomplete: bool)
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool => fuel,
+        | ClipColour::MixingTool
+        | ClipColour::GasReactant
+        | ClipColour::GasProduct
+        | ClipColour::PhaseSynthesisReactionFront
+        | ClipColour::ReactionChamberGlass
+        | ClipColour::ChamberFrame
+        | ClipColour::GasReactantA
+        | ClipColour::GasReactantB => fuel,
         ClipColour::FlameOuter if incomplete => [1.0, 0.24, 0.025, 0.58],
         ClipColour::FlameInner if incomplete => [1.0, 0.60, 0.06, 0.82],
         ClipColour::FlameCore if incomplete => [1.0, 0.92, 0.45, 0.96],
@@ -4727,7 +4921,14 @@ fn neutralisation_track_colour(colour: ClipColour, colours: NeutralisationColour
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool => colours.salt,
+        | ClipColour::MixingTool
+        | ClipColour::GasReactant
+        | ClipColour::GasProduct
+        | ClipColour::PhaseSynthesisReactionFront
+        | ClipColour::ReactionChamberGlass
+        | ClipColour::ChamberFrame
+        | ClipColour::GasReactantA
+        | ClipColour::GasReactantB => colours.salt,
         ClipColour::ReactiveMetal => [0.88, 0.90, 0.92, 1.0],
         ClipColour::Vapour | ClipColour::ProductPlume | ClipColour::GasCloud => {
             [0.86, 0.90, 0.92, 0.16]
@@ -4780,7 +4981,14 @@ fn animated_track_enabled(
         | ClipModule::SynthesisProduct
         | ClipModule::SynthesisReactionFront
         | ClipModule::SynthesisVessel
-        | ClipModule::SynthesisMixingTool => 0.0,
+        | ClipModule::SynthesisMixingTool
+        | ClipModule::PhaseGasReactant
+        | ClipModule::PhaseGasReactantA
+        | ClipModule::PhaseGasReactantB
+        | ClipModule::PhaseGasProduct
+        | ClipModule::PhaseSynthesisReactionFront
+        | ClipModule::ReactionChamberGlass
+        | ClipModule::ReactionChamberFrame => 0.0,
         ClipModule::Flame => unreachable!("flame handled above"),
     };
     let index = u32::try_from(track_index).unwrap_or(u32::MAX);
@@ -4817,7 +5025,14 @@ fn animated_track_colour(colour: ClipColour, style: AnimatedAlkaliWaterStyle) ->
         | ClipColour::SynthesisProduct
         | ClipColour::ReactionFront
         | ClipColour::ReactionVessel
-        | ClipColour::MixingTool => [0.82, 0.86, 0.88, 0.20],
+        | ClipColour::MixingTool
+        | ClipColour::GasReactant
+        | ClipColour::GasProduct
+        | ClipColour::PhaseSynthesisReactionFront
+        | ClipColour::ReactionChamberGlass
+        | ClipColour::ChamberFrame
+        | ClipColour::GasReactantA
+        | ClipColour::GasReactantB => [0.82, 0.86, 0.88, 0.20],
         ClipColour::Fuel => [0.88, 0.82, 0.54, 0.30],
         ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
         ClipColour::ProductPlume | ClipColour::GasCloud => [0.86, 0.90, 0.92, 0.16],
@@ -4911,7 +5126,14 @@ fn append_animated_track_adjusted(
             | ClipModule::SynthesisProduct
             | ClipModule::SynthesisReactionFront
             | ClipModule::SynthesisVessel
-            | ClipModule::SynthesisMixingTool => {}
+            | ClipModule::SynthesisMixingTool
+            | ClipModule::PhaseGasReactant
+            | ClipModule::PhaseGasReactantA
+            | ClipModule::PhaseGasReactantB
+            | ClipModule::PhaseGasProduct
+            | ClipModule::PhaseSynthesisReactionFront
+            | ClipModule::ReactionChamberGlass
+            | ClipModule::ReactionChamberFrame => {}
             ClipModule::VesselAnchor => {
                 unreachable!("anchor tracks are not renderable geometry");
             }
@@ -6673,27 +6895,76 @@ mod tests {
     }
 
     #[test]
-    fn authored_clip_advances_uniformly_across_chemistry_beat_boundaries() {
+    fn alkali_water_time_remap_stays_independent_of_chemistry_beat_boundaries() {
         let plan = canonical_plan();
         let duration = plan.timeline.duration_ms();
         let clip = alkali_water_clip();
-        let frames = (0..=4_u64)
-            .map(|quarter| {
-                let elapsed = duration.saturating_mul(quarter) / 4;
-                let moment = plan
-                    .timeline
-                    .locate(elapsed)
-                    .expect("quarter-time sample exists");
-                clip.frame_at_progress(plan.timeline.normalized_progress_at(moment))
+        for (quarter, expected_progress) in
+            [(0_u64, 0.0_f32), (1, 0.25), (2, 0.5), (3, 0.75), (4, 1.0)]
+        {
+            let elapsed = duration.saturating_mul(quarter) / 4;
+            let moment = plan
+                .timeline
+                .locate(elapsed)
+                .expect("quarter-time sample exists");
+            let timeline_progress = plan.timeline.normalized_progress_at(moment);
+            let sampled = clip.frame_at_progress(alkali_water_authored_progress(timeline_progress));
+            let expected =
+                clip.frame_at_progress(alkali_water_authored_progress(expected_progress));
+            assert!(
+                (sampled - expected).abs() < 0.05,
+                "unequal chemistry beats must not distort the absolute time remap"
+            );
+        }
+    }
+
+    #[test]
+    fn alkali_water_time_remap_advances_opening_without_a_midpoint_ramp() {
+        assert!(alkali_water_authored_progress(0.0).abs() <= f32::EPSILON);
+        assert!((alkali_water_authored_progress(1.0) - 1.0).abs() <= f32::EPSILON);
+        assert!(
+            alkali_water_authored_progress(0.08) >= 42.0 / 179.0,
+            "the metal must reach its authored contact frame within about half a second"
+        );
+
+        let mut progress = 0.0_f32;
+        let samples = (0..=100)
+            .map(|_| {
+                let sample = alkali_water_authored_progress(progress.min(1.0));
+                progress += 0.01;
+                sample
             })
             .collect::<Vec<_>>();
-        let deltas = frames
+        assert!(
+            samples.windows(2).all(|window| window[1] > window[0]),
+            "absolute seeking must remain strictly monotonic"
+        );
+        let deltas = samples
             .windows(2)
             .map(|window| window[1] - window[0])
             .collect::<Vec<_>>();
+        let reaction_deltas = &deltas[8..];
+        let (slowest, fastest) = reaction_deltas
+            .iter()
+            .copied()
+            .fold((f32::MAX, f32::MIN), |(slowest, fastest), delta| {
+                (slowest.min(delta), fastest.max(delta))
+            });
         assert!(
-            deltas.iter().all(|delta| (*delta - deltas[0]).abs() < 0.05),
-            "unequal chemistry beats must not alter authored clip speed: {deltas:?}"
+            fastest - slowest < 0.0035,
+            "post-contact frames must remain evenly distributed instead of accelerating late"
+        );
+        assert!(
+            reaction_deltas.last() <= reaction_deltas.get(45),
+            "the ending must not run faster than the middle of the reaction"
+        );
+        let before_contact =
+            alkali_water_authored_progress(0.08) - alkali_water_authored_progress(0.079);
+        let after_contact =
+            alkali_water_authored_progress(0.081) - alkali_water_authored_progress(0.08);
+        assert!(
+            (before_contact - after_contact).abs() < 0.0003,
+            "the contact join must remain velocity-continuous"
         );
     }
 
@@ -7208,6 +7479,94 @@ mod tests {
                 f32::from(0x3b_u8) / 255.0
             ]
         );
+    }
+
+    #[test]
+    fn phase_synthesis_clips_are_complete_deterministic_and_reaction_colour_bound() {
+        let solid_gas = phase_synthesis_clip(PhaseSynthesisVariant::SolidGas);
+        let gas_gas = phase_synthesis_clip(PhaseSynthesisVariant::GasGas);
+        for (clip, track_count) in [(solid_gas, 28), (gas_gas, 28)] {
+            assert_eq!(clip.frame_count, 180);
+            assert_eq!(clip.frames_per_second, 30);
+            assert_eq!(clip.tracks.len(), track_count);
+            let track = clip.tracks.first().expect("phase clip has tracks");
+            let first = clip.sample(track, 0, 84.625);
+            let repeated = clip.sample(track, 0, 84.625);
+            assert_eq!(first.position, repeated.position);
+            assert_eq!(first.normal, repeated.normal);
+        }
+        for module in [
+            ClipModule::SolidReactant,
+            ClipModule::PhaseGasReactant,
+            ClipModule::PhaseGasProduct,
+            ClipModule::PhaseSynthesisReactionFront,
+            ClipModule::ReactionChamberGlass,
+            ClipModule::ReactionChamberFrame,
+        ] {
+            assert!(solid_gas.tracks.iter().any(|track| track.module == module));
+        }
+        assert_eq!(
+            solid_gas
+                .tracks
+                .iter()
+                .filter(|track| {
+                    track.module == ClipModule::SolidReactant
+                        && track.colour == ClipColour::SolidReactant
+                        && track.pass == ClipPass::Opaque
+                })
+                .count(),
+            8,
+            "all authored solid clumps must survive baking as opaque colour-bound tracks"
+        );
+        for module in [
+            ClipModule::PhaseGasReactantA,
+            ClipModule::PhaseGasReactantB,
+            ClipModule::PhaseGasProduct,
+            ClipModule::PhaseSynthesisReactionFront,
+            ClipModule::ReactionChamberGlass,
+            ClipModule::ReactionChamberFrame,
+        ] {
+            assert!(gas_gas.tracks.iter().any(|track| track.module == module));
+        }
+
+        let bound =
+            |binding: &str, [red, green, blue]: [u8; 3]| chem_presentation::BoundVisualColour {
+                binding: binding.to_owned(),
+                base_colour: VisualColour { red, green, blue },
+                colour: VisualColour { red, green, blue },
+                transition_ordinal: None,
+            };
+        let visual = chem_presentation::PhaseSynthesisVisualProfile {
+            formation_ordinal: 3,
+            variant: PhaseSynthesisVariant::GasGas,
+            reactant_a: bound("a", [0x72, 0x91, 0xc4]),
+            reactant_b: bound("b", [0xb3, 0xc9, 0x68]),
+            product: bound("product", [0xd6, 0xdf, 0xe5]),
+            show_reaction_front: true,
+        };
+        let product = phase_synthesis_track_colour(ClipColour::GasProduct, &visual, u16::MAX, 1.0);
+        let reactant_a =
+            phase_synthesis_track_colour(ClipColour::GasReactantA, &visual, u16::MAX, 1.0);
+        let reactant_b =
+            phase_synthesis_track_colour(ClipColour::GasReactantB, &visual, u16::MAX, 1.0);
+        assert_eq!(
+            product[..3],
+            [
+                f32::from(0xd6_u8) / 255.0,
+                f32::from(0xdf_u8) / 255.0,
+                f32::from(0xe5_u8) / 255.0
+            ]
+        );
+        assert!((product[3] - 0.18).abs() < f32::EPSILON);
+        assert_ne!(reactant_a[..3], reactant_b[..3]);
+        assert_ne!(reactant_a[..3], product[..3]);
+
+        let mut solid_visual = visual;
+        solid_visual.variant = PhaseSynthesisVariant::SolidGas;
+        let solid =
+            phase_synthesis_track_colour(ClipColour::SolidReactant, &solid_visual, u16::MAX, 1.0);
+        assert_eq!(solid[..3], reactant_a[..3]);
+        assert!((solid[3] - 1.0).abs() < f32::EPSILON);
     }
 
     #[test]

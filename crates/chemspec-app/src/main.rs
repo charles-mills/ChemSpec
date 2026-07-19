@@ -697,6 +697,8 @@ fn dynamic_macroscopic_reaction(
         }
         AgentMacroscopicProcess::MetalDisplacement => MacroscopicProcess::MetalDisplacement,
         AgentMacroscopicProcess::SolidSolidSynthesis => MacroscopicProcess::SolidSolidSynthesis,
+        AgentMacroscopicProcess::SolidGasSynthesis => MacroscopicProcess::SolidGasSynthesis,
+        AgentMacroscopicProcess::GasGasSynthesis => MacroscopicProcess::GasGasSynthesis,
         AgentMacroscopicProcess::CompleteCombustion => MacroscopicProcess::CompleteCombustion,
         AgentMacroscopicProcess::IncompleteCombustion => MacroscopicProcess::IncompleteCombustion,
         AgentMacroscopicProcess::SolventEvaporationCrystallization => {
@@ -721,6 +723,8 @@ fn dynamic_macroscopic_reaction(
                 | MacroscopicProcess::GasEvolutionSolidLiquid
                 | MacroscopicProcess::MetalDisplacement
                 | MacroscopicProcess::SolidSolidSynthesis
+                | MacroscopicProcess::SolidGasSynthesis
+                | MacroscopicProcess::GasGasSynthesis
                 | MacroscopicProcess::SolventEvaporationCrystallization
                 | MacroscopicProcess::SurfaceOxidation,
             )
@@ -5623,6 +5627,67 @@ mod tests {
         );
         compile_real_world_plan(frames, &profile)
             .expect("typed process effects cross macroscopic plan validation");
+    }
+
+    #[test]
+    fn researched_uncatalogued_phases_reach_generic_animation_handoff() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "H2".into(),
+                    atomic_numbers: vec![1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "F2".into(),
+                    atomic_numbers: vec![9, 9],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = ProviderClaim::from_json(
+            &serde_json::to_vec(&serde_json::json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "reactant_phases": ["gas", "gas"],
+                "products": [{
+                    "name": "hydrogen fluoride",
+                    "formula": "HF",
+                    "phase": "gas",
+                    "identity_hints": []
+                }],
+                "required_context": "ordinary gas-phase combination",
+                "observations": [{
+                    "predicate": "forms",
+                    "subject": "hydrogen fluoride",
+                    "value": null
+                }],
+                "sources": [],
+                "ambiguity": null
+            }))
+            .expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("provider claim");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                .expect("researched outcome compiles")
+        else {
+            panic!("expected static outcome");
+        };
+
+        let reaction =
+            dynamic_macroscopic_reaction(&outcome).expect("renderer-readable dynamic reaction");
+        assert_eq!(reaction.process, Some(MacroscopicProcess::GasGasSynthesis));
+        assert!(
+            reaction
+                .materials
+                .iter()
+                .all(|material| material.phase == chem_domain::Phase::Gas)
+        );
     }
 
     #[test]

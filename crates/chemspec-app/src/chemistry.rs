@@ -28,9 +28,9 @@ use crate::composition_catalogue::{self, CompositionId};
 const CATALOGUE: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
 const CATALOGUE_REVIEW: &[u8] =
     include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
-const CATALOGUE_DIGEST: &str = "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
+const CATALOGUE_DIGEST: &str = "f5667dab4f4f2380f5e0c7ff48429b7720b14c7f65fa79e7749931fcfcd44fdd";
 const CATALOGUE_REVIEW_DIGEST: &str =
-    "6aa6f1c65023ed4fe7e93570eb9039ecafe75d39f15af5cf2eec3c8515dfe3e7";
+    "fd8e440655e7aaa01f6fcad072c7690c0ba6ec944680a85f7180fd0389cf84c7";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -1113,6 +1113,8 @@ fn catalogue_macroscopic_reaction(
                 | MacroscopicProcess::GasEvolutionSolidLiquid
                 | MacroscopicProcess::MetalDisplacement
                 | MacroscopicProcess::SolidSolidSynthesis
+                | MacroscopicProcess::SolidGasSynthesis
+                | MacroscopicProcess::GasGasSynthesis
                 | MacroscopicProcess::SolventEvaporationCrystallization
                 | MacroscopicProcess::SurfaceOxidation,
             )
@@ -1253,6 +1255,40 @@ fn classify_catalogue_macroscopic_process(
         return None;
     }
     let (product_binding, _) = expanded.claim().products().iter().next()?;
+    if material_has_phase(
+        product_binding,
+        MacroscopicMaterialRole::Product,
+        chem_domain::Phase::Gas,
+    ) && !has_formula_counts(&first.1.formula, &[("O", 2)])
+        && !has_formula_counts(&second.1.formula, &[("O", 2)])
+    {
+        let phases = [
+            materials
+                .iter()
+                .find(|material| {
+                    material.binding == first.0.as_str()
+                        && material.role == MacroscopicMaterialRole::Reactant
+                })?
+                .phase,
+            materials
+                .iter()
+                .find(|material| {
+                    material.binding == second.0.as_str()
+                        && material.role == MacroscopicMaterialRole::Reactant
+                })?
+                .phase,
+        ];
+        match phases {
+            [chem_domain::Phase::Solid, chem_domain::Phase::Gas]
+            | [chem_domain::Phase::Gas, chem_domain::Phase::Solid] => {
+                return Some(MacroscopicProcess::SolidGasSynthesis);
+            }
+            [chem_domain::Phase::Gas, chem_domain::Phase::Gas] => {
+                return Some(MacroscopicProcess::GasGasSynthesis);
+            }
+            _ => {}
+        }
+    }
     (solid_reactants
         && material_has_phase(
             product_binding,
@@ -2038,6 +2074,7 @@ pub fn presentation_profile(
         gas_evolution: None,
         metal_displacement: None,
         solid_solid_synthesis: None,
+        phase_synthesis: None,
         post_process,
         equation: request.equation(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -2301,6 +2338,164 @@ mod tests {
         assert_eq!(
             phase("oxide", MacroscopicMaterialRole::Product),
             Some(Phase::Unknown)
+        );
+    }
+
+    #[test]
+    fn registered_phase_synthesis_examples_select_the_authored_assemblies() {
+        for (id, expected_variant, expected_asset) in [
+            (
+                "covalent-h-i-hi",
+                chem_presentation::PhaseSynthesisVariant::SolidGas,
+                AssetProfile::SolidGasSynthesisAssembly,
+            ),
+            (
+                "covalent-h-s-h2s",
+                chem_presentation::PhaseSynthesisVariant::SolidGas,
+                AssetProfile::SolidGasSynthesisAssembly,
+            ),
+            (
+                "covalent-h-cl-hcl",
+                chem_presentation::PhaseSynthesisVariant::GasGas,
+                AssetProfile::GasGasSynthesisAssembly,
+            ),
+            (
+                "covalent-h-br-hbr",
+                chem_presentation::PhaseSynthesisVariant::GasGas,
+                AssetProfile::GasGasSynthesisAssembly,
+            ),
+            (
+                "covalent-h-n-nh3",
+                chem_presentation::PhaseSynthesisVariant::GasGas,
+                AssetProfile::GasGasSynthesisAssembly,
+            ),
+        ] {
+            let request = ReactionRequest::from_id(id).expect("registered example exists");
+            let run = run(request).expect("registered example validates");
+            let reaction = run
+                .macroscopic()
+                .expect("phase-qualified materials resolve from the catalogue");
+            let profile =
+                presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+                    .expect("phase-synthesis profile compiles");
+
+            assert_eq!(
+                reaction.process,
+                Some(match expected_variant {
+                    chem_presentation::PhaseSynthesisVariant::SolidGas => {
+                        MacroscopicProcess::SolidGasSynthesis
+                    }
+                    chem_presentation::PhaseSynthesisVariant::GasGas => {
+                        MacroscopicProcess::GasGasSynthesis
+                    }
+                }),
+                "{id} must be classified before rendering"
+            );
+            assert_eq!(
+                profile
+                    .phase_synthesis
+                    .as_ref()
+                    .map(|synthesis| synthesis.variant),
+                Some(expected_variant),
+                "{id} must bind the authored phase-synthesis profile"
+            );
+            assert!(
+                profile.objects.iter().any(|object| {
+                    object.role == SceneRole::Vessel && object.asset == expected_asset
+                }),
+                "{id} must replace the legacy vessel animation"
+            );
+        }
+    }
+
+    #[test]
+    fn phase_synthesis_visible_catalogue_colours_reach_exact_material_slots() {
+        for (id, expected) in [
+            (
+                "covalent-h-i-hi",
+                VisualColour {
+                    red: 62,
+                    green: 53,
+                    blue: 70,
+                },
+            ),
+            (
+                "covalent-h-s-h2s",
+                VisualColour {
+                    red: 232,
+                    green: 196,
+                    blue: 55,
+                },
+            ),
+        ] {
+            let request = ReactionRequest::from_id(id).expect("solid-gas example exists");
+            let run = run(request).expect("solid-gas example validates");
+            let profile =
+                presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+                    .expect("solid-gas profile compiles");
+            let synthesis = profile
+                .phase_synthesis
+                .expect("solid-gas material bindings exist");
+            assert_eq!(
+                synthesis.variant,
+                chem_presentation::PhaseSynthesisVariant::SolidGas
+            );
+            assert_eq!(
+                synthesis.reactant_a.colour, expected,
+                "{id} solid slot must use its exact catalogue RGB"
+            );
+            assert_ne!(
+                synthesis.reactant_a.colour, synthesis.reactant_b.colour,
+                "{id} solid must remain visually distinct from its colourless gas"
+            );
+        }
+
+        let request =
+            ReactionRequest::from_id("covalent-h-cl-hcl").expect("gas-gas example exists");
+        let run = run(request).expect("gas-gas example validates");
+        let profile = presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+            .expect("gas-gas profile compiles");
+        let synthesis = profile
+            .phase_synthesis
+            .expect("gas-gas material bindings exist");
+        assert_eq!(
+            synthesis.variant,
+            chem_presentation::PhaseSynthesisVariant::GasGas
+        );
+        let chlorine = VisualColour {
+            red: 202,
+            green: 220,
+            blue: 112,
+        };
+        assert!(
+            [synthesis.reactant_a.colour, synthesis.reactant_b.colour].contains(&chlorine),
+            "the exact chlorine binding must carry its visible catalogue RGB regardless of deterministic binding order"
+        );
+        assert_ne!(
+            synthesis.reactant_a.colour, synthesis.reactant_b.colour,
+            "colourless hydrogen and visible chlorine must not collapse to one material colour"
+        );
+
+        let request =
+            ReactionRequest::from_id("covalent-h-br-hbr").expect("bromine example exists");
+        let run = super::run(request).expect("bromine example validates");
+        let profile = presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+            .expect("bromine gas-gas profile compiles");
+        let synthesis = profile
+            .phase_synthesis
+            .expect("bromine gas-gas material bindings exist");
+        let bromine_vapour = VisualColour {
+            red: 142,
+            green: 57,
+            blue: 47,
+        };
+        assert!(
+            [synthesis.reactant_a.colour, synthesis.reactant_b.colour].contains(&bromine_vapour),
+            "the reacting bromine-vapour slot must carry its reviewed red-brown RGB"
+        );
+        assert_ne!(
+            synthesis.product.colour, bromine_vapour,
+            "colourless hydrogen bromide product must replace the bromine-vapour colour"
         );
     }
 

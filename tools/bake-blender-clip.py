@@ -46,6 +46,9 @@ MODULE_IDS = {
     "sediment": 17,
     "bursts": 18,
     "input": 19,
+    # Phase-synthesis sources use the explicit name; it shares the existing
+    # stable solid-reactant runtime ID rather than extending/renumbering clips.
+    "solid_reactant": 19,
     "initial_solution": 20,
     "final_solution": 21,
     "original_metal": 22,
@@ -58,6 +61,13 @@ MODULE_IDS = {
     "reaction_front": 29,
     "reaction_vessel": 30,
     "mixing_tool": 31,
+    "gas_reactant": 32,
+    "gas_reactant_a": 33,
+    "gas_reactant_b": 34,
+    "gas_product": 35,
+    "phase_synthesis_reaction_front": 36,
+    "reaction_chamber_glass": 37,
+    "reaction_chamber_frame": 38,
 }
 COLOUR_SLOT_IDS = {
     "MAT_Glass": 0,
@@ -102,6 +112,13 @@ COLOUR_SLOT_IDS = {
     "MAT_ReactionFront": 33,
     "MAT_ReactionVessel": 34,
     "MAT_MixingTool": 35,
+    "MAT_GasReactant": 36,
+    "MAT_GasProduct": 37,
+    "MAT_PhaseSynthesisReactionFront": 38,
+    "MAT_ReactionChamberGlass": 39,
+    "MAT_ChamberFrame": 40,
+    "MAT_GasReactantA": 41,
+    "MAT_GasReactantB": 42,
 }
 PASS_IDS = {
     "MAT_Reactive_Metal": 0,
@@ -146,6 +163,13 @@ PASS_IDS = {
     "MAT_ReactionFront": 2,
     "MAT_ReactionVessel": 0,
     "MAT_MixingTool": 0,
+    "MAT_GasReactant": 1,
+    "MAT_GasProduct": 1,
+    "MAT_PhaseSynthesisReactionFront": 2,
+    "MAT_ReactionChamberGlass": 1,
+    "MAT_ChamberFrame": 0,
+    "MAT_GasReactantA": 1,
+    "MAT_GasReactantB": 1,
 }
 
 

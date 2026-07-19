@@ -46,6 +46,13 @@ pub(crate) enum ClipModule {
     SynthesisReactionFront,
     SynthesisVessel,
     SynthesisMixingTool,
+    PhaseGasReactant,
+    PhaseGasReactantA,
+    PhaseGasReactantB,
+    PhaseGasProduct,
+    PhaseSynthesisReactionFront,
+    ReactionChamberGlass,
+    ReactionChamberFrame,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +100,13 @@ pub(crate) enum ClipColour {
     ReactionFront,
     ReactionVessel,
     MixingTool,
+    GasReactant,
+    GasProduct,
+    PhaseSynthesisReactionFront,
+    ReactionChamberGlass,
+    ChamberFrame,
+    GasReactantA,
+    GasReactantB,
 }
 
 #[derive(Debug)]
@@ -310,6 +324,13 @@ impl TryFrom<u8> for ClipModule {
             29 => Ok(Self::SynthesisReactionFront),
             30 => Ok(Self::SynthesisVessel),
             31 => Ok(Self::SynthesisMixingTool),
+            32 => Ok(Self::PhaseGasReactant),
+            33 => Ok(Self::PhaseGasReactantA),
+            34 => Ok(Self::PhaseGasReactantB),
+            35 => Ok(Self::PhaseGasProduct),
+            36 => Ok(Self::PhaseSynthesisReactionFront),
+            37 => Ok(Self::ReactionChamberGlass),
+            38 => Ok(Self::ReactionChamberFrame),
             _ => Err("unsupported clip module"),
         }
     }
@@ -369,6 +390,13 @@ impl TryFrom<u8> for ClipColour {
             33 => Ok(Self::ReactionFront),
             34 => Ok(Self::ReactionVessel),
             35 => Ok(Self::MixingTool),
+            36 => Ok(Self::GasReactant),
+            37 => Ok(Self::GasProduct),
+            38 => Ok(Self::PhaseSynthesisReactionFront),
+            39 => Ok(Self::ReactionChamberGlass),
+            40 => Ok(Self::ChamberFrame),
+            41 => Ok(Self::GasReactantA),
+            42 => Ok(Self::GasReactantB),
             _ => Err("unsupported clip colour"),
         }
     }
@@ -428,6 +456,35 @@ mod tests {
         include_bytes!("../assets/models/gas_evolution_solid_liquid.clip");
     const METAL_DISPLACEMENT_BYTES: &[u8] =
         include_bytes!("../assets/models/metal_displacement.clip");
+    const SOLID_GAS_SYNTHESIS_BYTES: &[u8] =
+        include_bytes!("../assets/models/solid_gas_synthesis.clip");
+    const GAS_GAS_SYNTHESIS_BYTES: &[u8] =
+        include_bytes!("../assets/models/gas_gas_synthesis.clip");
+
+    #[test]
+    fn phase_synthesis_ids_append_without_renumbering_existing_contracts() {
+        assert_eq!(
+            ClipModule::try_from(31),
+            Ok(ClipModule::SynthesisMixingTool)
+        );
+        assert_eq!(ClipModule::try_from(32), Ok(ClipModule::PhaseGasReactant));
+        assert_eq!(
+            ClipModule::try_from(38),
+            Ok(ClipModule::ReactionChamberFrame)
+        );
+        assert_eq!(ClipColour::try_from(35), Ok(ClipColour::MixingTool));
+        assert_eq!(ClipColour::try_from(36), Ok(ClipColour::GasReactant));
+        assert_eq!(ClipColour::try_from(42), Ok(ClipColour::GasReactantB));
+
+        let solid_gas =
+            AnimatedClip::parse(SOLID_GAS_SYNTHESIS_BYTES).expect("solid-gas clip parses");
+        let gas_gas = AnimatedClip::parse(GAS_GAS_SYNTHESIS_BYTES).expect("gas-gas clip parses");
+        assert_eq!(
+            (solid_gas.frame_count, solid_gas.frames_per_second),
+            (180, 30)
+        );
+        assert_eq!((gas_gas.frame_count, gas_gas.frames_per_second), (180, 30));
+    }
 
     #[test]
     fn bundled_clip_is_complete_bounded_and_uses_all_reaction_modules() {
