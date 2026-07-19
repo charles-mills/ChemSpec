@@ -17,11 +17,11 @@ machine-readable trust artefacts are authoritative when they differ from prose.
 
 ## Current reviewed surface
 
-The promoted review covers 205 finite experiences:
+The promoted review covers 208 finite experiences:
 
 | Surface | Experiences | Boundary |
 | --- | ---: | --- |
-| Established generalized families | 36 | Alkali-metal/water, silver-halide precipitation, strong-acid neutralization, carbonate and bicarbonate gas evolution, and aqueous halogen displacement |
+| Established generalized families | 39 | Alkali-metal/water (including bounded heavy-alkali water-contact variants), silver-halide precipitation, strong-acid neutralization, carbonate and bicarbonate gas evolution, and aqueous halogen displacement |
 | Elemental oxygen | 68 | Explicit representative products only; missing or ambiguous cases do not inherit a group-valence guess |
 | Fixed-charge main-group ion pairs | 81 | Group 1, Group 2, and aluminium cations with the reviewed monatomic anion families |
 | Finite covalent combinations | 20 | Explicit hydrogen-compound and interhalogen outcomes; multiple reviewed products require learner selection |

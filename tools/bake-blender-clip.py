@@ -58,6 +58,9 @@ MODULE_IDS = {
     "reaction_front": 29,
     "reaction_vessel": 30,
     "mixing_tool": 31,
+    # Appended only: prior clip IDs remain byte-compatible.
+    "beaker_shards": 32,
+    "explosion": 33,
 }
 COLOUR_SLOT_IDS = {
     "MAT_Glass": 0,
@@ -148,6 +151,29 @@ PASS_IDS = {
     "MAT_MixingTool": 0,
 }
 
+# The supplied heavy-alkali scenes use metal-specific material names for
+# semantic aliases already represented by the runtime contract. Preserve
+# source transparency/emission by resolving to existing slots rather than
+# inventing reaction-specific colour IDs.
+SOURCE_MATERIAL_ALIASES = {
+    **{
+        f"MAT_Reactive_Metal_{symbol}": "MAT_Reactive_Metal"
+        for symbol in ("Rb", "Cs", "Fr")
+    },
+    **{
+        f"MAT_Flame_Outer_{symbol}": "MAT_Flame_Outer"
+        for symbol in ("Rb", "Cs", "Fr")
+    },
+    **{
+        f"MAT_Flame_Inner_{symbol}": "MAT_Flame_Inner"
+        for symbol in ("Rb", "Cs", "Fr")
+    },
+    **{
+        f"MAT_Flame_Core_{symbol}": "MAT_Flame_Core"
+        for symbol in ("Rb", "Cs", "Fr")
+    },
+}
+
 
 @dataclass
 class Track:
@@ -204,20 +230,37 @@ def runtime_axis(vector) -> tuple[float, float, float]:
 
 def colour_slot_for(obj: bpy.types.Object) -> str:
     custom = str(obj.get("color_slot", ""))
+    custom = SOURCE_MATERIAL_ALIASES.get(custom, custom)
     if custom in COLOUR_SLOT_IDS:
         return custom
     materials = [slot.material.name for slot in obj.material_slots if slot.material]
-    if len(materials) != 1 or materials[0] not in COLOUR_SLOT_IDS:
+    if len(materials) != 1:
         raise ValueError(f"{obj.name} has no unique supported colour slot")
-    return materials[0]
+    slot = SOURCE_MATERIAL_ALIASES.get(materials[0], materials[0])
+    if slot not in COLOUR_SLOT_IDS:
+        raise ValueError(f"{obj.name} has no unique supported colour slot")
+    return slot
 
 
 def exported_module_for(obj: bpy.types.Object) -> str:
     """Recover tags which Blender's FBX exporter does not preserve."""
     name = obj.name
     prefixes = (
+        ("GEO_Beaker_Shard", "beaker_shards"),
         ("GEO_Beaker", "beaker"),
         ("GEO_Stage", "stage"),
+        ("GEO_Water", "water"),
+        ("GEO_ReactiveMetalChunk", "metal"),
+        ("GEO_MetalFragment", "metal"),
+        ("FX_MoltenMetal", "metal"),
+        ("FX_Explosion", "explosion"),
+        ("FX_SmokeWisp", "explosion"),
+        ("FX_WaterEruption", "explosion"),
+        ("FX_Flame", "flame"),
+        ("FX_Spark", "sparks"),
+        ("FX_Bubble", "bubbles"),
+        ("FX_Droplet", "splashes"),
+        ("FX_Vapour", "vapour"),
         ("FX_AddedSolution", "pour"),
         ("GEO_AddedSolution", "pour"),
         ("FX_PourMixingCurrent", "mixing"),

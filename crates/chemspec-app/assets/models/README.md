@@ -307,3 +307,51 @@ catalogue RGB, followed by conservative solid fallbacks. Ceramic
 catalogue colours. The reaction-front module can be suppressed independently.
 All material colours are computed per scene and absolute-playhead sampling
 makes pause, seek, replay, and backwards scrub deterministic.
+
+## Heavy-alkali water-contact assembly
+
+`rubidium_water_explosion.clip`, `caesium_water_explosion.clip`, and
+`francium_water_explosion.clip` are the three complete supplied Blender-scene
+bakes for the reusable high-energy metal/water category. Each has 185 evaluated
+mesh tracks across source frames 1–180 at 30 FPS (six seconds), is embedded at
+compile time, and is parsed lazily only for its selected typed variant. Exact
+source and runtime digests, byte counts, source-scene inventory, material
+aliases, exclusions, visibility boundaries, and provenance are recorded in
+[`heavy_alkali_water_explosion.asset.json`](heavy_alkali_water_explosion.asset.json).
+
+The editable Blender sources are deliberately not committed. They came from
+the user-supplied `assets/alkali_explosion.zip` archive; the archive did not
+include licence or redistribution terms. The scenes use the authored
+metal-specific `Rb`, `Cs`, and `Fr` material aliases, which the offline baker
+maps to existing stable ChemSpec slots without adding reaction-specific runtime
+IDs. Authored `FX_Spark_*` meshes carry the source `flame` module tag and are
+therefore included in the existing Flame module.
+
+The bake excludes the duplicate beaker and presentation stage. Runtime reuses
+`alkali_water.clip#module=beaker`; the heavy clips retain water, metal,
+explosion, Flame, bubbles, splashes, vapour, and beaker-shard geometry. The
+source's setup geometry is held invisible before its authored contact ranges:
+frame 40 for explosion/shards/flame and frame 45 for bubbles/splashes/vapour.
+This is a deterministic absolute-playhead visibility rule, not mutable
+animation state.
+
+Regenerate one selected variant after extracting the supplied archive outside
+the repository's runtime assets:
+
+```sh
+nix shell nixpkgs#blender --command blender --background \
+  --python tools/bake-blender-clip.py -- \
+  /path/to/alkali_explosion/source/rubidium_water_explosion.blend \
+  crates/chemspec-app/assets/models/rubidium_water_explosion.clip \
+  --exclude-module beaker
+```
+
+Selection is chemistry-owned: it requires the exact reviewed water-contact
+capability on one validated solid metallic reactant, liquid molecular water,
+an aqueous ionic product, and a molecular gaseous product. The clips receive
+only exact role bindings. Validated `.chems` colour observations outrank
+reviewed catalogue RGB, then conservative phase fallbacks; water transitions
+toward the bound hydroxide colour at the validated formation/colour ordinal.
+Chemical RGB is separate from phase-owned opacity. Glass remains translucent,
+flame slots retain their shared emissive semantics, metal remains opaque, and
+hydrogen bubble/vapour slots retain low gas opacity.

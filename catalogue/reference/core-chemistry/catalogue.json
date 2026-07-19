@@ -1,5 +1,5 @@
 {
-  "digest": "3e535ee49eb7a43e321021e6b684dd81f6f7b079a048fc32cbd1d9de911d1f86",
+  "digest": "fd85900c31e81d17c6654e4405f2de7f18c5a9d047142b6df259e07b95a710e8",
   "bundle": {
     "schema_version": 1,
     "name": "ChemSpec.Theoretical",
@@ -19,6 +19,15 @@
         "reference": "docs/generalized-chemistry-rules.md",
         "retrieved_on": "2026-07-15",
         "usage": "Internal design authority for executable representations and intermediate states; these are AI-reviewed explanatory modeling assumptions, not empirical evidence or claims of physical mechanism"
+      },
+      {
+        "id": "evidence.chemspec.project-heavy-alkali-visual-authorisation",
+        "title": "Project-authorised heavy-alkali visual category",
+        "publisher": "ChemSpec project direction",
+        "locator": "Explicit user instruction in the active development session on 2026-07-19",
+        "reference": "urn:chemspec:project-authorisation:heavy-alkali-water:2026-07-19",
+        "retrieved_on": "2026-07-19",
+        "usage": "Project-scoped presentation authority for the validated rubidium, caesium, and francium layouts; it is not a laboratory procedure or independent scientific certification"
       },
       {
         "id": "evidence.iupac.goldbook",
@@ -135,6 +144,15 @@
         "usage": "Representative normal oxide, peroxide, superoxide, and covalent oxide outcomes"
       },
       {
+        "id": "evidence.rsc.alkali-metals-camera-lies",
+        "title": "Alkali metals – the camera lies",
+        "publisher": "Royal Society of Chemistry",
+        "locator": "Rubidium and caesium reactions with water in education",
+        "reference": "https://edu.rsc.org/analysis/alkali-metals-the-camera-lies/2010008.article",
+        "retrieved_on": "2026-07-19",
+        "usage": "Qualitative educational observation source for rubidium and caesium water-contact behaviour; it also cautions that recorded footage may be staged"
+      },
+      {
         "id": "evidence.rsc.halogen-displacement",
         "title": "Halogens in aqueous solution and their displacement reactions",
         "publisher": "Royal Society of Chemistry",
@@ -232,6 +250,19 @@
         "statement": "The 118 candidate records use IUPAC element symbols, names, atomic numbers, and periods; optional group values and conventional block assignments are candidate interpretations covered by the host-selected AI review.",
         "evidence": [
           "evidence.iupac.periodic-table"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.material.heavy-alkali-water.presentation",
+        "statement": "For the registered heavy-alkali/water outcomes, exact Rb, Cs, and Fr metallic structures are solid reactants, their exact hydroxides are aqueous products, and exact Hydrogen is a gas product; only their reviewed water-contact variants may authorise the high-energy macroscopic assembly.",
+        "evidence": [
+          "evidence.chemspec.project-heavy-alkali-visual-authorisation",
+          "evidence.rsc.alkali-metals-camera-lies"
         ],
         "review": {
           "status": "provisional",
@@ -485,9 +516,11 @@
       },
       {
         "id": "premise.rule.alkali-metal-water.standard-outcome",
-        "statement": "Contact between Li, Na, or K metal and water has the reviewed representative outcome 2 M + 2 H2O -> 2 MOH + H2.",
+        "statement": "Contact between the registered Li, Na, K, Rb, Cs, or Fr metallic structure and water has the reviewed representative outcome 2 M + 2 H2O -> 2 MOH + H2.",
         "evidence": [
-          "evidence.openstax.chemistry-2e"
+          "evidence.chemspec.project-heavy-alkali-visual-authorisation",
+          "evidence.openstax.chemistry-2e",
+          "evidence.rsc.alkali-metals-camera-lies"
         ],
         "review": {
           "status": "provisional",
@@ -777,7 +810,7 @@
       },
       {
         "id": "premise.valence.alkali-h-o.initial-domain",
-        "statement": "The listed Li, Na, K, Ca, H, and O tuples are ChemSpec's closed explanatory execution domain for this family and its unsupported probe; they are not a claim of physical mechanism.",
+        "statement": "The listed Li, Na, K, Rb, Cs, Fr, Ca, H, and O tuples are ChemSpec's closed explanatory execution domain for this family and its unsupported probe; they are not a claim of physical mechanism.",
         "evidence": [
           "evidence.chemspec.explanatory-structural-model"
         ],
@@ -1204,6 +1237,18 @@
             "neutral_valence_electrons": 1
           },
           {
+            "element": "Rb",
+            "neutral_valence_electrons": 1
+          },
+          {
+            "element": "Cs",
+            "neutral_valence_electrons": 1
+          },
+          {
+            "element": "Fr",
+            "neutral_valence_electrons": 1
+          },
+          {
             "element": "Ca",
             "neutral_valence_electrons": 2
           }
@@ -1287,6 +1332,48 @@
             "covalent_bond_order_sum": 0
           },
           {
+            "element": "Rb",
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Rb",
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Cs",
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Cs",
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Fr",
+            "formal_charge": 1,
+            "non_bonding_electrons": 0,
+            "unpaired_electrons": 0,
+            "covalent_bond_order_sum": 0
+          },
+          {
+            "element": "Fr",
+            "formal_charge": 0,
+            "non_bonding_electrons": 1,
+            "unpaired_electrons": 1,
+            "covalent_bond_order_sum": 0
+          },
+          {
             "element": "Ca",
             "formal_charge": 2,
             "non_bonding_electrons": 0,
@@ -1309,6 +1396,24 @@
           },
           {
             "element": "K",
+            "site_formal_charge": 1,
+            "site_local_electrons": 0,
+            "delocalized_electrons_per_site": 1
+          },
+          {
+            "element": "Rb",
+            "site_formal_charge": 1,
+            "site_local_electrons": 0,
+            "delocalized_electrons_per_site": 1
+          },
+          {
+            "element": "Cs",
+            "site_formal_charge": 1,
+            "site_local_electrons": 0,
+            "delocalized_electrons_per_site": 1
+          },
+          {
+            "element": "Fr",
             "site_formal_charge": 1,
             "site_local_electrons": 0,
             "delocalized_electrons_per_site": 1
@@ -6924,9 +7029,12 @@
         "membership": {
           "kind": "explicit",
           "members": [
+            "Cs",
+            "Fr",
             "K",
             "Li",
-            "Na"
+            "Na",
+            "Rb"
           ]
         },
         "premise_ids": [
@@ -7116,6 +7224,21 @@
         },
         "premise_ids": [
           "premise.rule.element-oxygen.representative-outcomes"
+        ]
+      },
+      {
+        "id": "Categories.ReviewedAlkaliSalt",
+        "subject": "element",
+        "membership": {
+          "kind": "explicit",
+          "members": [
+            "K",
+            "Li",
+            "Na"
+          ]
+        },
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
         ]
       },
       {
@@ -7611,7 +7734,7 @@
         "parameters": {
           "member": {
             "kind": "element",
-            "category": "Categories.AlkaliMetal"
+            "category": "Categories.ReviewedAlkaliSalt"
           }
         },
         "components": [
@@ -7714,7 +7837,7 @@
         "parameters": {
           "member": {
             "kind": "element",
-            "category": "Categories.AlkaliMetal"
+            "category": "Categories.ReviewedAlkaliSalt"
           }
         },
         "components": [
@@ -7818,7 +7941,7 @@
           },
           "member": {
             "kind": "element",
-            "category": "Categories.AlkaliMetal"
+            "category": "Categories.ReviewedAlkaliSalt"
           }
         },
         "components": [
@@ -7941,7 +8064,7 @@
         "parameters": {
           "member": {
             "kind": "element",
-            "category": "Categories.AlkaliMetal"
+            "category": "Categories.ReviewedAlkaliSalt"
           }
         },
         "components": [
@@ -15936,6 +16059,28 @@
         ]
       },
       {
+        "id": "CaesiumHydroxide",
+        "template": "Templates.AlkaliMetalHydroxide",
+        "arguments": {
+          "member": "Cs"
+        },
+        "formula": "CsOH",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "CaesiumMetal",
+        "template": "Templates.AlkaliMetal",
+        "arguments": {
+          "member": "Cs"
+        },
+        "formula": "Cs",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
         "id": "CdTransitionG12MonoxideMetalForOxygen",
         "template": "Templates.TransitionG12MonoxideMetal",
         "arguments": {
@@ -16462,6 +16607,28 @@
         "formula": "F2",
         "premise_ids": [
           "premise.structure.diatomic-halogen"
+        ]
+      },
+      {
+        "id": "FranciumHydroxide",
+        "template": "Templates.AlkaliMetalHydroxide",
+        "arguments": {
+          "member": "Fr"
+        },
+        "formula": "FrOH",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "FranciumMetal",
+        "template": "Templates.AlkaliMetal",
+        "arguments": {
+          "member": "Fr"
+        },
+        "formula": "Fr",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
         ]
       },
       {
@@ -18199,6 +18366,28 @@
           "premise.rule.element-oxygen.representative-outcomes",
           "premise.structure.element-oxygen.structural-models",
           "premise.valence.element-oxygen.closed-domain"
+        ]
+      },
+      {
+        "id": "RubidiumHydroxide",
+        "template": "Templates.AlkaliMetalHydroxide",
+        "arguments": {
+          "member": "Rb"
+        },
+        "formula": "RbOH",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
+        ]
+      },
+      {
+        "id": "RubidiumMetal",
+        "template": "Templates.AlkaliMetal",
+        "arguments": {
+          "member": "Rb"
+        },
+        "formula": "Rb",
+        "premise_ids": [
+          "premise.rule.alkali-metal-water.standard-outcome"
         ]
       },
       {
@@ -23318,7 +23507,7 @@
           },
           "member": {
             "kind": "element",
-            "category": "Categories.AlkaliMetal"
+            "category": "Categories.ReviewedAlkaliSalt"
           }
         },
         "roles": {
@@ -48397,7 +48586,7 @@
           },
           "member": {
             "kind": "element",
-            "category": "Categories.AlkaliMetal"
+            "category": "Categories.ReviewedAlkaliSalt"
           }
         },
         "roles": {
@@ -49023,7 +49212,7 @@
           },
           "member": {
             "kind": "element",
-            "category": "Categories.AlkaliMetal"
+            "category": "Categories.ReviewedAlkaliSalt"
           }
         },
         "roles": {
@@ -70901,6 +71090,102 @@
         },
         "premise_ids": [
           "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "RubidiumMetal",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "water_contact": {
+          "kind": "explosive",
+          "variant": "rubidium"
+        },
+        "premise_ids": [
+          "premise.material.heavy-alkali-water.presentation"
+        ]
+      },
+      {
+        "structure": "CaesiumMetal",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "water_contact": {
+          "kind": "explosive",
+          "variant": "caesium"
+        },
+        "premise_ids": [
+          "premise.material.heavy-alkali-water.presentation"
+        ]
+      },
+      {
+        "structure": "FranciumMetal",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "water_contact": {
+          "kind": "explosive",
+          "variant": "francium"
+        },
+        "premise_ids": [
+          "premise.material.heavy-alkali-water.presentation"
+        ]
+      },
+      {
+        "structure": "RubidiumHydroxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "aqueous"
+        },
+        "premise_ids": [
+          "premise.material.heavy-alkali-water.presentation"
+        ]
+      },
+      {
+        "structure": "CaesiumHydroxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "aqueous"
+        },
+        "premise_ids": [
+          "premise.material.heavy-alkali-water.presentation"
+        ]
+      },
+      {
+        "structure": "FranciumHydroxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "aqueous"
+        },
+        "premise_ids": [
+          "premise.material.heavy-alkali-water.presentation"
+        ]
+      },
+      {
+        "structure": "Hydrogen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.heavy-alkali-water.presentation"
         ]
       }
     ]

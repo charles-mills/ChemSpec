@@ -163,7 +163,7 @@ The end-state dynamic rebuild is governed by the
    compilation, mapping, presentation, cancellation, and regeneration states.
    **Implemented progressive result path, disambiguation, stale-result gates,
    child-process cancellation, and transactional regeneration.**
-10. **DYN-110 — Cache v3.** Persist and revalidate identity, evidence,
+10. **DYN-110 — Cache v4.** Persist and revalidate identity, evidence,
     declaration, and presentation capabilities offline. **Implemented.**
 11. **DYN-111 — Codex hardening.** Keep Codex binary as default, explicit low
     reasoning and normal service, one repair, progress events, and measured
@@ -227,9 +227,11 @@ attestation and both exact digests committed to the trust root.
 - The complete language, catalogue, generalized-rule, kernel, and frame crates
   are integrated with the Iced workspace.
 - The promoted catalogue crosses the pinned AI trust attestation and contains
-  205 finite experiences across the established generalized families,
+  208 finite experiences across the established generalized families,
   elemental oxygen, fixed-charge main-group ion pairs, and finite covalent
-  combinations. The 118-element registry still provides identity metadata,
+  combinations. The established families include bounded reviewed Rb/Cs and
+  project-authorised Fr water-contact variants, while the other alkali-salt
+  families retain their original Li/Na/K domains. The 118-element registry still provides identity metadata,
   not universal reaction coverage.
 - `chem-presentation` compiles deterministic guided scenes and a macroscopic
   scene plan from the same trusted `SimulationFrames` generation.

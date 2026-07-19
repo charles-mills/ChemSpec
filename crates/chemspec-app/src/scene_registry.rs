@@ -72,6 +72,7 @@ pub const fn asset_geometry(profile: AssetProfile) -> AssetGeometry {
             AssetGeometry::Bench
         }
         AssetProfile::ReactiveMetalWaterAssembly
+        | AssetProfile::ExplosiveMetalWaterAssembly
         | AssetProfile::NeutralisationEvaporationAssembly
         | AssetProfile::CompleteCombustionAssembly
         | AssetProfile::IncompleteCombustionAssembly

@@ -1002,6 +1002,10 @@ pub enum AssetProfile {
     /// macroscopic presentation metadata. The renderer may style or suppress
     /// its reusable effect modules, but it must not reinterpret chemistry.
     ReactiveMetalWaterAssembly,
+    /// Authored high-energy water-contact assembly. Chemistry selects this
+    /// only from a reviewed physical-behaviour fact plus an exact validated
+    /// solid-metal/liquid-water/aqueous-ion/gas layout.
+    ExplosiveMetalWaterAssembly,
     /// Authored stirring, heating, evaporation, and crystallization modules
     /// for a validated neutralisation with the generic solvent-separation
     /// presentation process.
@@ -1186,6 +1190,19 @@ pub struct SolidSolidSynthesisVisualProfile {
     pub reactant_b: BoundVisualColour,
     pub product: BoundVisualColour,
     pub show_reaction_front: bool,
+}
+
+/// Exact validated material bindings for the high-energy metal/water clips.
+/// The contact ordinal remains tied to validated reaction progression while
+/// the authored clip retains its complete absolute six-second timeline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplosiveMetalWaterVisualProfile {
+    pub contact_ordinal: u16,
+    pub variant: ExplosiveMetalWaterVariant,
+    pub water_reactant: BoundVisualColour,
+    pub metal_reactant: BoundVisualColour,
+    pub hydroxide_product: BoundVisualColour,
+    pub hydrogen_product: BoundVisualColour,
 }
 
 /// Resolve the visual interpretation of a reviewed `.chems` colour value.
@@ -1508,6 +1525,9 @@ pub struct PresentationProfile {
     /// Exact solid reactant and product bindings for an authorized generic
     /// combination assembly.
     pub solid_solid_synthesis: Option<SolidSolidSynthesisVisualProfile>,
+    /// Exact bindings and reviewed authored variant for the high-energy
+    /// metal/water category.
+    pub explosive_metal_water: Option<ExplosiveMetalWaterVisualProfile>,
     /// Optional deterministic physical separation shown only after the
     /// validated reaction state has completed.
     pub post_process: Option<MacroscopicProcess>,
@@ -1542,6 +1562,9 @@ pub struct MacroscopicMaterial {
     /// Optional reviewed bulk colour. A `.chems` colour observation remains
     /// higher authority and may animate away from this conservative default.
     pub colour: Option<VisualColour>,
+    /// Reviewed water-contact capability carried from the catalogue-aware
+    /// chemistry adapter. Renderer code never derives this from strings.
+    pub explosive_water_contact: Option<ExplosiveMetalWaterVariant>,
 }
 
 /// Generic input for phase-driven visual compilation. It contains no reaction
@@ -1593,6 +1616,10 @@ pub enum MacroscopicProcess {
     /// A solid metal becomes the cation in an aqueous ionic product while the
     /// solution's original metal cation becomes a different solid metal.
     MetalDisplacement,
+    /// A reviewed extreme-water-contact capability on the exact metallic
+    /// reactant, with an exact solid-metal/liquid-water/aqueous-ion/gas
+    /// validated layout. The variant selects authored geometry.
+    ExplosiveMetalWater(ExplosiveMetalWaterVariant),
     /// Exactly two solid reactants combine into one solid chemical product.
     SolidSolidSynthesis,
     CompleteCombustion,
@@ -1605,6 +1632,16 @@ pub enum MacroscopicProcess {
     /// Exposed solid metal plus gaseous dioxygen producing a validated solid
     /// oxide-family product. This classification is established upstream.
     SurfaceOxidation,
+}
+
+/// Typed authored variants for the reusable high-energy metal/water category.
+/// They are emitted only from reviewed catalogue facts; their names are not
+/// used as renderer-side chemistry selectors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExplosiveMetalWaterVariant {
+    Rubidium,
+    Caesium,
+    Francium,
 }
 
 /// Conservative stylised sRGB palette for hydrocarbon fuels, selected from
@@ -1659,6 +1696,10 @@ pub fn compile_phase_driven_profile(
         scale,
     };
     let surface_oxidation = reaction.process == Some(MacroscopicProcess::SurfaceOxidation);
+    let explosive_metal_water = matches!(
+        reaction.process,
+        Some(MacroscopicProcess::ExplosiveMetalWater(_))
+    );
     let reviewed_surface_oxide_colour = surface_oxidation
         .then(|| {
             reaction
@@ -1701,6 +1742,7 @@ pub fn compile_phase_driven_profile(
             | MacroscopicProcess::GasEvolutionLiquidLiquid
             | MacroscopicProcess::GasEvolutionSolidLiquid
             | MacroscopicProcess::MetalDisplacement
+            | MacroscopicProcess::ExplosiveMetalWater(_)
             | MacroscopicProcess::SolidSolidSynthesis
             | MacroscopicProcess::SolventEvaporationCrystallization
             | MacroscopicProcess::SurfaceOxidation,
@@ -1714,6 +1756,8 @@ pub fn compile_phase_driven_profile(
             id: "vessel".to_owned(),
             asset: combustion_asset.unwrap_or(if neutralisation_assembly {
                 AssetProfile::NeutralisationEvaporationAssembly
+            } else if explosive_metal_water {
+                AssetProfile::ExplosiveMetalWaterAssembly
             } else {
                 AssetProfile::Beaker
             }),
@@ -2246,6 +2290,25 @@ pub fn compile_phase_driven_profile(
             );
         }
     }
+    if let Some(process @ MacroscopicProcess::ExplosiveMetalWater(_)) = reaction.process {
+        let start_ordinal =
+            first_product_assignment_ordinal(frames).unwrap_or_else(|| final_ordinal.min(1));
+        for effect in [
+            EffectProfile::FlameEmitter(FlamePalette::Natural),
+            EffectProfile::VapourRelease,
+            EffectProfile::SplashEmitter,
+            EffectProfile::HeatDistortion,
+        ] {
+            push_process_effect(
+                &mut effects,
+                effect,
+                process,
+                start_ordinal,
+                final_ordinal,
+                EffectIntensity::Strong,
+            );
+        }
+    }
 
     let mut profile = PresentationProfile {
         id: reaction.profile_id.clone(),
@@ -2261,12 +2324,14 @@ pub fn compile_phase_driven_profile(
         gas_evolution: None,
         metal_displacement: None,
         solid_solid_synthesis: None,
+        explosive_metal_water: None,
         post_process: (reaction.process
             == Some(MacroscopicProcess::SolventEvaporationCrystallization))
         .then_some(MacroscopicProcess::SolventEvaporationCrystallization),
         equation: reaction.equation.clone(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
     };
+    authorize_explosive_metal_water_assembly(&mut profile, reaction, &active);
     authorize_precipitation_assembly(&mut profile, Some((reaction, &active)));
     authorize_gas_evolution_assembly(&mut profile, reaction, &active);
     authorize_metal_displacement_assembly(&mut profile, reaction, &active);
@@ -2513,6 +2578,135 @@ fn authorize_gas_evolution_from_objects(profile: &mut PresentationProfile) {
     });
 }
 
+fn authorize_explosive_metal_water_assembly(
+    profile: &mut PresentationProfile,
+    reaction: &MacroscopicReaction,
+    active: &ActiveObservations,
+) {
+    let Some(MacroscopicProcess::ExplosiveMetalWater(variant)) = reaction.process else {
+        return;
+    };
+    if profile.precipitation.is_some()
+        || profile.gas_evolution.is_some()
+        || profile.metal_displacement.is_some()
+        || profile.solid_solid_synthesis.is_some()
+    {
+        return;
+    }
+    let Some((metal, water)) = explosive_metal_water_reactants(reaction, variant) else {
+        return;
+    };
+    let Some((hydroxide, hydrogen)) = explosive_metal_water_products(reaction) else {
+        return;
+    };
+    let contact_ordinal = profile.effects.iter().find_map(|effect| {
+        (effect.effect == EffectProfile::HeatDistortion
+            && effect.authorization
+                == EffectAuthorization::Process(MacroscopicProcess::ExplosiveMetalWater(variant)))
+        .then_some(effect.start_ordinal)
+    });
+    let Some(contact_ordinal) = contact_ordinal else {
+        return;
+    };
+    let gas_object_is_bound = profile.objects.iter().any(|object| {
+        object.role == SceneRole::Product
+            && object.asset == AssetProfile::GasCloud
+            && object.id == hydrogen.binding
+            && object.visible_from_ordinal >= contact_ordinal
+    });
+    if !gas_object_is_bound {
+        return;
+    }
+    let Some(vessel) = profile
+        .objects
+        .iter_mut()
+        .find(|object| object.role == SceneRole::Vessel)
+    else {
+        return;
+    };
+    vessel.asset = AssetProfile::ExplosiveMetalWaterAssembly;
+    profile.explosive_metal_water = Some(ExplosiveMetalWaterVisualProfile {
+        contact_ordinal,
+        variant,
+        water_reactant: exact_bound_material_colour(water, COLOURLESS_LIQUID, active),
+        metal_reactant: exact_bound_material_colour(metal, NEUTRAL_METAL, active),
+        hydroxide_product: exact_bound_material_colour(hydroxide, COLOURLESS_LIQUID, active),
+        hydrogen_product: exact_bound_material_colour(hydrogen, PALE_COLOURLESS_GAS, active),
+    });
+}
+
+fn explosive_metal_water_reactants(
+    reaction: &MacroscopicReaction,
+    variant: ExplosiveMetalWaterVariant,
+) -> Option<(&MacroscopicMaterial, &MacroscopicMaterial)> {
+    let materials = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Reactant)
+        .collect::<Vec<_>>();
+    let [first, second] = materials.as_slice() else {
+        return None;
+    };
+    let valid_layout = |metal: &MacroscopicMaterial, water: &MacroscopicMaterial| {
+        metal.phase == Phase::Solid
+            && metal.representation == RepresentationKind::Metallic
+            && metal.explosive_water_contact == Some(variant)
+            && water.phase == Phase::Liquid
+            && water.representation == RepresentationKind::Molecular
+    };
+    if valid_layout(first, second) {
+        Some((first, second))
+    } else {
+        valid_layout(second, first).then_some((second, first))
+    }
+}
+
+fn explosive_metal_water_products(
+    reaction: &MacroscopicReaction,
+) -> Option<(&MacroscopicMaterial, &MacroscopicMaterial)> {
+    let materials = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Product)
+        .collect::<Vec<_>>();
+    let [first, second] = materials.as_slice() else {
+        return None;
+    };
+    let valid_layout = |hydroxide: &MacroscopicMaterial, hydrogen: &MacroscopicMaterial| {
+        hydroxide.phase == Phase::Aqueous
+            && hydroxide.representation == RepresentationKind::Ionic
+            && hydrogen.phase == Phase::Gas
+            && hydrogen.representation == RepresentationKind::Molecular
+    };
+    if valid_layout(first, second) {
+        Some((first, second))
+    } else {
+        valid_layout(second, first).then_some((second, first))
+    }
+}
+
+fn exact_bound_material_colour(
+    material: &MacroscopicMaterial,
+    fallback: VisualColour,
+    active: &ActiveObservations,
+) -> BoundVisualColour {
+    let base_colour = material.colour.unwrap_or(fallback);
+    let exact = active
+        .get(&(material.binding.clone(), ObservationPredicate::Colour))
+        .and_then(|(ordinal, value)| {
+            value
+                .as_deref()
+                .and_then(visual_colour)
+                .map(|colour| (*ordinal, colour))
+        });
+    BoundVisualColour {
+        binding: material.binding.clone(),
+        base_colour,
+        colour: exact.map_or(base_colour, |(_, colour)| colour),
+        transition_ordinal: exact.map(|(ordinal, _)| ordinal),
+    }
+}
+
 fn authorize_precipitation_assembly(
     profile: &mut PresentationProfile,
     phase_data: Option<(&MacroscopicReaction, &ActiveObservations)>,
@@ -2718,7 +2912,11 @@ fn authorize_gas_evolution_assembly(
 ) {
     if matches!(
         reaction.process,
-        Some(MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion)
+        Some(
+            MacroscopicProcess::CompleteCombustion
+                | MacroscopicProcess::IncompleteCombustion
+                | MacroscopicProcess::ExplosiveMetalWater(_)
+        )
     ) || profile.precipitation.is_some()
     {
         return;
@@ -3547,6 +3745,7 @@ pub struct ScenePlan {
     pub gas_evolution: Option<GasEvolutionVisualProfile>,
     pub metal_displacement: Option<MetalDisplacementVisualProfile>,
     pub solid_solid_synthesis: Option<SolidSolidSynthesisVisualProfile>,
+    pub explosive_metal_water: Option<ExplosiveMetalWaterVisualProfile>,
     pub equation: String,
     pub annotations: Vec<MacroscopicAnnotation>,
     pub timeline: RealWorldTimeline,
@@ -3583,6 +3782,41 @@ pub fn compile_real_world_plan(
                 .map(move |observation| (ordinal, observation))
         })
         .collect::<Vec<_>>();
+    validate_real_world_profile(profile, &active_observations)?;
+    let final_ordinal = frames
+        .frames()
+        .last()
+        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
+        .ok_or(PlanError::PresentationRange)?;
+    let timeline = compile_real_world_timeline(profile, final_ordinal);
+    let annotations = compile_macroscopic_annotations(frames, final_ordinal);
+    let reaction = frames.digest().map_err(|_| PlanError::Digest)?;
+    Ok(ScenePlan {
+        id: reaction,
+        reaction,
+        profile_id: profile.id.clone(),
+        environment: profile.environment,
+        objects: profile.objects.clone(),
+        effects: profile.effects.clone(),
+        camera: profile.camera.clone(),
+        precipitation: profile.precipitation.clone(),
+        gas_evolution: profile.gas_evolution.clone(),
+        metal_displacement: profile.metal_displacement.clone(),
+        solid_solid_synthesis: profile.solid_solid_synthesis.clone(),
+        explosive_metal_water: profile.explosive_metal_water.clone(),
+        equation: profile.equation.clone(),
+        annotations,
+        timeline,
+        post_process: profile.post_process,
+        disclosure: profile.disclosure.clone(),
+        virtual_only_disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+    })
+}
+
+fn validate_real_world_profile(
+    profile: &PresentationProfile,
+    active_observations: &[(u16, &FrameObservation)],
+) -> Result<(), PlanError> {
     if profile.effects.iter().any(|effect| {
         !effect_authorization_is_compatible(effect.effect, effect.trigger, effect.authorization)
             || (effect.surface_oxide_colour.is_some()
@@ -3614,11 +3848,12 @@ pub fn compile_real_world_plan(
     {
         return Err(PlanError::IncompatibleObjectObservation);
     }
-    validate_colour_transitions(profile, &active_observations)?;
-    validate_precipitation_profile(profile, &active_observations)?;
-    validate_gas_evolution_profile(profile, &active_observations)?;
-    validate_metal_displacement_profile(profile, &active_observations)?;
-    validate_solid_solid_synthesis_profile(profile, &active_observations)?;
+    validate_colour_transitions(profile, active_observations)?;
+    validate_precipitation_profile(profile, active_observations)?;
+    validate_gas_evolution_profile(profile, active_observations)?;
+    validate_metal_displacement_profile(profile, active_observations)?;
+    validate_solid_solid_synthesis_profile(profile, active_observations)?;
+    validate_explosive_metal_water_profile(profile, active_observations)?;
     if profile.objects.iter().any(|object| {
         (object.role == SceneRole::Product
             && object.observation.is_none()
@@ -3640,33 +3875,7 @@ pub fn compile_real_world_plan(
     }) {
         return Err(PlanError::UnsupportedObjectObservation);
     }
-    let final_ordinal = frames
-        .frames()
-        .last()
-        .and_then(|frame| u16::try_from(frame.ordinal()).ok())
-        .ok_or(PlanError::PresentationRange)?;
-    let timeline = compile_real_world_timeline(profile, final_ordinal);
-    let annotations = compile_macroscopic_annotations(frames, final_ordinal);
-    let reaction = frames.digest().map_err(|_| PlanError::Digest)?;
-    Ok(ScenePlan {
-        id: reaction,
-        reaction,
-        profile_id: profile.id.clone(),
-        environment: profile.environment,
-        objects: profile.objects.clone(),
-        effects: profile.effects.clone(),
-        camera: profile.camera.clone(),
-        precipitation: profile.precipitation.clone(),
-        gas_evolution: profile.gas_evolution.clone(),
-        metal_displacement: profile.metal_displacement.clone(),
-        solid_solid_synthesis: profile.solid_solid_synthesis.clone(),
-        equation: profile.equation.clone(),
-        annotations,
-        timeline,
-        post_process: profile.post_process,
-        disclosure: profile.disclosure.clone(),
-        virtual_only_disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
-    })
+    Ok(())
 }
 
 fn validate_colour_transitions(
@@ -4022,6 +4231,82 @@ fn validate_solid_solid_synthesis_profile(
     Ok(())
 }
 
+fn validate_explosive_metal_water_profile(
+    profile: &PresentationProfile,
+    active_observations: &[(u16, &FrameObservation)],
+) -> Result<(), PlanError> {
+    let assembly_selected = profile.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && object.asset == AssetProfile::ExplosiveMetalWaterAssembly
+    });
+    let Some(explosive) = &profile.explosive_metal_water else {
+        return if assembly_selected {
+            Err(PlanError::InvalidExplosiveMetalWaterProfile)
+        } else {
+            Ok(())
+        };
+    };
+    let bindings = [
+        explosive.water_reactant.binding.as_str(),
+        explosive.metal_reactant.binding.as_str(),
+        explosive.hydroxide_product.binding.as_str(),
+        explosive.hydrogen_product.binding.as_str(),
+    ];
+    let bindings_are_distinct = bindings
+        .iter()
+        .enumerate()
+        .all(|(index, binding)| !bindings[..index].contains(binding));
+    let process = MacroscopicProcess::ExplosiveMetalWater(explosive.variant);
+    let effects_are_authorized = [
+        EffectProfile::FlameEmitter(FlamePalette::Natural),
+        EffectProfile::VapourRelease,
+        EffectProfile::SplashEmitter,
+        EffectProfile::HeatDistortion,
+    ]
+    .into_iter()
+    .all(|expected| {
+        profile.effects.iter().any(|effect| {
+            effect.effect == expected
+                && effect.start_ordinal == explosive.contact_ordinal
+                && effect.authorization == EffectAuthorization::Process(process)
+        })
+    });
+    let gas_object_is_bound = profile.objects.iter().any(|object| {
+        object.role == SceneRole::Product
+            && object.asset == AssetProfile::GasCloud
+            && object.id == explosive.hydrogen_product.binding
+            && object.visible_from_ordinal >= explosive.contact_ordinal
+    });
+    let exact_colours_match = [
+        &explosive.water_reactant,
+        &explosive.metal_reactant,
+        &explosive.hydroxide_product,
+        &explosive.hydrogen_product,
+    ]
+    .into_iter()
+    .all(|bound| {
+        active_observations
+            .iter()
+            .find(|(_, observation)| {
+                observation.predicate == ObservationPredicate::Colour
+                    && observation.subject_binding == bound.binding
+            })
+            .is_none_or(|(ordinal, observation)| {
+                observation.value.as_deref().and_then(visual_colour) == Some(bound.colour)
+                    && bound.transition_ordinal == Some(*ordinal)
+            })
+    });
+    if !assembly_selected
+        || !bindings_are_distinct
+        || !effects_are_authorized
+        || !gas_object_is_bound
+        || !exact_colours_match
+    {
+        return Err(PlanError::InvalidExplosiveMetalWaterProfile);
+    }
+    Ok(())
+}
+
 fn effect_authorization_is_compatible(
     effect: EffectProfile,
     predicate: ObservationPredicate,
@@ -4055,6 +4340,12 @@ fn effect_authorization_is_compatible(
             ) | (
                 MacroscopicProcess::SolidSolidSynthesis,
                 EffectProfile::SolidFormation | EffectProfile::ReactionActivity
+            ) | (
+                MacroscopicProcess::ExplosiveMetalWater(_),
+                EffectProfile::FlameEmitter(FlamePalette::Natural)
+                    | EffectProfile::VapourRelease
+                    | EffectProfile::SplashEmitter
+                    | EffectProfile::HeatDistortion
             )
         );
     }
@@ -4145,6 +4436,7 @@ fn object_observation_is_compatible(object: &PresentationObject) -> bool {
         AssetProfile::LaboratoryBench
         | AssetProfile::DarkPresentationPlatform
         | AssetProfile::ReactiveMetalWaterAssembly
+        | AssetProfile::ExplosiveMetalWaterAssembly
         | AssetProfile::NeutralisationEvaporationAssembly
         | AssetProfile::CompleteCombustionAssembly
         | AssetProfile::IncompleteCombustionAssembly
@@ -4264,6 +4556,9 @@ fn compile_real_world_timeline(
         fit_authored_six_second_duration(&mut beats);
     }
     if profile.solid_solid_synthesis.is_some() {
+        fit_authored_six_second_duration(&mut beats);
+    }
+    if profile.explosive_metal_water.is_some() {
         fit_authored_six_second_duration(&mut beats);
     }
     RealWorldTimeline { beats }
@@ -4413,6 +4708,7 @@ pub enum PlanError {
     InvalidGasEvolutionProfile,
     InvalidMetalDisplacementProfile,
     InvalidSolidSolidSynthesisProfile,
+    InvalidExplosiveMetalWaterProfile,
     PresentationRange,
     Digest,
 }
@@ -4453,6 +4749,9 @@ impl fmt::Display for PlanError {
             Self::InvalidSolidSolidSynthesisProfile => formatter.write_str(
                 "solid-solid synthesis assembly lacks exactly two solid reactants, one solid product, or validated formation and colour bindings",
             ),
+            Self::InvalidExplosiveMetalWaterProfile => formatter.write_str(
+                "high-energy metal/water assembly lacks exact reviewed variant, phase layout, effect, or material bindings",
+            ),
             Self::PresentationRange => {
                 formatter.write_str("validated frames exceed the presentation range")
             }
@@ -4476,10 +4775,11 @@ mod tests {
         MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction, MacroscopicStage,
         ObjectObservationBinding, PresentationEffect, PresentationObject, PresentationProfile,
         PresentationTransform, ReactionVisualInputs, SceneRole, TimelinePosition, VisualColour,
-        authorize_gas_evolution_assembly, authorize_metal_displacement_assembly,
-        authorize_solid_solid_synthesis_assembly, compile_real_world_timeline,
-        effect_authorization_is_compatible, electrolysis_transfer_text,
-        macroscopic_beat_duration_ms, precipitation_colours_from_materials, visual_colour,
+        authorize_explosive_metal_water_assembly, authorize_gas_evolution_assembly,
+        authorize_metal_displacement_assembly, authorize_solid_solid_synthesis_assembly,
+        compile_real_world_timeline, effect_authorization_is_compatible,
+        electrolysis_transfer_text, macroscopic_beat_duration_ms,
+        precipitation_colours_from_materials, visual_colour,
     };
 
     fn precipitation_material(
@@ -4497,6 +4797,7 @@ mod tests {
             phase,
             representation: RepresentationKind::Ionic,
             colour,
+            explosive_water_contact: None,
         }
     }
 
@@ -4574,6 +4875,7 @@ mod tests {
             gas_evolution: None,
             metal_displacement: None,
             solid_solid_synthesis: None,
+            explosive_metal_water: None,
             post_process: None,
             equation: "validated equation".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -4623,6 +4925,227 @@ mod tests {
         )])
     }
 
+    fn explosive_material(
+        binding: &str,
+        role: MacroscopicMaterialRole,
+        phase: Phase,
+        representation: RepresentationKind,
+        capability: Option<super::ExplosiveMetalWaterVariant>,
+    ) -> MacroscopicMaterial {
+        MacroscopicMaterial {
+            binding: binding.to_owned(),
+            semantic_identity: binding.to_owned(),
+            structure_id: format!("Structures.{binding}"),
+            formula: binding.to_owned(),
+            role,
+            phase,
+            representation,
+            colour: None,
+            explosive_water_contact: capability,
+        }
+    }
+
+    fn explosive_profile(variant: super::ExplosiveMetalWaterVariant) -> PresentationProfile {
+        let process = MacroscopicProcess::ExplosiveMetalWater(variant);
+        PresentationProfile {
+            id: "generic-explosive-metal-water".to_owned(),
+            environment: AssetProfile::LaboratoryBench,
+            objects: vec![
+                PresentationObject {
+                    id: "vessel".to_owned(),
+                    asset: AssetProfile::Beaker,
+                    semantic_identity: "open vessel".to_owned(),
+                    appearance: AppearanceProfile::ClearGlass,
+                    role: SceneRole::Vessel,
+                    transform: PresentationTransform {
+                        translation: [0, 0, 0],
+                        rotation: [0, 0, 0],
+                        scale: [1_000, 1_000, 1_000],
+                    },
+                    visible_from_ordinal: 0,
+                    observation: None,
+                    colour_transition: None,
+                },
+                PresentationObject {
+                    id: "hydrogen".to_owned(),
+                    asset: AssetProfile::GasCloud,
+                    semantic_identity: "validated gas product".to_owned(),
+                    appearance: AppearanceProfile::LaboratoryNeutral,
+                    role: SceneRole::Product,
+                    transform: PresentationTransform {
+                        translation: [0, 0, 0],
+                        rotation: [0, 0, 0],
+                        scale: [1_000, 1_000, 1_000],
+                    },
+                    visible_from_ordinal: 4,
+                    observation: None,
+                    colour_transition: None,
+                },
+            ],
+            effects: [
+                EffectProfile::FlameEmitter(FlamePalette::Natural),
+                EffectProfile::VapourRelease,
+                EffectProfile::SplashEmitter,
+                EffectProfile::HeatDistortion,
+            ]
+            .into_iter()
+            .map(|effect| PresentationEffect {
+                effect,
+                trigger: ObservationPredicate::Forms,
+                authorization: EffectAuthorization::Process(process),
+                intensity: EffectIntensity::Strong,
+                start_ordinal: 4,
+                end_ordinal: 6,
+                surface_oxide_colour: None,
+            })
+            .collect(),
+            camera: Vec::new(),
+            precipitation: None,
+            gas_evolution: None,
+            metal_displacement: None,
+            solid_solid_synthesis: None,
+            explosive_metal_water: None,
+            post_process: None,
+            equation: "validated equation".to_owned(),
+            disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
+        }
+    }
+
+    fn explosive_reaction(
+        variant: super::ExplosiveMetalWaterVariant,
+        materials: Vec<MacroscopicMaterial>,
+        process: Option<MacroscopicProcess>,
+    ) -> MacroscopicReaction {
+        MacroscopicReaction {
+            profile_id: "generic-explosive-metal-water".to_owned(),
+            equation: "validated equation".to_owned(),
+            materials,
+            intensity: EffectIntensity::Strong,
+            process: process.or(Some(MacroscopicProcess::ExplosiveMetalWater(variant))),
+            fuel_carbon_count: None,
+            surface_oxide_colour: None,
+        }
+    }
+
+    #[test]
+    fn explosive_metal_water_selection_requires_all_exact_typed_materials() {
+        for variant in [
+            super::ExplosiveMetalWaterVariant::Rubidium,
+            super::ExplosiveMetalWaterVariant::Caesium,
+            super::ExplosiveMetalWaterVariant::Francium,
+        ] {
+            let reaction = explosive_reaction(
+                variant,
+                vec![
+                    explosive_material(
+                        "metal",
+                        MacroscopicMaterialRole::Reactant,
+                        Phase::Solid,
+                        RepresentationKind::Metallic,
+                        Some(variant),
+                    ),
+                    explosive_material(
+                        "water",
+                        MacroscopicMaterialRole::Reactant,
+                        Phase::Liquid,
+                        RepresentationKind::Molecular,
+                        None,
+                    ),
+                    explosive_material(
+                        "hydroxide",
+                        MacroscopicMaterialRole::Product,
+                        Phase::Aqueous,
+                        RepresentationKind::Ionic,
+                        None,
+                    ),
+                    explosive_material(
+                        "hydrogen",
+                        MacroscopicMaterialRole::Product,
+                        Phase::Gas,
+                        RepresentationKind::Molecular,
+                        None,
+                    ),
+                ],
+                None,
+            );
+            let mut profile = explosive_profile(variant);
+            authorize_explosive_metal_water_assembly(&mut profile, &reaction, &BTreeMap::new());
+            assert_eq!(
+                profile
+                    .explosive_metal_water
+                    .as_ref()
+                    .map(|visual| visual.variant),
+                Some(variant)
+            );
+        }
+    }
+
+    #[test]
+    fn explosive_metal_water_rejects_missing_ambiguous_and_lower_priority_layouts() {
+        let variant = super::ExplosiveMetalWaterVariant::Rubidium;
+        let exact = vec![
+            explosive_material(
+                "metal",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Solid,
+                RepresentationKind::Metallic,
+                Some(variant),
+            ),
+            explosive_material(
+                "water",
+                MacroscopicMaterialRole::Reactant,
+                Phase::Liquid,
+                RepresentationKind::Molecular,
+                None,
+            ),
+            explosive_material(
+                "hydroxide",
+                MacroscopicMaterialRole::Product,
+                Phase::Aqueous,
+                RepresentationKind::Ionic,
+                None,
+            ),
+            explosive_material(
+                "hydrogen",
+                MacroscopicMaterialRole::Product,
+                Phase::Gas,
+                RepresentationKind::Molecular,
+                None,
+            ),
+        ];
+        let scenarios = [
+            (
+                exact
+                    .iter()
+                    .filter(|material| material.binding != "water")
+                    .cloned()
+                    .collect(),
+                Some(MacroscopicProcess::ExplosiveMetalWater(variant)),
+            ),
+            (
+                {
+                    let mut materials = exact.clone();
+                    materials.push(explosive_material(
+                        "extra-product",
+                        MacroscopicMaterialRole::Product,
+                        Phase::Gas,
+                        RepresentationKind::Molecular,
+                        None,
+                    ));
+                    materials
+                },
+                Some(MacroscopicProcess::ExplosiveMetalWater(variant)),
+            ),
+            (exact, Some(MacroscopicProcess::MetalDisplacement)),
+        ];
+        for (materials, process) in scenarios {
+            let reaction = explosive_reaction(variant, materials, process);
+            let mut profile = explosive_profile(variant);
+            authorize_explosive_metal_water_assembly(&mut profile, &reaction, &BTreeMap::new());
+            assert!(profile.explosive_metal_water.is_none());
+        }
+    }
+
     fn solid_synthesis_profile(include_front: bool) -> PresentationProfile {
         let mut effects = vec![PresentationEffect {
             effect: EffectProfile::SolidFormation,
@@ -4670,6 +5193,7 @@ mod tests {
             gas_evolution: None,
             metal_displacement: None,
             solid_solid_synthesis: None,
+            explosive_metal_water: None,
             post_process: None,
             equation: "validated equation".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -4915,6 +5439,7 @@ mod tests {
                 phase,
                 representation,
                 colour,
+                explosive_water_contact: None,
             }
         };
         MacroscopicReaction {
@@ -5308,6 +5833,7 @@ mod tests {
             gas_evolution: None,
             metal_displacement: None,
             solid_solid_synthesis: None,
+            explosive_metal_water: None,
             post_process: Some(MacroscopicProcess::SolventEvaporationCrystallization),
             equation: "validated reaction".to_owned(),
             disclosure: super::VIRTUAL_ONLY_DISCLOSURE.to_owned(),

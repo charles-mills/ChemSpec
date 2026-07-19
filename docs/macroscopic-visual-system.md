@@ -107,7 +107,7 @@ validated structures/rule and reviewed macroscopic records are present; no Rust
 animation branch for that reaction is required.
 
 Older host profiles are completed by one generic compatibility pass. Before
-this pass, 172 of the 205 currently supported experiences had no reusable
+this original pass, 172 of the then-205 supported experiences had no reusable
 macroscopic effects: the three halogen-displacement profiles and all 169
 registry-generated oxygen, fixed-charge-ion-pair, and covalent-combination
 profiles. The compatibility pass now requires every supported profile to have
@@ -187,6 +187,48 @@ represents released gas rather than smoke, and this category never adds a
 flame. The clips reuse the shared beaker and decode into separate lazy caches,
 so switching reactions cannot leak geometry, material colour, or accumulated
 animation state between scenes.
+
+### Reviewed high-energy heavy-alkali water contact
+
+`ExplosiveMetalWater` is a reusable presentation process, not a reaction-name
+route. The reviewed catalogue attaches the bounded `water_contact` capability
+to an exact validated metallic structure, with a typed `Rubidium`, `Caesium`,
+or project-authorised `Francium` authored-clip variant. The classifier accepts
+it only for exactly two reactants—one capability-bearing solid metallic
+reactant and one liquid molecular water reactant—and exactly two products—one
+aqueous ionic product and one molecular gaseous product. Missing, extra,
+unknown, mismatched, or ambiguous material layouts do not select it. The
+renderer cannot recover this category from a name, formula, display label,
+fixture ID, rule ID, or asset filename.
+
+Static reviewed expansion projects the catalogue material facts into the same
+`MacroscopicProcess::ExplosiveMetalWater` value used by a newly researched
+claim compiled through the catalogue-aware outcome compiler. Dynamic cache
+schema 4 and compiler contract 5 deliberately invalidate older entries, then
+recompile their claims at the catalogue boundary before they can receive a
+presentation. Structure adoption may preserve an already catalogue-authorised
+process only when the exact side, identity, and order invariants hold; it never
+recreates the capability from strings.
+
+Existing process precedence remains explicit. The reviewed/local classifier
+checks metal displacement, surface oxidation, this high-energy layout, solvent
+separation, combustion, then solid-solid synthesis. The dynamic compiler keeps
+its existing combustion and surface-oxidation precedence, then checks this
+layout before generic gas evolution, precipitation, metal displacement,
+solvent separation, and solid-solid synthesis. The candidate layouts are
+structurally disjoint from the earlier winners; any future overlap must be
+resolved in the chemistry classifier rather than in presentation.
+
+The three source clips preserve their authored 1–180, 30 FPS, six-second
+window and sample from the absolute playhead. They reuse the shared beaker,
+exclude stage geometry, and lazily parse only the selected Rb/Cs/Fr clip.
+Shards, explosion, flame, bubbles, splashes, and vapour remain hidden until
+their authored contact boundaries. Exact validated colour observations outrank
+reviewed material RGB; otherwise water, metal, hydroxide, and hydrogen use
+their bound conservative phase colours. Product-water colour moves from the
+reactant base toward the product target at the validated product/colour ordinal,
+while opacity remains phase-owned. The adjacent authored-asset metadata records
+source hashes, runtime hashes, source material aliases, and licensing status.
 
 Combustion is a closed chemistry-process classification. It is established
 before presentation only when the validated equation contains one molecular

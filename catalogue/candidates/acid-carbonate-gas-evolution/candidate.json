@@ -353,7 +353,7 @@
       "parameters": {
         "member": {
           "kind": "element",
-          "category": "Categories.AlkaliMetal"
+          "category": "Categories.ReviewedAlkaliSalt"
         }
       },
       "components": [
@@ -456,7 +456,7 @@
       "parameters": {
         "member": {
           "kind": "element",
-          "category": "Categories.AlkaliMetal"
+          "category": "Categories.ReviewedAlkaliSalt"
         }
       },
       "components": [
@@ -824,7 +824,7 @@
       "parameters": {
         "member": {
           "kind": "element",
-          "category": "Categories.AlkaliMetal"
+          "category": "Categories.ReviewedAlkaliSalt"
         },
         "halide": {
           "kind": "element",
@@ -1450,7 +1450,7 @@
       "parameters": {
         "member": {
           "kind": "element",
-          "category": "Categories.AlkaliMetal"
+          "category": "Categories.ReviewedAlkaliSalt"
         },
         "halide": {
           "kind": "element",
