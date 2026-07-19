@@ -121,8 +121,9 @@ The subsequent 3D page is a separate illustrative scale. It consumes a scene
 plan containing reusable visual assets and observation-gated effects, not the
 structural atom graph. Its elevated near-isometric camera is orthographic and
 fixed: there is no orbit, pan, zoom, shake, or cinematic camera motion. Timing
-and fluid/effect motion remain illustrative and carry a persistent
-virtual-model disclosure.
+and fluid/effect motion remain illustrative. The model view stays visually
+focused on the scene and playback controls instead of repeating a disclosure
+overlay or showing a terminal narration card.
 
 Completing the macroscopic timeline unlocks a final product record. On desktop,
 the page uses an even split: the left side is a full-height, continuously
@@ -237,6 +238,5 @@ content geometry.
 - Interactive controls retain a visible border on dark surfaces and never rely
   on hover alone.
 - Validated, assumption, offline, and future error states use explicit wording.
-- The simulation disclosure remains visible near the model at every breakpoint.
 - Scroll regions use stable heights and visible rails; source remains selectable
   text rather than being painted into the canvas.

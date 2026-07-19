@@ -763,6 +763,77 @@ fn dynamic_macroscopic_reaction(
     })
 }
 
+/// Offline hero-clip export: the presentation is stepped deterministically
+/// at 30 fps, each frame screenshotted and streamed into ffmpeg. Playback
+/// stays paused; only explicit seeks advance the playhead, so the clip is a
+/// pure function of the plan.
+struct HeroExport {
+    output: std::path::PathBuf,
+    frame_index: u64,
+    total_frames: u64,
+    capture_in_flight: bool,
+    encoder: Option<std::process::Child>,
+    fallback_dir: Option<std::path::PathBuf>,
+}
+
+impl std::fmt::Debug for HeroExport {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("HeroExport")
+            .field("output", &self.output)
+            .field("frame_index", &self.frame_index)
+            .field("total_frames", &self.total_frames)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Closes the encoder (or prints assembly instructions for raw frames) and
+/// ends the process: export is a headless CLI mode.
+fn finish_hero_export(mut export: HeroExport) -> ! {
+    if let Some(mut child) = export.encoder.take() {
+        drop(child.stdin.take());
+        match child.wait() {
+            Ok(status) if status.success() => {
+                eprintln!("hero clip written to {}", export.output.display());
+            }
+            other => eprintln!("ffmpeg did not finish cleanly: {other:?}"),
+        }
+    } else if let Some(dir) = &export.fallback_dir {
+        eprintln!(
+            "assemble with: ffmpeg -f image2 -framerate 30 -i {}/frame-%05d.ppm -vf scale=iw/2:-2,format=yuv420p {}",
+            dir.display(),
+            export.output.display()
+        );
+    }
+    std::process::exit(0);
+}
+
+/// Hero clip export rides the 3D smoke boot: start at zero, paused, and let
+/// the export loop drive the playhead frame by frame.
+fn arm_hero_export(app: &mut App) {
+    let export_output = std::env::args().find_map(|argument| {
+        argument
+            .strip_prefix("--export-hero=")
+            .map(std::path::PathBuf::from)
+    });
+    if let Some(output) = export_output
+        && let Some(animation) = &mut app.structural_animation
+    {
+        animation.playing = false;
+        animation.real_world_playhead_ms = 0;
+        // A short hold at the end keeps the arrived hero frame on screen.
+        let duration_ms = animation.real_world_plan.timeline.duration_ms() + 1_500;
+        app.hero_export = Some(HeroExport {
+            output,
+            frame_index: 0,
+            total_frames: duration_ms * 30 / 1_000 + 1,
+            capture_in_flight: false,
+            encoder: None,
+            fallback_dir: None,
+        });
+    }
+}
+
 fn launch_state() -> App {
     let mut app = App {
         dump_frame_path: std::env::args()
@@ -833,6 +904,9 @@ fn launch_state() -> App {
                 }
             }
             animation.playing = smoke_from_start;
+        }
+        if three_dimensional {
+            arm_hero_export(&mut app);
         }
         app.enter_screen(if three_dimensional {
             Screen::Structural3d
@@ -999,6 +1073,8 @@ enum Message {
     WindowResized(Size),
     DumpFrame,
     FrameCaptured(std::path::PathBuf, iced::window::Screenshot),
+    ExportFrame,
+    ExportCaptured(iced::window::Screenshot),
     Dynamic(dynamic_reaction::Message),
     /// Swallows clicks on the overlay panel so they miss the scrim.
     Noop,
@@ -1403,6 +1479,7 @@ struct App {
     ui_zoom: f32,
     /// Debug harness: dump one frame to this path, then keep running.
     dump_frame_path: Option<std::path::PathBuf>,
+    hero_export: Option<HeroExport>,
 }
 
 impl Default for App {
@@ -1446,6 +1523,7 @@ impl Default for App {
             structural_shortcut_state: StructuralShortcutState::Inactive,
             ui_zoom: 1.0,
             dump_frame_path: None,
+            hero_export: None,
         }
     }
 }
@@ -1807,6 +1885,8 @@ impl App {
             message @ (Message::WindowResized(_)
             | Message::DumpFrame
             | Message::FrameCaptured(..)
+            | Message::ExportFrame
+            | Message::ExportCaptured(..)
             | Message::Noop
             | Message::KeyboardEvent { .. }
             | Message::PointerPressed
@@ -1866,6 +1946,100 @@ impl App {
         Task::none()
     }
 
+    /// One export step: seek the paused playhead to the frame's exact
+    /// moment and request a capture. Finishes (and exits the process) once
+    /// every frame has been written.
+    fn advance_hero_export(&mut self) -> Task<Message> {
+        let Some(export) = &mut self.hero_export else {
+            return Task::none();
+        };
+        if export.capture_in_flight {
+            return Task::none();
+        }
+        if export.frame_index >= export.total_frames {
+            let export = self.hero_export.take().expect("export state present");
+            finish_hero_export(export);
+        }
+        if let Some(animation) = &mut self.structural_animation {
+            let duration = animation.real_world_plan.timeline.duration_ms();
+            animation.real_world_playhead_ms = (export.frame_index * 1_000 / 30).min(duration);
+        }
+        export.capture_in_flight = true;
+        iced::window::latest()
+            .and_then(iced::window::screenshot)
+            .map(Message::ExportCaptured)
+    }
+
+    fn write_hero_export_frame(&mut self, shot: &iced::window::Screenshot) {
+        let Some(export) = &mut self.hero_export else {
+            return;
+        };
+        if export.encoder.is_none() && export.fallback_dir.is_none() {
+            let spawned = std::process::Command::new("ffmpeg")
+                .args([
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-f",
+                    "rawvideo",
+                    "-pixel_format",
+                    "rgba",
+                    "-video_size",
+                    &format!("{}x{}", shot.size.width, shot.size.height),
+                    "-framerate",
+                    "30",
+                    "-i",
+                    "-",
+                    "-vf",
+                    "scale=iw/2:-2,format=yuv420p",
+                    "-movflags",
+                    "+faststart",
+                ])
+                .arg(&export.output)
+                .stdin(std::process::Stdio::piped())
+                .spawn();
+            match spawned {
+                Ok(child) => export.encoder = Some(child),
+                Err(error) => {
+                    // No encoder available: keep raw frames next to the
+                    // requested output and say how to assemble them.
+                    let dir = export.output.with_extension("frames");
+                    let _ = std::fs::create_dir_all(&dir);
+                    eprintln!(
+                        "ffmpeg unavailable ({error}); writing frames to {}",
+                        dir.display()
+                    );
+                    export.fallback_dir = Some(dir);
+                }
+            }
+        }
+        if let Some(child) = &mut export.encoder {
+            use std::io::Write as _;
+            if let Some(stdin) = child.stdin.as_mut() {
+                let _ = stdin.write_all(&shot.rgba);
+            }
+        } else if let Some(dir) = &export.fallback_dir {
+            let mut ppm =
+                format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height).into_bytes();
+            for pixel in shot.rgba.chunks_exact(4) {
+                ppm.extend_from_slice(&pixel[..3]);
+            }
+            let _ = std::fs::write(
+                dir.join(format!("frame-{:05}.ppm", export.frame_index)),
+                ppm,
+            );
+        }
+        export.frame_index += 1;
+        export.capture_in_flight = false;
+        if export.frame_index.is_multiple_of(30) {
+            eprintln!(
+                "hero export: {}/{} frames",
+                export.frame_index, export.total_frames
+            );
+        }
+    }
+
     fn update_input_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowResized(size) => {
@@ -1879,6 +2053,8 @@ impl App {
                         .map(move |shot| Message::FrameCaptured(path.clone(), shot));
                 }
             }
+            Message::ExportFrame => return self.advance_hero_export(),
+            Message::ExportCaptured(shot) => self.write_hero_export_frame(&shot),
             Message::FrameCaptured(path, shot) => {
                 let mut ppm =
                     format!("P6\n{} {}\n255\n", shot.size.width, shot.size.height).into_bytes();
@@ -2945,6 +3121,11 @@ impl App {
         } else {
             Subscription::none()
         };
+        let hero_export = if self.hero_export.is_some() {
+            iced::time::every(std::time::Duration::from_millis(25)).map(|_| Message::ExportFrame)
+        } else {
+            Subscription::none()
+        };
         let screen = if self.screen == Screen::Builder {
             Subscription::batch([
                 periodic_table::subscription(&self.periodic_table).map(Message::PeriodicTable),
@@ -3014,6 +3195,7 @@ impl App {
         Subscription::batch([
             resize,
             frame_dump,
+            hero_export,
             screen,
             dynamic_build,
             dynamic_theatre,
@@ -4031,40 +4213,31 @@ impl App {
                 };
             annotation = annotation.push(appearance_status);
         }
-        let scene_view =
-            iced::widget::Shader::new(structural_3d::Scene::new(real_world_plan, moment))
-                .width(Fill)
-                .height(Fill);
-        let model_disclosure = if compact {
-            "VIRTUAL MODEL · NOT A LAB PROCEDURE"
-        } else {
-            "VIRTUAL MODEL · NOT A LAB PROCEDURE · TIMING, SCALE & MOTION ARE ILLUSTRATIVE"
-        };
+        let scene_view = iced::widget::Shader::new(structural_3d::Scene::new(
+            real_world_plan,
+            moment,
+            // Pause-orbit: the paused bench invites a look around; playback
+            // returns the camera to the director.
+            !animation.playing,
+        ))
+        .width(Fill)
+        .height(Fill);
         let inset_caption: Element<'_, Message> = space().width(Length::Shrink).into();
+        let annotation_panel: Element<'_, Message> = if at_end {
+            space().width(Length::Shrink).into()
+        } else {
+            container(annotation)
+                .style(theme::media_bar)
+                .padding([spacing::SM, spacing::MD])
+                .width(if compact { Fill } else { Length::Fixed(440.0) })
+                .into()
+        };
         let annotation_layer = container(
             column![
-                row![
-                    space().width(Fill),
-                    container(
-                        text(model_disclosure)
-                            .size(type_scale::MICRO)
-                            .color(color::TEXT_SOFT),
-                    )
-                    .style(theme::media_bar)
-                    .padding([spacing::XXS, spacing::XS]),
-                ]
-                .width(Fill),
                 space().height(Fill),
-                row![
-                    container(annotation)
-                        .style(theme::media_bar)
-                        .padding([spacing::SM, spacing::MD])
-                        .width(if compact { Fill } else { Length::Fixed(440.0) }),
-                    space().width(Fill),
-                    inset_caption,
-                ]
-                .align_y(iced::Bottom)
-                .width(Fill),
+                row![annotation_panel, space().width(Fill), inset_caption,]
+                    .align_y(iced::Bottom)
+                    .width(Fill),
             ]
             .height(Fill),
         )

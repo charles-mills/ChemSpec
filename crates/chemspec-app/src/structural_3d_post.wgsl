@@ -295,16 +295,38 @@ fn composite_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
         colour += vec3<f32>(0.55, 0.63, 0.72) * shafts;
     }
 
-    // Close-up focus: tilt-shift-style softening away from frame centre.
+    // Close-up focus: tilt-shift softening away from frame centre, with a
+    // six-tap disc kernel whose highlight weighting rounds bright glints
+    // into bokeh discs instead of smearing them.
     let focus = composite_params.values.w;
     if (focus > 0.001) {
-        let blurred = textureSample(blur_texture, composite_sampler, uv).rgb;
         let centred = uv - vec2<f32>(0.5, 0.46);
         let edge = smoothstep(0.12, 0.55, dot(centred, centred) * 2.6);
-        colour = mix(colour, blurred, edge * focus);
+        let amount = edge * focus;
+        let radius = amount * 0.011;
+        var accum = vec3<f32>(0.0);
+        var weight_sum = 0.0;
+        for (var tap = 0u; tap < 6u; tap += 1u) {
+            let angle = f32(tap) * 1.0471976;
+            let offset = vec2<f32>(cos(angle), sin(angle)) * radius;
+            let tap_colour = textureSample(blur_texture, composite_sampler, uv + offset).rgb;
+            let brightness = dot(tap_colour, vec3<f32>(0.3333));
+            let weight = 1.0 + brightness * brightness * 3.0;
+            accum += tap_colour * weight;
+            weight_sum += weight;
+        }
+        colour = mix(colour, accum / weight_sum, amount);
     }
     colour = (colour + bloom * bloom_strength) * exposure;
     colour = tonemap_pbr_neutral(max(colour, vec3<f32>(0.0)));
+    // End-card: the closing glide draws a soft vignette that frames the
+    // arrival like a title card, then holds it.
+    let endcard = composite_params.clock.w;
+    if (endcard > 0.001) {
+        let framed = input.uv - vec2<f32>(0.5, 0.47);
+        let vignette = 1.0 - smoothstep(0.32, 0.95, dot(framed, framed) * 2.2) * 0.34 * endcard;
+        colour *= vignette;
+    }
     if (composite_params.values.z > 0.5) {
         colour = pow(colour, vec3<f32>(1.0 / 2.2));
     }

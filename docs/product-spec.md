@@ -121,12 +121,11 @@ Provider failure is a workflow state, never a chemistry state.
 
 ## Simulation claim
 
-Persistent disclosure:
-
-> Representative explanatory model. Structural identities, mapping, graph
-> operations, charge, and electron conservation are validated. Layout, motion,
-> timing, finite metallic fragments, and intermediate positions are
-> illustrative.
+The simulation remains a representative explanatory model. Structural
+identities, mapping, graph operations, charge, and electron conservation are
+validated; layout, motion, timing, finite metallic fragments, and intermediate
+positions are illustrative. The player does not repeat this distinction as an
+overlay on the model.
 
 ## Success criteria
 
