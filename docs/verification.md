@@ -100,8 +100,9 @@ ordinary workspace tests:
   generation, graph-diff mechanism derivation, kernel validation, and frame
   projection while asserting **zero model calls**;
 - aqueous-electrolysis tests cover halide and oxoanion discharge with active,
-  depositable, and spectator cations, including exact contextual-water balance
-  and complete structural frames;
+  depositable, and spectator cations, including exact contextual-water balance,
+  net-water normalization for unchanged electrolytes, and complete structural
+  frames;
 - provider-path tests with fakes: structured-output failure, bounded repair,
   escalated mechanism validation, and cache-v3 replay.
 
@@ -201,9 +202,10 @@ synchronization, transition-metal suppression of static Lewis/domain dots
 without suppressing typed transfer motion, and explanatory disclosure. The
 display equation comes from the pinned experience profile; renderer-side
 inference is forbidden.
-Non-1:1 ionic layout tests additionally prove that every validated component
-receives an opposite-charge lattice neighbour and remains in the same rendered
-product cluster.
+Non-1:1 ionic layout tests additionally prove that every covalently connected
+charged fragment receives an opposite-charge lattice neighbour and remains in
+the same rendered product cluster, including catalogue components that aggregate
+multiple disconnected same-charge ions.
 Composer tests prove that manual element-entry order cannot change a displayed
 formula: unambiguous structures supply their canonical formula and unresolved
 inventories use deterministic Hill order.

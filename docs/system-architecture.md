@@ -106,7 +106,10 @@ trust.
 For one-reactant electricity requests, the solver derives electrode products
 from the validated ionic structure. Outcome compilation introduces water as a
 contextual participant only when the incoming claim exactly matches that local
-derivation; it then crosses the normal exact conservation and structural gates.
+derivation. If the dissolved electrolyte is unchanged overall, it remains
+request context and the declaration contains the net water decomposition rather
+than duplicating the electrolyte on both sides. The result then crosses the
+normal exact conservation and structural gates.
 
 ### `chem-presentation`
 

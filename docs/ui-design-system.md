@@ -111,11 +111,14 @@ Typed electron-transfer operations still draw the exact electrons in flight,
 and validated ionic charge badges remain visible. Main-group atoms retain the
 ordinary Lewis-dot presentation.
 
-Ionic lattice layout includes every validated component for non-1:1 formula
-ratios. Charge-alternating grid neighbours are preferred; any excess ions are
-connected to their nearest opposite-charge lattice neighbour for presentation,
-so no component becomes a detached layout island. These connectors express
-many-body ionic membership, not covalent bonds or discrete molecules.
+Ionic lattice layout includes every covalently connected charged fragment for
+non-1:1 formula ratios. When a validated catalogue component aggregates several
+disconnected same-charge ions, the renderer deterministically expands those
+fragments into separate lattice members using only validated covalent edges and
+formal charges. Charge-alternating grid neighbours are preferred; any excess
+ions are connected to their nearest opposite-charge lattice neighbour for
+presentation, so no ion becomes a detached layout island. These connectors
+express many-body ionic membership, not covalent bonds or discrete molecules.
 
 The subsequent 3D page is a separate illustrative scale. It consumes a scene
 plan containing reusable visual assets and observation-gated effects, not the

@@ -866,14 +866,10 @@ fn solve_aqueous_electrolysis(reactant: &StructureDefinition) -> Option<Verdict>
     if active_cation {
         if halide.is_some() {
             products.push(hydroxide_salt(&salt.cation, salt.cation_charge));
-        } else {
-            products.push(exchanged_salt(
-                &salt.cation,
-                salt.cation_charge,
-                &salt,
-                Some(true),
-            ));
         }
+        // With an oxoanion (including hydroxide), the dissolved electrolyte is
+        // unchanged overall. It is request context, not a reaction product;
+        // the exact net reaction is the electrolysis of water.
         products.push(ClaimProduct {
             name: "Hydrogen".to_owned(),
             formula: "H2".to_owned(),
@@ -2054,8 +2050,10 @@ mod tests {
             (
                 "Na2SO4",
                 vec![11, 11, 16, 8, 8, 8, 8],
-                ["Na2SO4", "H2", "O2"].as_slice(),
+                ["H2", "O2"].as_slice(),
             ),
+            ("NaOH", vec![11, 8, 1], ["H2", "O2"].as_slice()),
+            ("KNO3", vec![19, 7, 8, 8, 8], ["H2", "O2"].as_slice()),
         ];
         for (formula, atoms, expected) in cases {
             let request = contextual(formula, &atoms, "electricity");

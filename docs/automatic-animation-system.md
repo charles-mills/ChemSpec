@@ -54,6 +54,9 @@ Reusable cues include focus, highlight, electron-state display, typed
 structural-operation animation, equation emphasis, and transition. Typed
 observations remain available to the macroscopic plan, but the guided
 structural timeline does not add separate observation-explanation scenes.
+The `Disappears` predicate remains in trusted frames for macroscopic effects,
+but the molecular timeline emits neither a reactant-consumption popup nor a
+summary chip for it.
 
 The host-selected profile supplies the display equation for the current pinned
 experience. Neither planner nor renderer derives stoichiometry from drawn atoms,
@@ -67,6 +70,19 @@ produces a bond-formation explanation targeted at the affected atoms, while an
 observation predicate selects gas-evolution, consumption, product-formation, or
 colour wording. Introductory and summary copy remains generic unless the pinned
 presentation profile supplies learner-facing display text.
+
+`CleaveCovalent` explains that bond breaking requires energy and that energy
+available under the reaction conditions permits the shared electron pair to
+redistribute as the atoms form new bonds.
+Under an exact `electricity` context, the wording instead identifies the applied
+potential and electrode electron transfer; it does not imply that a stable bond
+breaks spontaneously or that electrolysis products are favourable without
+electrical work.
+
+`FormCovalent` narration follows the validated bond order: single, double, and
+triple formation describes one, two, or three shared electron pairs respectively,
+then identifies electrostatic attraction between both nuclei and the shared
+electrons as the bonding interaction.
 
 The planner emits completed typed labels such as `ContextLabel` and
 `ExplanationLabel`. A label carries its semantic kind, already composed title
@@ -115,6 +131,14 @@ connector, and target halo. Connector lines have no arrowhead unless direction
 itself carries scientific meaning. This merged beat keeps the change and its
 meaning in one visual context without duplicating labels or interrupting flow.
 
+Stoichiometric coefficients can also require equivalent operations that are
+separated by other validated transitions. Those operations remain distinct in
+the trusted frame sequence and still animate, but the planner narrates each
+typed operation signature only once. It does not add multiplicity filler such
+as “the same change happens at several places.” Product-assignment operations
+remain visible structural transitions without explanatory cards; the final
+product summary carries one unanchored **Reaction complete** note instead.
+
 The 2D renderer evaluates every visual from an absolute educational playhead.
 The media timeline is scrubbable, displays elapsed and total time, exposes
 chapter boundaries, and provides explicit previous/next chapter controls.
@@ -126,8 +150,10 @@ discarding it.
 Atoms are laid out as deterministic connected components using only trusted
 covalent bonds, full charged components of ionic associations, and
 metallic-domain membership. An ionic association is never collapsed to an
-arbitrary atom pair: its visual anchor is the formal-charge-bearing atom when
-one is present, with a component-centre fallback. Stable
+arbitrary atom pair. A validated component that aggregates multiple disconnected
+charged ions is first expanded into its covalently connected charged fragments;
+each fragment's visual anchor is the formal-charge-bearing atom when one is
+present, with a component-centre fallback. Stable
 component slots prevent unrelated molecules from reshuffling when a local
 operation changes. Before/after relations are rendered together: new bonds and
 associations trace in, removed ones retract, and metallic domains morph without

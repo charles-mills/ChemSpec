@@ -5650,14 +5650,17 @@ mod tests {
             .expect("surface oxidation animation is derived")
     }
 
-    fn dynamic_incomplete_methane_static() -> ValidatedStaticOutcome {
+    fn dynamic_incomplete_combustion_static(
+        fuel: &str,
+        atomic_numbers: Vec<u8>,
+    ) -> ValidatedStaticOutcome {
         let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: [
                 ReactantInput {
-                    display: "CH4".into(),
-                    atomic_numbers: vec![6, 1, 1, 1, 1],
+                    display: fuel.into(),
+                    atomic_numbers,
                     species_id: None,
                 },
                 ReactantInput {
@@ -5677,6 +5680,10 @@ mod tests {
             panic!("static outcome")
         };
         outcome
+    }
+
+    fn dynamic_incomplete_methane_static() -> ValidatedStaticOutcome {
+        dynamic_incomplete_combustion_static("CH4", vec![6, 1, 1, 1, 1])
     }
 
     fn dynamic_copper_oxide_neutralisation_static() -> ValidatedStaticOutcome {
@@ -6476,6 +6483,12 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(labels.iter().any(|text| text.starts_with("Anode:")));
         assert!(labels.iter().any(|text| text.starts_with("Cathode:")));
+        assert!(
+            labels
+                .iter()
+                .any(|text| text.starts_with("The applied potential")),
+            "electrolysis bond cleavage must explain its electrical energy source"
+        );
 
         let mut app = App {
             provider: Some(AppMode::Local),
@@ -7746,6 +7759,183 @@ mod tests {
                 }
             }
             assert!(compared > 0, "{request:?} emitted no narrated scenes");
+        }
+    }
+
+    #[test]
+    fn educational_copy_is_scientific_concise_and_finishes_with_one_note() {
+        let mut labels = Vec::new();
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            let summary = plan.scenes.last().expect("plan ends with a summary");
+            assert_eq!(summary.kind, EducationalSceneKind::Summary);
+            assert_eq!(
+                summary
+                    .cues
+                    .iter()
+                    .filter(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowContext { label }
+                            if label.kind
+                                == chem_presentation::ExplanationLabelKind::CompletionNote
+                                && label.text == "Reaction complete"
+                    ))
+                    .count(),
+                1,
+                "{request:?} must end with one completion note"
+            );
+            labels.extend(
+                plan.scenes
+                    .iter()
+                    .flat_map(|scene| &scene.cues)
+                    .filter_map(|cue| match cue {
+                        chem_presentation::EducationalCue::ShowContext { label } => {
+                            Some((label.title.clone(), label.text.clone()))
+                        }
+                        chem_presentation::EducationalCue::ShowExplanation { label } => {
+                            Some((String::new(), label.text.clone()))
+                        }
+                        _ => None,
+                    }),
+            );
+        }
+
+        let all_copy = labels
+            .iter()
+            .flat_map(|(title, text)| [title.as_str(), text.as_str()])
+            .collect::<Vec<_>>()
+            .join("\n");
+        for forbidden in [
+            "without sharing any electrons",
+            "PRODUCT ESTABLISHED",
+            "The same change happens",
+            "electron sea",
+            "strikes out on its own",
+            "A reactant is used up",
+            "This reactant is being used up",
+            "REACTANT CONSUMED",
+        ] {
+            assert!(
+                !all_copy.contains(forbidden),
+                "obsolete copy remains: {forbidden}"
+            );
+        }
+        for request in chemistry::ReactionRequest::ALL {
+            let run = chemistry::run(request).expect("pinned request validates");
+            let plan = compile_educational_plan(run.frames(), run.declaration().required_context())
+                .expect("educational plan compiles");
+            assert!(
+                plan.scenes
+                    .iter()
+                    .flat_map(|scene| &scene.cues)
+                    .all(|cue| !matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowObservation {
+                            predicate: chem_catalogue::ObservationPredicate::Disappears,
+                            ..
+                        }
+                    )),
+                "{request:?} must not emit a reactant-consumption popup"
+            );
+        }
+        assert!(all_copy.contains("Ions drift apart"));
+        assert!(all_copy.contains("water molecules surround and stabilize"));
+        assert!(all_copy.contains("METALLIC BONDING CHANGES"));
+        assert!(all_copy.contains("positive metal ion cores and delocalised electrons"));
+    }
+
+    #[test]
+    fn stoichiometric_operation_instances_are_animated_but_narrated_once() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
+        let outcome = dynamic_incomplete_combustion_static("C2H6", vec![6, 6, 1, 1, 1, 1, 1, 1]);
+        assert_eq!(
+            outcome.equation(),
+            "5 O2 + 2 C2H6 → 6 H2O + 4 CO",
+            "test premise must retain the reported stoichiometry"
+        );
+        let mut provider = agent::UnsupportedMechanismProvider;
+        let presentation = enrich_static_outcome(outcome, catalogue, &mut provider)
+            .expect("algorithmic incomplete-combustion animation");
+        let (outcome, frames) = match &presentation {
+            DynamicPresentationOutcome::ReviewedFamily(animated) => {
+                (animated.static_outcome(), animated.frames())
+            }
+            DynamicPresentationOutcome::Escalated(animated) => {
+                (animated.static_outcome(), animated.frames())
+            }
+            DynamicPresentationOutcome::Static { diagnostic, .. } => {
+                panic!("incomplete combustion should animate: {diagnostic}")
+            }
+        };
+        let triple_formations = frames
+            .frames()
+            .iter()
+            .filter(|frame| {
+                frame.active_operation().is_some_and(|operation| {
+                    matches!(
+                        operation.operation.view(),
+                        chem_domain::StructuralOperationView::FormCovalent { order, .. }
+                            if order.order() == 3
+                    )
+                })
+            })
+            .count();
+        assert_eq!(
+            triple_formations, 4,
+            "all four CO molecules need a C≡O bond"
+        );
+
+        let plan = compile_educational_plan(frames, outcome.declaration().required_context())
+            .expect("educational plan");
+        let narrated_triple_formations = plan
+            .scenes
+            .iter()
+            .flat_map(|scene| &scene.cues)
+            .filter(|cue| {
+                matches!(
+                    cue,
+                    chem_presentation::EducationalCue::ShowContext { label }
+                        if label.text.contains("triple bond forms")
+                )
+            })
+            .count();
+        assert_eq!(
+            narrated_triple_formations, 1,
+            "equivalent coefficient instances are one teaching idea"
+        );
+
+        let assignment_frames = frames
+            .frames()
+            .iter()
+            .filter(|frame| {
+                frame.active_operation().is_some_and(|operation| {
+                    matches!(
+                        operation.operation.view(),
+                        chem_domain::StructuralOperationView::AssignProduct { .. }
+                    )
+                })
+            })
+            .map(|frame| frame.trace().state_digest)
+            .collect::<std::collections::BTreeSet<_>>();
+        for scene in &plan.scenes {
+            let assigns_product = scene.cues.iter().any(|cue| match cue {
+                chem_presentation::EducationalCue::ApplyOperations { operations } => operations
+                    .iter()
+                    .any(|operation| assignment_frames.contains(&operation.after)),
+                _ => false,
+            });
+            if assigns_product {
+                assert!(
+                    !scene.cues.iter().any(|cue| matches!(
+                        cue,
+                        chem_presentation::EducationalCue::ShowExplanation { .. }
+                            | chem_presentation::EducationalCue::ShowContext { .. }
+                    )),
+                    "product assignment must not create an explanatory card"
+                );
+            }
         }
     }
 
