@@ -471,6 +471,8 @@ const DESIGN_SIZE: Size = Size::new(1_440.0, 900.0);
 /// Upper bound on the adaptive zoom so very large monitors stay reasonable.
 const MAX_UI_ZOOM: f32 = 2.0;
 const BUILDER_TOOLBAR_ICON_SIZE: f32 = 20.0;
+const APP_ICON_SIZE: u32 = 128;
+const APP_ICON_RGBA: &[u8] = include_bytes!("../assets/app-icon/128x128.rgba");
 
 fn chromeless_page_padding(normal: f32, macos_top_extra: f32) -> Padding {
     if cfg!(target_os = "macos") {
@@ -494,6 +496,10 @@ fn window_settings() -> iced::window::Settings {
         size: DESIGN_SIZE,
         min_size: Some(Size::new(560.0, 760.0)),
         position: iced::window::Position::Centered,
+        icon: Some(
+            iced::window::icon::from_rgba(APP_ICON_RGBA.to_vec(), APP_ICON_SIZE, APP_ICON_SIZE)
+                .expect("embedded app icon must contain 128x128 RGBA pixels"),
+        ),
         ..iced::window::Settings::default()
     };
 

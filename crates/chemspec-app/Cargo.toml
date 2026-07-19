@@ -16,8 +16,14 @@ publisher = "ChemSpec contributors"
 homepage = "https://github.com/charles-mills/ChemSpec"
 category = "Education"
 license-file = "../../LICENSE"
-icons = ["../../target/packaging/*.png"]
+icons = [
+    "assets/app-icon/*.png",
+    "assets/app-icon/app-icon.ico",
+]
 binaries = [{ path = "chemspec-app", main = true }]
+
+[package.metadata.packager.nsis]
+installer-icon = "assets/app-icon/app-icon.ico"
 
 [dependencies]
 agent = { path = "../agent" }
