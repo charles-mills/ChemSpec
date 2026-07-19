@@ -2081,18 +2081,7 @@ fn declaration_binding(
         )
         .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?
     };
-    let formula_text = structure
-        .formula()
-        .elements()
-        .iter()
-        .map(|(symbol, count)| {
-            if *count == 1 {
-                symbol.to_string()
-            } else {
-                format!("{symbol}{count}")
-            }
-        })
-        .collect();
+    let formula_text = structure.conventional_formula();
     Ok(ResolvedDeclarationBinding {
         species: SpeciesId::from_str(&format!("catalogue.{structure_id}"))
             .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?,

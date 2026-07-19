@@ -61,10 +61,59 @@
       <div id="chemspec-boot-message">Loading ChemSpec…</div>
     </div>
     <script>
-      if (!navigator.gpu) {
-        document.getElementById("chemspec-boot").innerHTML =
-          "<div>ChemSpec needs WebGPU. Please use a current Chrome, Edge, Safari, or Firefox.</div>";
-      }
+      (function () {
+        var failed = false;
+        function bootFail(text) {
+          if (failed) return;
+          failed = true;
+          var boot = document.getElementById("chemspec-boot");
+          // Inline style outranks the body:has(canvas) rule, so this also
+          // resurrects the panel over a dead canvas after a crash.
+          boot.style.display = "flex";
+          boot.style.zIndex = "10";
+          boot.innerHTML = "";
+          var message = document.createElement("div");
+          message.style.maxWidth = "36rem";
+          message.style.padding = "0 1.5rem";
+          message.style.textAlign = "center";
+          message.textContent = text;
+          boot.appendChild(message);
+        }
+        var unsupported =
+          "ChemSpec needs WebGPU, which this browser or device does not " +
+          "provide. Please use a current Chrome, Edge, Safari, or Firefox.";
+        if (!navigator.gpu) {
+          bootFail(unsupported);
+          return;
+        }
+        // navigator.gpu existing does not mean a usable GPU: Chrome on
+        // Linux and blocklisted hardware return a null adapter.
+        navigator.gpu.requestAdapter().then(
+          function (adapter) {
+            if (!adapter) bootFail(unsupported);
+          },
+          function () {
+            bootFail(unsupported);
+          },
+        );
+        function crashed(detail) {
+          bootFail(
+            "ChemSpec hit an unexpected error and stopped. Reloading may " +
+              "help. Details: " + detail,
+          );
+        }
+        addEventListener("error", function (event) {
+          var text = String((event.error && event.error.message) || event.message || "");
+          // winit "exits" its wasm event loop via a deliberate exception.
+          if (text.indexOf("control flow") !== -1) return;
+          crashed(text || "unknown error");
+        });
+        addEventListener("unhandledrejection", function (event) {
+          var text = String((event.reason && event.reason.message) || event.reason || "");
+          if (text.indexOf("control flow") !== -1) return;
+          crashed(text || "unknown error");
+        });
+      })();
     </script>
   </body>
 </html>

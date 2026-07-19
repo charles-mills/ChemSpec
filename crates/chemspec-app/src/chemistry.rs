@@ -1104,17 +1104,12 @@ fn catalogue_macroscopic_reaction(
                 binding: binding.to_owned(),
                 semantic_identity: resolved.name.clone(),
                 structure_id: resolved.structure.to_string(),
-                formula: resolved
-                    .formula
-                    .iter()
-                    .map(|(symbol, count)| {
-                        if *count == 1 {
-                            symbol.clone()
-                        } else {
-                            format!("{symbol}{count}")
-                        }
-                    })
-                    .collect::<String>(),
+                formula: chem_domain::conventional_formula(
+                    resolved
+                        .formula
+                        .iter()
+                        .map(|(symbol, count)| (symbol.as_str(), *count)),
+                ),
                 role,
                 phase,
                 representation: resolved.representation,
