@@ -4266,7 +4266,51 @@ fn compile_real_world_timeline(
     if profile.solid_solid_synthesis.is_some() {
         fit_authored_six_second_duration(&mut beats);
     }
+    perform_default_camera(&mut beats, profile, final_ordinal);
     RealWorldTimeline { beats }
+}
+
+/// Authors the default camera performance across the timeline: establish
+/// wide, push in as the reaction takes hold, hold focus through the middle,
+/// move close for the key observation, pull back, and end on the hero shot.
+/// Beats covered by a deliberately authored profile cue (anything other than
+/// the historical full-range wide default) keep that cue.
+fn perform_default_camera(
+    beats: &mut [RealWorldBeat],
+    profile: &PresentationProfile,
+    final_ordinal: u16,
+) {
+    let authored: Vec<&CameraCue> = profile
+        .camera
+        .iter()
+        .filter(|cue| {
+            !(cue.start_ordinal == 0
+                && cue.end_ordinal == final_ordinal
+                && cue.behaviour == CameraBehaviour::WideEstablishingShot)
+        })
+        .collect();
+    let count = beats.len();
+    for (index, beat) in beats.iter_mut().enumerate() {
+        if let Some(cue) = authored.iter().find(|cue| {
+            cue.start_ordinal <= beat.start_ordinal && beat.start_ordinal <= cue.end_ordinal
+        }) {
+            beat.camera.behaviour = cue.behaviour;
+            continue;
+        }
+        beat.camera.behaviour = if index == 0 {
+            CameraBehaviour::WideEstablishingShot
+        } else if index + 1 == count {
+            CameraBehaviour::FinalHeroShot
+        } else if index == 1 {
+            CameraBehaviour::SlowPushIn
+        } else if index + 2 == count {
+            CameraBehaviour::SlowPullBack
+        } else if index == count / 2 {
+            CameraBehaviour::ObservationCloseUp
+        } else {
+            CameraBehaviour::ReactionFocus
+        };
+    }
 }
 
 fn fit_authored_six_second_duration(beats: &mut [RealWorldBeat]) {
