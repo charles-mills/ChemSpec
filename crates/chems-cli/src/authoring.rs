@@ -6,10 +6,10 @@ use std::{
 
 use chem_catalogue::{
     CatalogueDocument, CatalogueEnvelope, CreationMetadata, ElementCategoryRecord, ElementRecord,
-    EvidenceSource, GeneralizedReactionRuleRecord, GraphPatternRecord, PremiseRecord,
-    PublicationKind, ReactionRuleRecord, ReviewStatus, StructuralTraitDefinitionRecord,
-    StructureRecord, StructureTemplateApplicationRecord, StructureTemplateRecord,
-    ValencePremiseRecord, ValidatedCatalogueBundle,
+    EvidenceSource, GeneralizedReactionRuleRecord, GraphPatternRecord, MacroscopicMaterialRecord,
+    PremiseRecord, PublicationKind, ReactionRuleRecord, ReviewStatus,
+    StructuralTraitDefinitionRecord, StructureRecord, StructureTemplateApplicationRecord,
+    StructureTemplateRecord, ValencePremiseRecord, ValidatedCatalogueBundle,
 };
 use chem_domain::ContentDigest;
 use chem_kernel::{
@@ -51,6 +51,8 @@ struct CandidateShard {
     graph_patterns: Vec<GraphPatternRecord>,
     #[serde(default)]
     generalized_rules: Vec<GeneralizedReactionRuleRecord>,
+    #[serde(default)]
+    macroscopic_materials: Vec<MacroscopicMaterialRecord>,
 }
 
 #[derive(Debug)]
@@ -444,6 +446,9 @@ fn merge_packages(packages: &[LoadedPackage]) -> Result<CatalogueEnvelope, Strin
         document
             .generalized_rules
             .extend(shard.generalized_rules.clone());
+        document
+            .macroscopic_materials
+            .extend(shard.macroscopic_materials.clone());
     }
     reject_duplicates(&document)?;
     sort_document(&mut document);

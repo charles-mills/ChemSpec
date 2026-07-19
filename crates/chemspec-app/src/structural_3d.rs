@@ -26,6 +26,188 @@ const MAX_VERTICES: u64 = 32_768;
 const MAX_INDICES: u64 = 98_304;
 const MAX_GAS_SPLATS: u64 = 4_096;
 
+/// The single fixed presentation pose shared by the camera, the transparent
+/// triangle sort, and the shadow-frustum fit. Phase-4 camera cues will replace
+/// these constants with authored choreography.
+const FIXED_CAMERA_YAW: f32 = -0.72;
+const FIXED_CAMERA_PITCH: f32 = -0.70;
+const SHADOW_MAP_SIZE: u32 = 2_048;
+const MSAA_SAMPLE_COUNT: u32 = 4;
+const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+
+/// Material classes resolved per vertex bucket at upload; the shader keys its
+/// BRDF on these instead of inferring material from alpha thresholds.
+const MATERIAL_DIELECTRIC: u32 = 0;
+const MATERIAL_LIQUID: u32 = 1;
+const MATERIAL_GLASS: u32 = 2;
+const MATERIAL_EMISSIVE: u32 = 3;
+const MATERIAL_METAL: u32 = 4;
+
+fn fixed_view_direction() -> Vec3 {
+    -(Quat::from_rotation_y(FIXED_CAMERA_YAW) * Quat::from_rotation_x(FIXED_CAMERA_PITCH) * Vec3::Z)
+}
+
+/// Camera offsets performed for one authored [`CameraBehaviour`] cue,
+/// relative to the neutral presentation pose. Everything is a pure function
+/// of cue progress so scrubbing reproduces identical framing.
+#[derive(Debug, Clone, Copy)]
+struct CueAdjustment {
+    distance_scale: f32,
+    target_blend: f32,
+    yaw_offset: f32,
+    pitch_offset: f32,
+    focus: f32,
+}
+
+impl CueAdjustment {
+    const NEUTRAL: Self = Self {
+        distance_scale: 1.0,
+        target_blend: 0.0,
+        yaw_offset: 0.0,
+        pitch_offset: 0.0,
+        focus: 0.0,
+    };
+
+    fn lerp(self, other: Self, blend: f32) -> Self {
+        let mix = |from: f32, to: f32| from + (to - from) * blend;
+        Self {
+            distance_scale: mix(self.distance_scale, other.distance_scale),
+            target_blend: mix(self.target_blend, other.target_blend),
+            yaw_offset: mix(self.yaw_offset, other.yaw_offset),
+            pitch_offset: mix(self.pitch_offset, other.pitch_offset),
+            focus: mix(self.focus, other.focus),
+        }
+    }
+}
+
+fn smooth01(value: f32) -> f32 {
+    let clamped = value.clamp(0.0, 1.0);
+    clamped * clamped * (3.0 - 2.0 * clamped)
+}
+
+fn behaviour_adjustment(
+    behaviour: chem_presentation::CameraBehaviour,
+    progress: f32,
+) -> CueAdjustment {
+    use chem_presentation::CameraBehaviour;
+    let eased = smooth01(progress);
+    match behaviour {
+        CameraBehaviour::WideEstablishingShot => CueAdjustment {
+            distance_scale: 1.22,
+            target_blend: 0.0,
+            yaw_offset: 0.0,
+            pitch_offset: -0.05,
+            focus: 0.0,
+        },
+        CameraBehaviour::SlowPushIn => CueAdjustment {
+            distance_scale: 1.14 + (0.92 - 1.14) * eased,
+            target_blend: 0.55 * eased,
+            yaw_offset: 0.0,
+            pitch_offset: 0.0,
+            focus: 0.0,
+        },
+        CameraBehaviour::ReactionFocus => CueAdjustment {
+            distance_scale: 0.94,
+            target_blend: 0.65,
+            yaw_offset: 0.025,
+            pitch_offset: 0.01,
+            focus: 0.0,
+        },
+        CameraBehaviour::ObservationCloseUp => CueAdjustment {
+            distance_scale: 0.80,
+            target_blend: 0.85,
+            yaw_offset: 0.0,
+            pitch_offset: 0.035,
+            focus: smooth01(progress / 0.25),
+        },
+        CameraBehaviour::SlowPullBack => CueAdjustment {
+            distance_scale: 0.94 + (1.20 - 0.94) * eased,
+            target_blend: 0.55 * (1.0 - eased),
+            yaw_offset: 0.0,
+            pitch_offset: 0.0,
+            focus: 0.0,
+        },
+        CameraBehaviour::FinalHeroShot => CueAdjustment {
+            distance_scale: 1.04,
+            target_blend: 0.25,
+            yaw_offset: -0.035 + 0.08 * eased,
+            pitch_offset: 0.015,
+            focus: 0.0,
+        },
+    }
+}
+
+/// The camera's final resting pose: a gentle push-in that levels the gaze on
+/// the outcome. The closing glide blends into this across the timeline's last
+/// stretch, so the final frame is arrived at, never cut to.
+const HERO_ARRIVAL: CueAdjustment = CueAdjustment {
+    distance_scale: 1.02,
+    target_blend: 0.25,
+    yaw_offset: 0.06,
+    pitch_offset: 0.01,
+    focus: 0.0,
+};
+
+/// Blend factor of the closing glide at this moment: zero until the final
+/// stretch of the presentation, easing to one exactly at the end. smoothstep
+/// has zero slope at both ends, so the glide joins and settles without a
+/// visible hitch, and the completed presentation holds the hero pose.
+#[allow(clippy::cast_precision_loss)]
+fn closing_hero_blend(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
+    let total = plan.timeline.duration_ms() as f32;
+    if total <= f32::EPSILON {
+        return 1.0;
+    }
+    let Some(elapsed) = plan.timeline.elapsed_ms_at(moment) else {
+        // Past the end of the timeline: the presentation has completed and
+        // holds the arrival.
+        return 1.0;
+    };
+    let window = (total * 0.22).clamp(1_200.0, 2_600.0).min(total);
+    smooth01((elapsed - (total - window)) / window)
+}
+
+/// Resolves the authored camera cue active at this moment, easing into each
+/// cue from the previous one over the first fifth of its span. Past either
+/// end of the schedule the nearest cue's pose holds — the camera never snaps
+/// to a default. The closing stretch glides into [`HERO_ARRIVAL`].
+fn camera_cue_adjustment(plan: &ScenePlan, moment: RealWorldPosition) -> CueAdjustment {
+    const TRANSITION: f32 = 0.2;
+    let position = f32::from(moment.ordinal) + moment.ordinal_progress.clamp(0.0, 1.0);
+    let index = plan
+        .camera
+        .iter()
+        .position(|cue| {
+            f32::from(cue.start_ordinal) <= position && position < f32::from(cue.end_ordinal) + 1.0
+        })
+        .or_else(|| {
+            // Off the schedule: hold the nearest cue instead of snapping.
+            plan.camera
+                .last()
+                .is_some_and(|cue| position >= f32::from(cue.end_ordinal) + 1.0)
+                .then_some(plan.camera.len().saturating_sub(1))
+                .or_else(|| (!plan.camera.is_empty()).then_some(0))
+        });
+    let Some(index) = index else {
+        return CueAdjustment::NEUTRAL.lerp(HERO_ARRIVAL, closing_hero_blend(plan, moment));
+    };
+    let cue = &plan.camera[index];
+    let span = (f32::from(cue.end_ordinal) - f32::from(cue.start_ordinal) + 1.0).max(1.0);
+    let progress = ((position - f32::from(cue.start_ordinal)) / span).clamp(0.0, 1.0);
+    let current = behaviour_adjustment(cue.behaviour, progress);
+    let cue_pose = if progress < TRANSITION {
+        let previous = index
+            .checked_sub(1)
+            .map_or(CueAdjustment::NEUTRAL, |previous| {
+                behaviour_adjustment(plan.camera[previous].behaviour, 1.0)
+            });
+        previous.lerp(current, smooth01(progress / TRANSITION))
+    } else {
+        current
+    };
+    cue_pose.lerp(HERO_ARRIVAL, closing_hero_blend(plan, moment))
+}
+
 #[derive(Debug, Clone)]
 pub struct Scene {
     plan: ScenePlan,
@@ -59,27 +241,95 @@ impl<Message> Program<Message> for Scene {
         let (vertices, indices, opaque_index_count, transparent_index_count, mut gas_splats) =
             build_scene_at(&self.plan, self.moment);
         let camera = fixed_camera_pose(&self.plan);
-        let focus_target = SceneLayout::resolve(&self.plan).camera_target;
+        let layout = SceneLayout::resolve(&self.plan);
+        let cue = camera_cue_adjustment(&self.plan, self.moment);
+        let yaw = camera.yaw + cue.yaw_offset;
+        let pitch = camera.pitch + cue.pitch_offset;
+        let focus_target = layout
+            .camera_target
+            .lerp(layout.reaction_point, cue.target_blend);
+        let camera_distance = camera.view_height * 2.1 * cue.distance_scale;
         let eye = focus_target
-            + Quat::from_rotation_y(camera.yaw)
-                * Quat::from_rotation_x(camera.pitch)
-                * Vec3::new(0.0, 0.0, 8.0);
+            + Quat::from_rotation_y(yaw)
+                * Quat::from_rotation_x(pitch)
+                * Vec3::new(0.0, 0.0, camera_distance);
         let view_direction = (focus_target - eye).normalize_or_zero();
         gas_splats.sort_by(|left, right| {
             let left_depth = (Vec3::from_array(left.center) - eye).dot(view_direction);
             let right_depth = (Vec3::from_array(right.center) - eye).dot(view_direction);
             right_depth.total_cmp(&left_depth)
         });
+
+        let time_seconds = self.plan.timeline.elapsed_ms_at(self.moment).unwrap_or(0.0) / 1000.0;
+        let (caustic, caustic_tint) = if layout.has_vessel && layout.has_liquid {
+            let tint = self
+                .plan
+                .objects
+                .iter()
+                .find(|object| object.role == SceneRole::Contents)
+                .map_or([0.36, 0.62, 0.74, 0.28], |object| {
+                    appearance_color(object.appearance)
+                });
+            // Lift the linear tint toward white: focused light stays bright
+            // even through strongly coloured solutions.
+            let linear = |value: f32| value.max(0.0).powf(2.2) * 0.5 + 0.5;
+            (
+                [
+                    layout.vessel_center.x,
+                    layout.vessel_center.z,
+                    0.92 * layout.vessel_scale.x,
+                    1.0,
+                ],
+                [
+                    linear(tint[0]),
+                    linear(tint[1]),
+                    linear(tint[2]),
+                    layout.bench_top,
+                ],
+            )
+        } else {
+            ([0.0; 4], [0.0, 0.0, 0.0, layout.bench_top])
+        };
+        let final_ordinal = self
+            .plan
+            .timeline
+            .beats
+            .last()
+            .map_or(self.moment.ordinal, |beat| beat.end_ordinal);
+        let inputs = ReactionVisualInputs::from_effects(
+            &self.plan.effects,
+            self.moment.ordinal,
+            self.moment.ordinal_progress,
+            final_ordinal,
+        );
+        let post_process =
+            post_process_visual_state(&self.plan, self.moment.stage, self.moment.beat_progress);
+        let heat_strength = inputs
+            .heat_output
+            .max(inputs.flame_rate * 0.85)
+            .max(post_process.flame * 0.9);
+        let heat_centre = layout.reaction_point + Vec3::Y * 0.6;
         ScenePrimitive {
             vertices,
             indices,
             opaque_index_count,
             transparent_index_count,
             gas_splats,
-            yaw: camera.yaw,
-            pitch: camera.pitch,
+            yaw,
+            pitch,
             view_height: camera.view_height,
             focus_target,
+            camera_distance,
+            time_seconds,
+            caustic,
+            caustic_tint,
+            heat: [heat_centre.x, heat_centre.y, heat_centre.z, heat_strength],
+            focus_strength: cue.focus,
+            flame_exposure: inputs.flame_rate.max(post_process.flame),
+            fog_strength: inputs
+                .gas_generation_rate
+                .max(inputs.vapour_generation_rate)
+                .max(post_process.vapour),
         }
     }
 }
@@ -90,6 +340,16 @@ struct Vertex {
     position: [f32; 3],
     normal: [f32; 3],
     color: [f32; 4],
+}
+
+/// Upload format: a scene [`Vertex`] plus the material class of its bucket.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct GpuVertex {
+    position: [f32; 3],
+    normal: [f32; 3],
+    color: [f32; 4],
+    material: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -300,14 +560,49 @@ struct GasSplat {
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct CameraUniform {
     view_projection: [[f32; 4]; 4],
+    light_view_projection: [[f32; 4]; 4],
     key_direction: [f32; 4],
     fill_direction: [f32; 4],
     camera_position: [f32; 4],
+    params: [f32; 4],
+    caustic: [f32; 4],
+    caustic_tint: [f32; 4],
 }
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct PanelStyle {
+    top: [f32; 4],
+    bottom: [f32; 4],
+    border: [f32; 4],
+    params: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct BlitParams {
+    texel: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct CompositeParams {
+    inv_view_projection: [[f32; 4]; 4],
+    light_view_projection: [[f32; 4]; 4],
+    values: [f32; 4],
+    heat: [f32; 4],
+    clock: [f32; 4],
+    ray: [f32; 4],
+}
+
+const COMPOSITE_EXPOSURE: f32 = 1.12;
+const COMPOSITE_BLOOM_STRENGTH: f32 = 0.34;
+const BLOOM_THRESHOLD: f32 = 1.0;
+const MAX_BLOOM_LEVELS: usize = 5;
 
 #[derive(Debug)]
 pub struct ScenePrimitive {
-    vertices: Vec<Vertex>,
+    vertices: Vec<GpuVertex>,
     indices: Vec<u32>,
     opaque_index_count: u32,
     transparent_index_count: u32,
@@ -316,6 +611,23 @@ pub struct ScenePrimitive {
     pitch: f32,
     view_height: f32,
     focus_target: Vec3,
+    /// Eye distance from the focus target; camera cues animate it.
+    camera_distance: f32,
+    /// Deterministic presentation clock derived from the playhead; drives
+    /// caustics and heat shimmer so scrubbing reproduces identical frames.
+    time_seconds: f32,
+    /// World x, z of the vessel footprint, its radius, and intensity.
+    caustic: [f32; 4],
+    /// Caustic light tint (linear rgb) and the bench-top height in w.
+    caustic_tint: [f32; 4],
+    /// Heat-shimmer column: world centre xyz and strength in w.
+    heat: [f32; 4],
+    /// 0..1 close-up focus effect strength (camera cue driven).
+    focus_strength: f32,
+    /// 0..1 flame envelope driving the composite's exposure dip.
+    flame_exposure: f32,
+    /// 0..1 gas/vapour envelope driving the volumetric haze.
+    fog_strength: f32,
 }
 
 #[derive(Debug)]
@@ -324,38 +636,168 @@ pub struct ScenePipeline {
     transparent_pipeline: wgpu::RenderPipeline,
     additive_pipeline: wgpu::RenderPipeline,
     gas_pipeline: wgpu::RenderPipeline,
+    shadow_pipeline: wgpu::RenderPipeline,
+    panel_pipeline: wgpu::RenderPipeline,
+    bloom_down_pipeline: wgpu::RenderPipeline,
+    bloom_up_pipeline: wgpu::RenderPipeline,
+    ssao_pipeline: wgpu::RenderPipeline,
+    composite_pipeline: wgpu::RenderPipeline,
+    scene_layout: wgpu::BindGroupLayout,
+    bloom_layout: wgpu::BindGroupLayout,
+    composite_layout: wgpu::BindGroupLayout,
+    background_layout: wgpu::BindGroupLayout,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     gas_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
-    depth: Option<DepthTarget>,
+    scene_bind_group: Option<wgpu::BindGroup>,
+    reflection_bind_group: wgpu::BindGroup,
+    reflection_uniform: wgpu::Buffer,
+    opaque_reflect_pipeline: wgpu::RenderPipeline,
+    shadow_bind_group: wgpu::BindGroup,
+    panel_bind_group: wgpu::BindGroup,
+    linear_sampler: wgpu::Sampler,
+    shadow_sampler: wgpu::Sampler,
+    _shadow_texture: wgpu::Texture,
+    shadow_view: wgpu::TextureView,
+    _glass_shadow_texture: wgpu::Texture,
+    glass_shadow_view: wgpu::TextureView,
+    targets: Option<SizedTargets>,
     opaque_index_count: u32,
     transparent_index_count: u32,
     index_count: u32,
     gas_count: u32,
     physical_bounds: [u32; 4],
+    overflow_warned: bool,
+    gamma_encode: f32,
 }
 
 #[derive(Debug)]
-struct DepthTarget {
+struct SizedTargets {
+    size: [u32; 2],
+    _hdr_msaa: wgpu::Texture,
+    hdr_msaa_view: wgpu::TextureView,
+    _hdr_resolve: wgpu::Texture,
+    hdr_resolve_view: wgpu::TextureView,
+    _depth: wgpu::Texture,
+    depth_view: wgpu::TextureView,
+    _background: wgpu::Texture,
+    background_view: wgpu::TextureView,
+    background_bind_group: wgpu::BindGroup,
+    _reflection_msaa: wgpu::Texture,
+    reflection_msaa_view: wgpu::TextureView,
+    _reflection_resolve: wgpu::Texture,
+    reflection_resolve_view: wgpu::TextureView,
+    _reflection_depth: wgpu::Texture,
+    reflection_depth_view: wgpu::TextureView,
+    _blur_half: wgpu::Texture,
+    blur_half_view: wgpu::TextureView,
+    blur_half_bind_group: wgpu::BindGroup,
+    _blur_half_params: wgpu::Buffer,
+    _blur_quarter: wgpu::Texture,
+    blur_quarter_view: wgpu::TextureView,
+    blur_quarter_bind_group: wgpu::BindGroup,
+    _blur_quarter_params: wgpu::Buffer,
+    _aux_msaa: wgpu::Texture,
+    aux_msaa_view: wgpu::TextureView,
+    _aux_resolve: wgpu::Texture,
+    aux_resolve_view: wgpu::TextureView,
+    _ao: wgpu::Texture,
+    ao_view: wgpu::TextureView,
+    ao_bind_group: wgpu::BindGroup,
+    _ao_params: wgpu::Buffer,
+    _ao_blur: wgpu::Texture,
+    ao_blur_view: wgpu::TextureView,
+    ao_blur_bind_group: wgpu::BindGroup,
+    _ao_blur_params: wgpu::Buffer,
+    bloom_levels: Vec<BloomLevel>,
+    composite_bind_group: wgpu::BindGroup,
+    composite_uniform: wgpu::Buffer,
+}
+
+#[derive(Debug)]
+struct BloomLevel {
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
-    size: [u32; 2],
+    down_bind_group: wgpu::BindGroup,
+    _down_params: wgpu::Buffer,
+    up_bind_group: Option<wgpu::BindGroup>,
+    _up_params: Option<wgpu::Buffer>,
 }
 
 impl shader::Pipeline for ScenePipeline {
     #[allow(clippy::too_many_lines)]
-    fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("chemspec structural 3d shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("structural_3d.wgsl").into()),
         });
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("chemspec structural 3d camera layout"),
+        let post_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("chemspec structural 3d post shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("structural_3d_post.wgsl").into()),
+        });
+        let scene_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d scene layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        });
+        let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d shadow layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -364,86 +806,337 @@ impl shader::Pipeline for ScenePipeline {
                 count: None,
             }],
         });
+        let panel_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d panel layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+        let texture_entry = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D2,
+                multisampled: false,
+            },
+            count: None,
+        };
+        let uniform_entry = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+        let sampler_entry = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            count: None,
+        };
+        let bloom_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d bloom layout"),
+            entries: &[uniform_entry(4), texture_entry(5), sampler_entry(6)],
+        });
+        let composite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d composite layout"),
+            entries: &[
+                uniform_entry(7),
+                texture_entry(8),
+                texture_entry(9),
+                sampler_entry(10),
+                texture_entry(11),
+                texture_entry(12),
+                texture_entry(13),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 14,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 15,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    count: None,
+                },
+            ],
+        });
+        let background_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chemspec structural 3d background layout"),
+            entries: &[texture_entry(0), sampler_entry(1)],
+        });
+
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("chemspec structural 3d camera"),
             size: std::mem::size_of::<CameraUniform>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("chemspec structural 3d camera group"),
-            layout: &bind_group_layout,
+        let panel_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("chemspec structural 3d panel style"),
+            size: std::mem::size_of::<PanelStyle>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        // A dark studio backdrop in linear HDR space; the tonemapper keeps its
+        // gradient smooth and the dither in the composite kills banding.
+        queue.write_buffer(
+            &panel_buffer,
+            0,
+            bytemuck::bytes_of(&PanelStyle {
+                top: [0.058, 0.070, 0.096, 1.0],
+                bottom: [0.014, 0.017, 0.024, 1.0],
+                border: [0.0, 0.0, 0.0, 0.0],
+                params: [0.0, 0.62, 0.0, 0.0],
+            }),
+        );
+
+        let glass_shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d glass shadow map"),
+            size: wgpu::Extent3d {
+                width: SHADOW_MAP_SIZE,
+                height: SHADOW_MAP_SIZE,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let glass_shadow_view =
+            glass_shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d shadow map"),
+            size: wgpu::Extent3d {
+                width: SHADOW_MAP_SIZE,
+                height: SHADOW_MAP_SIZE,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let shadow_view = shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("chemspec structural 3d shadow sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            ..wgpu::SamplerDescriptor::default()
+        });
+        let linear_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("chemspec structural 3d linear sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..wgpu::SamplerDescriptor::default()
+        });
+
+        // The main scene bind group references the sized reflection texture,
+        // so it is (re)built in ensure_targets.
+        let reflection_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("chemspec structural 3d reflection camera"),
+            size: std::mem::size_of::<CameraUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let dummy_reflection = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d dummy reflection"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: HDR_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let dummy_reflection_view =
+            dummy_reflection.create_view(&wgpu::TextureViewDescriptor::default());
+        let reflection_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d reflection group"),
+            layout: &scene_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: reflection_uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&shadow_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&shadow_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&dummy_reflection_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&linear_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&glass_shadow_view),
+                },
+            ],
+        });
+        let shadow_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d shadow group"),
+            layout: &shadow_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: uniform_buffer.as_entire_binding(),
             }],
         });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("chemspec structural 3d pipeline layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+        let panel_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d panel group"),
+            layout: &panel_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: panel_buffer.as_entire_binding(),
+            }],
         });
-        let create_pipeline = |label: &'static str,
-                               blend: Option<wgpu::BlendState>,
-                               depth_write_enabled: bool,
-                               cull_mode: Option<wgpu::Face>,
-                               fragment_entry: &'static str| {
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(label),
-                layout: Some(&layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vertex"),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vertex>() as u64,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4],
-                    }],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some(fragment_entry),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    cull_mode,
-                    ..wgpu::PrimitiveState::default()
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-                cache: None,
-            })
+
+        let scene_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d scene pipeline layout"),
+                bind_group_layouts: &[&scene_layout],
+                push_constant_ranges: &[],
+            });
+        let refracting_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d refracting pipeline layout"),
+                bind_group_layouts: &[&scene_layout, &background_layout],
+                push_constant_ranges: &[],
+            });
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<GpuVertex>() as u64,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![
+                0 => Float32x3,
+                1 => Float32x3,
+                2 => Float32x4,
+                9 => Uint32
+            ],
         };
-        let opaque_pipeline = create_pipeline(
+        let msaa_state = wgpu::MultisampleState {
+            count: MSAA_SAMPLE_COUNT,
+            ..wgpu::MultisampleState::default()
+        };
+        let create_scene_pipeline =
+            |label: &'static str,
+             layout: &wgpu::PipelineLayout,
+             blend: Option<wgpu::BlendState>,
+             depth_write_enabled: bool,
+             cull_mode: Option<wgpu::Face>,
+             fragment_entry: &'static str| {
+                // Pass-1 pipelines additionally declare the aux (normal +
+                // distance) attachment; only the g-buffer entry writes it.
+                let aux_writes =
+                    (fragment_entry == "fragment_gbuffer").then_some(wgpu::ColorWrites::ALL);
+                let mut targets = vec![Some(wgpu::ColorTargetState {
+                    format: HDR_FORMAT,
+                    blend,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })];
+                if let Some(write_mask) = aux_writes {
+                    targets.push(Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask,
+                    }));
+                }
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(label),
+                    layout: Some(layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: Some("vertex"),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        buffers: std::slice::from_ref(&vertex_layout),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: Some(fragment_entry),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        targets: &targets,
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        cull_mode,
+                        ..wgpu::PrimitiveState::default()
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: msaa_state,
+                    multiview: None,
+                    cache: None,
+                })
+            };
+        let opaque_pipeline = create_scene_pipeline(
             "chemspec structural 3d opaque pipeline",
+            &scene_pipeline_layout,
             None,
             true,
             Some(wgpu::Face::Back),
+            "fragment_gbuffer",
+        );
+        // Mirrored geometry flips winding, so the reflection pass culls the
+        // opposite face set.
+        let opaque_reflect_pipeline = create_scene_pipeline(
+            "chemspec structural 3d reflected opaque pipeline",
+            &scene_pipeline_layout,
+            None,
+            true,
+            Some(wgpu::Face::Front),
             "fragment",
         );
-        let transparent_pipeline = create_pipeline(
+        let transparent_pipeline = create_scene_pipeline(
             "chemspec structural 3d transparent pipeline",
+            &refracting_pipeline_layout,
             Some(wgpu::BlendState::ALPHA_BLENDING),
             false,
             None,
-            "fragment",
+            "fragment_transparent",
         );
-        let additive_pipeline = create_pipeline(
+        let additive_pipeline = create_scene_pipeline(
             "chemspec structural 3d additive flame pipeline",
+            &scene_pipeline_layout,
             Some(wgpu::BlendState {
                 color: wgpu::BlendComponent {
                     src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -458,7 +1151,7 @@ impl shader::Pipeline for ScenePipeline {
         );
         let gas_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("chemspec structural 3d volumetric gas pipeline"),
-            layout: Some(&layout),
+            layout: Some(&scene_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("gas_vertex"),
@@ -480,11 +1173,18 @@ impl shader::Pipeline for ScenePipeline {
                 module: &shader,
                 entry_point: Some("gas_fragment"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                targets: &[
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    }),
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::empty(),
+                    }),
+                ],
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
@@ -498,18 +1198,185 @@ impl shader::Pipeline for ScenePipeline {
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
+            multisample: msaa_state,
+            multiview: None,
+            cache: None,
+        });
+
+        let shadow_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d shadow pipeline layout"),
+                bind_group_layouts: &[&shadow_layout],
+                push_constant_ranges: &[],
+            });
+        let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("chemspec structural 3d shadow pipeline"),
+            layout: Some(&shadow_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("shadow_vertex"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: std::slice::from_ref(&vertex_layout),
+            },
+            fragment: None,
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: Some(wgpu::Face::Back),
+                ..wgpu::PrimitiveState::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState {
+                    constant: 2,
+                    slope_scale: 2.0,
+                    clamp: 0.0,
+                },
+            }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,
         });
+
+        let panel_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("chemspec structural 3d panel pipeline layout"),
+                bind_group_layouts: &[&panel_layout],
+                push_constant_ranges: &[],
+            });
+        let panel_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("chemspec structural 3d panel pipeline"),
+            layout: Some(&panel_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &post_shader,
+                entry_point: Some("panel_vertex"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &post_shader,
+                entry_point: Some("panel_fragment"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    }),
+                    Some(wgpu::ColorTargetState {
+                        format: HDR_FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::empty(),
+                    }),
+                ],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: msaa_state,
+            multiview: None,
+            cache: None,
+        });
+
+        let create_post_pipeline =
+            |label: &'static str,
+             layout: &wgpu::BindGroupLayout,
+             fragment_entry: &'static str,
+             target_format: wgpu::TextureFormat,
+             blend: Option<wgpu::BlendState>| {
+                let pipeline_layout =
+                    device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some(label),
+                        bind_group_layouts: &[layout],
+                        push_constant_ranges: &[],
+                    });
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(label),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &post_shader,
+                        entry_point: Some("blit_vertex"),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        buffers: &[],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &post_shader,
+                        entry_point: Some(fragment_entry),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: target_format,
+                            blend,
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState::default(),
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                    cache: None,
+                })
+            };
+        let bloom_down_pipeline = create_post_pipeline(
+            "chemspec structural 3d bloom downsample",
+            &bloom_layout,
+            "bloom_downsample",
+            HDR_FORMAT,
+            None,
+        );
+        let bloom_up_pipeline = create_post_pipeline(
+            "chemspec structural 3d bloom upsample",
+            &bloom_layout,
+            "bloom_upsample",
+            HDR_FORMAT,
+            Some(wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent::OVER,
+            }),
+        );
+        let ssao_pipeline = create_post_pipeline(
+            "chemspec structural 3d ssao",
+            &bloom_layout,
+            "ssao_fragment",
+            HDR_FORMAT,
+            None,
+        );
+        let composite_pipeline = create_post_pipeline(
+            "chemspec structural 3d composite",
+            &composite_layout,
+            "composite_fragment",
+            format,
+            None,
+        );
+
         Self {
             opaque_pipeline,
             transparent_pipeline,
             additive_pipeline,
             gas_pipeline,
+            shadow_pipeline,
+            panel_pipeline,
+            bloom_down_pipeline,
+            bloom_up_pipeline,
+            ssao_pipeline,
+            composite_pipeline,
+            scene_layout,
+            bloom_layout,
+            composite_layout,
+            background_layout,
             vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("chemspec structural 3d vertices"),
-                size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
+                size: MAX_VERTICES * std::mem::size_of::<GpuVertex>() as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
@@ -526,13 +1393,556 @@ impl shader::Pipeline for ScenePipeline {
                 mapped_at_creation: false,
             }),
             uniform_buffer,
-            bind_group,
-            depth: None,
+            scene_bind_group: None,
+            reflection_bind_group,
+            reflection_uniform,
+            opaque_reflect_pipeline,
+            shadow_bind_group,
+            panel_bind_group,
+            linear_sampler,
+            shadow_sampler,
+            _shadow_texture: shadow_texture,
+            shadow_view,
+            _glass_shadow_texture: glass_shadow_texture,
+            glass_shadow_view,
+            targets: None,
             opaque_index_count: 0,
             transparent_index_count: 0,
             index_count: 0,
             gas_count: 0,
             physical_bounds: [0; 4],
+            overflow_warned: false,
+            gamma_encode: if format.is_srgb() { 0.0 } else { 1.0 },
+        }
+    }
+}
+
+impl ScenePipeline {
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+    fn ensure_targets(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, size: [u32; 2]) {
+        if self
+            .targets
+            .as_ref()
+            .is_some_and(|targets| targets.size == size)
+        {
+            return;
+        }
+        let extent = |width: u32, height: u32| wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        };
+        let create_target = |label: &str, size: wgpu::Extent3d, format, samples: u32| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size,
+                mip_level_count: 1,
+                sample_count: samples,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: if samples > 1 {
+                    wgpu::TextureUsages::RENDER_ATTACHMENT
+                } else {
+                    wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING
+                },
+                view_formats: &[],
+            })
+        };
+        let full = extent(size[0], size[1]);
+        let hdr_msaa = create_target(
+            "chemspec structural 3d hdr msaa",
+            full,
+            HDR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
+        let hdr_msaa_view = hdr_msaa.create_view(&wgpu::TextureViewDescriptor::default());
+        let hdr_resolve = create_target("chemspec structural 3d hdr resolve", full, HDR_FORMAT, 1);
+        let hdr_resolve_view = hdr_resolve.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d depth"),
+            size: full,
+            mip_level_count: 1,
+            sample_count: MSAA_SAMPLE_COUNT,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let depth_view = depth.create_view(&wgpu::TextureViewDescriptor::default());
+        // The opaque scene resolved mid-frame; the transparent pass samples
+        // this for screen-space refraction through glass and liquid.
+        let background = create_target("chemspec structural 3d background", full, HDR_FORMAT, 1);
+        let background_view = background.create_view(&wgpu::TextureViewDescriptor::default());
+        let background_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d background group"),
+            layout: &self.background_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&background_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                },
+            ],
+        });
+
+        // Half-res mirrored-scene targets for the bench's planar reflection.
+        let half = extent(size[0].max(2) / 2, size[1].max(2) / 2);
+        let reflection_msaa = create_target(
+            "chemspec structural 3d reflection msaa",
+            half,
+            HDR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
+        let reflection_msaa_view =
+            reflection_msaa.create_view(&wgpu::TextureViewDescriptor::default());
+        let reflection_resolve = create_target(
+            "chemspec structural 3d reflection resolve",
+            half,
+            HDR_FORMAT,
+            1,
+        );
+        let reflection_resolve_view =
+            reflection_resolve.create_view(&wgpu::TextureViewDescriptor::default());
+        let reflection_depth = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("chemspec structural 3d reflection depth"),
+            size: half,
+            mip_level_count: 1,
+            sample_count: MSAA_SAMPLE_COUNT,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let reflection_depth_view =
+            reflection_depth.create_view(&wgpu::TextureViewDescriptor::default());
+        self.scene_bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d scene group"),
+            layout: &self.scene_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&self.shadow_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&self.shadow_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&reflection_resolve_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&self.glass_shadow_view),
+                },
+            ],
+        }));
+
+        // Half-resolution cascade for the dual-filter bloom.
+        let mut level_sizes: Vec<[u32; 2]> = Vec::new();
+        let mut level_size = [size[0].max(2) / 2, size[1].max(2) / 2];
+        while level_sizes.len() < MAX_BLOOM_LEVELS {
+            level_sizes.push([level_size[0].max(1), level_size[1].max(1)]);
+            if level_size[0] / 2 < 8 || level_size[1] / 2 < 8 {
+                break;
+            }
+            level_size = [level_size[0] / 2, level_size[1] / 2];
+        }
+        let bloom_textures: Vec<wgpu::Texture> = level_sizes
+            .iter()
+            .map(|level| {
+                create_target(
+                    "chemspec structural 3d bloom level",
+                    extent(level[0], level[1]),
+                    HDR_FORMAT,
+                    1,
+                )
+            })
+            .collect();
+        let bloom_views: Vec<wgpu::TextureView> = bloom_textures
+            .iter()
+            .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()))
+            .collect();
+        let create_blit_params = |source: [u32; 2], threshold: f32, intensity: f32| {
+            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("chemspec structural 3d blit params"),
+                size: std::mem::size_of::<BlitParams>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            queue.write_buffer(
+                &buffer,
+                0,
+                bytemuck::bytes_of(&BlitParams {
+                    texel: [
+                        1.0 / source[0].max(1) as f32,
+                        1.0 / source[1].max(1) as f32,
+                        threshold,
+                        intensity,
+                    ],
+                }),
+            );
+            buffer
+        };
+        let create_blit_group = |params: &wgpu::Buffer, source_view: &wgpu::TextureView| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("chemspec structural 3d blit group"),
+                layout: &self.bloom_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(source_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                    },
+                ],
+            })
+        };
+        let mut bloom_levels = Vec::with_capacity(level_sizes.len());
+        for (index, texture) in bloom_textures.into_iter().enumerate() {
+            let source_size = if index == 0 {
+                size
+            } else {
+                level_sizes[index - 1]
+            };
+            let down_params = create_blit_params(
+                source_size,
+                if index == 0 { BLOOM_THRESHOLD } else { 0.0 },
+                1.0,
+            );
+            let down_source = if index == 0 {
+                &hdr_resolve_view
+            } else {
+                &bloom_views[index - 1]
+            };
+            let down_bind_group = create_blit_group(&down_params, down_source);
+            let (up_params, up_bind_group) = if index + 1 < level_sizes.len() {
+                let params = create_blit_params(level_sizes[index + 1], 0.0, 0.72);
+                let group = create_blit_group(&params, &bloom_views[index + 1]);
+                (Some(params), Some(group))
+            } else {
+                (None, None)
+            };
+            bloom_levels.push(BloomLevel {
+                _texture: texture,
+                view: bloom_views[index].clone(),
+                down_bind_group,
+                _down_params: down_params,
+                up_bind_group,
+                _up_params: up_params,
+            });
+        }
+
+        // Unthresholded half/quarter blur chain feeding the close-up focus
+        // effect in the composite.
+        let half_size = [size[0].max(2) / 2, size[1].max(2) / 2];
+        let quarter_size = [half_size[0].max(2) / 2, half_size[1].max(2) / 2];
+        let blur_half = create_target(
+            "chemspec structural 3d blur half",
+            extent(half_size[0], half_size[1]),
+            HDR_FORMAT,
+            1,
+        );
+        let blur_half_view = blur_half.create_view(&wgpu::TextureViewDescriptor::default());
+        let blur_quarter = create_target(
+            "chemspec structural 3d blur quarter",
+            extent(quarter_size[0], quarter_size[1]),
+            HDR_FORMAT,
+            1,
+        );
+        let blur_quarter_view = blur_quarter.create_view(&wgpu::TextureViewDescriptor::default());
+        let blur_half_params = create_blit_params(size, 0.0, 1.0);
+        let blur_half_bind_group = create_blit_group(&blur_half_params, &hdr_resolve_view);
+        let blur_quarter_params = create_blit_params(half_size, 0.0, 1.0);
+        let blur_quarter_bind_group = create_blit_group(&blur_quarter_params, &blur_half_view);
+
+        // Aux (normal + camera distance) buffer alongside the HDR scene, and
+        // the half-res ambient-occlusion chain computed from it.
+        let aux_msaa = create_target(
+            "chemspec structural 3d aux msaa",
+            full,
+            HDR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
+        let aux_msaa_view = aux_msaa.create_view(&wgpu::TextureViewDescriptor::default());
+        let aux_resolve = create_target("chemspec structural 3d aux resolve", full, HDR_FORMAT, 1);
+        let aux_resolve_view = aux_resolve.create_view(&wgpu::TextureViewDescriptor::default());
+        let ao = create_target(
+            "chemspec structural 3d ao",
+            extent(half_size[0], half_size[1]),
+            HDR_FORMAT,
+            1,
+        );
+        let ao_view = ao.create_view(&wgpu::TextureViewDescriptor::default());
+        let ao_blur = create_target(
+            "chemspec structural 3d ao blur",
+            extent(half_size[0], half_size[1]),
+            HDR_FORMAT,
+            1,
+        );
+        let ao_blur_view = ao_blur.create_view(&wgpu::TextureViewDescriptor::default());
+        // texel.z = projection scale in pixels, texel.w = AO world radius.
+        let ao_params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("chemspec structural 3d ao params"),
+            size: std::mem::size_of::<BlitParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(
+            &ao_params,
+            0,
+            bytemuck::bytes_of(&BlitParams {
+                texel: [
+                    1.0 / size[0].max(1) as f32,
+                    1.0 / size[1].max(1) as f32,
+                    size[1] as f32 * 2.1,
+                    0.35,
+                ],
+            }),
+        );
+        let ao_bind_group = create_blit_group(&ao_params, &aux_resolve_view);
+        let ao_blur_params = create_blit_params(half_size, 0.0, 1.0);
+        let ao_blur_bind_group = create_blit_group(&ao_blur_params, &ao_view);
+
+        let composite_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("chemspec structural 3d composite params"),
+            size: std::mem::size_of::<CompositeParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(
+            &composite_uniform,
+            0,
+            bytemuck::bytes_of(&CompositeParams {
+                inv_view_projection: Mat4::IDENTITY.to_cols_array_2d(),
+                light_view_projection: Mat4::IDENTITY.to_cols_array_2d(),
+                values: [
+                    COMPOSITE_EXPOSURE,
+                    COMPOSITE_BLOOM_STRENGTH,
+                    self.gamma_encode,
+                    0.0,
+                ],
+                heat: [0.0; 4],
+                clock: [0.0; 4],
+                ray: [0.0; 4],
+            }),
+        );
+        let composite_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("chemspec structural 3d composite group"),
+            layout: &self.composite_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: composite_uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: wgpu::BindingResource::TextureView(&hdr_resolve_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::TextureView(&bloom_levels[0].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: wgpu::BindingResource::TextureView(&blur_quarter_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::TextureView(&ao_blur_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: wgpu::BindingResource::TextureView(&aux_resolve_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 14,
+                    resource: wgpu::BindingResource::TextureView(&self.shadow_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 15,
+                    resource: wgpu::BindingResource::Sampler(&self.shadow_sampler),
+                },
+            ],
+        });
+
+        self.targets = Some(SizedTargets {
+            size,
+            _hdr_msaa: hdr_msaa,
+            hdr_msaa_view,
+            _hdr_resolve: hdr_resolve,
+            hdr_resolve_view,
+            _depth: depth,
+            depth_view,
+            _background: background,
+            background_view,
+            background_bind_group,
+            _reflection_msaa: reflection_msaa,
+            reflection_msaa_view,
+            _reflection_resolve: reflection_resolve,
+            reflection_resolve_view,
+            _reflection_depth: reflection_depth,
+            reflection_depth_view,
+            _blur_half: blur_half,
+            blur_half_view,
+            blur_half_bind_group,
+            _blur_half_params: blur_half_params,
+            _blur_quarter: blur_quarter,
+            blur_quarter_view,
+            blur_quarter_bind_group,
+            _blur_quarter_params: blur_quarter_params,
+            _aux_msaa: aux_msaa,
+            aux_msaa_view,
+            _aux_resolve: aux_resolve,
+            aux_resolve_view,
+            _ao: ao,
+            ao_view,
+            ao_bind_group,
+            _ao_params: ao_params,
+            _ao_blur: ao_blur,
+            ao_blur_view,
+            ao_blur_bind_group,
+            _ao_blur_params: ao_blur_params,
+            bloom_levels,
+            composite_bind_group,
+            composite_uniform,
+        });
+    }
+}
+
+impl ScenePrimitive {
+    /// Uploads the camera, light, caustic, and clock uniforms; returns the
+    /// view-projection so the composite can project world-space regions.
+    #[allow(clippy::cast_precision_loss)]
+    fn write_camera_uniform(
+        &self,
+        pipeline: &ScenePipeline,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+    ) -> (Mat4, Mat4, Vec3) {
+        let aspect = width as f32 / height.max(1) as f32;
+        let reaction_target = self.focus_target;
+        let pitch = self.pitch.clamp(-1.18, -0.22);
+        let eye = reaction_target
+            + Quat::from_rotation_y(self.yaw)
+                * Quat::from_rotation_x(pitch)
+                * Vec3::new(0.0, 0.0, self.camera_distance.max(1.0));
+        let view = Mat4::look_at_rh(eye, reaction_target, Vec3::Y);
+        // Mild telephoto chosen so the neutral distance (2.1 x view height)
+        // frames exactly the old orthographic view height at the target.
+        let projection = Mat4::perspective_rh(0.468, aspect, 0.3, 60.0);
+        let key_direction = Vec3::new(-0.55, -0.88, -0.48).normalize();
+        let shadow_radius = (self.view_height * 0.95).max(3.0);
+        let light_eye = reaction_target - key_direction * 14.0;
+        let light_view = Mat4::look_at_rh(light_eye, reaction_target, Vec3::Y);
+        let light_projection = Mat4::orthographic_rh(
+            -shadow_radius,
+            shadow_radius,
+            -shadow_radius,
+            shadow_radius,
+            0.5,
+            30.0,
+        );
+        let view_projection = projection * view;
+        let uniform = CameraUniform {
+            view_projection: view_projection.to_cols_array_2d(),
+            light_view_projection: (light_projection * light_view).to_cols_array_2d(),
+            key_direction: [key_direction.x, key_direction.y, key_direction.z, 0.0],
+            fill_direction: [0.70, -0.45, 0.55, 0.0],
+            camera_position: [eye.x, eye.y, eye.z, 1.0],
+            params: [self.time_seconds, width as f32, height as f32, 0.0],
+            caustic: self.caustic,
+            caustic_tint: self.caustic_tint,
+        };
+        queue.write_buffer(&pipeline.uniform_buffer, 0, bytemuck::bytes_of(&uniform));
+
+        // Mirror camera across the bench plane for the planar reflection.
+        let bench_top = self.caustic_tint[3];
+        let mirror = Mat4::from_translation(Vec3::Y * bench_top)
+            * Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0))
+            * Mat4::from_translation(Vec3::Y * -bench_top);
+        let mirrored_eye = Vec3::new(eye.x, 2.0 * bench_top - eye.y, eye.z);
+        let reflection = CameraUniform {
+            view_projection: (view_projection * mirror).to_cols_array_2d(),
+            camera_position: [mirrored_eye.x, mirrored_eye.y, mirrored_eye.z, 1.0],
+            params: [self.time_seconds, width as f32, height as f32, 1.0],
+            ..uniform
+        };
+        queue.write_buffer(
+            &pipeline.reflection_uniform,
+            0,
+            bytemuck::bytes_of(&reflection),
+        );
+        (view_projection, light_projection * light_view, eye)
+    }
+
+    /// Projects the heat column into uv space and uploads the composite
+    /// parameters (exposure, bloom, gamma, focus, shimmer, clock).
+    fn write_composite_uniform(
+        &self,
+        pipeline: &ScenePipeline,
+        queue: &wgpu::Queue,
+        view_projection: Mat4,
+        light_view_projection: Mat4,
+        eye: Vec3,
+    ) {
+        let heat_centre = Vec3::new(self.heat[0], self.heat[1], self.heat[2]);
+        let project_uv = |world: Vec3| {
+            let clip = view_projection * world.extend(1.0);
+            let ndc = clip.truncate() / clip.w.max(1e-4);
+            [ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5]
+        };
+        let centre_uv = project_uv(heat_centre);
+        let camera_right = Quat::from_rotation_y(self.yaw) * Vec3::X;
+        let edge_uv = project_uv(heat_centre + camera_right * 1.15);
+        let radius_uv = ((edge_uv[0] - centre_uv[0]).powi(2) + (edge_uv[1] - centre_uv[1]).powi(2))
+            .sqrt()
+            .max(0.02);
+        if let Some(targets) = &pipeline.targets {
+            queue.write_buffer(
+                &targets.composite_uniform,
+                0,
+                bytemuck::bytes_of(&CompositeParams {
+                    inv_view_projection: view_projection.inverse().to_cols_array_2d(),
+                    light_view_projection: light_view_projection.to_cols_array_2d(),
+                    values: [
+                        COMPOSITE_EXPOSURE,
+                        COMPOSITE_BLOOM_STRENGTH,
+                        pipeline.gamma_encode,
+                        self.focus_strength,
+                    ],
+                    heat: [centre_uv[0], centre_uv[1], radius_uv, self.heat[3]],
+                    clock: [
+                        self.time_seconds,
+                        self.flame_exposure,
+                        self.fog_strength,
+                        0.0,
+                    ],
+                    ray: [eye.x, eye.y, eye.z, self.caustic_tint[3]],
+                }),
+            );
         }
     }
 }
@@ -562,35 +1972,17 @@ impl shader::Primitive for ScenePrimitive {
             width,
             height,
         ];
-        let viewport_size = viewport.physical_size();
-        let depth_size = [viewport_size.width.max(1), viewport_size.height.max(1)];
-        if pipeline
-            .depth
-            .as_ref()
-            .is_none_or(|depth| depth.size != depth_size)
-        {
-            let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("chemspec structural 3d depth"),
-                size: wgpu::Extent3d {
-                    width: depth_size[0],
-                    height: depth_size[1],
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Depth32Float,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
-            });
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            pipeline.depth = Some(DepthTarget {
-                _texture: texture,
-                view,
-                size: depth_size,
-            });
-        }
+        pipeline.ensure_targets(device, queue, [width, height]);
         if self.vertices.len() as u64 > MAX_VERTICES || self.indices.len() as u64 > MAX_INDICES {
+            if !pipeline.overflow_warned {
+                pipeline.overflow_warned = true;
+                eprintln!(
+                    "structural 3d scene exceeds geometry budget \
+                     ({} vertices, {} indices); frame skipped",
+                    self.vertices.len(),
+                    self.indices.len(),
+                );
+            }
             pipeline.opaque_index_count = 0;
             pipeline.transparent_index_count = 0;
             pipeline.index_count = 0;
@@ -623,34 +2015,12 @@ impl shader::Primitive for ScenePrimitive {
             .transparent_index_count
             .clamp(pipeline.opaque_index_count, pipeline.index_count);
 
-        let aspect = width as f32 / height.max(1) as f32;
-        let reaction_target = self.focus_target;
-        let pitch = self.pitch.clamp(-1.18, -0.22);
-        let eye = reaction_target
-            + Quat::from_rotation_y(self.yaw)
-                * Quat::from_rotation_x(pitch)
-                * Vec3::new(0.0, 0.0, 8.0);
-        let view = Mat4::look_at_rh(eye, reaction_target, Vec3::Y);
-        let half_height = self.view_height * 0.5;
-        let half_width = half_height * aspect;
-        let projection = Mat4::orthographic_rh(
-            -half_width,
-            half_width,
-            -half_height,
-            half_height,
-            0.1,
-            50.0,
-        );
-        let uniform = CameraUniform {
-            view_projection: (projection * view).to_cols_array_2d(),
-            key_direction: [-0.55, -0.88, -0.48, 0.0],
-            fill_direction: [0.70, -0.45, 0.55, 0.0],
-            camera_position: [eye.x, eye.y, eye.z, 1.0],
-        };
-        queue.write_buffer(&pipeline.uniform_buffer, 0, bytemuck::bytes_of(&uniform));
+        let (view_projection, light_view_projection, eye) =
+            self.write_camera_uniform(pipeline, queue, width, height);
+        self.write_composite_uniform(pipeline, queue, view_projection, light_view_projection, eye);
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
     fn render(
         &self,
         pipeline: &Self::Pipeline,
@@ -658,7 +2028,12 @@ impl shader::Primitive for ScenePrimitive {
         target: &wgpu::TextureView,
         clip_bounds: &Rectangle<u32>,
     ) {
-        let Some(depth) = &pipeline.depth else { return };
+        let Some(targets) = &pipeline.targets else {
+            return;
+        };
+        let Some(scene_bind_group) = &pipeline.scene_bind_group else {
+            return;
+        };
         let [x, y, width, height] = pipeline.physical_bounds;
         let scissor_x = clip_bounds.x.max(x);
         let scissor_y = clip_bounds.y.max(y);
@@ -675,8 +2050,321 @@ impl shader::Primitive for ScenePrimitive {
         if scissor_width == 0 || scissor_height == 0 {
             return;
         }
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d shadow pass"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &pipeline.shadow_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            // Solid casters only: glassware goes to its own light map.
+            if pipeline.opaque_index_count > 0 {
+                pass.set_pipeline(&pipeline.shadow_pipeline);
+                pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
+                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+                pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
+            }
+        }
+
+        // Glass and liquid transmit most light, so their casters render into
+        // a second map that only mildly attenuates the key.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d glass shadow pass"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &pipeline.glass_shadow_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            if pipeline.opaque_index_count < pipeline.transparent_index_count {
+                pass.set_pipeline(&pipeline.shadow_pipeline);
+                pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
+                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+                pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(
+                    pipeline.opaque_index_count..pipeline.transparent_index_count,
+                    0,
+                    0..1,
+                );
+            }
+        }
+
+        // Mirrored scene, half res: the bench samples this for its planar
+        // reflection. The bench itself is discarded in-shader; gas splats are
+        // skipped (their billboards assume the primary camera).
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d reflection pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &targets.reflection_msaa_view,
+                    depth_slice: None,
+                    resolve_target: Some(&targets.reflection_resolve_view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.013,
+                            g: 0.016,
+                            b: 0.023,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Discard,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &targets.reflection_depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_bind_group(0, &pipeline.reflection_bind_group, &[]);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.set_pipeline(&pipeline.opaque_reflect_pipeline);
+            pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
+            if pipeline.opaque_index_count < pipeline.transparent_index_count {
+                pass.set_bind_group(1, &targets.background_bind_group, &[]);
+                pass.set_pipeline(&pipeline.transparent_pipeline);
+                pass.draw_indexed(
+                    pipeline.opaque_index_count..pipeline.transparent_index_count,
+                    0,
+                    0..1,
+                );
+            }
+            if pipeline.transparent_index_count < pipeline.index_count {
+                pass.set_pipeline(&pipeline.additive_pipeline);
+                pass.draw_indexed(
+                    pipeline.transparent_index_count..pipeline.index_count,
+                    0,
+                    0..1,
+                );
+            }
+        }
+
+        // Opaque pass: backdrop, opaque geometry, and gas resolve into the
+        // background texture the transparent pass refracts. The MSAA contents
+        // are kept for the second pass to continue over.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d opaque pass"),
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &targets.hdr_msaa_view,
+                        depth_slice: None,
+                        resolve_target: Some(&targets.background_view),
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    }),
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &targets.aux_msaa_view,
+                        depth_slice: None,
+                        resolve_target: Some(&targets.aux_resolve_view),
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Discard,
+                        },
+                    }),
+                ],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &targets.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.panel_pipeline);
+            pass.set_bind_group(0, &pipeline.panel_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+            pass.set_pipeline(&pipeline.opaque_pipeline);
+            pass.set_bind_group(0, scene_bind_group, &[]);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
+            if pipeline.gas_count > 0 {
+                pass.set_pipeline(&pipeline.gas_pipeline);
+                pass.set_vertex_buffer(0, pipeline.gas_buffer.slice(..));
+                pass.draw(0..6, 0..pipeline.gas_count);
+            }
+        }
+
+        // Transparent pass: sorted glass and liquid refract the resolved
+        // background, then emissive cores blend additively; the final HDR
+        // frame resolves out of the same MSAA target.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d transparent pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &targets.hdr_msaa_view,
+                    depth_slice: None,
+                    resolve_target: Some(&targets.hdr_resolve_view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Discard,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &targets.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_bind_group(0, scene_bind_group, &[]);
+            pass.set_bind_group(1, &targets.background_bind_group, &[]);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            if pipeline.opaque_index_count < pipeline.transparent_index_count {
+                pass.set_pipeline(&pipeline.transparent_pipeline);
+                pass.draw_indexed(
+                    pipeline.opaque_index_count..pipeline.transparent_index_count,
+                    0,
+                    0..1,
+                );
+            }
+            if pipeline.transparent_index_count < pipeline.index_count {
+                pass.set_pipeline(&pipeline.additive_pipeline);
+                pass.draw_indexed(
+                    pipeline.transparent_index_count..pipeline.index_count,
+                    0,
+                    0..1,
+                );
+            }
+        }
+
+        for level in &targets.bloom_levels {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d bloom downsample pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &level.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.bloom_down_pipeline);
+            pass.set_bind_group(0, &level.down_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        for level in targets.bloom_levels.iter().rev() {
+            let Some(up_bind_group) = &level.up_bind_group else {
+                continue;
+            };
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d bloom upsample pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &level.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.bloom_up_pipeline);
+            pass.set_bind_group(0, up_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+
+        // Unthresholded blur chain for the close-up focus effect.
+        for (view, bind_group) in [
+            (&targets.blur_half_view, &targets.blur_half_bind_group),
+            (&targets.blur_quarter_view, &targets.blur_quarter_bind_group),
+        ] {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d focus blur pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline.bloom_down_pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+
+        // Half-res ambient occlusion from the aux buffer, then one blur tap.
+        for (view, bind_group, pipeline_ref) in [
+            (
+                &targets.ao_view,
+                &targets.ao_bind_group,
+                &pipeline.ssao_pipeline,
+            ),
+            (
+                &targets.ao_blur_view,
+                &targets.ao_blur_bind_group,
+                &pipeline.bloom_down_pipeline,
+            ),
+        ] {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("chemspec structural 3d ao pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(pipeline_ref);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("chemspec structural 3d render pass"),
+            label: Some("chemspec structural 3d composite pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 depth_slice: None,
@@ -686,46 +2374,15 @@ impl shader::Primitive for ScenePrimitive {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Discard,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
         });
         pass.set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
         pass.set_scissor_rect(scissor_x, scissor_y, scissor_width, scissor_height);
-        pass.set_pipeline(&pipeline.opaque_pipeline);
-        pass.set_bind_group(0, &pipeline.bind_group, &[]);
-        pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-        pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
-        if pipeline.gas_count > 0 {
-            pass.set_pipeline(&pipeline.gas_pipeline);
-            pass.set_vertex_buffer(0, pipeline.gas_buffer.slice(..));
-            pass.draw(0..6, 0..pipeline.gas_count);
-            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-        }
-        if pipeline.opaque_index_count < pipeline.transparent_index_count {
-            pass.set_pipeline(&pipeline.transparent_pipeline);
-            pass.draw_indexed(
-                pipeline.opaque_index_count..pipeline.transparent_index_count,
-                0,
-                0..1,
-            );
-        }
-        if pipeline.transparent_index_count < pipeline.index_count {
-            pass.set_pipeline(&pipeline.additive_pipeline);
-            pass.draw_indexed(
-                pipeline.transparent_index_count..pipeline.index_count,
-                0,
-                0..1,
-            );
-        }
+        pass.set_pipeline(&pipeline.composite_pipeline);
+        pass.set_bind_group(0, &targets.composite_bind_group, &[]);
+        pass.draw(0..3, 0..1);
     }
 }
 
@@ -1061,7 +2718,7 @@ fn build_scene(
     plan: &ScenePlan,
     ordinal: u16,
     progress: f32,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     build_scene_with_stage(
         plan,
         ordinal,
@@ -1075,7 +2732,7 @@ fn build_scene(
 fn build_scene_at(
     plan: &ScenePlan,
     moment: RealWorldPosition,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let authored_clip_progress =
         if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
             gas_evolution_clip_progress(plan, moment)
@@ -1105,7 +2762,7 @@ fn build_scene_with_stage(
     stage: MacroscopicStage,
     stage_progress: f32,
     authored_clip_progress: Option<f32>,
-) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let mut meshes = SceneMeshes::default();
     let layout = SceneLayout::resolve(plan);
     let final_ordinal = plan
@@ -2250,22 +3907,20 @@ fn instantiate_asset(
         appearance_color(appearance)
     };
     let opaque_start = meshes.opaque.vertices.len();
+    let metallic_start = meshes.metallic.vertices.len();
     let translucent_start = meshes.translucent.vertices.len();
     let glass_start = meshes.glass.vertices.len();
     let gas_start = meshes.gas.len();
     match scene_registry::asset_geometry(asset) {
         AssetGeometry::Bench => {
+            // Contact shading under the vessel comes from the shadow map now;
+            // the old baked shadow disc is gone. The bench gets its own
+            // studio-surface grey so shadows have something to read against.
             add_box(
                 &mut meshes.opaque,
                 position,
-                Vec3::new(20.0, 0.28, 10.0) * scale,
-                color,
-            );
-            add_disc(
-                &mut meshes.translucent,
-                position + Vec3::new(0.0, 0.148, 0.0),
-                1.30,
-                [0.01, 0.02, 0.025, 0.22],
+                Vec3::new(44.0, 0.28, 30.0) * scale,
+                [0.165, 0.185, 0.215, 1.0],
             );
         }
         // Authored assemblies are instantiated once by the scene-level clip
@@ -2329,7 +3984,7 @@ fn instantiate_asset(
             );
         }
         AssetGeometry::ImportedMetal => {
-            add_imported_metal(&mut meshes.opaque, position, scale, color);
+            add_imported_metal(&mut meshes.metallic, position, scale, color);
         }
         AssetGeometry::ShardCluster => {
             add_particle_cluster(
@@ -2376,6 +4031,13 @@ fn instantiate_asset(
             transition,
         );
         apply_asset_colour_transition(
+            &mut meshes.metallic,
+            metallic_start,
+            asset,
+            position,
+            transition,
+        );
+        apply_asset_colour_transition(
             &mut meshes.translucent,
             translucent_start,
             asset,
@@ -2385,6 +4047,7 @@ fn instantiate_asset(
         apply_gas_colour_transition(&mut meshes.gas, gas_start, position, transition);
     }
     rotate_mesh_vertices(&mut meshes.opaque, opaque_start, position, rotation);
+    rotate_mesh_vertices(&mut meshes.metallic, metallic_start, position, rotation);
     rotate_mesh_vertices(
         &mut meshes.translucent,
         translucent_start,
@@ -3163,72 +4826,122 @@ fn add_liquid_volume(
     phase: f32,
     seed: u64,
 ) {
-    const RINGS: u16 = 6;
-    const SEGMENTS: u16 = 24;
-    let radius = 0.82 * scale.x;
-    let bottom = center + Vec3::new(0.0, -0.52 * scale.y, 0.0);
-    let surface = center + Vec3::new(0.0, 0.54 * scale.y, 0.0);
-    let surface_color = mix_color(color, [0.86, 0.94, 0.97, 0.54], 0.46);
-    let rim_color = mix_color(color, [0.92, 0.97, 0.99, 0.62], 0.68);
-    add_cylinder(mesh, bottom, surface, radius, color);
-    add_disc(mesh, bottom, radius, color);
+    add_contained_liquid(
+        mesh,
+        center + Vec3::new(0.0, 0.54 * scale.y, 0.0),
+        center.y - 0.52 * scale.y,
+        0.82 * scale.x,
+        color,
+        turbulence,
+        phase,
+        seed,
+    );
+}
 
-    for ring in 0..RINGS {
-        let inner_radius = f32::from(ring) / f32::from(RINGS);
-        let outer_radius = f32::from(ring + 1) / f32::from(RINGS);
+/// Universal contained-liquid primitive: a basin sealed by a wall, a floor
+/// disc, and a smooth-shaded free surface with procedural ripples and a
+/// meniscus climbing the vessel wall. Everything renders from scalar state
+/// (level, radius, turbulence), so any scene that knows its liquid level
+/// shares this one implementation.
+#[allow(clippy::too_many_arguments)]
+fn add_contained_liquid(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    floor_y: f32,
+    radius: f32,
+    colour: [f32; 4],
+    turbulence: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const RINGS: u16 = 7;
+    const SEGMENTS: u16 = 28;
+    if surface_centre.y - floor_y <= 0.02 || radius <= 0.01 {
+        return;
+    }
+    let surface_colour = mix_color(colour, [0.86, 0.94, 0.97, 0.54], 0.46);
+    let rim_colour = mix_color(colour, [0.92, 0.97, 0.99, 0.62], 0.68);
+    let point = |radial: f32, angle: f32| {
+        liquid_surface_point(
+            surface_centre,
+            radius,
+            radial,
+            angle,
+            turbulence,
+            phase,
+            seed,
+        )
+    };
+    let bottom = Vec3::new(surface_centre.x, floor_y, surface_centre.z);
+    // The wall meets the surface rim exactly: at radial 1.0 the ripple field
+    // is edge damped away, leaving only the angle-independent meniscus lift.
+    let rim_y = point(1.0, 0.0).y;
+    add_cylinder_wall(
+        mesh,
+        bottom,
+        Vec3::new(surface_centre.x, rim_y, surface_centre.z),
+        radius,
+        colour,
+    );
+    add_disc(mesh, bottom, radius, colour);
+
+    // Smooth-shaded free surface: shared vertices, finite-difference normals.
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: point(0.0, 0.0).to_array(),
+        normal: Vec3::Y.to_array(),
+        color: surface_colour,
+    });
+    let radial_step = 0.5 / f32::from(RINGS);
+    let angle_step = std::f32::consts::TAU * 0.5 / f32::from(SEGMENTS);
+    for ring in 1..=RINGS {
+        let radial = f32::from(ring) / f32::from(RINGS);
         for segment in 0..SEGMENTS {
-            let angle_a = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
-            let angle_b = std::f32::consts::TAU * f32::from(segment + 1) / f32::from(SEGMENTS);
-            let inner_a = liquid_surface_point(
-                surface,
-                radius,
-                inner_radius,
-                angle_a,
-                turbulence,
-                phase,
-                seed,
-            );
-            let inner_b = liquid_surface_point(
-                surface,
-                radius,
-                inner_radius,
-                angle_b,
-                turbulence,
-                phase,
-                seed,
-            );
-            let outer_a = liquid_surface_point(
-                surface,
-                radius,
-                outer_radius,
-                angle_a,
-                turbulence,
-                phase,
-                seed,
-            );
-            let outer_b = liquid_surface_point(
-                surface,
-                radius,
-                outer_radius,
-                angle_b,
-                turbulence,
-                phase,
-                seed,
-            );
-            if ring == 0 {
-                add_flat_triangle(mesh, inner_a, outer_a, outer_b, surface_color);
-            } else {
-                add_flat_triangle(mesh, inner_a, outer_a, outer_b, surface_color);
-                add_flat_triangle(mesh, inner_a, outer_b, inner_b, surface_color);
-            }
+            let angle = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
+            let along_radius =
+                point((radial + radial_step).min(1.0), angle) - point(radial - radial_step, angle);
+            let along_rim = point(radial, angle + angle_step) - point(radial, angle - angle_step);
+            let normal = along_rim
+                .cross(along_radius)
+                .try_normalize()
+                .unwrap_or(Vec3::Y);
+            mesh.vertices.push(Vertex {
+                position: point(radial, angle).to_array(),
+                normal: normal.to_array(),
+                color: surface_colour,
+            });
+        }
+    }
+    let ring_vertex = |ring: u16, segment: u16| -> u32 {
+        base + 1 + u32::from(ring - 1) * u32::from(SEGMENTS) + u32::from(segment % SEGMENTS)
+    };
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            base,
+            ring_vertex(1, segment),
+            ring_vertex(1, segment + 1),
+        ]);
+    }
+    for ring in 1..RINGS {
+        for segment in 0..SEGMENTS {
+            let inner_a = ring_vertex(ring, segment);
+            let inner_b = ring_vertex(ring, segment + 1);
+            let outer_a = ring_vertex(ring + 1, segment);
+            let outer_b = ring_vertex(ring + 1, segment + 1);
+            mesh.indices
+                .extend_from_slice(&[inner_a, outer_a, outer_b, inner_a, outer_b, inner_b]);
         }
     }
     add_ring(
         mesh,
-        surface + Vec3::new(0.0, 0.018 + turbulence * 0.006, 0.0),
+        Vec3::new(
+            surface_centre.x,
+            rim_y + 0.008 + turbulence * 0.006,
+            surface_centre.z,
+        ),
         radius * 0.965,
         0.014,
-        rim_color,
+        rim_colour,
     );
 }
 
@@ -3717,6 +5430,7 @@ struct Mesh {
 #[derive(Default)]
 struct SceneMeshes {
     opaque: Mesh,
+    metallic: Mesh,
     translucent: Mesh,
     glass: Mesh,
     emissive: Mesh,
@@ -3724,25 +5438,47 @@ struct SceneMeshes {
 }
 
 impl SceneMeshes {
-    fn finish(self) -> (Vec<Vertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    fn finish(self) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
         let mut vertices = Vec::with_capacity(
             self.opaque.vertices.len()
+                + self.metallic.vertices.len()
                 + self.translucent.vertices.len()
                 + self.glass.vertices.len()
                 + self.emissive.vertices.len(),
         );
         let mut indices = Vec::with_capacity(
             self.opaque.indices.len()
+                + self.metallic.indices.len()
                 + self.translucent.indices.len()
                 + self.glass.indices.len()
                 + self.emissive.indices.len(),
         );
-        append_mesh(&mut vertices, &mut indices, self.opaque);
+        append_mesh(
+            &mut vertices,
+            &mut indices,
+            self.opaque,
+            MATERIAL_DIELECTRIC,
+        );
+        append_mesh(&mut vertices, &mut indices, self.metallic, MATERIAL_METAL);
         let opaque_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
-        append_mesh(&mut vertices, &mut indices, self.translucent);
-        append_mesh(&mut vertices, &mut indices, self.glass);
+        append_mesh(
+            &mut vertices,
+            &mut indices,
+            self.translucent,
+            MATERIAL_LIQUID,
+        );
+        append_mesh(&mut vertices, &mut indices, self.glass, MATERIAL_GLASS);
         let transparent_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
-        append_mesh(&mut vertices, &mut indices, self.emissive);
+        sort_transparent_triangles(
+            &vertices,
+            &mut indices[opaque_index_count as usize..transparent_index_count as usize],
+        );
+        append_mesh(
+            &mut vertices,
+            &mut indices,
+            self.emissive,
+            MATERIAL_EMISSIVE,
+        );
         (
             vertices,
             indices,
@@ -3753,14 +5489,48 @@ impl SceneMeshes {
     }
 }
 
-fn append_mesh(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, mesh: Mesh) {
+fn append_mesh(vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>, mesh: Mesh, material: u32) {
     let vertex_offset = u32::try_from(vertices.len()).unwrap_or(u32::MAX);
-    vertices.extend(mesh.vertices);
+    vertices.extend(mesh.vertices.into_iter().map(|vertex| GpuVertex {
+        position: vertex.position,
+        normal: vertex.normal,
+        color: vertex.color,
+        material,
+    }));
     indices.extend(
         mesh.indices
             .into_iter()
             .map(|index| index.saturating_add(vertex_offset)),
     );
+}
+
+/// Depth-sorts alpha-blended triangles back-to-front along the fixed view
+/// axis so liquid and glass layer correctly regardless of submission order.
+/// Deterministic: stable sort over exact centroid depths.
+fn sort_transparent_triangles(vertices: &[GpuVertex], indices: &mut [u32]) {
+    let view_direction = fixed_view_direction();
+    let mut triangles: Vec<(f32, [u32; 3])> = indices
+        .chunks_exact(3)
+        .map(|triangle| {
+            let centroid = triangle
+                .iter()
+                .map(|&index| {
+                    vertices
+                        .get(index as usize)
+                        .map_or(Vec3::ZERO, |vertex| Vec3::from_array(vertex.position))
+                })
+                .sum::<Vec3>()
+                / 3.0;
+            (
+                centroid.dot(view_direction),
+                [triangle[0], triangle[1], triangle[2]],
+            )
+        })
+        .collect();
+    triangles.sort_by(|left, right| right.0.total_cmp(&left.0));
+    for (slot, (_, triangle)) in indices.chunks_exact_mut(3).zip(triangles) {
+        slot.copy_from_slice(&triangle);
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3798,7 +5568,9 @@ fn add_animated_alkali_water_assembly(
     let style = animated_alkali_water_style(plan);
     let seed = plan_seed(plan);
     for (track_index, track) in clip.tracks.iter().enumerate() {
-        if !animated_track_enabled(track, track_index, style, seed) {
+        if liquid_track_is_replaced(clip, track_index)
+            || !animated_track_enabled(track, track_index, style, seed)
+        {
             continue;
         }
         let colour = animated_track_colour(track.colour, style);
@@ -3816,6 +5588,18 @@ fn add_animated_alkali_water_assembly(
             layout.bench_top,
             style.activity,
             colour,
+        );
+    }
+    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
+        add_contained_liquid(
+            &mut meshes.translucent,
+            state.surface_centre,
+            state.floor_y,
+            state.radius,
+            animated_track_colour(state.colour, style),
+            style.activity,
+            frame / 30.0 * 2.0,
+            seed,
         );
     }
 }
@@ -3845,6 +5629,7 @@ fn add_animated_neutralisation_assembly(
         post_process,
         stage_progress,
         seed,
+        visual_inputs,
         effect_colours,
         ..
     } = moment;
@@ -3859,8 +5644,8 @@ fn add_animated_neutralisation_assembly(
         layout.bench_top,
         vessel_motion,
     );
-    for track in &clip.tracks {
-        if track.module == ClipModule::VesselAnchor {
+    for (track_index, track) in clip.tracks.iter().enumerate() {
+        if track.module == ClipModule::VesselAnchor || liquid_track_is_replaced(clip, track_index) {
             continue;
         }
         let colour = neutralisation_track_colour(track.colour, colours);
@@ -3878,6 +5663,21 @@ fn add_animated_neutralisation_assembly(
             layout.bench_top,
             1.0,
             colour,
+        );
+    }
+    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
+        // The basin rides the authored vessel motion; the surface level
+        // already follows it through the recovered table.
+        const MODEL_SCALE: f32 = 0.45;
+        add_contained_liquid(
+            &mut meshes.translucent,
+            state.surface_centre,
+            state.floor_y + vessel_motion.y * MODEL_SCALE,
+            state.radius,
+            neutralisation_track_colour(state.colour, colours),
+            visual_inputs.liquid_turbulence,
+            frame / 30.0 * 2.0,
+            seed,
         );
     }
     add_neutralisation_supplemental_reactants(meshes, moment, vessel_motion);
@@ -3928,7 +5728,10 @@ fn add_animated_combustion_assembly(
     );
     let mut fuel = appearance_color(assembly.appearance);
     fuel[3] = 0.32;
-    for track in &clip.tracks {
+    for (track_index, track) in clip.tracks.iter().enumerate() {
+        if liquid_track_is_replaced(clip, track_index) {
+            continue;
+        }
         let colour = combustion_track_colour(track.colour, fuel, incomplete);
         let destination = match (track.pass, track.colour) {
             (_, ClipColour::Glass) => &mut meshes.glass,
@@ -3946,11 +5749,26 @@ fn add_animated_combustion_assembly(
             colour,
         );
     }
+    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
+        // A gentle simmer; the flame's drama lives in the emissive tracks.
+        add_contained_liquid(
+            &mut meshes.translucent,
+            state.surface_centre,
+            state.floor_y,
+            state.radius,
+            combustion_track_colour(state.colour, fuel, incomplete),
+            0.22,
+            frame / 30.0 * 2.0,
+            0x00C0_FFEE,
+        );
+    }
 }
 
 #[allow(clippy::cast_precision_loss)]
 fn precipitation_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
-    const DURATION_MS: f32 = 6_000.0;
+    // Matches the stretched authored window compiled by chem-presentation's
+    // fit_authored_precipitation_duration (0.625x presentation speed).
+    const DURATION_MS: f32 = 9_600.0;
     let Some(precipitation) = &plan.precipitation else {
         return 0.0;
     };
@@ -3986,7 +5804,16 @@ fn add_animated_precipitation_assembly(
         layout.bench_top,
         Vec3::ZERO,
     );
-    for track in &clip.tracks {
+    let pour = pour_state(clip, frame, layout.bench_top);
+    let receiving_lift = pour.map_or(0.0, |state| state.poured * 0.055);
+    for (track_index, track) in clip.tracks.iter().enumerate() {
+        // The baked stream props are replaced by the state-driven pour below.
+        if track.module == ClipModule::PouringVessel && track.colour == ClipColour::LiquidAdded {
+            continue;
+        }
+        if liquid_track_is_replaced(clip, track_index) {
+            continue;
+        }
         let colour =
             precipitation_track_colour(track.colour, precipitation, ordinal, ordinal_progress);
         let destination = match (track.pass, track.colour) {
@@ -4003,6 +5830,40 @@ fn add_animated_precipitation_assembly(
             layout.bench_top,
             1.0,
             colour,
+        );
+    }
+    let liquid = liquid_state(clip, frame, layout.bench_top);
+    if let Some(state) = liquid {
+        // Conservation made visible: the poured volume raises the level, and
+        // the falling stream stirs the surface while it flows.
+        let turbulence = pour.map_or(0.2, |pour| (0.2 + pour.flow * 0.9).min(1.0));
+        add_contained_liquid(
+            &mut meshes.translucent,
+            state.surface_centre + Vec3::Y * receiving_lift,
+            state.floor_y,
+            state.radius,
+            precipitation_track_colour(state.colour, precipitation, ordinal, ordinal_progress),
+            turbulence,
+            frame / 30.0 * 2.0,
+            plan_seed(plan),
+        );
+    }
+    if let Some(state) = pour {
+        let colour = precipitation_track_colour(
+            ClipColour::LiquidAdded,
+            precipitation,
+            ordinal,
+            ordinal_progress,
+        );
+        let receiving_surface =
+            liquid.map_or(layout.liquid_surface, |liquid| liquid.surface_centre.y);
+        add_state_driven_pour(
+            meshes,
+            &state,
+            colour,
+            receiving_surface + receiving_lift,
+            progress * 9.6,
+            plan_seed(plan),
         );
     }
 }
@@ -4066,7 +5927,16 @@ fn add_animated_gas_evolution_assembly(
         layout.bench_top,
         Vec3::ZERO,
     );
-    for track in &clip.tracks {
+    let pour = pour_state(clip, frame, layout.bench_top);
+    let receiving_lift = pour.map_or(0.0, |state| state.poured * 0.055);
+    for (track_index, track) in clip.tracks.iter().enumerate() {
+        // The baked stream props are replaced by the state-driven pour below.
+        if track.module == ClipModule::PouringVessel && track.colour == ClipColour::LiquidAdded {
+            continue;
+        }
+        if liquid_track_is_replaced(clip, track_index) {
+            continue;
+        }
         let colour =
             gas_evolution_track_colour(track.colour, gas_evolution, ordinal, ordinal_progress);
         let destination = match (track.pass, track.colour) {
@@ -4083,6 +5953,40 @@ fn add_animated_gas_evolution_assembly(
             layout.bench_top,
             1.0,
             colour,
+        );
+    }
+    let liquid = liquid_state(clip, frame, layout.bench_top);
+    if let Some(state) = liquid {
+        // Conservation made visible: the poured volume raises the level, and
+        // the falling stream stirs the surface while it flows.
+        let turbulence = pour.map_or(0.2, |pour| (0.2 + pour.flow * 0.9).min(1.0));
+        add_contained_liquid(
+            &mut meshes.translucent,
+            state.surface_centre + Vec3::Y * receiving_lift,
+            state.floor_y,
+            state.radius,
+            gas_evolution_track_colour(state.colour, gas_evolution, ordinal, ordinal_progress),
+            turbulence,
+            frame / 30.0 * 2.0,
+            plan_seed(plan),
+        );
+    }
+    if let Some(state) = pour {
+        let colour = gas_evolution_track_colour(
+            ClipColour::LiquidAdded,
+            gas_evolution,
+            ordinal,
+            ordinal_progress,
+        );
+        let receiving_surface =
+            liquid.map_or(layout.liquid_surface, |liquid| liquid.surface_centre.y);
+        add_state_driven_pour(
+            meshes,
+            &state,
+            colour,
+            receiving_surface + receiving_lift,
+            progress * 9.6,
+            plan_seed(plan),
         );
     }
 }
@@ -4125,8 +6029,10 @@ fn add_animated_metal_displacement_assembly(
         layout.bench_top,
         Vec3::ZERO,
     );
-    for track in &clip.tracks {
-        if !metal_displacement_track_visible(track.module, frame) {
+    for (track_index, track) in clip.tracks.iter().enumerate() {
+        if !metal_displacement_track_visible(track.module, frame)
+            || liquid_track_is_replaced(clip, track_index)
+        {
             continue;
         }
         let colour =
@@ -4175,6 +6081,20 @@ fn add_animated_metal_displacement_assembly(
                 colour,
             );
         }
+    }
+    // The authored FinalSolution column still paints the colour change
+    // spatially; the primitive replaces only the standing initial solution.
+    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
+        add_contained_liquid(
+            &mut meshes.translucent,
+            state.surface_centre,
+            state.floor_y,
+            state.radius,
+            metal_displacement_track_colour(state.colour, displacement, ordinal, ordinal_progress),
+            0.16,
+            frame / 30.0 * 2.0,
+            plan_seed(plan),
+        );
     }
 }
 
@@ -4827,6 +6747,903 @@ fn animated_track_colour(colour: ClipColour, style: AnimatedAlkaliWaterStyle) ->
     }
 }
 
+/// Full eigendecomposition of a symmetric 3x3 matrix via deterministic
+/// cyclic Jacobi rotations. Returns (eigenvalues, eigenvectors).
+#[allow(clippy::many_single_char_names, clippy::needless_range_loop)]
+fn symmetric_eigen_3x3(matrix: [[f32; 3]; 3]) -> ([f32; 3], [Vec3; 3]) {
+    let mut a = matrix;
+    let mut v = [[0.0_f32; 3]; 3];
+    for (index, row) in v.iter_mut().enumerate() {
+        row[index] = 1.0;
+    }
+    for _ in 0..16 {
+        let (mut p, mut q, mut largest) = (0, 1, a[0][1].abs());
+        for (row, col) in [(0, 2), (1, 2)] {
+            if a[row][col].abs() > largest {
+                largest = a[row][col].abs();
+                p = row;
+                q = col;
+            }
+        }
+        if largest < 1e-10 {
+            break;
+        }
+        let theta = 0.5 * (a[q][q] - a[p][p]) / a[p][q];
+        let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+        let c = 1.0 / (t * t + 1.0).sqrt();
+        let s = t * c;
+        for k in 0..3 {
+            let akp = a[k][p];
+            let akq = a[k][q];
+            a[k][p] = c * akp - s * akq;
+            a[k][q] = s * akp + c * akq;
+        }
+        for k in 0..3 {
+            let apk = a[p][k];
+            let aqk = a[q][k];
+            a[p][k] = c * apk - s * aqk;
+            a[q][k] = s * apk + c * aqk;
+        }
+        for row in &mut v {
+            let vp = row[p];
+            let vq = row[q];
+            row[p] = c * vp - s * vq;
+            row[q] = s * vp + c * vq;
+        }
+    }
+    (
+        [a[0][0], a[1][1], a[2][2]],
+        [
+            Vec3::new(v[0][0], v[1][0], v[2][0]),
+            Vec3::new(v[0][1], v[1][1], v[2][1]),
+            Vec3::new(v[0][2], v[1][2], v[2][2]),
+        ],
+    )
+}
+
+/// Orthonormal frame from three rigidly-moving anchor vertices, plus the
+/// anchor triangle perimeter (detects the scale-to-zero used to hide the
+/// vessel outside its window).
+fn anchor_frame(
+    clip: &AnimatedClip,
+    track: &ClipTrack,
+    anchors: [usize; 3],
+    frame: f32,
+) -> (glam::Mat3, Vec3, f32) {
+    let p0 = clip.sample(track, anchors[0], frame).position;
+    let p1 = clip.sample(track, anchors[1], frame).position;
+    let p2 = clip.sample(track, anchors[2], frame).position;
+    let e1 = (p1 - p0).normalize_or_zero();
+    let raw2 = p2 - p0;
+    let e2 = (raw2 - e1 * e1.dot(raw2)).normalize_or_zero();
+    let e3 = e1.cross(e2);
+    let perimeter = (p1 - p0).length() + (p2 - p1).length() + (p0 - p2).length();
+    (glam::Mat3::from_cols(e1, e2, e3), p0, perimeter)
+}
+
+/// Where the authored stream prop leaves the vessel, and at which frame it
+/// is tallest — used once, to orient the recovered axis out of the opening.
+fn authored_spout_hint(clip: &AnimatedClip) -> Option<(Vec3, f32)> {
+    let prop = clip.tracks.iter().find(|track| {
+        track.module == ClipModule::PouringVessel
+            && track.colour == ClipColour::LiquidAdded
+            && track.vertex_count >= 24
+    })?;
+    let mut prop_frame = 0.0_f32;
+    let mut best_height = -1.0_f32;
+    for frame in 0..clip.frame_count {
+        let frame = f32::from(frame);
+        let mut low = f32::MAX;
+        let mut high = f32::MIN;
+        for vertex_index in 0..prop.vertex_count {
+            let y = clip.sample(prop, vertex_index, frame).position.y;
+            low = low.min(y);
+            high = high.max(y);
+        }
+        if high - low > best_height {
+            best_height = high - low;
+            prop_frame = frame;
+        }
+    }
+    let mut prop_high = f32::MIN;
+    for vertex_index in 0..prop.vertex_count {
+        prop_high = prop_high.max(clip.sample(prop, vertex_index, prop_frame).position.y);
+    }
+    let mut spout = Vec3::ZERO;
+    let mut spout_weight = 0.0_f32;
+    for vertex_index in 0..prop.vertex_count {
+        let position = clip.sample(prop, vertex_index, prop_frame).position;
+        if position.y > prop_high - best_height * 0.25 {
+            spout += position;
+            spout_weight += 1.0;
+        }
+    }
+    Some((spout / spout_weight.max(1.0), prop_frame))
+}
+
+/// Reference-frame description of the rigid pouring vessel: its axis of
+/// revolution (from the inertia tensor: a body of revolution has two equal
+/// principal moments, the odd one out is the axis), cylinder extents, and
+/// three anchor vertices that track its rigid motion exactly.
+#[derive(Debug)]
+struct PourRig {
+    glass_track: usize,
+    anchors: [usize; 3],
+    reference_perimeter: f32,
+    axis_local: Vec3,
+    base_local: Vec3,
+    height: f32,
+    radius: f32,
+}
+
+/// Three deterministic, well-separated anchor vertices: the farthest point
+/// from the centroid, the farthest from that, and the farthest off their line.
+fn select_rig_anchors(points: &[Vec3], centroid: Vec3) -> [usize; 3] {
+    let far = |from: Vec3| {
+        let mut best = 0;
+        let mut best_distance = -1.0_f32;
+        for (index, point) in points.iter().enumerate() {
+            let distance = (*point - from).length_squared();
+            if distance > best_distance {
+                best_distance = distance;
+                best = index;
+            }
+        }
+        best
+    };
+    let first = far(centroid);
+    let second = far(points[first]);
+    let line = (points[second] - points[first]).normalize_or_zero();
+    let mut third = 0;
+    let mut best_off_line = -1.0_f32;
+    for (index, point) in points.iter().enumerate() {
+        let offset = *point - points[first];
+        let off_line = (offset - line * line.dot(offset)).length_squared();
+        if off_line > best_off_line {
+            best_off_line = off_line;
+            third = index;
+        }
+    }
+    [first, second, third]
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn build_pour_rig(clip: &AnimatedClip) -> Option<PourRig> {
+    let (glass_track, glass) = clip.tracks.iter().enumerate().find(|(_, track)| {
+        track.module == ClipModule::PouringVessel && track.colour == ClipColour::Glass
+    })?;
+    // Reference frame: where the vessel is largest (fully formed).
+    let mut reference = 0.0_f32;
+    let mut best_extent = 0.0_f32;
+    for frame in 0..clip.frame_count {
+        let frame = f32::from(frame);
+        let mut low = Vec3::splat(f32::MAX);
+        let mut high = Vec3::splat(f32::MIN);
+        for vertex_index in 0..glass.vertex_count {
+            let position = clip.sample(glass, vertex_index, frame).position;
+            low = low.min(position);
+            high = high.max(position);
+        }
+        let extent = (high - low).length();
+        if extent > best_extent {
+            best_extent = extent;
+            reference = frame;
+        }
+    }
+    let points: Vec<Vec3> = (0..glass.vertex_count)
+        .map(|vertex_index| clip.sample(glass, vertex_index, reference).position)
+        .collect();
+    let centroid = points.iter().copied().sum::<Vec3>() / points.len() as f32;
+    let mut covariance = [[0.0_f32; 3]; 3];
+    for point in &points {
+        let d = (*point - centroid).to_array();
+        for (row, d_row) in d.iter().enumerate() {
+            for (col, d_col) in d.iter().enumerate() {
+                covariance[row][col] += d_row * d_col;
+            }
+        }
+    }
+    let (values, vectors) = symmetric_eigen_3x3(covariance);
+    // Odd one out: the eigenvalue farthest from both others marks the axis.
+    let mut axis_index = 0;
+    let mut best_separation = -1.0_f32;
+    for candidate in 0..3 {
+        let separation = (0..3)
+            .filter(|&other| other != candidate)
+            .map(|other| (values[candidate] - values[other]).abs())
+            .fold(f32::MAX, f32::min);
+        if separation > best_separation {
+            best_separation = separation;
+            axis_index = candidate;
+        }
+    }
+    let mut axis = vectors[axis_index].normalize_or_zero();
+    if axis.length_squared() < 0.5 {
+        return None;
+    }
+    let anchors = select_rig_anchors(&points, centroid);
+    let (basis, origin, reference_perimeter) = anchor_frame(clip, glass, anchors, reference);
+    if reference_perimeter < 1e-3 {
+        return None;
+    }
+    // Open end: toward the authored stream's spout (one discrete bit of
+    // prop data; all continuous state comes from the glass geometry).
+    let (spout, spout_frame) = authored_spout_hint(clip)?;
+    let (spout_basis, spout_origin, spout_perimeter) =
+        anchor_frame(clip, glass, anchors, spout_frame);
+    if spout_perimeter > 1e-3 {
+        let spout_local = spout_basis.transpose() * (spout - spout_origin);
+        let centroid_local = basis.transpose() * (centroid - origin);
+        if (spout_local - centroid_local).dot(basis.transpose() * axis) < 0.0 {
+            axis = -axis;
+        }
+    }
+    let axis_local = basis.transpose() * axis;
+    let centroid_local = basis.transpose() * (centroid - origin);
+    let mut min_projection = f32::MAX;
+    let mut max_projection = f32::MIN;
+    let mut radius = 0.0_f32;
+    for point in &points {
+        let local = basis.transpose() * (*point - origin);
+        let projection = (local - centroid_local).dot(axis_local);
+        min_projection = min_projection.min(projection);
+        max_projection = max_projection.max(projection);
+        let radial = (local - centroid_local) - axis_local * projection;
+        radius = radius.max(radial.length());
+    }
+    Some(PourRig {
+        glass_track,
+        anchors,
+        reference_perimeter,
+        axis_local,
+        base_local: centroid_local + axis_local * min_projection,
+        height: max_projection - min_projection,
+        radius: radius * 0.94,
+    })
+}
+
+/// Physical pour state for one clip frame, in clip space.
+#[derive(Debug, Clone, Copy)]
+struct PourFrameState {
+    present: bool,
+    base: Vec3,
+    axis: Vec3,
+    radius: f32,
+    height: f32,
+    lip: Vec3,
+    downhill: Vec3,
+    plane_y: f32,
+    /// Normalized 0..1 outflow.
+    flow: f32,
+    /// Remaining liquid as a fraction of vessel height.
+    fraction: f32,
+    /// 0..1 of the initial charge that has been poured out.
+    poured: f32,
+}
+
+struct PourTable {
+    frames: Vec<PourFrameState>,
+    first_flow: Option<usize>,
+}
+
+/// How full the pouring vessel starts, as a fraction of its height.
+const POUR_INITIAL_FILL: f32 = 0.62;
+
+/// Integrates the pour across the clip: each frame recovers the rigid
+/// vessel pose from the glass anchors, places the contained liquid as a
+/// horizontal plane holding the remaining volume, and spills through the
+/// lip with a weir-style flow law whenever that plane sits above it.
+/// ponytail: slab volume model for the tilted cylinder (plane offset scales
+/// with the vertical axis component); exact integral if metering ever matters.
+fn build_pour_table(clip: &AnimatedClip) -> Option<PourTable> {
+    const FLOW_GAIN: f32 = 1.4;
+    const FRAME_DT: f32 = 1.0 / 30.0;
+    let rig = build_pour_rig(clip)?;
+    let glass = &clip.tracks[rig.glass_track];
+    let mut fraction = POUR_INITIAL_FILL;
+    let mut frames = Vec::with_capacity(usize::from(clip.frame_count));
+    let mut first_flow = None;
+    for frame in 0..clip.frame_count {
+        let frame_f = f32::from(frame);
+        let (basis, origin, perimeter) = anchor_frame(clip, glass, rig.anchors, frame_f);
+        let scale = perimeter / rig.reference_perimeter;
+        if !(0.5..=2.0).contains(&scale) {
+            frames.push(PourFrameState {
+                present: false,
+                base: Vec3::ZERO,
+                axis: Vec3::Y,
+                radius: 0.0,
+                height: 0.0,
+                lip: Vec3::ZERO,
+                downhill: Vec3::X,
+                plane_y: 0.0,
+                flow: 0.0,
+                fraction,
+                poured: (POUR_INITIAL_FILL - fraction) / POUR_INITIAL_FILL,
+            });
+            continue;
+        }
+        let axis = (basis * rig.axis_local).normalize_or_zero();
+        let base = origin + basis * (rig.base_local * scale);
+        let height = rig.height * scale;
+        let radius = rig.radius * scale;
+        let rim_centre = base + axis * height;
+        let downhill = (Vec3::NEG_Y - axis * Vec3::NEG_Y.dot(axis)).normalize_or_zero();
+        let tilted = downhill.length_squared() > 0.5;
+        let lip = if tilted {
+            rim_centre + downhill * radius
+        } else {
+            rim_centre
+        };
+        let plane_y = base.y + fraction * height * axis.y.clamp(0.15, 1.0);
+        let submergence = plane_y - lip.y;
+        let flow_raw = if tilted && fraction > 0.02 {
+            submergence.max(0.0).powf(1.5) * FLOW_GAIN
+        } else {
+            0.0
+        };
+        let flow = (flow_raw * 3.0).clamp(0.0, 1.0);
+        if flow > 0.0 && first_flow.is_none() {
+            first_flow = Some(usize::from(frame));
+        }
+        fraction = (fraction - flow_raw * FRAME_DT).max(0.02);
+        frames.push(PourFrameState {
+            present: true,
+            base,
+            axis,
+            radius,
+            height,
+            lip,
+            downhill: if tilted { downhill } else { Vec3::X },
+            plane_y,
+            flow,
+            fraction,
+            poured: (POUR_INITIAL_FILL - fraction) / POUR_INITIAL_FILL,
+        });
+    }
+    Some(PourTable { frames, first_flow })
+}
+
+type PourTableCache = std::sync::Mutex<Vec<(usize, Option<&'static PourTable>)>>;
+
+fn pour_table_for(clip: &'static AnimatedClip) -> Option<&'static PourTable> {
+    static TABLES: OnceLock<PourTableCache> = OnceLock::new();
+    let key = std::ptr::from_ref(clip) as usize;
+    let mut tables = TABLES
+        .get_or_init(|| std::sync::Mutex::new(Vec::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((_, table)) = tables.iter().find(|(cached, _)| *cached == key) {
+        return *table;
+    }
+    let table = build_pour_table(clip).map(|table| &*Box::leak(Box::new(table)));
+    tables.push((key, table));
+    table
+}
+
+/// World-space pour state at a fractional clip frame.
+#[derive(Debug, Clone, Copy)]
+struct PourState {
+    base: Vec3,
+    axis: Vec3,
+    radius: f32,
+    height: f32,
+    lip: Vec3,
+    downhill: Vec3,
+    plane_y: f32,
+    flow: f32,
+    fraction: f32,
+    poured: f32,
+    /// Clip seconds since outflow began (for the falling-front animation).
+    flow_elapsed: f32,
+}
+
+// Frame indices are bounded by the 180-frame clip, so the casts are exact.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn pour_state(clip: &'static AnimatedClip, frame: f32, bench_top: f32) -> Option<PourState> {
+    const MODEL_SCALE: f32 = 0.45;
+    let table = pour_table_for(clip)?;
+    let floor = (frame.floor().max(0.0) as usize).min(table.frames.len() - 1);
+    let ceil = (floor + 1).min(table.frames.len() - 1);
+    let blend = (frame - floor as f32).clamp(0.0, 1.0);
+    let a = table.frames[floor];
+    let b = table.frames[ceil];
+    let state = match (a.present, b.present) {
+        (false, false) => return None,
+        (true, false) => a,
+        (false, true) => b,
+        (true, true) => PourFrameState {
+            present: true,
+            base: a.base.lerp(b.base, blend),
+            axis: a.axis.lerp(b.axis, blend).normalize_or_zero(),
+            radius: a.radius + (b.radius - a.radius) * blend,
+            height: a.height + (b.height - a.height) * blend,
+            lip: a.lip.lerp(b.lip, blend),
+            downhill: a.downhill.lerp(b.downhill, blend).normalize_or_zero(),
+            plane_y: a.plane_y + (b.plane_y - a.plane_y) * blend,
+            flow: a.flow + (b.flow - a.flow) * blend,
+            fraction: a.fraction + (b.fraction - a.fraction) * blend,
+            poured: a.poured + (b.poured - a.poured) * blend,
+        },
+    };
+    let to_world = |position: Vec3| position * MODEL_SCALE + Vec3::Y * bench_top;
+    let flow_elapsed = table
+        .first_flow
+        .map_or(0.0, |first| ((frame - first as f32) / 30.0).max(0.0));
+    Some(PourState {
+        base: to_world(state.base),
+        axis: state.axis,
+        radius: state.radius * MODEL_SCALE,
+        height: state.height * MODEL_SCALE,
+        lip: to_world(state.lip),
+        downhill: state.downhill,
+        plane_y: state.plane_y * MODEL_SCALE + bench_top,
+        flow: state.flow,
+        fraction: state.fraction,
+        poured: state.poured,
+        flow_elapsed,
+    })
+}
+
+/// State recovered from a clip's authored standing liquid: the basin the
+/// liquid occupies plus the per-frame free-surface level. At render time the
+/// authored body and surface meshes are replaced by the contained-liquid
+/// primitive driven from this table, so the level is a real scalar the scene
+/// can move (pours raise it, burns lower it) instead of baked geometry.
+#[derive(Debug)]
+struct LiquidTable {
+    /// Clip tracks the primitive replaces (skipped by the renderer).
+    track_indices: Vec<usize>,
+    radius: f32,
+    floor_y: f32,
+    colour: ClipColour,
+    /// Per-frame surface centre `[x, level, z]` in model units.
+    frames: Vec<Vec3>,
+}
+
+// Vertex and frame counts are bounded by the 180-frame clips, so the casts
+// are exact.
+#[allow(clippy::cast_precision_loss)]
+fn build_liquid_table(clip: &AnimatedClip) -> Option<LiquidTable> {
+    // The authored basin spans the shared beaker's full interior; liquid
+    // props (ripple rings, droplets) are an order of magnitude smaller.
+    const MIN_BASIN_EXTENT: f32 = 1.5;
+    // A basin track thinner than this is the free-surface sheet.
+    const SHEET_THICKNESS: f32 = 0.2;
+    // The shared beaker's inner floor, for clips that author only a surface
+    // sheet; matches the body floor in every clip that has one.
+    const FLOOR_FALLBACK: f32 = 0.19;
+    let track_bounds = |track: &ClipTrack| {
+        let mut min = Vec3::splat(f32::MAX);
+        let mut max = Vec3::splat(f32::MIN);
+        for vertex_index in 0..track.vertex_count {
+            let position = clip.sample(track, vertex_index, 0.0).position;
+            min = min.min(position);
+            max = max.max(position);
+        }
+        (min, max)
+    };
+    let mut bodies: Vec<usize> = Vec::new();
+    let mut surface: Option<usize> = None;
+    let mut floor_y: Option<f32> = None;
+    let mut radius = 0.0_f32;
+    for (index, track) in clip.tracks.iter().enumerate() {
+        if track.pass != ClipPass::Translucent
+            || !matches!(
+                track.module,
+                ClipModule::Water | ClipModule::InitialSolution
+            )
+        {
+            continue;
+        }
+        let (min, max) = track_bounds(track);
+        let extent = (max.x - min.x).max(max.z - min.z) * 0.5;
+        if extent < MIN_BASIN_EXTENT {
+            continue;
+        }
+        radius = radius.max(extent);
+        if max.y - min.y < SHEET_THICKNESS {
+            surface = Some(index);
+        } else {
+            floor_y = Some(floor_y.map_or(min.y, |floor: f32| floor.min(min.y)));
+            bodies.push(index);
+        }
+    }
+    let representative = *bodies.first().or(surface.as_ref())?;
+    let floor_y = floor_y.unwrap_or(FLOOR_FALLBACK);
+    let frames = (0..clip.frame_count)
+        .map(|frame| {
+            let frame = f32::from(frame);
+            if let Some(surface_index) = surface {
+                // The sheet's mean position tracks both the level and any
+                // authored vessel motion.
+                let track = &clip.tracks[surface_index];
+                let sum = (0..track.vertex_count).fold(Vec3::ZERO, |sum, vertex_index| {
+                    sum + clip.sample(track, vertex_index, frame).position
+                });
+                sum / track.vertex_count.max(1) as f32
+            } else {
+                let track = &clip.tracks[representative];
+                let top = (0..track.vertex_count).fold(f32::MIN, |top, vertex_index| {
+                    top.max(clip.sample(track, vertex_index, frame).position.y)
+                });
+                Vec3::new(0.0, top, 0.0)
+            }
+        })
+        .collect();
+    let mut track_indices = bodies;
+    track_indices.extend(surface);
+    Some(LiquidTable {
+        colour: clip.tracks[representative].colour,
+        track_indices,
+        radius,
+        floor_y,
+        frames,
+    })
+}
+
+type LiquidTableCache = std::sync::Mutex<Vec<(usize, Option<&'static LiquidTable>)>>;
+
+fn liquid_table_for(clip: &'static AnimatedClip) -> Option<&'static LiquidTable> {
+    static TABLES: OnceLock<LiquidTableCache> = OnceLock::new();
+    let key = std::ptr::from_ref(clip) as usize;
+    let mut tables = TABLES
+        .get_or_init(|| std::sync::Mutex::new(Vec::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((_, table)) = tables.iter().find(|(cached, _)| *cached == key) {
+        return *table;
+    }
+    let table = build_liquid_table(clip).map(|table| &*Box::leak(Box::new(table)));
+    tables.push((key, table));
+    table
+}
+
+fn liquid_track_is_replaced(clip: &'static AnimatedClip, track_index: usize) -> bool {
+    liquid_table_for(clip).is_some_and(|table| table.track_indices.contains(&track_index))
+}
+
+/// World-space standing-liquid state at a fractional clip frame.
+#[derive(Debug, Clone, Copy)]
+struct LiquidState {
+    surface_centre: Vec3,
+    floor_y: f32,
+    radius: f32,
+    colour: ClipColour,
+}
+
+// Frame indices are bounded by the 180-frame clip, so the casts are exact.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn liquid_state(clip: &'static AnimatedClip, frame: f32, bench_top: f32) -> Option<LiquidState> {
+    const MODEL_SCALE: f32 = 0.45;
+    let table = liquid_table_for(clip)?;
+    let floor = (frame.floor().max(0.0) as usize).min(table.frames.len() - 1);
+    let ceil = (floor + 1).min(table.frames.len() - 1);
+    let blend = (frame - floor as f32).clamp(0.0, 1.0);
+    let centre = table.frames[floor].lerp(table.frames[ceil], blend);
+    Some(LiquidState {
+        surface_centre: centre * MODEL_SCALE + Vec3::Y * bench_top,
+        floor_y: table.floor_y * MODEL_SCALE + bench_top,
+        radius: table.radius * MODEL_SCALE,
+        colour: table.colour,
+    })
+}
+
+/// The liquid inside the pouring vessel: a cylinder clipped by the
+/// horizontal liquid plane, so the surface stays level and creeps toward
+/// the lip as the vessel tips.
+#[allow(clippy::cast_precision_loss)]
+fn add_vessel_liquid(mesh: &mut Mesh, state: &PourState, colour: [f32; 4]) {
+    const SEGMENTS: u32 = 20;
+    if state.fraction <= 0.03 || state.height <= 0.01 {
+        return;
+    }
+    let axis = state.axis;
+    let mut e1 = axis.cross(Vec3::Y);
+    if e1.length_squared() < 1e-4 {
+        e1 = axis.cross(Vec3::X);
+    }
+    let e1 = e1.normalize_or_zero();
+    let e2 = axis.cross(e1).normalize_or_zero();
+    let inner = state.radius * 0.88;
+    let axis_y = axis.y.clamp(0.15, 1.0);
+    let liquid_colour = [colour[0], colour[1], colour[2], (colour[3] + 0.34).min(0.9)];
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    let mut tops = Vec::with_capacity(SEGMENTS as usize);
+    for segment in 0..SEGMENTS {
+        let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+        let radial = e1 * angle.cos() + e2 * angle.sin();
+        let bottom = state.base + radial * inner;
+        let along = ((state.plane_y - bottom.y) / axis_y).clamp(0.015, state.height * 0.96);
+        let top = bottom + axis * along;
+        tops.push(top);
+        mesh.vertices.push(Vertex {
+            position: bottom.to_array(),
+            normal: radial.to_array(),
+            color: liquid_colour,
+        });
+        mesh.vertices.push(Vertex {
+            position: top.to_array(),
+            normal: radial.to_array(),
+            color: liquid_colour,
+        });
+    }
+    for segment in 0..SEGMENTS {
+        let next = (segment + 1) % SEGMENTS;
+        let b0 = base_vertex + segment * 2;
+        let t0 = b0 + 1;
+        let b1 = base_vertex + next * 2;
+        let t1 = b1 + 1;
+        mesh.indices.extend_from_slice(&[b0, t0, b1, b1, t0, t1]);
+    }
+    // Level surface fan.
+    let surface_centre = tops.iter().copied().sum::<Vec3>() / tops.len() as f32;
+    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    let surface_colour = [
+        (colour[0] * 0.85 + 0.15),
+        (colour[1] * 0.85 + 0.15),
+        (colour[2] * 0.85 + 0.15),
+        (colour[3] + 0.40).min(0.92),
+    ];
+    mesh.vertices.push(Vertex {
+        position: surface_centre.to_array(),
+        normal: Vec3::Y.to_array(),
+        color: surface_colour,
+    });
+    for top in &tops {
+        mesh.vertices.push(Vertex {
+            position: top.to_array(),
+            normal: Vec3::Y.to_array(),
+            color: surface_colour,
+        });
+    }
+    for segment in 0..SEGMENTS {
+        let next = (segment + 1) % SEGMENTS;
+        mesh.indices.extend_from_slice(&[
+            centre_vertex,
+            centre_vertex + 1 + segment,
+            centre_vertex + 1 + next,
+        ]);
+    }
+}
+
+/// Endpoints handed to the stream renderer.
+#[derive(Debug, Clone, Copy)]
+struct PourAnchors {
+    spout: Vec3,
+    impact: Vec3,
+    strength: f32,
+}
+
+/// Renders everything the pour's physical state implies: the liquid inside
+/// the tipping vessel, and — only while the spill condition holds — a
+/// ballistic stream from the lip to the receiving surface.
+fn add_state_driven_pour(
+    meshes: &mut SceneMeshes,
+    state: &PourState,
+    colour: [f32; 4],
+    receiving_surface: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const POUR_GRAVITY: f32 = 6.0;
+    add_vessel_liquid(&mut meshes.translucent, state, colour);
+    if state.flow <= 0.001 {
+        return;
+    }
+    let drop_height = state.lip.y - receiving_surface;
+    if drop_height < 0.05 {
+        return;
+    }
+    let fall_time = (2.0 * drop_height / POUR_GRAVITY).sqrt();
+    let lip_velocity = 0.10 + 0.30 * state.flow;
+    let landing = state.lip + state.downhill * (lip_velocity * fall_time);
+    let anchors = PourAnchors {
+        spout: state.lip + state.downhill * 0.012,
+        impact: Vec3::new(landing.x, receiving_surface, landing.z),
+        strength: state.flow,
+    };
+    // Clip time runs at 0.625x presentation speed; the falling front covers
+    // the arc in real fall time.
+    let front = (state.flow_elapsed * 1.6 / fall_time).min(1.0);
+    add_pour_stream(meshes, anchors, colour, front, phase, seed);
+}
+
+/// A physics-informed poured stream: constant horizontal velocity with a
+/// parabolic drop, continuity necking as the liquid accelerates, a slight
+/// travelling wobble, and a flared foot that meets the receiving surface
+/// with ripples, splash droplets, and froth. Deterministic in (anchors,
+/// phase, seed).
+#[allow(clippy::cast_precision_loss)]
+fn add_pour_stream(
+    meshes: &mut SceneMeshes,
+    anchors: PourAnchors,
+    colour: [f32; 4],
+    front: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const SEGMENTS: u32 = 14;
+    const SIDES: u32 = 8;
+    let front = front.clamp(0.05, 1.0);
+    let landed = front >= 0.999;
+    let drop = (anchors.spout.y - anchors.impact.y).max(0.05);
+    let horizontal = Vec3::new(
+        anchors.impact.x - anchors.spout.x,
+        0.0,
+        anchors.impact.z - anchors.spout.z,
+    );
+    let strength = anchors.strength;
+    let base_radius = 0.020 + 0.026 * strength;
+    let curve = |u: f32| {
+        // Constant lip velocity horizontally; gravity squares the drop.
+        anchors.spout + horizontal * u + Vec3::Y * (-drop * u * u)
+    };
+    let mesh = &mut meshes.translucent;
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    for segment in 0..=SEGMENTS {
+        let u = segment as f32 / SEGMENTS as f32 * front;
+        let centre = curve(u);
+        let tangent = (curve((u + 0.02).min(1.0)) - curve((u - 0.02).max(0.0))).normalize_or_zero();
+        let right = tangent.cross(Vec3::Y).normalize_or_zero();
+        let right = if right.length_squared() < 0.5 {
+            Vec3::X
+        } else {
+            right
+        };
+        let binormal = right.cross(tangent).normalize_or_zero();
+        // Continuity: the stream thins as it accelerates under gravity.
+        let neck = (1.0 + 3.0 * u * u).powf(-0.25);
+        let wobble = 1.0 + 0.09 * (u * 21.0 - phase * 8.0 + seed as f32 % 6.0).sin() * u;
+        let foot_flare = if landed {
+            1.0 + 0.65 * ((u - 0.9) / 0.1).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        let radius = base_radius * neck * wobble * foot_flare;
+        // The stream leaves the lip as a slightly flattened sheet and pulls
+        // round within the first quarter of the fall.
+        let sheet = 1.0 - ((0.25 - u) / 0.25).clamp(0.0, 1.0) * 0.35;
+        let froth = ((u - 0.86) / 0.14).clamp(0.0, 1.0) * 0.4;
+        let ring_colour = [
+            colour[0] + (1.0 - colour[0]) * froth,
+            colour[1] + (1.0 - colour[1]) * froth,
+            colour[2] + (1.0 - colour[2]) * froth,
+            (colour[3] + 0.30 + froth * 0.2).min(0.95),
+        ];
+        let sway = right * (0.010 * (u * 13.0 - phase * 6.0).sin() * u);
+        for side in 0..SIDES {
+            let angle = std::f32::consts::TAU * side as f32 / SIDES as f32;
+            let normal =
+                (right * (angle.cos() * sheet) + binormal * angle.sin()).normalize_or_zero();
+            let offset =
+                right * (angle.cos() * radius * 1.15) + binormal * (angle.sin() * radius * sheet);
+            mesh.vertices.push(Vertex {
+                position: (centre + sway + offset).to_array(),
+                normal: normal.to_array(),
+                color: ring_colour,
+            });
+        }
+    }
+    for segment in 0..SEGMENTS {
+        for side in 0..SIDES {
+            let current = base_vertex + segment * SIDES + side;
+            let next_side = base_vertex + segment * SIDES + (side + 1) % SIDES;
+            let above = current + SIDES;
+            let above_next = next_side + SIDES;
+            mesh.indices
+                .extend_from_slice(&[current, above, next_side, next_side, above, above_next]);
+        }
+    }
+    // Splash effects appear only once the falling front has reached the
+    // receiving liquid; before that, the stream ends in a rounded head.
+    if landed {
+        add_pour_impact(meshes, anchors, phase, seed);
+    } else {
+        add_sphere(
+            &mut meshes.translucent,
+            curve(front),
+            base_radius * 1.6,
+            [
+                colour[0] * 0.6 + 0.4,
+                colour[1] * 0.6 + 0.4,
+                colour[2] * 0.6 + 0.4,
+                (colour[3] + 0.35).min(0.9),
+            ],
+            4,
+            6,
+        );
+    }
+}
+
+/// Impact effects at the stream's foot: expanding ripples, seeded splash
+/// droplets, and a froth patch, all scaled by pour strength and phased by
+/// the deterministic clock.
+#[allow(clippy::cast_precision_loss)]
+fn add_pour_impact(meshes: &mut SceneMeshes, anchors: PourAnchors, phase: f32, seed: u64) {
+    let strength = anchors.strength;
+    let impact = anchors.impact;
+    for ring in 0..2 {
+        let ring_phase = (phase * 0.9 + ring as f32 * 0.5).fract();
+        let radius = 0.08 + ring_phase * 0.30 * (0.6 + strength * 0.4);
+        let alpha = (1.0 - ring_phase) * 0.30 * strength;
+        add_ring(
+            &mut meshes.translucent,
+            impact + Vec3::Y * 0.012,
+            radius,
+            0.008,
+            [0.92, 0.96, 1.0, alpha],
+        );
+    }
+    add_disc(
+        &mut meshes.translucent,
+        impact + Vec3::Y * 0.018,
+        0.075 + 0.02 * (phase * 11.0).sin().abs(),
+        [0.95, 0.97, 1.0, 0.30 * strength],
+    );
+    for droplet in 0..6_u32 {
+        let launch = seeded_unit(seed, droplet, 61);
+        let droplet_phase = (phase * 1.5 + launch).fract();
+        let direction = std::f32::consts::TAU * seeded_unit(seed, droplet, 62);
+        let reach = 0.05 + 0.20 * droplet_phase * (0.5 + strength * 0.5);
+        let arc = 0.16 * droplet_phase - 0.30 * droplet_phase * droplet_phase;
+        let centre = impact
+            + Vec3::new(
+                direction.cos() * reach,
+                arc.max(0.0) + 0.02,
+                direction.sin() * reach,
+            );
+        add_sphere(
+            &mut meshes.translucent,
+            centre,
+            0.011 + 0.007 * seeded_unit(seed, droplet, 63),
+            [0.94, 0.97, 1.0, (1.0 - droplet_phase) * 0.7 * strength],
+            3,
+            5,
+        );
+    }
+}
+
+/// The baked clips store i8-quantized normals whose stepping bands under
+/// glossy shading; recompute smooth area-weighted normals from the actual
+/// triangle geometry instead. Authored hard edges survive because they are
+/// modelled with duplicated vertices; degenerate (hidden) frames fall back
+/// to the sampled normals.
+fn smooth_track_normals(positions: &[Vec3], indices: &[u32], fallbacks: &[Vec3]) -> Vec<Vec3> {
+    let mut normals = vec![Vec3::ZERO; positions.len()];
+    for triangle in indices.chunks_exact(3) {
+        let [i0, i1, i2] = [
+            triangle[0] as usize,
+            triangle[1] as usize,
+            triangle[2] as usize,
+        ];
+        let face = (positions[i1] - positions[i0]).cross(positions[i2] - positions[i0]);
+        normals[i0] += face;
+        normals[i1] += face;
+        normals[i2] += face;
+    }
+    normals
+        .iter()
+        .zip(fallbacks)
+        .map(|(normal, fallback)| {
+            let smoothed = normal.normalize_or_zero();
+            if smoothed.length_squared() < 0.5 {
+                *fallback
+            } else {
+                smoothed
+            }
+        })
+        .collect()
+}
+
 fn append_animated_track(
     mesh: &mut Mesh,
     clip: &AnimatedClip,
@@ -4864,6 +7681,8 @@ fn append_animated_track_adjusted(
     let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
     mesh.vertices.reserve(track.vertex_count);
     mesh.indices.reserve(track.indices.len());
+    let mut positions = Vec::with_capacity(track.vertex_count);
+    let mut fallback_normals = Vec::with_capacity(track.vertex_count);
     for vertex_index in 0..track.vertex_count {
         let current = clip.sample(track, vertex_index, frame);
         let initial = if matches!(track.module, ClipModule::Water | ClipModule::Metal) {
@@ -4919,9 +7738,18 @@ fn append_animated_track_adjusted(
         if (local_scale - 1.0).abs() > f32::EPSILON {
             position = centre + (position - centre) * local_scale;
         }
-        position += normal * normal_offset;
+        positions.push(position);
+        fallback_normals.push(normal);
+    }
+    let normals = smooth_track_normals(&positions, &track.indices, &fallback_normals);
+    for ((position, normal), _) in positions
+        .iter()
+        .zip(normals.iter())
+        .zip(fallback_normals.iter())
+    {
+        let displaced = *position + *normal * normal_offset;
         mesh.vertices.push(Vertex {
-            position: (position * MODEL_SCALE + Vec3::Y * bench_top).to_array(),
+            position: (displaced * MODEL_SCALE + Vec3::Y * bench_top).to_array(),
             normal: normal.to_array(),
             color: colour,
         });
@@ -5155,8 +7983,11 @@ fn add_box(mesh: &mut Mesh, center: Vec3, size: Vec3, color: [f32; 4]) {
                 color,
             });
         }
+        // Wound so each face's front matches its declared outward normal;
+        // the previous inside-out winding meant back-face culling removed
+        // every box (including the bench) when viewed from outside.
         mesh.indices
-            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            .extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
     }
 }
 
@@ -5221,6 +8052,158 @@ mod tests {
         .expect("validated observations select a presentation profile");
         compile_real_world_plan(run.frames(), &profile)
             .expect("plan compiles from validated frames")
+    }
+
+    #[test]
+    #[ignore = "manual perf probe: cargo test -p chemspec-app -- --ignored --nocapture bench_scene"]
+    fn bench_scene_rebuild() {
+        let request = chemistry::ReactionRequest::from_id("alkali-water-potassium")
+            .expect("smoke reaction id resolves");
+        let plan = plan_for(request);
+        let duration = plan.timeline.duration_ms();
+        let runs: u64 = 200;
+        let start = std::time::Instant::now();
+        for run in 0..runs {
+            let playhead = duration * run / runs;
+            let moment = plan
+                .timeline
+                .locate(playhead)
+                .expect("playhead within timeline");
+            let _ = build_scene_at(&plan, moment);
+        }
+        eprintln!(
+            "scene rebuild across playhead: avg {:?}",
+            start.elapsed() / u32::try_from(runs).expect("small run count")
+        );
+    }
+
+    #[test]
+    fn pour_tables_spill_only_when_tilted_and_conserve_volume() {
+        for clip in [
+            precipitation_clip(),
+            gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
+        ] {
+            let table = pour_table_for(clip).expect("pouring clips build a pour table");
+            let mut previous_fraction = POUR_INITIAL_FILL;
+            let mut saw_flow = false;
+            for state in &table.frames {
+                assert!(
+                    state.fraction <= previous_fraction + 1e-5,
+                    "poured liquid never returns to the vessel"
+                );
+                if state.flow > 0.0 {
+                    saw_flow = true;
+                    let tilt = state.axis.dot(Vec3::Y).clamp(-1.0, 1.0).acos();
+                    assert!(
+                        tilt > 0.2,
+                        "liquid must not leave an upright vessel (tilt {tilt})"
+                    );
+                    assert!(
+                        state.plane_y > state.lip.y,
+                        "flow requires the liquid plane above the lip"
+                    );
+                } else {
+                    assert!(
+                        (state.fraction - previous_fraction).abs() < 1e-5,
+                        "volume is conserved while not pouring"
+                    );
+                }
+                previous_fraction = state.fraction;
+            }
+            assert!(saw_flow, "the authored tilt window produces a pour");
+            assert!(
+                table.frames.iter().map(|s| s.fraction).fold(1.0, f32::min) < 0.5,
+                "a visible share of the charge pours out"
+            );
+        }
+    }
+
+    #[test]
+    fn the_camera_glides_into_the_final_pose_without_a_cut() {
+        let plan = plan_for(chemistry::ReactionRequest::alkali_water(
+            chemistry::AlkaliMetal::Potassium,
+        ));
+        let final_beat_index = plan.timeline.beats.len() - 1;
+        let final_beat = plan.timeline.beats[final_beat_index].clone();
+        let moment = |beat_progress: f32| RealWorldPosition {
+            beat_index: final_beat_index,
+            ordinal: final_beat.end_ordinal,
+            ordinal_progress: beat_progress,
+            beat_progress,
+            stage: final_beat.stage,
+        };
+
+        // The glide approaches the arrival monotonically through the beat.
+        let early = camera_cue_adjustment(&plan, moment(0.0));
+        let mid = camera_cue_adjustment(&plan, moment(0.6));
+        let arrived = camera_cue_adjustment(&plan, moment(1.0));
+        assert!(early.distance_scale > mid.distance_scale);
+        assert!(mid.distance_scale > arrived.distance_scale);
+        assert!((arrived.distance_scale - HERO_ARRIVAL.distance_scale).abs() < 1e-3);
+        assert!((arrived.pitch_offset - HERO_ARRIVAL.pitch_offset).abs() < 1e-3);
+
+        // No cut at the schedule boundary: the last playable instant and the
+        // held completed pose are the same frame.
+        let boundary = camera_cue_adjustment(&plan, moment(0.999));
+        let held = camera_cue_adjustment(
+            &plan,
+            RealWorldPosition {
+                beat_index: final_beat_index + 3,
+                ordinal: final_beat.end_ordinal.saturating_add(3),
+                ordinal_progress: 1.0,
+                beat_progress: 1.0,
+                stage: final_beat.stage,
+            },
+        );
+        assert!((boundary.distance_scale - held.distance_scale).abs() < 5e-3);
+        assert!((boundary.pitch_offset - held.pitch_offset).abs() < 5e-3);
+        assert!((held.distance_scale - HERO_ARRIVAL.distance_scale).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn liquid_tables_recover_the_authored_basins() {
+        let expectations: [(&AnimatedClip, std::ops::Range<f32>); 8] = [
+            (alkali_water_clip(), 3.38..3.48),
+            (neutralisation_clip(), 3.38..3.44),
+            (complete_combustion_clip(), 2.48..2.54),
+            (incomplete_combustion_clip(), 2.48..2.54),
+            (precipitation_clip(), 2.28..2.35),
+            (
+                gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
+                2.28..2.35,
+            ),
+            (
+                gas_evolution_clip(GasEvolutionVariant::SolidLiquid),
+                2.48..2.54,
+            ),
+            (metal_displacement_clip(), 2.48..2.54),
+        ];
+        for (clip, expected_level) in expectations {
+            let table = liquid_table_for(clip).expect("clip stands liquid in the beaker");
+            assert!(
+                (1.8..=2.2).contains(&table.radius),
+                "basin radius {} spans the beaker interior",
+                table.radius
+            );
+            assert!(
+                (0.1..=0.3).contains(&table.floor_y),
+                "basin floor {} sits on the beaker bottom",
+                table.floor_y
+            );
+            let level = table.frames[0].y;
+            assert!(
+                expected_level.contains(&level),
+                "frame-0 level {level} outside {expected_level:?}"
+            );
+            assert!(
+                !table.track_indices.is_empty(),
+                "the primitive replaces at least one authored track"
+            );
+        }
+        assert!(
+            liquid_table_for(synthesis_combination_clip()).is_none(),
+            "clips without a standing basin get no synthetic liquid"
+        );
     }
 
     fn test_material(
@@ -5508,8 +8491,8 @@ mod tests {
         );
         assert_eq!(formed.1, repeated.1);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&formed.0),
-            bytemuck::cast_slice::<Vertex, u8>(&repeated.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&formed.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&repeated.0)
         );
     }
 
@@ -6312,8 +9295,8 @@ mod tests {
         let first = build_scene(&plan, 3, 0.5);
         let second = build_scene(&plan, 3, 0.5);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&first.0),
-            bytemuck::cast_slice::<Vertex, u8>(&second.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&first.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&second.0)
         );
         assert_eq!(first.1, second.1);
         assert!(first.2 > 0, "the scene must contain opaque depth geometry");
@@ -6660,8 +9643,8 @@ mod tests {
         let reacting = build_scene(&plan, reacting_ordinal, 0.5);
         assert_eq!(reacting.0.len(), before.0.len());
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&reacting.0),
-            bytemuck::cast_slice::<Vertex, u8>(&before.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&reacting.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&before.0),
             "authored tracks should deform and move continuously without entity churn"
         );
         assert!(plan.effects.iter().any(|effect| {
@@ -6748,7 +9731,7 @@ mod tests {
             let before = build_scene(&plan, transition.start_ordinal, 0.0);
             let visible = build_scene(&plan, transition.start_ordinal, 1.0);
 
-            let has_expected_colour = |vertex: &Vertex| {
+            let has_expected_colour = |vertex: &GpuVertex| {
                 vertex.color[..3]
                     .iter()
                     .zip(expected[..3].iter())
@@ -6760,35 +9743,44 @@ mod tests {
     }
 
     #[test]
-    fn phase_unknown_halogen_displacement_gets_progress_motion_without_inventing_phase() {
-        let request = chemistry::ReactionRequest::ALL
+    fn halogen_displacement_shows_a_solution_with_the_reviewed_colour_change() {
+        for (request, expected_colour) in chemistry::ReactionRequest::ALL
             .iter()
             .copied()
-            .find(|request| request.family() == chemistry::ReactionFamily::HalogenDisplacement)
-            .expect("a supported halogen displacement exists");
-        let plan = plan_for(request);
-        assert!(
-            !plan
+            .filter(|request| request.family() == chemistry::ReactionFamily::HalogenDisplacement)
+            .map(|request| {
+                let expected = if request.id().ends_with("iodide") {
+                    "Brown"
+                } else {
+                    "Orange"
+                };
+                (request, expected)
+            })
+        {
+            let plan = plan_for(request);
+            let solution = plan
                 .objects
                 .iter()
-                .any(|object| object.asset == AssetProfile::LiquidVolume)
-        );
-        assert!(plan.effects.iter().any(|effect| {
-            effect.effect == EffectProfile::ReactionActivity
-                && effect.trigger == chem_catalogue::ObservationPredicate::Forms
-        }));
-        assert!(plan.effects.iter().all(|effect| {
-            !matches!(
-                effect.effect,
-                EffectProfile::GasRelease
-                    | EffectProfile::PrecipitateFormation
-                    | EffectProfile::LiquidMixing
-            )
-        }));
-        assert!(!plan.objects.iter().any(|object| matches!(
-            object.asset,
-            AssetProfile::GasCloud | AssetProfile::PrecipitateCloud
-        )));
+                .find(|object| {
+                    object.role == SceneRole::Contents && object.asset == AssetProfile::LiquidVolume
+                })
+                .expect("halogen displacement stages the halide solution");
+            let transition = solution
+                .colour_transition
+                .as_ref()
+                .expect("the solution carries the displaced halogen colour");
+            assert_eq!(transition.value, expected_colour, "{}", request.id());
+            assert!(plan.effects.iter().any(|effect| {
+                effect.effect == EffectProfile::ColourTransition
+                    && effect.trigger == chem_catalogue::ObservationPredicate::Colour
+            }));
+            // Nothing is invented beyond the reviewed observations: no gas,
+            // no precipitate.
+            assert!(!plan.objects.iter().any(|object| matches!(
+                object.asset,
+                AssetProfile::GasCloud | AssetProfile::PrecipitateCloud
+            )));
+        }
     }
 
     #[test]
@@ -6836,8 +9828,8 @@ mod tests {
         assert_eq!(active.0.len(), before.0.len());
         assert_eq!(active.1.len(), before.1.len());
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&active.0),
-            bytemuck::cast_slice::<Vertex, u8>(&before.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&active.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&before.0),
             "authored mixing tracks should move without per-frame entity churn"
         );
 
@@ -6913,12 +9905,12 @@ mod tests {
             "faceted salt residue must grow from the authored nucleation scale"
         );
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&crystals.0),
-            bytemuck::cast_slice::<Vertex, u8>(&boiling.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&crystals.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&boiling.0)
         );
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&crystals.0),
-            bytemuck::cast_slice::<Vertex, u8>(&repeated.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&crystals.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&repeated.0)
         );
         assert_eq!(crystals.1, repeated.1);
     }
@@ -6982,7 +9974,7 @@ mod tests {
     }
 
     #[test]
-    fn precipitation_assembly_uses_absolute_six_second_playback_and_persistent_sediment() {
+    fn precipitation_assembly_uses_the_absolute_authored_window_and_persistent_sediment() {
         let plan = plan_for(chemistry::ReactionRequest::silver_halide_precipitation(
             chemistry::Halogen::Bromine,
         ));
@@ -6998,7 +9990,7 @@ mod tests {
             .timeline
             .start_ms_for_ordinal(precipitation.formation_ordinal)
             .expect("formation ordinal begins an authored beat");
-        assert_eq!(plan.timeline.duration_ms() - start_ms, 6_000);
+        assert_eq!(plan.timeline.duration_ms() - start_ms, 9_600);
 
         let midpoint = plan
             .timeline
@@ -7013,8 +10005,8 @@ mod tests {
         );
         let repeated_midpoint = build_scene_at(&plan, midpoint);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&first_sample.0),
-            bytemuck::cast_slice::<Vertex, u8>(&repeated_midpoint.0)
+            bytemuck::cast_slice::<GpuVertex, u8>(&first_sample.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&repeated_midpoint.0)
         );
         assert_eq!(first_sample.1, repeated_midpoint.1);
 
@@ -7413,8 +10405,8 @@ mod tests {
         assert_eq!(after_switch.2, fresh.2);
         assert_eq!(after_switch.3, fresh.3);
         assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&after_switch.0),
-            bytemuck::cast_slice::<Vertex, u8>(&fresh.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&after_switch.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&fresh.0),
             "the new reaction must not retain prior transforms, material colours, or playhead"
         );
         assert_eq!(after_switch.4.len(), fresh.4.len());
@@ -7664,8 +10656,8 @@ mod tests {
 
         assert_eq!(unrotated.len(), rotated.len());
         assert_ne!(
-            bytemuck::cast_slice::<Vertex, u8>(&unrotated),
-            bytemuck::cast_slice::<Vertex, u8>(&rotated),
+            bytemuck::cast_slice::<GpuVertex, u8>(&unrotated),
+            bytemuck::cast_slice::<GpuVertex, u8>(&rotated),
             "catalogue-authored rotation must reach positions and normals"
         );
     }
@@ -7698,5 +10690,104 @@ mod tests {
             vertices.iter().all(|vertex| vertex.position[1] < 0.0),
             "the environment must not add a vertical wall above the floor"
         );
+    }
+}
+
+#[cfg(test)]
+mod clip_inventory {
+    use super::*;
+
+    #[test]
+    #[ignore = "diagnostic: prints per-frame liquid level per clip"]
+    fn print_liquid_levels() {
+        let clips: [(&str, &AnimatedClip); 8] = [
+            ("alkali", alkali_water_clip()),
+            ("neutralisation", neutralisation_clip()),
+            ("combustion-complete", complete_combustion_clip()),
+            ("combustion-incomplete", incomplete_combustion_clip()),
+            ("precipitation", precipitation_clip()),
+            (
+                "gas-liquid-liquid",
+                gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
+            ),
+            (
+                "gas-solid-liquid",
+                gas_evolution_clip(GasEvolutionVariant::SolidLiquid),
+            ),
+            ("displacement", metal_displacement_clip()),
+        ];
+        for (name, clip) in clips {
+            let Some(table) = liquid_table_for(clip) else {
+                println!("{name}: no table");
+                continue;
+            };
+            let levels: Vec<String> = table
+                .frames
+                .iter()
+                .step_by(20)
+                .map(|frame| format!("{:.3}", frame.y))
+                .collect();
+            println!(
+                "{name}: radius {:.2} floor {:.2} levels {}",
+                table.radius,
+                table.floor_y,
+                levels.join(" ")
+            );
+            if name == "neutralisation" {
+                let motions: Vec<String> = (0_u8..12)
+                    .map(|step| {
+                        let motion = neutralisation_vessel_motion(clip, f32::from(step * 20));
+                        format!("{:.3}", motion.y)
+                    })
+                    .collect();
+                println!("  vessel motion y {}", motions.join(" "));
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic: prints track inventory per embedded clip"]
+    fn print_clip_tracks() {
+        let clips: [(&str, &AnimatedClip); 8] = [
+            ("alkali", alkali_water_clip()),
+            ("neutralisation", neutralisation_clip()),
+            ("combustion-complete", complete_combustion_clip()),
+            ("combustion-incomplete", incomplete_combustion_clip()),
+            ("precipitation", precipitation_clip()),
+            (
+                "gas-liquid-liquid",
+                gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
+            ),
+            (
+                "gas-solid-liquid",
+                gas_evolution_clip(GasEvolutionVariant::SolidLiquid),
+            ),
+            ("displacement", metal_displacement_clip()),
+        ];
+        for (name, clip) in clips {
+            println!("== {name} ==");
+            for track in &clip.tracks {
+                let mut min = Vec3::splat(f32::MAX);
+                let mut max = Vec3::splat(f32::MIN);
+                for vertex_index in 0..track.vertex_count {
+                    let v = clip.sample(track, vertex_index, 0.0);
+                    min = min.min(v.position);
+                    max = max.max(v.position);
+                }
+                println!(
+                    "  {:?} {:?} {:?} verts={} bounds=({:.3},{:.3},{:.3})..({:.3},{:.3},{:.3})",
+                    track.module,
+                    track.colour,
+                    track.pass,
+                    track.vertex_count,
+                    min.x,
+                    min.y,
+                    min.z,
+                    max.x,
+                    max.y,
+                    max.z
+                );
+            }
+        }
     }
 }

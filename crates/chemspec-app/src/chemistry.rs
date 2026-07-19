@@ -30,9 +30,9 @@ const CATALOGUE: &[u8] =
     include_bytes!("../../../catalogue/reference/core-chemistry/catalogue.json");
 const CATALOGUE_REVIEW: &[u8] =
     include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
-const CATALOGUE_DIGEST: &str = "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
+const CATALOGUE_DIGEST: &str = "3e535ee49eb7a43e321021e6b684dd81f6f7b079a048fc32cbd1d9de911d1f86";
 const CATALOGUE_REVIEW_DIGEST: &str =
-    "6aa6f1c65023ed4fe7e93570eb9039ecafe75d39f15af5cf2eec3c8515dfe3e7";
+    "2d0566864936a6acf171ba07df4d1078ee7c58ac713a72e6d930675799acec30";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -178,6 +178,17 @@ impl Halogen {
             Self::Chlorine => ("R1", "White", "R2"),
             Self::Bromine => ("R3", "Cream", "R4"),
             Self::Iodine => ("R5", "Yellow", "R6"),
+        }
+    }
+
+    /// Reviewed aqueous solution colour of this halogen when displaced, with
+    /// its evidence claim. Chlorine is the strongest oxidiser in the supported
+    /// set and is never displaced.
+    fn displacement_observation(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Chlorine => unreachable!("chlorine is never the displaced halogen"),
+            Self::Bromine => ("Orange", "R2"),
+            Self::Iodine => ("Brown", "R3"),
         }
     }
 
@@ -911,8 +922,9 @@ fn gas_evolution_source(metal: AlkaliMetal, halogen: Halogen, carbonate: bool) -
 }
 
 fn halogen_displacement_source(displacing: Halogen, displaced: Halogen) -> String {
+    let (colour, colour_claim) = displaced.displacement_observation();
     format!(
-        "chems 1\nuse catalog ChemSpec.Theoretical@1\nreaction {displacing_name}Displaces{displaced_name} where\n  reactants\n    displacingHalogen := 1 of {displacing_name}\n    saltSource := 2 of Sodium{displaced_halide}\n  products\n    newSalt := 2 of Sodium{displacing_halide}\n    displacedHalogen := 1 of {displaced_name}\n  equation\n    {displacing_symbol}2[molecular] + 2 Na{displaced_symbol}[ionic]\n    -> 2 Na{displacing_symbol}[ionic] + {displaced_symbol}2[molecular]\n  model\n    event := representative\n    sequence := explanatory\n  observe from Evidence.HalogenDisplacement@1\n    product displacedHalogen forms claim R1\n  by\n    apply Rules.HalogenDisplacement\n      displacingHalogen := displacingHalogen\n      saltSource := saltSource\n      newSalt := newSalt\n      displacedHalogen := displacedHalogen\n",
+        "chems 1\nuse catalog ChemSpec.Theoretical@1\nreaction {displacing_name}Displaces{displaced_name} where\n  reactants\n    displacingHalogen := 1 of {displacing_name}\n    saltSource := 2 of Sodium{displaced_halide}\n  products\n    newSalt := 2 of Sodium{displacing_halide}\n    displacedHalogen := 1 of {displaced_name}\n  equation\n    {displacing_symbol}2[molecular] + 2 Na{displaced_symbol}[ionic]\n    -> 2 Na{displacing_symbol}[ionic] + {displaced_symbol}2[molecular]\n  model\n    event := representative\n    sequence := explanatory\n  observe from Evidence.HalogenDisplacement@1\n    product displacedHalogen forms claim R1\n    product displacedHalogen has colour {colour} claim {colour_claim}\n  by\n    apply Rules.HalogenDisplacement\n      displacingHalogen := displacingHalogen\n      saltSource := saltSource\n      newSalt := newSalt\n      displacedHalogen := displacedHalogen\n",
         displacing_name = displacing.name(),
         displaced_name = displaced.name(),
         displaced_halide = displaced.halide_name(),
@@ -2015,7 +2027,44 @@ pub fn presentation_profile(
             )
         }
         ReactionKind::HalogenDisplacement { .. } => {
-            (vec![vessel(AssetProfile::TestTube)], Vec::new())
+            let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
+            let (colour_ordinal, colour) =
+                active_observation(frames, ObservationPredicate::Colour)?;
+            let colour = colour.ok_or_else(|| {
+                "reference displaced-halogen colour observation has no value".to_owned()
+            })?;
+            let target = visual_colour(&colour)
+                .ok_or_else(|| format!("unsupported reference visual colour `{colour}`"))?;
+            let mut solution = contents(
+                "halide-solution",
+                "aqueous sodium halide solution",
+                AppearanceProfile::AqueousColourless,
+            );
+            // The displaced halogen dissolves where it forms: the solution
+            // itself carries the reviewed colour change.
+            solution.colour_transition = Some(PresentationColourTransition {
+                subject_binding: "displacedHalogen".to_owned(),
+                value: colour,
+                target,
+                start_ordinal: colour_ordinal,
+            });
+            (
+                vec![vessel(AssetProfile::TestTube), solution],
+                vec![
+                    effect(
+                        EffectProfile::ColourTransition,
+                        ObservationPredicate::Colour,
+                        colour_ordinal,
+                        EffectIntensity::Moderate,
+                    ),
+                    effect(
+                        EffectProfile::SurfaceDisturbance,
+                        ObservationPredicate::Forms,
+                        forms_ordinal,
+                        EffectIntensity::Subtle,
+                    ),
+                ],
+            )
         }
         ReactionKind::Registry { index } => {
             let definition = &EXPERIENCE_DEFINITIONS[index];
@@ -2280,7 +2329,7 @@ mod tests {
     }
 
     #[test]
-    fn unreviewed_carbon_oxidation_phases_remain_unknown() {
+    fn carbon_oxidation_uses_the_reviewed_standard_phases() {
         let request = ReactionRequest::from_id("oxygen-carbon-oxygen")
             .expect("carbon oxygen experience exists");
         let run = run(request).expect("carbon oxygen validates");
@@ -2297,15 +2346,15 @@ mod tests {
 
         assert_eq!(
             phase("subject", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Unknown)
+            Some(Phase::Solid)
         );
         assert_eq!(
             phase("oxygen", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Unknown)
+            Some(Phase::Gas)
         );
         assert_eq!(
             phase("oxide", MacroscopicMaterialRole::Product),
-            Some(Phase::Unknown)
+            Some(Phase::Gas)
         );
     }
 
@@ -2355,7 +2404,7 @@ mod tests {
     }
 
     #[test]
-    fn unreviewed_hydrogen_oxidation_phases_remain_unknown() {
+    fn hydrogen_oxidation_uses_the_reviewed_standard_phases() {
         let request = ReactionRequest::from_id("oxygen-hydrogen-oxygen")
             .expect("hydrogen oxygen experience exists");
         let run = run(request).expect("hydrogen oxygen validates");
@@ -2372,15 +2421,15 @@ mod tests {
 
         assert_eq!(
             phase("subject", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Unknown)
+            Some(Phase::Gas)
         );
         assert_eq!(
             phase("oxygen", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Unknown)
+            Some(Phase::Gas)
         );
         assert_eq!(
             phase("oxide", MacroscopicMaterialRole::Product),
-            Some(Phase::Unknown)
+            Some(Phase::Liquid)
         );
     }
 
@@ -2402,12 +2451,23 @@ mod tests {
                 Some(MacroscopicProcess::SurfaceOxidation),
                 "{id} must retain the validated metal-oxidation process"
             );
+            // Process classification must not invent phases: the metal and
+            // its oxide have no reviewed records and stay Unknown. Molecular
+            // oxygen carries its reviewed standard-state record.
             assert!(
                 reaction
                     .materials
                     .iter()
+                    .filter(|material| material.binding != "oxygen")
                     .all(|material| material.phase == Phase::Unknown),
                 "{id} must not turn process classification into a phase claim"
+            );
+            assert!(
+                reaction
+                    .materials
+                    .iter()
+                    .any(|material| material.binding == "oxygen" && material.phase == Phase::Gas),
+                "{id} presents molecular oxygen at its reviewed standard phase"
             );
             let profile =
                 presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
@@ -2892,6 +2952,148 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic: prints structure ids for the objectless oxygen scenes"]
+    fn print_objectless_oxygen_structures() {
+        let targets = [
+            "oxygen-hydrogen-oxygen",
+            "oxygen-boron-oxygen",
+            "oxygen-carbon-oxygen",
+            "oxygen-silicon-oxygen",
+            "oxygen-phosphorus-oxygen",
+            "oxygen-sulfur-oxygen",
+            "oxygen-cr-oxide-6-o3",
+            "oxygen-mo-oxide-6-o3",
+            "oxygen-w-oxide-6-o3",
+            "oxygen-mn-oxide-7-7-o7",
+            "oxygen-tc-oxide-7-7-o7",
+            "oxygen-re-oxide-7-7-o7",
+            "oxygen-ru-oxide-8-o4",
+            "oxygen-os-oxide-8-o4",
+        ];
+        for request in requests() {
+            if !targets.contains(&request.id().as_str()) {
+                continue;
+            }
+            let run = run(request).expect("oxygen request validates");
+            let reaction = run.macroscopic().expect("oxygen scenes carry materials");
+            let materials: Vec<String> = reaction
+                .materials
+                .iter()
+                .map(|material| {
+                    format!(
+                        "{}={} ({:?} {:?})",
+                        material.binding,
+                        material.structure_id,
+                        material.representation,
+                        material.phase,
+                    )
+                })
+                .collect();
+            println!("{}: {}", request.id(), materials.join(" | "));
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic: prints the canonical digest of the packaged review attestation"]
+    fn print_review_attestation_digest() {
+        let value: serde_json::Value =
+            serde_json::from_slice(CATALOGUE_REVIEW).expect("review parses");
+        let digest = chem_domain::ContentDigest::of_json(&value).expect("digest computes");
+        println!("review digest: {digest}");
+    }
+
+    #[test]
+    #[ignore = "diagnostic: prints observations for the halogen displacement frames"]
+    fn print_halogen_observations() {
+        for request in
+            requests().filter(|request| request.family() == ReactionFamily::HalogenDisplacement)
+        {
+            let run = run(request).expect("halogen request validates");
+            println!("== {} | {}", request.id(), request.equation());
+            for frame in run.frames().frames() {
+                for observation in frame.observations() {
+                    println!(
+                        "  ord {} {:?} {:?} value={:?} subject={:?}",
+                        frame.ordinal(),
+                        observation.status,
+                        observation.predicate,
+                        observation.value,
+                        observation.subject_binding,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic: prints scene inventory for every supported reaction"]
+    fn print_scene_inventories() {
+        for request in requests() {
+            let Ok(run) = run(request) else {
+                println!("{}: RUN FAILED", request.id());
+                continue;
+            };
+            let Ok(profile) =
+                presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
+            else {
+                println!("{}: PROFILE FAILED", request.id());
+                continue;
+            };
+            let phases: Vec<String> = run.macroscopic().map_or_else(Vec::new, |reaction| {
+                reaction
+                    .materials
+                    .iter()
+                    .map(|material| {
+                        format!(
+                            "{}:{:?}:{:?}",
+                            material.binding, material.role, material.phase
+                        )
+                    })
+                    .collect()
+            });
+            let objects: Vec<String> = profile
+                .objects
+                .iter()
+                .map(|object| {
+                    format!(
+                        "{:?}/{:?}@{:?}",
+                        object.role, object.asset, object.appearance
+                    )
+                })
+                .collect();
+            let assemblies = format!(
+                "precip={} gas={} displ={} synth={} process={:?}",
+                profile.precipitation.is_some(),
+                profile.gas_evolution.is_some(),
+                profile.metal_displacement.is_some(),
+                profile.solid_solid_synthesis.is_some(),
+                profile.post_process,
+            );
+            let has_vessel = profile
+                .objects
+                .iter()
+                .any(|object| object.role == SceneRole::Vessel);
+            let has_contents = profile
+                .objects
+                .iter()
+                .any(|object| object.role == SceneRole::Contents);
+            let flag = if has_vessel && !has_contents {
+                " <-- VESSEL WITHOUT CONTENTS"
+            } else {
+                ""
+            };
+            println!(
+                "{}: {} | {} | {}{}",
+                request.id(),
+                assemblies,
+                phases.join(" "),
+                objects.join(" "),
+                flag
+            );
+        }
+    }
+
+    #[test]
     fn every_supported_request_compiles_a_macroscopic_plan() {
         let mut profile_ids = std::collections::BTreeSet::new();
         for request in requests() {
@@ -2924,10 +3126,12 @@ mod tests {
                 "supported reaction `{}` must not compile to an inert macroscopic plan",
                 request.id()
             );
+            // Dry syntheses (oxygen burns, ion pairs, covalent combinations)
+            // legitimately hold no liquid; every other family stages liquid
+            // contents.
             if !matches!(
                 request.family(),
-                ReactionFamily::HalogenDisplacement
-                    | ReactionFamily::Oxygen
+                ReactionFamily::Oxygen
                     | ReactionFamily::FixedChargeIonPair
                     | ReactionFamily::CovalentCombination
             ) {
@@ -2935,7 +3139,21 @@ mod tests {
                     profile
                         .objects
                         .iter()
-                        .any(|object| object.role == SceneRole::Contents)
+                        .any(|object| object.role == SceneRole::Contents),
+                    "`{}` must stage liquid contents",
+                    request.id()
+                );
+            }
+            // No scene may present a bare vessel: a vessel implies staged
+            // matter (contents, reactants, or products).
+            if !surface_oxidation {
+                assert!(
+                    profile
+                        .objects
+                        .iter()
+                        .any(|object| object.role != SceneRole::Vessel),
+                    "`{}` stages a vessel with nothing in the scene",
+                    request.id()
                 );
             }
             let plan = chem_presentation::compile_real_world_plan(run.frames(), &profile)
