@@ -2,7 +2,9 @@
   "schema_version": 1,
   "id": "Evidence.HalogenDisplacement@1",
   "claims": [
-    {"id": "R1", "subject_role": "product", "subject": "displaced halogen", "predicate": "forms", "sources": ["S1"]}
+    {"id": "R1", "subject_role": "product", "subject": "displaced halogen", "predicate": "forms", "sources": ["S1"]},
+    {"id": "R2", "subject_role": "product", "subject": "displaced bromine solution", "predicate": "colour", "sources": ["S1"]},
+    {"id": "R3", "subject_role": "product", "subject": "displaced iodine solution", "predicate": "colour", "sources": ["S1"]}
   ],
   "sources": [
     {
@@ -10,7 +12,7 @@
       "title": "Halogens in aqueous solution and their displacement reactions",
       "publisher": "Royal Society of Chemistry",
       "url": "https://edu.rsc.org/experiments/halogens-in-aqueous-solution-and-their-displacement-reactions/733.article",
-      "supports": ["R1"]
+      "supports": ["R1", "R2", "R3"]
     }
   ]
 }

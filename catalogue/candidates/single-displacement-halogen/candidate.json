@@ -96,6 +96,30 @@
         "reviewers": []
       },
       "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.displaced-bromine-colour",
+      "statement": "Displaced elemental bromine dissolves to give an orange aqueous solution, compatible with the authored observation predicate colour for this member-specific outcome.",
+      "evidence": [
+        "evidence.rsc.halogen-displacement"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
+    },
+    {
+      "id": "premise.observation.displaced-iodine-colour",
+      "statement": "Displaced elemental iodine dissolves to give a brown aqueous solution, compatible with the authored observation predicate colour for this member-specific outcome.",
+      "evidence": [
+        "evidence.rsc.halogen-displacement"
+      ],
+      "review": {
+        "status": "provisional",
+        "reviewers": []
+      },
+      "rule_version": "1"
     }
   ],
   "valence_premises": [
@@ -822,6 +846,20 @@
               "predicate": "forms",
               "evidence_subject": "displaced halogen",
               "premise_id": "premise.observation.displaced-halogen-forms"
+            },
+            {
+              "subject_role": "displacedHalogen",
+              "predicate": "colour",
+              "evidence_subject": "displaced bromine solution",
+              "value": "Orange",
+              "premise_id": "premise.observation.displaced-bromine-colour"
+            },
+            {
+              "subject_role": "displacedHalogen",
+              "predicate": "colour",
+              "evidence_subject": "displaced iodine solution",
+              "value": "Brown",
+              "premise_id": "premise.observation.displaced-iodine-colour"
             }
           ],
           "premise_ids": [
@@ -829,7 +867,9 @@
             "premise.structure.diatomic-halogen",
             "premise.structure.alkali-metal-halide",
             "premise.valence.halogen-displacement.initial-domain",
-            "premise.observation.displaced-halogen-forms"
+            "premise.observation.displaced-halogen-forms",
+            "premise.observation.displaced-bromine-colour",
+            "premise.observation.displaced-iodine-colour"
           ]
         },
         {
@@ -983,7 +1023,9 @@
         "premise.valence.halogen-displacement.initial-domain",
         "premise.observation.displaced-halogen-forms",
         "premise.case.fluorine-displacement-unsupported",
-        "premise.case.halogen-displacement-no-reaction"
+        "premise.case.halogen-displacement-no-reaction",
+        "premise.observation.displaced-bromine-colour",
+        "premise.observation.displaced-iodine-colour"
       ]
     }
   ]

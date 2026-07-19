@@ -4270,7 +4270,10 @@ fn compile_real_world_timeline(
 }
 
 fn fit_authored_six_second_duration(beats: &mut [RealWorldBeat]) {
-    const DURATION_MS: u32 = 6_000;
+    // The authored clips hold 6 s of baked motion; presenting that window
+    // over 9.6 s (0.625x speed) paces the reaction with the camera work
+    // while 60 Hz interpolation keeps the motion smooth.
+    const DURATION_MS: u32 = 9_600;
     let reaction_count = beats
         .iter()
         .take_while(|beat| beat.stage == MacroscopicStage::Reaction)
@@ -4296,7 +4299,8 @@ fn fit_authored_six_second_duration(beats: &mut [RealWorldBeat]) {
 }
 
 fn fit_authored_precipitation_duration(beats: &mut [RealWorldBeat], formation_ordinal: u16) {
-    const DURATION_MS: u32 = 6_000;
+    // Same 0.625x presentation stretch as the shared authored window.
+    const DURATION_MS: u32 = 9_600;
     let Some(start) = beats.iter().position(|beat| {
         beat.stage == MacroscopicStage::Reaction && beat.start_ordinal == formation_ordinal
     }) else {
@@ -4337,16 +4341,19 @@ const fn macroscopic_beat_duration_ms(
     starts_at_initial_state: bool,
     is_final: bool,
 ) -> u32 {
+    // Paced for the choreographed camera (2026-07-19): beats breathe so a
+    // push-in completes before its observation finishes, instead of the
+    // whole reaction rushing past in a few seconds.
     let duration_ms = match intensity {
-        Some(EffectIntensity::Strong) => 2_600,
-        Some(EffectIntensity::Moderate) => 3_400,
-        Some(EffectIntensity::Subtle) => 4_400,
-        None if starts_at_initial_state => 900,
-        None => 1_800,
+        Some(EffectIntensity::Strong) => 4_200,
+        Some(EffectIntensity::Moderate) => 5_400,
+        Some(EffectIntensity::Subtle) => 7_000,
+        None if starts_at_initial_state => 1_400,
+        None => 2_900,
     };
     if is_final {
-        if duration_ms < 2_400 {
-            2_400
+        if duration_ms < 3_800 {
+            3_800
         } else {
             duration_ms
         }
@@ -4738,7 +4745,7 @@ mod tests {
         );
         assert_eq!(
             compile_real_world_timeline(&profile, 6).duration_ms(),
-            6_000
+            9_600
         );
     }
 
@@ -5002,7 +5009,7 @@ mod tests {
                 .filter(|beat| beat.stage == MacroscopicStage::Reaction)
                 .map(|beat| beat.duration_ms)
                 .sum::<u32>(),
-            6_000
+            9_600
         );
     }
 
@@ -5513,9 +5520,9 @@ mod tests {
         let moderate = macroscopic_beat_duration_ms(Some(EffectIntensity::Moderate), false, false);
         let subtle = macroscopic_beat_duration_ms(Some(EffectIntensity::Subtle), false, false);
 
-        assert_eq!(entry, 900, "a short drop must not become a slow glide");
+        assert_eq!(entry, 1_400, "a short drop must not become a slow glide");
         assert!(strong < moderate);
         assert!(moderate < subtle);
-        assert_eq!(macroscopic_beat_duration_ms(None, false, true), 2_400);
+        assert_eq!(macroscopic_beat_duration_ms(None, false, true), 3_800);
     }
 }

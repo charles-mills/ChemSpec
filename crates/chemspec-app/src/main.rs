@@ -490,20 +490,23 @@ const fn builder_toolbar_panel_top(page_top: f32) -> f32 {
 }
 
 fn window_settings() -> iced::window::Settings {
-    let mut settings = iced::window::Settings {
+    let settings = iced::window::Settings {
         size: DESIGN_SIZE,
         min_size: Some(Size::new(560.0, 760.0)),
         position: iced::window::Position::Centered,
         ..iced::window::Settings::default()
     };
+
     #[cfg(target_os = "macos")]
-    {
-        settings.platform_specific = iced::window::settings::PlatformSpecific {
+    let settings = iced::window::Settings {
+        platform_specific: iced::window::settings::PlatformSpecific {
             title_hidden: true,
             titlebar_transparent: true,
             fullsize_content_view: true,
-        };
-    }
+        },
+        ..settings
+    };
+
     settings
 }
 
@@ -789,12 +792,20 @@ fn launch_state() -> App {
         }
         app.open_structural_animation();
         let three_dimensional = smoke_mode == SmokeMode::Structural3d;
+        // Optional exact playhead for frame-dump verification of a specific
+        // moment (e.g. mid-pour), instead of the default two-thirds seek.
+        let smoke_playhead_ms = std::env::args().find_map(|argument| {
+            argument
+                .strip_prefix("--smoke-playhead-ms=")
+                .and_then(|value| value.parse::<u64>().ok())
+        });
         if let Some(animation) = &mut app.structural_animation {
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
             if three_dimensional && !smoke_from_start {
                 let plan = &animation.real_world_plan;
-                animation.real_world_playhead_ms =
-                    plan.timeline.duration_ms().saturating_mul(2) / 3;
+                animation.real_world_playhead_ms = smoke_playhead_ms
+                    .unwrap_or_else(|| plan.timeline.duration_ms().saturating_mul(2) / 3)
+                    .min(plan.timeline.duration_ms());
                 if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
                     && let Some(frame_index) = animation
                         .frames
@@ -1346,6 +1357,9 @@ struct StructuralAnimation {
     /// Paused with physics and camera at rest: the tick subscription stops
     /// so a static scene costs nothing. Any interaction clears it.
     settled: bool,
+    /// Wall-clock instant of the previous 3D tick: the playhead advances by
+    /// measured time so a slow frame drops visuals, not reaction pace.
+    last_structural_tick: Option<Instant>,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -2183,7 +2197,23 @@ impl App {
                             animation.summary_elapsed_ms.saturating_add(33);
                     }
                 } else if self.screen == Screen::Structural3d {
-                    self.advance_real_world_playback(elapsed);
+                    let now = Instant::now();
+                    let measured =
+                        self.structural_animation
+                            .as_mut()
+                            .map_or(elapsed, |animation| {
+                                // The cap keeps a stall or resume from jumping
+                                // the playhead by more than one coarse step.
+                                let raw =
+                                    animation.last_structural_tick.map_or(frame_millis, |last| {
+                                        u32::try_from(now.duration_since(last).as_millis())
+                                            .unwrap_or(u32::MAX)
+                                            .clamp(1, 100)
+                                    });
+                                animation.last_structural_tick = Some(now);
+                                animation.playback_speed.scale_millis(raw)
+                            });
+                    self.advance_real_world_playback(measured);
                 } else {
                     if playing {
                         self.advance_educational_playback(elapsed);
@@ -3353,6 +3383,7 @@ impl App {
                 camera: structural_2d::default_camera(),
                 home_timeline,
                 settled: false,
+                last_structural_tick: None,
             })
         })();
         match result {
@@ -6062,7 +6093,7 @@ mod tests {
                 && object.asset == chem_presentation::AssetProfile::MetalDisplacementAssembly
         }));
         let plan = compile_real_world_plan(frames, &profile).expect("scene plan compiles");
-        assert_eq!(plan.timeline.duration_ms(), 6_000);
+        assert_eq!(plan.timeline.duration_ms(), 9_600);
     }
 
     #[test]

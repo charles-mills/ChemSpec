@@ -1,5 +1,5 @@
 {
-  "digest": "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2",
+  "digest": "3e535ee49eb7a43e321021e6b684dd81f6f7b079a048fc32cbd1d9de911d1f86",
   "bundle": {
     "schema_version": 1,
     "name": "ChemSpec.Theoretical",
@@ -38,6 +38,15 @@
         "publication_date": "2022-05-04",
         "retrieved_on": "2026-07-14",
         "usage": "Element symbols, names, atomic numbers, and conventional table placement; candidate group and block fields are covered by the host-selected AI review"
+      },
+      {
+        "id": "evidence.nist.webbook.standard-phases",
+        "title": "NIST Chemistry WebBook",
+        "publisher": "National Institute of Standards and Technology",
+        "locator": "Standard state phase data for the recorded species",
+        "reference": "https://webbook.nist.gov/chemistry/",
+        "retrieved_on": "2026-07-19",
+        "usage": "Ambient standard-state phases for oxygen-family reactants and oxides"
       },
       {
         "id": "evidence.openstax.chemistry-2e",
@@ -231,6 +240,18 @@
         "rule_version": "1"
       },
       {
+        "id": "premise.material.oxygen-family.standard-phase",
+        "statement": "Each recorded oxygen-family species is presented in its ambient standard-state phase: gases O2, H2, CO2, and SO2; liquids H2O and Mn2O7; all other recorded elemental subjects and oxides as solids.",
+        "evidence": [
+          "evidence.nist.webbook.standard-phases"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
         "id": "premise.observation.acid-disappears",
         "statement": "The hydrogen halide acid is compatible with the authored observation predicate disappears for this family outcome.",
         "evidence": [
@@ -292,8 +313,32 @@
         "rule_version": "1"
       },
       {
+        "id": "premise.observation.displaced-bromine-colour",
+        "statement": "Displaced elemental bromine dissolves to give an orange aqueous solution, compatible with the authored observation predicate colour for this member-specific outcome.",
+        "evidence": [
+          "evidence.rsc.halogen-displacement"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
         "id": "premise.observation.displaced-halogen-forms",
         "statement": "The less-reactive displaced elemental halogen is compatible with the authored observation predicate forms.",
+        "evidence": [
+          "evidence.rsc.halogen-displacement"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.observation.displaced-iodine-colour",
+        "statement": "Displaced elemental iodine dissolves to give a brown aqueous solution, compatible with the authored observation predicate colour for this member-specific outcome.",
         "evidence": [
           "evidence.rsc.halogen-displacement"
         ],
@@ -42217,10 +42262,26 @@
                 "predicate": "forms",
                 "evidence_subject": "displaced halogen",
                 "premise_id": "premise.observation.displaced-halogen-forms"
+              },
+              {
+                "subject_role": "displacedHalogen",
+                "predicate": "colour",
+                "evidence_subject": "displaced bromine solution",
+                "value": "Orange",
+                "premise_id": "premise.observation.displaced-bromine-colour"
+              },
+              {
+                "subject_role": "displacedHalogen",
+                "predicate": "colour",
+                "evidence_subject": "displaced iodine solution",
+                "value": "Brown",
+                "premise_id": "premise.observation.displaced-iodine-colour"
               }
             ],
             "premise_ids": [
+              "premise.observation.displaced-bromine-colour",
               "premise.observation.displaced-halogen-forms",
+              "premise.observation.displaced-iodine-colour",
               "premise.rule.halogen-displacement.standard-outcome",
               "premise.structure.alkali-metal-halide",
               "premise.structure.diatomic-halogen",
@@ -42373,7 +42434,9 @@
           "premise.case.halogen-displacement-no-reaction",
           "premise.category.halide",
           "premise.elements.iupac-periodic-table",
+          "premise.observation.displaced-bromine-colour",
           "premise.observation.displaced-halogen-forms",
+          "premise.observation.displaced-iodine-colour",
           "premise.rule.alkali-metal-water.standard-outcome",
           "premise.rule.halogen-displacement.standard-outcome",
           "premise.structure.alkali-metal-halide",
@@ -70488,6 +70551,356 @@
           "premise.rule.element-oxygen.representative-outcomes",
           "premise.structure.element-oxygen.structural-models",
           "premise.valence.element-oxygen.closed-domain"
+        ]
+      }
+    ],
+    "macroscopic_materials": [
+      {
+        "structure": "Oxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "HydrogenForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "CGroup14Dioxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "SSulfurDioxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "Water",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "liquid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "MnTransitionG7HeptoxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "liquid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "BForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "CForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "SiForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "Phosphorus4ForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "SForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "CrTransitionG6TrioxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "MoTransitionG6TrioxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "WTransitionG6TrioxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "MnTransitionG7HeptoxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "TcTransitionG7HeptoxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "ReTransitionG7HeptoxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "RuTransitionG8TetroxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "OsTransitionG8TetroxideMetalForOxygen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "BBoronOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "SiGroup14Dioxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "Phosphorus5Oxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "CrTransitionG6TrioxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "MoTransitionG6TrioxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "WTransitionG6TrioxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "TcTransitionG7HeptoxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "ReTransitionG7HeptoxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "RuTransitionG8TetroxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
+        ]
+      },
+      {
+        "structure": "OsTransitionG8TetroxideOxide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "premise_ids": [
+          "premise.material.oxygen-family.standard-phase"
         ]
       }
     ]

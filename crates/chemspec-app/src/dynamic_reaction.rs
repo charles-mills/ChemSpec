@@ -3,14 +3,13 @@
 //! The application owns presentation, but the finite provider/solver workflow
 //! is one feature state rather than a cluster of unrelated `App` fields.
 
-use std::{
-    sync::{
-        Arc, Weak,
-        atomic::{AtomicBool, Ordering},
-        mpsc::Receiver,
-    },
-    time::Instant,
+use std::sync::{
+    Arc, Weak,
+    atomic::{AtomicBool, Ordering},
+    mpsc::Receiver,
 };
+
+use web_time::Instant;
 
 use agent::{
     AgentError, ClaimMode, CodexProgressEvent, CodexProvider, CodexProviderConfig,
