@@ -275,3 +275,12 @@ ChemSpec remains a native Rust application using Iced and `wgpu`. Platform code
 is limited to provider discovery, storage, credentials, file dialogs, process
 management, and packaging. Structural meaning remains platform- and
 renderer-independent.
+
+The macOS window retains native decorations and traffic-light controls while
+using Iced's hidden, transparent titlebar and full-size content view. The app
+draws a continuous canvas behind the native controls but never positions
+content from traffic-light coordinates or insets. Instead, each main screen
+uses the design system's ordinary top-spacing rail, and Builder keeps its
+toolbar at the trailing edge. The window's native title metadata remains
+authoritative even though its text is not drawn. Windows, Linux, and Web keep
+their default window presentation.

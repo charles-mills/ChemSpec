@@ -218,6 +218,18 @@ text state.
 Responsive changes may alter composition but must not hide a product region
 without a visible navigation path to it.
 
+## macOS window integration
+
+On macOS the app canvas extends through the hidden, transparent native titlebar
+while the system traffic-light controls, window resizing, and standard window
+behaviours remain intact. Builder uses a compact additional top inset so its
+trailing toolbar shares the titlebar rail. Animation and result screens use a
+larger standard spacing step so leading navigation sits comfortably below the
+native controls. Neither layout encodes traffic-light coordinates, sizes, or
+insets. The Builder panel anchor is derived from the same page padding and
+toolbar dimensions. Other platforms retain their native titlebars and existing
+content geometry.
+
 ## Accessibility and states
 
 - Keyboard focus on controls and the request field uses the same high-contrast

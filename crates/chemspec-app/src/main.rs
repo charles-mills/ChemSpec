@@ -60,7 +60,7 @@ use iced::widget::{
     button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
     space, stack, text, tooltip,
 };
-use iced::{Center, Element, Fill, FillPortion, Length, Size, Subscription, Task, Theme};
+use iced::{Center, Element, Fill, FillPortion, Length, Padding, Size, Subscription, Task, Theme};
 
 #[cfg(test)]
 use dynamic_reaction::ClaimStageResult as DynamicClaimStageResult;
@@ -470,6 +470,42 @@ const fn macroscopic_effect_label(effect: EffectProfile) -> &'static str {
 const DESIGN_SIZE: Size = Size::new(1_440.0, 900.0);
 /// Upper bound on the adaptive zoom so very large monitors stay reasonable.
 const MAX_UI_ZOOM: f32 = 2.0;
+const BUILDER_TOOLBAR_ICON_SIZE: f32 = 20.0;
+
+fn chromeless_page_padding(normal: f32, macos_top_extra: f32) -> Padding {
+    if cfg!(target_os = "macos") {
+        Padding {
+            top: macos_top_extra + normal,
+            right: normal,
+            bottom: normal,
+            left: normal,
+        }
+    } else {
+        Padding::from(normal)
+    }
+}
+
+const fn builder_toolbar_panel_top(page_top: f32) -> f32 {
+    page_top + BUILDER_TOOLBAR_ICON_SIZE + 2.0 * spacing::XS + spacing::XXS
+}
+
+fn window_settings() -> iced::window::Settings {
+    let mut settings = iced::window::Settings {
+        size: DESIGN_SIZE,
+        min_size: Some(Size::new(560.0, 760.0)),
+        position: iced::window::Position::Centered,
+        ..iced::window::Settings::default()
+    };
+    #[cfg(target_os = "macos")]
+    {
+        settings.platform_specific = iced::window::settings::PlatformSpecific {
+            title_hidden: true,
+            titlebar_transparent: true,
+            fullsize_content_view: true,
+        };
+    }
+    settings
+}
 
 fn main() -> iced::Result {
     #[cfg(target_arch = "wasm32")]
@@ -502,12 +538,7 @@ fn main() -> iced::Result {
         .font(fonts::INTER_BOLD_BYTES)
         .default_font(fonts::REGULAR)
         .scale_factor(|app| app.ui_zoom)
-        .window(iced::window::Settings {
-            size: DESIGN_SIZE,
-            min_size: Some(Size::new(560.0, 760.0)),
-            position: iced::window::Position::Centered,
-            ..iced::window::Settings::default()
-        })
+        .window(window_settings())
         .run()
 }
 
@@ -3761,7 +3792,7 @@ impl App {
                 .height(Fill),
         )
         .style(theme::app_background)
-        .padding(spacing::SM)
+        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
@@ -3781,7 +3812,7 @@ impl App {
             .spacing(spacing::SM),
         )
         .style(theme::app_background)
-        .padding(spacing::MD)
+        .padding(chromeless_page_padding(spacing::MD, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
@@ -4085,7 +4116,7 @@ impl App {
                 .height(Fill),
         )
         .style(theme::app_background)
-        .padding(spacing::SM)
+        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
@@ -4644,7 +4675,7 @@ impl App {
         let dice = Self::toolbar_tooltip(
             button(icons::dice(
                 spin_ticks.map_or(0, |ticks| usize::try_from(ticks / 5).unwrap_or(0)),
-                20.0,
+                BUILDER_TOOLBAR_ICON_SIZE,
                 if spin_ticks.is_some() {
                     color::ACCENT
                 } else {
@@ -4669,7 +4700,7 @@ impl App {
             color::FAINT
         };
         let conditions = Self::toolbar_tooltip(
-            button(icons::atom(20.0, conditions_color))
+            button(icons::atom(BUILDER_TOOLBAR_ICON_SIZE, conditions_color))
                 .on_press_maybe(
                     conditions_enabled
                         .then_some(Message::BuilderPanelToggled(BuilderPanel::Conditions)),
@@ -4690,7 +4721,7 @@ impl App {
         let sketch_selected = self.builder_panel == Some(BuilderPanel::Sketch);
         let sketch = Self::toolbar_tooltip(
             button(icons::pencil(
-                20.0,
+                BUILDER_TOOLBAR_ICON_SIZE,
                 if sketch_selected {
                     color::CANVAS
                 } else {
@@ -4710,7 +4741,7 @@ impl App {
         let help_selected = self.builder_panel == Some(BuilderPanel::Help);
         let help = Self::toolbar_tooltip(
             button(icons::help(
-                20.0,
+                BUILDER_TOOLBAR_ICON_SIZE,
                 if help_selected {
                     color::CANVAS
                 } else {
@@ -4728,7 +4759,7 @@ impl App {
         );
 
         let settings = Self::toolbar_tooltip(
-            button(icons::settings(20.0, color::TEXT_SOFT))
+            button(icons::settings(BUILDER_TOOLBAR_ICON_SIZE, color::TEXT_SOFT))
                 .on_press(Message::SettingsOpened)
                 .padding(spacing::XS)
                 .style(theme::secondary_button),
@@ -5023,7 +5054,7 @@ impl App {
             .height(Fill),
         )
         .style(theme::app_background)
-        .padding(spacing::SM)
+        .padding(chromeless_page_padding(spacing::SM, spacing::LG))
         .width(Fill)
         .height(Fill)
         .into()
@@ -5056,9 +5087,11 @@ impl App {
             .spacing(spacing::XS)
             .width(Fill)
             .height(Fill);
+        let page_padding =
+            chromeless_page_padding(if compact { spacing::XS } else { spacing::SM }, spacing::XS);
         let application = container(stack![ambient_models, foreground].width(Fill).height(Fill))
             .style(theme::app_background)
-            .padding(if compact { spacing::XS } else { spacing::SM })
+            .padding(page_padding)
             .width(Fill)
             .height(Fill);
         let overlay = match self.builder_overlay_kind() {
@@ -5066,10 +5099,10 @@ impl App {
             BuilderOverlayKind::Toolbar => {
                 container(row![space().width(Fill), self.builder_toolbar_panel()].width(Fill))
                     .padding(iced::Padding {
-                        top: 52.0,
-                        right: if compact { spacing::XS } else { spacing::SM },
+                        top: builder_toolbar_panel_top(page_padding.top),
+                        right: page_padding.right,
                         bottom: 0.0,
-                        left: if compact { spacing::XS } else { spacing::SM },
+                        left: page_padding.left,
                     })
                     .width(Fill)
                     .height(Fill)
@@ -7352,6 +7385,24 @@ mod tests {
         assert!((settled - 2.0).abs() < f32::EPSILON);
         let recomputed = adaptive_zoom(Size::new(1_440.0, 900.0), settled);
         assert!((recomputed - settled).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn window_keeps_native_decorations_and_an_opaque_surface() {
+        let settings = window_settings();
+        assert!(settings.decorations);
+        assert!(!settings.transparent);
+        assert_eq!(settings.size, DESIGN_SIZE);
+        assert_eq!(settings.min_size, Some(Size::new(560.0, 760.0)));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_window_extends_content_behind_a_hidden_transparent_titlebar() {
+        let settings = window_settings();
+        assert!(settings.platform_specific.title_hidden);
+        assert!(settings.platform_specific.titlebar_transparent);
+        assert!(settings.platform_specific.fullsize_content_view);
     }
 
     #[test]
