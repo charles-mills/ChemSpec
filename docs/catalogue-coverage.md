@@ -40,8 +40,9 @@ not independent conformance oracles.
 
 The larger finite surfaces are generated reproducibly by repository tools:
 
-- `tools/generate-oxygen-catalogue.ps1` owns the oxygen and fixed-charge
-  main-group source expansion; and
+- `tools/generate-oxygen-catalogue.py` owns the oxygen and fixed-charge
+  main-group source expansion, including the reviewed macroscopic
+  standard-phase records; and
 - `tools/generate-covalent-catalogue.py` owns the finite covalent package and
   fixtures.
 

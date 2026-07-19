@@ -3747,9 +3747,10 @@ fn apply_asset_colour_transition(
         let noise = seeded_unit(position_seed, 0, 119);
         let delay = match asset {
             AssetProfile::LiquidVolume => {
-                // Liquid colour enters at the reaction region and diffuses
-                // radially and vertically instead of recolouring all at once.
-                (offset.x.hypot(offset.z) * 0.28 + offset.y.abs() * 0.10 + noise * 0.08)
+                // Additions enter at the surface, so colour sinks from the
+                // top and spreads outward — vertices below the centre are
+                // reached later than the surface directly under the source.
+                (offset.x.hypot(offset.z) * 0.24 + (-offset.y).max(0.0) * 0.30 + noise * 0.08)
                     .clamp(0.0, 0.40)
             }
             AssetProfile::GasCloud => {
@@ -4945,6 +4946,450 @@ fn add_contained_liquid(
     );
 }
 
+/// Procedural surface bursts: short-lived expanding rings with a few flung
+/// droplets, popping at seeded points on the free surface. Each slot cycles
+/// on its own seeded period, so activity reads as continuous simmering pops
+/// rather than a synchronized loop. Pure function of `phase`.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn add_surface_bursts(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    radius: f32,
+    activity: f32,
+    phase: f32,
+    seed: u64,
+    colour: [f32; 4],
+) {
+    const SLOTS: u32 = 9;
+    const LIFE_FRACTION: f32 = 0.42;
+    if activity <= 0.02 {
+        return;
+    }
+    for slot in 0..SLOTS {
+        if seeded_unit(seed, slot, 210) > activity {
+            continue;
+        }
+        let period = 0.8 + seeded_unit(seed, slot, 211) * 1.5;
+        let offset = seeded_unit(seed, slot, 212);
+        let cycles = phase / period + offset;
+        let cycle = cycles.floor().max(0.0) as u64;
+        let local = cycles - cycles.floor();
+        if local >= LIFE_FRACTION {
+            continue;
+        }
+        let life = local / LIFE_FRACTION;
+        let cycle_seed = seed.wrapping_add(cycle.wrapping_mul(0x9e37_79b9_7f4a_7c15));
+        let angle = seeded_unit(cycle_seed, slot, 213) * std::f32::consts::TAU;
+        let radial = seeded_unit(cycle_seed, slot, 214).sqrt() * 0.62;
+        let origin = surface_centre
+            + Vec3::new(
+                angle.cos() * radius * radial,
+                0.012,
+                angle.sin() * radius * radial,
+            );
+        // Expanding, thinning ripple ring.
+        let ring_alpha = (1.0 - life) * 0.30;
+        add_ring(
+            mesh,
+            origin,
+            (0.015 + life * 0.09) * radius.max(0.4),
+            0.005 + life * 0.003,
+            [
+                colour[0] * 0.85 + 0.15,
+                colour[1] * 0.85 + 0.15,
+                colour[2] * 0.85 + 0.15,
+                ring_alpha,
+            ],
+        );
+        // A few flung droplets on low ballistic arcs.
+        for droplet in 0..3_u32 {
+            let launch = seeded_unit(cycle_seed, slot * 8 + droplet, 215) * std::f32::consts::TAU;
+            let fling = 0.22 + seeded_unit(cycle_seed, slot * 8 + droplet, 216) * 0.34;
+            let up = 0.5 + seeded_unit(cycle_seed, slot * 8 + droplet, 217) * 0.38;
+            let t = life * 0.5;
+            let position = origin
+                + Vec3::new(
+                    launch.cos() * fling * t,
+                    up * t - 4.4 * t * t,
+                    launch.sin() * fling * t,
+                );
+            if position.y <= surface_centre.y {
+                continue;
+            }
+            add_sphere(
+                mesh,
+                position,
+                0.006 + seeded_unit(cycle_seed, slot * 8 + droplet, 218) * 0.005,
+                [colour[0], colour[1], colour[2], 0.42 * (1.0 - life)],
+                4,
+                6,
+            );
+        }
+    }
+}
+
+/// A ring of clinging foam bubbles at the liquid/glass contact line —
+/// gas-producing or agitated liquids collect a bubble collar there. Bubble
+/// membership, size, and slow drift are seeded; density follows intensity.
+fn add_foam_ring(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    radius: f32,
+    intensity: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const BUBBLES: u32 = 42;
+    if intensity <= 0.03 {
+        return;
+    }
+    for bubble in 0..BUBBLES {
+        if seeded_unit(seed, bubble, 230) > intensity {
+            continue;
+        }
+        let drift = (phase * (0.05 + seeded_unit(seed, bubble, 231) * 0.04))
+            * if bubble % 2 == 0 { 1.0 } else { -1.0 };
+        let angle = seeded_unit(seed, bubble, 232) * std::f32::consts::TAU + drift;
+        let inset = 0.955 - seeded_unit(seed, bubble, 233) * 0.05;
+        let size = 0.007 + seeded_unit(seed, bubble, 234) * 0.009;
+        // A slow seeded breathing keeps the collar alive without popping.
+        let breathe = 1.0 + (phase * 1.7 + seed_phase(seed, 235 + bubble)).sin() * 0.12;
+        add_sphere(
+            mesh,
+            surface_centre
+                + Vec3::new(
+                    angle.cos() * radius * inset,
+                    0.006 + seeded_unit(seed, bubble, 236) * 0.008,
+                    angle.sin() * radius * inset,
+                ),
+            size * breathe,
+            [0.90, 0.95, 0.97, 0.34],
+            4,
+            6,
+        );
+    }
+}
+
+/// Procedural gas bubbles: seeded streams nucleate near the basin floor,
+/// rise with a helical wobble, grow slightly as pressure drops, and vanish
+/// into the free surface (the burst system covers the pops). Emission times
+/// are indexed, so any playhead reconstructs the same bubbles mid-flight.
+/// One agitated liquid surface: where the agitation sits, how strong it is,
+/// and how tightly its bubble columns cluster toward the centre.
+struct SurfaceAgitation {
+    surface_centre: Vec3,
+    floor_y: f32,
+    radius: f32,
+    intensity: f32,
+    /// 0 = columns across the whole floor (boiling); 1 = clustered under
+    /// the centre (a reacting lump).
+    centre_bias: f32,
+    colour: [f32; 4],
+}
+
+/// Everything an agitated surface implies: pops and flung droplets, a foam
+/// collar at the glass, and bubble columns rising from the floor.
+fn add_surface_agitation(
+    meshes: &mut SceneMeshes,
+    agitation: &SurfaceAgitation,
+    phase: f32,
+    seed: u64,
+) {
+    add_surface_bursts(
+        &mut meshes.translucent,
+        agitation.surface_centre,
+        agitation.radius,
+        agitation.intensity * 0.85,
+        phase,
+        seed.rotate_left(9),
+        agitation.colour,
+    );
+    add_foam_ring(
+        &mut meshes.translucent,
+        agitation.surface_centre,
+        agitation.radius,
+        agitation.intensity * 0.9,
+        phase,
+        seed,
+    );
+    add_bubble_streams(
+        &mut meshes.translucent,
+        agitation,
+        phase,
+        seed.rotate_left(17),
+    );
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+fn add_bubble_streams(mesh: &mut Mesh, agitation: &SurfaceAgitation, phase: f32, seed: u64) {
+    const STREAMS: u32 = 16;
+    let intensity = agitation.intensity * 0.9;
+    let depth = agitation.surface_centre.y - agitation.floor_y;
+    if intensity <= 0.03 || depth <= 0.05 {
+        return;
+    }
+    for stream in 0..STREAMS {
+        if seeded_unit(seed, stream, 240) > intensity {
+            continue;
+        }
+        let angle = seeded_unit(seed, stream, 241) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, stream, 242).sqrt() * (1.0 - agitation.centre_bias) * 0.75;
+        let base = Vec3::new(
+            agitation.surface_centre.x + angle.cos() * agitation.radius * radial,
+            agitation.floor_y + 0.015,
+            agitation.surface_centre.z + angle.sin() * agitation.radius * radial,
+        );
+        let rise_time = 1.0 + seeded_unit(seed, stream, 243) * 0.9;
+        let interval = 0.5 + seeded_unit(seed, stream, 244) * 0.85;
+        let offset = seeded_unit(seed, stream, 245) * interval;
+        let first_emission = ((phase - rise_time - offset) / interval).ceil().max(0.0) as u64;
+        let last_emission = ((phase - offset) / interval).floor();
+        if last_emission < 0.0 {
+            continue;
+        }
+        for emission in first_emission..=(last_emission as u64) {
+            let age = phase - (emission as f32).mul_add(interval, offset);
+            if !(0.0..rise_time).contains(&age) {
+                continue;
+            }
+            let fraction = (age / rise_time).powf(0.85);
+            let bubble_seed = seed.wrapping_add(emission.wrapping_mul(0x9e37_79b9_7f4a_7c15));
+            let wobble_phase = age * 5.2 + seed_phase(bubble_seed, 246 + stream);
+            let wobble = 0.014 + seeded_unit(bubble_seed, stream, 247) * 0.012;
+            let position = base
+                + Vec3::new(
+                    wobble_phase.sin() * wobble,
+                    depth * fraction,
+                    wobble_phase.cos() * wobble,
+                );
+            add_sphere(
+                mesh,
+                position,
+                0.009 + fraction * 0.012 + seeded_unit(bubble_seed, stream, 248) * 0.005,
+                [0.90, 0.95, 0.98, 0.48],
+                4,
+                6,
+            );
+        }
+    }
+}
+
+/// Precipitate accumulating on the basin floor: a noise-bumped radial mound
+/// that grows with formation progress instead of appearing fully formed.
+#[allow(clippy::cast_precision_loss)]
+fn add_sediment_mound(
+    mesh: &mut Mesh,
+    floor_centre: Vec3,
+    radius: f32,
+    growth: f32,
+    colour: [f32; 4],
+    seed: u64,
+) {
+    const RINGS: u16 = 5;
+    const SEGMENTS: u16 = 20;
+    if growth <= 0.01 {
+        return;
+    }
+    let peak = 0.085 * growth;
+    let footprint = radius * (0.45 + growth * 0.3);
+    let height = |radial: f32, angle: f32| {
+        let falloff = (1.0 - radial * radial).max(0.0).powf(1.4);
+        let lumps = 0.72
+            + 0.28
+                * ((angle * 3.0 + seed_phase(seed, 250)).sin()
+                    * (radial * 6.5 + seed_phase(seed, 251)).cos())
+                .abs();
+        peak * falloff * lumps
+    };
+    let point = |radial: f32, angle: f32| {
+        floor_centre
+            + Vec3::new(
+                angle.cos() * footprint * radial,
+                height(radial, angle),
+                angle.sin() * footprint * radial,
+            )
+    };
+    let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: point(0.0, 0.0).to_array(),
+        normal: Vec3::Y.to_array(),
+        color: colour,
+    });
+    let radial_step = 0.5 / f32::from(RINGS);
+    let angle_step = std::f32::consts::TAU * 0.5 / f32::from(SEGMENTS);
+    for ring in 1..=RINGS {
+        let radial = f32::from(ring) / f32::from(RINGS);
+        for segment in 0..SEGMENTS {
+            let angle = std::f32::consts::TAU * f32::from(segment) / f32::from(SEGMENTS);
+            let along_radius =
+                point((radial + radial_step).min(1.0), angle) - point(radial - radial_step, angle);
+            let along_rim = point(radial, angle + angle_step) - point(radial, angle - angle_step);
+            let normal = along_rim
+                .cross(along_radius)
+                .try_normalize()
+                .unwrap_or(Vec3::Y);
+            mesh.vertices.push(Vertex {
+                position: point(radial, angle).to_array(),
+                normal: normal.to_array(),
+                color: colour,
+            });
+        }
+    }
+    let ring_vertex = |ring: u16, segment: u16| -> u32 {
+        base + 1 + u32::from(ring - 1) * u32::from(SEGMENTS) + u32::from(segment % SEGMENTS)
+    };
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            base,
+            ring_vertex(1, segment),
+            ring_vertex(1, segment + 1),
+        ]);
+    }
+    for ring in 1..RINGS {
+        for segment in 0..SEGMENTS {
+            let inner_a = ring_vertex(ring, segment);
+            let inner_b = ring_vertex(ring, segment + 1);
+            let outer_a = ring_vertex(ring + 1, segment);
+            let outer_b = ring_vertex(ring + 1, segment + 1);
+            mesh.indices
+                .extend_from_slice(&[inner_a, outer_a, outer_b, inner_a, outer_b, inner_b]);
+        }
+    }
+}
+
+/// Faint schlieren wisps swaying around a dissolving solid: the densest
+/// solution sinks and shears into the bulk. Deliberately dim.
+fn add_dissolution_wisps(mesh: &mut Mesh, source: Vec3, reach: f32, phase: f32, seed: u64) {
+    const WISPS: u32 = 5;
+    for wisp in 0..WISPS {
+        let angle = seeded_unit(seed, wisp, 260) * std::f32::consts::TAU
+            + (phase * (0.16 + seeded_unit(seed, wisp, 261) * 0.12)).sin() * 0.5;
+        let distance = 0.05 + seeded_unit(seed, wisp, 262) * reach;
+        let sway = (phase * (0.7 + seeded_unit(seed, wisp, 263) * 0.5)
+            + seed_phase(seed, 264 + wisp))
+        .sin()
+            * 0.03;
+        let centre = source
+            + Vec3::new(
+                angle.cos() * distance + sway,
+                0.05 + seeded_unit(seed, wisp, 265) * 0.06,
+                angle.sin() * distance - sway,
+            );
+        add_shard(
+            mesh,
+            centre,
+            Vec3::new(0.010, 0.075 + seeded_unit(seed, wisp, 266) * 0.05, 0.010),
+            Quat::from_rotation_y(angle) * Quat::from_rotation_x(sway * 3.0),
+            [0.86, 0.92, 0.95, 0.11],
+            seed.wrapping_add(u64::from(wisp)),
+        );
+    }
+}
+
+/// Condensation on the inner glass above the liquid: seeded droplets whose
+/// visible population and size follow the vapour amount.
+fn add_glass_condensation(
+    mesh: &mut Mesh,
+    surface_centre: Vec3,
+    wall_radius: f32,
+    rim_y: f32,
+    vapour: f32,
+    seed: u64,
+) {
+    const DROPLETS: u32 = 46;
+    let head_room = rim_y - surface_centre.y;
+    if vapour <= 0.05 || head_room <= 0.08 {
+        return;
+    }
+    for droplet in 0..DROPLETS {
+        if seeded_unit(seed, droplet, 270) > vapour {
+            continue;
+        }
+        let angle = seeded_unit(seed, droplet, 271) * std::f32::consts::TAU;
+        let height = surface_centre.y
+            + 0.05
+            + seeded_unit(seed, droplet, 272) * (head_room - 0.09).max(0.01);
+        add_sphere(
+            mesh,
+            Vec3::new(
+                surface_centre.x + angle.cos() * wall_radius,
+                height,
+                surface_centre.z + angle.sin() * wall_radius,
+            ),
+            (0.005 + seeded_unit(seed, droplet, 273) * 0.007) * (0.6 + vapour * 0.4),
+            [0.88, 0.94, 0.97, 0.38],
+            3,
+            5,
+        );
+    }
+}
+
+/// The receding-waterline film: a faint wet band on the glass between the
+/// current level and the authored starting level. Only meaningful where the
+/// level drops (fuel burning down, solvent boiling off).
+fn add_high_water_mark(mesh: &mut Mesh, state: &LiquidState, top_offset: f32) {
+    let top = state.initial_level_y + top_offset;
+    let bottom = state.surface_centre.y + 0.015;
+    if top - bottom < 0.03 {
+        return;
+    }
+    add_cylinder_wall(
+        mesh,
+        Vec3::new(state.surface_centre.x, bottom, state.surface_centre.z),
+        Vec3::new(state.surface_centre.x, top, state.surface_centre.z),
+        state.radius + 0.004,
+        [0.62, 0.78, 0.86, 0.10],
+    );
+    // The old waterline itself reads slightly stronger than the film.
+    add_ring(
+        mesh,
+        Vec3::new(state.surface_centre.x, top, state.surface_centre.z),
+        state.radius + 0.004,
+        0.004,
+        [0.72, 0.85, 0.92, 0.16],
+    );
+}
+
+/// A small Worthington crown at the pour impact: a pulsing coronet of spikes
+/// thrown up around the stream while it lands.
+fn add_worthington_crown(mesh: &mut Mesh, impact: Vec3, strength: f32, phase: f32, seed: u64) {
+    const SPIKES: u16 = 9;
+    if strength <= 0.05 {
+        return;
+    }
+    let pulse = (phase * 2.6).fract();
+    let crown_radius = 0.045 + pulse * 0.02;
+    let lift = (1.0 - pulse) * 0.9 + 0.1;
+    for spike in 0..SPIKES {
+        let angle = std::f32::consts::TAU * f32::from(spike) / f32::from(SPIKES)
+            + seeded_unit(seed, u32::from(spike), 280) * 0.5;
+        let height =
+            (0.028 + seeded_unit(seed, u32::from(spike), 281) * 0.026) * lift * strength.min(1.0);
+        let base = impact
+            + Vec3::new(
+                angle.cos() * crown_radius,
+                0.012,
+                angle.sin() * crown_radius,
+            );
+        add_shard(
+            mesh,
+            base + Vec3::Y * height * 0.5,
+            Vec3::new(0.006, height, 0.006),
+            Quat::from_rotation_y(angle) * Quat::from_rotation_z(0.28),
+            [0.93, 0.96, 1.0, 0.50 * strength * (0.4 + lift * 0.6)],
+            seed.wrapping_add(u64::from(spike)),
+        );
+    }
+}
+
 const STIRRER_ENTRY_END: f32 = 0.24;
 const STIRRER_EXIT_START: f32 = 0.76;
 
@@ -5601,7 +6046,79 @@ fn add_animated_alkali_water_assembly(
             frame / 30.0 * 2.0,
             seed,
         );
+        // The evolving hydrogen collects a foam collar at the glass; the
+        // authored splash props already pop where the metal darts.
+        add_foam_ring(
+            &mut meshes.translucent,
+            state.surface_centre,
+            state.radius,
+            style.activity * 0.7,
+            frame / 30.0 * 2.0,
+            seed,
+        );
     }
+}
+
+/// Everything the neutralisation basin's state implies at one moment.
+#[derive(Clone, Copy)]
+struct NeutralisationLiquidLife {
+    bench_top: f32,
+    vessel_motion: Vec3,
+    liquid_colour: [f32; 4],
+    surface_colour: [f32; 4],
+    turbulence: f32,
+    boiling: f32,
+    vapour: f32,
+}
+
+/// The neutralisation basin rides the authored vessel motion; boiling pops
+/// the surface, steam condenses on the glass, and the boiled-off solvent
+/// leaves a receding waterline.
+fn add_neutralisation_liquid(
+    meshes: &mut SceneMeshes,
+    state: &LiquidState,
+    life: NeutralisationLiquidLife,
+    phase: f32,
+    seed: u64,
+) {
+    const MODEL_SCALE: f32 = 0.45;
+    let floor_y = state.floor_y + life.vessel_motion.y * MODEL_SCALE;
+    add_contained_liquid(
+        &mut meshes.translucent,
+        state.surface_centre,
+        floor_y,
+        state.radius,
+        life.liquid_colour,
+        life.turbulence,
+        phase,
+        seed,
+    );
+    add_surface_agitation(
+        meshes,
+        &SurfaceAgitation {
+            surface_centre: state.surface_centre,
+            floor_y,
+            radius: state.radius,
+            intensity: life.boiling,
+            centre_bias: 0.0,
+            colour: life.surface_colour,
+        },
+        phase,
+        seed,
+    );
+    add_glass_condensation(
+        &mut meshes.translucent,
+        state.surface_centre,
+        state.radius + 0.03,
+        life.bench_top + 1.8 + life.vessel_motion.y * MODEL_SCALE,
+        life.vapour,
+        seed.rotate_left(25),
+    );
+    add_high_water_mark(
+        &mut meshes.translucent,
+        state,
+        life.vessel_motion.y * MODEL_SCALE,
+    );
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -5666,16 +6183,18 @@ fn add_animated_neutralisation_assembly(
         );
     }
     if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
-        // The basin rides the authored vessel motion; the surface level
-        // already follows it through the recovered table.
-        const MODEL_SCALE: f32 = 0.45;
-        add_contained_liquid(
-            &mut meshes.translucent,
-            state.surface_centre,
-            state.floor_y + vessel_motion.y * MODEL_SCALE,
-            state.radius,
-            neutralisation_track_colour(state.colour, colours),
-            visual_inputs.liquid_turbulence,
+        add_neutralisation_liquid(
+            meshes,
+            &state,
+            NeutralisationLiquidLife {
+                bench_top: layout.bench_top,
+                vessel_motion,
+                liquid_colour: neutralisation_track_colour(state.colour, colours),
+                surface_colour: colours.liquid,
+                turbulence: visual_inputs.liquid_turbulence,
+                boiling: post_process.boiling,
+                vapour: post_process.vapour,
+            },
             frame / 30.0 * 2.0,
             seed,
         );
@@ -5761,6 +6280,8 @@ fn add_animated_combustion_assembly(
             frame / 30.0 * 2.0,
             0x00C0_FFEE,
         );
+        // Burned-away fuel leaves its receding waterline on the glass.
+        add_high_water_mark(&mut meshes.translucent, &state, 0.0);
     }
 }
 
@@ -5834,18 +6355,42 @@ fn add_animated_precipitation_assembly(
     }
     let liquid = liquid_state(clip, frame, layout.bench_top);
     if let Some(state) = liquid {
-        // Conservation made visible: the poured volume raises the level, and
-        // the falling stream stirs the surface while it flows.
-        let turbulence = pour.map_or(0.2, |pour| (0.2 + pour.flow * 0.9).min(1.0));
-        add_contained_liquid(
-            &mut meshes.translucent,
-            state.surface_centre + Vec3::Y * receiving_lift,
-            state.floor_y,
-            state.radius,
-            precipitation_track_colour(state.colour, precipitation, ordinal, ordinal_progress),
-            turbulence,
+        // Conservation made visible: the poured volume raises the level, the
+        // falling stream stirs the surface, and the mixed colour spreads
+        // from where the stream lands.
+        add_receiving_liquid(
+            meshes,
+            &state,
+            pour.as_ref(),
+            receiving_lift,
+            bound_colour_endpoints(
+                &precipitation.initial_liquid,
+                0.34,
+                ordinal,
+                ordinal_progress,
+            ),
             frame / 30.0 * 2.0,
             plan_seed(plan),
+        );
+        // The formed precipitate settles into a growing mound on the floor.
+        let (_, _, growth) =
+            bound_colour_endpoints(&precipitation.precipitate, 1.0, ordinal, ordinal_progress);
+        add_sediment_mound(
+            &mut meshes.opaque,
+            Vec3::new(
+                state.surface_centre.x,
+                state.floor_y + 0.004,
+                state.surface_centre.z,
+            ),
+            state.radius,
+            growth,
+            precipitation_track_colour(
+                ClipColour::Precipitate,
+                precipitation,
+                ordinal,
+                ordinal_progress,
+            ),
+            plan_seed(plan).rotate_left(27),
         );
     }
     if let Some(state) = pour {
@@ -5905,6 +6450,72 @@ fn gas_evolution_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f
         .clamp(0.0, 1.0)
 }
 
+/// The gas-evolution receiving basin and everything its state implies: the
+/// pour-raised level, the mixed colour spreading from the stream, and the
+/// fizz that ramps once gas generation begins.
+#[allow(clippy::too_many_arguments)]
+fn add_gas_evolution_liquid(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    gas_evolution: &chem_presentation::GasEvolutionVisualProfile,
+    state: &LiquidState,
+    pour: Option<&PourState>,
+    receiving_lift: f32,
+    frame: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) {
+    // Conservation made visible: the poured volume raises the level, the
+    // falling stream stirs the surface, and the mixed colour spreads from
+    // where the stream lands.
+    let endpoints = bound_colour_endpoints(
+        &gas_evolution.initial_reactant,
+        0.34,
+        ordinal,
+        ordinal_progress,
+    );
+    add_receiving_liquid(
+        meshes,
+        state,
+        pour,
+        receiving_lift,
+        endpoints,
+        frame / 30.0 * 2.0,
+        plan_seed(plan),
+    );
+    // Escaping gas fizzes the surface and collects a foam collar once
+    // generation begins.
+    let fizz = match ordinal.cmp(&gas_evolution.generation_ordinal) {
+        std::cmp::Ordering::Less => 0.0,
+        std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+        std::cmp::Ordering::Greater => 1.0,
+    };
+    let surface = state.surface_centre + Vec3::Y * receiving_lift;
+    add_surface_agitation(
+        meshes,
+        &SurfaceAgitation {
+            surface_centre: surface,
+            floor_y: state.floor_y,
+            radius: state.radius,
+            intensity: fizz,
+            centre_bias: 0.35,
+            colour: endpoints.0,
+        },
+        frame / 30.0 * 2.0,
+        plan_seed(plan),
+    );
+    // Faint wisps of dissolving material sway around the reacting solid.
+    if fizz > 0.1 {
+        add_dissolution_wisps(
+            &mut meshes.translucent,
+            Vec3::new(surface.x, state.floor_y, surface.z),
+            state.radius * 0.35,
+            frame / 30.0 * 2.0,
+            plan_seed(plan).rotate_left(21),
+        );
+    }
+}
+
 fn add_animated_gas_evolution_assembly(
     meshes: &mut SceneMeshes,
     plan: &ScenePlan,
@@ -5957,18 +6568,16 @@ fn add_animated_gas_evolution_assembly(
     }
     let liquid = liquid_state(clip, frame, layout.bench_top);
     if let Some(state) = liquid {
-        // Conservation made visible: the poured volume raises the level, and
-        // the falling stream stirs the surface while it flows.
-        let turbulence = pour.map_or(0.2, |pour| (0.2 + pour.flow * 0.9).min(1.0));
-        add_contained_liquid(
-            &mut meshes.translucent,
-            state.surface_centre + Vec3::Y * receiving_lift,
-            state.floor_y,
-            state.radius,
-            gas_evolution_track_colour(state.colour, gas_evolution, ordinal, ordinal_progress),
-            turbulence,
-            frame / 30.0 * 2.0,
-            plan_seed(plan),
+        add_gas_evolution_liquid(
+            meshes,
+            plan,
+            gas_evolution,
+            &state,
+            pour.as_ref(),
+            receiving_lift,
+            frame,
+            ordinal,
+            ordinal_progress,
         );
     }
     if let Some(state) = pour {
@@ -6035,6 +6644,11 @@ fn add_animated_metal_displacement_assembly(
         {
             continue;
         }
+        // The authored basin-filling FinalSolution column is replaced by the
+        // dye front below; its small swirl props still render.
+        if track.module == ClipModule::FinalSolution && track.vertex_count >= 96 {
+            continue;
+        }
         let colour =
             metal_displacement_track_colour(track.colour, displacement, ordinal, ordinal_progress);
         let destination = match (track.pass, track.colour) {
@@ -6082,20 +6696,66 @@ fn add_animated_metal_displacement_assembly(
             );
         }
     }
-    // The authored FinalSolution column still paints the colour change
-    // spatially; the primitive replaces only the standing initial solution.
     if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
-        add_contained_liquid(
-            &mut meshes.translucent,
-            state.surface_centre,
-            state.floor_y,
-            state.radius,
+        let final_colour = metal_displacement_track_colour(
+            ClipColour::SolutionFinal,
+            displacement,
+            ordinal,
+            ordinal_progress,
+        );
+        add_displacement_solution(
+            meshes,
+            &state,
             metal_displacement_track_colour(state.colour, displacement, ordinal, ordinal_progress),
-            0.16,
+            final_colour,
+            progress,
             frame / 30.0 * 2.0,
             plan_seed(plan),
         );
     }
+}
+
+/// The standing solution with the final-solution colour diffusing out from
+/// the immersed metal. The front's timing follows the clip like the authored
+/// rising column it replaces; its colour keeps the reviewed ordinal binding.
+fn add_displacement_solution(
+    meshes: &mut SceneMeshes,
+    state: &LiquidState,
+    colour: [f32; 4],
+    final_colour: [f32; 4],
+    progress: f32,
+    phase: f32,
+    seed: u64,
+) {
+    // The metal strip hangs into the solution at roughly this model-space
+    // offset (0.45 model units at MODEL_SCALE 0.45).
+    let source = Vec3::new(
+        0.45 * 0.45,
+        state.floor_y + (state.surface_centre.y - state.floor_y) * 0.55,
+        0.0,
+    );
+    let appended_from = meshes.translucent.vertices.len();
+    add_contained_liquid(
+        &mut meshes.translucent,
+        state.surface_centre,
+        state.floor_y,
+        state.radius,
+        colour,
+        0.16,
+        phase,
+        seed,
+    );
+    apply_liquid_dye(
+        &mut meshes.translucent,
+        appended_from,
+        &LiquidDye {
+            source,
+            target: final_colour,
+            amount: progress,
+            reach: (state.radius * 2.0).hypot(state.surface_centre.y - state.floor_y),
+            seed: seed ^ 0x0064_7965,
+        },
+    );
 }
 
 fn metal_displacement_track_visible(module: ClipModule, frame: f32) -> bool {
@@ -7189,6 +7849,121 @@ fn pour_state(clip: &'static AnimatedClip, frame: f32, bench_top: f32) -> Option
     })
 }
 
+/// A dye front spreading through standing liquid from a physical source —
+/// the pour impact, a reacting solid — so colour arrives where chemistry
+/// happens instead of the whole volume lerping at once.
+#[derive(Debug, Clone, Copy)]
+struct LiquidDye {
+    source: Vec3,
+    target: [f32; 4],
+    /// 0..1 mixing completion; the front has covered the basin at 1.
+    amount: f32,
+    /// Farthest basin point from the source, for front normalization.
+    reach: f32,
+    seed: u64,
+}
+
+/// Recolours the contained-liquid vertices appended after `start`: a
+/// diffusion-like front (fast at first, slowing) with a noise-wobbled edge.
+/// Deterministic per vertex, so scrubbing reproduces the same spread.
+fn apply_liquid_dye(mesh: &mut Mesh, start: usize, dye: &LiquidDye) {
+    if dye.amount <= f32::EPSILON || dye.reach <= f32::EPSILON {
+        return;
+    }
+    let front = dye.amount.powf(0.65) * dye.reach * 1.18;
+    let softness = (dye.reach * 0.22).max(0.05);
+    for vertex in &mut mesh.vertices[start..] {
+        let position = Vec3::from_array(vertex.position);
+        let position_seed = dye.seed
+            ^ u64::from(position.x.to_bits()).rotate_left(7)
+            ^ u64::from(position.y.to_bits()).rotate_left(23)
+            ^ u64::from(position.z.to_bits()).rotate_left(41);
+        let wobble = (seeded_unit(position_seed, 0, 119) - 0.5) * softness * 1.6;
+        let distance = position.distance(dye.source) + wobble;
+        let coverage = smooth01((front - distance) / softness + 0.5);
+        vertex.color = mix_color(
+            vertex.color,
+            [dye.target[0], dye.target[1], dye.target[2], vertex.color[3]],
+            coverage,
+        );
+    }
+}
+
+/// Renders the receiving basin with pour-driven surface turbulence, then
+/// spreads the mixed colour from where the stream lands.
+fn add_receiving_liquid(
+    meshes: &mut SceneMeshes,
+    state: &LiquidState,
+    pour: Option<&PourState>,
+    receiving_lift: f32,
+    endpoints: ([f32; 4], [f32; 4], f32),
+    phase: f32,
+    seed: u64,
+) {
+    let (base, target, amount) = endpoints;
+    let turbulence = pour.map_or(0.2, |pour| (0.2 + pour.flow * 0.9).min(1.0));
+    let appended_from = meshes.translucent.vertices.len();
+    add_contained_liquid(
+        &mut meshes.translucent,
+        state.surface_centre + Vec3::Y * receiving_lift,
+        state.floor_y,
+        state.radius,
+        base,
+        turbulence,
+        phase,
+        seed,
+    );
+    let source = pour.map_or(state.surface_centre, |pour| {
+        Vec3::new(
+            pour.lip.x + pour.downhill.x * 0.12,
+            state.surface_centre.y + receiving_lift,
+            pour.lip.z + pour.downhill.z * 0.12,
+        )
+    });
+    apply_liquid_dye(
+        &mut meshes.translucent,
+        appended_from,
+        &LiquidDye {
+            source,
+            target,
+            amount,
+            reach: (state.radius * 2.0).hypot(state.surface_centre.y - state.floor_y),
+            seed: seed ^ 0x0064_7965,
+        },
+    );
+}
+
+/// Splits a reviewed bound colour into its endpoints and the ordinal-driven
+/// mixing amount, so callers can place the change in space instead of
+/// applying the blended value uniformly.
+fn bound_colour_endpoints(
+    bound: &chem_presentation::BoundVisualColour,
+    opacity: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> ([f32; 4], [f32; 4], f32) {
+    let base = [
+        f32::from(bound.base_colour.red) / 255.0,
+        f32::from(bound.base_colour.green) / 255.0,
+        f32::from(bound.base_colour.blue) / 255.0,
+        opacity,
+    ];
+    let target = [
+        f32::from(bound.colour.red) / 255.0,
+        f32::from(bound.colour.green) / 255.0,
+        f32::from(bound.colour.blue) / 255.0,
+        opacity,
+    ];
+    let amount = bound
+        .transition_ordinal
+        .map_or(1.0, |start| match ordinal.cmp(&start) {
+            std::cmp::Ordering::Less => 0.0,
+            std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+            std::cmp::Ordering::Greater => 1.0,
+        });
+    (base, target, amount)
+}
+
 /// State recovered from a clip's authored standing liquid: the basin the
 /// liquid occupies plus the per-frame free-surface level. At render time the
 /// authored body and surface meshes are replaced by the contained-liquid
@@ -7314,6 +8089,9 @@ struct LiquidState {
     floor_y: f32,
     radius: f32,
     colour: ClipColour,
+    /// The authored starting level: the high-water mark for scenes whose
+    /// level only ever drops (burn-down, evaporation).
+    initial_level_y: f32,
 }
 
 // Frame indices are bounded by the 180-frame clip, so the casts are exact.
@@ -7334,6 +8112,7 @@ fn liquid_state(clip: &'static AnimatedClip, frame: f32, bench_top: f32) -> Opti
         floor_y: table.floor_y * MODEL_SCALE + bench_top,
         radius: table.radius * MODEL_SCALE,
         colour: table.colour,
+        initial_level_y: table.frames[0].y * MODEL_SCALE + bench_top,
     })
 }
 
@@ -7589,6 +8368,7 @@ fn add_pour_impact(meshes: &mut SceneMeshes, anchors: PourAnchors, phase: f32, s
         0.075 + 0.02 * (phase * 11.0).sin().abs(),
         [0.95, 0.97, 1.0, 0.30 * strength],
     );
+    add_worthington_crown(&mut meshes.translucent, impact, strength, phase, seed);
     for droplet in 0..6_u32 {
         let launch = seeded_unit(seed, droplet, 61);
         let droplet_phase = (phase * 1.5 + launch).fract();

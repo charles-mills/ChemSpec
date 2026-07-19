@@ -37674,17 +37674,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -37708,17 +37708,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[2].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[2].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -38016,18 +38016,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1",
+                "anion[1].a2"
+              ],
+              "product": "salt[1]"
             }
           ],
           "observation_compatibility": [
@@ -38617,19 +38617,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "anion[1].a1",
                 "anion[1].a2",
                 "anion[2].a1"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -38661,19 +38661,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[2].metal",
                 "anion[2].a2",
                 "anion[3].a1",
                 "anion[3].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -39003,17 +39003,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -39037,17 +39037,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[2].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[2].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -39345,18 +39345,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1",
+                "anion[1].a2"
+              ],
+              "product": "salt[1]"
             }
           ],
           "observation_compatibility": [
@@ -39946,19 +39946,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "anion[1].a1",
                 "anion[1].a2",
                 "anion[2].a1"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -39990,19 +39990,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[2].metal",
                 "anion[2].a2",
                 "anion[3].a1",
                 "anion[3].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -40332,17 +40332,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -40366,17 +40366,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[2].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[2].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -40674,18 +40674,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1",
+                "anion[1].a2"
+              ],
+              "product": "salt[1]"
             }
           ],
           "observation_compatibility": [
@@ -41275,19 +41275,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "anion[1].a1",
                 "anion[1].a2",
                 "anion[2].a1"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -41319,19 +41319,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[2].metal",
                 "anion[2].a2",
                 "anion[3].a1",
                 "anion[3].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -41661,17 +41661,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -41695,17 +41695,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[2].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[2].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -42003,18 +42003,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1",
+                "anion[1].a2"
+              ],
+              "product": "salt[1]"
             }
           ],
           "observation_compatibility": [
@@ -42604,19 +42604,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "anion[1].a1",
                 "anion[1].a2",
                 "anion[2].a1"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -42648,19 +42648,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[2].metal",
                 "anion[2].a2",
                 "anion[3].a1",
                 "anion[3].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -44308,18 +44308,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "cation[2].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "cation[2].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -44347,18 +44347,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[3].metal",
-                "cation[4].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[3].metal",
+                "cation[4].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             },
             {
               "kind": "associate_ionic",
@@ -44386,18 +44386,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[5].metal",
-                "cation[6].metal",
-                "anion[1].a3"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[3]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[5].metal",
+                "cation[6].metal",
+                "anion[1].a3"
+              ],
+              "product": "salt[3]"
             },
             {
               "kind": "associate_ionic",
@@ -44425,18 +44425,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[7].metal",
-                "cation[8].metal",
-                "anion[1].a4"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[4]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[7].metal",
+                "cation[8].metal",
+                "anion[1].a4"
+              ],
+              "product": "salt[4]"
             },
             {
               "kind": "associate_ionic",
@@ -44464,18 +44464,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[9].metal",
-                "cation[10].metal",
-                "anion[1].a5"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[5]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[9].metal",
+                "cation[10].metal",
+                "anion[1].a5"
+              ],
+              "product": "salt[5]"
             },
             {
               "kind": "associate_ionic",
@@ -44503,18 +44503,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[11].metal",
-                "cation[12].metal",
-                "anion[1].a6"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[6]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[11].metal",
+                "cation[12].metal",
+                "anion[1].a6"
+              ],
+              "product": "salt[6]"
             },
             {
               "kind": "associate_ionic",
@@ -44542,18 +44542,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[13].metal",
-                "cation[14].metal",
-                "anion[1].a7"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[7]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[13].metal",
+                "cation[14].metal",
+                "anion[1].a7"
+              ],
+              "product": "salt[7]"
             },
             {
               "kind": "associate_ionic",
@@ -44581,18 +44581,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[15].metal",
-                "cation[16].metal",
-                "anion[1].a8"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[8]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[15].metal",
+                "cation[16].metal",
+                "anion[1].a8"
+              ],
+              "product": "salt[8]"
             }
           ],
           "observation_compatibility": [
@@ -45668,17 +45668,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -45702,17 +45702,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[2].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[2].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             },
             {
               "kind": "associate_ionic",
@@ -45736,17 +45736,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[3].metal",
-                "anion[1].a3"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[3]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[3].metal",
+                "anion[1].a3"
+              ],
+              "product": "salt[3]"
             },
             {
               "kind": "associate_ionic",
@@ -45770,17 +45770,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[4].metal",
-                "anion[1].a4"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[4]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[4].metal",
+                "anion[1].a4"
+              ],
+              "product": "salt[4]"
             },
             {
               "kind": "associate_ionic",
@@ -45804,17 +45804,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[5].metal",
-                "anion[1].a5"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[5]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[5].metal",
+                "anion[1].a5"
+              ],
+              "product": "salt[5]"
             },
             {
               "kind": "associate_ionic",
@@ -45838,17 +45838,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[6].metal",
-                "anion[1].a6"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[6]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[6].metal",
+                "anion[1].a6"
+              ],
+              "product": "salt[6]"
             },
             {
               "kind": "associate_ionic",
@@ -45872,17 +45872,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[7].metal",
-                "anion[1].a7"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[7]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[7].metal",
+                "anion[1].a7"
+              ],
+              "product": "salt[7]"
             },
             {
               "kind": "associate_ionic",
@@ -45906,17 +45906,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[8].metal",
-                "anion[1].a8"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[8]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[8].metal",
+                "anion[1].a8"
+              ],
+              "product": "salt[8]"
             }
           ],
           "observation_compatibility": [
@@ -48884,6 +48884,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "cation[2].metal",
@@ -48891,13 +48897,7 @@
                 "anion[1].a2",
                 "anion[1].a3"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -48933,6 +48933,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[3].metal",
                 "cation[4].metal",
@@ -48940,13 +48946,7 @@
                 "anion[1].a5",
                 "anion[1].a6"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             },
             {
               "kind": "associate_ionic",
@@ -48982,6 +48982,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[5].metal",
                 "cation[6].metal",
@@ -48989,13 +48995,7 @@
                 "anion[1].a8",
                 "anion[2].a1"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[3]",
-              "kind": "assign_product"
+              "product": "salt[3]"
             },
             {
               "kind": "associate_ionic",
@@ -49031,6 +49031,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[7].metal",
                 "cation[8].metal",
@@ -49038,13 +49044,7 @@
                 "anion[2].a3",
                 "anion[2].a4"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[4]",
-              "kind": "assign_product"
+              "product": "salt[4]"
             },
             {
               "kind": "associate_ionic",
@@ -49080,6 +49080,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[9].metal",
                 "cation[10].metal",
@@ -49087,13 +49093,7 @@
                 "anion[2].a6",
                 "anion[2].a7"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[5]",
-              "kind": "assign_product"
+              "product": "salt[5]"
             },
             {
               "kind": "associate_ionic",
@@ -49129,6 +49129,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[11].metal",
                 "cation[12].metal",
@@ -49136,13 +49142,7 @@
                 "anion[3].a1",
                 "anion[3].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[6]",
-              "kind": "assign_product"
+              "product": "salt[6]"
             },
             {
               "kind": "associate_ionic",
@@ -49178,6 +49178,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[13].metal",
                 "cation[14].metal",
@@ -49185,13 +49191,7 @@
                 "anion[3].a4",
                 "anion[3].a5"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[7]",
-              "kind": "assign_product"
+              "product": "salt[7]"
             },
             {
               "kind": "associate_ionic",
@@ -49227,6 +49227,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[15].metal",
                 "cation[16].metal",
@@ -49234,13 +49240,7 @@
                 "anion[3].a7",
                 "anion[3].a8"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[8]",
-              "kind": "assign_product"
+              "product": "salt[8]"
             }
           ],
           "observation_compatibility": [
@@ -49862,19 +49862,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "cation[2].metal",
                 "cation[3].metal",
                 "anion[1].a1"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -49906,19 +49906,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[4].metal",
                 "cation[5].metal",
                 "cation[6].metal",
                 "anion[1].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -50366,6 +50366,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "cation[2].metal",
@@ -50373,13 +50379,7 @@
                 "anion[1].a1",
                 "anion[1].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             }
           ],
           "observation_compatibility": [
@@ -50709,17 +50709,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -50743,17 +50743,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[2].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[2].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -52009,19 +52009,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "cation[2].metal",
                 "cation[3].metal",
                 "anion[1].a1"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -52053,19 +52053,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[4].metal",
                 "cation[5].metal",
                 "cation[6].metal",
                 "anion[1].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             },
             {
               "kind": "associate_ionic",
@@ -52097,19 +52097,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[7].metal",
                 "cation[8].metal",
                 "cation[9].metal",
                 "anion[1].a3"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[3]",
-              "kind": "assign_product"
+              "product": "salt[3]"
             },
             {
               "kind": "associate_ionic",
@@ -52141,19 +52141,19 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[10].metal",
                 "cation[11].metal",
                 "cation[12].metal",
                 "anion[1].a4"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[4]",
-              "kind": "assign_product"
+              "product": "salt[4]"
             }
           ],
           "observation_compatibility": [
@@ -53057,6 +53057,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[1].metal",
                 "cation[2].metal",
@@ -53064,13 +53070,7 @@
                 "anion[1].a1",
                 "anion[1].a2"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -53106,6 +53106,12 @@
               ]
             },
             {
+              "kind": "assign_product",
+              "premise_ids": [
+                "premise.rule.fixed-charge-ion-pairs",
+                "premise.structure.fixed-charge-ion-pairs",
+                "premise.valence.fixed-charge-ion-pairs"
+              ],
               "atoms": [
                 "cation[4].metal",
                 "cation[5].metal",
@@ -53113,13 +53119,7 @@
                 "anion[1].a3",
                 "anion[1].a4"
               ],
-              "premise_ids": [
-                "premise.rule.fixed-charge-ion-pairs",
-                "premise.structure.fixed-charge-ion-pairs",
-                "premise.valence.fixed-charge-ion-pairs"
-              ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
@@ -53799,17 +53799,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "anion[1].a1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "anion[1].a1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -53833,17 +53833,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[2].metal",
-                "anion[1].a2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[2].metal",
+                "anion[1].a2"
+              ],
+              "product": "salt[2]"
             },
             {
               "kind": "associate_ionic",
@@ -53867,17 +53867,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[3].metal",
-                "anion[1].a3"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[3]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[3].metal",
+                "anion[1].a3"
+              ],
+              "product": "salt[3]"
             },
             {
               "kind": "associate_ionic",
@@ -53901,17 +53901,17 @@
               ]
             },
             {
-              "atoms": [
-                "cation[4].metal",
-                "anion[1].a4"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[4]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[4].metal",
+                "anion[1].a4"
+              ],
+              "product": "salt[4]"
             }
           ],
           "observation_compatibility": [
@@ -54387,18 +54387,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[1].metal",
-                "cation[2].metal",
-                "anion[1].o1"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[1]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[1].metal",
+                "cation[2].metal",
+                "anion[1].o1"
+              ],
+              "product": "salt[1]"
             },
             {
               "kind": "associate_ionic",
@@ -54426,18 +54426,18 @@
               ]
             },
             {
-              "atoms": [
-                "cation[3].metal",
-                "cation[4].metal",
-                "anion[1].o2"
-              ],
+              "kind": "assign_product",
               "premise_ids": [
                 "premise.rule.fixed-charge-ion-pairs",
                 "premise.structure.fixed-charge-ion-pairs",
                 "premise.valence.fixed-charge-ion-pairs"
               ],
-              "product": "salt[2]",
-              "kind": "assign_product"
+              "atoms": [
+                "cation[3].metal",
+                "cation[4].metal",
+                "anion[1].o2"
+              ],
+              "product": "salt[2]"
             }
           ],
           "observation_compatibility": [
