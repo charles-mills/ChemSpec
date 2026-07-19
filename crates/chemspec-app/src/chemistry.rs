@@ -2385,14 +2385,30 @@ mod tests {
     }
 
     #[test]
-    fn validated_metallic_oxygen_family_selects_surface_oxidation_without_phase_facts() {
-        for id in ["oxygen-lithium-oxygen", "oxygen-sodium-oxygen"] {
+    fn structurally_validated_metal_oxidation_selects_surface_scene_without_phase_guessing() {
+        for id in [
+            "oxygen-ni-oxide-2-o1",
+            "oxygen-fe-oxide-3-3-o3",
+            "oxygen-lithium-oxygen",
+            "oxygen-sodium-oxygen",
+        ] {
             let request = ReactionRequest::from_id(id).expect("oxygen experience exists");
             let run = run(request).expect("oxygen experience validates");
             let reaction = run
                 .macroscopic()
                 .expect("structural oxygen fallback supplies renderer inputs");
-            assert_eq!(reaction.process, Some(MacroscopicProcess::SurfaceOxidation));
+            assert_eq!(
+                reaction.process,
+                Some(MacroscopicProcess::SurfaceOxidation),
+                "{id} must retain the validated metal-oxidation process"
+            );
+            assert!(
+                reaction
+                    .materials
+                    .iter()
+                    .all(|material| material.phase == Phase::Unknown),
+                "{id} must not turn process classification into a phase claim"
+            );
             let profile =
                 presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
                     .expect("surface oxidation profile compiles");
@@ -2403,6 +2419,15 @@ mod tests {
                         == chem_presentation::EffectAuthorization::Process(
                             MacroscopicProcess::SurfaceOxidation,
                         )
+            }));
+            assert!(
+                profile
+                    .objects
+                    .iter()
+                    .all(|object| object.role != SceneRole::Vessel)
+            );
+            assert!(profile.objects.iter().any(|object| {
+                object.asset == AssetProfile::MetalChunk && object.role == SceneRole::Reactant
             }));
         }
     }
