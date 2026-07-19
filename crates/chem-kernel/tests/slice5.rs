@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 
 use chem_catalogue::ValidatedCatalogueBundle;
 use chem_kernel::{
-    DerivationTrust, ValidationResult, expand_review_candidate, validate_review_candidate,
+    DerivationProvenance, ValidationResult, expand_provisional, validate_provisional,
 };
 
 fn workspace_root() -> PathBuf {
@@ -22,7 +22,7 @@ fn catalogue() -> ValidatedCatalogueBundle {
 
 fn expansion() -> chem_kernel::ExpandedStructuralReaction {
     let source = fixture("conformance/expansion/canonical-expansion-001.chems");
-    expand_review_candidate(
+    expand_provisional(
         "conformance/expansion/canonical-expansion-001.chems",
         std::str::from_utf8(&source).unwrap(),
         &catalogue(),
@@ -32,14 +32,14 @@ fn expansion() -> chem_kernel::ExpandedStructuralReaction {
 }
 
 #[test]
-fn canonical_review_candidate_executes_every_operation_immutably() {
+fn canonical_provisional_derivation_executes_every_operation_immutably() {
     let expanded = expansion();
-    let derivation = validate_review_candidate(&expanded, &catalogue()).unwrap();
+    let derivation = validate_provisional(&expanded, &catalogue()).unwrap();
     assert_eq!(
         derivation.result(),
         ValidationResult::ValidatedWithAssumptions
     );
-    assert_eq!(derivation.trust(), DerivationTrust::ReviewCandidate);
+    assert_eq!(derivation.provenance(), DerivationProvenance::Provisional);
     assert_eq!(derivation.expanded(), &expanded);
     assert_eq!(derivation.states().len(), expanded.operations().len() + 1);
     assert_eq!(derivation.states()[0].ordinal(), 0);
@@ -55,7 +55,7 @@ fn canonical_review_candidate_executes_every_operation_immutably() {
         .collect::<BTreeSet<_>>();
     assert_eq!(digests.len(), derivation.states().len());
     assert!(!derivation.canonical_json().unwrap().is_empty());
-    let repeated = validate_review_candidate(&expanded, &catalogue()).unwrap();
+    let repeated = validate_provisional(&expanded, &catalogue()).unwrap();
     assert_eq!(
         derivation.canonical_json().unwrap(),
         repeated.canonical_json().unwrap()
@@ -63,13 +63,13 @@ fn canonical_review_candidate_executes_every_operation_immutably() {
     assert!(
         String::from_utf8(derivation.canonical_json().unwrap())
             .unwrap()
-            .contains("\"trust\":\"review_candidate\"")
+            .contains("\"provenance\":\"provisional\"")
     );
 }
 
 #[test]
 fn complete_canonical_derivation_is_byte_exact() {
-    let derivation = validate_review_candidate(&expansion(), &catalogue()).unwrap();
+    let derivation = validate_provisional(&expansion(), &catalogue()).unwrap();
     let expected = fixture("conformance/validation-kernel/canonical-kernel-001.derivation.json");
     let expected = expected.strip_suffix(b"\n").unwrap_or(&expected);
     assert_eq!(derivation.canonical_json().unwrap(), expected);

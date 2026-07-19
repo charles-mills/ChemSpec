@@ -14,7 +14,7 @@
 
 use std::collections::BTreeMap;
 
-use chem_catalogue::{TrustedCatalogue, ValidatedCatalogueBundle};
+use chem_catalogue::{ReferenceCatalogue, ValidatedCatalogueBundle};
 use chem_domain::{
     ElementInventory, ElementSymbol, RepresentationKind, SpeciesRegistry, StructureDefinition,
     StructureId, classify_bronsted_acid, generate_structure,
@@ -50,7 +50,7 @@ pub fn solve_reaction_claim(
 pub fn solve_reaction_claim_with_catalogue(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Option<SolvedClaim> {
     let claim = solve_reaction_claim_inner(request, identities, Some(catalogue))?;
     if request.selected_context.is_some() {
@@ -1911,7 +1911,8 @@ pub(crate) const fn gcd(mut left: u64, mut right: u64) -> u64 {
 mod tests {
     use super::*;
     use crate::{
-        CompiledClaimOutcome, ReactantInput, compile_claim_outcome, test_support::trusted_catalogue,
+        CompiledClaimOutcome, ReactantInput, compile_claim_outcome,
+        test_support::reference_catalogue,
     };
 
     fn request(reactants: &[(&str, &[u8])]) -> ReactionBuildRequest {
@@ -1941,7 +1942,7 @@ mod tests {
 
     #[test]
     fn catalogue_aware_solver_adopts_the_reviewed_family_context() {
-        let catalogue = trusted_catalogue();
+        let catalogue = reference_catalogue();
         let identities = crate::reviewed_species_registry(&catalogue).expect("identities");
         let request = request(&[("Li", &[3]), ("H2O", &[1, 1, 8])]);
 
@@ -2094,7 +2095,10 @@ mod tests {
         let CompiledClaimOutcome::Static(outcome) = outcome else {
             panic!("expected static outcome");
         };
-        assert_eq!(outcome.trust_tier(), crate::TrustTier::Derived);
+        assert_eq!(
+            outcome.claim_provenance(),
+            crate::OutcomeProvenance::Derived
+        );
         assert!(
             outcome.equation().contains("Na2SO4"),
             "{}",

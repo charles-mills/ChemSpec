@@ -1,11 +1,11 @@
 # Agent workflow and providers
 
-## Role and trust boundary
+## Role and validation boundary
 
 The agent crate answers algorithmically first; the model supplies text only
 for genuine unknowns and is never a chemistry authority. On a reviewed
 catalogue miss the solver attempts the claim itself; on a solver miss, Codex
-may provide two narrowly separated untrusted chemistry artefacts:
+may provide two narrowly separated unvalidated chemistry artefacts:
 
 1. a compact factual `ProviderClaim`; and
 2. only when neither the graph-diff deriver nor local reviewed-family
@@ -153,7 +153,7 @@ because ChemSpec does not fabricate unknown graphs.
 ## Cache v3
 
 The cache key binds canonical request identities and context, claim/mode
-contracts, identity snapshot, trusted catalogue digest, compiler contract, and
+contracts, identity snapshot, reference catalogue digest, compiler contract, and
 mechanism contract. Its envelope stores untrusted claim bytes, provider/model
 provenance, and an optional presentation recipe. It never serializes a
 trusted capability.
@@ -172,7 +172,7 @@ directory. Its key binds the exact validated product request and catalogue
 digest. Loads revalidate the model claim, source records, identity echo, claim
 digest, and `ModelAsserted` tier before the renderer can consume the closed
 colour family. Appearance entries are never merged into cache v3 or promoted
-to the trusted catalogue.
+to the reference catalogue.
 
 ## Provider-neutral boundary
 

@@ -13,8 +13,8 @@ use chem_catalogue::{
 };
 use chem_domain::ContentDigest;
 use chem_kernel::{
-    DerivationTrust, expand_review_candidate, project_validated_review_candidate_frames,
-    validate_review_candidate,
+    CurrentArtifactIdentity, DerivationProvenance, expand_provisional, generate_frames,
+    validate_provisional,
 };
 use chems_lang::format_source;
 use serde::{Deserialize, Serialize};
@@ -639,36 +639,34 @@ fn inspect_examples(
         .iter()
         .map(|package| {
             let source_name = format!("{}/example.chems", package.shard.id);
-            let expanded = expand_review_candidate(
-                &source_name,
-                &package.source,
-                catalogue,
-                &package.evidence,
-            )
-            .map_err(|error| {
-                format!(
-                    "CHEMS-A030 {} example expansion failed ({:?}): {error}",
-                    package.shard.id,
-                    error.class()
-                )
+            let expanded =
+                expand_provisional(&source_name, &package.source, catalogue, &package.evidence)
+                    .map_err(|error| {
+                        format!(
+                            "CHEMS-A030 {} example expansion failed ({:?}): {error}",
+                            package.shard.id,
+                            error.class()
+                        )
+                    })?;
+            let current = CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| {
+                format!("CHEMS-A032 {} identity failed: {error}", package.shard.id)
             })?;
-            let derivation = validate_review_candidate(&expanded, catalogue).map_err(|error| {
+            let derivation = validate_provisional(&expanded, catalogue).map_err(|error| {
                 format!(
                     "CHEMS-A031 {} kernel validation failed ({:?}): {error}",
                     package.shard.id,
                     error.class()
                 )
             })?;
-            if derivation.trust() != DerivationTrust::ReviewCandidate {
-                return Err("CHEMS-A090 candidate derivation crossed the trust boundary".to_owned());
+            if derivation.provenance() != DerivationProvenance::Provisional {
+                return Err("CHEMS-A090 provisional derivation changed provenance".to_owned());
             }
-            let frames =
-                project_validated_review_candidate_frames(&derivation).map_err(|error| {
-                    format!(
-                        "CHEMS-A032 {} frame projection failed: {error}",
-                        package.shard.id
-                    )
-                })?;
+            let frames = generate_frames(&derivation, current).map_err(|error| {
+                format!(
+                    "CHEMS-A032 {} frame projection failed: {error}",
+                    package.shard.id
+                )
+            })?;
             let certificate = inspection_artifact(
                 "expanded-certificate",
                 &serde_json::from_slice(

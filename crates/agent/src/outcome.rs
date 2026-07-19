@@ -18,7 +18,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TrustTier {
+pub enum OutcomeProvenance {
     Reviewed,
     Derived,
     ModelAsserted,
@@ -168,7 +168,7 @@ pub struct ValidatedStaticOutcome {
     reactants: Vec<OutcomeSpecies>,
     products: Vec<OutcomeSpecies>,
     claim: ReactionClaim,
-    trust_tier: TrustTier,
+    claim_provenance: OutcomeProvenance,
     equation: String,
     macroscopic_process: Option<MacroscopicProcess>,
 }
@@ -195,8 +195,8 @@ impl ValidatedStaticOutcome {
     }
 
     #[must_use]
-    pub const fn trust_tier(&self) -> TrustTier {
-        self.trust_tier
+    pub const fn claim_provenance(&self) -> OutcomeProvenance {
+        self.claim_provenance
     }
 
     /// Recovers the cacheable provider capability only when this outcome
@@ -413,7 +413,7 @@ impl ValidatedStaticOutcome {
     }
 
     pub(crate) fn mark_reviewed(mut self) -> Self {
-        self.trust_tier = TrustTier::Reviewed;
+        self.claim_provenance = OutcomeProvenance::Reviewed;
         self
     }
 }
@@ -629,10 +629,10 @@ fn compile_claim_outcome_inner(
         }
         Err(error) => return Err(error),
     };
-    let trust_tier = if solver_authored {
-        TrustTier::Derived
+    let claim_provenance = if solver_authored {
+        OutcomeProvenance::Derived
     } else {
-        TrustTier::ModelAsserted
+        OutcomeProvenance::ModelAsserted
     };
     let equation = format_equation(&declaration);
     let macroscopic_process =
@@ -642,7 +642,7 @@ fn compile_claim_outcome_inner(
         reactants,
         products,
         claim,
-        trust_tier,
+        claim_provenance,
         equation,
         macroscopic_process,
     }))
@@ -1485,7 +1485,7 @@ fn generated_reactant(input: &crate::ReactantInput) -> Option<OutcomeSpecies> {
         *counts.entry(symbol).or_insert(0_u64) += 1;
     }
     let inventory = ElementInventory::new(counts).ok()?;
-    // The display is only trusted as a formula when it actually describes
+    // The display is only reference as a formula when it actually describes
     // the composed atoms: names ("ammonium cyanate") fail to parse, and a
     // SMILES display like "CCO" parses to the WRONG composition (C2O), so
     // both fall back to the inventory's own formula text.
@@ -1756,7 +1756,7 @@ mod tests {
 
     use crate::{
         ClaimMode, ReactantInput, reviewed_species_registry, solve_reaction_claim,
-        test_support::trusted_catalogue as trusted,
+        test_support::reference_catalogue as reference,
     };
 
     fn registry() -> SpeciesRegistry {
@@ -1814,7 +1814,7 @@ mod tests {
             panic!("expected static outcome")
         };
         assert_eq!(outcome.equation(), "2 Li + 2 H2O → H2 + 2 LiOH");
-        assert_eq!(outcome.trust_tier(), TrustTier::ModelAsserted);
+        assert_eq!(outcome.claim_provenance(), OutcomeProvenance::ModelAsserted);
         assert_eq!(
             outcome.claim().provenance(),
             crate::ClaimProvenance::Provider
@@ -1834,7 +1834,7 @@ mod tests {
         let evidence =
             std::fs::read(root.join("conformance/observations/alkali-water-li-001.evidence.json"))
                 .expect("evidence");
-        let parsed = chem_kernel::expand_review_candidate(
+        let parsed = chem_kernel::expand_provisional(
             "alkali-water-li-001.chems",
             &source,
             &catalogue,
@@ -1891,7 +1891,7 @@ mod tests {
 
     #[test]
     fn neutralisation_process_and_aqueous_colour_are_structure_derived() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let compile = |reactants: [(&str, Vec<u8>); 2]| {
             let request = ReactionBuildRequest {
@@ -1961,7 +1961,7 @@ mod tests {
             ClaimMode::Fast,
         )
         .expect("claim");
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let compiled = compile_claim_outcome(
             &ReactionBuildRequest {
@@ -2060,7 +2060,7 @@ mod tests {
 
     #[test]
     fn reviewed_isomorphic_aliases_do_not_create_learner_ambiguity() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: [
@@ -2085,7 +2085,7 @@ mod tests {
 
     #[test]
     fn single_reactant_light_context_balances_without_photon_species() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let mut request = ReactionBuildRequest {
             reactants: vec![ReactantInput {
@@ -2132,7 +2132,7 @@ mod tests {
 
     #[test]
     fn single_reactant_claim_cannot_replace_the_selected_energy_context() {
-        let catalogue = trusted();
+        let catalogue = reference();
         let identities = reviewed_species_registry(&catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![ReactantInput {

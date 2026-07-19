@@ -67,7 +67,7 @@ source origins
 The certificate is inspectable but not independently parseable source. This
 keeps normal authoring concise while retaining exact atom-level transparency.
 
-## Trust boundary
+## Validation boundary
 
 ```text
 request

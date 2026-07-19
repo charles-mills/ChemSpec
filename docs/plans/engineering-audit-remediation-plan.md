@@ -36,11 +36,10 @@ that the source does not justify.
 
 The most important corrections to the report are:
 
-- `TrustedCatalogue` is not vestigial. It is the production capability used
-  by the kernel, agent, CLI, and app. Its documentation and constructor no
-  longer enforce the attestation semantics promised by the crate docs, which
-  is a serious contract mismatch, but deleting the type would remove a live
-  boundary rather than dead code.
+- The former `TrustedCatalogue` wrapper was live, but treating it as a runtime
+  capability was the architectural error. ADR 0001 supersedes this finding:
+  `ReferenceCatalogue` now records package integrity and factual provenance,
+  while the kernel alone grants simulation authority.
 - The identity adapter/cache entry point is unused outside its tests, but
   `agent::identity` as a whole is not. Reviewed registries, generated species,
   formula inventory, and model-proposed species helpers are production inputs
@@ -49,7 +48,7 @@ The most important corrections to the report are:
   top-level match is exhaustive and the subrouters use explicit
   `unreachable!` guards. The enum and file are still too large.
 - The former `into_validated_dynamic` did not bypass structural validation. Its
-  input was created from a review-candidate derivation that crossed the kernel.
+  input was created from a provisional derivation that crossed the kernel.
   AUD-003 removed that misleading inspection/promotion vocabulary after making
   the product-review policy explicit.
 - The NUL-delimited dynamic species digest is not shown to be non-injective in
@@ -139,12 +138,12 @@ Evidence:
 
 - Before this slice, `ReviewCandidateFrameInspection::into_validated_dynamic`
   was an unconditional capability conversion.
-- Its only production caller first called `validate_review_candidate` and
-  `inspect_review_candidate_frames`; therefore structural validation was not
+- Its only production caller first called `validate_provisional` and
+  `inspect_provisional_frames`; therefore structural validation was not
   skipped.
 - The durable architecture explicitly allows deterministically validated
-  review-candidate frames to remain renderer-readable while retaining
-  review-candidate provenance.
+  provisional frames to remain renderer-readable while retaining
+  provisional provenance.
 
 Required decision:
 
@@ -158,12 +157,10 @@ Required decision:
 Decision and resolution:
 
 - Deterministic kernel validation, not an additional host or manual approval
-  event, is the presentation gate for dynamic review-candidate frames.
-- `project_validated_review_candidate_frames` now returns
-  `ValidatedReviewCandidateFrames` directly. The old inspection wrapper and
-  unconditional `into_validated_dynamic` conversion were removed.
-- The capability dereferences to immutable `SimulationFrames` for authoring and
-  rendering, while its embedded provenance remains `review_candidate`.
+  event, is the presentation gate for dynamic provisional frames.
+- `generate_frames` accepts every current kernel-validated derivation and
+  returns immutable `SimulationFrames` for authoring and rendering, while its
+  embedded provenance remains `provisional` or `reviewed_reference`.
 
 ### AUD-004 — Terminate Unix process groups without `/bin/kill`
 
@@ -509,30 +506,29 @@ Verdict: **Confirmed with camera nuance.**
 Required outcome: remove inert variants and support tables or name and test an
 imminent producer. Keep the renderer and presentation compiler exhaustive.
 
-### AUD-024 — Repair the catalogue trust contract; do not delete it blindly
+### AUD-024 — Separate catalogue integrity from chemistry authority
 
-Status: **Completed 2026-07-18 in the audit remediation commit.**
+Status: **Superseded 2026-07-19 by ADR 0001.**
 
 Verdict: **Partly confirmed; high contract debt.**
 
-The crate docs say only `TrustedCatalogue::from_canonical_json` crosses the
-runtime trust boundary and requires a host-pinned digest and attestation.
-The type's comment at `crates/chem-catalogue/src/lib.rs:505` says the opposite,
-and its constructor merely calls `ValidatedCatalogueBundle::from_json`.
-Nevertheless the wrapper is widely consumed and is the type-level distinction
-accepted by `expand_trusted` and `validate_trusted`.
+The earlier audit incorrectly coupled package integrity and review provenance
+to runtime chemistry authority. That coupling created a de facto allow-list:
+reviewed catalogue entries received capabilities that provisional derivations
+did not, even after identical kernel validation.
 
-Required decision: restore real host-pinned trust construction or rename and
-redesign every producer/consumer and governing document consistently.
+Required decision: retain reproducible catalogue-package verification while
+renaming and redesigning every producer/consumer so only kernel validation
+authorizes simulation.
 `CatalogueError::is_system_error` at `lib.rs:120` always returning `true` is
 confirmed and should either disappear with a single error class or become a
 real typed classification.
 
-Resolution: trust construction again requires the canonical catalogue bytes,
-the separate review artifact, and host-pinned semantic digests for both.
-Promotion validates and packages the exact review without granting runtime
-trust; the application owns the compiled pins. `CatalogueError` remains the
-single invalid-catalogue class and the redundant classifier was removed.
+Resolution: `ReferenceCatalogue` verifies canonical catalogue bytes, a separate
+review artifact, and pinned semantic digests as package integrity and factual
+provenance only. `validate_provisional` and `validate_reference` execute the
+same kernel and produce the same renderer capability. The experience registry
+contains no approved/trusted status gate. See ADR 0001.
 
 ### AUD-025 — Remove genuinely unused dependencies
 
@@ -762,7 +758,7 @@ with validated authority.
 | 4 | AUD-007 | Close the same-count/wrong-species structure-adoption seam before refactoring dynamic claims or HIR. | None |
 | 5 | AUD-008 | Put wire limits in the Rust validator so every provider and cache adapter shares one enforced contract. | None |
 | 6 | AUD-002 | Split solver and provider provenance, using the bounded wire contract from AUD-008. | AUD-006, AUD-008 |
-| 7 | AUD-024 | Decide and restore the catalogue trust capability before making it an input to a new private HIR constructor. | None |
+| 7 | AUD-024 | Decide and restore the catalogue provenance capability before making it an input to a new private HIR constructor. | None |
 | 8 | AUD-001 | Make expanded claim consistency unrepresentable behind a small kernel interface. | AUD-002, AUD-005, AUD-007, AUD-024 |
 | 9 | AUD-003 | Clarify validated-dynamic promotion only after the derivation and provenance capabilities it consumes are sound. | AUD-001, AUD-002 |
 
@@ -770,7 +766,7 @@ Phase A exit gate:
 
 - hostile claim, HIR, structure-response, and delocalization cases fail closed;
 - cancellation and timeout kill descendant-held pipes on Unix and Windows;
-- solver, provider, reviewed catalogue, review-candidate derivation, and
+- solver, provider, reviewed catalogue, provisional derivation, and
   renderer-readable dynamic frames have distinct typed provenance;
 - no learner-facing claim field can be changed after the consistency-owning
   constructor succeeds.
@@ -1141,14 +1137,13 @@ For each completed slice, append:
   required or claimed.
 - Follow-ups: none.
 
-### 2026-07-18 — AUD-024 Catalogue trust capability
+### 2026-07-19 — AUD-024 Reference integrity and validation authority
 
-- Completion: this audit remediation commit.
-- Contract and code: `TrustedCatalogue::from_canonical_json` now requires the
+- Completion: superseded by ADR 0001 and the 2026-07-19 terminology cleanup.
+- Contract and code: `ReferenceCatalogue::from_canonical_json` requires the
   canonical catalogue, a separately supplied `CatalogueReviewAttestation`, and
-  a `CatalogueTrustPolicy` pinning the semantic digest of each. Structural
-  validation remains available through `ValidatedCatalogueBundle` without
-  granting trust.
+  a `ReferenceIntegrityPolicy` pinning the semantic digest of each. This labels
+  reference provenance; it grants no chemistry authority.
 - Attestation boundary: strict decoding rejects unknown fields, malformed
   review metadata, wrong catalogue binding, and any review whose premise or
   evidence-source set is not exactly the validated catalogue's set. Wrong
@@ -1162,17 +1157,15 @@ For each completed slice, append:
   `UnsupportedCatalogueItem`; invalid data remains the single typed
   `CatalogueError` class. The always-true `CatalogueError::is_system_error`
   classifier was removed.
-- Red evidence: the original one-argument trust constructor did not compile
-  against the new boundary test; before restoration, CLI promotion also
-  ignored its documented `--attestation` argument and emitted a directly
-  loadable catalogue.
+- Validation capability: provisional and reviewed-reference derivations use
+  the identical kernel and frame-generation API; provenance never gates the
+  renderer or simulation.
 - Regression coverage: exact reviewed artifacts load; wrong catalogue and
   review pins fail; an independently re-pinned but incomplete review still
-  fails; checked candidates remain only structurally valid; promotion rejects
-  missing review input and its packaged output crosses trust only when a host
-  deliberately supplies both emitted pins.
-- Review: the Spec pass found no missing requirement, scope creep, or incorrect
-  trust behavior. The Standards pass found missing assertions for the public
+  fails; and the registry rejects approval fields while provisional validated
+  derivations remain fully renderer-capable.
+- Review: the Spec pass found no missing requirement or scope creep. The
+  Standards pass found missing assertions for the public
   `CHEMS-C025`/`CHEMS-C026` strings and duplicated unit-test catalogue loaders;
   exact diagnostic assertions and a shared agent test-support loader resolved
   both findings. Its remaining stringly review-ID/date observation is a
@@ -1181,7 +1174,7 @@ For each completed slice, append:
   `cargo test -p chem-catalogue --test slice3` (23 passed);
   `cargo test -p chems-cli --test authoring` (16 passed);
   `cargo test -p agent --lib` (152 passed);
-  `cargo test -p chemspec-app every_supported_request_crosses_the_trusted_frame_boundary`;
+  `cargo test -p chemspec-app every_supported_request_crosses_the_validated_frame_boundary`;
   `cargo fmt --all --check`;
   `cargo test --workspace --all-targets`;
   `cargo clippy --workspace --all-targets -- -D warnings`; and

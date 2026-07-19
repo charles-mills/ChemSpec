@@ -1,6 +1,6 @@
 # Macroscopic 3D visual system
 
-## Scope and trust boundary
+## Scope and validation boundary
 
 The macroscopic page is an illustrative, stylised 3D presentation downstream
 of the current trusted `SimulationFrames`. It is implemented with Iced 0.14 and
@@ -809,7 +809,7 @@ validated exactly two solid reactants and one solid product, and excluded the
 more-specific categories, presentation selects the shared six-second granular
 mixing clip. Reactant and product colours remain exact-identity bindings from
 `.chems` observations or reviewed catalogue records. Adding another
-two-solid-to-one-solid reaction therefore requires trusted chemistry data, not
+two-solid-to-one-solid reaction therefore requires validated chemistry data, not
 a renderer branch. Reactions with extra or unknown-phase reactants keep the
 fallback instead of hiding chemically important material.
 

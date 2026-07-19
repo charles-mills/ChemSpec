@@ -401,7 +401,7 @@ fn start_roll(state: &mut State) {
     state.last_roll = Some(pair.clone());
 
     let [first, second] = pair.map(|atoms| {
-        let preview = composition_catalogue::trusted_preview(atoms.iter().copied());
+        let preview = composition_catalogue::reference_preview(atoms.iter().copied());
         ReactantDraft {
             atoms,
             name: None,
@@ -884,7 +884,7 @@ fn resolve_named(input: &str) -> Result<ReactantDraft, String> {
     {
         return Err(format!("Element {unknown} is not in the library yet"));
     }
-    let preview = composition_catalogue::trusted_preview_named(input, atoms.iter().copied());
+    let preview = composition_catalogue::reference_preview_named(input, atoms.iter().copied());
     let display_formula = preview
         .as_ref()
         .map_or_else(|| formula(&atoms), |preview| preview.formula.clone());
@@ -962,7 +962,7 @@ pub fn draft_labels(state: &State, labels: ChemicalLabels) -> [String; 2] {
             .clone()
             .unwrap_or_else(|| formula(&draft.atoms));
         let name = draft.display_name.clone().or_else(|| {
-            composition_catalogue::trusted_preview(draft.atoms.iter().copied())
+            composition_catalogue::reference_preview(draft.atoms.iter().copied())
                 .and_then(|preview| preview.name)
         });
         nomenclature::display_species(labels, name.as_deref(), &formula)
@@ -1045,7 +1045,7 @@ pub fn clear_reaction(state: &mut State) {
 /// the dynamic pipeline resolves back into the exact drawn structure.
 pub fn set_sketched_reactant(state: &mut State, atoms: Vec<u8>, smiles: String) {
     let draft = &mut state.drafts[state.active.index()];
-    let preview = composition_catalogue::trusted_preview_named(&smiles, atoms.iter().copied());
+    let preview = composition_catalogue::reference_preview_named(&smiles, atoms.iter().copied());
     let display_formula = preview
         .as_ref()
         .map_or_else(|| formula(&atoms), |preview| preview.formula.clone());
@@ -1371,7 +1371,7 @@ fn slot(
         .display_name
         .clone()
         .or_else(|| {
-            composition_catalogue::trusted_preview(atoms.iter().copied())
+            composition_catalogue::reference_preview(atoms.iter().copied())
                 .and_then(|preview| preview.name)
         });
     let draft_label =
@@ -1509,7 +1509,7 @@ fn slot_state_color(atoms: &[u8]) -> Color {
     if atoms.is_empty() {
         color::LINE_STRONG
     } else if atoms.len() == 1
-        || composition_catalogue::trusted_preview(atoms.iter().copied()).is_some()
+        || composition_catalogue::reference_preview(atoms.iter().copied()).is_some()
     {
         color::ACCENT
     } else {
@@ -1567,7 +1567,7 @@ impl<Message> iced::widget::canvas::Program<Message> for HoldWheel {
 
 pub fn formula(atoms: &[u8]) -> String {
     let atoms = chemistry::standardize_elemental_draft(atoms);
-    if let Some(preview) = composition_catalogue::trusted_preview(atoms.iter().copied()) {
+    if let Some(preview) = composition_catalogue::reference_preview(atoms.iter().copied()) {
         return nomenclature::display_formula(&preview.formula);
     }
     hill_formula(&atoms)

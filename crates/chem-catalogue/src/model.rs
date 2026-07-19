@@ -55,7 +55,7 @@ pub struct CatalogueDocument {
 ///
 /// This artifact deliberately lives outside [`CatalogueEnvelope`]: candidate
 /// content cannot assert its own promotion. Its semantic digest is pinned by
-/// the host before it can authorize a [`crate::TrustedCatalogue`].
+/// the host before it can label a [`crate::ReferenceCatalogue`] as reviewed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogueReviewAttestation {

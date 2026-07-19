@@ -2,8 +2,8 @@
 //!
 //! Opens on the Stage 1 builder: the learner's question, composed from two
 //! reactant drafts over the full periodic table. Chemistry is supplied only
-//! through the catalogue fast path or a staged dynamic claim whose static and
-//! animated capabilities cross separate deterministic validation boundaries.
+//! through a reference-data fast path or a staged dynamic claim. Both static
+//! and animated capabilities cross the same deterministic validation boundary.
 
 mod animated_clip;
 mod blocking;
@@ -27,13 +27,10 @@ mod structural_3d;
 mod structural_physics;
 mod theme;
 
-use std::{
-    ops::Deref,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc::{self, Sender},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+    mpsc::{self, Sender},
 };
 
 // std::time::Instant panics on wasm32; web-time is std's Instant on native
@@ -43,8 +40,8 @@ use web_time::Instant;
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, DynamicCachePresentation, DynamicPresentationOutcome, LatencyMilestones,
-    MacroscopicProcess as AgentMacroscopicProcess, OutcomeSpecies, OxideAppearanceRequest,
-    ReactantInput, ReactionBuildRequest, RequestIdentityResolution, TrustTier,
+    MacroscopicProcess as AgentMacroscopicProcess, OutcomeProvenance, OutcomeSpecies,
+    OxideAppearanceRequest, ReactantInput, ReactionBuildRequest, RequestIdentityResolution,
     ValidatedOxideAppearance, ValidatedStaticOutcome, enrich_static_outcome,
     load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
@@ -291,7 +288,7 @@ fn product_properties_view(
         ]
         .align_y(Center),
         rule::horizontal(1).style(theme::soft_rule),
-        text("Properties are compiled locally from the trusted final frame and bundled element metadata.")
+        text("Properties are compiled locally from the validated final frame and bundled element metadata.")
             .size(type_scale::CAPTION)
             .color(color::TEXT_SOFT),
     ]
@@ -390,7 +387,7 @@ fn product_properties_view(
     content = content.push(
         container(
             row![
-                text("TRUST BOUNDARY")
+                text("VALIDATION BOUNDARY")
                     .size(type_scale::MICRO)
                     .color(color::SUCCESS),
                 space().width(Fill),
@@ -636,7 +633,7 @@ fn dynamic_presentation_profile(
 fn dynamic_macroscopic_reaction(
     outcome: &ValidatedStaticOutcome,
 ) -> Result<MacroscopicReaction, String> {
-    let catalogue = chemistry::trusted_catalogue().ok();
+    let catalogue = chemistry::reference_catalogue().ok();
     let material = |species: &OutcomeSpecies, role| {
         let reviewed_colour = match species {
             OutcomeSpecies::Resolved(species) => species.structure.as_ref().and_then(|structure| {
@@ -1287,22 +1284,7 @@ fn screen_keyboard_message(
     }
 }
 
-#[derive(Debug, Clone)]
-enum RenderableFrames {
-    Catalogue(chem_kernel::SimulationFrames),
-    ReviewCandidate(chem_kernel::ValidatedReviewCandidateFrames),
-}
-
-impl Deref for RenderableFrames {
-    type Target = chem_kernel::SimulationFrames;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Catalogue(frames) => frames,
-            Self::ReviewCandidate(frames) => frames,
-        }
-    }
-}
+type RenderableFrames = chem_kernel::SimulationFrames;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BuilderOverlayKind {
@@ -1318,7 +1300,7 @@ struct StructuralAnimation {
     declaration: chem_domain::ReactionDeclaration,
     educational_plan: EducationalPlan,
     real_world_plan: ScenePlan,
-    product_preview: Option<composition_catalogue::TrustedCompositionPreview>,
+    product_preview: Option<composition_catalogue::ReferenceCompositionPreview>,
     educational_playhead_ms: u64,
     frame_index: usize,
     real_world_playhead_ms: u64,
@@ -1382,7 +1364,7 @@ impl Default for App {
     fn default() -> Self {
         let codex_available = codex_available();
         let active_request = chemistry::ReactionRequest::DEFAULT;
-        let trusted_run = chemistry::run(active_request).ok();
+        let validated_run = chemistry::run(active_request).ok();
         Self {
             screen: Screen::ProviderSetup,
             keyboard_navigation_active: false,
@@ -1401,13 +1383,11 @@ impl Default for App {
             pending_requests: Vec::new(),
             oxygen_assessment: None,
             active_request,
-            validated_frames: trusted_run
-                .as_ref()
-                .map(|run| RenderableFrames::Catalogue(run.frames().clone())),
-            validated_macroscopic: trusted_run
+            validated_frames: validated_run.as_ref().map(|run| run.frames().clone()),
+            validated_macroscopic: validated_run
                 .as_ref()
                 .and_then(|run| run.macroscopic().cloned()),
-            validated_declaration: trusted_run.as_ref().map(|run| run.declaration().clone()),
+            validated_declaration: validated_run.as_ref().map(|run| run.declaration().clone()),
             dynamic: dynamic_reaction::State::default(),
             builder_panel: None,
             oxide_appearance_request: None,
@@ -2283,7 +2263,7 @@ impl App {
         if !self.local_mode() || !requires_dynamic {
             return false;
         }
-        let Ok(catalogue) = chemistry::trusted_catalogue() else {
+        let Ok(catalogue) = chemistry::reference_catalogue() else {
             return false;
         };
         let Ok(identities) = reviewed_species_registry(catalogue) else {
@@ -2336,10 +2316,9 @@ impl App {
         if self.dynamic.static_outcome.take().is_some()
             || self.dynamic.claim.take().is_some()
             || self.dynamic.presentation.take().is_some()
-            || matches!(
-                &self.validated_frames,
-                Some(RenderableFrames::ReviewCandidate(_))
-            )
+            || self.validated_frames.as_ref().is_some_and(|frames| {
+                frames.provenance() == chem_kernel::DerivationProvenance::Provisional
+            })
         {
             self.validated_frames = None;
             self.validated_declaration = None;
@@ -2480,7 +2459,7 @@ impl App {
         self.structural_error = None;
         let mode = ClaimMode::Fast;
         let mut config = CodexProviderConfig::from_environment();
-        let catalogue = match chemistry::trusted_catalogue() {
+        let catalogue = match chemistry::reference_catalogue() {
             Ok(catalogue) => catalogue.clone(),
             Err(error) => {
                 self.dynamic.build = DynamicBuildState::Failed(error.to_owned().into());
@@ -2564,7 +2543,7 @@ impl App {
         let mut config = CodexProviderConfig::from_environment();
         config.cancellation = Some(cancellation);
         config.progress = Some(progress);
-        let catalogue = match chemistry::trusted_catalogue() {
+        let catalogue = match chemistry::reference_catalogue() {
             Ok(catalogue) => catalogue.clone(),
             Err(error) => {
                 return Task::done(Message::Dynamic(
@@ -2667,12 +2646,8 @@ impl App {
 
         self.validated_declaration = Some(presentation.static_outcome().declaration().clone());
         self.validated_frames = match &presentation {
-            DynamicPresentationOutcome::ReviewedFamily(outcome) => {
-                Some(RenderableFrames::Catalogue(outcome.frames().clone()))
-            }
-            DynamicPresentationOutcome::Escalated(outcome) => {
-                Some(RenderableFrames::ReviewCandidate(outcome.frames().clone()))
-            }
+            DynamicPresentationOutcome::ReviewedFamily(outcome) => Some(outcome.frames().clone()),
+            DynamicPresentationOutcome::Escalated(outcome) => Some(outcome.frames().clone()),
             DynamicPresentationOutcome::Static { .. } => None,
         };
         let animated = self.validated_frames.is_some();
@@ -2718,19 +2693,17 @@ impl App {
         })
     }
 
-    // The offline fixture crosses the same trusted language/kernel boundary
-    // that live provider output must cross later.
+    // The offline fixture crosses the same language/kernel boundary that live
+    // provider output must cross later.
     fn select_request(&mut self, request: chemistry::ReactionRequest) {
         self.cancel_oxide_appearance_enrichment();
         self.active_request = request;
-        let trusted_run = chemistry::run(request).ok();
-        self.validated_frames = trusted_run
-            .as_ref()
-            .map(|run| RenderableFrames::Catalogue(run.frames().clone()));
-        self.validated_macroscopic = trusted_run
+        let validated_run = chemistry::run(request).ok();
+        self.validated_frames = validated_run.as_ref().map(|run| run.frames().clone());
+        self.validated_macroscopic = validated_run
             .as_ref()
             .and_then(|run| run.macroscopic().cloned());
-        self.validated_declaration = trusted_run.as_ref().map(|run| run.declaration().clone());
+        self.validated_declaration = validated_run.as_ref().map(|run| run.declaration().clone());
         self.dynamic.claim = None;
         self.dynamic.static_outcome = None;
         self.dynamic.presentation = None;
@@ -2750,7 +2723,7 @@ impl App {
             material.role == MacroscopicMaterialRole::Product
                 && material.representation == RepresentationKind::Ionic
         })?;
-        let catalogue_digest = chemistry::trusted_catalogue().ok()?.digest();
+        let catalogue_digest = chemistry::reference_catalogue().ok()?.digest();
         Some(OxideAppearanceRequest::new(
             product.binding.clone(),
             product.structure_id.clone(),
@@ -2776,7 +2749,7 @@ impl App {
         if self.provider != Some(AppMode::CodexBinary) {
             self.oxide_appearance_error = Some(
                 "A reviewed oxide colour is not available. Runtime colour research requires \
-                 Codex mode; the surface keeps its original metal colour until trusted appearance \
+                 Codex mode; the surface keeps its original metal colour until validated appearance \
                  data is available."
                     .to_owned(),
             );
@@ -3535,7 +3508,7 @@ impl App {
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     fn structural_2d_view(&self, size: Size) -> Element<'_, Message> {
         let Some(animation) = &self.structural_animation else {
-            return Self::structural_unavailable_view("Trusted frames are unavailable");
+            return Self::structural_unavailable_view("Validated frames are unavailable");
         };
         let Some(timeline_position) = animation
             .educational_plan
@@ -4118,16 +4091,15 @@ impl App {
         .into()
     }
 
-    /// Trust-tier chip for the current dynamic outcome.
-    fn dynamic_trust_label(&self) -> &'static str {
-        self.dynamic
-            .static_outcome
-            .as_ref()
-            .map_or("", |outcome| match outcome.trust_tier() {
-                TrustTier::Reviewed => "REVIEWED",
-                TrustTier::Derived => "DERIVED",
-                TrustTier::ModelAsserted => "MODEL ASSERTED",
-            })
+    /// Provenance chip for the current dynamic outcome.
+    fn dynamic_provenance_label(&self) -> &'static str {
+        self.dynamic.static_outcome.as_ref().map_or("", |outcome| {
+            match outcome.claim_provenance() {
+                OutcomeProvenance::Reviewed => "REVIEWED",
+                OutcomeProvenance::Derived => "DERIVED",
+                OutcomeProvenance::ModelAsserted => "MODEL ASSERTED",
+            }
+        })
     }
 
     #[allow(clippy::too_many_lines)]
@@ -4900,7 +4872,7 @@ impl App {
     #[allow(clippy::too_many_lines)]
     fn product_summary_view(&self, size: Size) -> Element<'_, Message> {
         let Some(animation) = &self.structural_animation else {
-            return Self::structural_unavailable_view("Trusted product frames are unavailable");
+            return Self::structural_unavailable_view("Validated product frames are unavailable");
         };
         let Some(summary) = product_summary::SummaryData::from_frames(&animation.frames) else {
             return Self::structural_unavailable_view(
@@ -5041,7 +5013,7 @@ impl App {
                         }
                     ),
                     space().width(Fill),
-                    text("SOURCE · CURRENT .CHEMS + TRUSTED FRAME + ELEMENT CATALOGUE")
+                    text("SOURCE · CURRENT .CHEMS + VALIDATED FRAME + ELEMENT REFERENCE")
                         .size(type_scale::MICRO)
                         .color(color::ACCENT),
                 ]
@@ -5298,7 +5270,7 @@ mod tests {
     ];
 
     fn dynamic_lithium_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let claim = serde_json::json!({
             "schema_version": 1,
@@ -5340,7 +5312,7 @@ mod tests {
     }
 
     fn dynamic_methane_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let claim = serde_json::json!({
             "schema_version": 1,
@@ -5386,7 +5358,7 @@ mod tests {
     }
 
     fn dynamic_iron_oxide_presentation() -> DynamicPresentationOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -5442,7 +5414,7 @@ mod tests {
     }
 
     fn dynamic_incomplete_methane_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: [
@@ -5471,7 +5443,7 @@ mod tests {
     }
 
     fn dynamic_copper_oxide_neutralisation_static() -> ValidatedStaticOutcome {
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -5517,8 +5489,8 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_trust_label_follows_claim_provenance_not_selected_mode() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+    fn dynamic_provenance_label_follows_claim_provenance_not_selected_mode() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -5546,11 +5518,11 @@ mod tests {
             ..App::default()
         };
         app.dynamic.static_outcome = Some(derived);
-        assert_eq!(app.dynamic_trust_label(), "DERIVED");
+        assert_eq!(app.dynamic_provenance_label(), "DERIVED");
 
         app.provider = Some(AppMode::Local);
         app.dynamic.static_outcome = Some(dynamic_lithium_static());
-        assert_eq!(app.dynamic_trust_label(), "MODEL ASSERTED");
+        assert_eq!(app.dynamic_provenance_label(), "MODEL ASSERTED");
     }
 
     #[test]
@@ -5571,7 +5543,7 @@ mod tests {
 
     #[test]
     fn dynamic_combustion_compiles_phase_aware_flame_vapour_and_gas_reactants() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let mut provider = agent::UnsupportedMechanismProvider;
         let presentation =
             enrich_static_outcome(dynamic_methane_static(), catalogue, &mut provider)
@@ -5627,7 +5599,7 @@ mod tests {
 
     #[test]
     fn carbon_monoxide_product_selects_incomplete_combustion_assembly() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let mut provider = agent::UnsupportedMechanismProvider;
         let incomplete = dynamic_incomplete_methane_static();
         let presentation = enrich_static_outcome(incomplete, catalogue, &mut provider)
@@ -5663,7 +5635,7 @@ mod tests {
 
     #[test]
     fn dynamic_neutralisation_selects_shared_assembly_and_copper_colour() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let mut provider = agent::UnsupportedMechanismProvider;
         let presentation = enrich_static_outcome(
             dynamic_copper_oxide_neutralisation_static(),
@@ -5711,7 +5683,7 @@ mod tests {
 
     #[test]
     fn generated_precipitations_select_shared_assembly_and_structural_colours() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let cases = [
             (
@@ -5812,7 +5784,7 @@ mod tests {
 
     #[test]
     fn generated_gas_evolution_examples_select_supported_authored_variants() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let cases = [
             (
@@ -5988,7 +5960,7 @@ mod tests {
 
     #[test]
     fn dynamic_metal_displacement_reaches_the_generic_authored_scene() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -6026,7 +5998,7 @@ mod tests {
                     (animated.static_outcome(), animated.frames())
                 }
                 DynamicPresentationOutcome::Escalated(animated) => {
-                    (animated.static_outcome(), &**animated.frames())
+                    (animated.static_outcome(), animated.frames())
                 }
                 DynamicPresentationOutcome::Static { diagnostic, .. } => {
                     panic!("displacement should animate: {diagnostic}")
@@ -6208,7 +6180,7 @@ mod tests {
 
     #[test]
     fn sodium_chloride_electrolysis_crosses_the_reviewed_identity_path() {
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let mut request = ReactionBuildRequest {
             reactants: vec![ReactantInput {
@@ -6289,7 +6261,7 @@ mod tests {
     #[test]
     fn polyprotic_acids_neutralize_catalogue_carbonates_and_hydroxides() {
         type PolyproticCase = (&'static str, Vec<u8>, &'static str, Vec<u8>, &'static str);
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
         let cases: [PolyproticCase; 5] = [
             // Monoprotic control: this already worked before the fix.
@@ -6414,7 +6386,7 @@ mod tests {
         // Fe + CuSO4 crashed mid-animation once (metallic acceptor with an
         // empty shell delta); the full derived pipeline must build and play
         // both timelines to completion.
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -6484,7 +6456,7 @@ mod tests {
         ));
         // Oxoacids parse in any casing and reach the local solver.
         let h2so4 = chemistry::atoms_from_name("h2so4").expect("h2so4 resolves");
-        let catalogue = chemistry::trusted_catalogue().expect("catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("catalogue");
         let identities = agent::reviewed_species_registry(catalogue).expect("registry");
         let request = ReactionBuildRequest {
             reactants: vec![
@@ -7258,7 +7230,7 @@ mod tests {
 
     #[test]
     fn selecting_identity_preserves_request_and_starts_the_same_build() {
-        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
         let identities = reviewed_species_registry(catalogue).expect("identities");
         let lithium = identities
             .records()
@@ -7883,12 +7855,12 @@ mod tests {
         let animation = app
             .structural_animation
             .as_ref()
-            .expect("trusted educational animation compiles");
+            .expect("reference educational animation compiles");
         assert_eq!(
             animation.declaration.digest(),
             app.validated_declaration
                 .as_ref()
-                .expect("trusted declaration is retained")
+                .expect("reference declaration is retained")
                 .digest()
         );
         assert!(!animation.real_world_plan.timeline.beats.is_empty());
@@ -7963,14 +7935,14 @@ mod tests {
             let digest = animation
                 .frames
                 .digest()
-                .expect("trusted frames have a digest");
+                .expect("validated frames have a digest");
             assert_eq!(animation.educational_plan.id, digest);
             assert_eq!(animation.real_world_plan.reaction, digest);
             assert_eq!(
                 animation.declaration.digest(),
                 app.validated_declaration
                     .as_ref()
-                    .expect("trusted declaration is retained")
+                    .expect("reference declaration is retained")
                     .digest()
             );
 
@@ -8215,7 +8187,7 @@ mod tests {
 
     #[test]
     fn validated_equations_switch_labels_without_changing_the_declaration() {
-        let run = chemistry::run(chemistry::ReactionRequest::DEFAULT).expect("trusted run");
+        let run = chemistry::run(chemistry::ReactionRequest::DEFAULT).expect("validated run");
         let digest = run.declaration().digest();
         let formulae =
             nomenclature::display_declaration(run.declaration(), ChemicalLabels::Formulae);
@@ -8273,7 +8245,7 @@ mod tests {
         let animation = app
             .structural_animation
             .as_ref()
-            .expect("guided animation compiles from the trusted frames");
+            .expect("guided animation compiles from the validated frames");
         assert!(animation.playing);
         assert!(!reactant_composer::submit_available(&app.reactant_composer));
         assert!(reactant_composer::prompt_reveal(&app.reactant_composer) > 0.0);

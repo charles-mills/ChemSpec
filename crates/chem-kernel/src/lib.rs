@@ -1,4 +1,4 @@
-//! Trusted typed elaboration and deterministic structural expansion.
+//! Typed elaboration and authoritative deterministic structural validation.
 //!
 //! Slice 4 resolves concise `.chems 1` source against an immutable catalogue
 //! and external evidence packet, expands coefficients, atom mappings, and
@@ -22,8 +22,7 @@ mod dative_tests;
 mod slice5_tests;
 
 pub use elaborate::{
-    expand_proposed_declaration, expand_review_candidate, expand_reviewed_declaration,
-    expand_trusted,
+    expand_proposed_declaration, expand_provisional, expand_reference, expand_reviewed_declaration,
 };
 pub use error::{ExpansionError, ExpansionFailureClass};
 pub use evidence::{
@@ -34,22 +33,21 @@ pub use frames::{
     CurrentArtifactIdentity, FrameAtom, FrameAtomGroup, FrameChange, FrameCovalentEdge, FrameError,
     FrameFailureClass, FrameIonicAssociation, FrameMetallicDomain, FrameModelDisclosure,
     FrameObservation, FrameOperation, FrameTrace, ObservationStatus, SimulationFrame,
-    SimulationFrames, ValidatedReviewCandidateFrames, generate_frames,
-    project_validated_review_candidate_frames,
+    SimulationFrames, generate_frames,
 };
 pub use hir::{
-    CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidenceTrust,
+    CatalogueOrigin, CatalogueProvenance, CatalogueReference, EvidenceOrigin, EvidenceProvenance,
     ExpandedElectronContribution, ExpandedInstance, ExpandedIonicComponent, ExpandedOperation,
-    ExpandedStructuralReaction, Provenance, ReactionSideKind, ResolvedApplicability,
-    ResolvedDeclarationBinding, ResolvedEquationTerm, ResolvedEvidence,
+    ExpandedStructuralReaction, Provenance, ReactionSideKind, ReferenceExpandedStructuralReaction,
+    ResolvedApplicability, ResolvedDeclarationBinding, ResolvedEquationTerm, ResolvedEvidence,
     ResolvedGeneralizedRuleApplication, ResolvedModel, ResolvedObservation, ResolvedReactionClaim,
     ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin,
-    SourceReference, TrustedExpandedStructuralReaction,
+    SourceReference,
 };
 pub use validate::{
-    DerivationTrust, KernelError, KernelFailureClass, ReviewCandidateStructuralDerivation,
-    StructuralDerivation, StructuralLedger, StructuralState, ValidatedStructuralReaction,
-    ValidationResult, validate_review_candidate, validate_trusted,
+    DerivationProvenance, KernelError, KernelFailureClass, StructuralDerivation, StructuralLedger,
+    StructuralState, ValidatedProvisionalStructuralReaction, ValidatedStructuralReaction,
+    ValidationResult, validate_provisional, validate_reference,
 };
 
 pub(crate) use hir::{ExpandedStructuralReactionParts, ResolvedObservationCompatibility};

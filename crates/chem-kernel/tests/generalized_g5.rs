@@ -3,8 +3,8 @@ use std::{fs, path::PathBuf};
 use chem_catalogue::{CatalogueErrorCode, ValidatedCatalogueBundle};
 use chem_domain::{CovalentElectronOrigin, StructureId};
 use chem_kernel::{
-    ExpansionFailureClass, KernelFailureClass, ValidationResult, expand_review_candidate,
-    validate_review_candidate,
+    ExpansionFailureClass, KernelFailureClass, ValidationResult, expand_provisional,
+    validate_provisional,
 };
 use serde_json::{Value, json};
 
@@ -228,8 +228,7 @@ fn migrated_family_executes_li_na_and_k_to_exact_concrete_final_states() {
         let evidence_path = member["evidence"].as_str().unwrap();
         let source = fs::read_to_string(root().join(source_path)).unwrap();
         let evidence = fs::read(root().join(evidence_path)).unwrap();
-        let expanded =
-            expand_review_candidate(source_path, &source, &catalogue, &evidence).unwrap();
+        let expanded = expand_provisional(source_path, &source, &catalogue, &evidence).unwrap();
         let selected = expanded.claim().rule().generalized.as_ref().unwrap();
         assert_eq!(selected.parameters["member"], symbol);
         assert_eq!(selected.case_id, expansion_oracle["selected_case"]);
@@ -262,7 +261,7 @@ fn migrated_family_executes_li_na_and_k_to_exact_concrete_final_states() {
                 .any(|instance| instance.instance.structure().as_str() == hydroxide)
         );
 
-        let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+        let derivation = validate_provisional(&expanded, &catalogue).unwrap();
         assert_eq!(
             derivation.result(),
             ValidationResult::ValidatedWithAssumptions
@@ -346,14 +345,14 @@ fn migrated_family_mutations_fail_at_the_earliest_stable_boundary() {
     wrong_product["bundle"]["structure_templates"][1]["components"][1]["bonds"][0]["electron_origin"] =
         json!({"kind":"dative","donor":"o","acceptor":"h"});
     let catalogue = validate_catalogue_value(wrong_product);
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         "sodium-wrong-product.chems",
         &member_source("sodium", "Na", "SodiumMetal", "SodiumHydroxide"),
         &catalogue,
         &generalized_evidence(),
     )
     .unwrap();
-    let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+    let error = validate_provisional(&expanded, &catalogue).unwrap_err();
     assert_eq!(error.class(), KernelFailureClass::InvalidExpansion);
     assert_eq!(
         error.code(),
@@ -373,7 +372,7 @@ fn migrated_family_mutations_fail_at_the_earliest_stable_boundary() {
         "premise_ids":premise_ids
     });
     let catalogue = validate_catalogue_value(unsupported_case);
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "sodium-unsupported-case.chems",
         &member_source("sodium", "Na", "SodiumMetal", "SodiumHydroxide"),
         &catalogue,
@@ -391,7 +390,7 @@ fn migrated_family_mutations_fail_at_the_earliest_stable_boundary() {
     let mut no_match = migrated_catalogue_value();
     no_match["bundle"]["graph_patterns"][1]["variables"]["o"]["atom"]["element"] = json!("Ca");
     let catalogue = validate_catalogue_value(no_match);
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "sodium-no-match.chems",
         &member_source("sodium", "Na", "SodiumMetal", "SodiumHydroxide"),
         &catalogue,
@@ -410,14 +409,14 @@ fn migrated_family_mutations_fail_at_the_earliest_stable_boundary() {
     wrong_rewrite["bundle"]["generalized_rules"][0]["cases"][0]["rewrite"][0]["before"]["site"] =
         json!([2, 0, 0]);
     let catalogue = validate_catalogue_value(wrong_rewrite);
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "sodium-wrong-rewrite.chems",
         &member_source("sodium", "Na", "SodiumMetal", "SodiumHydroxide"),
         &catalogue,
         &generalized_evidence(),
     )
     .unwrap_err();
-    assert_eq!(error.class(), ExpansionFailureClass::CorruptTrustedData);
+    assert_eq!(error.class(), ExpansionFailureClass::CorruptReferenceData);
     assert_eq!(
         error.code(),
         oracle["negative_boundaries"]["invalid_rewrite"]
@@ -427,7 +426,7 @@ fn migrated_family_mutations_fail_at_the_earliest_stable_boundary() {
 
     let calcium = member_source("calcium", "Ca", "CalciumMetal", "LithiumHydroxide")
         .replace("CaOH[ionic]", "LiOH[ionic]");
-    let error = expand_review_candidate(
+    let error = expand_provisional(
         "calcium-water.chems",
         &calcium,
         &migrated_catalogue(),
@@ -474,9 +473,8 @@ reaction DativeFixture where
     }))
     .unwrap();
     let catalogue = generalized_dative_catalogue();
-    let expanded =
-        expand_review_candidate("dative-g5.chems", source, &catalogue, &evidence).unwrap();
-    let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+    let expanded = expand_provisional("dative-g5.chems", source, &catalogue, &evidence).unwrap();
+    let derivation = validate_provisional(&expanded, &catalogue).unwrap();
     let final_graph = derivation.states().last().unwrap().graph();
     let bond = final_graph.covalent_bonds().values().next().unwrap();
     assert!(matches!(
@@ -506,7 +504,7 @@ fn legacy_non_generalized_catalogue_still_executes_as_the_exception_path() {
         fs::read(root().join("conformance/observations/lithium-observations-001.input.json"))
             .unwrap();
     let expanded =
-        expand_review_candidate("legacy-concrete.chems", &source, &catalogue, &evidence).unwrap();
+        expand_provisional("legacy-concrete.chems", &source, &catalogue, &evidence).unwrap();
     assert!(expanded.claim().rule().generalized.is_none());
-    validate_review_candidate(&expanded, &catalogue).unwrap();
+    validate_provisional(&expanded, &catalogue).unwrap();
 }

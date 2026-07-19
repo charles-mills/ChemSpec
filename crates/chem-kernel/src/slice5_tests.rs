@@ -9,7 +9,7 @@ use chem_domain::{
     StructureInstanceId,
 };
 use chem_kernel::{
-    ExpandedOperation, KernelFailureClass, expand_review_candidate, validate_review_candidate,
+    ExpandedOperation, KernelFailureClass, expand_provisional, validate_provisional,
 };
 use serde_json::{Value, json};
 
@@ -30,7 +30,7 @@ fn catalogue() -> ValidatedCatalogueBundle {
 
 fn expansion() -> chem_kernel::ExpandedStructuralReaction {
     let source = fixture("conformance/expansion/canonical-expansion-001.chems");
-    expand_review_candidate(
+    expand_provisional(
         "conformance/expansion/canonical-expansion-001.chems",
         std::str::from_utf8(&source).unwrap(),
         &catalogue(),
@@ -43,7 +43,7 @@ fn expansion() -> chem_kernel::ExpandedStructuralReaction {
 #[allow(clippy::too_many_lines)]
 fn every_immutable_state_matches_the_independently_authored_derivation() {
     let expanded = expansion();
-    let derivation = validate_review_candidate(&expanded, &catalogue()).unwrap();
+    let derivation = validate_provisional(&expanded, &catalogue()).unwrap();
     let oracle: Value = serde_json::from_slice(&fixture(
         "conformance/validation-kernel/canonical-kernel-001.expected.json",
     ))
@@ -219,7 +219,7 @@ fn every_immutable_state_matches_the_independently_authored_derivation() {
     assert_eq!(
         oracle["review"],
         json!({
-            "status": "technical-review-candidate",
+            "status": "technical-provisional",
             "external_chemist_review": "pending",
             "trusted_output": false
         })
@@ -438,7 +438,7 @@ fn every_closed_operation_kind_enforces_its_immediate_precondition() {
             .iter()
             .find(|case| case["mutation"] == kind)
             .unwrap();
-        let error = validate_review_candidate(&expanded, &catalogue)
+        let error = validate_provisional(&expanded, &catalogue)
             .expect_err(kind)
             .clone();
         assert_eq!(
@@ -474,12 +474,12 @@ fn sequence_mapping_products_premises_and_staleness_are_mandatory() {
 
     let mut reordered = expansion();
     reordered.operations.swap(0, 1);
-    let error = validate_review_candidate(&reordered, &catalogue).unwrap_err();
+    let error = validate_provisional(&reordered, &catalogue).unwrap_err();
     assert_negative(&expected, "operation_sequence", &error);
 
     let mut missing_assignment = expansion();
     missing_assignment.operations.pop();
-    let error = validate_review_candidate(&missing_assignment, &catalogue).unwrap_err();
+    let error = validate_provisional(&missing_assignment, &catalogue).unwrap_err();
     assert_negative(&expected, "product_partition", &error);
 
     let mut remapped = expansion();
@@ -511,7 +511,7 @@ fn sequence_mapping_products_premises_and_staleness_are_mandatory() {
         &products,
     )
     .unwrap();
-    let error = validate_review_candidate(&remapped, &catalogue).unwrap_err();
+    let error = validate_provisional(&remapped, &catalogue).unwrap_err();
     assert_negative(&expected, "remapping", &error);
 
     let mut grouped_product = expansion();
@@ -550,32 +550,32 @@ fn sequence_mapping_products_premises_and_staleness_are_mandatory() {
             .map(|atom| (atom.clone(), atom)),
     )
     .unwrap();
-    let error = validate_review_candidate(&grouped_product, &catalogue).unwrap_err();
+    let error = validate_provisional(&grouped_product, &catalogue).unwrap_err();
     assert_negative(&expected, "final_groups", &error);
 
     let mut no_valence = expansion();
     no_valence
         .premises
         .remove(&"premise.valence.li-h-o.initial-domain".parse().unwrap());
-    let error = validate_review_candidate(&no_valence, &catalogue).unwrap_err();
+    let error = validate_provisional(&no_valence, &catalogue).unwrap_err();
     assert_eq!(error.class(), KernelFailureClass::InvalidExpansion);
     assert_negative(&expected, "missing_valence_premise", &error);
 
     let mut unsupported_valence = expansion();
     unsupported_valence.operations[2] = unsupported_cleavage(3);
-    let error = validate_review_candidate(&unsupported_valence, &catalogue).unwrap_err();
+    let error = validate_provisional(&unsupported_valence, &catalogue).unwrap_err();
     assert_eq!(error.class(), KernelFailureClass::UnsupportedState);
     assert_negative(&expected, "unsupported_valence", &error);
 
     let mut stale_expansion = expansion();
     stale_expansion.claim.catalogue.digest =
         chem_domain::ContentDigest::sha256(b"different catalogue");
-    let error = validate_review_candidate(&stale_expansion, &catalogue).unwrap_err();
+    let error = validate_provisional(&stale_expansion, &catalogue).unwrap_err();
     assert_eq!(error.class(), KernelFailureClass::StaleInput);
     assert_negative(&expected, "stale_catalogue", &error);
 
     let expanded = expansion();
-    let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+    let derivation = validate_provisional(&expanded, &catalogue).unwrap();
     assert!(
         derivation
             .ensure_current(
@@ -599,7 +599,7 @@ fn sequence_mapping_products_premises_and_staleness_are_mandatory() {
     ))
     .unwrap();
     edited_source.push_str("\n-- comment-only edit\n");
-    let edited = expand_review_candidate(
+    let edited = expand_provisional(
         "conformance/expansion/canonical-expansion-001.chems",
         &edited_source,
         &catalogue,

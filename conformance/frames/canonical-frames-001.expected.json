@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "trust": "review_candidate",
+  "provenance":"provisional",
   "result": "validated_with_assumptions",
   "trusted_output": false,
   "external_chemist_review": "pending",
@@ -8,10 +8,10 @@
   "trace": {
     "source_bytes_digest": "9e9f2e076c36b6bdb53d16c1feaa31db246553da57fd373198f41a01406c2fdb",
     "source_semantic_digest": "31e40f4ca592bf7ae878b76bd7bc0a02e16e9c53b432834400fc9fb94644726d",
-    "expansion_semantic_digest": "083d0a8e3ae9d1653fed1e8592d297664eb3f835b409dd472aa33842841be76f",
+    "expansion_semantic_digest": "889e04df2217007d695aac772d8df7e69d6b2e299c929966f962315599b31d8c",
     "evidence_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
     "catalogue_digest": "cdf8afe54409acf1a4aa76ad772bd3e26207608f90cd0ee4c2f6f2ec0cf0bb4f",
-    "derivation_digest": "75ed2b5553e9924652e075ff1ddcd2d40d866b631a9d2e7ddc251c165379fa40",
+    "derivation_digest": "4d7ce476010c6d73a0d7a5a9b25e9c8848ef30b9a7460c716f688ea07d32790a",
     "state_digest": "3ef279ae62430160eb99a576846b58ac015f8df81c09446d8e8c72441c6a76a7"
   },
   "state_digests": [
@@ -81,7 +81,7 @@
       "subject_binding": "hydrogen",
       "value": null,
       "evidence_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
-      "evidence_trust": "external_untrusted",
+      "evidence_provenance": "external",
       "trigger_operation": 12,
       "provenance": {
         "source": [{"source": "conformance/expansion/canonical-expansion-001.chems", "construct": "observation hydrogen", "span": {"start": 431, "end": 461}}],
@@ -99,7 +99,7 @@
       "subject_binding": "lithium",
       "value": null,
       "evidence_digest": "03d828162c58c2f2fb7ed514b8ca39bc8c68dba55c1f8067e351da21fe1b5506",
-      "evidence_trust": "external_untrusted",
+      "evidence_provenance": "external",
       "trigger_operation": 11,
       "provenance": {
         "source": [{"source": "conformance/expansion/canonical-expansion-001.chems", "construct": "observation lithium", "span": {"start": 465, "end": 502}}],

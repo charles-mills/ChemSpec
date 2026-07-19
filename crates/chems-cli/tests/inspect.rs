@@ -30,7 +30,7 @@ fn source_and_expansion_inspection_are_visible_and_non_promoting() {
     assert!(expanded_output.status.success());
     let expanded_text = String::from_utf8(expanded_output.stdout).unwrap();
     assert!(expanded_text.contains("status: unexecuted"));
-    assert!(expanded_text.contains("trust=ReviewCandidate"));
+    assert!(expanded_text.contains("provenance=Provisional"));
 }
 
 #[test]

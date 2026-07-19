@@ -7,7 +7,7 @@ used by the first dioramas: benches/platforms, cylindrical glassware, liquid
 volumes, generic material chunks, particle clusters, and gas clusters.
 
 These recipes are shared assets. Presentation profiles select them downstream
-of trusted chemistry and attach a separate semantic identity and appearance
+of validated chemistry and attach a separate semantic identity and appearance
 profile. Do not add reaction-named geometry. A future imported `.glb` replaces
 or extends one registry recipe and is stored under this directory once; runtime
 scene plans continue to refer to the stable generic `AssetProfile`.

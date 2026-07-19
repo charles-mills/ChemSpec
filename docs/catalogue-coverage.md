@@ -1,16 +1,16 @@
-# Trusted catalogue coverage
+# Reference catalogue coverage
 
 ## Authority
 
 The current catalogue truth is machine-readable:
 
-- [`../catalogue/trusted/core-chemistry/catalogue.json`](../catalogue/trusted/core-chemistry/catalogue.json)
+- [`../catalogue/reference/core-chemistry/catalogue.json`](../catalogue/reference/core-chemistry/catalogue.json)
   is the promoted catalogue;
 - [`../catalogue/reviews/core-chemistry.review.json`](../catalogue/reviews/core-chemistry.review.json)
   binds the exact semantic digest, review scope, premise set, and reviewer
   disclosure; and
 - the application host pins the accepted catalogue and review digests before
-  it can load trusted chemistry through `chem-catalogue`.
+  it can load validated chemistry through `chem-catalogue`.
 
 This document is a navigation and scope summary. Counts and digests in the
 machine-readable trust artefacts are authoritative when they differ from prose.

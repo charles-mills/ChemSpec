@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use chem_catalogue::{CatalogueTrustPolicy, TrustedCatalogue, ValidatedCatalogueBundle};
+use chem_catalogue::{ReferenceCatalogue, ReferenceIntegrityPolicy, ValidatedCatalogueBundle};
 use chem_domain::ContentDigest;
 use serde_json::{Value, json};
 
@@ -385,10 +385,10 @@ fn promote_requires_and_packages_an_exact_external_review() {
         .trim()
         .parse()
         .unwrap();
-    TrustedCatalogue::from_canonical_json(
+    ReferenceCatalogue::from_canonical_json(
         &catalogue_bytes,
         &review_bytes,
-        CatalogueTrustPolicy::new(catalogue_digest, review_digest),
+        ReferenceIntegrityPolicy::new(catalogue_digest, review_digest),
     )
     .expect("the promoted artifacts load under deliberate host pins");
     fs::remove_dir_all(temporary).unwrap();

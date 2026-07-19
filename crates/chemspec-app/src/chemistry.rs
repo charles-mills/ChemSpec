@@ -1,4 +1,4 @@
-//! Application boundary for host-pinned trusted chemistry experiences.
+//! Application boundary for kernel-validated chemistry experiences.
 //!
 //! The UI may identify an exact supported draft, but every product, bond,
 //! observation, and frame below is produced by the language and kernel crates.
@@ -6,13 +6,14 @@
 use std::{collections::BTreeMap, str::FromStr, sync::LazyLock};
 
 use chem_catalogue::{
-    CatalogueTrustPolicy, GeneralizedCaseSelection, GeneralizedReactionCaseRecord,
-    ObservationPredicate, OxygenOutcome, TrustedCatalogue, ValidatedOxygenScreening,
+    GeneralizedCaseSelection, GeneralizedReactionCaseRecord, ObservationPredicate, OxygenOutcome,
+    ReferenceCatalogue, ReferenceIntegrityPolicy, ValidatedCatalogueBundle,
+    ValidatedOxygenScreening,
 };
 use chem_domain::{ContentDigest, ReactionRuleId, RepresentationKind};
 use chem_kernel::{
-    CurrentArtifactIdentity, ObservationStatus, SimulationFrames, expand_trusted, generate_frames,
-    validate_trusted,
+    CurrentArtifactIdentity, ObservationStatus, SimulationFrames, expand_provisional,
+    expand_reference, generate_frames, validate_provisional, validate_reference,
 };
 use chem_presentation::{
     AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, EffectIntensity, EffectProfile,
@@ -25,7 +26,8 @@ use chem_presentation::{
 
 use crate::composition_catalogue::{self, CompositionId};
 
-const CATALOGUE: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
+const CATALOGUE: &[u8] =
+    include_bytes!("../../../catalogue/reference/core-chemistry/catalogue.json");
 const CATALOGUE_REVIEW: &[u8] =
     include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
 const CATALOGUE_DIGEST: &str = "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
@@ -120,7 +122,7 @@ struct AlkaliWaterVisualEvidence {
 /// The Royal Society of Chemistry's classroom observations describe lithium
 /// as fizzing, sodium as fizzing vigorously, and potassium as vigorous with
 /// lilac self-ignition. This metadata remains upstream of the generic renderer
-/// and does not alter the trusted reaction frames.
+/// and does not alter the reference reaction frames.
 /// <https://edu.rsc.org/download?ac=512063>
 const fn alkali_water_visual_evidence(metal: AlkaliMetal) -> AlkaliWaterVisualEvidence {
     match metal {
@@ -374,7 +376,7 @@ impl UnsupportedRequest {
             ),
         };
         let rule_id = ReactionRuleId::from_str(rule).map_err(|error| error.to_string())?;
-        let catalogue = TRUSTED_CATALOGUE.as_ref().map_err(String::as_str)?;
+        let catalogue = VALIDATED_CATALOGUE.as_ref().map_err(String::as_str)?;
         let selection = catalogue
             .select_generalized_case(&rule_id, &binding)
             .map_err(|error| error.to_string())?;
@@ -388,7 +390,7 @@ impl UnsupportedRequest {
         )) = selection
         else {
             return Err(format!(
-                "trusted catalogue did not select an unsupported case for `{rule_id}`"
+                "reference catalogue did not select an unsupported case for `{rule_id}`"
             ));
         };
         Ok(UnsupportedCase {
@@ -779,9 +781,9 @@ impl ReactionRequest {
     /// Formula-only lookup is intentionally not used here: several formulae can
     /// represent more than one structure.
     #[must_use]
-    pub fn product_preview(self) -> Option<composition_catalogue::TrustedCompositionPreview> {
+    pub fn product_preview(self) -> Option<composition_catalogue::ReferenceCompositionPreview> {
         let structure = self.definition()?.product_structure?;
-        composition_catalogue::trusted_preview_by_structure_id(structure)
+        composition_catalogue::reference_preview_by_structure_id(structure)
     }
 
     /// The composer draft inventories that resolve to this request, in the
@@ -921,20 +923,20 @@ fn halogen_displacement_source(displacing: Halogen, displaced: Halogen) -> Strin
 }
 
 #[derive(Debug, Clone)]
-pub struct TrustedRun {
+pub struct ValidatedRun {
     frames: SimulationFrames,
     macroscopic: Option<MacroscopicReaction>,
     declaration: chem_domain::ReactionDeclaration,
 }
 
-impl TrustedRun {
+impl ValidatedRun {
     #[must_use]
     pub const fn frames(&self) -> &SimulationFrames {
         &self.frames
     }
 
     /// Catalogue-resolved material phases for the generic presentation
-    /// compiler. `None` means the trusted catalogue predates those optional
+    /// compiler. `None` means the reference catalogue predates those optional
     /// records; it never means that a phase was guessed.
     #[must_use]
     pub const fn macroscopic(&self) -> Option<&MacroscopicReaction> {
@@ -954,51 +956,68 @@ struct ValidatedRequestArtifacts {
     declaration: chem_domain::ReactionDeclaration,
 }
 
-static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
-    let catalogue_digest =
-        ContentDigest::from_str(CATALOGUE_DIGEST).map_err(|error| error.to_string())?;
-    let review_digest =
-        ContentDigest::from_str(CATALOGUE_REVIEW_DIGEST).map_err(|error| error.to_string())?;
-    TrustedCatalogue::from_canonical_json(
-        CATALOGUE,
-        CATALOGUE_REVIEW,
-        CatalogueTrustPolicy::new(catalogue_digest, review_digest),
-    )
-    .map_err(|error| error.to_string())
+static REFERENCE_CATALOGUE: LazyLock<Result<ReferenceCatalogue, String>> = LazyLock::new(|| {
+    let reviewed = || -> Result<ReferenceCatalogue, String> {
+        let catalogue_digest =
+            ContentDigest::from_str(CATALOGUE_DIGEST).map_err(|error| error.to_string())?;
+        let review_digest =
+            ContentDigest::from_str(CATALOGUE_REVIEW_DIGEST).map_err(|error| error.to_string())?;
+        ReferenceCatalogue::from_canonical_json(
+            CATALOGUE,
+            CATALOGUE_REVIEW,
+            ReferenceIntegrityPolicy::new(catalogue_digest, review_digest),
+        )
+        .map_err(|error| error.to_string())
+    };
+    reviewed()
+        .or_else(|_| ReferenceCatalogue::from_json(CATALOGUE).map_err(|error| error.to_string()))
 });
 
-pub(crate) fn trusted_catalogue() -> Result<&'static TrustedCatalogue, &'static str> {
-    TRUSTED_CATALOGUE.as_ref().map_err(String::as_str)
+static VALIDATED_CATALOGUE: LazyLock<Result<ValidatedCatalogueBundle, String>> =
+    LazyLock::new(|| {
+        ValidatedCatalogueBundle::from_json(CATALOGUE).map_err(|error| error.to_string())
+    });
+
+pub(crate) fn reference_catalogue() -> Result<&'static ReferenceCatalogue, &'static str> {
+    REFERENCE_CATALOGUE.as_ref().map_err(String::as_str)
 }
 
 static VALIDATED_OXYGEN_SCREENING: LazyLock<Result<ValidatedOxygenScreening, String>> =
     LazyLock::new(|| {
-        let catalogue = TRUSTED_CATALOGUE.as_ref().map_err(Clone::clone)?;
+        let catalogue = VALIDATED_CATALOGUE.as_ref().map_err(Clone::clone)?;
         ValidatedOxygenScreening::from_json(OXYGEN_SCREENING, catalogue)
             .map_err(|error| error.to_string())
     });
-/// Returns a host-pinned, AI-reviewed experience result.
+/// Returns a kernel-validated experience result.
 ///
 /// The returned frame type cannot be constructed by the application. Failure
 /// is retained and shown honestly instead of falling back to UI-authored chemistry.
-pub fn run(request: ReactionRequest) -> Result<TrustedRun, String> {
+pub fn run(request: ReactionRequest) -> Result<ValidatedRun, String> {
     build_run(request)
 }
 
-fn build_run(request: ReactionRequest) -> Result<TrustedRun, String> {
+fn build_run(request: ReactionRequest) -> Result<ValidatedRun, String> {
     let validated = validate_request_source(request, &request.source())?;
-    Ok(TrustedRun {
+    Ok(ValidatedRun {
         frames: validated.frames,
         macroscopic: validated.macroscopic,
         declaration: validated.declaration,
     })
 }
 
-/// Parses, expands, validates, and projects source against the exact host-pinned
-/// catalogue and the evidence packet for the selected experience.
+/// Parses, expands, validates, and projects source against bundled reference
+/// data and the evidence packet for the selected experience.
 fn validate_request_source(
     request: ReactionRequest,
     source: &str,
+) -> Result<ValidatedRequestArtifacts, String> {
+    validate_request_source_with_reference(request, source, REFERENCE_CATALOGUE.as_ref().ok())
+}
+
+fn validate_request_source_with_reference(
+    request: ReactionRequest,
+    source: &str,
+    reference: Option<&ReferenceCatalogue>,
 ) -> Result<ValidatedRequestArtifacts, String> {
     if source != request.source() {
         return Err(format!(
@@ -1006,20 +1025,40 @@ fn validate_request_source(
             request.id()
         ));
     }
-    let catalogue = TRUSTED_CATALOGUE.as_ref().map_err(String::as_str)?;
-    let expanded = expand_trusted(
-        &request.source_name(),
-        source,
-        catalogue,
-        request.evidence(),
-    )
-    .map_err(|error| error.to_string())?;
-    let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
-    let declaration = expanded.claim().declaration().clone();
-    let current =
-        CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
-    let validated = validate_trusted(&expanded, catalogue).map_err(|error| error.to_string())?;
-    let frames = generate_frames(&validated, current).map_err(|error| error.to_string())?;
+    let catalogue = VALIDATED_CATALOGUE.as_ref().map_err(String::as_str)?;
+    let (frames, macroscopic, declaration) = if let Some(reference) = reference {
+        let expanded = expand_reference(
+            &request.source_name(),
+            source,
+            reference,
+            request.evidence(),
+        )
+        .map_err(|error| error.to_string())?;
+        let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
+        let declaration = expanded.claim().declaration().clone();
+        let current =
+            CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
+        let validated =
+            validate_reference(&expanded, reference).map_err(|error| error.to_string())?;
+        let frames = generate_frames(&validated, current).map_err(|error| error.to_string())?;
+        (frames, macroscopic, declaration)
+    } else {
+        let expanded = expand_provisional(
+            &request.source_name(),
+            source,
+            catalogue,
+            request.evidence(),
+        )
+        .map_err(|error| error.to_string())?;
+        let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
+        let declaration = expanded.claim().declaration().clone();
+        let current =
+            CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
+        let validated =
+            validate_provisional(&expanded, catalogue).map_err(|error| error.to_string())?;
+        let frames = generate_frames(&validated, current).map_err(|error| error.to_string())?;
+        (frames, macroscopic, declaration)
+    };
     Ok(ValidatedRequestArtifacts {
         frames,
         macroscopic,
@@ -1030,7 +1069,7 @@ fn validate_request_source(
 fn catalogue_macroscopic_reaction(
     request: ReactionRequest,
     expanded: &chem_kernel::ExpandedStructuralReaction,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ValidatedCatalogueBundle,
 ) -> Option<MacroscopicReaction> {
     let rule = &expanded.claim().rule().rule;
     let resolve = |binding: &str,
@@ -1453,7 +1492,7 @@ impl DraftResolution {
             | Self::ExplicitlyUnsupported(_)
             | Self::Uncatalogued
             | Self::Unrecognized => None,
-            Self::SystemError(_) => Some("The trusted chemistry catalogue is unavailable."),
+            Self::SystemError(_) => Some("The chemistry reference data is unavailable."),
         }
     }
 
@@ -1651,7 +1690,8 @@ pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
 /// Whether one draft names chemistry the app understands: a bare element or
 /// any composition the catalogue or structure generator can realize.
 fn draft_is_understood(atoms: &[u8]) -> bool {
-    matches!(atoms, [_]) || composition_catalogue::trusted_preview(atoms.iter().copied()).is_some()
+    matches!(atoms, [_])
+        || composition_catalogue::reference_preview(atoms.iter().copied()).is_some()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1682,7 +1722,7 @@ pub fn oxygen_assessment_for_drafts(first: &[u8], second: &[u8]) -> Option<Oxyge
         });
     }
     let composition = composition_catalogue::recognize(subject.iter().copied())?;
-    let name = composition_catalogue::trusted_preview(subject.iter().copied())
+    let name = composition_catalogue::reference_preview(subject.iter().copied())
         .and_then(|preview| preview.name)
         .unwrap_or_else(|| composition.formula.to_owned());
     Some(OxygenAssessment {
@@ -1691,7 +1731,7 @@ pub fn oxygen_assessment_for_drafts(first: &[u8], second: &[u8]) -> Option<Oxyge
     })
 }
 
-/// Host-selected macroscopic styling for an exact trusted experience. This
+/// Host-selected macroscopic styling for an exact reference experience. This
 /// profile can select meshes and effects, but cannot alter chemistry.
 #[allow(clippy::too_many_lines)]
 pub fn presentation_profile(
@@ -1702,7 +1742,7 @@ pub fn presentation_profile(
         .frames()
         .last()
         .and_then(|frame| u16::try_from(frame.ordinal()).ok())
-        .ok_or_else(|| "trusted frames exceed the presentation range".to_owned())?;
+        .ok_or_else(|| "validated frames exceed the presentation range".to_owned())?;
     let transform = |translation, scale| PresentationTransform {
         translation,
         rotation: [0, 0, 0],
@@ -1832,10 +1872,11 @@ pub fn presentation_profile(
             let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
             let (colour_ordinal, colour) =
                 active_observation(frames, ObservationPredicate::Colour)?;
-            let colour = colour
-                .ok_or_else(|| "trusted precipitate colour observation has no value".to_owned())?;
+            let colour = colour.ok_or_else(|| {
+                "reference precipitate colour observation has no value".to_owned()
+            })?;
             let target = visual_colour(&colour)
-                .ok_or_else(|| format!("unsupported trusted visual colour `{colour}`"))?;
+                .ok_or_else(|| format!("unsupported reference visual colour `{colour}`"))?;
             (
                 vec![
                     vessel(AssetProfile::TestTube),
@@ -2091,13 +2132,42 @@ fn active_observation(
                         .map(|ordinal| (ordinal, observation.value.clone()))
                 })
         })
-        .ok_or_else(|| format!("trusted frames have no active {predicate:?} observation"))
+        .ok_or_else(|| format!("validated frames have no active {predicate:?} observation"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chem_domain::{Phase, RepresentationKind};
+
+    #[test]
+    fn experience_registry_has_no_approval_gate() {
+        let registry: serde_json::Value =
+            serde_json::from_str(include_str!("../../../catalogue/experience-registry.json"))
+                .expect("experience registry");
+        for experience in registry["experiences"].as_array().expect("experiences") {
+            assert!(experience.get("status").is_none());
+            assert!(experience.get("trusted").is_none());
+            assert!(experience.get("approved").is_none());
+        }
+    }
+
+    #[test]
+    fn missing_review_metadata_changes_provenance_not_simulation_capability() {
+        let request = ReactionRequest::DEFAULT;
+        let provisional_reference = ReferenceCatalogue::from_json(CATALOGUE).unwrap();
+        let outcome = validate_request_source_with_reference(
+            request,
+            &request.source(),
+            Some(&provisional_reference),
+        )
+        .unwrap();
+        assert_eq!(
+            outcome.frames.provenance(),
+            chem_kernel::DerivationProvenance::Provisional
+        );
+        assert!(!outcome.frames.frames().is_empty());
+    }
 
     #[test]
     fn every_roll_candidate_resolves_to_runnable_chemistry() {
@@ -2607,7 +2677,7 @@ mod tests {
     }
 
     #[test]
-    fn every_supported_request_crosses_the_trusted_frame_boundary() {
+    fn every_supported_request_crosses_the_validated_frame_boundary() {
         let mut ids = std::collections::BTreeSet::new();
         let mut families = std::collections::BTreeMap::new();
         let mut local_hit_latencies = Vec::new();
@@ -2624,11 +2694,14 @@ mod tests {
             );
             let started = std::time::Instant::now();
             let run = run(request).unwrap_or_else(|error| {
-                panic!("registered request `{id}` should be trusted: {error}")
+                panic!("registered request `{id}` should validate: {error}")
             });
             local_hit_latencies.push(started.elapsed());
             assert!(!run.frames().frames().is_empty());
-            assert_eq!(run.frames().trust(), chem_kernel::DerivationTrust::Trusted);
+            assert_eq!(
+                run.frames().provenance(),
+                chem_kernel::DerivationProvenance::ReviewedReference
+            );
             assert_eq!(
                 run.frames().result(),
                 chem_kernel::ValidationResult::ValidatedWithAssumptions
@@ -2687,7 +2760,7 @@ mod tests {
     }
 
     #[test]
-    fn all_23_unsupported_bindings_are_selected_from_the_trusted_catalogue() {
+    fn all_23_unsupported_bindings_are_selected_from_reference_data() {
         let DraftResolution::ExplicitlyUnsupported(silver_fluoride) =
             resolve_drafts(&[47, 7, 8, 8, 8], &[11, 9])
         else {
@@ -2800,7 +2873,7 @@ mod tests {
             let run = run(request).expect("supported request validates");
             let profile =
                 presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
-                    .expect("trusted observations select a presentation profile");
+                    .expect("validated observations select a presentation profile");
             assert!(profile_ids.insert(profile.id.clone()));
             assert_eq!(profile.equation, request.equation());
             assert_eq!(profile.camera.len(), 1);
@@ -2846,7 +2919,7 @@ mod tests {
             assert!(!plan.timeline.beats.is_empty());
             for effect in &profile.effects {
                 let (ordinal, _) = active_observation(run.frames(), effect.trigger)
-                    .expect("effect trigger activates in trusted frames");
+                    .expect("effect trigger activates in validated frames");
                 assert_eq!(effect.start_ordinal, ordinal);
             }
             for object in &profile.objects {
@@ -2854,7 +2927,7 @@ mod tests {
                     continue;
                 };
                 let (ordinal, value) = active_observation(run.frames(), binding.predicate)
-                    .expect("object observation activates in trusted frames");
+                    .expect("object observation activates in validated frames");
                 assert_eq!(object.visible_from_ordinal, ordinal);
                 assert_eq!(binding.value, value);
             }
@@ -2915,7 +2988,7 @@ mod tests {
             let request = ReactionRequest::silver_halide_precipitation(halogen);
             let run = run(request).expect("precipitation request validates");
             let profile = presentation_profile(request, run.frames())
-                .expect("trusted colour selects a supported appearance");
+                .expect("reference colour selects a supported appearance");
             let product = profile
                 .objects
                 .iter()
@@ -2930,10 +3003,10 @@ mod tests {
                 .as_ref()
                 .expect("precipitate is bound to its colour observation");
             let (forms_ordinal, _) = active_observation(run.frames(), ObservationPredicate::Forms)
-                .expect("trusted formation observation activates");
+                .expect("reference formation observation activates");
             let (colour_ordinal, value) =
                 active_observation(run.frames(), ObservationPredicate::Colour)
-                    .expect("trusted colour observation activates");
+                    .expect("reference colour observation activates");
             assert_eq!(product.appearance, AppearanceProfile::WhitePrecipitate);
             assert_eq!(product.visible_from_ordinal, forms_ordinal);
             assert_eq!(formation.predicate, ObservationPredicate::Forms);
@@ -3008,10 +3081,10 @@ mod tests {
         assert_eq!(flame.intensity, EffectIntensity::Strong);
         assert_eq!(flame.trigger, ObservationPredicate::Evolves);
         let (gas_ordinal, _) = active_observation(run.frames(), ObservationPredicate::Evolves)
-            .expect("trusted gas observation activates");
+            .expect("reference gas observation activates");
         assert_eq!(flame.start_ordinal, gas_ordinal);
         chem_presentation::compile_real_world_plan(run.frames(), &profile)
-            .expect("flame remains gated by a trusted observation");
+            .expect("flame remains gated by a validated observation");
     }
 
     #[test]

@@ -100,7 +100,7 @@ The implementation distinguishes:
 5. immutable validated graph-state derivation; and
 6. renderer-independent paired frames.
 
-Only the trusted chemistry kernel constructs the validated layer.
+Only the validated chemistry kernel constructs the validated layer.
 
 ## Editing contract
 

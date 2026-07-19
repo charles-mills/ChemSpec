@@ -1,7 +1,7 @@
 # `chems-cli`
 
 The outer `chems` command composes the source frontend with catalogue-backed
-review-candidate expansion while keeping chemistry authority in `chem-kernel`.
+provisional expansion while keeping chemistry authority in `chem-kernel`.
 
 ```sh
 cargo run -p chems-cli -- parse reaction.chems
@@ -25,7 +25,7 @@ Expanded inspection defaults to the human-readable unexecuted certificate.
 origins. For a generalized rule these views include inferred parameters, the
 selected case, equivalent-match count, instantiated concrete applications,
 matched sites, and parameter/role premise provenance. Inspection never
-promotes a review-candidate catalogue or constructs trusted chemistry.
+promotes a provisional catalogue or constructs validated chemistry.
 
 `catalogue check` is the catalogue-authoring compiler. Every input directory
 must contain exactly `candidate.json`, `example.chems`, and `evidence.json`.
@@ -45,9 +45,10 @@ inspection artifacts are labelled `candidate-inspection-only` and
 `promotable: false`; they cannot satisfy the host-selected AI-review boundary.
 Premises in candidate shards must be provisional and carry no reviewers.
 
-`catalogue promote` rebuilds the same candidate digest, validates a separate AI
-attestation against every exact premise and evidence source, and writes the
-catalogue, review, their semantic digests, and a promotion manifest. Runtime
-trust still begins only when both reported digests are deliberately compiled
-into `TrustedCatalogue`; neither a candidate package nor a runtime agent can
-change that trust root.
+`catalogue promote` rebuilds the same provisional digest, validates a separate
+review artifact against every exact premise and evidence source, and writes the
+catalogue, review, their semantic digests, and a promotion manifest. Compiling
+both digests into `ReferenceCatalogue` establishes reproducible reviewed
+provenance only. It does not authorize chemistry or grant a renderer
+capability; the kernel validation path does that for both provisional and
+reviewed-reference inputs.

@@ -160,7 +160,7 @@ ALSOFT_DRIVERS=null blender --background \
   --exclude-module stage
 ```
 
-The presentation compiler selects the assembly only when trusted data
+The presentation compiler selects the assembly only when validated data
 authorizes both precipitation and clouding for the same exact solid-product
 `forms` observation in a liquid or aqueous context. `forms` alone is
 insufficient. `MAT_LiquidInitial`, `MAT_LiquidAdded`, `MAT_PrecipitateCloud`,

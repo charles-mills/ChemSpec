@@ -6,7 +6,7 @@ use std::{
 };
 
 use chem_catalogue::{
-    EventModel, SequenceModel, TrustedCatalogue, ValencePremiseRecord, ValidatedCatalogueBundle,
+    EventModel, ReferenceCatalogue, SequenceModel, ValencePremiseRecord, ValidatedCatalogueBundle,
 };
 use chem_domain::{
     Atom, AtomGroup, AtomGroupId, AtomId, AtomMapping, ContentDigest, CovalentBond, CovalentBondId,
@@ -17,8 +17,8 @@ use chem_domain::{
 use serde::Serialize;
 
 use crate::{
-    CatalogueTrust, ExpandedOperation, ExpandedStructuralReaction,
-    TrustedExpandedStructuralReaction,
+    CatalogueProvenance, ExpandedOperation, ExpandedStructuralReaction,
+    ReferenceExpandedStructuralReaction,
 };
 
 /// Stable classification for Slice 5 validation failures.
@@ -28,7 +28,7 @@ pub enum KernelFailureClass {
     InvalidExpansion,
     UnsupportedState,
     StaleInput,
-    CorruptTrustedData,
+    CorruptReferenceData,
 }
 
 /// One deterministic structural-kernel failure.
@@ -70,19 +70,19 @@ impl KernelError {
 
     fn corrupt(code: &'static str, message: impl Into<String>, operation: Option<u32>) -> Self {
         Self {
-            class: KernelFailureClass::CorruptTrustedData,
+            class: KernelFailureClass::CorruptReferenceData,
             code,
             message: message.into(),
             operation,
         }
     }
 
-    fn at_trusted_boundary(mut self) -> Self {
+    fn at_reference_boundary(mut self) -> Self {
         if matches!(
             self.class,
             KernelFailureClass::InvalidExpansion | KernelFailureClass::UnsupportedState
         ) {
-            self.class = KernelFailureClass::CorruptTrustedData;
+            self.class = KernelFailureClass::CorruptReferenceData;
         }
         self
     }
@@ -215,7 +215,7 @@ pub struct StructuralDerivation {
     rule: String,
     event_model: EventModel,
     sequence_model: SequenceModel,
-    trust: DerivationTrust,
+    provenance: DerivationProvenance,
     expanded: ExpandedStructuralReaction,
     mapping: AtomMapping,
     states: Vec<StructuralState>,
@@ -230,13 +230,13 @@ pub enum ValidationResult {
     ValidatedWithAssumptions,
 }
 
-/// Trust provenance of a successful derivation. It is serialized into the
-/// derivation itself so review-candidate JSON cannot masquerade as trusted.
+/// Factual provenance of a successful derivation. Provenance never changes
+/// renderer capability after deterministic validation succeeds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum DerivationTrust {
-    ReviewCandidate,
-    Trusted,
+pub enum DerivationProvenance {
+    Provisional,
+    ReviewedReference,
 }
 
 impl StructuralDerivation {
@@ -296,8 +296,8 @@ impl StructuralDerivation {
     }
 
     #[must_use]
-    pub const fn trust(&self) -> DerivationTrust {
-        self.trust
+    pub const fn provenance(&self) -> DerivationProvenance {
+        self.provenance
     }
 
     /// Returns the complete immutable expansion that was checked to produce
@@ -382,14 +382,13 @@ impl StructuralDerivation {
     }
 }
 
-/// Successful execution through the explicitly untrusted chemistry-review
-/// path. This cannot be converted into [`ValidatedStructuralReaction`].
+/// Kernel-validated chemistry with provisional factual provenance.
 #[derive(Debug, Clone)]
-pub struct ReviewCandidateStructuralDerivation {
+pub struct ValidatedProvisionalStructuralReaction {
     derivation: StructuralDerivation,
 }
 
-impl Deref for ReviewCandidateStructuralDerivation {
+impl Deref for ValidatedProvisionalStructuralReaction {
     type Target = StructuralDerivation;
 
     fn deref(&self) -> &Self::Target {
@@ -397,15 +396,15 @@ impl Deref for ReviewCandidateStructuralDerivation {
     }
 }
 
-/// Public trusted chemistry capability. Fields are private and construction is
-/// possible only through [`validate_trusted`].
+/// Kernel-validated chemistry derived from reference data, retaining its
+/// reviewed or provisional provenance.
 #[derive(Debug, Clone)]
 pub struct ValidatedStructuralReaction {
     derivation: StructuralDerivation,
 }
 
 impl ValidatedStructuralReaction {
-    /// Returns the complete immutable input accepted by the trusted kernel.
+    /// Returns the complete immutable input accepted by the kernel.
     #[must_use]
     pub const fn expanded(&self) -> &ExpandedStructuralReaction {
         self.derivation.expanded()
@@ -420,47 +419,51 @@ impl Deref for ValidatedStructuralReaction {
     }
 }
 
-/// Executes an explicitly untrusted review-candidate expansion for conformance
-/// and chemistry-review work. Success does not create trusted chemistry.
+/// Executes a provisional expansion through the deterministic kernel.
 ///
 /// # Errors
 ///
 /// Returns a typed kernel failure when any operation or mandatory invariant
 /// fails.
-pub fn validate_review_candidate(
+pub fn validate_provisional(
     expanded: &ExpandedStructuralReaction,
     catalogue: &ValidatedCatalogueBundle,
-) -> Result<ReviewCandidateStructuralDerivation, KernelError> {
-    if expanded.claim.catalogue.trust != CatalogueTrust::ReviewCandidate {
+) -> Result<ValidatedProvisionalStructuralReaction, KernelError> {
+    if expanded.claim.catalogue.provenance != CatalogueProvenance::Provisional {
         return Err(KernelError::invalid(
             "CHEMS-K001",
-            "review-candidate validation requires review-candidate expansion",
+            "provisional validation requires provisional expansion",
             None,
         ));
     }
     let derivation = validate(expanded, catalogue)?;
-    Ok(ReviewCandidateStructuralDerivation { derivation })
+    Ok(ValidatedProvisionalStructuralReaction { derivation })
 }
 
-/// Executes a host-trusted expansion and privately constructs the public
-/// validated-reaction capability only after every invariant succeeds.
+/// Executes a reference-data expansion through the same deterministic kernel
+/// used for chemistry without reference review metadata.
 ///
 /// # Errors
 ///
 /// Returns a typed kernel failure when identity, operation, valence,
 /// conservation, product, or staleness checks fail.
-pub fn validate_trusted(
-    expanded: &TrustedExpandedStructuralReaction,
-    catalogue: &TrustedCatalogue,
+pub fn validate_reference(
+    expanded: &ReferenceExpandedStructuralReaction,
+    catalogue: &ReferenceCatalogue,
 ) -> Result<ValidatedStructuralReaction, KernelError> {
-    if expanded.claim.catalogue.trust != CatalogueTrust::Trusted {
+    let expected = if catalogue.is_reviewed() {
+        CatalogueProvenance::ReviewedReference
+    } else {
+        CatalogueProvenance::Provisional
+    };
+    if expanded.claim.catalogue.provenance != expected {
         return Err(KernelError::corrupt(
             "CHEMS-K091",
-            "trusted expansion lost its trusted catalogue marker",
+            "reference expansion provenance does not match its catalogue",
             None,
         ));
     }
-    let derivation = validate(expanded, catalogue).map_err(KernelError::at_trusted_boundary)?;
+    let derivation = validate(expanded, catalogue).map_err(KernelError::at_reference_boundary)?;
     Ok(ValidatedStructuralReaction { derivation })
 }
 
@@ -510,9 +513,9 @@ fn validate(
         rule: expanded.claim.rule.rule.to_string(),
         event_model: expanded.claim.model.event,
         sequence_model: expanded.claim.model.sequence,
-        trust: match expanded.claim.catalogue.trust {
-            CatalogueTrust::ReviewCandidate => DerivationTrust::ReviewCandidate,
-            CatalogueTrust::Trusted => DerivationTrust::Trusted,
+        provenance: match expanded.claim.catalogue.provenance {
+            CatalogueProvenance::Provisional => DerivationProvenance::Provisional,
+            CatalogueProvenance::ReviewedReference => DerivationProvenance::ReviewedReference,
         },
         expanded: expanded.clone(),
         mapping: expanded.mapping.clone(),
@@ -1594,12 +1597,12 @@ mod tests {
 
     use crate::{
         ExpandedElectronContribution, ExpandedIonicComponent, ExpandedOperation, Provenance,
-        expand_review_candidate, validate_review_candidate,
+        expand_provisional, validate_provisional,
     };
 
     use super::{
         KernelFailureClass, StructuralLedger, WorkingState, final_bond_identity,
-        require_matching_final_bonds, validate_conservation, validate_trusted, validate_valence,
+        require_matching_final_bonds, validate_conservation, validate_reference, validate_valence,
     };
 
     fn atom(id: &str, charge: i16, local: u8, unpaired: u8) -> Atom {
@@ -1618,7 +1621,7 @@ mod tests {
         let evidence =
             fs::read(root.join("conformance/observations/lithium-observations-001.input.json"))
                 .unwrap();
-        let expanded = expand_review_candidate(
+        let expanded = expand_provisional(
             "canonical-expansion-001.chems",
             &source,
             &catalogue,
@@ -1640,18 +1643,18 @@ mod tests {
         oracle[surface][boundary].as_str().unwrap().to_owned()
     }
 
-    fn trusted_catalogue() -> chem_catalogue::TrustedCatalogue {
+    fn reference_catalogue() -> chem_catalogue::ReferenceCatalogue {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let catalogue =
-            fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json")).unwrap();
+            fs::read(root.join("catalogue/reference/core-chemistry/catalogue.json")).unwrap();
         let review = fs::read(root.join("catalogue/reviews/core-chemistry.review.json")).unwrap();
         let envelope: chem_catalogue::CatalogueEnvelope =
             serde_json::from_slice(&catalogue).unwrap();
         let review_value: Value = serde_json::from_slice(&review).unwrap();
-        chem_catalogue::TrustedCatalogue::from_canonical_json(
+        chem_catalogue::ReferenceCatalogue::from_canonical_json(
             &catalogue,
             &review,
-            chem_catalogue::CatalogueTrustPolicy::new(
+            chem_catalogue::ReferenceIntegrityPolicy::new(
                 envelope.digest,
                 ContentDigest::of_json(&review_value).unwrap(),
             ),
@@ -1765,13 +1768,13 @@ mod tests {
         let (mut expanded, catalogue) = canonical_expansion();
         expanded.claim.equation[0].coefficient += 1;
 
-        let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+        let error = validate_provisional(&expanded, &catalogue).unwrap_err();
         assert_eq!(error.code(), claim_consistency_code("equation", "kernel"));
 
         let (mut wrong_side, catalogue) = canonical_expansion();
         wrong_side.claim.equation[0].side = crate::ReactionSideKind::Product;
         assert_eq!(
-            validate_review_candidate(&wrong_side, &catalogue)
+            validate_provisional(&wrong_side, &catalogue)
                 .unwrap_err()
                 .code(),
             "CHEMS-K003"
@@ -1780,7 +1783,7 @@ mod tests {
         let (mut wrong_binding, catalogue) = canonical_expansion();
         wrong_binding.claim.equation[0].binding = "water".to_owned();
         assert_eq!(
-            validate_review_candidate(&wrong_binding, &catalogue)
+            validate_provisional(&wrong_binding, &catalogue)
                 .unwrap_err()
                 .code(),
             "CHEMS-K003"
@@ -1800,7 +1803,7 @@ mod tests {
             .unwrap()
             .formula = fictional_formula;
 
-        let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+        let error = validate_provisional(&expanded, &catalogue).unwrap_err();
         assert_eq!(
             error.code(),
             claim_consistency_code("structure_metadata", "kernel")
@@ -1821,7 +1824,7 @@ mod tests {
             .unwrap()
             .representation = chem_domain::RepresentationKind::Molecular;
         assert_eq!(
-            validate_review_candidate(&wrong_representation, &catalogue)
+            validate_provisional(&wrong_representation, &catalogue)
                 .unwrap_err()
                 .code(),
             "CHEMS-K004"
@@ -1838,7 +1841,7 @@ mod tests {
         )
         .unwrap();
 
-        let error = validate_review_candidate(&expanded, &catalogue).unwrap_err();
+        let error = validate_provisional(&expanded, &catalogue).unwrap_err();
         assert_eq!(
             error.code(),
             claim_consistency_code("declaration", "kernel")
@@ -1854,7 +1857,7 @@ mod tests {
             let (mut fictional_copy, catalogue) = canonical_expansion();
             mutate_declaration(&mut fictional_copy, mutation);
             assert_eq!(
-                validate_review_candidate(&fictional_copy, &catalogue)
+                validate_provisional(&fictional_copy, &catalogue)
                     .unwrap_err()
                     .code(),
                 claim_consistency_code("declaration", "kernel")
@@ -1910,9 +1913,9 @@ mod tests {
     }
 
     #[test]
-    fn fictional_trusted_claim_cannot_produce_validated_frames() {
+    fn fictional_reference_claim_cannot_produce_validated_frames() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let catalogue = trusted_catalogue();
+        let catalogue = reference_catalogue();
         let source =
             fs::read_to_string(root.join("conformance/expansion/canonical-expansion-001.chems"))
                 .unwrap();
@@ -1923,7 +1926,7 @@ mod tests {
         .unwrap();
         evidence["claims"][1]["subject"] = Value::String("alkali metal".to_owned());
         let evidence = serde_json::to_vec(&evidence).unwrap();
-        let expanded = crate::expand_trusted(
+        let expanded = crate::expand_reference(
             "canonical-expansion-001.chems",
             &source,
             &catalogue,
@@ -1934,7 +1937,9 @@ mod tests {
         let mut equation = expanded.clone();
         equation.expanded.claim.equation[0].coefficient += 1;
         assert_eq!(
-            validate_trusted(&equation, &catalogue).unwrap_err().code(),
+            validate_reference(&equation, &catalogue)
+                .unwrap_err()
+                .code(),
             claim_consistency_code("equation", "kernel")
         );
 
@@ -1948,7 +1953,9 @@ mod tests {
             .declaration
             .formula_text = "LiO".to_owned();
         assert_eq!(
-            validate_trusted(&structure, &catalogue).unwrap_err().code(),
+            validate_reference(&structure, &catalogue)
+                .unwrap_err()
+                .code(),
             claim_consistency_code("structure_metadata", "kernel")
         );
 
@@ -1960,7 +1967,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            validate_trusted(&declaration, &catalogue)
+            validate_reference(&declaration, &catalogue)
                 .unwrap_err()
                 .code(),
             claim_consistency_code("declaration", "kernel")
@@ -1969,7 +1976,7 @@ mod tests {
         let mut observation = expanded.clone();
         observation.expanded.claim.evidence.observations[0].subject_binding = "metal".to_owned();
         assert_eq!(
-            validate_trusted(&observation, &catalogue)
+            validate_reference(&observation, &catalogue)
                 .unwrap_err()
                 .code(),
             claim_consistency_code("observation", "kernel")
@@ -1979,7 +1986,7 @@ mod tests {
         generalized_copy.expanded.claim.evidence.observations[0].predicate =
             chem_catalogue::ObservationPredicate::Forms;
         assert_eq!(
-            validate_trusted(&generalized_copy, &catalogue)
+            validate_reference(&generalized_copy, &catalogue)
                 .unwrap_err()
                 .code(),
             claim_consistency_code("observation", "kernel")
@@ -1993,7 +2000,7 @@ mod tests {
         let mut wrong_subject = expanded.clone();
         wrong_subject.claim.evidence.observations[0].subject_binding = "lithium".to_owned();
         assert_eq!(
-            validate_review_candidate(&wrong_subject, &catalogue)
+            validate_provisional(&wrong_subject, &catalogue)
                 .unwrap_err()
                 .code(),
             "CHEMS-K006"
@@ -2002,7 +2009,7 @@ mod tests {
         let mut wrong_value = expanded.clone();
         wrong_value.claim.evidence.observations[0].value = Some("invented".to_owned());
         assert_eq!(
-            validate_review_candidate(&wrong_value, &catalogue)
+            validate_provisional(&wrong_value, &catalogue)
                 .unwrap_err()
                 .code(),
             "CHEMS-K006"
@@ -2014,7 +2021,7 @@ mod tests {
             .evidence
             .clear();
         assert_eq!(
-            validate_review_candidate(&wrong_provenance, &catalogue)
+            validate_provisional(&wrong_provenance, &catalogue)
                 .unwrap_err()
                 .code(),
             "CHEMS-K006"
@@ -2024,7 +2031,7 @@ mod tests {
         wrong_evidence_subject.claim.evidence.observations[0].evidence_subject =
             "invented learner copy".to_owned();
         assert_eq!(
-            validate_review_candidate(&wrong_evidence_subject, &catalogue)
+            validate_provisional(&wrong_evidence_subject, &catalogue)
                 .unwrap_err()
                 .code(),
             "CHEMS-K006"

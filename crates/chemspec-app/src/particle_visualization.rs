@@ -10,7 +10,7 @@ use iced::mouse::Cursor;
 use iced::widget::canvas::{self, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Size, Theme, Vector};
 
-use crate::composition_catalogue::TrustedCompositionPreview;
+use crate::composition_catalogue::ReferenceCompositionPreview;
 use crate::elements::ElementSpec;
 use crate::fonts;
 use crate::theme::{LAB_DARK, chemistry_color};
@@ -67,7 +67,7 @@ impl<Message> canvas::Program<Message> for AtomDiagram {
 
 #[derive(Debug, Clone)]
 pub struct CompoundAtomicDiagram {
-    preview: TrustedCompositionPreview,
+    preview: ReferenceCompositionPreview,
     elements: Vec<ElementSpec>,
     phase: f32,
     reveal: f32,
@@ -75,7 +75,7 @@ pub struct CompoundAtomicDiagram {
 }
 
 impl CompoundAtomicDiagram {
-    pub fn new(preview: TrustedCompositionPreview, phase: f32) -> Self {
+    pub fn new(preview: ReferenceCompositionPreview, phase: f32) -> Self {
         let elements = preview
             .atoms
             .iter()
@@ -130,7 +130,7 @@ impl<Message> canvas::Program<Message> for CompoundAtomicDiagram {
 #[derive(Debug, Clone)]
 pub struct AmbientReactantDiagram {
     atoms: Vec<u8>,
-    preview: Option<TrustedCompositionPreview>,
+    preview: Option<ReferenceCompositionPreview>,
     elements: Vec<ElementSpec>,
     phase: f32,
     reveal: f32,
@@ -153,8 +153,10 @@ impl AmbientReactantDiagram {
         direction: f32,
     ) -> Self {
         let preview = name.map_or_else(
-            || crate::composition_catalogue::trusted_preview(atoms.iter().copied()),
-            |name| crate::composition_catalogue::trusted_preview_named(name, atoms.iter().copied()),
+            || crate::composition_catalogue::reference_preview(atoms.iter().copied()),
+            |name| {
+                crate::composition_catalogue::reference_preview_named(name, atoms.iter().copied())
+            },
         );
         let elements = atoms
             .iter()
@@ -276,7 +278,7 @@ pub(crate) fn ambient_footprint(atom_count: usize, bounds: Size, scale: f32) -> 
 
 fn draw_compound(
     frame: &mut canvas::Frame,
-    preview: &TrustedCompositionPreview,
+    preview: &ReferenceCompositionPreview,
     elements: &[ElementSpec],
     bounds: Rectangle,
     phase: f32,
@@ -408,7 +410,7 @@ fn draw_shared_pairs(frame: &mut canvas::Frame, start: Point, end: Point, pairs:
 
 #[allow(clippy::cast_precision_loss)]
 fn arranged_atoms(
-    preview: &TrustedCompositionPreview,
+    preview: &ReferenceCompositionPreview,
     elements: &[ElementSpec],
     bounds: Rectangle,
 ) -> Vec<(ElementSpec, Point)> {
@@ -629,7 +631,7 @@ mod tests {
     #[test]
     fn water_layout_places_oxygen_between_two_hydrogens() {
         let preview =
-            composition_catalogue::trusted_preview([1, 8, 1]).expect("trusted water preview");
+            composition_catalogue::reference_preview([1, 8, 1]).expect("trusted water preview");
         let elements = preview
             .atoms
             .iter()
@@ -660,7 +662,7 @@ mod tests {
 
     #[test]
     fn reviewed_if7_layout_places_iodine_at_the_bond_hub() {
-        let preview = composition_catalogue::trusted_preview_by_structure_id("InterhalogenIF7")
+        let preview = composition_catalogue::reference_preview_by_structure_id("InterhalogenIF7")
             .expect("trusted IF7 preview");
         let elements = preview
             .atoms

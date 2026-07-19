@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
-    ops::Deref,
 };
 
 use chem_catalogue::{EventModel, ObservationPredicate, SequenceModel};
@@ -13,8 +12,8 @@ use chem_domain::{
 use serde::Serialize;
 
 use crate::{
-    DerivationTrust, EvidenceTrust, ExpandedStructuralReaction, KernelError, Provenance,
-    StructuralDerivation, StructuralState, ValidatedStructuralReaction, ValidationResult,
+    DerivationProvenance, EvidenceProvenance, ExpandedStructuralReaction, KernelError, Provenance,
+    StructuralDerivation, StructuralState, ValidationResult,
 };
 
 /// Stable identity of the source, expansion, and catalogue currently selected
@@ -56,7 +55,7 @@ pub enum FrameFailureClass {
     CorruptValidatedArtifact,
 }
 
-/// Failure to project a current trusted validation into renderer data.
+/// Failure to project a current kernel validation into renderer data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FrameError {
     class: FrameFailureClass,
@@ -231,9 +230,9 @@ pub struct FrameObservation {
     pub subject_binding: String,
     pub value: Option<String>,
     pub evidence_digest: ContentDigest,
-    /// Runtime evidence remains externally supplied and untrusted even when
-    /// the catalogue-backed structural result crosses the trusted boundary.
-    pub evidence_trust: EvidenceTrust,
+    /// Runtime evidence provenance remains external even when structural
+    /// chemistry uses reviewed reference data.
+    pub evidence_provenance: EvidenceProvenance,
     pub trigger_operation: u32,
     pub status: ObservationStatus,
     pub provenance: Provenance,
@@ -332,11 +331,11 @@ impl SimulationFrame {
 }
 
 /// Canonical paired frame artifact. Its fields are private so callers cannot
-/// manufacture a renderer input that bypasses the trusted validation token.
+/// manufacture a renderer input that bypasses kernel validation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SimulationFrames {
     schema_version: u32,
-    trust: DerivationTrust,
+    provenance: DerivationProvenance,
     result: ValidationResult,
     trace: FrameTrace,
     model: FrameModelDisclosure,
@@ -345,8 +344,8 @@ pub struct SimulationFrames {
 
 impl SimulationFrames {
     #[must_use]
-    pub const fn trust(&self) -> DerivationTrust {
-        self.trust
+    pub const fn provenance(&self) -> DerivationProvenance {
+        self.provenance
     }
 
     #[must_use]
@@ -390,69 +389,24 @@ impl SimulationFrames {
     }
 }
 
-/// Projects only a current, privately constructed trusted validation token
-/// into renderer-independent frames.
+/// Projects a current kernel-validated derivation into renderer-independent
+/// frames.
 ///
 /// # Errors
 ///
 /// Returns `CHEMS-F001` when any current identity differs from the validated
-/// artifact, or `CHEMS-F090` when the supposedly validated artifact is
+/// artifact, or `CHEMS-F090` when the validated artifact is
 /// internally inconsistent.
 ///
-/// Review-candidate derivations cannot cross this API boundary:
-///
-/// ```compile_fail
-/// # use chem_kernel::{
-/// #     CurrentArtifactIdentity, ReviewCandidateStructuralDerivation, generate_frames,
-/// # };
-/// # let candidate: ReviewCandidateStructuralDerivation = todo!();
-/// # let identity: CurrentArtifactIdentity = todo!();
-/// let _ = generate_frames(&candidate, identity);
-/// ```
+/// Factual provenance does not change renderer capability: every derivation
+/// that has crossed kernel validation can produce the same immutable frame
+/// contract while retaining its provenance label.
 pub fn generate_frames(
-    validated: &ValidatedStructuralReaction,
+    validated: &StructuralDerivation,
     current: CurrentArtifactIdentity,
 ) -> Result<SimulationFrames, FrameError> {
     ensure_current(validated, current)?;
     project_frames(validated)
-}
-
-/// Projects a kernel-validated review-candidate derivation into immutable,
-/// renderer-readable frames.
-///
-/// The result retains `trust: review_candidate`. Deterministic kernel
-/// validation makes the frames safe to render, but does not imply catalogue
-/// review, host pinning, or any other provenance promotion.
-///
-/// # Errors
-///
-/// Returns `CHEMS-F090` when the already validated candidate derivation is
-/// internally inconsistent.
-pub fn project_validated_review_candidate_frames(
-    candidate: &crate::ReviewCandidateStructuralDerivation,
-) -> Result<ValidatedReviewCandidateFrames, FrameError> {
-    Ok(ValidatedReviewCandidateFrames {
-        frames: project_frames(candidate)?,
-    })
-}
-
-/// Renderer-readable frames produced from a kernel-validated review candidate.
-///
-/// This wrapper intentionally does not expose an owned [`SimulationFrames`]
-/// conversion. The inner artifact remains tagged `review_candidate`, while
-/// dereferencing permits the presentation layer to read the same immutable
-/// frame contract used for host-pinned catalogue reactions.
-#[derive(Debug, Clone)]
-pub struct ValidatedReviewCandidateFrames {
-    frames: SimulationFrames,
-}
-
-impl Deref for ValidatedReviewCandidateFrames {
-    type Target = SimulationFrames;
-
-    fn deref(&self) -> &Self::Target {
-        &self.frames
-    }
 }
 
 fn ensure_current(
@@ -530,7 +484,7 @@ pub(crate) fn project_frames(
         .ok_or_else(|| FrameError::corrupt("validated derivation has no states"))?;
     Ok(SimulationFrames {
         schema_version: 1,
-        trust: derivation.trust(),
+        provenance: derivation.provenance(),
         result: derivation.result(),
         trace,
         model,
@@ -935,7 +889,7 @@ fn frame_observations(
                 subject_binding: observation.subject_binding.clone(),
                 value: observation.value.clone(),
                 evidence_digest: expanded.claim.evidence.digest,
-                evidence_trust: expanded.claim.evidence.trust,
+                evidence_provenance: expanded.claim.evidence.provenance,
                 trigger_operation,
                 status,
                 provenance: observation.provenance.clone(),
@@ -958,10 +912,10 @@ mod tests {
         CovalentDelocalizationId, EffectiveBondOrder,
     };
 
-    use crate::{expand_review_candidate, validate_review_candidate};
+    use crate::{expand_provisional, validate_provisional};
 
     use super::{
-        ContentDigest, CurrentArtifactIdentity, DerivationTrust, FrameFailureClass,
+        ContentDigest, CurrentArtifactIdentity, DerivationProvenance, FrameFailureClass,
         ObservationStatus, ensure_current, frame_bond, project_frames,
     };
 
@@ -969,7 +923,7 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
     }
 
-    fn review_candidate_derivation() -> crate::ReviewCandidateStructuralDerivation {
+    fn provisional_derivation() -> crate::ValidatedProvisionalStructuralReaction {
         let root = root();
         let catalogue = ValidatedCatalogueBundle::from_json(
             &fs::read(root.join("conformance/catalogue/lithium-rule-001.catalogue.json")).unwrap(),
@@ -980,18 +934,18 @@ mod tests {
         let observations =
             fs::read(root.join("conformance/observations/lithium-observations-001.input.json"))
                 .unwrap();
-        let expanded = expand_review_candidate(
+        let expanded = expand_provisional(
             "conformance/expansion/canonical-expansion-001.chems",
             std::str::from_utf8(&source).unwrap(),
             &catalogue,
             &observations,
         )
         .unwrap();
-        validate_review_candidate(&expanded, &catalogue).unwrap()
+        validate_provisional(&expanded, &catalogue).unwrap()
     }
 
-    fn review_candidate_frames() -> super::SimulationFrames {
-        project_frames(&review_candidate_derivation()).unwrap()
+    fn provisional_frames() -> super::SimulationFrames {
+        project_frames(&provisional_derivation()).unwrap()
     }
 
     #[test]
@@ -1400,10 +1354,10 @@ mod tests {
     }
 
     #[test]
-    fn review_candidate_projection_is_deterministic_and_never_trusted() {
-        let first = review_candidate_frames();
-        let second = review_candidate_frames();
-        assert_eq!(first.trust(), DerivationTrust::ReviewCandidate);
+    fn provisional_projection_is_deterministic_and_retains_provenance() {
+        let first = provisional_frames();
+        let second = provisional_frames();
+        assert_eq!(first.provenance(), DerivationProvenance::Provisional);
         assert_eq!(
             first.canonical_json().unwrap(),
             second.canonical_json().unwrap()
@@ -1413,13 +1367,13 @@ mod tests {
     }
 
     #[test]
-    fn validated_review_candidate_frames_are_renderer_readable_without_trust_promotion() {
-        let projected =
-            super::project_validated_review_candidate_frames(&review_candidate_derivation())
-                .unwrap();
-        let renderer_input: &super::SimulationFrames = &projected;
+    fn validated_provisional_frames_are_renderer_readable_without_provenance_promotion() {
+        let renderer_input = project_frames(&provisional_derivation()).unwrap();
 
-        assert_eq!(renderer_input.trust(), DerivationTrust::ReviewCandidate);
+        assert_eq!(
+            renderer_input.provenance(),
+            DerivationProvenance::Provisional
+        );
         assert_eq!(renderer_input.frames().len(), 13);
     }
 
@@ -1443,7 +1397,7 @@ mod tests {
             }
         }
 
-        let frames = review_candidate_frames();
+        let frames = provisional_frames();
         let value: serde_json::Value =
             serde_json::from_slice(&frames.canonical_json().unwrap()).unwrap();
         assert_no_presentation_keys(&value);
@@ -1451,7 +1405,7 @@ mod tests {
 
     #[test]
     fn observations_are_synchronized_to_complete_validated_assignments() {
-        let frames = review_candidate_frames();
+        let frames = provisional_frames();
         let lithium = frames
             .frames()
             .iter()
@@ -1474,7 +1428,7 @@ mod tests {
 
     #[test]
     fn every_frame_is_traceable_and_contains_only_validated_state_data() {
-        let frames = review_candidate_frames();
+        let frames = provisional_frames();
         for (ordinal, frame) in frames.frames().iter().enumerate() {
             assert_eq!(frame.ordinal(), u32::try_from(ordinal).unwrap());
             assert!(!frame.atoms().is_empty());
@@ -1488,7 +1442,7 @@ mod tests {
 
     #[test]
     fn every_frame_value_exactly_projects_its_validated_state() {
-        let derivation = review_candidate_derivation();
+        let derivation = provisional_derivation();
         let frames = project_frames(&derivation).unwrap();
         for (state, frame) in derivation.states().iter().zip(frames.frames()) {
             assert_eq!(state.digest(), frame.trace().state_digest);
@@ -1569,9 +1523,9 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let frames = review_candidate_frames();
+        let frames = provisional_frames();
         assert_eq!(expected["frame_count"], frames.frames().len());
-        assert_eq!(expected["trust"], "review_candidate");
+        assert_eq!(expected["provenance"], "provisional");
         assert_eq!(expected["result"], serde_json::json!(frames.result()));
         assert_eq!(expected["trace"], serde_json::json!(frames.trace()));
         assert_eq!(expected["model"], serde_json::json!(frames.model()));
@@ -1690,7 +1644,7 @@ mod tests {
                 "claim",
                 "value",
                 "evidence_digest",
-                "evidence_trust",
+                "evidence_provenance",
                 "provenance",
             ] {
                 assert_eq!(
@@ -1722,14 +1676,13 @@ mod tests {
             let source_path = member["source"].as_str().unwrap();
             let source = fs::read_to_string(root().join(source_path)).unwrap();
             let evidence = fs::read(root().join(member["evidence"].as_str().unwrap())).unwrap();
-            let expanded =
-                expand_review_candidate(source_path, &source, &catalogue, &evidence).unwrap();
+            let expanded = expand_provisional(source_path, &source, &catalogue, &evidence).unwrap();
             let selected = expanded.claim.rule.generalized.as_ref().unwrap();
             assert_eq!(selected.parameters["member"], member["symbol"]);
             assert_eq!(selected.case_id, "standard");
-            let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+            let derivation = validate_provisional(&expanded, &catalogue).unwrap();
             let frames = project_frames(&derivation).unwrap();
-            assert_eq!(frames.trust(), DerivationTrust::ReviewCandidate);
+            assert_eq!(frames.provenance(), DerivationProvenance::Provisional);
             assert_eq!(serde_json::json!(frames.result()), expected["result"]);
             assert_eq!(frames.frames().len(), expected["frame_count"]);
 
@@ -1838,14 +1791,14 @@ mod tests {
         let observations =
             fs::read(root.join("conformance/observations/lithium-observations-001.input.json"))
                 .unwrap();
-        let expanded = expand_review_candidate(
+        let expanded = expand_provisional(
             "conformance/expansion/canonical-expansion-001.chems",
             std::str::from_utf8(&source).unwrap(),
             &catalogue,
             &observations,
         )
         .unwrap();
-        let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+        let derivation = validate_provisional(&expanded, &catalogue).unwrap();
         let current = CurrentArtifactIdentity::from_expanded(&expanded).unwrap();
         assert!(ensure_current(&derivation, current).is_ok());
 

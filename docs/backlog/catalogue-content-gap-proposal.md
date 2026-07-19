@@ -1,7 +1,7 @@
 # Proposal: trusted-catalogue content additions (UNATTESTED — needs chemistry review)
 
 Status: **draft, not reviewed, not attested**. Nothing here may enter
-`catalogue/trusted/` until a chemist reviews it and `review.json` is
+`catalogue/reference/` until a chemist reviews it and `review.json` is
 re-attested against the regenerated aggregate digest.
 
 Provenance: gaps found by `cargo run -p agent --bin corpus-expectation-audit`
@@ -200,7 +200,7 @@ needed).
    `provisional` with no reviewers).
 2. `cargo run -p chems-cli -- catalogue check --out <dir> <all packages>`.
 3. Chemist review → regenerate trusted aggregate under
-   `catalogue/trusted/core-chemistry/` → re-attest `review.json`
+   `catalogue/reference/core-chemistry/` → re-attest `review.json`
    (new `catalogue_digest`, updated scope text) and `promotion.json`.
 4. Update pinned digests in `chem-catalogue`.
 5. Re-run `cargo run -p agent --bin corpus-expectation-audit`; regenerate

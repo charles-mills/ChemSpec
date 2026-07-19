@@ -4,7 +4,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::ReferenceCatalogue;
 use chem_domain::{ContentDigest, ReactionRuleId, SpeciesRegistry};
 use serde::{Deserialize, Serialize};
 
@@ -14,9 +14,10 @@ use crate::claim::{
 };
 use crate::{
     AgentError, AgentErrorKind, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome,
-    FamilyMatchOutcome, MechanismEscalationResponse, ProviderClaim, ReactionBuildRequest,
-    StructureProposalResponse, TrustTier, compile_claim_outcome, compile_reviewed_animation,
-    match_reviewed_family, resolve_request_species, validate_escalated_response_with_structures,
+    FamilyMatchOutcome, MechanismEscalationResponse, OutcomeProvenance, ProviderClaim,
+    ReactionBuildRequest, StructureProposalResponse, compile_claim_outcome,
+    compile_reviewed_animation, match_reviewed_family, resolve_request_species,
+    validate_escalated_response_with_structures,
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
@@ -64,7 +65,7 @@ struct DynamicCacheEnvelope {
     catalogue_digest: ContentDigest,
     claim_digest: ContentDigest,
     claim: ProviderClaim,
-    trust_tier: TrustTier,
+    claim_provenance: OutcomeProvenance,
     presentation: Option<DynamicCachePresentation>,
 }
 
@@ -79,7 +80,7 @@ pub fn dynamic_cache_path(
     request: &ReactionBuildRequest,
     mode: ClaimMode,
     identities: &SpeciesRegistry,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Result<PathBuf, AgentError> {
     let request_binding = request_binding(request, identities)?;
     let identity_snapshot = identities.snapshot_digest().map_err(|error| {
@@ -113,7 +114,7 @@ pub fn load_dynamic_cache(
     request: &ReactionBuildRequest,
     mode: ClaimMode,
     identities: &SpeciesRegistry,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Option<LoadedDynamicCache> {
     let path = dynamic_cache_path(directory?, request, mode, identities, catalogue).ok()?;
     let metadata = fs::metadata(&path).ok()?;
@@ -142,11 +143,11 @@ pub fn load_dynamic_cache(
     }
     let DynamicCacheEnvelope {
         claim,
-        trust_tier,
+        claim_provenance,
         presentation: cached_presentation,
         ..
     } = cached;
-    if trust_tier != TrustTier::ModelAsserted {
+    if claim_provenance != OutcomeProvenance::ModelAsserted {
         return None;
     }
     let outcome = compile_claim_outcome(request, claim, identities).ok()?;
@@ -181,7 +182,7 @@ pub fn store_dynamic_cache(
     request: &ReactionBuildRequest,
     mode: ClaimMode,
     identities: &SpeciesRegistry,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
     claim: &ProviderClaim,
     presentation: Option<DynamicCachePresentation>,
     provider: &str,
@@ -194,7 +195,7 @@ pub fn store_dynamic_cache(
     // Recompile before persistence so a provider response alone can never
     // populate the cache.
     compile_claim_outcome(request, claim.clone(), identities)?;
-    let trust_tier = TrustTier::ModelAsserted;
+    let claim_provenance = OutcomeProvenance::ModelAsserted;
     let path = dynamic_cache_path(directory, request, mode, identities, catalogue)?;
     let envelope = DynamicCacheEnvelope {
         schema_version: DYNAMIC_CACHE_SCHEMA_VERSION,
@@ -209,7 +210,7 @@ pub fn store_dynamic_cache(
         catalogue_digest: catalogue.digest(),
         claim_digest: claim_digest(claim)?,
         claim: claim.clone(),
-        trust_tier,
+        claim_provenance,
         presentation,
     };
     let bytes = serde_json::to_vec(&envelope).map_err(|error| {
@@ -288,7 +289,7 @@ fn atomic_replace(
 fn revalidate_presentation(
     outcome: crate::ValidatedStaticOutcome,
     recipe: DynamicCachePresentation,
-    catalogue: &TrustedCatalogue,
+    catalogue: &ReferenceCatalogue,
 ) -> Result<DynamicPresentationOutcome, AgentError> {
     match recipe {
         DynamicCachePresentation::ReviewedFamily { rule_id } => {
@@ -369,7 +370,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ReactantInput, reviewed_species_registry, test_support::trusted_catalogue as trusted,
+        ReactantInput, reviewed_species_registry, test_support::reference_catalogue as reference,
     };
 
     fn request() -> ReactionBuildRequest {
@@ -412,8 +413,8 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn v3_cache_revalidates_and_ignores_corrupt_entries_without_deleting() {
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let request = request();
         let claim = claim();
         let directory = std::env::temp_dir().join(format!(
@@ -426,7 +427,7 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
             &claim,
             None,
             "fake",
@@ -438,7 +439,7 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
         )
         .expect("load validated");
         assert!(matches!(loaded.outcome, CompiledClaimOutcome::Static(_)));
@@ -449,7 +450,7 @@ mod tests {
             panic!("static outcome")
         };
         let FamilyMatchOutcome::Matched(family) =
-            match_reviewed_family(&static_outcome, &trusted).expect("family")
+            match_reviewed_family(&static_outcome, &reference).expect("family")
         else {
             panic!("reviewed family")
         };
@@ -458,7 +459,7 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
             &claim,
             Some(DynamicCachePresentation::ReviewedFamily {
                 rule_id: family.rule_id().clone(),
@@ -472,7 +473,7 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
         )
         .expect("load reviewed presentation");
         assert!(matches!(
@@ -486,7 +487,7 @@ mod tests {
                 &request,
                 ClaimMode::Fast,
                 &identities,
-                &trusted
+                &reference
             )
             .is_some()
         );
@@ -497,20 +498,32 @@ mod tests {
         let mut changed_context = request.clone();
         changed_context.selected_context = Some("aqueous context selected by the learner".into());
         assert_ne!(
-            dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
-                .expect("unqualified context path"),
+            dynamic_cache_path(
+                &directory,
+                &request,
+                ClaimMode::Fast,
+                &identities,
+                &reference
+            )
+            .expect("unqualified context path"),
             dynamic_cache_path(
                 &directory,
                 &changed_context,
                 ClaimMode::Fast,
                 &identities,
-                &trusted
+                &reference
             )
             .expect("selected context path")
         );
 
-        let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
-            .expect("path");
+        let path = dynamic_cache_path(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &reference,
+        )
+        .expect("path");
         fs::write(&path, br#"{"schema_version":2}"#).expect("corrupt old entry");
         assert!(
             load_dynamic_cache(
@@ -518,7 +531,7 @@ mod tests {
                 &request,
                 ClaimMode::Fast,
                 &identities,
-                &trusted
+                &reference
             )
             .is_none()
         );
@@ -528,8 +541,8 @@ mod tests {
 
     #[test]
     fn formula_only_reactants_keep_order_independent_cache_binding() {
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let methane = ReactantInput {
             display: "CH4".into(),
             atomic_numbers: vec![6, 1, 1, 1, 1],
@@ -550,16 +563,23 @@ mod tests {
         };
         let directory = std::path::Path::new("/unused/cache-binding-test");
         assert_eq!(
-            dynamic_cache_path(directory, &first, ClaimMode::Fast, &identities, &trusted).unwrap(),
-            dynamic_cache_path(directory, &swapped, ClaimMode::Fast, &identities, &trusted)
-                .unwrap()
+            dynamic_cache_path(directory, &first, ClaimMode::Fast, &identities, &reference)
+                .unwrap(),
+            dynamic_cache_path(
+                directory,
+                &swapped,
+                ClaimMode::Fast,
+                &identities,
+                &reference
+            )
+            .unwrap()
         );
     }
 
     #[test]
     fn retryable_static_presentation_reuses_claim_but_retries_enrichment() {
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let request = request();
         let claim = claim();
         let directory = std::env::temp_dir().join(format!(
@@ -572,7 +592,7 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
             &claim,
             Some(DynamicCachePresentation::Static {
                 diagnostic: "temporary provider failure".to_owned(),
@@ -588,7 +608,7 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
         )
         .expect("reuse the validated claim");
         assert!(matches!(loaded.outcome, CompiledClaimOutcome::Static(_)));
@@ -601,8 +621,8 @@ mod tests {
 
     #[test]
     fn cache_rejects_a_digest_consistent_claim_outside_wire_limits() {
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let request = request();
         let directory = std::env::temp_dir().join(format!(
             "chemspec-cache-wire-limit-test-{}-{}",
@@ -614,15 +634,21 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
             &claim(),
             None,
             "fake",
             "offline",
         )
         .expect("store valid cache entry");
-        let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
-            .expect("cache path");
+        let path = dynamic_cache_path(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &reference,
+        )
+        .expect("cache path");
         let mut envelope: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache entry");
         envelope["claim"]["products"][0]["name"] = json!("x".repeat(301));
@@ -641,7 +667,7 @@ mod tests {
                 &request,
                 ClaimMode::Fast,
                 &identities,
-                &trusted,
+                &reference,
             )
             .is_none(),
             "a matching digest must not confer schema validity"
@@ -655,8 +681,8 @@ mod tests {
 
     #[test]
     fn v3_cache_rejects_provider_injected_solver_reason_without_shape_drift() {
-        let trusted = trusted();
-        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let reference = reference();
+        let identities = reviewed_species_registry(&reference).expect("identities");
         let request = request();
         let directory = std::env::temp_dir().join(format!(
             "chemspec-cache-provenance-test-{}-{}",
@@ -668,15 +694,21 @@ mod tests {
             &request,
             ClaimMode::Fast,
             &identities,
-            &trusted,
+            &reference,
             &claim(),
             None,
             "fake",
             "offline",
         )
         .expect("store v3 provider claim");
-        let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
-            .expect("cache path");
+        let path = dynamic_cache_path(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &reference,
+        )
+        .expect("cache path");
         let mut value: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache JSON");
         assert_eq!(value["schema_version"], json!(3));
@@ -696,7 +728,7 @@ mod tests {
                 &request,
                 ClaimMode::Fast,
                 &identities,
-                &trusted,
+                &reference,
             )
             .is_none()
         );

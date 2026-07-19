@@ -24,7 +24,7 @@ structured reaction request
         -> algorithmic graph-diff mechanism derivation
            -> miss: reviewed-family match or bounded model proposal
   -> chem-kernel validates every animated structural derivation
-  -> ValidatedStructuralReaction or ValidatedReviewCandidateFrames
+  -> kernel-validated StructuralDerivation
   -> paired structural and observation frames
   -> chem-presentation guided and macroscopic plans
   -> Iced Canvas/wgpu presentation
@@ -32,10 +32,10 @@ structured reaction request
 
 The simulation does not parse `.chems`; the agent does not construct validated
 domain values; the renderer does not infer bonds; and the application cannot
-mark a reaction valid. `ValidatedReviewCandidateFrames` are renderer-readable
-because their structural derivation crossed deterministic kernel validation.
-They retain `review_candidate` provenance: projection is not catalogue review,
-host approval, or a trust promotion.
+mark a reaction valid. `SimulationFrames` are renderer-readable because their
+structural derivation crossed deterministic kernel validation. They retain
+their `provisional` or `reviewed_reference` provenance; projection is not
+catalogue review or host approval.
 
 ## Workspace boundaries
 

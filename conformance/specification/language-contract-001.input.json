@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "language": "chems 1",
-  "authority": "authored source plus host-trusted catalogue and mandatory kernel",
+  "authority": "authored source plus mandatory kernel validation; reference data supplies provenance, not permission",
   "supported_output": "representative structural outcome with explanatory sequence",
   "non_goals": [
     "laboratory procedure",

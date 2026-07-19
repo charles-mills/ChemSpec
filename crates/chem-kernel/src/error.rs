@@ -10,7 +10,7 @@ pub enum ExpansionFailureClass {
     InvalidSource,
     UnsupportedChemistry,
     AmbiguousChemistry,
-    CorruptTrustedData,
+    CorruptReferenceData,
 }
 
 /// Typed elaboration/expansion failure with a stable diagnostic code.
@@ -56,7 +56,7 @@ impl ExpansionError {
 
     pub(crate) fn system(code: &'static str, message: impl Into<String>) -> Self {
         Self {
-            class: ExpansionFailureClass::CorruptTrustedData,
+            class: ExpansionFailureClass::CorruptReferenceData,
             code,
             message: message.into(),
             span: None,

@@ -1081,7 +1081,7 @@ pub struct PresentationObject {
     pub colour_transition: Option<PresentationColourTransition>,
 }
 
-/// A trusted observation that must activate before an object may be shown.
+/// A validated observation that must activate before an object may be shown.
 /// An expected value closes the binding over value-bearing predicates such as
 /// precipitate colour.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1522,7 +1522,7 @@ pub enum MacroscopicMaterialRole {
     Product,
 }
 
-/// Renderer-independent material fact resolved from a trusted catalogue.
+/// Renderer-independent material fact resolved from reference data.
 ///
 /// `phase` is deliberately mandatory here: callers with an older catalogue
 /// must use their reviewed legacy profile rather than silently guessing from a
@@ -2284,7 +2284,7 @@ pub fn compile_phase_driven_profile(
 ///
 /// # Errors
 ///
-/// Returns an error when the trusted frame range cannot be represented.
+/// Returns an error when the validated frame range cannot be represented.
 pub fn complete_generic_visual_profile(
     frames: &SimulationFrames,
     mut profile: PresentationProfile,
@@ -3348,7 +3348,7 @@ impl fmt::Display for PhaseDrivenProfileError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::PresentationRange => {
-                formatter.write_str("trusted frames exceed the presentation range")
+                formatter.write_str("validated frames exceed the presentation range")
             }
             Self::DuplicateBinding => {
                 formatter.write_str("macroscopic material bindings are not unique")
@@ -3562,7 +3562,7 @@ pub struct ScenePlan {
 /// # Errors
 ///
 /// Returns an error when a visual precedes or mismatches its validated
-/// observation, or the trusted frame digest is unavailable.
+/// observation, or the validated frame digest is unavailable.
 pub fn compile_real_world_plan(
     frames: &SimulationFrames,
     profile: &PresentationProfile,
@@ -4386,7 +4386,7 @@ fn compile_macroscopic_annotations(
         start_ordinal: final_ordinal,
         end_ordinal: final_ordinal,
         title: "VALIDATED OUTCOME".to_owned(),
-        text: "The trusted frame sequence has reached its reviewed outcome.".to_owned(),
+        text: "The validated frame sequence has reached its reviewed outcome.".to_owned(),
     });
     annotations
 }
@@ -4413,7 +4413,7 @@ pub enum PlanError {
 impl fmt::Display for PlanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingFrames => formatter.write_str("trusted frames are absent"),
+            Self::MissingFrames => formatter.write_str("validated frames are absent"),
             Self::InvalidFrameSequence => formatter.write_str("frame ordinals are not contiguous"),
             Self::MissingOperation(ordinal) => {
                 write!(formatter, "frame {ordinal} has no operation")
@@ -4447,9 +4447,9 @@ impl fmt::Display for PlanError {
                 "solid-solid synthesis assembly lacks exactly two solid reactants, one solid product, or validated formation and colour bindings",
             ),
             Self::PresentationRange => {
-                formatter.write_str("trusted frames exceed the presentation range")
+                formatter.write_str("validated frames exceed the presentation range")
             }
-            Self::Digest => formatter.write_str("trusted frame digest is unavailable"),
+            Self::Digest => formatter.write_str("validated frame digest is unavailable"),
         }
     }
 }

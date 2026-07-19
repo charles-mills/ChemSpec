@@ -45,7 +45,12 @@ result exposes immutable accessors only. The kernel repeats the same four
 claim-level checks before graph execution, so neither hand-built internal HIR
 nor later regressions can turn valid structure into fictional display copy.
 
-## Trusted catalogue
+## Reference catalogue
+
+The catalogue is optional reference knowledge and an optimization, not an
+allow-list. Its review metadata records factual provenance. It does not decide
+which chemistry may run; the kernel does that by validating the derived
+structure and invariants.
 
 The immutable catalogue contains:
 

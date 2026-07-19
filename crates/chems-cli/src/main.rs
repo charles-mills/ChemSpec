@@ -2,7 +2,7 @@ use std::{env, fs, io, path::Path, process::ExitCode};
 
 use chem_catalogue::ValidatedCatalogueBundle;
 use chem_domain::ContentDigest;
-use chem_kernel::expand_review_candidate;
+use chem_kernel::expand_provisional;
 use chems_lang::{format_source, parse_bytes};
 use serde_json::json;
 
@@ -124,7 +124,7 @@ fn inspect_expanded(arguments: &[String]) -> Result<(), String> {
     .map_err(|error| error.to_string())?;
     let evidence_path = Path::new(evidence);
     let evidence = fs::read(evidence_path).map_err(|error| io_error(evidence_path, &error))?;
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         source,
         std::str::from_utf8(&source_bytes).map_err(|error| error.to_string())?,
         &catalogue,

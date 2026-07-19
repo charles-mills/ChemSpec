@@ -597,16 +597,12 @@ reaction $($x.reaction) where
     Write-Utf8 (Join-Path $observationDir "ionpair-$($x.slug)-001.evidence.json") ($ionEvidence|ConvertTo-Json -Depth 20)
 }
 
-# Register generated experiences through typed participant identities. The
-# application compiles only records whose status has been promoted to trusted.
+# Register generated experiences through typed participant identities. Runtime
+# availability is decided by kernel validation, never an approval field.
 $registryPath = Join-Path $Root 'catalogue/experience-registry.json'
 $registry = Get-Content -Raw -Encoding utf8 $registryPath | ConvertFrom-Json
-$oxygenStatus = if($registry.experiences | Where-Object { $_.id -like 'oxygen-*' -and $_.status -eq 'trusted' }){'trusted'}else{'candidate'}
-$trustedCataloguePath=Join-Path $Root 'catalogue/trusted/core-chemistry/catalogue.json'
-$trustedHasIonPairs=(Test-Path $trustedCataloguePath) -and ((Get-Content -Raw -Encoding utf8 $trustedCataloguePath) -match 'Rules.FixedCation1Fluoride')
-$ionStatus = if($trustedHasIonPairs -or ($registry.experiences | Where-Object { $_.id -like 'ionpair-*' -and $_.status -eq 'trusted' })){'trusted'}else{'candidate'}
 $baseExperiences = @($registry.experiences | Where-Object { $_.id -notlike 'oxygen-*' -and $_.id -notlike 'ionpair-*' })
-foreach($record in $baseExperiences){if($null -eq $record.status){$record | Add-Member -NotePropertyName status -NotePropertyValue trusted};$record.PSObject.Properties.Remove('name')}
+foreach($record in $baseExperiences){$record.PSObject.Properties.Remove('status');$record.PSObject.Properties.Remove('name')}
 $slugs = [ordered]@{'1'='hydrogen-oxygen';'3'='lithium-oxygen';'4'='beryllium-oxygen';'5'='boron-oxygen';'6'='carbon-oxygen';'11'='sodium-oxygen';'12'='magnesium-oxygen';'13'='aluminium-oxygen';'14'='silicon-oxygen';'15'='phosphorus-oxygen';'16'='sulfur-oxygen';'19'='potassium-oxygen';'20'='calcium-oxygen';'37'='rubidium-oxygen';'38'='strontium-oxygen';'55'='caesium-oxygen';'56'='barium-oxygen'}
 $elementCatalogue = Get-Content -Raw -Encoding utf8 (Join-Path $Root 'catalogue/candidates/periodic-table-and-alkali-water/candidate.json') | ConvertFrom-Json
 $screening = Get-Content -Raw -Encoding utf8 (Join-Path $Root 'catalogue/oxygen-screening/oxygen.json') | ConvertFrom-Json
@@ -617,7 +613,7 @@ foreach($screened in $screening.element_outcomes){
     $slug = $slugs["$atomicNumber"]
     $element = $elementCatalogue.elements | Where-Object atomic_number -eq $atomicNumber | Select-Object -First 1
     $candidateExperiences += [ordered]@{
-        id="oxygen-$slug";status=$oxygenStatus;family='oxygen'
+        id="oxygen-$slug";family='oxygen'
         participants=@([ordered]@{kind='element';atomic_number=$atomicNumber},[ordered]@{kind='element';atomic_number=8})
         source_path="conformance/end-to-end/oxygen-$slug-001.chems"
         evidence_path="conformance/observations/oxygen-$slug-001.evidence.json"
@@ -628,13 +624,13 @@ foreach($screened in $screening.element_outcomes){
 foreach($transition in $transitionExperiences){
     $slug=$transition[0];$atomicNumber=[int]$transition[12];$equation=$transition[10]
     $element=$elementCatalogue.elements|Where-Object atomic_number -eq $atomicNumber|Select-Object -First 1
-    $candidateExperiences += [ordered]@{id="oxygen-$slug";status=$oxygenStatus;family='oxygen';participants=@([ordered]@{kind='element';atomic_number=$atomicNumber},[ordered]@{kind='element';atomic_number=8});source_path="conformance/end-to-end/oxygen-$slug-001.chems";evidence_path="conformance/observations/oxygen-$slug-001.evidence.json";request="What happens when $($element.name.ToLowerInvariant()) reacts with oxygen for this reviewed product outcome?";equation=$equation;subject_name=$element.name.ToLowerInvariant()}
+    $candidateExperiences += [ordered]@{id="oxygen-$slug";family='oxygen';participants=@([ordered]@{kind='element';atomic_number=$atomicNumber},[ordered]@{kind='element';atomic_number=8});source_path="conformance/end-to-end/oxygen-$slug-001.chems";evidence_path="conformance/observations/oxygen-$slug-001.evidence.json";request="What happens when $($element.name.ToLowerInvariant()) reacts with oxygen for this reviewed product outcome?";equation=$equation;subject_name=$element.name.ToLowerInvariant()}
 }
 $ionExperiences=@()
 foreach($x in $ionPairExperiences){
     $member=$elementCatalogue.elements|Where-Object atomic_number -eq $x.atomic_number|Select-Object -First 1
     $anionAtomicNumber=[int]$x.co_atoms[0]
-    $ionExperiences += [ordered]@{id="ionpair-$($x.slug)";status=$ionStatus;family='fixed_charge_ion_pair';participants=@([ordered]@{kind='element';atomic_number=[int]$x.atomic_number},[ordered]@{kind='element';atomic_number=$anionAtomicNumber});source_path="conformance/end-to-end/ionpair-$($x.slug)-001.chems";evidence_path="conformance/observations/ionpair-$($x.slug)-001.evidence.json";request="What fixed-charge ionic compound forms when $($member.name.ToLowerInvariant()) reacts with $($x.anion_formula)?";equation=$x.equation;subject_name=$member.name.ToLowerInvariant()}
+    $ionExperiences += [ordered]@{id="ionpair-$($x.slug)";family='fixed_charge_ion_pair';participants=@([ordered]@{kind='element';atomic_number=[int]$x.atomic_number},[ordered]@{kind='element';atomic_number=$anionAtomicNumber});source_path="conformance/end-to-end/ionpair-$($x.slug)-001.chems";evidence_path="conformance/observations/ionpair-$($x.slug)-001.evidence.json";request="What fixed-charge ionic compound forms when $($member.name.ToLowerInvariant()) reacts with $($x.anion_formula)?";equation=$x.equation;subject_name=$member.name.ToLowerInvariant()}
 }
 $registry.schema_version = 2
 $registry.experiences = @($baseExperiences) + $candidateExperiences + $ionExperiences

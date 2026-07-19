@@ -129,8 +129,8 @@ The end-state dynamic rebuild is governed by the
    a strict compact-plan result schema. A self-contained prompt is embedded, so
    packaged apps require no repository checkout. ChemSpec compiles the returned
    plan into working catalogue, evidence, and source artifacts, which cross
-   deterministic validation into `ValidatedReviewCandidateFrames` before
-   presentation, without promoting their review-candidate provenance.
+   deterministic validation into `SimulationFrames` before presentation,
+   without changing their provisional provenance.
    Late completions are rejected by run ID. Explicit low reasoning is used.
    This ledger-heavy contract is superseded by `DYN-104` and remains only until
    the compact claim cutover crosses validation. **Implemented, superseded.**

@@ -3,7 +3,6 @@
   "experiences": [
     {
       "id": "oxygen-hydrogen-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-hydrogen-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-hydrogen-oxygen-001.evidence.json",
       "request": "What happens when hydrogen reacts with oxygen?",
@@ -23,7 +22,6 @@
     },
     {
       "id": "oxygen-lithium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-lithium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-lithium-oxygen-001.evidence.json",
       "request": "What happens when lithium reacts with oxygen?",
@@ -43,7 +41,6 @@
     },
     {
       "id": "oxygen-beryllium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-beryllium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-beryllium-oxygen-001.evidence.json",
       "request": "What happens when beryllium reacts with oxygen?",
@@ -63,7 +60,6 @@
     },
     {
       "id": "oxygen-boron-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-boron-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-boron-oxygen-001.evidence.json",
       "request": "What happens when boron reacts with oxygen?",
@@ -83,7 +79,6 @@
     },
     {
       "id": "oxygen-carbon-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-carbon-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-carbon-oxygen-001.evidence.json",
       "request": "What happens when carbon reacts with oxygen?",
@@ -103,7 +98,6 @@
     },
     {
       "id": "oxygen-sodium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-sodium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-sodium-oxygen-001.evidence.json",
       "request": "What happens when sodium reacts with oxygen?",
@@ -123,7 +117,6 @@
     },
     {
       "id": "oxygen-magnesium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-magnesium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-magnesium-oxygen-001.evidence.json",
       "request": "What happens when magnesium reacts with oxygen?",
@@ -143,7 +136,6 @@
     },
     {
       "id": "oxygen-aluminium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-aluminium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-aluminium-oxygen-001.evidence.json",
       "request": "What happens when aluminium reacts with oxygen?",
@@ -163,7 +155,6 @@
     },
     {
       "id": "oxygen-silicon-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-silicon-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-silicon-oxygen-001.evidence.json",
       "request": "What happens when silicon reacts with oxygen?",
@@ -183,7 +174,6 @@
     },
     {
       "id": "oxygen-phosphorus-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-phosphorus-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-phosphorus-oxygen-001.evidence.json",
       "request": "What happens when phosphorus reacts with oxygen?",
@@ -203,7 +193,6 @@
     },
     {
       "id": "oxygen-sulfur-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-sulfur-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-sulfur-oxygen-001.evidence.json",
       "request": "What happens when sulfur reacts with oxygen?",
@@ -223,7 +212,6 @@
     },
     {
       "id": "oxygen-potassium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-potassium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-potassium-oxygen-001.evidence.json",
       "request": "What happens when potassium reacts with oxygen?",
@@ -243,7 +231,6 @@
     },
     {
       "id": "oxygen-calcium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-calcium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-calcium-oxygen-001.evidence.json",
       "request": "What happens when calcium reacts with oxygen?",
@@ -263,7 +250,6 @@
     },
     {
       "id": "oxygen-rubidium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-rubidium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-rubidium-oxygen-001.evidence.json",
       "request": "What happens when rubidium reacts with oxygen?",
@@ -283,7 +269,6 @@
     },
     {
       "id": "oxygen-strontium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-strontium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-strontium-oxygen-001.evidence.json",
       "request": "What happens when strontium reacts with oxygen?",
@@ -303,7 +288,6 @@
     },
     {
       "id": "oxygen-caesium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-caesium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-caesium-oxygen-001.evidence.json",
       "request": "What happens when caesium reacts with oxygen?",
@@ -323,7 +307,6 @@
     },
     {
       "id": "oxygen-barium-oxygen",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-barium-oxygen-001.chems",
       "evidence_path": "conformance/observations/oxygen-barium-oxygen-001.evidence.json",
       "request": "What happens when barium reacts with oxygen?",
@@ -343,7 +326,6 @@
     },
     {
       "id": "oxygen-sc-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-sc-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-sc-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when scandium reacts with oxygen for this reviewed product outcome?",
@@ -363,7 +345,6 @@
     },
     {
       "id": "oxygen-y-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-y-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-y-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when yttrium reacts with oxygen for this reviewed product outcome?",
@@ -383,7 +364,6 @@
     },
     {
       "id": "oxygen-ti-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ti-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-ti-oxide-2-o1-001.evidence.json",
       "request": "What happens when titanium reacts with oxygen for this reviewed product outcome?",
@@ -403,7 +383,6 @@
     },
     {
       "id": "oxygen-ti-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ti-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-ti-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when titanium reacts with oxygen for this reviewed product outcome?",
@@ -423,7 +402,6 @@
     },
     {
       "id": "oxygen-ti-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ti-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-ti-oxide-4-o2-001.evidence.json",
       "request": "What happens when titanium reacts with oxygen for this reviewed product outcome?",
@@ -443,7 +421,6 @@
     },
     {
       "id": "oxygen-zr-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-zr-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-zr-oxide-4-o2-001.evidence.json",
       "request": "What happens when zirconium reacts with oxygen for this reviewed product outcome?",
@@ -463,7 +440,6 @@
     },
     {
       "id": "oxygen-hf-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-hf-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-hf-oxide-4-o2-001.evidence.json",
       "request": "What happens when hafnium reacts with oxygen for this reviewed product outcome?",
@@ -483,7 +459,6 @@
     },
     {
       "id": "oxygen-v-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-v-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-v-oxide-2-o1-001.evidence.json",
       "request": "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
@@ -503,7 +478,6 @@
     },
     {
       "id": "oxygen-v-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-v-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-v-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
@@ -523,7 +497,6 @@
     },
     {
       "id": "oxygen-v-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-v-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-v-oxide-4-o2-001.evidence.json",
       "request": "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
@@ -543,7 +516,6 @@
     },
     {
       "id": "oxygen-nb-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-nb-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-nb-oxide-4-o2-001.evidence.json",
       "request": "What happens when niobium reacts with oxygen for this reviewed product outcome?",
@@ -563,7 +535,6 @@
     },
     {
       "id": "oxygen-v-oxide-5-5-o5",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-v-oxide-5-5-o5-001.chems",
       "evidence_path": "conformance/observations/oxygen-v-oxide-5-5-o5-001.evidence.json",
       "request": "What happens when vanadium reacts with oxygen for this reviewed product outcome?",
@@ -583,7 +554,6 @@
     },
     {
       "id": "oxygen-nb-oxide-5-5-o5",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-nb-oxide-5-5-o5-001.chems",
       "evidence_path": "conformance/observations/oxygen-nb-oxide-5-5-o5-001.evidence.json",
       "request": "What happens when niobium reacts with oxygen for this reviewed product outcome?",
@@ -603,7 +573,6 @@
     },
     {
       "id": "oxygen-ta-oxide-5-5-o5",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ta-oxide-5-5-o5-001.chems",
       "evidence_path": "conformance/observations/oxygen-ta-oxide-5-5-o5-001.evidence.json",
       "request": "What happens when tantalum reacts with oxygen for this reviewed product outcome?",
@@ -623,7 +592,6 @@
     },
     {
       "id": "oxygen-cr-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-cr-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-cr-oxide-2-o1-001.evidence.json",
       "request": "What happens when chromium reacts with oxygen for this reviewed product outcome?",
@@ -643,7 +611,6 @@
     },
     {
       "id": "oxygen-cr-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-cr-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-cr-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when chromium reacts with oxygen for this reviewed product outcome?",
@@ -663,7 +630,6 @@
     },
     {
       "id": "oxygen-cr-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-cr-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-cr-oxide-4-o2-001.evidence.json",
       "request": "What happens when chromium reacts with oxygen for this reviewed product outcome?",
@@ -683,7 +649,6 @@
     },
     {
       "id": "oxygen-mo-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-mo-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-mo-oxide-4-o2-001.evidence.json",
       "request": "What happens when molybdenum reacts with oxygen for this reviewed product outcome?",
@@ -703,7 +668,6 @@
     },
     {
       "id": "oxygen-w-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-w-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-w-oxide-4-o2-001.evidence.json",
       "request": "What happens when tungsten reacts with oxygen for this reviewed product outcome?",
@@ -723,7 +687,6 @@
     },
     {
       "id": "oxygen-mn-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-mn-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-mn-oxide-2-o1-001.evidence.json",
       "request": "What happens when manganese reacts with oxygen for this reviewed product outcome?",
@@ -743,7 +706,6 @@
     },
     {
       "id": "oxygen-mn-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-mn-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-mn-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when manganese reacts with oxygen for this reviewed product outcome?",
@@ -763,7 +725,6 @@
     },
     {
       "id": "oxygen-mn-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-mn-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-mn-oxide-4-o2-001.evidence.json",
       "request": "What happens when manganese reacts with oxygen for this reviewed product outcome?",
@@ -783,7 +744,6 @@
     },
     {
       "id": "oxygen-tc-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-tc-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-tc-oxide-4-o2-001.evidence.json",
       "request": "What happens when technetium reacts with oxygen for this reviewed product outcome?",
@@ -803,7 +763,6 @@
     },
     {
       "id": "oxygen-re-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-re-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-re-oxide-4-o2-001.evidence.json",
       "request": "What happens when rhenium reacts with oxygen for this reviewed product outcome?",
@@ -823,7 +782,6 @@
     },
     {
       "id": "oxygen-mn-oxide-2-3-3-o4",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-mn-oxide-2-3-3-o4-001.chems",
       "evidence_path": "conformance/observations/oxygen-mn-oxide-2-3-3-o4-001.evidence.json",
       "request": "What happens when manganese reacts with oxygen for this reviewed product outcome?",
@@ -843,7 +801,6 @@
     },
     {
       "id": "oxygen-fe-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-fe-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-fe-oxide-2-o1-001.evidence.json",
       "request": "What happens when iron reacts with oxygen for this reviewed product outcome?",
@@ -863,7 +820,6 @@
     },
     {
       "id": "oxygen-fe-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-fe-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-fe-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when iron reacts with oxygen for this reviewed product outcome?",
@@ -883,7 +839,6 @@
     },
     {
       "id": "oxygen-fe-oxide-2-3-3-o4",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-fe-oxide-2-3-3-o4-001.chems",
       "evidence_path": "conformance/observations/oxygen-fe-oxide-2-3-3-o4-001.evidence.json",
       "request": "What happens when iron reacts with oxygen for this reviewed product outcome?",
@@ -903,7 +858,6 @@
     },
     {
       "id": "oxygen-ru-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ru-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-ru-oxide-4-o2-001.evidence.json",
       "request": "What happens when ruthenium reacts with oxygen for this reviewed product outcome?",
@@ -923,7 +877,6 @@
     },
     {
       "id": "oxygen-os-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-os-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-os-oxide-4-o2-001.evidence.json",
       "request": "What happens when osmium reacts with oxygen for this reviewed product outcome?",
@@ -943,7 +896,6 @@
     },
     {
       "id": "oxygen-co-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-co-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-co-oxide-2-o1-001.evidence.json",
       "request": "What happens when cobalt reacts with oxygen for this reviewed product outcome?",
@@ -963,7 +915,6 @@
     },
     {
       "id": "oxygen-co-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-co-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-co-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when cobalt reacts with oxygen for this reviewed product outcome?",
@@ -983,7 +934,6 @@
     },
     {
       "id": "oxygen-rh-oxide-3-3-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-rh-oxide-3-3-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-rh-oxide-3-3-o3-001.evidence.json",
       "request": "What happens when rhodium reacts with oxygen for this reviewed product outcome?",
@@ -1003,7 +953,6 @@
     },
     {
       "id": "oxygen-co-oxide-2-3-3-o4",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-co-oxide-2-3-3-o4-001.chems",
       "evidence_path": "conformance/observations/oxygen-co-oxide-2-3-3-o4-001.evidence.json",
       "request": "What happens when cobalt reacts with oxygen for this reviewed product outcome?",
@@ -1023,7 +972,6 @@
     },
     {
       "id": "oxygen-rh-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-rh-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-rh-oxide-4-o2-001.evidence.json",
       "request": "What happens when rhodium reacts with oxygen for this reviewed product outcome?",
@@ -1043,7 +991,6 @@
     },
     {
       "id": "oxygen-ir-oxide-4-o2",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ir-oxide-4-o2-001.chems",
       "evidence_path": "conformance/observations/oxygen-ir-oxide-4-o2-001.evidence.json",
       "request": "What happens when iridium reacts with oxygen for this reviewed product outcome?",
@@ -1063,7 +1010,6 @@
     },
     {
       "id": "oxygen-ni-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ni-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-ni-oxide-2-o1-001.evidence.json",
       "request": "What happens when nickel reacts with oxygen for this reviewed product outcome?",
@@ -1083,7 +1029,6 @@
     },
     {
       "id": "oxygen-pd-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-pd-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-pd-oxide-2-o1-001.evidence.json",
       "request": "What happens when palladium reacts with oxygen for this reviewed product outcome?",
@@ -1103,7 +1048,6 @@
     },
     {
       "id": "oxygen-cu-oxide-1-1-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-cu-oxide-1-1-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-cu-oxide-1-1-o1-001.evidence.json",
       "request": "What happens when copper reacts with oxygen for this reviewed product outcome?",
@@ -1123,7 +1067,6 @@
     },
     {
       "id": "oxygen-cu-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-cu-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-cu-oxide-2-o1-001.evidence.json",
       "request": "What happens when copper reacts with oxygen for this reviewed product outcome?",
@@ -1143,7 +1086,6 @@
     },
     {
       "id": "oxygen-zn-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-zn-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-zn-oxide-2-o1-001.evidence.json",
       "request": "What happens when zinc reacts with oxygen for this reviewed product outcome?",
@@ -1163,7 +1105,6 @@
     },
     {
       "id": "oxygen-cd-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-cd-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-cd-oxide-2-o1-001.evidence.json",
       "request": "What happens when cadmium reacts with oxygen for this reviewed product outcome?",
@@ -1183,7 +1124,6 @@
     },
     {
       "id": "oxygen-hg-oxide-2-o1",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-hg-oxide-2-o1-001.chems",
       "evidence_path": "conformance/observations/oxygen-hg-oxide-2-o1-001.evidence.json",
       "request": "What happens when mercury reacts with oxygen for this reviewed product outcome?",
@@ -1203,7 +1143,6 @@
     },
     {
       "id": "oxygen-cr-oxide-6-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-cr-oxide-6-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-cr-oxide-6-o3-001.evidence.json",
       "request": "What happens when chromium reacts with oxygen for this reviewed product outcome?",
@@ -1223,7 +1162,6 @@
     },
     {
       "id": "oxygen-mo-oxide-6-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-mo-oxide-6-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-mo-oxide-6-o3-001.evidence.json",
       "request": "What happens when molybdenum reacts with oxygen for this reviewed product outcome?",
@@ -1243,7 +1181,6 @@
     },
     {
       "id": "oxygen-w-oxide-6-o3",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-w-oxide-6-o3-001.chems",
       "evidence_path": "conformance/observations/oxygen-w-oxide-6-o3-001.evidence.json",
       "request": "What happens when tungsten reacts with oxygen for this reviewed product outcome?",
@@ -1263,7 +1200,6 @@
     },
     {
       "id": "oxygen-mn-oxide-7-7-o7",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-mn-oxide-7-7-o7-001.chems",
       "evidence_path": "conformance/observations/oxygen-mn-oxide-7-7-o7-001.evidence.json",
       "request": "What happens when manganese reacts with oxygen for this reviewed product outcome?",
@@ -1283,7 +1219,6 @@
     },
     {
       "id": "oxygen-tc-oxide-7-7-o7",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-tc-oxide-7-7-o7-001.chems",
       "evidence_path": "conformance/observations/oxygen-tc-oxide-7-7-o7-001.evidence.json",
       "request": "What happens when technetium reacts with oxygen for this reviewed product outcome?",
@@ -1303,7 +1238,6 @@
     },
     {
       "id": "oxygen-re-oxide-7-7-o7",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-re-oxide-7-7-o7-001.chems",
       "evidence_path": "conformance/observations/oxygen-re-oxide-7-7-o7-001.evidence.json",
       "request": "What happens when rhenium reacts with oxygen for this reviewed product outcome?",
@@ -1323,7 +1257,6 @@
     },
     {
       "id": "oxygen-ru-oxide-8-o4",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-ru-oxide-8-o4-001.chems",
       "evidence_path": "conformance/observations/oxygen-ru-oxide-8-o4-001.evidence.json",
       "request": "What happens when ruthenium reacts with oxygen for this reviewed product outcome?",
@@ -1343,7 +1276,6 @@
     },
     {
       "id": "oxygen-os-oxide-8-o4",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/oxygen-os-oxide-8-o4-001.chems",
       "evidence_path": "conformance/observations/oxygen-os-oxide-8-o4-001.evidence.json",
       "request": "What happens when osmium reacts with oxygen for this reviewed product outcome?",
@@ -1363,7 +1295,6 @@
     },
     {
       "id": "ionpair-li-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-li-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-li-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when lithium reacts with F2?",
@@ -1383,7 +1314,6 @@
     },
     {
       "id": "ionpair-na-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with F2?",
@@ -1403,7 +1333,6 @@
     },
     {
       "id": "ionpair-k-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with F2?",
@@ -1423,7 +1352,6 @@
     },
     {
       "id": "ionpair-rb-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with F2?",
@@ -1443,7 +1371,6 @@
     },
     {
       "id": "ionpair-cs-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with F2?",
@@ -1463,7 +1390,6 @@
     },
     {
       "id": "ionpair-be-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-be-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-be-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when beryllium reacts with F2?",
@@ -1483,7 +1409,6 @@
     },
     {
       "id": "ionpair-mg-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-mg-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-mg-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when magnesium reacts with F2?",
@@ -1503,7 +1428,6 @@
     },
     {
       "id": "ionpair-ca-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ca-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-ca-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when calcium reacts with F2?",
@@ -1523,7 +1447,6 @@
     },
     {
       "id": "ionpair-sr-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-sr-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-sr-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when strontium reacts with F2?",
@@ -1543,7 +1466,6 @@
     },
     {
       "id": "ionpair-ba-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ba-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-ba-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when barium reacts with F2?",
@@ -1563,7 +1485,6 @@
     },
     {
       "id": "ionpair-al-f",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-al-f-001.chems",
       "evidence_path": "conformance/observations/ionpair-al-f-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when aluminium reacts with F2?",
@@ -1583,7 +1504,6 @@
     },
     {
       "id": "ionpair-li-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-li-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-li-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when lithium reacts with Cl2?",
@@ -1603,7 +1523,6 @@
     },
     {
       "id": "ionpair-na-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with Cl2?",
@@ -1623,7 +1542,6 @@
     },
     {
       "id": "ionpair-k-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with Cl2?",
@@ -1643,7 +1561,6 @@
     },
     {
       "id": "ionpair-rb-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with Cl2?",
@@ -1663,7 +1580,6 @@
     },
     {
       "id": "ionpair-cs-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with Cl2?",
@@ -1683,7 +1599,6 @@
     },
     {
       "id": "ionpair-be-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-be-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-be-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when beryllium reacts with Cl2?",
@@ -1703,7 +1618,6 @@
     },
     {
       "id": "ionpair-mg-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-mg-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-mg-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when magnesium reacts with Cl2?",
@@ -1723,7 +1637,6 @@
     },
     {
       "id": "ionpair-ca-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ca-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-ca-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when calcium reacts with Cl2?",
@@ -1743,7 +1656,6 @@
     },
     {
       "id": "ionpair-sr-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-sr-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-sr-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when strontium reacts with Cl2?",
@@ -1763,7 +1675,6 @@
     },
     {
       "id": "ionpair-ba-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ba-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-ba-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when barium reacts with Cl2?",
@@ -1783,7 +1694,6 @@
     },
     {
       "id": "ionpair-al-cl",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-al-cl-001.chems",
       "evidence_path": "conformance/observations/ionpair-al-cl-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when aluminium reacts with Cl2?",
@@ -1803,7 +1713,6 @@
     },
     {
       "id": "ionpair-li-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-li-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-li-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when lithium reacts with Br2?",
@@ -1823,7 +1732,6 @@
     },
     {
       "id": "ionpair-na-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with Br2?",
@@ -1843,7 +1751,6 @@
     },
     {
       "id": "ionpair-k-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with Br2?",
@@ -1863,7 +1770,6 @@
     },
     {
       "id": "ionpair-rb-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with Br2?",
@@ -1883,7 +1789,6 @@
     },
     {
       "id": "ionpair-cs-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with Br2?",
@@ -1903,7 +1808,6 @@
     },
     {
       "id": "ionpair-be-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-be-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-be-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when beryllium reacts with Br2?",
@@ -1923,7 +1827,6 @@
     },
     {
       "id": "ionpair-mg-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-mg-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-mg-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when magnesium reacts with Br2?",
@@ -1943,7 +1846,6 @@
     },
     {
       "id": "ionpair-ca-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ca-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-ca-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when calcium reacts with Br2?",
@@ -1963,7 +1865,6 @@
     },
     {
       "id": "ionpair-sr-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-sr-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-sr-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when strontium reacts with Br2?",
@@ -1983,7 +1884,6 @@
     },
     {
       "id": "ionpair-ba-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ba-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-ba-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when barium reacts with Br2?",
@@ -2003,7 +1903,6 @@
     },
     {
       "id": "ionpair-al-br",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-al-br-001.chems",
       "evidence_path": "conformance/observations/ionpair-al-br-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when aluminium reacts with Br2?",
@@ -2023,7 +1922,6 @@
     },
     {
       "id": "ionpair-li-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-li-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-li-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when lithium reacts with I2?",
@@ -2043,7 +1941,6 @@
     },
     {
       "id": "ionpair-na-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with I2?",
@@ -2063,7 +1960,6 @@
     },
     {
       "id": "ionpair-k-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with I2?",
@@ -2083,7 +1979,6 @@
     },
     {
       "id": "ionpair-rb-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with I2?",
@@ -2103,7 +1998,6 @@
     },
     {
       "id": "ionpair-cs-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with I2?",
@@ -2123,7 +2017,6 @@
     },
     {
       "id": "ionpair-be-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-be-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-be-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when beryllium reacts with I2?",
@@ -2143,7 +2036,6 @@
     },
     {
       "id": "ionpair-mg-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-mg-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-mg-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when magnesium reacts with I2?",
@@ -2163,7 +2055,6 @@
     },
     {
       "id": "ionpair-ca-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ca-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-ca-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when calcium reacts with I2?",
@@ -2183,7 +2074,6 @@
     },
     {
       "id": "ionpair-sr-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-sr-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-sr-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when strontium reacts with I2?",
@@ -2203,7 +2093,6 @@
     },
     {
       "id": "ionpair-ba-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ba-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-ba-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when barium reacts with I2?",
@@ -2223,7 +2112,6 @@
     },
     {
       "id": "ionpair-al-i",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-al-i-001.chems",
       "evidence_path": "conformance/observations/ionpair-al-i-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when aluminium reacts with I2?",
@@ -2243,7 +2131,6 @@
     },
     {
       "id": "ionpair-li-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-li-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-li-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when lithium reacts with S8?",
@@ -2263,7 +2150,6 @@
     },
     {
       "id": "ionpair-na-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with S8?",
@@ -2283,7 +2169,6 @@
     },
     {
       "id": "ionpair-k-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with S8?",
@@ -2303,7 +2188,6 @@
     },
     {
       "id": "ionpair-rb-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with S8?",
@@ -2323,7 +2207,6 @@
     },
     {
       "id": "ionpair-cs-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with S8?",
@@ -2343,7 +2226,6 @@
     },
     {
       "id": "ionpair-be-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-be-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-be-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when beryllium reacts with S8?",
@@ -2363,7 +2245,6 @@
     },
     {
       "id": "ionpair-mg-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-mg-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-mg-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when magnesium reacts with S8?",
@@ -2383,7 +2264,6 @@
     },
     {
       "id": "ionpair-ca-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ca-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-ca-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when calcium reacts with S8?",
@@ -2403,7 +2283,6 @@
     },
     {
       "id": "ionpair-sr-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-sr-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-sr-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when strontium reacts with S8?",
@@ -2423,7 +2302,6 @@
     },
     {
       "id": "ionpair-ba-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ba-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-ba-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when barium reacts with S8?",
@@ -2443,7 +2321,6 @@
     },
     {
       "id": "ionpair-al-s",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-al-s-001.chems",
       "evidence_path": "conformance/observations/ionpair-al-s-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when aluminium reacts with S8?",
@@ -2463,7 +2340,6 @@
     },
     {
       "id": "ionpair-li-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-li-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-li-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when lithium reacts with N2?",
@@ -2483,7 +2359,6 @@
     },
     {
       "id": "ionpair-na-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with N2?",
@@ -2503,7 +2378,6 @@
     },
     {
       "id": "ionpair-k-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with N2?",
@@ -2523,7 +2397,6 @@
     },
     {
       "id": "ionpair-rb-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with N2?",
@@ -2543,7 +2416,6 @@
     },
     {
       "id": "ionpair-cs-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with N2?",
@@ -2563,7 +2435,6 @@
     },
     {
       "id": "ionpair-be-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-be-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-be-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when beryllium reacts with N2?",
@@ -2583,7 +2454,6 @@
     },
     {
       "id": "ionpair-mg-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-mg-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-mg-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when magnesium reacts with N2?",
@@ -2603,7 +2473,6 @@
     },
     {
       "id": "ionpair-ca-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ca-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-ca-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when calcium reacts with N2?",
@@ -2623,7 +2492,6 @@
     },
     {
       "id": "ionpair-sr-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-sr-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-sr-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when strontium reacts with N2?",
@@ -2643,7 +2511,6 @@
     },
     {
       "id": "ionpair-ba-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ba-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-ba-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when barium reacts with N2?",
@@ -2663,7 +2530,6 @@
     },
     {
       "id": "ionpair-al-n",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-al-n-001.chems",
       "evidence_path": "conformance/observations/ionpair-al-n-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when aluminium reacts with N2?",
@@ -2683,7 +2549,6 @@
     },
     {
       "id": "ionpair-li-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-li-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-li-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when lithium reacts with P4?",
@@ -2703,7 +2568,6 @@
     },
     {
       "id": "ionpair-na-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with P4?",
@@ -2723,7 +2587,6 @@
     },
     {
       "id": "ionpair-k-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with P4?",
@@ -2743,7 +2606,6 @@
     },
     {
       "id": "ionpair-rb-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with P4?",
@@ -2763,7 +2625,6 @@
     },
     {
       "id": "ionpair-cs-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with P4?",
@@ -2783,7 +2644,6 @@
     },
     {
       "id": "ionpair-be-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-be-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-be-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when beryllium reacts with P4?",
@@ -2803,7 +2663,6 @@
     },
     {
       "id": "ionpair-mg-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-mg-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-mg-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when magnesium reacts with P4?",
@@ -2823,7 +2682,6 @@
     },
     {
       "id": "ionpair-ca-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ca-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-ca-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when calcium reacts with P4?",
@@ -2843,7 +2701,6 @@
     },
     {
       "id": "ionpair-sr-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-sr-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-sr-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when strontium reacts with P4?",
@@ -2863,7 +2720,6 @@
     },
     {
       "id": "ionpair-ba-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-ba-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-ba-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when barium reacts with P4?",
@@ -2883,7 +2739,6 @@
     },
     {
       "id": "ionpair-al-p",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-al-p-001.chems",
       "evidence_path": "conformance/observations/ionpair-al-p-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when aluminium reacts with P4?",
@@ -2903,7 +2758,6 @@
     },
     {
       "id": "ionpair-na-o",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-na-o-001.chems",
       "evidence_path": "conformance/observations/ionpair-na-o-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when sodium reacts with O2?",
@@ -2923,7 +2777,6 @@
     },
     {
       "id": "ionpair-k-o",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-k-o-001.chems",
       "evidence_path": "conformance/observations/ionpair-k-o-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when potassium reacts with O2?",
@@ -2943,7 +2796,6 @@
     },
     {
       "id": "ionpair-rb-o",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-rb-o-001.chems",
       "evidence_path": "conformance/observations/ionpair-rb-o-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when rubidium reacts with O2?",
@@ -2963,7 +2815,6 @@
     },
     {
       "id": "ionpair-cs-o",
-      "status": "trusted",
       "source_path": "conformance/end-to-end/ionpair-cs-o-001.chems",
       "evidence_path": "conformance/observations/ionpair-cs-o-001.evidence.json",
       "request": "What fixed-charge ionic compound forms when caesium reacts with O2?",
@@ -2983,7 +2834,6 @@
     },
     {
       "id": "covalent-cl-f-clf",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3005,7 +2855,6 @@
     },
     {
       "id": "covalent-br-f-brf",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3027,7 +2876,6 @@
     },
     {
       "id": "covalent-i-f-if",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3049,7 +2897,6 @@
     },
     {
       "id": "covalent-br-cl-brcl",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3071,7 +2918,6 @@
     },
     {
       "id": "covalent-i-cl-icl",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3093,7 +2939,6 @@
     },
     {
       "id": "covalent-i-br-ibr",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3115,7 +2960,6 @@
     },
     {
       "id": "covalent-cl-f-clf3",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3137,7 +2981,6 @@
     },
     {
       "id": "covalent-br-f-brf3",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3159,7 +3002,6 @@
     },
     {
       "id": "covalent-i-f-if3",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3181,7 +3023,6 @@
     },
     {
       "id": "covalent-i-cl-icl3",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3203,7 +3044,6 @@
     },
     {
       "id": "covalent-cl-f-clf5",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3225,7 +3065,6 @@
     },
     {
       "id": "covalent-br-f-brf5",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3247,7 +3086,6 @@
     },
     {
       "id": "covalent-i-f-if5",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3269,7 +3107,6 @@
     },
     {
       "id": "covalent-i-f-if7",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3291,7 +3128,6 @@
     },
     {
       "id": "covalent-h-f-hf",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3313,7 +3149,6 @@
     },
     {
       "id": "covalent-h-cl-hcl",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3335,7 +3170,6 @@
     },
     {
       "id": "covalent-h-br-hbr",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3357,7 +3191,6 @@
     },
     {
       "id": "covalent-h-i-hi",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3379,7 +3212,6 @@
     },
     {
       "id": "covalent-h-n-nh3",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {
@@ -3401,7 +3233,6 @@
     },
     {
       "id": "covalent-h-s-h2s",
-      "status": "trusted",
       "family": "covalent_combination",
       "participants": [
         {

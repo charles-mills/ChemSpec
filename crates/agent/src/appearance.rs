@@ -8,7 +8,7 @@ use std::{
 use chem_domain::ContentDigest;
 use serde::{Deserialize, Serialize};
 
-use crate::{AgentError, AgentErrorKind, TrustTier};
+use crate::{AgentError, AgentErrorKind, OutcomeProvenance};
 
 pub const OXIDE_APPEARANCE_SCHEMA_VERSION: u32 = 1;
 const OXIDE_APPEARANCE_CACHE_SCHEMA_VERSION: u32 = 1;
@@ -271,8 +271,8 @@ impl ValidatedOxideAppearance {
     }
 
     #[must_use]
-    pub const fn trust_tier(&self) -> TrustTier {
-        TrustTier::ModelAsserted
+    pub const fn claim_provenance(&self) -> OutcomeProvenance {
+        OutcomeProvenance::ModelAsserted
     }
 }
 
@@ -283,7 +283,7 @@ struct AppearanceCacheEnvelope {
     contract_version: u32,
     request_binding: ContentDigest,
     claim_digest: ContentDigest,
-    trust_tier: TrustTier,
+    claim_provenance: OutcomeProvenance,
     provider: String,
     model: String,
     claim: OxideAppearanceClaim,
@@ -323,7 +323,7 @@ pub fn load_oxide_appearance_cache(
         || envelope.contract_version != OXIDE_APPEARANCE_CONTRACT_VERSION
         || envelope.request_binding != request_binding
         || envelope.claim_digest != expected_claim_digest
-        || envelope.trust_tier != TrustTier::ModelAsserted
+        || envelope.claim_provenance != OutcomeProvenance::ModelAsserted
     {
         return None;
     }
@@ -351,7 +351,7 @@ pub fn store_oxide_appearance_cache(
         contract_version: OXIDE_APPEARANCE_CONTRACT_VERSION,
         request_binding: request.binding_digest()?,
         claim_digest: claim_digest(revalidated.claim())?,
-        trust_tier: revalidated.trust_tier(),
+        claim_provenance: revalidated.claim_provenance(),
         provider: provider.to_owned(),
         model: model.to_owned(),
         claim: revalidated.claim,
@@ -503,7 +503,10 @@ mod tests {
         let validated =
             OxideAppearanceClaim::from_json_for(&bytes, &request()).expect("valid appearance");
         assert_eq!(validated.colour_family(), OxideColourFamily::White);
-        assert_eq!(validated.trust_tier(), TrustTier::ModelAsserted);
+        assert_eq!(
+            validated.claim_provenance(),
+            OutcomeProvenance::ModelAsserted
+        );
     }
 
     #[test]

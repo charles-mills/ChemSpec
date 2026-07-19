@@ -1,4 +1,4 @@
-//! Ordered validation pipeline for an untrusted catalogue envelope.
+//! Ordered validation pipeline for an external catalogue envelope.
 //!
 //! Stage ownership lives here so the public bundle API does not also become
 //! the accumulator for every intermediate index. The ordering is deliberate:

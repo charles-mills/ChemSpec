@@ -5218,8 +5218,9 @@ mod tests {
             run.frames(),
             run.macroscopic(),
         )
-        .expect("trusted observations select a presentation profile");
-        compile_real_world_plan(run.frames(), &profile).expect("plan compiles from trusted frames")
+        .expect("validated observations select a presentation profile");
+        compile_real_world_plan(run.frames(), &profile)
+            .expect("plan compiles from validated frames")
     }
 
     fn test_material(

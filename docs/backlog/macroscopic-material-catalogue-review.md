@@ -4,7 +4,7 @@
 
 Deferred at the July 2026 `origin/main` integration because the proposed
 catalogue mutation had no separate review attestation. It must not be copied
-into `catalogue/trusted/` or added to the application trust pins until the
+into `catalogue/reference/` or added to the application trust pins until the
 ordinary candidate, review, and promotion workflow is complete.
 
 ## Proposed content
@@ -24,7 +24,7 @@ corresponding `premise.material.*.standard-phase` premises. The existing review
 artifact remains bound to catalogue digest
 `9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2` and does
 not contain those evidence or premise IDs. Re-pinning that artifact would be a
-self-attestation and is forbidden by the catalogue trust contract.
+self-attestation and is forbidden by the catalogue provenance contract.
 
 ## Required completion path
 

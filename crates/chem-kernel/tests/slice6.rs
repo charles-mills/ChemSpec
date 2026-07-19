@@ -2,8 +2,8 @@ use std::{fs, path::PathBuf};
 
 use chem_catalogue::ValidatedCatalogueBundle;
 use chem_kernel::{
-    CurrentArtifactIdentity, FrameError, SimulationFrames, ValidatedStructuralReaction,
-    ValidationResult, expand_review_candidate, generate_frames, validate_review_candidate,
+    CurrentArtifactIdentity, ValidationResult, expand_provisional, generate_frames,
+    validate_provisional,
 };
 use serde_json::Value;
 
@@ -26,14 +26,14 @@ fn artifact_boundary_fixture_matches_the_public_kernel_contract() {
     ))
     .unwrap();
     let source = fixture("conformance/expansion/canonical-expansion-001.chems");
-    let expanded = expand_review_candidate(
+    let expanded = expand_provisional(
         "conformance/expansion/canonical-expansion-001.chems",
         std::str::from_utf8(&source).unwrap(),
         &catalogue,
         &fixture("conformance/observations/lithium-observations-001.input.json"),
     )
     .unwrap();
-    let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
+    let derivation = validate_provisional(&expanded, &catalogue).unwrap();
 
     assert_eq!(
         derivation.result(),
@@ -52,7 +52,7 @@ fn artifact_boundary_fixture_matches_the_public_kernel_contract() {
         expected["mandatory_model_disclosure"]["explanatory_sequence_is_not_a_mechanism_claim"],
         true
     );
-    assert!(CurrentArtifactIdentity::from_expanded(&expanded).is_ok());
+    let current = CurrentArtifactIdentity::from_expanded(&expanded).unwrap();
     let serialized = serde_json::to_value(&*derivation).unwrap();
     for field in expected["identity"].as_array().unwrap() {
         let field = field.as_str().unwrap();
@@ -73,8 +73,7 @@ fn artifact_boundary_fixture_matches_the_public_kernel_contract() {
         true
     );
 
-    let _: fn(
-        &ValidatedStructuralReaction,
-        CurrentArtifactIdentity,
-    ) -> Result<SimulationFrames, FrameError> = generate_frames;
+    let frames = generate_frames(&derivation, current).unwrap();
+    assert_eq!(frames.result(), ValidationResult::ValidatedWithAssumptions);
+    assert!(!frames.frames().is_empty());
 }

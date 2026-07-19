@@ -67,7 +67,7 @@ Every catalogue build checks:
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
 
-Catalogue trust tests additionally require the exact canonical catalogue and
+Catalogue provenance tests additionally require the exact canonical catalogue and
 external review to match independently supplied host pins. The review must
 bind the catalogue digest and exactly the complete premise and evidence-source
 sets. Mismatched pins fail with `CHEMS-C025`; malformed, partial, or
@@ -75,11 +75,11 @@ misbound reviews fail with `CHEMS-C026`. Candidate checking cannot construct
 the trusted capability, and promotion must validate and package the review
 without choosing the runtime host pins.
 
-Dynamic claims cannot construct catalogue trust. Exact static compilation must
+Dynamic claims cannot construct catalogue provenance. Exact static compilation must
 prove stable request identity, formula/charge conservation, deterministic
 smallest-integer coefficients, and checked `ReactionDeclaration` construction.
 Reviewed-family and model-proposed animation recipes must then cross the same
-review-candidate expansion, kernel validation, and frame projection before
+provisional expansion, kernel validation, and frame projection before
 presentation.
 
 ## Agent evaluation
@@ -367,7 +367,7 @@ precipitate. The proposed hydrogen, oxygen, water, carbon, and carbon-dioxide
 standard-phase records remain untrusted until a separate exact-digest review is
 promoted. Live-profile tests therefore require those catalogue phases to remain
 `Unknown`; typed compiler and renderer fixtures cover the intended phase
-combinations without conferring catalogue trust. The compiler input contains
+combinations without conferring catalogue provenance. The compiler input contains
 bindings and phases but no reaction name.
 
 Exposed surface-oxidation tests require validated static and dynamic outcomes
@@ -591,7 +591,7 @@ the expected family equation and scene. The displacement profile intentionally
 shows no liquid colour or product visual until such an appearance is supported
 by a trusted observation.
 
-Oxide appearance verification is split at the trust boundary. Unit tests
+Oxide appearance verification is split at the validation boundary. Unit tests
 require exact product/digest binding, closed-palette conversion,
 `ModelAsserted` provenance, procedural-text rejection, cache revalidation and
 tamper rejection, reviewed-colour precedence, original-material preservation

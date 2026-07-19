@@ -373,7 +373,7 @@ impl CodexProvider {
     /// Researches only the representative visible colour of one exact,
     /// already-validated oxide product. Live search is enabled, but the
     /// response remains a provisional model assertion and cannot modify the
-    /// trusted catalogue.
+    /// reference catalogue.
     ///
     /// # Errors
     ///

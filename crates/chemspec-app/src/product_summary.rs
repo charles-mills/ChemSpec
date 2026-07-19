@@ -1,4 +1,4 @@
-//! Post-simulation product presentation compiled from trusted final frames.
+//! Post-simulation product presentation compiled from validated final frames.
 //!
 //! This module performs deterministic layout and display formatting only. It
 //! never parses source, selects a reaction, or invents a chemical property.

@@ -947,13 +947,6 @@ def source_for(experience: dict) -> str:
 def update_registry(root: Path, experiences: list[dict]) -> None:
     registry_path = root / "catalogue/experience-registry.json"
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
-    trusted_path = root / "catalogue/trusted/core-chemistry/catalogue.json"
-    trusted = trusted_path.exists() and "Rules.HydrogenHalideCombination" in trusted_path.read_text(encoding="utf-8")
-    previous_trusted = any(
-        record.get("id", "").startswith("covalent-") and record.get("status") == "trusted"
-        for record in registry["experiences"]
-    )
-    status = "trusted" if trusted or previous_trusted else "candidate"
     base = [record for record in registry["experiences"] if not record.get("id", "").startswith("covalent-")]
     records = []
     for experience in experiences:
@@ -962,7 +955,6 @@ def update_registry(root: Path, experiences: list[dict]) -> None:
         records.append(
             {
                 "id": f"covalent-{experience['slug']}",
-                "status": status,
                 "family": "covalent_combination",
                 "participants": [
                     {"kind": "element", "atomic_number": ATOMIC_NUMBERS[first]},
