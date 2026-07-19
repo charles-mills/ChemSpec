@@ -1,13 +1,14 @@
 {
   "schema_version": 1,
   "id": "review.ai.core-chemistry",
-  "catalogue_digest": "3e535ee49eb7a43e321021e6b684dd81f6f7b079a048fc32cbd1d9de911d1f86",
+  "catalogue_digest": "fd85900c31e81d17c6654e4405f2de7f18c5a9d047142b6df259e07b95a710e8",
   "reviewer": "OpenAI Codex (AI)",
   "reviewed_on": "2026-07-19",
-  "scope": "The exact generated ChemSpec catalogue containing 118 element identity records; the structures, templates, applications, premises, and generalized rules for 36 established finite bindings across alkali-metal/water, silver-halide precipitation, strong-acid neutralization, acid-carbonate and acid-bicarbonate gas evolution, and aqueous halogen displacement; 68 representative element/oxygen structural experiences; 81 fixed-charge main-group binary ionic experiences covering Group 1, Group 2, and aluminium cations with halide, oxide, sulfide, nitride, and phosphide anions; and 20 finite covalent-combination outcomes covering hydrogen halides, ammonia, hydrogen sulfide, and reviewed interhalogens.",
-  "method": "Host-selected AI review against the cited IUPAC, OpenStax Chemistry 2e and Chemistry: Atoms First, and Royal Society of Chemistry sources for element identities, terminology, qualitative outcomes, boundaries, and observations; and against the cited ChemSpec design authority for explicitly labeled explanatory structural representations and executable intermediate states. Review covered deterministic seven-package generation, public-schema and Rust-model agreement, reference and structural validation, bounded graph matching and symmetry canonicalization including the finite IF7 symmetry class, electron and charge conservation, execution of every registered supported experience through ordinary .chems parsing, generalized elaboration, kernel validation, and frame generation, package-order invariance, and exact digest binding.",
+  "scope": "The exact generated ChemSpec catalogue containing 118 element identity records; the structures, templates, applications, premises, generalized rules, and reviewed macroscopic material records for 39 established finite bindings across alkali-metal/water (including the bounded Rb, Cs, and project-authorised Fr water-contact variants), silver-halide precipitation, strong-acid neutralization, acid-carbonate and acid-bicarbonate gas evolution, and aqueous halogen displacement; 68 representative element/oxygen structural experiences; 81 fixed-charge main-group binary ionic experiences covering Group 1, Group 2, and aluminium cations with halide, oxide, sulfide, nitride, and phosphide anions; and 20 finite covalent-combination outcomes covering hydrogen halides, ammonia, hydrogen sulfide, and reviewed interhalogens.",
+  "method": "Host-selected AI review against the cited IUPAC, OpenStax Chemistry 2e and Chemistry: Atoms First, and Royal Society of Chemistry sources for element identities, terminology, qualitative outcomes, boundaries, and observations; against the project-scoped authorisation for the bounded francium visual variant; and against the cited ChemSpec design authority for explicitly labeled explanatory structural representations and executable intermediate states. Review covered deterministic seven-package generation, public-schema and Rust-model agreement, reference and structural validation, bounded graph matching and symmetry canonicalization including the finite IF7 symmetry class, electron and charge conservation, execution of every registered supported experience through ordinary .chems parsing, generalized elaboration, kernel validation, and frame generation, package-order invariance, exact phase/contact material records, and exact digest binding.",
   "sources": [
     "evidence.chemspec.explanatory-structural-model",
+    "evidence.chemspec.project-heavy-alkali-visual-authorisation",
     "evidence.iupac.goldbook",
     "evidence.iupac.periodic-table",
     "evidence.nist.webbook.standard-phases",
@@ -21,6 +22,7 @@
     "evidence.openstax.ionic-compounds",
     "evidence.openstax.oxygen-compounds",
     "evidence.rsc.halogen-displacement",
+    "evidence.rsc.alkali-metals-camera-lies",
     "evidence.rsc.silver-halide-colours"
   ],
   "premises": [
@@ -32,6 +34,7 @@
     "premise.category.halide",
     "premise.elements.iupac-periodic-table",
     "premise.material.oxygen-family.standard-phase",
+    "premise.material.heavy-alkali-water.presentation",
     "premise.observation.acid-disappears",
     "premise.observation.acid-disappears.gas-evolution",
     "premise.observation.alkali-metal-disappears",
@@ -82,6 +85,6 @@
     "premise.valence.halogen-displacement.initial-domain",
     "premise.valence.precipitation.initial-domain"
   ],
-  "coverage_conclusion": "The exact catalogue is internally consistent, evidence-linked, structurally conservative, and suitable for 205 supported representative educational experiences: 36 established finite bindings, 68 oxygen reactions, 81 fixed-charge ionic pairs, and 20 finite covalent-combination outcomes. Explicitly unsupported cases remain rejected, oxygen screening does not authorize frames, and the remaining element identity records do not imply reaction support.",
-  "limitation": "This is an explicitly AI-reviewed trust decision, not human expert certification. AI review can be wrong. ChemSpec's finite formula-unit, closed structural representations and transient execution states are explanatory modeling assumptions and must not be presented as empirical evidence, infinite crystal lattices, physical intermediates, or mechanisms. The trusted families describe representative qualitative outcomes for education, not laboratory procedure, quantitative equilibrium, kinetics, thermodynamics, concentrations, physical conditions, variable-occupancy solids, or safety guidance."
+  "coverage_conclusion": "The exact catalogue is internally consistent, evidence-linked, structurally conservative, and suitable for 208 supported representative educational experiences: 39 established finite bindings, 68 oxygen reactions, 81 fixed-charge ionic pairs, and 20 finite covalent-combination outcomes. The reviewed heavy-alkali material records bind exact validated structures to a presentation-only water-contact category without widening the independently reviewed alkali-salt families. Explicitly unsupported cases remain rejected, oxygen screening does not authorize frames, and the remaining element identity records do not imply reaction support.",
+  "limitation": "This is an explicitly AI-reviewed trust decision, not human expert certification. AI review can be wrong. ChemSpec's finite formula-unit, closed structural representations and transient execution states are explanatory modeling assumptions and must not be presented as empirical evidence, infinite crystal lattices, physical intermediates, or mechanisms. The trusted families describe representative qualitative outcomes for education, not laboratory procedure, quantitative equilibrium, kinetics, thermodynamics, concentrations, physical conditions, variable-occupancy solids, or safety guidance. The francium water-contact visual variant is project-authorised presentation scope, not independently verified empirical behaviour."
 }

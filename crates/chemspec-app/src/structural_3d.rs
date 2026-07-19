@@ -9,9 +9,10 @@ use std::sync::OnceLock;
 use bytemuck::{Pod, Zeroable};
 use chem_catalogue::ObservationPredicate;
 use chem_presentation::{
-    AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, FlamePalette,
-    GasEvolutionVariant, MacroscopicStage, PresentationColourTransition, PresentationEffect,
-    PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole, VisualColour,
+    AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, ExplosiveMetalWaterVariant,
+    FlamePalette, GasEvolutionVariant, MacroscopicStage, PresentationColourTransition,
+    PresentationEffect, PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole,
+    VisualColour,
 };
 use chem_presentation::{RealWorldPosition, ScenePlan};
 use glam::{EulerRot, Mat4, Quat, Vec3};
@@ -473,6 +474,15 @@ static METAL_DISPLACEMENT_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
 const SYNTHESIS_COMBINATION_CLIP_BYTES: &[u8] =
     include_bytes!("../assets/models/synthesis_combination.clip");
 static SYNTHESIS_COMBINATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const RUBIDIUM_WATER_EXPLOSION_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/rubidium_water_explosion.clip");
+static RUBIDIUM_WATER_EXPLOSION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const CAESIUM_WATER_EXPLOSION_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/caesium_water_explosion.clip");
+static CAESIUM_WATER_EXPLOSION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
+const FRANCIUM_WATER_EXPLOSION_CLIP_BYTES: &[u8] =
+    include_bytes!("../assets/models/francium_water_explosion.clip");
+static FRANCIUM_WATER_EXPLOSION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
 
 fn embedded_metal_mesh() -> &'static EmbeddedMesh {
     METAL_MESH.get_or_init(|| {
@@ -545,6 +555,26 @@ fn synthesis_combination_clip() -> &'static AnimatedClip {
             panic!("embedded synthesis-combination clip is invalid: {error}")
         })
     })
+}
+
+fn explosive_metal_water_clip(variant: ExplosiveMetalWaterVariant) -> &'static AnimatedClip {
+    match variant {
+        ExplosiveMetalWaterVariant::Rubidium => RUBIDIUM_WATER_EXPLOSION_CLIP.get_or_init(|| {
+            AnimatedClip::parse(RUBIDIUM_WATER_EXPLOSION_CLIP_BYTES).unwrap_or_else(|error| {
+                panic!("embedded rubidium water-explosion clip is invalid: {error}")
+            })
+        }),
+        ExplosiveMetalWaterVariant::Caesium => CAESIUM_WATER_EXPLOSION_CLIP.get_or_init(|| {
+            AnimatedClip::parse(CAESIUM_WATER_EXPLOSION_CLIP_BYTES).unwrap_or_else(|error| {
+                panic!("embedded caesium water-explosion clip is invalid: {error}")
+            })
+        }),
+        ExplosiveMetalWaterVariant::Francium => FRANCIUM_WATER_EXPLOSION_CLIP.get_or_init(|| {
+            AnimatedClip::parse(FRANCIUM_WATER_EXPLOSION_CLIP_BYTES).unwrap_or_else(|error| {
+                panic!("embedded francium water-explosion clip is invalid: {error}")
+            })
+        }),
+    }
 }
 
 fn parse_embedded_mesh(bytes: &[u8]) -> Result<EmbeddedMesh, &'static str> {
@@ -2973,6 +3003,20 @@ fn build_scene_with_stage(
         None,
     );
     if plan.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && object.asset == AssetProfile::ExplosiveMetalWaterAssembly
+    }) {
+        add_animated_explosive_metal_water_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish(view_direction);
+    }
+    if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel && object.asset == AssetProfile::ReactiveMetalWaterAssembly
     }) {
         add_animated_alkali_water_assembly(
@@ -3916,6 +3960,7 @@ fn apply_asset_colour_transition(
             AssetProfile::LaboratoryBench
             | AssetProfile::DarkPresentationPlatform
             | AssetProfile::ReactiveMetalWaterAssembly
+            | AssetProfile::ExplosiveMetalWaterAssembly
             | AssetProfile::NeutralisationEvaporationAssembly
             | AssetProfile::CompleteCombustionAssembly
             | AssetProfile::IncompleteCombustionAssembly
@@ -6211,6 +6256,140 @@ fn add_animated_alkali_water_assembly(
     }
 }
 
+fn add_animated_explosive_metal_water_assembly(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    progress: f32,
+    ordinal: u16,
+    ordinal_progress: f32,
+) {
+    let explosive = plan
+        .explosive_metal_water
+        .as_ref()
+        .expect("validated high-energy metal/water assembly has material bindings");
+    let clip = explosive_metal_water_clip(explosive.variant);
+    debug_assert_eq!(clip.frames_per_second, 30);
+    let frame = clip.frame_at_progress(progress);
+    append_shared_beaker(
+        &mut meshes.glass,
+        alkali_water_clip(),
+        layout.bench_top,
+        Vec3::ZERO,
+    );
+    for track in &clip.tracks {
+        if !explosive_metal_water_track_visible(track.module, frame) {
+            continue;
+        }
+        let colour =
+            explosive_metal_water_track_colour(track.colour, explosive, ordinal, ordinal_progress);
+        let track_frame = explosive_metal_water_track_frame(track.module, frame);
+        let destination = match (track.pass, track.colour, track.module) {
+            (_, ClipColour::Glass, _) | (_, _, ClipModule::BeakerShards) => &mut meshes.glass,
+            (ClipPass::Opaque, _, _) => &mut meshes.opaque,
+            (ClipPass::Translucent, _, _) => &mut meshes.translucent,
+            (ClipPass::Emissive, _, _) => &mut meshes.emissive,
+        };
+        append_animated_track(
+            destination,
+            clip,
+            track,
+            track_frame,
+            layout.bench_top,
+            1.0,
+            colour,
+        );
+    }
+}
+
+fn explosive_metal_water_track_visible(module: ClipModule, frame: f32) -> bool {
+    // The compact clip format does not encode Blender visibility, so enforce
+    // the authored source-frame windows recorded in the asset manifest. Clip
+    // frame zero corresponds to source frame one.
+    match module {
+        ClipModule::Metal => frame < 39.0,
+        ClipModule::BeakerShards
+        | ClipModule::Explosion
+        | ClipModule::Flame
+        | ClipModule::Sparks => (39.0..65.0).contains(&frame),
+        ClipModule::Bubbles | ClipModule::Splashes | ClipModule::Vapour => {
+            (44.0..95.0).contains(&frame)
+        }
+        _ => true,
+    }
+}
+
+fn explosive_metal_water_track_frame(module: ClipModule, frame: f32) -> f32 {
+    // The source liquid is hidden at contact while dedicated explosion and
+    // splash modules take over. Preserve its last contained frame so the
+    // validated aqueous product has a stable final surface instead of the
+    // invisible source object's rapidly expanding setup mesh.
+    if module == ClipModule::Water {
+        frame.min(38.0)
+    } else {
+        frame
+    }
+}
+
+fn explosive_metal_water_track_colour(
+    colour: ClipColour,
+    explosive: &chem_presentation::ExplosiveMetalWaterVisualProfile,
+    ordinal: u16,
+    ordinal_progress: f32,
+) -> [f32; 4] {
+    let rgba = |bound: &chem_presentation::BoundVisualColour, opacity| {
+        let (base, target, amount) =
+            bound_colour_endpoints(bound, opacity, ordinal, ordinal_progress);
+        mix_color(base, target, amount)
+    };
+    let contact_amount = match ordinal.cmp(&explosive.contact_ordinal) {
+        std::cmp::Ordering::Less => 0.0,
+        std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
+        std::cmp::Ordering::Greater => 1.0,
+    };
+    let water = rgba(&explosive.water_reactant, 0.34);
+    let hydroxide = rgba(&explosive.hydroxide_product, 0.34);
+    let liquid = mix_color(water, hydroxide, contact_amount);
+    let flame = flame_colours(FlamePalette::Natural);
+    match colour {
+        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
+        ClipColour::Water => liquid,
+        ClipColour::WaterHighlight => alpha(mix_color(liquid, [0.94, 0.98, 1.0, 0.46], 0.52), 0.46),
+        ClipColour::ReactiveMetal => rgba(&explosive.metal_reactant, 1.0),
+        ClipColour::FlameOuter => flame.body_high,
+        ClipColour::FlameInner => flame.body_low,
+        ClipColour::FlameCore => flame.core,
+        ClipColour::FizzBubble | ClipColour::GasBubble => rgba(&explosive.hydrogen_product, 0.30),
+        ClipColour::Vapour | ClipColour::ProductPlume | ClipColour::GasCloud => {
+            rgba(&explosive.hydrogen_product, 0.15)
+        }
+        ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
+        ClipColour::CombustionSmoke => [0.20, 0.22, 0.24, 0.22],
+        ClipColour::MixtureA
+        | ClipColour::MixtureB
+        | ClipColour::SaltResidue
+        | ClipColour::Fuel
+        | ClipColour::Soot
+        | ClipColour::SootDeposit
+        | ClipColour::LiquidInitial
+        | ClipColour::LiquidAdded
+        | ClipColour::PrecipitateCloud
+        | ClipColour::Precipitate
+        | ClipColour::SolidReactant
+        | ClipColour::SolutionInitial
+        | ClipColour::SolutionFinal
+        | ClipColour::OriginalMetal
+        | ClipColour::DepositedMetal
+        | ClipColour::MetalErosion
+        | ClipColour::ReactantA
+        | ClipColour::ReactantB
+        | ClipColour::SynthesisProduct
+        | ClipColour::ReactionFront
+        | ClipColour::ReactionVessel
+        | ClipColour::MixingTool => [0.82, 0.86, 0.88, 0.20],
+    }
+}
+
 /// Everything the neutralisation basin's state implies at one moment.
 #[derive(Clone, Copy)]
 struct NeutralisationLiquidLife {
@@ -7488,7 +7667,9 @@ fn animated_track_enabled(
             (0.34 + style.activity * 0.66).clamp(0.0, 1.0)
         }
         ClipModule::Beaker | ClipModule::Water | ClipModule::Metal => 1.0,
-        ClipModule::Mixing
+        ClipModule::BeakerShards
+        | ClipModule::Explosion
+        | ClipModule::Mixing
         | ClipModule::Salt
         | ClipModule::Stirrer
         | ClipModule::VesselAnchor
@@ -8635,6 +8816,8 @@ fn append_animated_track_adjusted(
                 position.z = initial.position.z + (position.z - initial.position.z) * activity;
             }
             ClipModule::Beaker
+            | ClipModule::BeakerShards
+            | ClipModule::Explosion
             | ClipModule::Flame
             | ClipModule::Bubbles
             | ClipModule::Splashes
@@ -9163,6 +9346,7 @@ mod tests {
             phase,
             representation,
             colour: None,
+            explosive_water_contact: None,
         }
     }
 
@@ -11244,6 +11428,192 @@ mod tests {
             ClipModule::OriginalMetal,
             0.0
         ));
+    }
+
+    #[test]
+    fn heavy_alkali_clips_preserve_the_authored_contract_and_shared_beaker_boundary() {
+        for (variant, bytes) in [
+            (
+                ExplosiveMetalWaterVariant::Rubidium,
+                RUBIDIUM_WATER_EXPLOSION_CLIP_BYTES,
+            ),
+            (
+                ExplosiveMetalWaterVariant::Caesium,
+                CAESIUM_WATER_EXPLOSION_CLIP_BYTES,
+            ),
+            (
+                ExplosiveMetalWaterVariant::Francium,
+                FRANCIUM_WATER_EXPLOSION_CLIP_BYTES,
+            ),
+        ] {
+            let clip = AnimatedClip::parse(bytes).expect("embedded heavy-alkali clip parses");
+            assert_eq!(clip.frame_count, 180, "{variant:?}");
+            assert_eq!(clip.frames_per_second, 30, "{variant:?}");
+            assert_eq!(clip.tracks.len(), 185, "{variant:?}");
+            for module in [
+                ClipModule::Water,
+                ClipModule::Metal,
+                ClipModule::Flame,
+                ClipModule::Bubbles,
+                ClipModule::Splashes,
+                ClipModule::Vapour,
+                ClipModule::BeakerShards,
+                ClipModule::Explosion,
+            ] {
+                assert!(
+                    clip.tracks.iter().any(|track| track.module == module),
+                    "{variant:?} is missing {module:?}"
+                );
+            }
+            assert!(
+                clip.tracks
+                    .iter()
+                    .all(|track| track.module != ClipModule::Beaker),
+                "{variant:?} must reuse the shared beaker instead of baking a duplicate"
+            );
+            let track = clip
+                .tracks
+                .iter()
+                .find(|track| track.module == ClipModule::Metal)
+                .expect("clip has animated metal geometry");
+            let first = clip.sample(track, 0, 93.375);
+            let after_seek = clip.sample(track, 0, 8.25);
+            let replay = clip.sample(track, 0, 93.375);
+            assert_eq!(first.position, replay.position, "{variant:?}");
+            assert_eq!(first.normal, replay.normal, "{variant:?}");
+            assert_ne!(first.position, after_seek.position, "{variant:?}");
+        }
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Explosion,
+            38.999
+        ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Explosion,
+            39.0
+        ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Explosion,
+            64.999
+        ));
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Explosion,
+            65.0
+        ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Metal,
+            38.999
+        ));
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Metal,
+            39.0
+        ));
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Vapour,
+            43.999
+        ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Vapour,
+            44.0
+        ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Vapour,
+            94.999
+        ));
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Vapour,
+            95.0
+        ));
+        assert!(
+            (explosive_metal_water_track_frame(ClipModule::Water, 179.0) - 38.0).abs()
+                < f32::EPSILON
+        );
+        assert!(
+            (explosive_metal_water_track_frame(ClipModule::Explosion, 179.0) - 179.0).abs()
+                < f32::EPSILON
+        );
+    }
+
+    #[test]
+    fn heavy_alkali_material_slots_keep_identity_bound_rgb_and_phase_opacity() {
+        let bound = |binding: &str, base: [u8; 3], colour: [u8; 3], transition_ordinal| {
+            chem_presentation::BoundVisualColour {
+                binding: binding.to_owned(),
+                base_colour: VisualColour {
+                    red: base[0],
+                    green: base[1],
+                    blue: base[2],
+                },
+                colour: VisualColour {
+                    red: colour[0],
+                    green: colour[1],
+                    blue: colour[2],
+                },
+                transition_ordinal,
+            }
+        };
+        let visual = chem_presentation::ExplosiveMetalWaterVisualProfile {
+            contact_ordinal: 2,
+            variant: ExplosiveMetalWaterVariant::Rubidium,
+            water_reactant: bound("water", [0x18, 0x7d, 0xb6], [0x18, 0x7d, 0xb6], None),
+            metal_reactant: bound("metal", [0x92, 0x96, 0x9a], [0x92, 0x96, 0x9a], None),
+            hydroxide_product: bound("hydroxide", [0x42, 0x8b, 0x9e], [0xea, 0xb4, 0x31], Some(4)),
+            hydrogen_product: bound("hydrogen", [0xd6, 0xee, 0xf4], [0xd6, 0xee, 0xf4], None),
+        };
+        let rgb = |[red, green, blue]: [u8; 3]| {
+            [
+                f32::from(red) / 255.0,
+                f32::from(green) / 255.0,
+                f32::from(blue) / 255.0,
+            ]
+        };
+        let assert_rgb = |actual: [f32; 4], expected: [u8; 3]| {
+            assert!(
+                actual[..3]
+                    .iter()
+                    .zip(rgb(expected))
+                    .all(|(actual, expected)| (actual - expected).abs() <= 1.0e-6),
+                "{actual:?} did not retain {expected:?}",
+            );
+        };
+        let before_contact = explosive_metal_water_track_colour(ClipColour::Water, &visual, 1, 1.0);
+        let product_base = explosive_metal_water_track_colour(ClipColour::Water, &visual, 3, 1.0);
+        let product_target = explosive_metal_water_track_colour(ClipColour::Water, &visual, 5, 1.0);
+        assert_rgb(before_contact, [0x18, 0x7d, 0xb6]);
+        assert_rgb(product_base, [0x42, 0x8b, 0x9e]);
+        assert_rgb(product_target, [0xea, 0xb4, 0x31]);
+        assert!((product_target[3] - 0.34).abs() < f32::EPSILON);
+        let metal = explosive_metal_water_track_colour(ClipColour::ReactiveMetal, &visual, 5, 1.0);
+        let hydrogen = explosive_metal_water_track_colour(ClipColour::Vapour, &visual, 5, 1.0);
+        assert_rgb(metal, [0x92, 0x96, 0x9a]);
+        assert!((metal[3] - 1.0).abs() < f32::EPSILON);
+        assert_rgb(hydrogen, [0xd6, 0xee, 0xf4]);
+        assert!((hydrogen[3] - 0.15).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn heavy_alkali_scene_replays_and_seeks_backwards_from_the_absolute_playhead() {
+        let plan = plan_for(chemistry::ReactionRequest::heavy_alkali_water(
+            chemistry::HeavyAlkaliMetal::Rubidium,
+        ));
+        assert!(matches!(
+            plan.explosive_metal_water
+                .as_ref()
+                .map(|profile| profile.variant),
+            Some(ExplosiveMetalWaterVariant::Rubidium)
+        ));
+        let early = plan.timeline.locate(0).expect("timeline begins at zero");
+        let later = plan
+            .timeline
+            .locate(plan.timeline.duration_ms() / 2)
+            .expect("midpoint is on the timeline");
+        let first = build_scene_at(&plan, early, (0.0, 0.0));
+        let _later = build_scene_at(&plan, later, (0.0, 0.0));
+        let replay = build_scene_at(&plan, early, (0.0, 0.0));
+        assert_eq!(
+            bytemuck::cast_slice::<GpuVertex, u8>(&first.0),
+            bytemuck::cast_slice::<GpuVertex, u8>(&replay.0)
+        );
+        assert_eq!(first.1, replay.1);
     }
 
     fn authored_gas_plan(variant: GasEvolutionVariant) -> ScenePlan {

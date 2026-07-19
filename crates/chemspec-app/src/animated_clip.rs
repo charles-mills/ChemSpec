@@ -46,6 +46,9 @@ pub(crate) enum ClipModule {
     SynthesisReactionFront,
     SynthesisVessel,
     SynthesisMixingTool,
+    // Appended stable IDs for the high-energy metal/water source clips.
+    BeakerShards,
+    Explosion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -310,6 +313,8 @@ impl TryFrom<u8> for ClipModule {
             29 => Ok(Self::SynthesisReactionFront),
             30 => Ok(Self::SynthesisVessel),
             31 => Ok(Self::SynthesisMixingTool),
+            32 => Ok(Self::BeakerShards),
+            33 => Ok(Self::Explosion),
             _ => Err("unsupported clip module"),
         }
     }

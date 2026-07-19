@@ -6,9 +6,9 @@
 use std::{collections::BTreeMap, str::FromStr, sync::LazyLock};
 
 use chem_catalogue::{
-    GeneralizedCaseSelection, GeneralizedReactionCaseRecord, ObservationPredicate, OxygenOutcome,
-    ReferenceCatalogue, ReferenceIntegrityPolicy, ValidatedCatalogueBundle,
-    ValidatedOxygenScreening,
+    ExplosiveWaterContactVariantRecord, GeneralizedCaseSelection, GeneralizedReactionCaseRecord,
+    ObservationPredicate, OxygenOutcome, ReferenceCatalogue, ReferenceIntegrityPolicy,
+    ValidatedCatalogueBundle, ValidatedOxygenScreening, WaterContactBehaviourRecord,
 };
 use chem_domain::{ContentDigest, ReactionRuleId, RepresentationKind};
 use chem_kernel::{
@@ -17,11 +17,11 @@ use chem_kernel::{
 };
 use chem_presentation::{
     AppearanceProfile, AssetProfile, CameraBehaviour, CameraCue, EffectIntensity, EffectProfile,
-    FlamePalette, MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess,
-    MacroscopicReaction, ObjectObservationBinding, PresentationColourTransition,
-    PresentationEffect, PresentationObject, PresentationProfile, PresentationTransform, SceneRole,
-    VIRTUAL_ONLY_DISCLOSURE, VisualColour, compile_phase_driven_profile,
-    complete_generic_visual_profile, visual_colour,
+    ExplosiveMetalWaterVariant, FlamePalette, MacroscopicMaterial, MacroscopicMaterialRole,
+    MacroscopicProcess, MacroscopicReaction, ObjectObservationBinding,
+    PresentationColourTransition, PresentationEffect, PresentationObject, PresentationProfile,
+    PresentationTransform, SceneRole, VIRTUAL_ONLY_DISCLOSURE, VisualColour,
+    compile_phase_driven_profile, complete_generic_visual_profile, visual_colour,
 };
 
 use crate::composition_catalogue::{self, CompositionId};
@@ -30,9 +30,9 @@ const CATALOGUE: &[u8] =
     include_bytes!("../../../catalogue/reference/core-chemistry/catalogue.json");
 const CATALOGUE_REVIEW: &[u8] =
     include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
-const CATALOGUE_DIGEST: &str = "3e535ee49eb7a43e321021e6b684dd81f6f7b079a048fc32cbd1d9de911d1f86";
+const CATALOGUE_DIGEST: &str = "fd85900c31e81d17c6654e4405f2de7f18c5a9d047142b6df259e07b95a710e8";
 const CATALOGUE_REVIEW_DIGEST: &str =
-    "2d0566864936a6acf171ba07df4d1078ee7c58ac713a72e6d930675799acec30";
+    "059376c1cabb19e175e5ea66a976bbab91c2b336f73b517e918926edccfbb7fd";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -107,6 +107,51 @@ impl AlkaliMetal {
             Self::Lithium => CompositionId::LithiumBicarbonate,
             Self::Sodium => CompositionId::SodiumBicarbonate,
             Self::Potassium => CompositionId::PotassiumBicarbonate,
+        }
+    }
+}
+
+/// The heavy alkali metals whose exact catalogue material facts authorise the
+/// reusable high-energy water-contact assembly. This deliberately remains
+/// separate from [`AlkaliMetal`]: the independently reviewed salt families
+/// retain their original Li/Na/K finite domain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeavyAlkaliMetal {
+    Rubidium,
+    Caesium,
+    Francium,
+}
+
+impl HeavyAlkaliMetal {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Rubidium => "Rubidium",
+            Self::Caesium => "Caesium",
+            Self::Francium => "Francium",
+        }
+    }
+
+    const fn lower_name(self) -> &'static str {
+        match self {
+            Self::Rubidium => "rubidium",
+            Self::Caesium => "caesium",
+            Self::Francium => "francium",
+        }
+    }
+
+    const fn symbol(self) -> &'static str {
+        match self {
+            Self::Rubidium => "Rb",
+            Self::Caesium => "Cs",
+            Self::Francium => "Fr",
+        }
+    }
+
+    const fn atomic_number(self) -> u8 {
+        match self {
+            Self::Rubidium => 37,
+            Self::Caesium => 55,
+            Self::Francium => 87,
         }
     }
 }
@@ -452,6 +497,9 @@ enum ReactionKind {
     AlkaliWater {
         metal: AlkaliMetal,
     },
+    HeavyAlkaliWater {
+        metal: HeavyAlkaliMetal,
+    },
     SilverHalidePrecipitation {
         halogen: Halogen,
     },
@@ -485,10 +533,13 @@ pub struct ReactionRequest {
 
 impl ReactionRequest {
     pub const DEFAULT: Self = Self::alkali_water(AlkaliMetal::Lithium);
-    pub const ALL: [Self; 36] = [
+    pub const ALL: [Self; 39] = [
         Self::alkali_water(AlkaliMetal::Lithium),
         Self::alkali_water(AlkaliMetal::Sodium),
         Self::alkali_water(AlkaliMetal::Potassium),
+        Self::heavy_alkali_water(HeavyAlkaliMetal::Rubidium),
+        Self::heavy_alkali_water(HeavyAlkaliMetal::Caesium),
+        Self::heavy_alkali_water(HeavyAlkaliMetal::Francium),
         Self::silver_halide_precipitation(Halogen::Chlorine),
         Self::silver_halide_precipitation(Halogen::Bromine),
         Self::silver_halide_precipitation(Halogen::Iodine),
@@ -528,6 +579,13 @@ impl ReactionRequest {
     pub const fn alkali_water(metal: AlkaliMetal) -> Self {
         Self {
             kind: ReactionKind::AlkaliWater { metal },
+        }
+    }
+
+    #[must_use]
+    pub const fn heavy_alkali_water(metal: HeavyAlkaliMetal) -> Self {
+        Self {
+            kind: ReactionKind::HeavyAlkaliWater { metal },
         }
     }
 
@@ -584,7 +642,9 @@ impl ReactionRequest {
     #[must_use]
     pub const fn family(self) -> ReactionFamily {
         match self.kind {
-            ReactionKind::AlkaliWater { .. } => ReactionFamily::AlkaliWater,
+            ReactionKind::AlkaliWater { .. } | ReactionKind::HeavyAlkaliWater { .. } => {
+                ReactionFamily::AlkaliWater
+            }
             ReactionKind::SilverHalidePrecipitation { .. } => {
                 ReactionFamily::SilverHalidePrecipitation
             }
@@ -604,6 +664,9 @@ impl ReactionRequest {
     pub fn id(self) -> String {
         match self.kind {
             ReactionKind::AlkaliWater { metal } => {
+                format!("alkali-water-{}", metal.lower_name())
+            }
+            ReactionKind::HeavyAlkaliWater { metal } => {
                 format!("alkali-water-{}", metal.lower_name())
             }
             ReactionKind::SilverHalidePrecipitation { halogen } => format!(
@@ -654,6 +717,9 @@ impl ReactionRequest {
     pub fn equation(self) -> String {
         match self.kind {
             ReactionKind::AlkaliWater { metal } => {
+                format!("2{} + 2H₂O  →  2{}OH + H₂", metal.symbol(), metal.symbol())
+            }
+            ReactionKind::HeavyAlkaliWater { metal } => {
                 format!("2{} + 2H₂O  →  2{}OH + H₂", metal.symbol(), metal.symbol())
             }
             ReactionKind::SilverHalidePrecipitation { halogen } => format!(
@@ -739,6 +805,10 @@ impl ReactionRequest {
                 DraftParticipant::Atom(metal.atomic_number()),
                 DraftParticipant::Composition(CompositionId::Water),
             ]),
+            ReactionKind::HeavyAlkaliWater { metal } => Some([
+                DraftParticipant::Atom(metal.atomic_number()),
+                DraftParticipant::Composition(CompositionId::Water),
+            ]),
             ReactionKind::SilverHalidePrecipitation { halogen } => Some([
                 DraftParticipant::Composition(CompositionId::SilverNitrate),
                 DraftParticipant::Composition(halogen.sodium_halide()),
@@ -769,7 +839,12 @@ impl ReactionRequest {
     #[must_use]
     pub fn source(self) -> String {
         match self.kind {
-            ReactionKind::AlkaliWater { metal } => alkali_water_source(metal),
+            ReactionKind::AlkaliWater { metal } => {
+                alkali_water_source(metal.name(), metal.symbol())
+            }
+            ReactionKind::HeavyAlkaliWater { metal } => {
+                alkali_water_source(metal.name(), metal.symbol())
+            }
             ReactionKind::SilverHalidePrecipitation { halogen } => precipitation_source(halogen),
             ReactionKind::AcidBaseNeutralization { metal, halogen } => {
                 neutralization_source(metal, halogen)
@@ -864,11 +939,9 @@ pub fn roll_candidates() -> Vec<(ReactionFamily, Vec<[Vec<u8>; 2]>)> {
     by_family.into_iter().collect()
 }
 
-fn alkali_water_source(metal: AlkaliMetal) -> String {
+fn alkali_water_source(name: &str, symbol: &str) -> String {
     format!(
         "chems 1\nuse catalog ChemSpec.Theoretical@1\nreaction {name}AndWater where\n  reactants\n    metal := 2 of {name}Metal\n    water := 2 of Water\n  products\n    hydroxide := 2 of {name}Hydroxide\n    hydrogen := 1 of Hydrogen\n  equation\n    2 {symbol}[metallic] + 2 H2O[molecular]\n    -> 2 {symbol}OH[ionic] + H2[molecular]\n  model\n    event := representative\n    sequence := explanatory\n  observe from Evidence.AlkaliWater@1\n    gas hydrogen evolves claim R1\n    reactant metal disappears claim R2\n  by\n    apply Rules.AlkaliMetalWithWater\n      metal := metal\n      water := water\n      hydroxide := hydroxide\n      gasProduct := hydrogen\n",
-        name = metal.name(),
-        symbol = metal.symbol()
     )
 }
 
@@ -1083,54 +1156,23 @@ fn catalogue_macroscopic_reaction(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     catalogue: &ValidatedCatalogueBundle,
 ) -> Option<MacroscopicReaction> {
-    let rule = &expanded.claim().rule().rule;
-    let resolve = |binding: &str,
-                   resolved: &chem_kernel::ResolvedStructureBinding,
-                   role: MacroscopicMaterialRole| {
-        let rule_role = expanded
-            .claim()
-            .rule()
-            .bindings
-            .values()
-            .find(|candidate| candidate.binding == binding)
-            .map(|candidate| (rule, candidate.role.as_str()));
-        let record = catalogue.macroscopic_material(&resolved.structure, rule_role);
-        record
-            .map(|material| material.phase)
-            .or_else(|| {
-                (request.family() == ReactionFamily::Oxygen).then_some(chem_domain::Phase::Unknown)
-            })
-            .map(|phase| MacroscopicMaterial {
-                binding: binding.to_owned(),
-                semantic_identity: resolved.name.clone(),
-                structure_id: resolved.structure.to_string(),
-                formula: chem_domain::conventional_formula(
-                    resolved
-                        .formula
-                        .iter()
-                        .map(|(symbol, count)| (symbol.as_str(), *count)),
-                ),
-                role,
-                phase,
-                representation: resolved.representation,
-                colour: record.and_then(|material| {
-                    material
-                        .colour
-                        .map(|[red, green, blue]| VisualColour { red, green, blue })
-                }),
-            })
-    };
     let mut materials =
         Vec::with_capacity(expanded.claim().reactants().len() + expanded.claim().products().len());
     for (binding, material) in expanded.claim().reactants() {
-        materials.push(resolve(
+        materials.push(catalogue_macroscopic_material(
+            request,
+            expanded,
+            catalogue,
             binding,
             material,
             MacroscopicMaterialRole::Reactant,
         )?);
     }
     for (binding, material) in expanded.claim().products() {
-        materials.push(resolve(
+        materials.push(catalogue_macroscopic_material(
+            request,
+            expanded,
+            catalogue,
             binding,
             material,
             MacroscopicMaterialRole::Product,
@@ -1149,25 +1191,89 @@ fn catalogue_macroscopic_reaction(
         profile_id: format!("presentation.catalogue.{}", request.id()),
         equation: request.equation(),
         materials,
-        intensity: match process {
-            Some(
-                MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion,
-            ) => EffectIntensity::Strong,
-            Some(
-                MacroscopicProcess::AqueousPrecipitation
-                | MacroscopicProcess::GasEvolutionLiquidLiquid
-                | MacroscopicProcess::GasEvolutionSolidLiquid
-                | MacroscopicProcess::MetalDisplacement
-                | MacroscopicProcess::SolidSolidSynthesis
-                | MacroscopicProcess::SolventEvaporationCrystallization
-                | MacroscopicProcess::SurfaceOxidation,
-            )
-            | None => EffectIntensity::Moderate,
-        },
+        intensity: macroscopic_process_intensity(process),
         process,
         fuel_carbon_count,
         surface_oxide_colour: None,
     })
+}
+
+fn catalogue_macroscopic_material(
+    request: ReactionRequest,
+    expanded: &chem_kernel::ExpandedStructuralReaction,
+    catalogue: &ValidatedCatalogueBundle,
+    binding: &str,
+    resolved: &chem_kernel::ResolvedStructureBinding,
+    role: MacroscopicMaterialRole,
+) -> Option<MacroscopicMaterial> {
+    let rule_id = &expanded.claim().rule().rule;
+    let rule_role = expanded
+        .claim()
+        .rule()
+        .bindings
+        .values()
+        .find(|candidate| candidate.binding == binding)
+        .map(|candidate| (rule_id, candidate.role.as_str()));
+    let record = catalogue.macroscopic_material(&resolved.structure, rule_role);
+    let phase = record.map(|material| material.phase).or_else(|| {
+        (request.family() == ReactionFamily::Oxygen).then_some(chem_domain::Phase::Unknown)
+    })?;
+    Some(MacroscopicMaterial {
+        binding: binding.to_owned(),
+        semantic_identity: resolved.name.clone(),
+        structure_id: resolved.structure.to_string(),
+        formula: chem_domain::conventional_formula(
+            resolved
+                .formula
+                .iter()
+                .map(|(symbol, count)| (symbol.as_str(), *count)),
+        ),
+        role,
+        phase,
+        representation: resolved.representation,
+        colour: record.and_then(|material| {
+            material
+                .colour
+                .map(|[red, green, blue]| VisualColour { red, green, blue })
+        }),
+        explosive_water_contact: record
+            .and_then(|material| material.water_contact)
+            .map(explosive_metal_water_variant),
+    })
+}
+
+pub(crate) const fn explosive_metal_water_variant(
+    water_contact: WaterContactBehaviourRecord,
+) -> ExplosiveMetalWaterVariant {
+    match water_contact {
+        WaterContactBehaviourRecord::Explosive { variant } => match variant {
+            ExplosiveWaterContactVariantRecord::Rubidium => ExplosiveMetalWaterVariant::Rubidium,
+            ExplosiveWaterContactVariantRecord::Caesium => ExplosiveMetalWaterVariant::Caesium,
+            ExplosiveWaterContactVariantRecord::Francium => ExplosiveMetalWaterVariant::Francium,
+        },
+    }
+}
+
+pub(crate) const fn macroscopic_process_intensity(
+    process: Option<MacroscopicProcess>,
+) -> EffectIntensity {
+    match process {
+        Some(
+            MacroscopicProcess::CompleteCombustion
+            | MacroscopicProcess::IncompleteCombustion
+            | MacroscopicProcess::ExplosiveMetalWater(_),
+        ) => EffectIntensity::Strong,
+        Some(
+            MacroscopicProcess::AqueousPrecipitation
+            | MacroscopicProcess::GasEvolutionLiquidLiquid
+            | MacroscopicProcess::GasEvolutionSolidLiquid
+            | MacroscopicProcess::MetalDisplacement
+            | MacroscopicProcess::SolidSolidSynthesis
+            | MacroscopicProcess::SolventEvaporationCrystallization
+            | MacroscopicProcess::SurfaceOxidation,
+        )
+        | None => EffectIntensity::Moderate,
+    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -1192,6 +1298,9 @@ fn classify_catalogue_macroscopic_process(
     }
     if classifies_validated_structural_surface_oxidation(expanded) {
         return Some(MacroscopicProcess::SurfaceOxidation);
+    }
+    if let Some(variant) = classifies_explosive_metal_water(expanded, materials) {
+        return Some(MacroscopicProcess::ExplosiveMetalWater(variant));
     }
     let liquid_water = expanded
         .claim()
@@ -1310,6 +1419,71 @@ fn classify_catalogue_macroscopic_process(
                 && material.phase == chem_domain::Phase::Gas
         }))
     .then_some(MacroscopicProcess::SolidSolidSynthesis)
+}
+
+fn classifies_explosive_metal_water(
+    expanded: &chem_kernel::ExpandedStructuralReaction,
+    materials: &[MacroscopicMaterial],
+) -> Option<ExplosiveMetalWaterVariant> {
+    let reactants = materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Reactant)
+        .collect::<Vec<_>>();
+    let [first, second] = reactants.as_slice() else {
+        return None;
+    };
+    let variant = match (*first, *second) {
+        (metal, water)
+            if metal.phase == chem_domain::Phase::Solid
+                && metal.representation == RepresentationKind::Metallic
+                && water.phase == chem_domain::Phase::Liquid
+                && water.representation == RepresentationKind::Molecular
+                && expanded
+                    .claim()
+                    .reactants()
+                    .get(&water.binding)
+                    .is_some_and(|resolved| {
+                        has_formula_counts(&resolved.formula, &[("H", 2), ("O", 1)])
+                    }) =>
+        {
+            metal.explosive_water_contact
+        }
+        (water, metal)
+            if metal.phase == chem_domain::Phase::Solid
+                && metal.representation == RepresentationKind::Metallic
+                && water.phase == chem_domain::Phase::Liquid
+                && water.representation == RepresentationKind::Molecular
+                && expanded
+                    .claim()
+                    .reactants()
+                    .get(&water.binding)
+                    .is_some_and(|resolved| {
+                        has_formula_counts(&resolved.formula, &[("H", 2), ("O", 1)])
+                    }) =>
+        {
+            metal.explosive_water_contact
+        }
+        _ => None,
+    }?;
+    let products = materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Product)
+        .collect::<Vec<_>>();
+    let [first, second] = products.as_slice() else {
+        return None;
+    };
+    let product_layout = |hydroxide: &MacroscopicMaterial, hydrogen: &MacroscopicMaterial| {
+        hydroxide.phase == chem_domain::Phase::Aqueous
+            && hydroxide.representation == RepresentationKind::Ionic
+            && hydrogen.phase == chem_domain::Phase::Gas
+            && hydrogen.representation == RepresentationKind::Molecular
+            && expanded
+                .claim()
+                .products()
+                .get(&hydrogen.binding)
+                .is_some_and(|resolved| has_formula_counts(&resolved.formula, &[("H", 2)]))
+    };
+    (product_layout(first, second) || product_layout(second, first)).then_some(variant)
 }
 
 fn classifies_catalogue_metal_displacement(
@@ -1803,6 +1977,12 @@ pub fn presentation_profile(
     )
     .then_some(MacroscopicProcess::SolventEvaporationCrystallization);
     let (objects, effects) = match request.kind {
+        ReactionKind::HeavyAlkaliWater { .. } => {
+            return Err(
+                "heavy-alkali water presentation requires current reviewed macroscopic material facts"
+                    .to_owned(),
+            );
+        }
         ReactionKind::AlkaliWater { metal } => {
             let (gas_ordinal, _) = active_observation(frames, ObservationPredicate::Evolves)?;
             let (disappears_ordinal, _) =
@@ -2133,6 +2313,7 @@ pub fn presentation_profile(
         gas_evolution: None,
         metal_displacement: None,
         solid_solid_synthesis: None,
+        explosive_metal_water: None,
         post_process,
         equation: request.equation(),
         disclosure: VIRTUAL_ONLY_DISCLOSURE.to_owned(),
@@ -2250,6 +2431,7 @@ mod tests {
             phase,
             representation,
             colour: None,
+            explosive_water_contact: None,
         }
     }
 
@@ -2787,8 +2969,8 @@ mod tests {
                 chem_kernel::ValidationResult::ValidatedWithAssumptions
             );
         }
-        assert_eq!(ids.len(), 205);
-        assert_eq!(families[&ReactionFamily::AlkaliWater], 3);
+        assert_eq!(ids.len(), 208);
+        assert_eq!(families[&ReactionFamily::AlkaliWater], 6);
         assert_eq!(families[&ReactionFamily::SilverHalidePrecipitation], 3);
         assert_eq!(families[&ReactionFamily::AcidBaseNeutralization], 9);
         assert_eq!(families[&ReactionFamily::AcidBicarbonateGasEvolution], 9);
@@ -3156,9 +3338,15 @@ mod tests {
             assert_eq!(plan.profile_id, profile.id);
             assert!(!plan.timeline.beats.is_empty());
             for effect in &profile.effects {
-                let (ordinal, _) = active_observation(run.frames(), effect.trigger)
-                    .expect("effect trigger activates in validated frames");
-                assert_eq!(effect.start_ordinal, ordinal);
+                if matches!(
+                    effect.authorization,
+                    chem_presentation::EffectAuthorization::Observation(_)
+                ) {
+                    let (ordinal, _) = active_observation(run.frames(), effect.trigger).expect(
+                        "observation-authorized effect trigger activates in validated frames",
+                    );
+                    assert_eq!(effect.start_ordinal, ordinal);
+                }
             }
             for object in &profile.objects {
                 let Some(binding) = &object.observation else {
@@ -3170,7 +3358,103 @@ mod tests {
                 assert_eq!(binding.value, value);
             }
         }
-        assert_eq!(profile_ids.len(), 205);
+        assert_eq!(profile_ids.len(), 208);
+    }
+
+    #[test]
+    fn reviewed_heavy_alkali_water_requests_select_exact_typed_variants() {
+        for (metal, variant, hydroxide_formula) in [
+            (
+                HeavyAlkaliMetal::Rubidium,
+                ExplosiveMetalWaterVariant::Rubidium,
+                "RbOH",
+            ),
+            (
+                HeavyAlkaliMetal::Caesium,
+                ExplosiveMetalWaterVariant::Caesium,
+                "CsOH",
+            ),
+            (
+                HeavyAlkaliMetal::Francium,
+                ExplosiveMetalWaterVariant::Francium,
+                "FrOH",
+            ),
+        ] {
+            let request = ReactionRequest::heavy_alkali_water(metal);
+            let run = run(request).expect("reviewed heavy-alkali request validates");
+            let reaction = run.macroscopic().expect("reviewed material facts project");
+            assert_eq!(
+                reaction.process,
+                Some(MacroscopicProcess::ExplosiveMetalWater(variant))
+            );
+            assert!(reaction.materials.iter().any(|material| {
+                material.role == MacroscopicMaterialRole::Product
+                    && material.representation == RepresentationKind::Ionic
+                    && material.formula == hydroxide_formula
+            }));
+            let profile =
+                presentation_profile_with_catalogue(request, run.frames(), Some(reaction))
+                    .expect("typed macroscopic process compiles");
+            assert_eq!(
+                profile
+                    .explosive_metal_water
+                    .as_ref()
+                    .map(|visual| visual.variant),
+                Some(variant)
+            );
+            assert!(profile.objects.iter().any(|object| {
+                object.role == SceneRole::Vessel
+                    && object.asset == AssetProfile::ExplosiveMetalWaterAssembly
+            }));
+            assert!(
+                profile.effects.iter().all(|effect| {
+                    !matches!(
+                        effect.authorization,
+                        chem_presentation::EffectAuthorization::Process(
+                            MacroscopicProcess::GasEvolutionLiquidLiquid
+                                | MacroscopicProcess::GasEvolutionSolidLiquid
+                        )
+                    )
+                }),
+                "the specific validated layout must not silently degrade to generic gas evolution"
+            );
+        }
+    }
+
+    #[test]
+    fn high_energy_assembly_rejects_missing_or_conflicting_typed_layouts() {
+        let request = ReactionRequest::heavy_alkali_water(HeavyAlkaliMetal::Rubidium);
+        let run = run(request).expect("reviewed heavy-alkali request validates");
+        let base_reaction = run.macroscopic().expect("reviewed material facts project");
+        let mut missing_water = base_reaction.clone();
+        missing_water
+            .materials
+            .retain(|material| material.binding != "water");
+        let profile = compile_phase_driven_profile(run.frames(), &missing_water)
+            .expect("generic profile construction is conservative");
+        assert!(profile.explosive_metal_water.is_none());
+        assert!(matches!(
+            chem_presentation::compile_real_world_plan(run.frames(), &profile),
+            Err(chem_presentation::PlanError::InvalidExplosiveMetalWaterProfile)
+        ));
+
+        let mut mismatched_variant = base_reaction.clone();
+        let metal = mismatched_variant
+            .materials
+            .iter_mut()
+            .find(|material| {
+                material.role == MacroscopicMaterialRole::Reactant
+                    && material.representation == RepresentationKind::Metallic
+            })
+            .expect("metal material");
+        metal.explosive_water_contact = Some(ExplosiveMetalWaterVariant::Caesium);
+        let profile = compile_phase_driven_profile(run.frames(), &mismatched_variant)
+            .expect("generic profile construction is conservative");
+        assert!(profile.explosive_metal_water.is_none());
+        assert!(matches!(
+            chem_presentation::compile_real_world_plan(run.frames(), &profile),
+            Err(chem_presentation::PlanError::InvalidExplosiveMetalWaterProfile)
+        ));
     }
 
     #[test]

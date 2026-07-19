@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use chem_catalogue::ValidatedCatalogueBundle;
+use chem_catalogue::{
+    ExplosiveWaterContactVariantRecord, ValidatedCatalogueBundle, WaterContactBehaviourRecord,
+};
 use chem_domain::{
     BronstedAcidProfile, Charge, ContentDigest, ElementInventory, ElementSymbol,
     ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
@@ -40,6 +42,9 @@ pub enum MacroscopicProcess {
     /// A solid metal transfers into an aqueous ionic product while the
     /// solution's original metal cation becomes a different solid metal.
     MetalDisplacement,
+    /// A reviewed exact-material water-contact capability with an exact
+    /// solid-metal/liquid-water/aqueous-ion/gas layout.
+    ExplosiveMetalWater(ExplosiveWaterContactVariantRecord),
     /// Exactly two validated solid reactants combine into one validated solid
     /// product after more-specific macroscopic processes have been excluded.
     SolidSolidSynthesis,
@@ -292,7 +297,8 @@ impl ValidatedStaticOutcome {
                 MacroscopicProcess::CompleteCombustion
                 | MacroscopicProcess::IncompleteCombustion
                 | MacroscopicProcess::SolventEvaporationCrystallization
-                | MacroscopicProcess::SurfaceOxidation,
+                | MacroscopicProcess::SurfaceOxidation
+                | MacroscopicProcess::ExplosiveMetalWater(_),
             )
             | None => species.phase(),
         }
@@ -403,12 +409,18 @@ impl ValidatedStaticOutcome {
         }
         self.reactants = reactants;
         self.products = products;
-        self.macroscopic_process = classify_macroscopic_process(
+        let reclassified = classify_macroscopic_process(
             &self.declaration,
             &self.reactants,
             &self.products,
             &self.claim,
+            None,
         );
+        // Structural adoption preserves side, exact identity, and order above.
+        // It has no catalogue handle, so retain an already catalogue-authorized
+        // process capability rather than silently downgrading it to a
+        // name/formula-derived fallback.
+        self.macroscopic_process = reclassified.or(self.macroscopic_process);
         Ok(self)
     }
 
@@ -599,7 +611,7 @@ fn compile_claim_outcome_inner(
     };
     let equation = format_equation(&declaration);
     let macroscopic_process =
-        classify_macroscopic_process(&declaration, &reactants, &products, &claim);
+        classify_macroscopic_process(&declaration, &reactants, &products, &claim, catalogue);
     Ok(CompiledClaimOutcome::Static(ValidatedStaticOutcome {
         declaration,
         reactants,
@@ -616,6 +628,7 @@ fn classify_macroscopic_process(
     reactants: &[OutcomeSpecies],
     products: &[OutcomeSpecies],
     claim: &ReactionClaim,
+    catalogue: Option<&ValidatedCatalogueBundle>,
 ) -> Option<MacroscopicProcess> {
     if let Some(process) = classifies_combustion(declaration, reactants, claim) {
         return Some(process);
@@ -625,6 +638,9 @@ fn classify_macroscopic_process(
     };
     if classifies_surface_oxidation(first, second, reactants, products, claim) {
         return Some(MacroscopicProcess::SurfaceOxidation);
+    }
+    if let Some(variant) = classifies_explosive_metal_water(reactants, products, catalogue) {
+        return Some(MacroscopicProcess::ExplosiveMetalWater(variant));
     }
     if let Some(process) = classifies_gas_evolution(reactants, claim) {
         return Some(process);
@@ -718,6 +734,63 @@ fn classifies_combustion(
         (claim.products.len() == 2 && has_carbon_dioxide && has_water_vapour)
             .then_some(MacroscopicProcess::CompleteCombustion)
     }
+}
+
+fn classifies_explosive_metal_water(
+    reactants: &[OutcomeSpecies],
+    products: &[OutcomeSpecies],
+    catalogue: Option<&ValidatedCatalogueBundle>,
+) -> Option<ExplosiveWaterContactVariantRecord> {
+    let catalogue = catalogue?;
+    let [first, second] = reactants else {
+        return None;
+    };
+    let material = |species: &OutcomeSpecies| {
+        let OutcomeSpecies::Resolved(species) = species else {
+            return None;
+        };
+        let structure = species.structure.as_ref()?;
+        catalogue.macroscopic_material(structure.id(), None)
+    };
+    let reactant_layout = |metal: &OutcomeSpecies, water: &OutcomeSpecies| {
+        let metal_structure = match metal {
+            OutcomeSpecies::Resolved(species) => species.structure.as_ref(),
+            OutcomeSpecies::FormulaOnly { .. } => None,
+        }?;
+        let water_structure = match water {
+            OutcomeSpecies::Resolved(species) => species.structure.as_ref(),
+            OutcomeSpecies::FormulaOnly { .. } => None,
+        }?;
+        let Some(WaterContactBehaviourRecord::Explosive { variant }) =
+            material(metal)?.water_contact
+        else {
+            return None;
+        };
+        (metal_structure.representation() == RepresentationKind::Metallic
+            && material(metal)?.phase == Phase::Solid
+            && water_structure.representation() == RepresentationKind::Molecular
+            && inventory_has_counts(water_structure.formula(), &[("H", 2), ("O", 1)])
+            && material(water)?.phase == Phase::Liquid)
+            .then_some(variant)
+    };
+    let variant = reactant_layout(first, second).or_else(|| reactant_layout(second, first))?;
+    let [first, second] = products else {
+        return None;
+    };
+    let product_layout = |hydroxide: &OutcomeSpecies, hydrogen: &OutcomeSpecies| {
+        let OutcomeSpecies::Resolved(hydrogen_species) = hydrogen else {
+            return false;
+        };
+        let Some(hydrogen_structure) = hydrogen_species.structure.as_ref() else {
+            return false;
+        };
+        hydroxide.representation() == Some(RepresentationKind::Ionic)
+            && material(hydroxide).is_some_and(|record| record.phase == Phase::Aqueous)
+            && hydrogen_structure.representation() == RepresentationKind::Molecular
+            && inventory_has_counts(hydrogen_structure.formula(), &[("H", 2)])
+            && material(hydrogen).is_some_and(|record| record.phase == Phase::Gas)
+    };
+    (product_layout(first, second) || product_layout(second, first)).then_some(variant)
 }
 
 fn classifies_solid_solid_synthesis(
@@ -1083,6 +1156,17 @@ fn has_counts(formula: &FormulaComposition, expected: &[(&str, u64)]) -> bool {
     formula.elements().len() == expected.len()
         && expected.iter().all(|(symbol, count)| {
             formula
+                .elements()
+                .iter()
+                .find(|(element, _)| element.as_str() == *symbol)
+                .is_some_and(|(_, actual)| actual == count)
+        })
+}
+
+fn inventory_has_counts(inventory: &ElementInventory, expected: &[(&str, u64)]) -> bool {
+    inventory.elements().len() == expected.len()
+        && expected.iter().all(|(symbol, count)| {
+            inventory
                 .elements()
                 .iter()
                 .find(|(element, _)| element.as_str() == *symbol)
@@ -1905,6 +1989,92 @@ mod tests {
                 .all(|product| carbonate.macroscopic_colour(product).is_none()),
             "unknown or main-group colours keep the conservative fallback"
         );
+    }
+
+    #[test]
+    fn catalogue_authorizes_every_heavy_alkali_water_layout_before_presentation() {
+        let catalogue = reference();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        for (display, atomic_number, symbol, variant) in [
+            (
+                "RubidiumMetal",
+                37,
+                "Rb",
+                ExplosiveWaterContactVariantRecord::Rubidium,
+            ),
+            (
+                "CaesiumMetal",
+                55,
+                "Cs",
+                ExplosiveWaterContactVariantRecord::Caesium,
+            ),
+            (
+                "FranciumMetal",
+                87,
+                "Fr",
+                ExplosiveWaterContactVariantRecord::Francium,
+            ),
+        ] {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: display.to_owned(),
+                        atomic_numbers: vec![atomic_number],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "water".to_owned(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = ProviderClaim::from_json(
+                &serde_json::to_vec(&json!({
+                    "schema_version": 1,
+                    "disposition": "reaction",
+                    "products": [
+                        {"name":"aqueous hydroxide", "formula":format!("{symbol}OH"), "phase":"aqueous", "identity_hints":[]},
+                        {"name":"hydrogen", "formula":"H2", "phase":"gas", "identity_hints":[]}
+                    ],
+                    "required_context":"representative educational outcome",
+                    "observations": [],
+                    "sources": [],
+                    "ambiguity": null
+                }))
+                .expect("claim bytes"),
+                ClaimMode::Fast,
+            )
+            .expect("claim");
+            let CompiledClaimOutcome::Static(outcome) = compile_claim_outcome_with_catalogue(
+                &request,
+                claim.clone(),
+                &identities,
+                &catalogue,
+            )
+            .expect("catalogue-aware outcome") else {
+                panic!("heavy alkali outcome must be static")
+            };
+            assert_eq!(
+                outcome.macroscopic_process(),
+                Some(MacroscopicProcess::ExplosiveMetalWater(variant)),
+                "{display} requires the exact reviewed water-contact variant"
+            );
+
+            let CompiledClaimOutcome::Static(without_catalogue) =
+                compile_claim_outcome(&request, claim, &identities).expect("unreviewed compile")
+            else {
+                panic!("unreviewed outcome must remain static")
+            };
+            assert!(
+                !matches!(
+                    without_catalogue.macroscopic_process(),
+                    Some(MacroscopicProcess::ExplosiveMetalWater(_))
+                ),
+                "the high-energy category needs the catalogue material capability"
+            );
+        }
     }
 
     #[test]

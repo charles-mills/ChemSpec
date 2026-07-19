@@ -50,11 +50,11 @@ use agent::{
 use agent::{CompiledClaimOutcome, ProviderClaim, ReactionClaim};
 use chem_domain::{ContentDigest, RepresentationKind};
 use chem_presentation::{
-    EducationalPlan, EducationalSceneKind, EffectProfile, MacroscopicColourAuthority,
-    MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction,
-    MacroscopicStage, PresentationProfile, ScenePlan, SurfaceOxideColour, TimelinePosition,
-    VisualColour, compile_educational_plan, compile_phase_driven_profile, compile_real_world_plan,
-    complete_generic_visual_profile,
+    EducationalPlan, EducationalSceneKind, EffectProfile, ExplosiveMetalWaterVariant,
+    MacroscopicColourAuthority, MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess,
+    MacroscopicReaction, MacroscopicStage, PresentationProfile, ScenePlan, SurfaceOxideColour,
+    TimelinePosition, VisualColour, compile_educational_plan, compile_phase_driven_profile,
+    compile_real_world_plan, complete_generic_visual_profile,
 };
 use iced::widget::{
     button, canvas, column, container, mouse_area, responsive, row, rule, scrollable, slider,
@@ -674,52 +674,25 @@ fn dynamic_macroscopic_reaction(
     outcome: &ValidatedStaticOutcome,
 ) -> Result<MacroscopicReaction, String> {
     let catalogue = chemistry::reference_catalogue().ok();
-    let material = |species: &OutcomeSpecies, role| {
-        let reviewed_colour = match species {
-            OutcomeSpecies::Resolved(species) => species.structure.as_ref().and_then(|structure| {
-                catalogue
-                    .and_then(|catalogue| catalogue.macroscopic_material(structure.id(), None))
-                    .and_then(|material| material.colour)
-            }),
-            OutcomeSpecies::FormulaOnly { .. } => None,
-        };
-        let colour = reviewed_colour
-            .or_else(|| {
-                outcome
-                    .macroscopic_colour(species)
-                    .map(agent::MacroscopicColour::srgb)
-            })
-            .map(|[red, green, blue]| VisualColour { red, green, blue });
-        Some(MacroscopicMaterial {
-            binding: species.id().to_string(),
-            semantic_identity: species.display_name().to_owned(),
-            structure_id: match species {
-                OutcomeSpecies::Resolved(species) => species
-                    .structure
-                    .as_ref()
-                    .map(|structure| structure.id().to_string())?,
-                OutcomeSpecies::FormulaOnly { .. } => return None,
-            },
-            formula: match species {
-                OutcomeSpecies::Resolved(species) => species.formula_text.clone(),
-                OutcomeSpecies::FormulaOnly { formula, .. } => formula.clone(),
-            },
-            role,
-            phase: outcome.macroscopic_phase(species),
-            representation: species.representation()?,
-            colour,
-        })
-    };
     let materials = outcome
         .reactants()
         .iter()
-        .filter_map(|species| material(species, MacroscopicMaterialRole::Reactant))
-        .chain(
-            outcome
-                .products()
-                .iter()
-                .filter_map(|species| material(species, MacroscopicMaterialRole::Product)),
-        )
+        .filter_map(|species| {
+            dynamic_macroscopic_material(
+                outcome,
+                catalogue,
+                species,
+                MacroscopicMaterialRole::Reactant,
+            )
+        })
+        .chain(outcome.products().iter().filter_map(|species| {
+            dynamic_macroscopic_material(
+                outcome,
+                catalogue,
+                species,
+                MacroscopicMaterialRole::Product,
+            )
+        }))
         .collect::<Vec<_>>();
     if materials.len() != outcome.reactants().len() + outcome.products().len() {
         return Err("validated dynamic species lack renderer-readable structures".to_owned());
@@ -733,6 +706,19 @@ fn dynamic_macroscopic_reaction(
             MacroscopicProcess::GasEvolutionSolidLiquid
         }
         AgentMacroscopicProcess::MetalDisplacement => MacroscopicProcess::MetalDisplacement,
+        AgentMacroscopicProcess::ExplosiveMetalWater(variant) => {
+            MacroscopicProcess::ExplosiveMetalWater(match variant {
+                chem_catalogue::ExplosiveWaterContactVariantRecord::Rubidium => {
+                    ExplosiveMetalWaterVariant::Rubidium
+                }
+                chem_catalogue::ExplosiveWaterContactVariantRecord::Caesium => {
+                    ExplosiveMetalWaterVariant::Caesium
+                }
+                chem_catalogue::ExplosiveWaterContactVariantRecord::Francium => {
+                    ExplosiveMetalWaterVariant::Francium
+                }
+            })
+        }
         AgentMacroscopicProcess::SolidSolidSynthesis => MacroscopicProcess::SolidSolidSynthesis,
         AgentMacroscopicProcess::CompleteCombustion => MacroscopicProcess::CompleteCombustion,
         AgentMacroscopicProcess::IncompleteCombustion => MacroscopicProcess::IncompleteCombustion,
@@ -748,24 +734,48 @@ fn dynamic_macroscopic_reaction(
         ),
         equation: outcome.equation().to_owned(),
         materials,
-        intensity: match process {
-            Some(
-                MacroscopicProcess::CompleteCombustion | MacroscopicProcess::IncompleteCombustion,
-            ) => chem_presentation::EffectIntensity::Strong,
-            Some(
-                MacroscopicProcess::AqueousPrecipitation
-                | MacroscopicProcess::GasEvolutionLiquidLiquid
-                | MacroscopicProcess::GasEvolutionSolidLiquid
-                | MacroscopicProcess::MetalDisplacement
-                | MacroscopicProcess::SolidSolidSynthesis
-                | MacroscopicProcess::SolventEvaporationCrystallization
-                | MacroscopicProcess::SurfaceOxidation,
-            )
-            | None => chem_presentation::EffectIntensity::Moderate,
-        },
+        intensity: chemistry::macroscopic_process_intensity(process),
         process,
         fuel_carbon_count: outcome.combustion_fuel_carbon_count(),
         surface_oxide_colour: None,
+    })
+}
+
+fn dynamic_macroscopic_material(
+    outcome: &ValidatedStaticOutcome,
+    catalogue: Option<&chem_catalogue::ReferenceCatalogue>,
+    species: &OutcomeSpecies,
+    role: MacroscopicMaterialRole,
+) -> Option<MacroscopicMaterial> {
+    let OutcomeSpecies::Resolved(resolved) = species else {
+        return None;
+    };
+    let structure = resolved.structure.as_ref()?;
+    let reviewed_material =
+        catalogue.and_then(|catalogue| catalogue.macroscopic_material(structure.id(), None));
+    let colour = reviewed_material
+        .and_then(|material| material.colour)
+        .or_else(|| {
+            outcome
+                .macroscopic_colour(species)
+                .map(agent::MacroscopicColour::srgb)
+        })
+        .map(|[red, green, blue]| VisualColour { red, green, blue });
+    Some(MacroscopicMaterial {
+        binding: species.id().to_string(),
+        semantic_identity: species.display_name().to_owned(),
+        structure_id: structure.id().to_string(),
+        formula: resolved.formula_text.clone(),
+        role,
+        phase: reviewed_material.map_or_else(
+            || outcome.macroscopic_phase(species),
+            |material| material.phase,
+        ),
+        representation: species.representation()?,
+        colour,
+        explosive_water_contact: reviewed_material
+            .and_then(|material| material.water_contact)
+            .map(chemistry::explosive_metal_water_variant),
     })
 }
 
@@ -5335,6 +5345,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chemistry::{HeavyAlkaliMetal, ReactionRequest};
     use agent::{compile_claim_outcome, compile_claim_outcome_with_catalogue};
 
     type DraftCase = (&'static str, &'static [u8], &'static [u8]);
@@ -5385,10 +5396,13 @@ mod tests {
     // Independently authored UI fixtures. These deliberately do not use
     // ReactionRequest::participants(), so a wrong production mapping cannot
     // make the routing test prove itself.
-    const SUPPORTED_DRAFT_CASES: [DraftCase; 36] = [
+    const SUPPORTED_DRAFT_CASES: [DraftCase; 39] = [
         ("alkali-water-lithium", &[3], &[1, 1, 8]),
         ("alkali-water-sodium", &[11], &[1, 1, 8]),
         ("alkali-water-potassium", &[19], &[1, 1, 8]),
+        ("alkali-water-rubidium", &[37], &[1, 1, 8]),
+        ("alkali-water-caesium", &[55], &[1, 1, 8]),
+        ("alkali-water-francium", &[87], &[1, 1, 8]),
         (
             "silver-halide-precipitation-chloride",
             &[47, 7, 8, 8, 8],
@@ -6280,6 +6294,85 @@ mod tests {
         }));
         let plan = compile_real_world_plan(frames, &profile).expect("scene plan compiles");
         assert_eq!(plan.timeline.duration_ms(), 9_600);
+    }
+
+    #[test]
+    fn catalogue_aware_dynamic_heavy_alkali_outcomes_reach_the_local_assembly() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let cases = [
+            (
+                ReactionRequest::heavy_alkali_water(HeavyAlkaliMetal::Rubidium),
+                "RubidiumMetal",
+                "Rb",
+                37,
+            ),
+            (
+                ReactionRequest::heavy_alkali_water(HeavyAlkaliMetal::Caesium),
+                "CaesiumMetal",
+                "Cs",
+                55,
+            ),
+            (
+                ReactionRequest::heavy_alkali_water(HeavyAlkaliMetal::Francium),
+                "FranciumMetal",
+                "Fr",
+                87,
+            ),
+        ];
+        for (local_request, display, symbol, atomic_number) in cases {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: display.to_owned(),
+                        atomic_numbers: vec![atomic_number],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "water".to_owned(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = ProviderClaim::from_json(
+                &serde_json::to_vec(&serde_json::json!({
+                    "schema_version": 1,
+                    "disposition": "reaction",
+                    "products": [
+                        {"name":"aqueous hydroxide", "formula":format!("{symbol}OH"), "phase":"aqueous", "identity_hints":[]},
+                        {"name":"hydrogen", "formula":"H2", "phase":"gas", "identity_hints":[]}
+                    ],
+                    "required_context":"representative educational outcome",
+                    "observations": [],
+                    "sources": [],
+                    "ambiguity": null
+                }))
+                .expect("provider claim JSON"),
+                ClaimMode::Fast,
+            )
+            .expect("provider claim");
+            let CompiledClaimOutcome::Static(outcome) =
+                compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                    .expect("catalogue-aware dynamic outcome")
+            else {
+                panic!("heavy alkali water is a static outcome")
+            };
+            assert!(matches!(
+                outcome.macroscopic_process(),
+                Some(AgentMacroscopicProcess::ExplosiveMetalWater(_))
+            ));
+            let dynamic =
+                dynamic_macroscopic_reaction(&outcome).expect("typed material projection");
+            let local_run = chemistry::run(local_request).expect("local request validates");
+            let local = local_run.macroscopic().expect("local material projection");
+            assert_eq!(dynamic.process, local.process);
+            assert!(matches!(
+                dynamic.process,
+                Some(MacroscopicProcess::ExplosiveMetalWater(_))
+            ));
+        }
     }
 
     #[test]

@@ -1,0 +1,128 @@
+{
+  "schema": "chemspec.authored-clip-asset/1",
+  "asset_id": "heavy-alkali-water-explosion",
+  "source_archive": "assets/alkali_explosion.zip",
+  "source_archive_sha256": "856bf3a695facf7f7a65cb9c487195cec9107d0093fe06e7281fe29097fb8c17",
+  "source_distribution": "https://limewire.com/d/9hPQZ#KOLN7Dkkqx",
+  "source_root": "alkali_explosion",
+  "source_readme": "README.md",
+  "source_manifest": "asset_manifest.json",
+  "source_provenance": {
+    "supplied_by": "ChemSpec project authors",
+    "ownership_status": "Original ChemSpec project asset created in-house.",
+    "runtime_policy": "ChemSpec embeds only the baked .clip files. Blender and FBX/GLB assets are offline editing and bake inputs, not runtime inputs.",
+    "source_scene_note": "The archive README's potassium rebuild example references a source not present in this delivery; the three supplied heavy-alkali Blender scenes and their manifests were used instead."
+  },
+  "variants": [
+    {
+      "variant": "rubidium",
+      "source_manifest": "rubidium_manifest.json",
+      "source_blend": "source/rubidium_water_explosion.blend",
+      "source_sha256": "5b6d1fa6bb9b8e6369893a7a56b9b032102b41b77ec0b884f77e73b2ec429559",
+      "interchange_main": "exports/fbx/rubidium_water_reaction_complete.fbx",
+      "interchange_parts": "exports/fbx/parts",
+      "runtime_bake_source": "source/rubidium_water_explosion.blend",
+      "runtime_clip": "rubidium_water_explosion.clip",
+      "runtime_sha256": "8f6047dbee3ac4f5a99a30c07c76878dd41da8e98554c27142e584d00d0fda05",
+      "runtime_bytes": 10373940,
+      "track_count": 185
+    },
+    {
+      "variant": "caesium",
+      "source_manifest": "caesium_manifest.json",
+      "source_blend": "source/caesium_water_explosion.blend",
+      "source_sha256": "9a02c3b768966ae8623344c285720fd4d5bcb34599d0bff546c3d5f9904adbdb",
+      "interchange_main": "exports/fbx/caesium_water_reaction_complete.fbx",
+      "interchange_parts": "exports/fbx/parts",
+      "runtime_bake_source": "source/caesium_water_explosion.blend",
+      "runtime_clip": "caesium_water_explosion.clip",
+      "runtime_sha256": "9b29d34149d2003ddae7dcba71192c264dfb1928d1290a9fddc721b3b2a957df",
+      "runtime_bytes": 10373940,
+      "track_count": 185
+    },
+    {
+      "variant": "francium",
+      "source_manifest": "francium_manifest.json",
+      "source_blend": "source/francium_water_explosion.blend",
+      "source_sha256": "57c4fe4fb0ba46dd9d5ab11ebc29ddf15cd56f782249269e1d2a81814e4c9d38",
+      "interchange_main": "exports/fbx/francium_water_reaction_complete.fbx",
+      "interchange_parts": "exports/fbx/parts",
+      "runtime_bake_source": "source/francium_water_explosion.blend",
+      "runtime_clip": "francium_water_explosion.clip",
+      "runtime_sha256": "ac01ea3c376c63acf88489b23dedac8c1bc324bdfcffa6c3d946a8c265b5cc30",
+      "runtime_bytes": 10373940,
+      "track_count": 185
+    }
+  ],
+  "frame_start": 1,
+  "frame_end": 180,
+  "frame_count": 180,
+  "frames_per_second": 30,
+  "duration_seconds": 6,
+  "included_modules": [
+    "water",
+    "metal",
+    "explosion",
+    "flame",
+    "bubbles",
+    "splashes",
+    "vapour",
+    "beaker_shards"
+  ],
+  "module_aliases": {
+    "FX_Spark_*": "flame",
+    "FX_ExplosionSmoke": "explosion",
+    "FX_WaterEruption": "explosion",
+    "GEO_Beaker_Shard_*": "beaker_shards"
+  },
+  "excluded_modules": [
+    "beaker",
+    "stage"
+  ],
+  "shared_geometry": {
+    "beaker": "alkali_water.clip#module=beaker"
+  },
+  "visibility_expectations": {
+    "metal_drop": [1, 40],
+    "explosion_beaker_shards_flame": [40, 65],
+    "steam_splash_bubbles": [45, 95],
+    "settling": [95, 180],
+    "runtime_suppression_before_source_frame": {
+      "explosion": 40,
+      "beaker_shards": 40,
+      "flame": 40,
+      "bubbles": 45,
+      "splashes": 45,
+      "vapour": 45
+    }
+  },
+  "material_slots": {
+    "MAT_Glass": "shared ChemSpec glass material; source glass pass and translucency remain phase-owned",
+    "MAT_Water": "exact validated liquid-water reactant binding; transitions toward the exact aqueous hydroxide product binding at the trusted product/colour ordinal",
+    "MAT_Water_Highlight": "water binding with the shared lower-opacity highlight treatment",
+    "MAT_Reactive_Metal": "exact validated solid metallic reactant binding",
+    "MAT_Flame_Outer": "authored flame-emission semantic alias; shared natural flame palette, not a reaction-specific chemical RGB",
+    "MAT_Flame_Inner": "authored flame-emission semantic alias; shared natural flame palette, not a reaction-specific chemical RGB",
+    "MAT_Flame_Core": "authored flame-emission semantic alias; shared natural flame palette, not a reaction-specific chemical RGB",
+    "MAT_Fizz_Bubble": "exact validated hydrogen product binding with renderer-owned gas opacity",
+    "MAT_Vapour": "exact validated hydrogen product binding with renderer-owned low-opacity gas/vapour treatment"
+  },
+  "material_aliases": {
+    "MAT_Reactive_Metal_Rb": "MAT_Reactive_Metal",
+    "MAT_Reactive_Metal_Cs": "MAT_Reactive_Metal",
+    "MAT_Reactive_Metal_Fr": "MAT_Reactive_Metal",
+    "MAT_Flame_Outer_Rb": "MAT_Flame_Outer",
+    "MAT_Flame_Outer_Cs": "MAT_Flame_Outer",
+    "MAT_Flame_Outer_Fr": "MAT_Flame_Outer",
+    "MAT_Flame_Inner_Rb": "MAT_Flame_Inner",
+    "MAT_Flame_Inner_Cs": "MAT_Flame_Inner",
+    "MAT_Flame_Inner_Fr": "MAT_Flame_Inner",
+    "MAT_Flame_Core_Rb": "MAT_Flame_Core",
+    "MAT_Flame_Core_Cs": "MAT_Flame_Core",
+    "MAT_Flame_Core_Fr": "MAT_Flame_Core"
+  },
+  "bake_command": "nix shell nixpkgs#blender --command blender --background --python tools/bake-blender-clip.py -- <source.blend> <destination.clip> --exclude-module beaker",
+  "bake_provenance": "Baked offline with Blender 5.1.2. The supplied files report a newer authoring build (502.44); all three baked clips passed the runtime parser's frame, module, material-slot, and bounds contract tests.",
+  "selection_authority": "chemistry-owned process classification requires exactly one reviewed explosive water-contact capability on a solid metallic reactant, one liquid molecular water reactant, one aqueous ionic product, and one gaseous molecular product. Renderer selection never reads reaction or species names.",
+  "virtual_only": true
+}

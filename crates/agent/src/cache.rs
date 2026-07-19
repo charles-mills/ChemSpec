@@ -15,15 +15,15 @@ use crate::claim::{
 use crate::{
     AgentError, AgentErrorKind, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome,
     FamilyMatchOutcome, MechanismEscalationResponse, OutcomeProvenance, ProviderClaim,
-    ReactionBuildRequest, StructureProposalResponse, compile_claim_outcome,
+    ReactionBuildRequest, StructureProposalResponse, compile_claim_outcome_with_catalogue,
     compile_reviewed_animation, match_reviewed_family, resolve_request_species,
     validate_escalated_response_with_structures,
 };
 
-pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
-// Version 4 migrates cache paths after generated species identities changed
-// from delimiter hashing to a versioned length-prefixed digest contract.
-const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 4;
+pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 4;
+// Version 5 requires catalogue-aware compilation on every cache load/store
+// so reviewed macroscopic capabilities cannot go stale.
+const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 5;
 const MAX_CACHE_BYTES: u64 = 2 * 1024 * 1024;
 static CACHE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -106,7 +106,7 @@ pub fn dynamic_cache_path(
     )))
 }
 
-/// Loads and fully revalidates a v3 entry. Invalid, corrupt, and old-format
+/// Loads and fully revalidates a v4 entry. Invalid, corrupt, and old-format
 /// entries are cache misses and remain untouched.
 #[must_use]
 pub fn load_dynamic_cache(
@@ -150,7 +150,8 @@ pub fn load_dynamic_cache(
     if claim_provenance != OutcomeProvenance::ModelAsserted {
         return None;
     }
-    let outcome = compile_claim_outcome(request, claim, identities).ok()?;
+    let outcome =
+        compile_claim_outcome_with_catalogue(request, claim, identities, catalogue).ok()?;
     let presentation = match (&outcome, cached_presentation) {
         (CompiledClaimOutcome::Static(static_outcome), Some(recipe)) => {
             Some(revalidate_presentation(static_outcome.clone(), recipe, catalogue).ok()?)
@@ -170,7 +171,7 @@ pub fn load_dynamic_cache(
     })
 }
 
-/// Atomically writes a v3 entry after its claim has compiled. Callers may
+/// Atomically writes a v4 entry after its claim has compiled. Callers may
 /// replace the initial static entry with a validated presentation recipe.
 ///
 /// # Errors
@@ -194,7 +195,7 @@ pub fn store_dynamic_cache(
     }
     // Recompile before persistence so a provider response alone can never
     // populate the cache.
-    compile_claim_outcome(request, claim.clone(), identities)?;
+    compile_claim_outcome_with_catalogue(request, claim.clone(), identities, catalogue)?;
     let claim_provenance = OutcomeProvenance::ModelAsserted;
     let path = dynamic_cache_path(directory, request, mode, identities, catalogue)?;
     let envelope = DynamicCacheEnvelope {
@@ -227,7 +228,7 @@ pub fn store_dynamic_cache(
         AgentError::from_source(AgentErrorKind::CacheIo, "reaction cache", error)
     })?;
     let sequence = CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let temporary = directory.join(format!(".dynamic-v3-{}-{sequence}.tmp", std::process::id()));
+    let temporary = directory.join(format!(".dynamic-v4-{}-{sequence}.tmp", std::process::id()));
     fs::write(&temporary, bytes).map_err(|error| {
         AgentError::from_source(AgentErrorKind::CacheIo, "reaction cache", error)
     })?;
@@ -412,13 +413,13 @@ mod tests {
 
     #[test]
     #[allow(clippy::too_many_lines)]
-    fn v3_cache_revalidates_and_ignores_corrupt_entries_without_deleting() {
+    fn v4_cache_revalidates_and_ignores_corrupt_entries_without_deleting() {
         let reference = reference();
         let identities = reviewed_species_registry(&reference).expect("identities");
         let request = request();
         let claim = claim();
         let directory = std::env::temp_dir().join(format!(
-            "chemspec-cache-v3-test-{}-{}",
+            "chemspec-cache-v4-test-{}-{}",
             std::process::id(),
             CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
@@ -445,7 +446,8 @@ mod tests {
         assert!(matches!(loaded.outcome, CompiledClaimOutcome::Static(_)));
         assert!(loaded.presentation.is_none());
         let CompiledClaimOutcome::Static(static_outcome) =
-            compile_claim_outcome(&request, claim.clone(), &identities).expect("compiled")
+            compile_claim_outcome_with_catalogue(&request, claim.clone(), &identities, &reference)
+                .expect("compiled")
         else {
             panic!("static outcome")
         };
@@ -680,7 +682,7 @@ mod tests {
     }
 
     #[test]
-    fn v3_cache_rejects_provider_injected_solver_reason_without_shape_drift() {
+    fn v4_cache_rejects_provider_injected_solver_reason_without_shape_drift() {
         let reference = reference();
         let identities = reviewed_species_registry(&reference).expect("identities");
         let request = request();
@@ -700,7 +702,7 @@ mod tests {
             "fake",
             "offline",
         )
-        .expect("store v3 provider claim");
+        .expect("store v4 provider claim");
         let path = dynamic_cache_path(
             &directory,
             &request,
@@ -711,8 +713,8 @@ mod tests {
         .expect("cache path");
         let mut value: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache JSON");
-        assert_eq!(value["schema_version"], json!(3));
-        assert_eq!(value["compiler_contract_version"], json!(4));
+        assert_eq!(value["schema_version"], json!(4));
+        assert_eq!(value["compiler_contract_version"], json!(5));
         assert!(value["claim"].get("origin").is_none());
         assert!(value["claim"].get("solver_reason").is_none());
 
