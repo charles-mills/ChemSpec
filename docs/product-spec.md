@@ -91,7 +91,8 @@ unlock animation until a reviewed structural transformation also exists.
    context, and governing contract digests is decoded and fully revalidated;
    it never bypasses the chemistry boundary. The learner can explicitly
    regenerate it.
-4. **Build on miss.** Otherwise Codex returns a closed factual claim.
+4. **Build on miss.** The deterministic solver first returns a typed
+   `SolvedClaim`; only a solver miss asks Codex for a closed `ProviderClaim`.
 5. **Compile static meaning.** ChemSpec resolves identities, proves request
    binding, balances exactly, and constructs a checked `ReactionDeclaration`.
 6. **Display early.** The first valid static outcome appears without playback.

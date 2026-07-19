@@ -5,6 +5,10 @@
 //! reviewed operation templates, and produces typed HIR plus an inspectable
 //! unexecuted certificate. Slice 5 owns graph execution and validation.
 
+#[cfg(test)]
+extern crate self as chem_kernel;
+
+mod claim_consistency;
 mod elaborate;
 mod error;
 mod evidence;
@@ -14,6 +18,8 @@ mod validate;
 
 #[cfg(test)]
 mod dative_tests;
+#[cfg(test)]
+mod slice5_tests;
 
 pub use elaborate::{
     expand_proposed_declaration, expand_review_candidate, expand_reviewed_declaration,
@@ -27,20 +33,23 @@ pub use evidence::{
 pub use frames::{
     CurrentArtifactIdentity, FrameAtom, FrameAtomGroup, FrameChange, FrameCovalentEdge, FrameError,
     FrameFailureClass, FrameIonicAssociation, FrameMetallicDomain, FrameModelDisclosure,
-    FrameObservation, FrameOperation, FrameTrace, ObservationStatus,
-    ReviewCandidateFrameInspection, SimulationFrame, SimulationFrames, ValidatedDynamicFrames,
-    generate_frames, inspect_review_candidate_frames,
+    FrameObservation, FrameOperation, FrameTrace, ObservationStatus, SimulationFrame,
+    SimulationFrames, ValidatedReviewCandidateFrames, generate_frames,
+    project_validated_review_candidate_frames,
 };
 pub use hir::{
     CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidenceTrust,
     ExpandedElectronContribution, ExpandedInstance, ExpandedIonicComponent, ExpandedOperation,
     ExpandedStructuralReaction, Provenance, ReactionSideKind, ResolvedApplicability,
-    ResolvedEquationTerm, ResolvedEvidence, ResolvedGeneralizedRuleApplication, ResolvedModel,
-    ResolvedObservation, ResolvedReactionClaim, ResolvedRuleApplication, ResolvedRuleBinding,
-    ResolvedStructureBinding, SourceOrigin, SourceReference, TrustedExpandedStructuralReaction,
+    ResolvedDeclarationBinding, ResolvedEquationTerm, ResolvedEvidence,
+    ResolvedGeneralizedRuleApplication, ResolvedModel, ResolvedObservation, ResolvedReactionClaim,
+    ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin,
+    SourceReference, TrustedExpandedStructuralReaction,
 };
 pub use validate::{
     DerivationTrust, KernelError, KernelFailureClass, ReviewCandidateStructuralDerivation,
     StructuralDerivation, StructuralLedger, StructuralState, ValidatedStructuralReaction,
     ValidationResult, validate_review_candidate, validate_trusted,
 };
+
+pub(crate) use hir::{ExpandedStructuralReactionParts, ResolvedObservationCompatibility};

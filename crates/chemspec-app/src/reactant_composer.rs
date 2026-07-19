@@ -75,6 +75,36 @@ struct HoldState {
     completed: bool,
 }
 
+/// Roll timing in 16 ms prompt ticks. The first slot settles mid-roll and
+/// the second holds the suspense a beat longer, slot-machine style.
+const ROLL_SETTLE_TICKS: [u32; 2] = [42, 72];
+/// Flicker speed in faces per tick, decelerating from fast to slow across
+/// each slot's spin so the shuffle visibly winds down before it locks.
+const ROLL_FACE_SPEED: (f32, f32) = (0.45, 0.07);
+/// Decay per tick of the border flash a slot shows when it locks.
+const ROLL_POP_STEP: f32 = 0.07;
+
+/// One slot's share of a dice roll: the draft it will settle on (taken when
+/// it does), its position in the flicker deck, and the border flash shown
+/// as it locks.
+#[derive(Debug)]
+struct RollSlot {
+    target: Option<ReactantDraft>,
+    face_index: usize,
+    face_phase: f32,
+    pop: f32,
+}
+
+/// A dice roll in flight: both slots flicker through candidate formulas,
+/// then settle on the rolled reaction one slot at a time. The roll ends
+/// once both have settled and their flashes have decayed.
+#[derive(Debug)]
+struct RollState {
+    slots: [RollSlot; 2],
+    faces: Vec<&'static str>,
+    ticks: u32,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct AmbientResize {
     current: Size,
@@ -139,6 +169,10 @@ pub struct State {
     name_feedback: Option<String>,
     prompt_target: PromptTarget,
     prompt_reveal: f32,
+    roll: Option<RollState>,
+    /// The previous roll's reactant pair, so consecutive rolls avoid landing
+    /// on the exact same question.
+    last_roll: Option<[Vec<u8>; 2]>,
 }
 
 impl Default for State {
@@ -159,6 +193,8 @@ impl Default for State {
             name_feedback: None,
             prompt_target: PromptTarget::Hidden,
             prompt_reveal: 0.0,
+            roll: None,
+            last_roll: None,
         }
     }
 }
@@ -178,22 +214,35 @@ pub enum Message {
     NameSubmitted,
     NameEntryCancelled,
     StartReactionRequested,
+    RollRequested,
     AnimationTick,
     PromptAnimationTick,
+    RollTick,
 }
 
 impl Message {
-    /// Presentation-only messages animate the composer without changing any
-    /// draft content. The app must not treat them as edits: edits cancel an
-    /// in-flight dynamic build and clear its result, and these fire on a
-    /// timer whenever ambient models are on screen.
+    /// Presentation-only messages animate the composer without the user
+    /// editing a draft. The app must not treat them as edits: edits cancel
+    /// an in-flight dynamic build and clear its result, and these fire on a
+    /// timer whenever ambient models are on screen. `RollTick` does write
+    /// the rolled drafts when a slot settles, but the roll already cancelled
+    /// dynamic work when it was requested; the app watches [`roll_engaged`]
+    /// to resync its submit prompt when the roll completes.
     #[must_use]
     pub const fn is_presentation_only(&self) -> bool {
-        matches!(self, Self::AnimationTick | Self::PromptAnimationTick)
+        matches!(
+            self,
+            Self::AnimationTick | Self::PromptAnimationTick | Self::RollTick
+        )
     }
 }
 
 pub fn update(state: &mut State, message: Message) {
+    // The roll owns both drafts until the second slot settles; everything
+    // except motion is ignored so a stray click cannot tear a spin apart.
+    if roll_engaged(state) && !message.is_presentation_only() {
+        return;
+    }
     match message {
         Message::AddElement(atomic_number) => {
             state.editing = None;
@@ -278,6 +327,8 @@ pub fn update(state: &mut State, message: Message) {
             state.name_feedback = None;
         }
         Message::StartReactionRequested => {}
+        Message::RollRequested => start_roll(state),
+        Message::RollTick => roll_tick(state),
         Message::AnimationTick => animation_tick(state),
         Message::PromptAnimationTick => {
             if state.prompt_target == PromptTarget::Hidden {
@@ -316,6 +367,133 @@ fn animation_tick(state: &mut State) {
     }
 }
 
+/// Rolls the dice: picks a supported reaction at random and starts the
+/// slot-machine spin that will settle both slots on it. Sampling is
+/// family-first so the showcase chemistry (alkali metals in water, silver
+/// halide precipitation, gas evolution) keeps its share of rolls against
+/// the registry's far more numerous ion-pair permutations.
+fn start_roll(state: &mut State) {
+    let mut pool = chemistry::roll_candidates();
+    for (_, members) in &mut pool {
+        members.retain(|pair| {
+            pair.iter()
+                .all(|atoms| atoms.len() <= MAX_ATOMS_PER_REACTANT)
+        });
+    }
+    pool.retain(|(_, members)| !members.is_empty());
+    if pool.is_empty() {
+        return;
+    }
+
+    let pick = || {
+        let (_, members) = &pool[fastrand::usize(..pool.len())];
+        members[fastrand::usize(..members.len())]
+            .clone()
+            .map(|atoms| chemistry::standardize_elemental_draft(&atoms))
+    };
+    let mut pair = pick();
+    for _ in 0..8 {
+        if state.last_roll.as_ref() != Some(&pair) {
+            break;
+        }
+        pair = pick();
+    }
+    state.last_roll = Some(pair.clone());
+
+    let [first, second] = pair.map(|atoms| {
+        let preview = composition_catalogue::trusted_preview(atoms.iter().copied());
+        ReactantDraft {
+            atoms,
+            name: None,
+            display_formula: preview.as_ref().map(|preview| preview.formula.clone()),
+            display_name: preview.and_then(|preview| preview.name),
+        }
+    });
+
+    let mut faces = composition_catalogue::SUPPORTED
+        .iter()
+        .map(|preview| preview.formula)
+        .collect::<Vec<_>>();
+    fastrand::shuffle(&mut faces);
+    // The second slot starts elsewhere in the deck so the two never flicker
+    // in unison.
+    let offset = faces.len() / 2 + fastrand::usize(..faces.len().div_ceil(2));
+
+    let slot = |target: ReactantDraft, face_index: usize| RollSlot {
+        target: Some(target),
+        face_index,
+        face_phase: 0.0,
+        pop: 0.0,
+    };
+    state.roll = Some(RollState {
+        slots: [slot(first, 0), slot(second, offset)],
+        faces,
+        ticks: 0,
+    });
+    state.holding = None;
+    state.editing = None;
+    state.name_input.clear();
+    state.name_feedback = None;
+    state.limit_reached = false;
+    state.active = ActiveReactant::First;
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn roll_tick(state: &mut State) {
+    let Some(roll) = &mut state.roll else {
+        return;
+    };
+    roll.ticks += 1;
+    let slots = roll.slots.iter_mut().zip(ROLL_SETTLE_TICKS);
+    for ((slot, settle), draft) in slots.zip(&mut state.drafts) {
+        if slot.target.is_none() {
+            slot.pop = (slot.pop - ROLL_POP_STEP).max(0.0);
+        } else if roll.ticks >= settle {
+            *draft = slot
+                .target
+                .take()
+                .expect("spinning slot holds its rolled target");
+            slot.pop = 1.0;
+        } else {
+            let progress = roll.ticks as f32 / settle as f32;
+            let (fast, slow) = ROLL_FACE_SPEED;
+            slot.face_phase += fast + (slow - fast) * theme::ease_in_out(progress);
+            while slot.face_phase >= 1.0 {
+                slot.face_phase -= 1.0;
+                slot.face_index += 1;
+            }
+        }
+    }
+    if roll
+        .slots
+        .iter()
+        .all(|slot| slot.target.is_none() && slot.pop <= 0.0)
+    {
+        state.roll = None;
+    }
+}
+
+/// True while a roll still owns the drafts: input stays locked and the
+/// reaction cannot start until the second slot settles.
+#[must_use]
+pub fn roll_engaged(state: &State) -> bool {
+    state
+        .roll
+        .as_ref()
+        .is_some_and(|roll| roll.slots.iter().any(|slot| slot.target.is_some()))
+}
+
+/// Ticks elapsed in the current spin, None once every slot has settled.
+/// Drives the tumbling die faces on the toolbar button.
+#[must_use]
+pub fn roll_spin_ticks(state: &State) -> Option<u32> {
+    state
+        .roll
+        .as_ref()
+        .filter(|roll| roll.slots.iter().any(|slot| slot.target.is_some()))
+        .map(|roll| roll.ticks)
+}
+
 /// Each motion family subscribes only while it is active. Ambient models use
 /// the calmer 30 fps cadence; the prompt keeps a dedicated 60 fps fade.
 pub fn subscription(state: &State) -> Subscription<Message> {
@@ -337,7 +515,12 @@ pub fn subscription(state: &State) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
-    Subscription::batch([model_motion, prompt_motion])
+    let roll_motion = if state.roll.is_some() {
+        iced::time::every(motion::PROMPT_TICK).map(|_| Message::RollTick)
+    } else {
+        Subscription::none()
+    };
+    Subscription::batch([model_motion, prompt_motion, roll_motion])
 }
 
 fn prompt_is_animating(state: &State) -> bool {
@@ -731,7 +914,8 @@ fn add_element(state: &mut State, reactant: ActiveReactant, atomic_number: u8) {
 }
 
 pub fn can_start_reaction(state: &State) -> bool {
-    state.drafts.iter().all(|draft| !draft.atoms.is_empty())
+    !roll_engaged(state)
+        && state.drafts.iter().all(|draft| !draft.atoms.is_empty())
         && !matches!(
             resolution(state),
             chemistry::DraftResolution::SystemError(_)
@@ -1161,9 +1345,24 @@ fn slot(
     labels: ChemicalLabels,
     compact: bool,
 ) -> Element<'static, Message> {
+    if let Some(roll) = &state.roll
+        && roll.slots[reactant.index()].target.is_some()
+    {
+        return spinning_slot(roll, reactant, compact);
+    }
     let atoms = &state.drafts[reactant.index()].atoms;
     let selected = state.active == reactant;
     let state_color = slot_state_color(atoms);
+    // A freshly settled roll flashes the border towards the selection blue,
+    // fading back to the draft's own state colour.
+    let state_color = match &state.roll {
+        Some(roll) if roll.slots[reactant.index()].pop > 0.0 => theme::mix(
+            state_color,
+            color::SELECTION,
+            roll.slots[reactant.index()].pop * 0.8,
+        ),
+        _ => state_color,
+    };
     let draft_formula = state.drafts[reactant.index()]
         .display_formula
         .clone()
@@ -1254,6 +1453,55 @@ fn slot(
     };
 
     area
+}
+
+/// A slot mid-roll: a rapidly flickering candidate formula behind a border
+/// that shimmers between the accent and selection colours. Deliberately
+/// inert — the roll owns the drafts, so pressing it does nothing.
+#[allow(clippy::cast_precision_loss)]
+fn spinning_slot(
+    roll: &RollState,
+    reactant: ActiveReactant,
+    compact: bool,
+) -> Element<'static, Message> {
+    let face = roll.faces[roll.slots[reactant.index()].face_index % roll.faces.len()];
+    let shimmer = 0.5 + 0.5 * (roll.ticks as f32 * 0.28).sin();
+    let border = theme::mix(color::ACCENT, color::SELECTION, shimmer);
+    container(
+        text(face_label(face))
+            .size(if compact {
+                type_scale::TITLE
+            } else {
+                type_scale::DISPLAY
+            })
+            .font(FORMULA_FONT)
+            .color(color::TEXT_SOFT),
+    )
+    .style(move |_| theme::slot_chip(border, false, false))
+    .padding([spacing::XS, spacing::LG])
+    .center_y(Length::Fixed(if compact { 44.0 } else { 58.0 }))
+    .into()
+}
+
+/// Formats a catalogue formula for the flicker deck, digits as subscripts
+/// so faces match the settled chips ("H2O" reads as "H₂O").
+fn face_label(formula: &str) -> String {
+    formula
+        .chars()
+        .map(|character| match character {
+            '0' => '₀',
+            '1' => '₁',
+            '2' => '₂',
+            '3' => '₃',
+            '4' => '₄',
+            '5' => '₅',
+            '6' => '₆',
+            '7' => '₇',
+            '8' => '₈',
+            '9' => '₉',
+            _ => character,
+        })
+        .collect()
 }
 
 /// The draft state each slot border colour communicates.
@@ -1358,23 +1606,7 @@ fn hill_formula(atoms: &[u8]) -> String {
 }
 
 fn subscript(number: usize) -> String {
-    number
-        .to_string()
-        .chars()
-        .map(|digit| match digit {
-            '0' => '₀',
-            '1' => '₁',
-            '2' => '₂',
-            '3' => '₃',
-            '4' => '₄',
-            '5' => '₅',
-            '6' => '₆',
-            '7' => '₇',
-            '8' => '₈',
-            '9' => '₉',
-            _ => digit,
-        })
-        .collect()
+    face_label(&number.to_string())
 }
 
 #[cfg(test)]
@@ -1384,6 +1616,62 @@ mod tests {
     fn click_slot(state: &mut State, slot: ActiveReactant) {
         update(state, Message::SlotPressed(slot));
         update(state, Message::SlotReleased(slot));
+    }
+
+    fn run_roll_to_completion(state: &mut State) {
+        for _ in 0..200 {
+            if state.roll.is_none() {
+                return;
+            }
+            update(state, Message::RollTick);
+        }
+        panic!("roll never completed");
+    }
+
+    #[test]
+    fn dice_roll_settles_both_slots_on_a_locally_supported_reaction() {
+        let mut state = State::default();
+        update(&mut state, Message::RollRequested);
+        assert!(roll_engaged(&state));
+        assert!(!can_start_reaction(&state));
+
+        run_roll_to_completion(&mut state);
+        assert!(!roll_engaged(&state));
+        assert!(can_start_reaction(&state));
+        assert!(matches!(
+            resolution(&state),
+            chemistry::DraftResolution::Supported(_)
+                | chemistry::DraftResolution::Multiple(_)
+                | chemistry::DraftResolution::Screened(_)
+        ));
+    }
+
+    #[test]
+    fn edits_are_ignored_while_the_roll_spins() {
+        let mut state = State::default();
+        update(&mut state, Message::RollRequested);
+        update(&mut state, Message::AddElement(1));
+        update(&mut state, Message::Undo);
+        update(&mut state, Message::BeginNameEntry(ActiveReactant::First));
+
+        let (first, second) = reactants(&state);
+        assert!(first.is_empty() && second.is_empty());
+        assert!(editing(&state).is_none());
+    }
+
+    #[test]
+    fn consecutive_rolls_change_the_question() {
+        fastrand::seed(7);
+        let mut state = State::default();
+        update(&mut state, Message::RollRequested);
+        run_roll_to_completion(&mut state);
+        let (first, second) = reactants(&state);
+        let previous = [first.to_vec(), second.to_vec()];
+
+        update(&mut state, Message::RollRequested);
+        run_roll_to_completion(&mut state);
+        let (first, second) = reactants(&state);
+        assert_ne!(previous, [first.to_vec(), second.to_vec()]);
     }
 
     #[test]

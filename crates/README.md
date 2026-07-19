@@ -10,7 +10,6 @@ contract through the fixed Slices 0–6.
 | [`chem-catalogue`](chem-catalogue/) | Immutable reviewed structures, reaction rules, templates, evidence premises, provenance, and digests |
 | [`chem-kernel`](chem-kernel/) | Resolution, deterministic expansion, graph transitions, conservation, derivations, and private validation |
 | `chems-cli` | Parsing, formatting, authored-source inspection, and expanded-certificate inspection |
-| [`chems-conformance`](chems-conformance/) | Specification, grammar, reserved-word, fixture, schema, and coverage validation |
 
 Dependencies point inward:
 
@@ -20,8 +19,10 @@ chem-domain      -> no parsing or I/O
 chem-catalogue   -> chem-domain
 chem-kernel      -> chems-lang + chem-catalogue + chem-domain
 chems-cli         -> chem-kernel + chems-lang + chem-catalogue + chem-domain
-chems-conformance -> repository contracts and canonical serialization helpers
 ```
+
+Shared fixtures under [`../conformance`](../conformance/) are consumed directly
+by their owning crate tests. `cargo test --workspace` is the conformance gate.
 
 Older quantitative domain modules remain only as unrelated internal
 application/archaeology code. They are not consumed by the structural pipeline

@@ -6,14 +6,15 @@
 //! combustion, oxide hydration and slaking, metal + water, single, double,
 //! and halogen displacement with solubility rules, heat/light/electricity
 //! decomposition, and confident no-reactions (noble gases, metal pairs,
-//! light-stable and inert pairings). The output is an ordinary
-//! [`ReactionClaim`]; downstream exact balancing and structural validation
-//! gate it exactly like a model claim. Anything outside these families
+//! light-stable and inert pairings). The output is a typed [`SolvedClaim`];
+//! downstream exact balancing and structural validation gate its factual data
+//! exactly like a provider claim while preserving its deterministic provenance.
+//! Anything outside these families
 //! returns None so the caller can fall back to the model.
 
 use std::collections::BTreeMap;
 
-use chem_catalogue::ValidatedCatalogueBundle;
+use chem_catalogue::{TrustedCatalogue, ValidatedCatalogueBundle};
 use chem_domain::{
     ElementInventory, ElementSymbol, RepresentationKind, SpeciesRegistry, StructureDefinition,
     StructureId, classify_bronsted_acid, generate_structure,
@@ -22,8 +23,8 @@ use chem_domain::{
 use crate::{
     ClaimDisposition, ClaimIdentityHint, ClaimIdentityHintKind, ClaimObservation,
     ClaimObservationPredicate, ClaimPhase, ClaimProduct, NoReactionReason, OutcomeSpecies,
-    ReactionBuildRequest, ReactionClaim, RequestIdentityResolution,
-    claim::REACTION_CLAIM_SCHEMA_VERSION, organic, resolve_request_identities,
+    ReactionBuildRequest, ReactionClaim, RequestIdentityResolution, SolvedClaim, organic,
+    resolve_request_identities,
 };
 
 /// Donor elements that make a proton-donor site an acid site in practice;
@@ -33,11 +34,10 @@ const ACIDIC_DONORS: [&str; 6] = ["O", "F", "Cl", "Br", "I", "S"];
 /// Attempts to solve the request without a model. Returns a fully formed
 /// reaction claim, or None when no deterministic family applies.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn solve_reaction_claim(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
-) -> Option<ReactionClaim> {
+) -> Option<SolvedClaim> {
     solve_reaction_claim_inner(request, identities, None)
 }
 
@@ -50,9 +50,26 @@ pub fn solve_reaction_claim(
 pub fn solve_reaction_claim_with_catalogue(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
-    catalogue: &ValidatedCatalogueBundle,
-) -> Option<ReactionClaim> {
-    solve_reaction_claim_inner(request, identities, Some(catalogue))
+    catalogue: &TrustedCatalogue,
+) -> Option<SolvedClaim> {
+    let claim = solve_reaction_claim_inner(request, identities, Some(catalogue))?;
+    if request.selected_context.is_some() {
+        return Some(claim);
+    }
+    let Ok(compiled) =
+        crate::compile_claim_outcome_with_catalogue(request, claim.clone(), identities, catalogue)
+    else {
+        return Some(claim);
+    };
+    let crate::CompiledClaimOutcome::Static(outcome) = compiled else {
+        return Some(claim);
+    };
+    let Ok(crate::FamilyMatchOutcome::Matched(family)) =
+        crate::family::match_reviewed_family_ignoring_context(&outcome, catalogue)
+    else {
+        return Some(claim);
+    };
+    Some(claim.with_reviewed_context(family.required_context()))
 }
 
 #[allow(clippy::too_many_lines)]
@@ -60,7 +77,7 @@ fn solve_reaction_claim_inner(
     request: &ReactionBuildRequest,
     identities: &SpeciesRegistry,
     catalogue: Option<&ValidatedCatalogueBundle>,
-) -> Option<ReactionClaim> {
+) -> Option<SolvedClaim> {
     if !(1..=2).contains(&request.reactants.len()) {
         return None;
     }
@@ -92,93 +109,24 @@ fn solve_reaction_claim_inner(
     let verdict = if species.len() == 1 {
         solve_decomposition(optional_structures[0]?, pair_context.as_deref()?)?
     } else {
-        let identity_verdict = solve_trivial_no_reaction(
+        solve_binary_reaction(
             (&compositions[0], optional_structures[0]),
             (&compositions[1], optional_structures[1]),
-        );
-        let structures = move || Some((optional_structures[0]?, optional_structures[1]?));
-        identity_verdict.or_else(|| {
-            let (first, second) = structures()?;
-            let structures = [first, second];
-            solve_acid_base(structures[0], structures[1])
-                .or_else(|| solve_acid_base(structures[1], structures[0]))
-                .or_else(|| solve_acid_sulfide(structures[0], structures[1]))
-                .or_else(|| solve_acid_sulfide(structures[1], structures[0]))
-                .or_else(|| solve_acid_metal(structures[0], structures[1]))
-                .or_else(|| solve_acid_metal(structures[1], structures[0]))
-                .or_else(|| {
-                    solve_alcohol_oxidation(structures[0], structures[1], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_alcohol_oxidation(structures[1], structures[0], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_incomplete_combustion(
-                        structures[0],
-                        structures[1],
-                        pair_context.as_deref(),
-                    )
-                })
-                .or_else(|| {
-                    solve_incomplete_combustion(
-                        structures[1],
-                        structures[0],
-                        pair_context.as_deref(),
-                    )
-                })
-                .or_else(|| solve_combustion(structures[0], structures[1]))
-                .or_else(|| solve_combustion(structures[1], structures[0]))
-                .or_else(|| {
-                    solve_ester_hydrolysis(structures[0], structures[1], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_ester_hydrolysis(structures[1], structures[0], pair_context.as_deref())
-                })
-                .or_else(|| solve_hydrohalogenation(structures[0], structures[1]))
-                .or_else(|| solve_hydrohalogenation(structures[1], structures[0]))
-                .or_else(|| solve_alkene_addition(structures[0], structures[1]))
-                .or_else(|| solve_alkene_addition(structures[1], structures[0]))
-                .or_else(|| {
-                    solve_substitution(structures[0], structures[1], pair_context.as_deref())
-                })
-                .or_else(|| {
-                    solve_substitution(structures[1], structures[0], pair_context.as_deref())
-                })
-                .or_else(|| solve_esterification(structures[0], structures[1]))
-                .or_else(|| solve_esterification(structures[1], structures[0]))
-                .or_else(|| solve_oxide_water(structures[0], structures[1]))
-                .or_else(|| solve_oxide_water(structures[1], structures[0]))
-                .or_else(|| solve_metal_water(structures[0], structures[1]))
-                .or_else(|| solve_metal_water(structures[1], structures[0]))
-                .or_else(|| solve_single_displacement(structures[0], structures[1]))
-                .or_else(|| solve_single_displacement(structures[1], structures[0]))
-                .or_else(|| solve_halogen_displacement(structures[0], structures[1]))
-                .or_else(|| solve_halogen_displacement(structures[1], structures[0]))
-                .or_else(|| solve_double_displacement(structures[0], structures[1]))
-                .or_else(|| {
-                    solve_synthesis(structures[0], structures[1]).map(|products| Verdict {
-                        reason: None,
-                        products,
-                        observations: Vec::new(),
-                    })
-                })
-        })?
+            pair_context.as_deref(),
+        )?
     };
     let disposition = if verdict.products.is_empty() {
         ClaimDisposition::NoReaction
     } else {
         ClaimDisposition::Reaction
     };
-    Some(ReactionClaim {
-        schema_version: REACTION_CLAIM_SCHEMA_VERSION,
+    Some(ReactionClaim::solved(
         disposition,
-        products: verdict.products,
-        required_context: request.selected_context.clone().unwrap_or_default(),
-        observations: verdict.observations,
-        sources: Vec::new(),
-        ambiguity: None,
-        no_reaction_reason: verdict.reason,
-    })
+        verdict.products,
+        request.selected_context.clone().unwrap_or_default(),
+        verdict.observations,
+        verdict.reason,
+    ))
 }
 
 /// A solved outcome: an empty product list is a confident "no reaction",
@@ -187,6 +135,98 @@ struct Verdict {
     products: Vec<ClaimProduct>,
     observations: Vec<ClaimObservation>,
     reason: Option<NoReactionReason>,
+}
+
+type BinaryFamilySolver = fn(&StructureDefinition, &StructureDefinition) -> Option<Verdict>;
+type ContextualBinaryFamilySolver =
+    fn(&StructureDefinition, &StructureDefinition, Option<&str>) -> Option<Verdict>;
+
+/// A binary request with one place responsible for direction-independent
+/// family matching. Individual family solvers may keep their natural
+/// substrate/reagent ordering without every caller duplicating the retry.
+#[derive(Clone, Copy)]
+struct BinaryReactants<'a> {
+    first: &'a StructureDefinition,
+    second: &'a StructureDefinition,
+}
+
+impl<'a> BinaryReactants<'a> {
+    const fn new(first: &'a StructureDefinition, second: &'a StructureDefinition) -> Self {
+        Self { first, second }
+    }
+
+    fn solve_either_order(self, solver: BinaryFamilySolver) -> Option<Verdict> {
+        solver(self.first, self.second).or_else(|| solver(self.second, self.first))
+    }
+
+    fn solve_either_order_with_context(
+        self,
+        context: Option<&str>,
+        solver: ContextualBinaryFamilySolver,
+    ) -> Option<Verdict> {
+        solver(self.first, self.second, context)
+            .or_else(|| solver(self.second, self.first, context))
+    }
+}
+
+/// Runs binary solver phases in their governing precedence order.
+fn solve_binary_reaction(
+    first: (&BTreeMap<String, u64>, Option<&StructureDefinition>),
+    second: (&BTreeMap<String, u64>, Option<&StructureDefinition>),
+    context: Option<&str>,
+) -> Option<Verdict> {
+    // This phase only needs stable element identity, so it must precede the
+    // structure gate for formula-only reactants.
+    if let Some(verdict) = solve_trivial_no_reaction(first, second) {
+        return Some(verdict);
+    }
+
+    let reactants = BinaryReactants::new(first.1?, second.1?);
+    solve_context_sensitive_families(reactants, context)
+        .or_else(|| solve_symmetric_binary_families(reactants))
+        .or_else(|| solve_synthesis_fallback(reactants))
+}
+
+/// Context refines these outcomes, so they take precedence over an
+/// unconditioned family that can also match the same reactants.
+fn solve_context_sensitive_families(
+    reactants: BinaryReactants<'_>,
+    context: Option<&str>,
+) -> Option<Verdict> {
+    reactants
+        .solve_either_order_with_context(context, solve_alcohol_oxidation)
+        .or_else(|| reactants.solve_either_order_with_context(context, solve_incomplete_combustion))
+        .or_else(|| reactants.solve_either_order_with_context(context, solve_ester_hydrolysis))
+        .or_else(|| reactants.solve_either_order_with_context(context, solve_substitution))
+}
+
+/// Direction-independent binary families. The pair wrapper applies every
+/// directional solver in both reactant orders; double displacement already
+/// treats its two salts symmetrically and therefore runs once.
+fn solve_symmetric_binary_families(reactants: BinaryReactants<'_>) -> Option<Verdict> {
+    reactants
+        .solve_either_order(solve_acid_base)
+        .or_else(|| reactants.solve_either_order(solve_acid_sulfide))
+        .or_else(|| reactants.solve_either_order(solve_acid_metal))
+        .or_else(|| reactants.solve_either_order(solve_combustion))
+        .or_else(|| reactants.solve_either_order(solve_hydrohalogenation))
+        .or_else(|| reactants.solve_either_order(solve_alkene_addition))
+        .or_else(|| reactants.solve_either_order(solve_esterification))
+        .or_else(|| reactants.solve_either_order(solve_oxide_water))
+        .or_else(|| reactants.solve_either_order(solve_metal_water))
+        .or_else(|| reactants.solve_either_order(solve_single_displacement))
+        .or_else(|| reactants.solve_either_order(solve_halogen_displacement))
+        .or_else(|| solve_double_displacement(reactants.first, reactants.second))
+}
+
+/// Last-resort deterministic construction after all more specific families
+/// have declined.
+fn solve_synthesis_fallback(reactants: BinaryReactants<'_>) -> Option<Verdict> {
+    solve_synthesis(reactants.first, reactants.second).map(|products| Verdict {
+        reason: None,
+        products,
+        observations: Vec::new(),
+    })
 }
 
 /// One element symbol as its lowercase display name ("Cu" → "copper").
@@ -810,6 +850,12 @@ const HEAT_STABLE_CATIONS: [&str; 4] = ["Na", "K", "Rb", "Cs"];
 
 fn solve_aqueous_electrolysis(reactant: &StructureDefinition) -> Option<Verdict> {
     let salt = ionic_salt(reactant)?;
+    // This family describes an aqueous electrolyte. Insoluble and
+    // indeterminate salts must not acquire a fictional dissolved state merely
+    // because electricity was selected.
+    if salt_solubility(&salt.cation, &salt.anion) != Some(true) {
+        return None;
+    }
     let active_cation = chem_domain::displaces_hydrogen_from_acids(&salt.cation)?;
     let halide = (salt.anion.len() == 1)
         .then(|| salt.anion.keys().next().map(String::as_str))
@@ -882,111 +928,122 @@ fn solve_aqueous_electrolysis(reactant: &StructureDefinition) -> Option<Verdict>
 #[allow(clippy::too_many_lines)]
 fn solve_decomposition(reactant: &StructureDefinition, context: &str) -> Option<Verdict> {
     match context {
-        "electricity" if is_water(reactant.formula()) => Some(Verdict {
+        "electricity" => solve_aqueous_electrolysis(reactant).or_else(|| electrolysis(reactant)),
+        "light" => photolysis(reactant),
+        "heat" => thermal_decomposition(reactant),
+        _ => None,
+    }
+}
+
+/// Water electrolysis under an explicit electricity context.
+fn electrolysis(reactant: &StructureDefinition) -> Option<Verdict> {
+    if !is_water(reactant.formula()) {
+        return None;
+    }
+    Some(Verdict {
+        reason: None,
+        products: vec![
+            ClaimProduct {
+                name: "Hydrogen".to_owned(),
+                formula: "H2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+            ClaimProduct {
+                name: "Oxygen".to_owned(),
+                formula: "O2".to_owned(),
+                phase: ClaimPhase::Gas,
+                identity_hints: Vec::new(),
+            },
+        ],
+        observations: vec![ClaimObservation {
+            predicate: ClaimObservationPredicate::Evolves,
+            subject: "hydrogen and oxygen gases".to_owned(),
+            value: None,
+        }],
+    })
+}
+
+/// Thermal decomposition and rearrangement families, in deliberate priority
+/// order from specific molecular transformations to ionic-base families.
+fn thermal_decomposition(reactant: &StructureDefinition) -> Option<Verdict> {
+    if let Some(verdict) = wohler_urea_synthesis(reactant) {
+        return Some(verdict);
+    }
+    if let Some(verdict) = solve_dehydration(reactant) {
+        return Some(verdict);
+    }
+    if let Some(verdict) = nitrate_decomposition(reactant) {
+        return Some(verdict);
+    }
+    let (cation, charge, anion_kind) = ionic_base(reactant)?;
+    let stable = HEAT_STABLE_CATIONS.contains(&cation.as_str());
+    let oxide = |cation: &str, charge: u64| {
+        let shared = gcd(charge, 2);
+        let mut counts = BTreeMap::new();
+        counts.insert(cation.to_owned(), 2 / shared);
+        *counts.entry("O".to_owned()).or_insert(0) += charge / shared;
+        counts
+    };
+    let carbon_dioxide = ClaimProduct {
+        name: "carbon dioxide".to_owned(),
+        formula: "CO2".to_owned(),
+        phase: ClaimPhase::Gas,
+        identity_hints: Vec::new(),
+    };
+    let water = ClaimProduct {
+        name: "Water".to_owned(),
+        formula: "H2O".to_owned(),
+        phase: ClaimPhase::Gas,
+        identity_hints: Vec::new(),
+    };
+    let evolves_carbon_dioxide = ClaimObservation {
+        predicate: ClaimObservationPredicate::Evolves,
+        subject: "carbon dioxide gas".to_owned(),
+        value: None,
+    };
+    match anion_kind {
+        // Most metal oxides shrug off heat, but HgO and Ag2O
+        // genuinely decompose; no confident verdict either way.
+        BaseAnion::Oxide => None,
+        BaseAnion::Carbonate | BaseAnion::Hydroxide if stable => Some(Verdict {
+            reason: Some(heat_stable_reason(&cation, anion_kind)),
+            products: Vec::new(),
+            observations: Vec::new(),
+        }),
+        BaseAnion::Carbonate => Some(Verdict {
             reason: None,
             products: vec![
-                ClaimProduct {
-                    name: "Hydrogen".to_owned(),
-                    formula: "H2".to_owned(),
-                    phase: ClaimPhase::Gas,
-                    identity_hints: Vec::new(),
-                },
-                ClaimProduct {
-                    name: "Oxygen".to_owned(),
-                    formula: "O2".to_owned(),
-                    phase: ClaimPhase::Gas,
-                    identity_hints: Vec::new(),
-                },
+                product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
+                carbon_dioxide,
             ],
-            observations: vec![ClaimObservation {
-                predicate: ClaimObservationPredicate::Evolves,
-                subject: "hydrogen and oxygen gases".to_owned(),
-                value: None,
-            }],
+            observations: vec![evolves_carbon_dioxide],
         }),
-        "electricity" => solve_aqueous_electrolysis(reactant),
-        "light" => photolysis(reactant),
-        "heat" => {
-            if let Some(verdict) = wohler_urea_synthesis(reactant) {
-                return Some(verdict);
-            }
-            if let Some(verdict) = solve_dehydration(reactant) {
-                return Some(verdict);
-            }
-            if let Some(verdict) = nitrate_decomposition(reactant) {
-                return Some(verdict);
-            }
-            let (cation, charge, anion_kind) = ionic_base(reactant)?;
-            let stable = HEAT_STABLE_CATIONS.contains(&cation.as_str());
-            let oxide = |cation: &str, charge: u64| {
-                let shared = gcd(charge, 2);
-                let mut counts = BTreeMap::new();
-                counts.insert(cation.to_owned(), 2 / shared);
-                *counts.entry("O".to_owned()).or_insert(0) += charge / shared;
-                counts
-            };
-            let carbon_dioxide = ClaimProduct {
-                name: "carbon dioxide".to_owned(),
-                formula: "CO2".to_owned(),
-                phase: ClaimPhase::Gas,
-                identity_hints: Vec::new(),
-            };
-            let water = ClaimProduct {
-                name: "Water".to_owned(),
-                formula: "H2O".to_owned(),
-                phase: ClaimPhase::Gas,
-                identity_hints: Vec::new(),
-            };
-            let evolves_carbon_dioxide = ClaimObservation {
-                predicate: ClaimObservationPredicate::Evolves,
-                subject: "carbon dioxide gas".to_owned(),
-                value: None,
-            };
-            match anion_kind {
-                // Most metal oxides shrug off heat, but HgO and Ag2O
-                // genuinely decompose; no confident verdict either way.
-                BaseAnion::Oxide => None,
-                BaseAnion::Carbonate | BaseAnion::Hydroxide if stable => Some(Verdict {
-                    reason: Some(heat_stable_reason(&cation, anion_kind)),
-                    products: Vec::new(),
-                    observations: Vec::new(),
-                }),
-                BaseAnion::Carbonate => Some(Verdict {
-                    reason: None,
-                    products: vec![
-                        product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
-                        carbon_dioxide,
-                    ],
-                    observations: vec![evolves_carbon_dioxide],
-                }),
-                BaseAnion::Hydroxide => Some(Verdict {
-                    reason: None,
-                    products: vec![
-                        product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
-                        water,
-                    ],
-                    observations: Vec::new(),
-                }),
-                BaseAnion::Bicarbonate => {
-                    // 2 MHCO3 -> M2CO3 + H2O + CO2 (charge-balanced).
-                    let shared = gcd(charge, 2);
-                    let mut carbonate = BTreeMap::new();
-                    carbonate.insert(cation.clone(), 2 / shared);
-                    *carbonate.entry("C".to_owned()).or_insert(0) += charge / shared;
-                    *carbonate.entry("O".to_owned()).or_insert(0) += 3 * (charge / shared);
-                    Some(Verdict {
-                        reason: None,
-                        products: vec![
-                            product_from_counts(&carbonate, Some((&cation, charge))),
-                            water,
-                            carbon_dioxide,
-                        ],
-                        observations: vec![evolves_carbon_dioxide],
-                    })
-                }
-            }
+        BaseAnion::Hydroxide => Some(Verdict {
+            reason: None,
+            products: vec![
+                product_from_counts(&oxide(&cation, charge), Some((&cation, charge))),
+                water,
+            ],
+            observations: Vec::new(),
+        }),
+        BaseAnion::Bicarbonate => {
+            // 2 MHCO3 -> M2CO3 + H2O + CO2 (charge-balanced).
+            let shared = gcd(charge, 2);
+            let mut carbonate = BTreeMap::new();
+            carbonate.insert(cation.clone(), 2 / shared);
+            *carbonate.entry("C".to_owned()).or_insert(0) += charge / shared;
+            *carbonate.entry("O".to_owned()).or_insert(0) += 3 * (charge / shared);
+            Some(Verdict {
+                reason: None,
+                products: vec![
+                    product_from_counts(&carbonate, Some((&cation, charge))),
+                    water,
+                    carbon_dioxide,
+                ],
+                observations: vec![evolves_carbon_dioxide],
+            })
         }
-        _ => None,
     }
 }
 
@@ -1853,7 +1910,9 @@ pub(crate) const fn gcd(mut left: u64, mut right: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CompiledClaimOutcome, ReactantInput, compile_claim_outcome};
+    use crate::{
+        CompiledClaimOutcome, ReactantInput, compile_claim_outcome, test_support::trusted_catalogue,
+    };
 
     fn request(reactants: &[(&str, &[u8])]) -> ReactionBuildRequest {
         ReactionBuildRequest {
@@ -1878,6 +1937,106 @@ mod tests {
             }],
             selected_context: Some(context.to_owned()),
         }
+    }
+
+    #[test]
+    fn catalogue_aware_solver_adopts_the_reviewed_family_context() {
+        let catalogue = trusted_catalogue();
+        let identities = crate::reviewed_species_registry(&catalogue).expect("identities");
+        let request = request(&[("Li", &[3]), ("H2O", &[1, 1, 8])]);
+
+        let claim = solve_reaction_claim_with_catalogue(&request, &identities, &catalogue)
+            .expect("deterministic reaction");
+
+        assert_eq!(
+            claim.required_context,
+            "representative educational outcome under the reviewed standard-outcome premise"
+        );
+    }
+
+    fn resolved_pair(
+        request: &ReactionBuildRequest,
+        registry: &SpeciesRegistry,
+    ) -> [StructureDefinition; 2] {
+        let RequestIdentityResolution::Resolved(species) =
+            resolve_request_identities(request, registry).expect("resolved identities")
+        else {
+            panic!("expected unambiguous identities");
+        };
+        let mut species = species.into_iter();
+        let structure = |species: OutcomeSpecies| match species {
+            OutcomeSpecies::Resolved(resolved) => resolved.structure.expect("generated structure"),
+            OutcomeSpecies::FormulaOnly { .. } => panic!("expected resolved structure"),
+        };
+        [
+            structure(species.next().expect("first reactant")),
+            structure(species.next().expect("second reactant")),
+        ]
+    }
+
+    #[test]
+    fn contextual_phase_wins_real_overlaps_in_either_reactant_order() {
+        let registry = SpeciesRegistry::default();
+        let overlap = |reactants: &[(&str, &[u8])],
+                       context: &str,
+                       contextual_product: &str,
+                       general_product: &str| {
+            let contextual_request = ReactionBuildRequest {
+                selected_context: Some(context.to_owned()),
+                ..request(reactants)
+            };
+            let [first, second] = resolved_pair(&contextual_request, &registry);
+
+            for pair in [
+                BinaryReactants::new(&first, &second),
+                BinaryReactants::new(&second, &first),
+            ] {
+                let contextual = solve_context_sensitive_families(pair, Some(context))
+                    .expect("contextual family also matches");
+                let general = solve_symmetric_binary_families(pair)
+                    .expect("unconditioned family also matches");
+                assert_eq!(contextual.products[0].formula, contextual_product);
+                assert_eq!(general.products[0].formula, general_product);
+            }
+
+            for ordered_reactants in [[reactants[0], reactants[1]], [reactants[1], reactants[0]]] {
+                let ordered_request = ReactionBuildRequest {
+                    selected_context: Some(context.to_owned()),
+                    ..request(&ordered_reactants)
+                };
+                let claim = solve_reaction_claim(&ordered_request, &registry).expect("solved");
+                assert_eq!(claim.products[0].formula, contextual_product);
+            }
+        };
+
+        overlap(
+            &[
+                ("ethanol", &[6, 6, 8, 1, 1, 1, 1, 1, 1]),
+                ("oxygen", &[8, 8]),
+            ],
+            "catalyst",
+            "C2H4O",
+            "CO2",
+        );
+        overlap(
+            &[("methane", &[6, 1, 1, 1, 1]), ("oxygen", &[8, 8])],
+            "limited oxygen",
+            "CO",
+            "CO2",
+        );
+    }
+
+    #[test]
+    fn synthesis_is_an_explicit_last_resort_phase() {
+        let registry = SpeciesRegistry::default();
+        let request = request(&[("hydrogen", &[1, 1]), ("chlorine", &[17, 17])]);
+        let [first, second] = resolved_pair(&request, &registry);
+        let reactants = BinaryReactants::new(&first, &second);
+
+        assert!(solve_context_sensitive_families(reactants, None).is_none());
+        assert!(solve_symmetric_binary_families(reactants).is_none());
+        let synthesis = solve_synthesis_fallback(reactants).expect("synthesis fallback");
+        assert_eq!(synthesis.products[0].formula, "HCl");
     }
 
     #[test]
@@ -1924,6 +2083,7 @@ mod tests {
         let registry = SpeciesRegistry::default();
         let claim = solve_reaction_claim(&request, &registry).expect("solved");
         assert_eq!(claim.disposition, ClaimDisposition::Reaction);
+        assert_eq!(claim.provenance(), crate::ClaimProvenance::Solver);
         let formulas = claim
             .products
             .iter()
@@ -1934,6 +2094,7 @@ mod tests {
         let CompiledClaimOutcome::Static(outcome) = outcome else {
             panic!("expected static outcome");
         };
+        assert_eq!(outcome.trust_tier(), crate::TrustTier::Derived);
         assert!(
             outcome.equation().contains("Na2SO4"),
             "{}",
@@ -2105,7 +2266,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert_eq!(
-            claim.no_reaction_reason,
+            claim.no_reaction_reason().cloned(),
             Some(NoReactionReason::BelowHydrogen {
                 metal: "copper".to_owned()
             })
@@ -2651,6 +2812,21 @@ mod tests {
     }
 
     #[test]
+    fn energy_contexts_do_not_cross_activate() {
+        for (name, atoms, context) in [
+            ("H₂O", &[1, 1, 8][..], "light"),
+            ("AgCl", &[47, 17][..], "electricity"),
+            ("CaCO₃", &[20, 6, 8, 8, 8][..], "light"),
+        ] {
+            let request = contextual(name, atoms, context);
+            assert!(
+                solve_reaction_claim(&request, &SpeciesRegistry::default()).is_none(),
+                "{name} unexpectedly reacted under {context}"
+            );
+        }
+    }
+
+    #[test]
     fn solver_products_carry_systematic_names() {
         let neutralization = request(&[("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8]), ("NaOH", &[11, 8, 1])]);
         let claim =
@@ -2857,7 +3033,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert_eq!(
-            claim.no_reaction_reason,
+            claim.no_reaction_reason().cloned(),
             Some(NoReactionReason::LessActiveMetal {
                 metal: "copper".to_owned(),
                 displaced: "zinc".to_owned()
@@ -2879,7 +3055,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert_eq!(
-            claim.no_reaction_reason,
+            claim.no_reaction_reason().cloned(),
             Some(NoReactionReason::AllProductsSoluble)
         );
     }
@@ -3040,7 +3216,7 @@ mod tests {
             assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
             assert!(claim.products.is_empty());
             assert!(
-                claim.no_reaction_reason.is_some(),
+                claim.no_reaction_reason().is_some(),
                 "reason for {reactants:?}"
             );
         };
@@ -3072,7 +3248,7 @@ mod tests {
         assert_eq!(claim.disposition, ClaimDisposition::NoReaction);
         assert!(claim.products.is_empty());
         assert!(
-            claim.no_reaction_reason.is_some(),
+            claim.no_reaction_reason().is_some(),
             "reason for {reactants:?}"
         );
     }

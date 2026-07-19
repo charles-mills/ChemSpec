@@ -392,17 +392,17 @@ fn unchanged_chems_source_expands_through_generalized_rule_to_concrete_hir() {
         &evidence,
     )
     .unwrap();
-    let selected = expanded.claim.rule.generalized.as_ref().unwrap();
+    let selected = expanded.claim().rule().generalized.as_ref().unwrap();
     assert_eq!(selected.parameters["member"], "Li");
     assert_eq!(selected.case_id, "lithium");
     assert_eq!(selected.equivalent_match_count, 4);
     assert!(selected.matched_sites["water[1]"].contains_key("h1"));
     assert!(!selected.parameter_premises["member"].is_empty());
     assert!(!selected.role_premises["metal"].is_empty());
-    assert_eq!(expanded.reactant_instances.len(), 4);
-    assert_eq!(expanded.product_instances.len(), 3);
-    assert_eq!(expanded.mapping.entries().len(), 8);
-    assert_eq!(expanded.operations.len(), 12);
+    assert_eq!(expanded.reactant_instances().len(), 4);
+    assert_eq!(expanded.product_instances().len(), 3);
+    assert_eq!(expanded.mapping().entries().len(), 8);
+    assert_eq!(expanded.operations().len(), 12);
     assert!(
         selected
             .provenance
@@ -451,11 +451,17 @@ fn lithium_sodium_and_potassium_share_one_public_rule_surface() {
         )
         .unwrap();
         assert_eq!(
-            expanded.claim.rule.generalized.as_ref().unwrap().parameters["member"],
+            expanded
+                .claim()
+                .rule()
+                .generalized
+                .as_ref()
+                .unwrap()
+                .parameters["member"],
             symbol
         );
         assert!(
-            expanded.reactant_instances[&format!("{name}[1]")]
+            expanded.reactant_instances()[&format!("{name}[1]")]
                 .instance
                 .graph()
                 .atoms()
@@ -463,7 +469,7 @@ fn lithium_sodium_and_potassium_share_one_public_rule_surface() {
                 .any(|atom| atom.element().to_string() == symbol)
         );
         assert!(
-            expanded.product_instances[&format!("{name}Hydroxide[1]")]
+            expanded.product_instances()[&format!("{name}Hydroxide[1]")]
                 .instance
                 .graph()
                 .atoms()
@@ -504,8 +510,8 @@ fn concrete_legacy_rules_continue_to_elaborate_during_migration() {
         &evidence,
     )
     .unwrap();
-    assert!(expanded.claim.rule.generalized.is_none());
-    assert_eq!(expanded.operations.len(), 12);
+    assert!(expanded.claim().rule().generalized.is_none());
+    assert_eq!(expanded.operations().len(), 12);
 }
 
 #[test]
@@ -550,11 +556,11 @@ reaction DativeFixture where
         &evidence,
     )
     .unwrap();
-    let operation = serde_json::to_value(&expanded.operations[0].operation).unwrap();
+    let operation = serde_json::to_value(&expanded.operations()[0].operation).unwrap();
     assert_eq!(operation["kind"], "form_dative");
     assert_eq!(operation["donor"], "donor[1].donor");
     assert_eq!(operation["acceptor"], "acceptor[1].acceptor");
-    let selected = expanded.claim.rule.generalized.as_ref().unwrap();
+    let selected = expanded.claim().rule().generalized.as_ref().unwrap();
     assert_eq!(selected.matched_sites["donor[1]"]["donor"], "donor");
     assert_eq!(
         selected.matched_sites["acceptor[1]"]["acceptor"],

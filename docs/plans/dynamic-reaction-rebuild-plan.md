@@ -96,6 +96,10 @@ catalogue trust.
 Factual support is a typed ladder, not a boolean:
 
 - **Reviewed** — host-pinned catalogue and generalized family content.
+- **Derived** — a deterministic closed-world solver conclusion. It crosses the
+  same exact balancing and structural gates as a provider claim, but never
+  masquerades as model-authored merely because the app is in an AI-enabled
+  mode.
 - **EvidenceBacked** — a dynamic claim corroborated by bundled outcome data,
   by matching a reviewed family's applicability, or by a fetched and checked
   evidence snapshot.
@@ -133,7 +137,7 @@ structured request
         -> validated local dynamic cache
            -> hit: revalidate and present
            -> miss:
-              -> Codex compact ReactionClaim (model knowledge, no search)
+              -> Codex compact ProviderClaim (model knowledge, no search)
               -> local corroboration: bundled outcomes / family applicability
               -> exact local outcome compiler
               -> typed ReactionDeclaration
@@ -436,11 +440,11 @@ StaticOutcome
 
 EscalatedMechanismOutcome
   StaticOutcome
-  ValidatedDynamicFrames (model-proposed, kernel-validated)
+  ValidatedReviewCandidateFrames (model-proposed, kernel-validated)
 
 ReviewedAnimationOutcome
   StaticOutcome
-  ValidatedDynamicFrames
+  SimulationFrames (host-pinned catalogue provenance)
 ```
 
 Both animated capabilities expose identical playback and 2D/3D timeline
@@ -485,7 +489,9 @@ The runtime keeps the existing capability-checked subprocess adapter:
   release configuration;
 - output is constrained by the compact schema;
 - the claim path allows one targeted retry, and the escalation path allows at
-  most two operation-level repairs against kernel diagnostics; and
+  most two operation-level repairs only for invalid provider output or kernel
+  rejection; operational failures retain their typed kind and return without
+  repair; and
 - late completions are rejected by generation ID.
 
 Capability/version help probes may be cached for the application process.
@@ -632,7 +638,10 @@ Acceptance:
   library: a closed graph-proposal contract validated inside an isolated
   working catalogue bundle before any mechanism work.
 - Validate escalated mapping/operation responses through the existing kernel
-  and frame projection, with at most two operation-level repairs.
+  and frame projection, with at most two operation-level repairs only for
+  invalid provider output or kernel rejection. Return cancellation, timeout,
+  unavailable capability, authentication, transport, and other operational
+  failures immediately with their original typed kind.
 - Settle to the labelled mechanism-unavailable static state when escalation
   exhausts, retaining the validated static outcome and a retry affordance.
 
@@ -649,8 +658,9 @@ Acceptance:
 - an escalated mechanism is always disclosed as model-proposed, never as a
   reviewed or experimentally established sequence;
 - mechanism responses cannot introduce species, structures, coefficients, or
-  unknown atom labels; structure proposals cannot alter requested species,
-  ids, formulas, the claim, or the balance;
+  unknown atom labels; structure adoption re-derives the canonical request and
+  structure proposals cannot alter requested species, ordered ids, names,
+  formulas, reactant/product position, the claim, or the balance;
 - exhausted escalation stays retryable without discarding the validated
   static outcome; and
 - no unvalidated product graph is ever displayed.
@@ -991,7 +1001,6 @@ package with:
 cargo fmt --all --check
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
-cargo run -p chems-conformance -- validate
 ```
 
 Provider contract, balancing, evidence, cache, and application transition tests

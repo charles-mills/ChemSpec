@@ -2,16 +2,27 @@
 
 use agent::{
     ClaimMode, CodexProvider, CodexProviderConfig, CompiledClaimOutcome,
-    MechanismEscalationOutcome, MechanismProvider, ReactantInput, ReactionBuildRequest,
-    ReactionClaim, compile_claim_outcome, compile_mechanism_request, derive_mechanism,
+    MechanismEscalationOutcome, MechanismProvider, ProviderClaim, ReactantInput,
+    ReactionBuildRequest, compile_claim_outcome, compile_mechanism_request, derive_mechanism,
     resolve_request_identities_with_catalogue, reviewed_species_registry,
 };
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::{CatalogueEnvelope, CatalogueTrustPolicy, TrustedCatalogue};
+use chem_domain::ContentDigest;
 
 fn trusted() -> TrustedCatalogue {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let catalogue =
+        std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json")).unwrap();
+    let review = std::fs::read(root.join("catalogue/reviews/core-chemistry.review.json")).unwrap();
+    let envelope: CatalogueEnvelope = serde_json::from_slice(&catalogue).unwrap();
+    let review_value = serde_json::from_slice(&review).unwrap();
     TrustedCatalogue::from_canonical_json(
-        &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json")).unwrap(),
+        &catalogue,
+        &review,
+        CatalogueTrustPolicy::new(
+            envelope.digest,
+            ContentDigest::of_json(&review_value).unwrap(),
+        ),
     )
     .unwrap()
 }
@@ -32,7 +43,7 @@ fn live_mechanism_probe() {
         "observations": [], "sources": [], "ambiguity": null
     });
     let claim =
-        ReactionClaim::from_json(&serde_json::to_vec(&claim).unwrap(), ClaimMode::Fast).unwrap();
+        ProviderClaim::from_json(&serde_json::to_vec(&claim).unwrap(), ClaimMode::Fast).unwrap();
     let mut request = ReactionBuildRequest {
         reactants: [
             ReactantInput {
@@ -83,7 +94,12 @@ fn live_mechanism_probe() {
                 Err(error) => panic!("KERNEL ERR: {error}"),
             }
         }
-        Err(error) => panic!("ERR: [{}] {:?}", error.stage(), error.to_string()),
+        Err(error) => panic!(
+            "ERR: [{:?}/{}] {:?}",
+            error.kind(),
+            error.context(),
+            error.to_string()
+        ),
     }
 }
 
@@ -92,7 +108,7 @@ fn live_mechanism_probe() {
 fn live_reactant_structure_escalation_probe() {
     let trusted = trusted();
     let identities = reviewed_species_registry(&trusted).unwrap();
-    let claim = ReactionClaim::from_json(
+    let claim = ProviderClaim::from_json(
         &serde_json::to_vec(&serde_json::json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -134,6 +150,9 @@ fn live_reactant_structure_escalation_probe() {
             "KERNEL OK: reactant structure escalation produced {} frames",
             animated.frames().frames().len()
         ),
+        MechanismEscalationOutcome::Failed(error) => {
+            panic!("PROVIDER ERR {:?}: {error}", error.kind())
+        }
         MechanismEscalationOutcome::Unavailable {
             attempts,
             diagnostic,

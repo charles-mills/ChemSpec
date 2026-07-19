@@ -10,6 +10,7 @@ mod generalized_elaboration;
 mod model;
 mod oxygen;
 mod pattern;
+mod validation;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -57,6 +58,8 @@ pub enum CatalogueErrorCode {
     InvalidGeneralizedRule,
     InvalidGeneralizedCase,
     InvalidMacroscopicMaterial,
+    TrustMismatch,
+    InvalidAttestation,
 }
 
 impl CatalogueErrorCode {
@@ -87,6 +90,8 @@ impl CatalogueErrorCode {
             Self::InvalidGeneralizedRule => "CHEMS-C022",
             Self::InvalidGeneralizedCase => "CHEMS-C023",
             Self::InvalidMacroscopicMaterial => "CHEMS-C024",
+            Self::TrustMismatch => "CHEMS-C025",
+            Self::InvalidAttestation => "CHEMS-C026",
         }
     }
 }
@@ -113,11 +118,6 @@ impl CatalogueError {
     #[must_use]
     pub const fn diagnostic_code(&self) -> &'static str {
         self.code.diagnostic_code()
-    }
-
-    #[must_use]
-    pub const fn is_system_error(&self) -> bool {
-        true
     }
 }
 
@@ -275,120 +275,8 @@ impl ValidatedCatalogueBundle {
     ///
     /// Returns a typed system error for invalid metadata, digest, structure,
     /// premise, evidence, review, mapping, applicability, or rule templates.
-    #[allow(clippy::too_many_lines)]
     pub fn validate(envelope: CatalogueEnvelope) -> Result<Self, CatalogueError> {
-        validate_metadata(&envelope.bundle)?;
-        let computed = envelope.computed_digest()?;
-        if computed != envelope.digest {
-            return Err(CatalogueError::new(
-                CatalogueErrorCode::DigestMismatch,
-                format!("declared {} but computed {computed}", envelope.digest),
-            ));
-        }
-
-        let mut document = envelope.bundle;
-        normalize_document(&mut document);
-        let evidence = index_evidence(&document.evidence)?;
-        let premises = index_premises(&document.premises, &evidence)?;
-        if matches!(document.publication, PublicationKind::Production) {
-            validate_production_reviews(&document.premises)?;
-        }
-        let (elements, element_categories, element_category_members, element_membership_provenance) =
-            validate_elements_and_categories(
-                &document.elements,
-                &document.element_categories,
-                &premises,
-            )?;
-        let structural_traits = index_structural_traits(&document.structural_traits, &premises)?;
-        let valence_premises = validate_valence_premises(&document.valence_premises, &premises)?;
-        let (mut structures, mut structure_premises) =
-            validate_structures(&document.structures, &premises, &document.valence_premises)?;
-        let mut structure_traits = validate_concrete_structure_traits(
-            &document.structures,
-            &structures,
-            &document.structural_traits,
-            &structural_traits,
-            &premises,
-        )?;
-        let g1 = validate_structure_templates_and_applications(
-            &document.structure_templates,
-            &document.structure_applications,
-            &document.elements,
-            &elements,
-            &element_category_members,
-            &element_membership_provenance,
-            &document.structural_traits,
-            &structural_traits,
-            &premises,
-            &document.valence_premises,
-            &mut structures,
-            &mut structure_premises,
-            &mut structure_traits,
-        )?;
-        let graph_patterns = pattern::validate_graph_patterns(
-            &document.graph_patterns,
-            &elements,
-            &document.structural_traits,
-            &structural_traits,
-            &premises,
-        )?;
-        let generalized_rules = generalized::validate_generalized_rules(
-            &document.generalized_rules,
-            &element_category_members,
-            &element_membership_provenance,
-            &structures,
-            &structure_premises,
-            &structure_traits,
-            &document.structural_traits,
-            &structural_traits,
-            &document.structure_templates,
-            &g1.templates,
-            &document.structure_applications,
-            &document.graph_patterns,
-            &graph_patterns,
-            &premises,
-        )?;
-        let rules = validate_rules(
-            &document.rules,
-            &structures,
-            &structure_premises,
-            &valence_premises,
-            &document.valence_premises,
-            &premises,
-        )?;
-        ensure_rule_namespaces_disjoint(&rules, &generalized_rules)?;
-        let macroscopic_materials = validate_macroscopic_materials(
-            &document.macroscopic_materials,
-            &structures,
-            &rules,
-            &generalized_rules,
-            &document.generalized_rules,
-            &premises,
-        )?;
-
-        Ok(Self {
-            digest: envelope.digest,
-            document,
-            structures,
-            structure_premises,
-            premises,
-            evidence,
-            valence_premises,
-            rules,
-            elements,
-            element_categories,
-            element_category_members,
-            element_membership_provenance,
-            structural_traits,
-            structure_templates: g1.templates,
-            structure_applications: g1.applications,
-            structure_aliases: g1.aliases,
-            structure_traits,
-            structure_application_provenance: g1.provenance,
-            graph_patterns,
-            generalized_rules,
-            macroscopic_materials,
-        })
+        validation::validate(envelope)
     }
 
     #[must_use]
@@ -399,6 +287,21 @@ impl ValidatedCatalogueBundle {
     #[must_use]
     pub const fn document(&self) -> &CatalogueDocument {
         &self.document
+    }
+
+    /// Validates an external review against this exact catalogue and returns
+    /// the review's canonical semantic digest. This does not grant trust; a
+    /// host must still pin both digests through [`CatalogueTrustPolicy`].
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed review JSON or a review that does not bind every
+    /// exact catalogue premise and evidence source.
+    pub fn validate_review_attestation(
+        &self,
+        review_json: &[u8],
+    ) -> Result<ContentDigest, CatalogueError> {
+        validate_review_attestation(self, review_json)
     }
 
     #[must_use]
@@ -613,24 +516,128 @@ impl ValidatedCatalogueBundle {
     }
 }
 
-/// The built-in catalogue library. Nothing about it is "trusted" in an
-/// attestation sense anymore: it is ordinary validated data, kept as a
-/// convenient library of structures and reviewed reaction rules.
+/// A structurally valid catalogue promoted by an exact host trust policy.
 #[derive(Debug, Clone)]
 pub struct TrustedCatalogue {
     validated: ValidatedCatalogueBundle,
 }
 
+/// The two immutable digests a host accepts at the catalogue trust boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CatalogueTrustPolicy {
+    catalogue_digest: ContentDigest,
+    review_digest: ContentDigest,
+}
+
+impl CatalogueTrustPolicy {
+    #[must_use]
+    pub const fn new(catalogue_digest: ContentDigest, review_digest: ContentDigest) -> Self {
+        Self {
+            catalogue_digest,
+            review_digest,
+        }
+    }
+
+    #[must_use]
+    pub const fn catalogue_digest(self) -> ContentDigest {
+        self.catalogue_digest
+    }
+
+    #[must_use]
+    pub const fn review_digest(self) -> ContentDigest {
+        self.review_digest
+    }
+}
+
 impl TrustedCatalogue {
-    /// Loads a catalogue bundle from canonical JSON.
+    /// Loads catalogue and review JSON under an exact host-pinned policy.
     ///
     /// # Errors
     ///
-    /// Rejects invalid catalogue data.
-    pub fn from_canonical_json(catalogue_json: &[u8]) -> Result<Self, CatalogueError> {
+    /// Rejects invalid catalogue data, either unpinned artifact, or a review
+    /// that does not bind every exact premise and evidence source.
+    pub fn from_canonical_json(
+        catalogue_json: &[u8],
+        review_json: &[u8],
+        policy: CatalogueTrustPolicy,
+    ) -> Result<Self, CatalogueError> {
         let validated = ValidatedCatalogueBundle::from_json(catalogue_json)?;
+        if validated.digest() != policy.catalogue_digest {
+            return Err(CatalogueError::new(
+                CatalogueErrorCode::TrustMismatch,
+                format!(
+                    "catalogue digest {} does not match host pin {}",
+                    validated.digest(),
+                    policy.catalogue_digest
+                ),
+            ));
+        }
+        validate_trust_attestation(&validated, review_json, policy.review_digest)?;
         Ok(Self { validated })
     }
+}
+
+fn validate_trust_attestation(
+    catalogue: &ValidatedCatalogueBundle,
+    review_json: &[u8],
+    expected_digest: ContentDigest,
+) -> Result<(), CatalogueError> {
+    let actual_digest = validate_review_attestation(catalogue, review_json)?;
+    if actual_digest != expected_digest {
+        return Err(CatalogueError::new(
+            CatalogueErrorCode::TrustMismatch,
+            format!("review digest {actual_digest} does not match host pin {expected_digest}"),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_review_attestation(
+    catalogue: &ValidatedCatalogueBundle,
+    review_json: &[u8],
+) -> Result<ContentDigest, CatalogueError> {
+    let value: serde_json::Value = serde_json::from_slice(review_json).map_err(|error| {
+        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+    })?;
+    let actual_digest = ContentDigest::of_json(&value).map_err(|error| {
+        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+    })?;
+    let review: CatalogueReviewAttestation = serde_json::from_value(value).map_err(|error| {
+        CatalogueError::new(CatalogueErrorCode::InvalidAttestation, error.to_string())
+    })?;
+    let expected_sources = catalogue
+        .document()
+        .evidence
+        .iter()
+        .map(|source| source.id.clone())
+        .collect::<BTreeSet<_>>();
+    let expected_premises = catalogue
+        .document()
+        .premises
+        .iter()
+        .map(|premise| premise.id.clone())
+        .collect::<BTreeSet<_>>();
+    let required_text = [
+        review.id.as_str(),
+        review.reviewer.as_str(),
+        review.scope.as_str(),
+        review.method.as_str(),
+        review.coverage_conclusion.as_str(),
+        review.limitation.as_str(),
+    ];
+    if review.schema_version != CATALOGUE_REVIEW_SCHEMA_VERSION
+        || review.catalogue_digest != catalogue.digest()
+        || !valid_date(&review.reviewed_on)
+        || required_text.iter().any(|value| value.trim().is_empty())
+        || review.sources != expected_sources
+        || review.premises != expected_premises
+    {
+        return Err(CatalogueError::new(
+            CatalogueErrorCode::InvalidAttestation,
+            "review must bind the exact catalogue digest, evidence sources, and premises",
+        ));
+    }
+    Ok(actual_digest)
 }
 
 impl Deref for TrustedCatalogue {
@@ -1542,28 +1549,43 @@ struct G1Indexes {
     provenance: BTreeMap<StructureId, StructureTemplateApplicationProvenance>,
 }
 
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+struct G1ValidationContext<'a> {
+    templates: &'a [StructureTemplateRecord],
+    applications: &'a [StructureTemplateApplicationRecord],
+    elements: &'a [ElementRecord],
+    element_index: &'a BTreeMap<ElementSymbol, usize>,
+    category_members: &'a BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
+    membership_provenance:
+        &'a BTreeMap<(ElementSymbol, ElementCategoryId), ElementMembershipProvenance>,
+    trait_definitions: &'a [StructuralTraitDefinitionRecord],
+    trait_index: &'a BTreeMap<StructuralTraitId, usize>,
+    premises: &'a BTreeMap<PremiseId, usize>,
+    valence: &'a [ValencePremiseRecord],
+    structures: &'a mut BTreeMap<StructureId, StructureDefinition>,
+    structure_premises: &'a mut BTreeMap<StructureId, BTreeSet<PremiseId>>,
+    structure_traits:
+        &'a mut BTreeMap<StructureId, BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>>,
+}
+
+#[allow(clippy::too_many_lines)]
 fn validate_structure_templates_and_applications(
-    templates: &[StructureTemplateRecord],
-    applications: &[StructureTemplateApplicationRecord],
-    elements: &[ElementRecord],
-    element_index: &BTreeMap<ElementSymbol, usize>,
-    category_members: &BTreeMap<ElementCategoryId, BTreeSet<ElementSymbol>>,
-    membership_provenance: &BTreeMap<
-        (ElementSymbol, ElementCategoryId),
-        ElementMembershipProvenance,
-    >,
-    trait_definitions: &[StructuralTraitDefinitionRecord],
-    trait_index: &BTreeMap<StructuralTraitId, usize>,
-    premises: &BTreeMap<PremiseId, usize>,
-    valence: &[ValencePremiseRecord],
-    structures: &mut BTreeMap<StructureId, StructureDefinition>,
-    structure_premises: &mut BTreeMap<StructureId, BTreeSet<PremiseId>>,
-    structure_traits: &mut BTreeMap<
-        StructureId,
-        BTreeMap<StructuralTraitId, StructuralTraitAssertionRecord>,
-    >,
+    context: G1ValidationContext<'_>,
 ) -> Result<G1Indexes, CatalogueError> {
+    let G1ValidationContext {
+        templates,
+        applications,
+        elements,
+        element_index,
+        category_members,
+        membership_provenance,
+        trait_definitions,
+        trait_index,
+        premises,
+        valence,
+        structures,
+        structure_premises,
+        structure_traits,
+    } = context;
     let template_index = index_structure_templates(
         templates,
         element_index,

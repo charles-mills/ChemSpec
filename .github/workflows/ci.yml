@@ -24,9 +24,6 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Validate executable specification
-        run: cargo run -p chems-conformance -- validate
-
   native-tests:
     name: Native tests (${{ matrix.os }})
     strategy:

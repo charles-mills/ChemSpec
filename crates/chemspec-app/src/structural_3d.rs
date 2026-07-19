@@ -5222,6 +5222,102 @@ mod tests {
         compile_real_world_plan(run.frames(), &profile).expect("plan compiles from trusted frames")
     }
 
+    fn test_material(
+        binding: &str,
+        role: chem_presentation::MacroscopicMaterialRole,
+        phase: chem_domain::Phase,
+        representation: chem_domain::RepresentationKind,
+    ) -> chem_presentation::MacroscopicMaterial {
+        chem_presentation::MacroscopicMaterial {
+            binding: binding.to_owned(),
+            semantic_identity: binding.to_owned(),
+            structure_id: format!("Structures.{binding}"),
+            formula: binding.to_owned(),
+            role,
+            phase,
+            representation,
+            colour: None,
+        }
+    }
+
+    fn plan_for_materials(
+        request: chemistry::ReactionRequest,
+        materials: Vec<chem_presentation::MacroscopicMaterial>,
+        process: Option<chem_presentation::MacroscopicProcess>,
+    ) -> ScenePlan {
+        let run = chemistry::run(request).expect("request validates");
+        let reaction = chem_presentation::MacroscopicReaction {
+            profile_id: "presentation.test.renderer-materials".to_owned(),
+            equation: request.equation(),
+            materials,
+            intensity: EffectIntensity::Moderate,
+            process,
+            fuel_carbon_count: None,
+            surface_oxide_colour: None,
+        };
+        let profile = chem_presentation::compile_phase_driven_profile(run.frames(), &reaction)
+            .expect("typed renderer fixture compiles");
+        compile_real_world_plan(run.frames(), &profile).expect("renderer fixture plan compiles")
+    }
+
+    fn carbon_oxidation_plan() -> ScenePlan {
+        let request = chemistry::ReactionRequest::from_id("oxygen-carbon-oxygen")
+            .expect("carbon oxygen exists");
+        plan_for_materials(
+            request,
+            vec![
+                test_material(
+                    "subject",
+                    chem_presentation::MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Solid,
+                    chem_domain::RepresentationKind::Molecular,
+                ),
+                test_material(
+                    "oxygen",
+                    chem_presentation::MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Gas,
+                    chem_domain::RepresentationKind::Molecular,
+                ),
+                test_material(
+                    "oxide",
+                    chem_presentation::MacroscopicMaterialRole::Product,
+                    chem_domain::Phase::Gas,
+                    chem_domain::RepresentationKind::Molecular,
+                ),
+            ],
+            None,
+        )
+    }
+
+    fn surface_oxidation_plan() -> ScenePlan {
+        let request = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
+            .expect("sodium oxidation exists");
+        plan_for_materials(
+            request,
+            vec![
+                test_material(
+                    "subject",
+                    chem_presentation::MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Solid,
+                    chem_domain::RepresentationKind::Metallic,
+                ),
+                test_material(
+                    "oxygen",
+                    chem_presentation::MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Gas,
+                    chem_domain::RepresentationKind::Molecular,
+                ),
+                test_material(
+                    "oxide",
+                    chem_presentation::MacroscopicMaterialRole::Product,
+                    chem_domain::Phase::Solid,
+                    chem_domain::RepresentationKind::Ionic,
+                ),
+            ],
+            Some(chem_presentation::MacroscopicProcess::SurfaceOxidation),
+        )
+    }
+
     fn canonical_plan() -> ScenePlan {
         plan_for(chemistry::ReactionRequest::DEFAULT)
     }
@@ -5685,9 +5781,31 @@ mod tests {
             mixing
         ));
 
-        let gas_to_liquid = plan_for(
-            chemistry::ReactionRequest::from_id("oxygen-hydrogen-oxygen")
-                .expect("hydrogen oxidation exists"),
+        let hydrogen_oxidation = chemistry::ReactionRequest::from_id("oxygen-hydrogen-oxygen")
+            .expect("hydrogen oxidation exists");
+        let gas_to_liquid = plan_for_materials(
+            hydrogen_oxidation,
+            vec![
+                test_material(
+                    "subject",
+                    chem_presentation::MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Gas,
+                    chem_domain::RepresentationKind::Molecular,
+                ),
+                test_material(
+                    "oxygen",
+                    chem_presentation::MacroscopicMaterialRole::Reactant,
+                    chem_domain::Phase::Gas,
+                    chem_domain::RepresentationKind::Molecular,
+                ),
+                test_material(
+                    "oxide",
+                    chem_presentation::MacroscopicMaterialRole::Product,
+                    chem_domain::Phase::Liquid,
+                    chem_domain::RepresentationKind::Molecular,
+                ),
+            ],
+            None,
         );
         let mixing = gas_to_liquid
             .effects
@@ -6254,7 +6372,11 @@ mod tests {
         for reaction_id in ["oxygen-carbon-oxygen", "covalent-i-f-if7"] {
             let request =
                 chemistry::ReactionRequest::from_id(reaction_id).expect("reviewed request exists");
-            let plan = plan_for(request);
+            let plan = if reaction_id == "oxygen-carbon-oxygen" {
+                carbon_oxidation_plan()
+            } else {
+                plan_for(request)
+            };
             let layout = SceneLayout::resolve(&plan);
             let product = plan
                 .objects
@@ -6342,9 +6464,7 @@ mod tests {
 
     #[test]
     fn surface_oxidation_without_trusted_colour_keeps_the_original_metal_appearance() {
-        let request = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
-            .expect("reviewed sodium oxidation exists");
-        let plan = plan_for(request);
+        let plan = surface_oxidation_plan();
         let layout = SceneLayout::resolve(&plan);
         assert!(!layout.has_vessel);
         assert!(
@@ -6387,9 +6507,7 @@ mod tests {
 
     #[test]
     fn surface_oxidation_uses_product_bound_effect_colour_when_available() {
-        let request = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
-            .expect("reviewed sodium oxidation exists");
-        let mut plan = plan_for(request);
+        let mut plan = surface_oxidation_plan();
         let effect = plan
             .effects
             .iter_mut()
@@ -6424,8 +6542,7 @@ mod tests {
 
     #[test]
     fn gas_forms_stays_in_vessel_while_gas_evolves_can_feed_the_open_rim() {
-        let render_release = |request: chemistry::ReactionRequest| {
-            let plan = plan_for(request);
+        let render_release = |plan: ScenePlan| {
             let effect = plan
                 .effects
                 .iter()
@@ -6455,13 +6572,12 @@ mod tests {
             (effect.trigger, mass_above_rim, meshes.gas.len())
         };
 
-        let formed = render_release(
-            chemistry::ReactionRequest::from_id("oxygen-carbon-oxygen")
-                .expect("carbon oxygen exists"),
-        );
-        let evolved = render_release(chemistry::ReactionRequest::acid_carbonate_gas_evolution(
-            chemistry::AlkaliMetal::Sodium,
-            chemistry::Halogen::Chlorine,
+        let formed = render_release(carbon_oxidation_plan());
+        let evolved = render_release(plan_for(
+            chemistry::ReactionRequest::acid_carbonate_gas_evolution(
+                chemistry::AlkaliMetal::Sodium,
+                chemistry::Halogen::Chlorine,
+            ),
         ));
 
         assert_eq!(formed.0, ObservationPredicate::Forms);

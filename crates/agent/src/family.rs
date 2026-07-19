@@ -10,7 +10,7 @@ use chem_kernel::{
     validate_trusted,
 };
 
-use crate::{AgentError, ValidatedStaticOutcome};
+use crate::{AgentError, AgentErrorKind, ValidatedStaticOutcome};
 
 #[derive(Debug, Clone)]
 pub struct ReviewedFamilyMatch {
@@ -22,6 +22,10 @@ impl ReviewedFamilyMatch {
     #[must_use]
     pub fn rule_id(&self) -> &chem_domain::ReactionRuleId {
         &self.selected.rule.id
+    }
+
+    pub(crate) fn required_context(&self) -> &str {
+        &self.selected.rule.applicability.required_context
     }
 
     #[cfg(test)]
@@ -86,10 +90,25 @@ struct FamilyTerm {
 ///
 /// Returns a system error only if the trusted catalogue becomes internally
 /// inconsistent during elaboration.
-#[allow(clippy::too_many_lines)]
 pub fn match_reviewed_family(
     outcome: &ValidatedStaticOutcome,
     catalogue: &TrustedCatalogue,
+) -> Result<FamilyMatchOutcome, AgentError> {
+    match_reviewed_family_inner(outcome, catalogue, true)
+}
+
+pub(crate) fn match_reviewed_family_ignoring_context(
+    outcome: &ValidatedStaticOutcome,
+    catalogue: &TrustedCatalogue,
+) -> Result<FamilyMatchOutcome, AgentError> {
+    match_reviewed_family_inner(outcome, catalogue, false)
+}
+
+#[allow(clippy::too_many_lines)]
+fn match_reviewed_family_inner(
+    outcome: &ValidatedStaticOutcome,
+    catalogue: &TrustedCatalogue,
+    require_exact_context: bool,
 ) -> Result<FamilyMatchOutcome, AgentError> {
     let Some(terms) = reactant_family_terms(outcome) else {
         return Ok(FamilyMatchOutcome::NoMatch);
@@ -157,7 +176,13 @@ pub fn match_reviewed_family(
                     .collect::<Vec<_>>();
                 if let Ok(derived) = catalogue
                     .derive_generalized_products(&rule.id, &reactant_inputs)
-                    .map_err(|error| AgentError::new("family match", error.to_string()))?
+                    .map_err(|error| {
+                        AgentError::from_source(
+                            AgentErrorKind::CompilationFailure,
+                            "family match",
+                            error,
+                        )
+                    })?
                     && let Some(product_species) =
                         bind_declared_products(&derived, &declared_products, catalogue)
                 {
@@ -165,7 +190,16 @@ pub fn match_reviewed_family(
                     inputs.extend(derived);
                     if let Ok(selected) = catalogue
                         .elaborate_generalized_rule(&rule.id, &inputs)
-                        .map_err(|error| AgentError::new("family match", error.to_string()))?
+                        .map_err(|error| {
+                            AgentError::from_source(
+                                AgentErrorKind::CompilationFailure,
+                                "family match",
+                                error,
+                            )
+                        })?
+                        && (!require_exact_context
+                            || outcome.declaration().required_context()
+                                == selected.rule.applicability.required_context)
                     {
                         let mut role_species = ordered
                             .iter()
@@ -240,13 +274,18 @@ pub fn compile_reviewed_animation(
         &family.selected,
         catalogue,
     )
-    .map_err(|error| AgentError::new("family expansion", error.to_string()))?;
-    let identity = CurrentArtifactIdentity::from_expanded(&expanded)
-        .map_err(|error| AgentError::new("family expansion", error.to_string()))?;
-    let validated = validate_trusted(&expanded, catalogue)
-        .map_err(|error| AgentError::new("family validation", error.to_string()))?;
-    let frames = generate_frames(&validated, identity)
-        .map_err(|error| AgentError::new("family frames", error.to_string()))?;
+    .map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family expansion", error)
+    })?;
+    let identity = CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family expansion", error)
+    })?;
+    let validated = validate_trusted(&expanded, catalogue).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family validation", error)
+    })?;
+    let frames = generate_frames(&validated, identity).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "family frames", error)
+    })?;
     Ok(ReviewedAnimationOutcome {
         static_outcome: outcome.mark_reviewed(),
         frames,
@@ -375,14 +414,14 @@ const fn representation(value: RepresentationKind) -> RepresentationRecord {
 
 #[cfg(test)]
 mod tests {
-    use chem_catalogue::TrustedCatalogue;
     use serde_json::json;
 
     use super::*;
     use crate::{
         ClaimMode, CompiledClaimOutcome, MechanismEscalationRequest, MechanismEscalationResponse,
-        MechanismProvider, ReactantInput, ReactionBuildRequest, ReactionClaim,
+        MechanismProvider, ProviderClaim, ReactantInput, ReactionBuildRequest,
         compile_claim_outcome, reviewed_species_registry,
+        test_support::trusted_catalogue as trusted,
     };
 
     struct UnexpectedMechanismProvider;
@@ -395,15 +434,6 @@ mod tests {
         ) -> Result<MechanismEscalationResponse, crate::AgentError> {
             panic!("reviewed family hits must not invoke mechanism escalation")
         }
-    }
-
-    fn trusted() -> TrustedCatalogue {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-        )
-        .expect("trusted catalogue")
     }
 
     #[test]
@@ -425,7 +455,7 @@ mod tests {
             "observations":[],"sources":[],"ambiguity":null
         });
         let claim =
-            ReactionClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
+            ProviderClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
                 .expect("claim contract");
         let compiled = compile_claim_outcome(
             &ReactionBuildRequest {
@@ -469,6 +499,53 @@ mod tests {
     }
 
     #[test]
+    fn reviewed_family_rejects_a_provider_claim_with_different_context() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let claim = json!({
+            "schema_version": 1,
+            "disposition": "reaction",
+            "products": [
+                {"name":"lithium hydroxide","formula":"LiOH","phase":"aqueous","identity_hints":[]},
+                {"name":"hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
+            ],
+            "required_context":"an unreviewed provider condition",
+            "observations":[],"sources":[],"ambiguity":null
+        });
+        let claim =
+            ProviderClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
+                .expect("claim contract");
+        let compiled = compile_claim_outcome(
+            &ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: "LithiumMetal".into(),
+                        atomic_numbers: vec![3],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "H2O".into(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            },
+            claim,
+            &identities,
+        )
+        .expect("compiled outcome");
+        let CompiledClaimOutcome::Static(outcome) = compiled else {
+            panic!("static outcome")
+        };
+
+        assert!(matches!(
+            match_reviewed_family(&outcome, &trusted).expect("family match"),
+            FamilyMatchOutcome::NoMatch
+        ));
+    }
+
+    #[test]
     fn reviewed_family_match_crosses_typed_kernel_and_frames() {
         let trusted = trusted();
         let identities = reviewed_species_registry(&trusted).expect("identities");
@@ -483,7 +560,7 @@ mod tests {
             "observations":[],"sources":[],"ambiguity":null
         });
         let claim =
-            ReactionClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
+            ProviderClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
                 .expect("claim contract");
         let compiled = compile_claim_outcome(
             &ReactionBuildRequest {

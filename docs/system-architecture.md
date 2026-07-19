@@ -18,13 +18,13 @@ structured reaction request
      -> hit: selected production rule
      -> miss: stable identity resolution + generated structures
         -> algorithmic reaction solver (families, confident no-reactions)
-           -> miss: cache-v3 lookup, then provider ReactionClaim
+           -> miss: cache-v3 lookup, then provider ProviderClaim
         -> exact local balance + checked ReactionDeclaration
         -> private ValidatedStaticOutcome (no frames)
         -> algorithmic graph-diff mechanism derivation
            -> miss: reviewed-family match or bounded model proposal
   -> chem-kernel validates every animated structural derivation
-  -> ValidatedStructuralReaction or ValidatedDynamicFrames
+  -> ValidatedStructuralReaction or ValidatedReviewCandidateFrames
   -> paired structural and observation frames
   -> chem-presentation guided and macroscopic plans
   -> Iced Canvas/wgpu presentation
@@ -32,8 +32,10 @@ structured reaction request
 
 The simulation does not parse `.chems`; the agent does not construct validated
 domain values; the renderer does not infer bonds; and the application cannot
-mark a reaction valid. Dynamic frames retain `review_candidate` provenance even
-after deterministic validation makes them renderer-readable.
+mark a reaction valid. `ValidatedReviewCandidateFrames` are renderer-readable
+because their structural derivation crossed deterministic kernel validation.
+They retain `review_candidate` provenance: projection is not catalogue review,
+host approval, or a trust promotion.
 
 ## Workspace boundaries
 
@@ -136,15 +138,15 @@ structural-rule and kernel boundary.
 
 ## Shared contracts
 
-### `ReactionClaim`
+### `ProviderClaim` / `SolvedClaim`
 
 ```text
-closed disposition
-factual product names, formulae, and phases
-required context and typed qualitative observations
-direct source locations and claim-field mappings
-typed ambiguity alternatives
-no structures, coefficients, mapping, operations, or internal trust
+shared closed ReactionClaim facts
+  -> ProviderClaim: bounded untrusted wire/cache capability
+  -> SolvedClaim: deterministic solver capability, optionally carrying a
+     typed physical no-reaction reason
+compiler retains Provider versus Solver provenance as ModelAsserted or Derived
+neither capability contains structures, coefficients, mappings, or operations
 ```
 
 ### `ExpandedStructuralReaction`
@@ -157,6 +159,20 @@ ordered typed operations
 all proof-relevant premise IDs
 canonical expanded certificate and digest
 ```
+
+`ExpandedStructuralReaction` and its embedded `ResolvedReactionClaim` expose
+read-only accessors, not public proof-relevant fields. Both source and dynamic
+elaboration converge on one crate-restricted checked constructor. That
+constructor rejects disagreement between equation terms, formula summaries,
+catalogue-expanded instances, the checked declaration and required context,
+or typed observation subjects and provenance. Callers therefore cannot build
+or mutate a structurally plausible expansion with fictional learner-facing
+metadata.
+
+The structural kernel repeats these claim-consistency checks before executing
+operations. Constructor checking makes inconsistent HIR unrepresentable to
+ordinary callers; kernel rechecking remains defense in depth against internal
+regressions and stale serialized or test fixtures.
 
 ### `ValidatedStructuralReaction`
 
@@ -208,6 +224,11 @@ Dynamic cache v3 is separate from authored `.chems`. It binds stable request
 identities, context, identity/catalogue snapshots, and claim/compiler/mechanism
 contract versions. It stores only untrusted claim/presentation recipes;
 offline load reconstructs every capability through current validators.
+
+On-the-fly species and structure IDs hash versioned, length-prefixed display
+name and normalized formula-text fields. Generated identity contract changes
+increment the dynamic compiler contract version, moving cache lookups to a new
+namespace instead of replaying entries compiled with old IDs.
 
 Builder overlays have one typed presentation authority. A dynamic identity,
 progress, failure, or result modal outranks toolbar panels and drag feedback;

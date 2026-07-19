@@ -33,6 +33,7 @@ dependencies = [
  "chem-kernel",
  "chems-lang",
  "num-bigint",
+ "rustix 1.1.4",
  "serde",
  "serde_json",
 ]
@@ -562,10 +563,12 @@ dependencies = [
  "chems-lang",
  "console_error_panic_hook",
  "directories",
+ "fastrand",
  "glam",
  "iced",
  "serde",
  "serde_json",
+ "tokio",
  "web-sys",
  "web-time",
 ]

@@ -60,8 +60,8 @@ fn artifact_boundary_fixture_matches_the_public_kernel_contract() {
             assert!(derivation.digest().is_ok());
         } else if field == "evidence_digest" {
             assert_eq!(
-                derivation.expanded().claim.evidence.digest,
-                expanded.claim.evidence.digest
+                derivation.expanded().claim().evidence().digest,
+                expanded.claim().evidence().digest
             );
         } else {
             assert!(serialized.get(field).is_some(), "{field}");

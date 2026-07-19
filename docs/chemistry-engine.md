@@ -36,6 +36,15 @@ checks language identity, catalogue digest, structures, coefficients, equation,
 roles, evidence references, mapping, graph steps, electron state,
 conservation, and final products.
 
+Expansion itself converges on a single restricted constructor. Before an
+expanded value exists, that constructor checks the equation against resolved
+bindings, formula summaries against catalogue-expanded instance graphs, the
+checked declaration and required context against the claim, and observation
+subjects and provenance against the resolved sides and evidence packet. The
+result exposes immutable accessors only. The kernel repeats the same four
+claim-level checks before graph execution, so neither hand-built internal HIR
+nor later regressions can turn valid structure into fictional display copy.
+
 ## Trusted catalogue
 
 The immutable catalogue contains:
@@ -90,6 +99,9 @@ next. Failed preconditions return a diagnostic and no state.
   donor-to-acceptor origin on the resulting single covalent edge. Dative
   cleavage requires that exact directed identity and an explicit allocation.
 - Bond-order change has explicit electron allocation.
+- Covalent delocalization changes are explicit typed operations; other bond
+  operations may not silently rewrite resonance-domain identity or effective
+  order.
 - Ionic association changes membership without inventing electron sharing.
 - Metallic release and join transfer ownership between site-local and
   domain-delocalized electrons explicitly.
@@ -110,8 +122,9 @@ The engine proves:
   by one for every domain-owned delocalized electron;
 - explicit valence electrons are conserved across atom-local, covalent, and
   metallic-domain ownership; and
-- final transformed graphs, including dative donor-to-acceptor origin, equal
-  catalogue product instances.
+- final transformed graphs, including dative donor-to-acceptor origin and
+  covalent resonance-domain/effective-order annotations, equal catalogue
+  product instances.
 
 Charge conservation and electron conservation are recorded separately even
 when one can be derived from other closed-system facts, because local electron

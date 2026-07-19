@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use chem_catalogue::TrustedCatalogue;
+use chem_catalogue::{CatalogueTrustPolicy, TrustedCatalogue, ValidatedCatalogueBundle};
 use chem_domain::ContentDigest;
 use serde_json::{Value, json};
 
@@ -304,8 +304,8 @@ fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
     assert_eq!(request["promotable"], false);
     assert_eq!(request["catalogue_digest"], catalogue["digest"]);
     assert!(request.get("reviewer").is_none());
-    TrustedCatalogue::from_canonical_json(&fs::read(output.join("catalogue.json")).unwrap())
-        .expect("a checked candidate loads directly");
+    ValidatedCatalogueBundle::from_json(&fs::read(output.join("catalogue.json")).unwrap())
+        .expect("a checked candidate is structurally valid but remains untrusted");
 
     for (artifact, digest_key) in [
         ("expanded-certificate.json", "expanded_certificate"),
@@ -330,18 +330,36 @@ fn physical_candidate_has_all_elements_and_generates_non_promoting_artifacts() {
 }
 
 #[test]
-fn promote_publishes_a_validated_catalogue_without_ceremony() {
+fn promote_requires_and_packages_an_exact_external_review() {
     let temporary = temp_root("promotion");
     fs::create_dir(&temporary).unwrap();
     let output = temporary.join("trusted");
     let packages = displacement_packages();
     let oxygen = root().join("catalogue/candidates/oxygen-reactions");
     let covalent = root().join("catalogue/candidates/covalent-combinations");
+    let missing_review = run(&[
+        "catalogue",
+        "promote",
+        "--out",
+        output.to_str().unwrap(),
+        packages[0].to_str().unwrap(),
+    ]);
+    assert!(!missing_review.status.success());
+    let missing_review_error = String::from_utf8_lossy(&missing_review.stderr);
+    assert!(
+        missing_review_error.contains("requires `--attestation"),
+        "{missing_review_error}"
+    );
+    assert!(!output.exists());
+
+    let review = root().join("catalogue/reviews/core-chemistry.review.json");
     let result = run(&[
         "catalogue",
         "promote",
         "--out",
         output.to_str().unwrap(),
+        "--attestation",
+        review.to_str().unwrap(),
         packages[0].to_str().unwrap(),
         packages[1].to_str().unwrap(),
         packages[2].to_str().unwrap(),
@@ -355,8 +373,24 @@ fn promote_publishes_a_validated_catalogue_without_ceremony() {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-    TrustedCatalogue::from_canonical_json(&fs::read(output.join("catalogue.json")).unwrap())
-        .expect("the published catalogue loads directly");
+    let catalogue_bytes = fs::read(output.join("catalogue.json")).unwrap();
+    let review_bytes = fs::read(output.join("review.json")).unwrap();
+    let catalogue_digest = fs::read_to_string(output.join("catalogue.digest"))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    let review_digest = fs::read_to_string(output.join("review.digest"))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    TrustedCatalogue::from_canonical_json(
+        &catalogue_bytes,
+        &review_bytes,
+        CatalogueTrustPolicy::new(catalogue_digest, review_digest),
+    )
+    .expect("the promoted artifacts load under deliberate host pins");
     fs::remove_dir_all(temporary).unwrap();
 }
 

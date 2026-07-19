@@ -6,10 +6,10 @@
 use std::{collections::BTreeMap, str::FromStr, sync::LazyLock};
 
 use chem_catalogue::{
-    GeneralizedCaseSelection, GeneralizedReactionCaseRecord, ObservationPredicate, OxygenOutcome,
-    TrustedCatalogue, ValidatedOxygenScreening,
+    CatalogueTrustPolicy, GeneralizedCaseSelection, GeneralizedReactionCaseRecord,
+    ObservationPredicate, OxygenOutcome, TrustedCatalogue, ValidatedOxygenScreening,
 };
-use chem_domain::{ReactionRuleId, RepresentationKind};
+use chem_domain::{ContentDigest, ReactionRuleId, RepresentationKind};
 use chem_kernel::{
     CurrentArtifactIdentity, ObservationStatus, SimulationFrames, expand_trusted, generate_frames,
     validate_trusted,
@@ -26,6 +26,11 @@ use chem_presentation::{
 use crate::composition_catalogue::{self, CompositionId};
 
 const CATALOGUE: &[u8] = include_bytes!("../../../catalogue/trusted/core-chemistry/catalogue.json");
+const CATALOGUE_REVIEW: &[u8] =
+    include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
+const CATALOGUE_DIGEST: &str = "9622e4605ca0a5762e601e5876526612cac6eda708bfe4c37cb3d4517add9cf2";
+const CATALOGUE_REVIEW_DIGEST: &str =
+    "6aa6f1c65023ed4fe7e93570eb9039ecafe75d39f15af5cf2eec3c8515dfe3e7";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -778,12 +783,72 @@ impl ReactionRequest {
         let structure = self.definition()?.product_structure?;
         composition_catalogue::trusted_preview_by_structure_id(structure)
     }
+
+    /// The composer draft inventories that resolve to this request, in the
+    /// request's own participant order.
+    fn draft_atoms(self) -> [Vec<u8>; 2] {
+        if let Some(definition) = self.definition() {
+            return definition.participants.map(registry_participant_atoms);
+        }
+        self.legacy_participants()
+            .expect("non-registry requests define legacy participants")
+            .map(participant_atoms)
+    }
 }
 
 pub fn requests() -> impl Iterator<Item = ReactionRequest> {
     ReactionRequest::ALL
         .into_iter()
         .chain((0..EXPERIENCE_DEFINITIONS.len()).map(ReactionRequest::registry))
+}
+
+fn participant_atoms(participant: DraftParticipant) -> Vec<u8> {
+    match participant {
+        DraftParticipant::Atom(atomic_number) => vec![atomic_number],
+        DraftParticipant::Composition(id) => composition_atoms(id),
+    }
+}
+
+fn composition_atoms(id: CompositionId) -> Vec<u8> {
+    composition_catalogue::SUPPORTED
+        .iter()
+        .find(|preview| preview.id == id)
+        .expect("request composition is recognized by the composer")
+        .atoms
+        .iter()
+        .flat_map(|(atomic_number, count)| std::iter::repeat_n(*atomic_number, usize::from(*count)))
+        .collect()
+}
+
+fn registry_participant_atoms(participant: ExperienceParticipantDefinition) -> Vec<u8> {
+    match participant {
+        ExperienceParticipantDefinition::Element(atomic_number) => vec![atomic_number],
+        ExperienceParticipantDefinition::Composition(formula) => composition_catalogue::SUPPORTED
+            .iter()
+            .find(|preview| preview.formula == formula)
+            .unwrap_or_else(|| panic!("registry composition `{formula}` is not recognized"))
+            .atoms
+            .iter()
+            .flat_map(|(atomic_number, count)| {
+                std::iter::repeat_n(*atomic_number, usize::from(*count))
+            })
+            .collect(),
+    }
+}
+
+/// Reactant atom inventories for every supported request, grouped by
+/// family. The dice roll samples a family first so one large family
+/// (the registry's ion pairs alone outnumber every showcase reaction)
+/// cannot drown out the visibly dramatic chemistry.
+pub fn roll_candidates() -> Vec<(ReactionFamily, Vec<[Vec<u8>; 2]>)> {
+    let mut by_family = BTreeMap::<ReactionFamily, Vec<[Vec<u8>; 2]>>::new();
+    for request in requests() {
+        by_family
+            .entry(request.family())
+            .or_default()
+            .push(request.draft_atoms());
+    }
+    by_family.into_iter().collect()
 }
 
 fn alkali_water_source(metal: AlkaliMetal) -> String {
@@ -890,7 +955,16 @@ struct ValidatedRequestArtifacts {
 }
 
 static TRUSTED_CATALOGUE: LazyLock<Result<TrustedCatalogue, String>> = LazyLock::new(|| {
-    TrustedCatalogue::from_canonical_json(CATALOGUE).map_err(|error| error.to_string())
+    let catalogue_digest =
+        ContentDigest::from_str(CATALOGUE_DIGEST).map_err(|error| error.to_string())?;
+    let review_digest =
+        ContentDigest::from_str(CATALOGUE_REVIEW_DIGEST).map_err(|error| error.to_string())?;
+    TrustedCatalogue::from_canonical_json(
+        CATALOGUE,
+        CATALOGUE_REVIEW,
+        CatalogueTrustPolicy::new(catalogue_digest, review_digest),
+    )
+    .map_err(|error| error.to_string())
 });
 
 pub(crate) fn trusted_catalogue() -> Result<&'static TrustedCatalogue, &'static str> {
@@ -941,7 +1015,7 @@ fn validate_request_source(
     )
     .map_err(|error| error.to_string())?;
     let macroscopic = catalogue_macroscopic_reaction(request, &expanded, catalogue);
-    let declaration = expanded.claim.declaration.clone();
+    let declaration = expanded.claim().declaration().clone();
     let current =
         CurrentArtifactIdentity::from_expanded(&expanded).map_err(|error| error.to_string())?;
     let validated = validate_trusted(&expanded, catalogue).map_err(|error| error.to_string())?;
@@ -958,13 +1032,13 @@ fn catalogue_macroscopic_reaction(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     catalogue: &TrustedCatalogue,
 ) -> Option<MacroscopicReaction> {
-    let rule = &expanded.claim.rule.rule;
+    let rule = &expanded.claim().rule().rule;
     let resolve = |binding: &str,
                    resolved: &chem_kernel::ResolvedStructureBinding,
                    role: MacroscopicMaterialRole| {
         let rule_role = expanded
-            .claim
-            .rule
+            .claim()
+            .rule()
             .bindings
             .values()
             .find(|candidate| candidate.binding == binding)
@@ -1001,15 +1075,15 @@ fn catalogue_macroscopic_reaction(
             })
     };
     let mut materials =
-        Vec::with_capacity(expanded.claim.reactants.len() + expanded.claim.products.len());
-    for (binding, material) in &expanded.claim.reactants {
+        Vec::with_capacity(expanded.claim().reactants().len() + expanded.claim().products().len());
+    for (binding, material) in expanded.claim().reactants() {
         materials.push(resolve(
             binding,
             material,
             MacroscopicMaterialRole::Reactant,
         )?);
     }
-    for (binding, material) in &expanded.claim.products {
+    for (binding, material) in expanded.claim().products() {
         materials.push(resolve(
             binding,
             material,
@@ -1055,7 +1129,7 @@ fn classify_catalogue_macroscopic_process(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     materials: &[MacroscopicMaterial],
 ) -> Option<MacroscopicProcess> {
-    if expanded.claim.reactants.len() != 2 {
+    if expanded.claim().reactants().len() != 2 {
         return None;
     }
     let material_has_phase =
@@ -1064,7 +1138,7 @@ fn classify_catalogue_macroscopic_process(
                 material.binding == binding && material.role == role && material.phase == phase
             })
         };
-    let mut reactants = expanded.claim.reactants.iter();
+    let mut reactants = expanded.claim().reactants().iter();
     let first = reactants.next()?;
     let second = reactants.next()?;
     if classifies_catalogue_metal_displacement(expanded, materials) {
@@ -1073,21 +1147,29 @@ fn classify_catalogue_macroscopic_process(
     if classifies_catalogue_surface_oxidation(expanded, materials) {
         return Some(MacroscopicProcess::SurfaceOxidation);
     }
-    let liquid_water = expanded.claim.products.iter().any(|(binding, product)| {
-        material_has_phase(
-            binding,
-            MacroscopicMaterialRole::Product,
-            chem_domain::Phase::Liquid,
-        ) && has_formula_counts(&product.formula, &[("H", 2), ("O", 1)])
-    });
-    let dissolved_ionic_product = expanded.claim.products.iter().any(|(binding, product)| {
-        material_has_phase(
-            binding,
-            MacroscopicMaterialRole::Product,
-            chem_domain::Phase::Aqueous,
-        ) && product.representation == RepresentationKind::Ionic
-    });
-    let mobile_reactants = expanded.claim.reactants.iter().all(|(binding, _)| {
+    let liquid_water = expanded
+        .claim()
+        .products()
+        .iter()
+        .any(|(binding, product)| {
+            material_has_phase(
+                binding,
+                MacroscopicMaterialRole::Product,
+                chem_domain::Phase::Liquid,
+            ) && has_formula_counts(&product.formula, &[("H", 2), ("O", 1)])
+        });
+    let dissolved_ionic_product = expanded
+        .claim()
+        .products()
+        .iter()
+        .any(|(binding, product)| {
+            material_has_phase(
+                binding,
+                MacroscopicMaterialRole::Product,
+                chem_domain::Phase::Aqueous,
+            ) && product.representation == RepresentationKind::Ionic
+        });
+    let mobile_reactants = expanded.claim().reactants().iter().all(|(binding, _)| {
         materials.iter().any(|material| {
             material.binding == binding.as_str()
                 && material.role == MacroscopicMaterialRole::Reactant
@@ -1126,15 +1208,30 @@ fn classify_catalogue_macroscopic_process(
                 chem_domain::Phase::Gas,
             )
         };
-        let has_carbon_dioxide = expanded.claim.products.iter().any(|(binding, product)| {
-            product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 2)])
-        });
-        let has_carbon_monoxide = expanded.claim.products.iter().any(|(binding, product)| {
-            product_is_gas(binding) && has_formula_counts(&product.formula, &[("C", 1), ("O", 1)])
-        });
-        let has_water_vapour = expanded.claim.products.iter().any(|(binding, product)| {
-            product_is_gas(binding) && has_formula_counts(&product.formula, &[("H", 2), ("O", 1)])
-        });
+        let has_carbon_dioxide = expanded
+            .claim()
+            .products()
+            .iter()
+            .any(|(binding, product)| {
+                product_is_gas(binding)
+                    && has_formula_counts(&product.formula, &[("C", 1), ("O", 2)])
+            });
+        let has_carbon_monoxide = expanded
+            .claim()
+            .products()
+            .iter()
+            .any(|(binding, product)| {
+                product_is_gas(binding)
+                    && has_formula_counts(&product.formula, &[("C", 1), ("O", 1)])
+            });
+        let has_water_vapour = expanded
+            .claim()
+            .products()
+            .iter()
+            .any(|(binding, product)| {
+                product_is_gas(binding)
+                    && has_formula_counts(&product.formula, &[("H", 2), ("O", 1)])
+            });
         if has_carbon_monoxide {
             Some(MacroscopicProcess::IncompleteCombustion)
         } else {
@@ -1145,17 +1242,17 @@ fn classify_catalogue_macroscopic_process(
     if combustion.is_some() {
         return combustion;
     }
-    let solid_reactants = expanded.claim.reactants.iter().all(|(binding, _)| {
+    let solid_reactants = expanded.claim().reactants().iter().all(|(binding, _)| {
         material_has_phase(
             binding,
             MacroscopicMaterialRole::Reactant,
             chem_domain::Phase::Solid,
         )
     });
-    if expanded.claim.products.len() != 1 {
+    if expanded.claim().products().len() != 1 {
         return None;
     }
-    let (product_binding, _) = expanded.claim.products.iter().next()?;
+    let (product_binding, _) = expanded.claim().products().iter().next()?;
     (solid_reactants
         && material_has_phase(
             product_binding,
@@ -1173,8 +1270,8 @@ fn classifies_catalogue_metal_displacement(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     materials: &[MacroscopicMaterial],
 ) -> bool {
-    if expanded.claim.reactants.len() != 2
-        || expanded.claim.products.len() != 2
+    if expanded.claim().reactants().len() != 2
+        || expanded.claim().products().len() != 2
         || materials.iter().any(|material| {
             material.role == MacroscopicMaterialRole::Product
                 && material.phase == chem_domain::Phase::Gas
@@ -1187,7 +1284,7 @@ fn classifies_catalogue_metal_displacement(
             material.binding == binding && material.role == role && material.phase == expected
         })
     };
-    let reactants = expanded.claim.reactants.iter().collect::<Vec<_>>();
+    let reactants = expanded.claim().reactants().iter().collect::<Vec<_>>();
     let (original_metal, initial_solution) = match reactants.as_slice() {
         [metal, solution] | [solution, metal]
             if metal.1.representation == RepresentationKind::Metallic
@@ -1207,7 +1304,7 @@ fn classifies_catalogue_metal_displacement(
         }
         _ => return false,
     };
-    let products = expanded.claim.products.iter().collect::<Vec<_>>();
+    let products = expanded.claim().products().iter().collect::<Vec<_>>();
     let (final_solution, deposited_metal) = match products.as_slice() {
         [solution, metal] | [metal, solution]
             if solution.1.representation == RepresentationKind::Ionic
@@ -1247,7 +1344,7 @@ fn classifies_catalogue_metal_displacement(
 fn catalogue_combustion_fuel_carbon_count(
     expanded: &chem_kernel::ExpandedStructuralReaction,
 ) -> Option<u64> {
-    let mut reactants = expanded.claim.reactants.iter();
+    let mut reactants = expanded.claim().reactants().iter();
     let first = reactants.next()?;
     let second = reactants.next()?;
     let fuel = if has_formula_counts(&first.1.formula, &[("O", 2)]) {
@@ -1264,7 +1361,7 @@ fn classifies_catalogue_surface_oxidation(
     expanded: &chem_kernel::ExpandedStructuralReaction,
     materials: &[MacroscopicMaterial],
 ) -> bool {
-    let mut reactants = expanded.claim.reactants.iter();
+    let mut reactants = expanded.claim().reactants().iter();
     let Some(first) = reactants.next() else {
         return false;
     };
@@ -1283,11 +1380,11 @@ fn classifies_catalogue_surface_oxidation(
         return false;
     };
     let surface_product = expanded
-        .claim
-        .products
+        .claim()
+        .products()
         .iter()
         .next()
-        .filter(|_| expanded.claim.products.len() == 1);
+        .filter(|_| expanded.claim().products().len() == 1);
     surface_metal.1.representation == RepresentationKind::Metallic
         && surface_oxygen.1.representation == RepresentationKind::Molecular
         && materials.iter().any(|material| {
@@ -1992,40 +2089,24 @@ mod tests {
     use super::*;
     use chem_domain::{Phase, RepresentationKind};
 
-    fn participant_atoms(participant: DraftParticipant) -> Vec<u8> {
-        match participant {
-            DraftParticipant::Atom(atomic_number) => vec![atomic_number],
-            DraftParticipant::Composition(id) => composition_atoms(id),
-        }
-    }
-
-    fn composition_atoms(id: CompositionId) -> Vec<u8> {
-        composition_catalogue::SUPPORTED
-            .iter()
-            .find(|preview| preview.id == id)
-            .expect("request composition is recognized by the composer")
-            .atoms
-            .iter()
-            .flat_map(|(atomic_number, count)| {
-                std::iter::repeat_n(*atomic_number, usize::from(*count))
-            })
-            .collect()
-    }
-
-    fn registry_participant_atoms(participant: ExperienceParticipantDefinition) -> Vec<u8> {
-        match participant {
-            ExperienceParticipantDefinition::Element(atomic_number) => vec![atomic_number],
-            ExperienceParticipantDefinition::Composition(formula) => {
-                composition_catalogue::SUPPORTED
-                    .iter()
-                    .find(|preview| preview.formula == formula)
-                    .unwrap_or_else(|| panic!("registry composition `{formula}` is not recognized"))
-                    .atoms
-                    .iter()
-                    .flat_map(|(atomic_number, count)| {
-                        std::iter::repeat_n(*atomic_number, usize::from(*count))
-                    })
-                    .collect()
+    #[test]
+    fn every_roll_candidate_resolves_to_runnable_chemistry() {
+        let pool = roll_candidates();
+        assert_eq!(pool.len(), 9, "every reaction family is rollable");
+        for (family, members) in pool {
+            assert!(!members.is_empty(), "family {family:?} has no candidates");
+            for [first, second] in members {
+                let first = standardize_elemental_draft(&first);
+                let second = standardize_elemental_draft(&second);
+                assert!(
+                    matches!(
+                        resolve_drafts(&first, &second),
+                        DraftResolution::Supported(_)
+                            | DraftResolution::Multiple(_)
+                            | DraftResolution::Screened(_)
+                    ),
+                    "family {family:?} candidate {first:?} + {second:?} does not resolve locally"
+                );
             }
         }
     }
@@ -2119,7 +2200,7 @@ mod tests {
     }
 
     #[test]
-    fn carbon_oxidation_uses_reviewed_catalogue_phases_in_the_live_profile() {
+    fn unreviewed_carbon_oxidation_phases_remain_unknown() {
         let request = ReactionRequest::from_id("oxygen-carbon-oxygen")
             .expect("carbon oxygen experience exists");
         let run = run(request).expect("carbon oxygen validates");
@@ -2136,26 +2217,16 @@ mod tests {
 
         assert_eq!(
             phase("subject", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Solid)
+            Some(Phase::Unknown)
         );
         assert_eq!(
             phase("oxygen", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Gas)
+            Some(Phase::Unknown)
         );
         assert_eq!(
             phase("oxide", MacroscopicMaterialRole::Product),
-            Some(Phase::Gas)
+            Some(Phase::Unknown)
         );
-        let profile = presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
-            .expect("reviewed phases select the generic profile");
-        assert!(profile.objects.iter().any(|object| {
-            object.id == "oxide"
-                && object.role == SceneRole::Product
-                && object.asset == AssetProfile::GasCloud
-        }));
-        assert!(profile.objects.iter().all(|object| {
-            object.role != SceneRole::Product || object.asset != AssetProfile::CrystalCluster
-        }));
     }
 
     #[test]
@@ -2204,7 +2275,7 @@ mod tests {
     }
 
     #[test]
-    fn hydrogen_oxidation_uses_reviewed_bulk_phases_in_the_live_profile() {
+    fn unreviewed_hydrogen_oxidation_phases_remain_unknown() {
         let request = ReactionRequest::from_id("oxygen-hydrogen-oxygen")
             .expect("hydrogen oxygen experience exists");
         let run = run(request).expect("hydrogen oxygen validates");
@@ -2221,68 +2292,37 @@ mod tests {
 
         assert_eq!(
             phase("subject", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Gas)
+            Some(Phase::Unknown)
         );
         assert_eq!(
             phase("oxygen", MacroscopicMaterialRole::Reactant),
-            Some(Phase::Gas)
+            Some(Phase::Unknown)
         );
         assert_eq!(
             phase("oxide", MacroscopicMaterialRole::Product),
-            Some(Phase::Liquid)
+            Some(Phase::Unknown)
         );
-        let profile = presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
-            .expect("reviewed phases select the generic profile");
-        assert!(profile.objects.iter().any(|object| {
-            object.id == "oxide"
-                && object.role == SceneRole::Product
-                && object.asset == AssetProfile::LiquidVolume
-        }));
-        assert!(profile.objects.iter().all(|object| {
-            object.role != SceneRole::Product || object.asset != AssetProfile::CrystalCluster
-        }));
     }
 
     #[test]
-    fn metallic_oxygen_family_selects_a_generic_exposed_surface_scene() {
+    fn unreviewed_metallic_oxygen_materials_do_not_select_surface_oxidation() {
         for id in ["oxygen-lithium-oxygen", "oxygen-sodium-oxygen"] {
             let request = ReactionRequest::from_id(id).expect("oxygen experience exists");
             let run = run(request).expect("oxygen experience validates");
             let reaction = run
                 .macroscopic()
                 .expect("structural oxygen fallback supplies renderer inputs");
-            assert_eq!(reaction.process, Some(MacroscopicProcess::SurfaceOxidation));
+            assert_eq!(reaction.process, None);
             let profile =
                 presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
                     .expect("surface oxidation profile compiles");
 
             assert!(
                 profile
-                    .objects
+                    .effects
                     .iter()
-                    .all(|object| object.role != SceneRole::Vessel)
+                    .all(|effect| effect.effect != EffectProfile::SurfaceOxidation)
             );
-            assert_eq!(
-                profile
-                    .objects
-                    .iter()
-                    .filter(|object| object.asset == AssetProfile::MetalChunk)
-                    .count(),
-                1
-            );
-            assert!(
-                profile
-                    .objects
-                    .iter()
-                    .all(|object| object.asset != AssetProfile::GasCloud)
-            );
-            assert!(profile.effects.iter().any(|effect| {
-                effect.effect == EffectProfile::SurfaceOxidation
-                    && effect.authorization
-                        == chem_presentation::EffectAuthorization::Process(
-                            MacroscopicProcess::SurfaceOxidation,
-                        )
-            }));
         }
     }
 
@@ -2291,7 +2331,34 @@ mod tests {
         let request = ReactionRequest::from_id("oxygen-sodium-oxygen")
             .expect("reviewed sodium oxidation exists");
         let run = run(request).expect("oxygen experience validates");
-        let mut reaction = run.macroscopic().expect("surface inputs exist").clone();
+        let mut reaction = MacroscopicReaction {
+            profile_id: "presentation.test.surface-oxidation".to_owned(),
+            equation: request.equation(),
+            materials: vec![
+                material(
+                    "subject",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Solid,
+                    RepresentationKind::Metallic,
+                ),
+                material(
+                    "oxygen",
+                    MacroscopicMaterialRole::Reactant,
+                    Phase::Gas,
+                    RepresentationKind::Molecular,
+                ),
+                material(
+                    "oxide",
+                    MacroscopicMaterialRole::Product,
+                    Phase::Solid,
+                    RepresentationKind::Ionic,
+                ),
+            ],
+            intensity: EffectIntensity::Moderate,
+            process: Some(MacroscopicProcess::SurfaceOxidation),
+            fuel_carbon_count: None,
+            surface_oxide_colour: None,
+        };
         let product_binding = reaction
             .materials
             .iter()

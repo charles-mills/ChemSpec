@@ -21,7 +21,7 @@ mod presentation;
 mod solve;
 mod structure;
 
-use std::fmt;
+use std::{error::Error, fmt, sync::Arc};
 
 use chem_domain::SpeciesId;
 use serde::Serialize;
@@ -37,11 +37,12 @@ pub use cache::{
 };
 pub use claim::{
     ClaimAlternative, ClaimAmbiguity, ClaimAmbiguityKind, ClaimDisposition, ClaimField,
-    ClaimIdentityHint, ClaimIdentityHintKind, ClaimMode, ClaimObservation,
-    ClaimObservationPredicate, ClaimPhase, ClaimProduct, ClaimSource, LabelledStructure,
-    MechanismCleavageAllocation, MechanismEscalationRequest, MechanismEscalationResponse,
-    MechanismHomolytic, MechanismMapping, MechanismOperation, MechanismSpecies, NoReactionReason,
-    ReactionClaim, StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
+    ClaimIdentityHint, ClaimIdentityHintKind, ClaimInput, ClaimMode, ClaimObservation,
+    ClaimObservationPredicate, ClaimPhase, ClaimProduct, ClaimProvenance, ClaimSource,
+    LabelledStructure, MechanismCleavageAllocation, MechanismEscalationRequest,
+    MechanismEscalationResponse, MechanismHomolytic, MechanismMapping, MechanismOperation,
+    MechanismSpecies, NoReactionReason, ProviderClaim, ReactionClaim, SolvedClaim,
+    StructureProposalRequest, StructureProposalResponse, StructureProposalSpecies,
 };
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,
@@ -104,32 +105,146 @@ pub struct ReactionBuildRequest {
     pub selected_context: Option<String>,
 }
 
-/// Stable provider/build failure boundary. No failure variant is a chemistry
-/// result and callers must keep playback blocked.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Stable, exhaustive classification for provider and dynamic-build failures.
+/// No variant is a chemistry result; callers must keep playback blocked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentErrorKind {
+    Cancelled,
+    TimedOut,
+    UnsupportedCapability,
+    ProviderUnavailable,
+    ProviderFailure,
+    InvalidProviderOutput,
+    CacheIo,
+    InvalidCache,
+    IdentityFailure,
+    InvalidRequest,
+    CompilationFailure,
+    KernelRejection,
+    InternalFailure,
+}
+
+/// Stable provider/build failure boundary with a closed classification and an
+/// optional concrete source error for subsystem diagnostics.
+#[derive(Debug, Clone)]
 pub struct AgentError {
-    stage: &'static str,
+    kind: AgentErrorKind,
+    context: &'static str,
     message: String,
+    source: Option<Arc<dyn Error + Send + Sync>>,
 }
 
 impl AgentError {
-    fn new(stage: &'static str, message: impl Into<String>) -> Self {
+    fn new(kind: AgentErrorKind, context: &'static str, message: impl Into<String>) -> Self {
         Self {
-            stage,
+            kind,
+            context,
             message: message.into(),
+            source: None,
+        }
+    }
+
+    fn from_source<E>(kind: AgentErrorKind, context: &'static str, source: E) -> Self
+    where
+        E: Error + Send + Sync + 'static,
+    {
+        Self {
+            kind,
+            context,
+            message: source.to_string(),
+            source: Some(Arc::new(source)),
         }
     }
 
     #[must_use]
-    pub const fn stage(&self) -> &'static str {
-        self.stage
+    pub const fn kind(&self) -> AgentErrorKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> &'static str {
+        self.context
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
     }
 }
 
 impl fmt::Display for AgentError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}: {}", self.stage, self.message)
+        write!(formatter, "{}: {}", self.context, self.message)
     }
 }
 
-impl std::error::Error for AgentError {}
+impl Error for AgentError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        self.source
+            .as_deref()
+            .map(|source| source as &(dyn Error + 'static))
+    }
+}
+
+#[cfg(test)]
+mod test_support {
+    use chem_catalogue::{CatalogueEnvelope, CatalogueTrustPolicy, TrustedCatalogue};
+    use chem_domain::ContentDigest;
+
+    pub(crate) fn trusted_catalogue() -> TrustedCatalogue {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let catalogue = std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
+            .expect("catalogue");
+        let review = std::fs::read(root.join("catalogue/reviews/core-chemistry.review.json"))
+            .expect("review");
+        let envelope: CatalogueEnvelope = serde_json::from_slice(&catalogue).expect("envelope");
+        let review_value = serde_json::from_slice(&review).expect("review value");
+        TrustedCatalogue::from_canonical_json(
+            &catalogue,
+            &review,
+            CatalogueTrustPolicy::new(
+                envelope.digest,
+                ContentDigest::of_json(&review_value).expect("review digest"),
+            ),
+        )
+        .expect("trusted catalogue")
+    }
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[test]
+    fn agent_errors_expose_closed_kinds_and_concrete_sources() {
+        let source = serde_json::from_slice::<serde_json::Value>(b"{")
+            .expect_err("truncated JSON must fail");
+        let error = AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "reaction claim",
+            source,
+        );
+
+        assert_eq!(error.kind(), AgentErrorKind::InvalidProviderOutput);
+        assert_eq!(error.context(), "reaction claim");
+        assert!(
+            Error::source(&error)
+                .and_then(|source| source.downcast_ref::<serde_json::Error>())
+                .is_some()
+        );
+        assert!(Error::source(&error.clone()).is_some());
+    }
+
+    #[test]
+    fn semantic_agent_errors_do_not_fabricate_sources() {
+        let error = AgentError::new(
+            AgentErrorKind::UnsupportedCapability,
+            "structure proposal",
+            "provider does not support structure proposals",
+        );
+
+        assert_eq!(error.kind(), AgentErrorKind::UnsupportedCapability);
+        assert!(Error::source(&error).is_none());
+    }
+}

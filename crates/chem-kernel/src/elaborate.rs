@@ -33,11 +33,13 @@ use serde_json::Value;
 use crate::{
     CatalogueOrigin, CatalogueReference, CatalogueTrust, EvidenceOrigin, EvidencePacketReference,
     EvidencePredicate, EvidenceTrust, ExpandedElectronContribution, ExpandedInstance,
-    ExpandedIonicComponent, ExpandedOperation, ExpandedStructuralReaction, ExpansionError,
-    Provenance, ReactionSideKind, ResolvedApplicability, ResolvedEquationTerm, ResolvedEvidence,
-    ResolvedGeneralizedRuleApplication, ResolvedModel, ResolvedObservation, ResolvedReactionClaim,
-    ResolvedRuleApplication, ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin,
-    SourceReference, TrustedExpandedStructuralReaction, ValidatedEvidencePacket,
+    ExpandedIonicComponent, ExpandedOperation, ExpandedStructuralReaction,
+    ExpandedStructuralReactionParts, ExpansionError, Provenance, ReactionSideKind,
+    ResolvedApplicability, ResolvedDeclarationBinding, ResolvedEquationTerm, ResolvedEvidence,
+    ResolvedGeneralizedRuleApplication, ResolvedModel, ResolvedObservation,
+    ResolvedObservationCompatibility, ResolvedReactionClaim, ResolvedRuleApplication,
+    ResolvedRuleBinding, ResolvedStructureBinding, SourceOrigin, SourceReference,
+    TrustedExpandedStructuralReaction, ValidatedEvidencePacket,
 };
 
 /// Elaborates source against a structurally valid but explicitly untrusted
@@ -256,6 +258,13 @@ fn expand_typed_declaration(
             structure: pattern.structure_id.clone(),
             formula,
             representation: structure.representation(),
+            declaration: ResolvedDeclarationBinding {
+                species: term.species().clone(),
+                display_name: term.display_name().to_owned(),
+                formula_text: term.formula_text().to_owned(),
+                charge: term.charge().clone(),
+                phase: term.phase(),
+            },
             provenance,
         };
         let source_binding = SourceStructureBinding {
@@ -405,39 +414,42 @@ fn expand_typed_declaration(
             )
         })
         .collect();
-    let expanded = ExpandedStructuralReaction {
-        schema_version: 1,
-        claim: ResolvedReactionClaim {
-            source: SourceReference {
-                name: source_name.to_owned(),
-                bytes_digest: declaration.digest(),
-                semantic_digest: declaration.digest(),
-            },
-            catalogue: CatalogueReference {
-                name: catalogue.document().name.clone(),
-                version: catalogue.document().version.clone(),
-                digest: catalogue.digest(),
-                trust,
-            },
-            reaction: reaction_name.to_owned(),
-            reactants,
-            products,
-            equation,
-            declaration: declaration.clone(),
-            model,
-            evidence: resolved_evidence,
-            rule: resolved_rule,
+    let claim = ResolvedReactionClaim {
+        source: SourceReference {
+            name: source_name.to_owned(),
+            bytes_digest: declaration.digest(),
+            semantic_digest: declaration.digest(),
         },
-        reactant_instances,
-        product_instances,
-        atom_provenance,
-        mapping,
-        mapping_entry_provenance,
-        mapping_provenance,
-        operations,
-        premises,
-        premise_provenance,
+        catalogue: CatalogueReference {
+            name: catalogue.document().name.clone(),
+            version: catalogue.document().version.clone(),
+            digest: catalogue.digest(),
+            trust,
+        },
+        reaction: reaction_name.to_owned(),
+        reactants,
+        products,
+        equation,
+        declaration: declaration.clone(),
+        model,
+        evidence: resolved_evidence,
+        rule: resolved_rule,
     };
+    let expanded = ExpandedStructuralReaction::checked(
+        ExpandedStructuralReactionParts {
+            claim,
+            reactant_instances,
+            product_instances,
+            atom_provenance,
+            mapping,
+            mapping_entry_provenance,
+            mapping_provenance,
+            operations,
+            premises,
+            premise_provenance,
+        },
+        catalogue,
+    )?;
     Ok(expanded)
 }
 
@@ -657,19 +669,21 @@ fn expand(
         evidence: resolved_evidence,
         rule: resolved_rule,
     };
-    Ok(ExpandedStructuralReaction {
-        schema_version: 1,
-        claim,
-        reactant_instances,
-        product_instances,
-        atom_provenance,
-        mapping,
-        mapping_entry_provenance,
-        mapping_provenance,
-        operations,
-        premises,
-        premise_provenance,
-    })
+    ExpandedStructuralReaction::checked(
+        ExpandedStructuralReactionParts {
+            claim,
+            reactant_instances,
+            product_instances,
+            atom_provenance,
+            mapping,
+            mapping_entry_provenance,
+            mapping_provenance,
+            operations,
+            premises,
+            premise_provenance,
+        },
+        catalogue,
+    )
 }
 
 fn resolve_bindings<'a>(
@@ -705,6 +719,7 @@ fn resolve_bindings<'a>(
             structure: structure_id.clone(),
             formula,
             representation: definition.representation(),
+            declaration: declaration_binding(&binding.name, &structure_id, definition)?,
             provenance: Provenance::derived(
                 [source_origin(
                     source_name,
@@ -1344,7 +1359,7 @@ fn resolve_evidence(
         observations.push(ResolvedObservation {
             predicate,
             subject_binding: subject.clone(),
-            value,
+            value: value.clone(),
             claim: claim_id,
             evidence_subject: claim.subject.clone(),
             provenance: Provenance::derived(
@@ -1360,6 +1375,13 @@ fn resolve_evidence(
                 )],
                 [evidence_origin],
             ),
+            compatibility: ResolvedObservationCompatibility {
+                predicate,
+                subject_binding: subject.clone(),
+                value,
+                evidence_subject: compatibility.evidence_subject.clone(),
+                premise: compatibility.premise_id.clone(),
+            },
         });
     }
     observations.sort_by(|left, right| {
@@ -2031,6 +2053,47 @@ fn strip_spans(value: &mut Value) {
     }
 }
 
+fn declaration_binding(
+    display_name: &str,
+    structure_id: &StructureId,
+    structure: &StructureDefinition,
+) -> Result<ResolvedDeclarationBinding, ExpansionError> {
+    let net_charge = structure.graph().system_net_charge();
+    let charge = if net_charge == 0 {
+        Charge::neutral()
+    } else {
+        Charge::from_magnitude(
+            BigUint::from(net_charge.unsigned_abs()),
+            if net_charge.is_positive() {
+                ChargeSign::Positive
+            } else {
+                ChargeSign::Negative
+            },
+        )
+        .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?
+    };
+    let formula_text = structure
+        .formula()
+        .elements()
+        .iter()
+        .map(|(symbol, count)| {
+            if *count == 1 {
+                symbol.to_string()
+            } else {
+                format!("{symbol}{count}")
+            }
+        })
+        .collect();
+    Ok(ResolvedDeclarationBinding {
+        species: SpeciesId::from_str(&format!("catalogue.{structure_id}"))
+            .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?,
+        display_name: display_name.to_owned(),
+        formula_text,
+        charge,
+        phase: Phase::Unknown,
+    })
+}
+
 fn reaction_declaration(
     reactants: &BTreeMap<String, ResolvedStructureBinding>,
     products: &BTreeMap<String, ResolvedStructureBinding>,
@@ -2041,26 +2104,12 @@ fn reaction_declaration(
         bindings
             .values()
             .map(|binding| {
-                let structure = catalogue.structure(&binding.structure).ok_or_else(|| {
-                    ExpansionError::system(
+                if catalogue.structure(&binding.structure).is_none() {
+                    return Err(ExpansionError::system(
                         "CHEMS-X036",
                         format!("resolved structure `{}` disappeared", binding.structure),
-                    )
-                })?;
-                let net_charge = structure.graph().system_net_charge();
-                let charge = if net_charge == 0 {
-                    Charge::neutral()
-                } else {
-                    Charge::from_magnitude(
-                        BigUint::from(net_charge.unsigned_abs()),
-                        if net_charge.is_positive() {
-                            ChargeSign::Positive
-                        } else {
-                            ChargeSign::Negative
-                        },
-                    )
-                    .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?
-                };
+                    ));
+                }
                 let formula = FormulaComposition::new(
                     binding
                         .formula
@@ -2075,25 +2124,13 @@ fn reaction_declaration(
                         .collect::<Result<Vec<_>, ExpansionError>>()?,
                 )
                 .map_err(|error| ExpansionError::invalid("CHEMS-X005", error.to_string(), None))?;
-                let formula_text = binding
-                    .formula
-                    .iter()
-                    .map(|(symbol, count)| {
-                        if *count == 1 {
-                            symbol.clone()
-                        } else {
-                            format!("{symbol}{count}")
-                        }
-                    })
-                    .collect::<String>();
                 let unbalanced = UnbalancedReactionTerm {
-                    species: SpeciesId::from_str(&format!("catalogue.{}", binding.structure))
-                        .map_err(|error| ExpansionError::system("CHEMS-X036", error.to_string()))?,
-                    display_name: binding.name.clone(),
-                    formula_text,
+                    species: binding.declaration.species.clone(),
+                    display_name: binding.declaration.display_name.clone(),
+                    formula_text: binding.declaration.formula_text.clone(),
                     formula,
-                    charge,
-                    phase: Phase::Unknown,
+                    charge: binding.declaration.charge.clone(),
+                    phase: binding.declaration.phase,
                 };
                 reaction_term(unbalanced, binding.coefficient)
                     .map_err(|error| ExpansionError::invalid("CHEMS-X006", error.to_string(), None))
@@ -2109,133 +2146,15 @@ fn reaction_declaration(
 }
 
 fn parse_formula(source: &str, span: ByteSpan) -> Result<BTreeMap<String, u64>, ExpansionError> {
-    FormulaParser::new(source, span).parse()
-}
-
-struct FormulaParser<'a> {
-    source: &'a str,
-    bytes: &'a [u8],
-    index: usize,
-    span: ByteSpan,
-}
-
-impl<'a> FormulaParser<'a> {
-    fn new(source: &'a str, span: ByteSpan) -> Self {
-        Self {
-            source,
-            bytes: source.as_bytes(),
-            index: 0,
-            span,
-        }
-    }
-
-    fn parse(mut self) -> Result<BTreeMap<String, u64>, ExpansionError> {
-        let mut result = self.segment(None)?;
-        while self.index < self.bytes.len() {
-            self.expect(b'.')?;
-            let multiplier = self.number()?.unwrap_or(1);
-            let segment = self.segment(None)?;
-            merge_formula(&mut result, segment, multiplier, self.span)?;
-        }
-        if result.is_empty() {
-            return self.error("formula is empty");
-        }
-        Ok(result)
-    }
-
-    fn segment(&mut self, terminator: Option<u8>) -> Result<BTreeMap<String, u64>, ExpansionError> {
-        let mut result = BTreeMap::new();
-        let start = self.index;
-        while self.index < self.bytes.len()
-            && self.bytes[self.index] != b'.'
-            && Some(self.bytes[self.index]) != terminator
-        {
-            if self.bytes[self.index] == b'(' {
-                self.index += 1;
-                let nested = self.segment(Some(b')'))?;
-                self.expect(b')')?;
-                let multiplier = self.number()?.unwrap_or(1);
-                merge_formula(&mut result, nested, multiplier, self.span)?;
-            } else if self.bytes[self.index].is_ascii_uppercase() {
-                let element_start = self.index;
-                self.index += 1;
-                if self
-                    .bytes
-                    .get(self.index)
-                    .is_some_and(u8::is_ascii_lowercase)
-                {
-                    self.index += 1;
-                }
-                let element = &self.source[element_start..self.index];
-                ElementSymbol::from_str(element).map_err(|error| {
-                    ExpansionError::invalid("CHEMS-X005", error.to_string(), Some(self.span))
-                })?;
-                let count = self.number()?.unwrap_or(1);
-                let entry = result.entry(element.to_owned()).or_insert(0_u64);
-                *entry = entry.checked_add(count).ok_or_else(|| {
-                    ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(self.span))
-                })?;
-            } else {
-                return self.error("invalid formula token");
-            }
-        }
-        if self.index == start {
-            return self.error("empty formula segment");
-        }
-        Ok(result)
-    }
-
-    fn number(&mut self) -> Result<Option<u64>, ExpansionError> {
-        let start = self.index;
-        while self.bytes.get(self.index).is_some_and(u8::is_ascii_digit) {
-            self.index += 1;
-        }
-        if start == self.index {
-            return Ok(None);
-        }
-        let value = self.source[start..self.index].parse::<u64>().map_err(|_| {
-            ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(self.span))
-        })?;
-        if value == 0 {
-            return self.error("formula count must be positive");
-        }
-        Ok(Some(value))
-    }
-
-    fn expect(&mut self, byte: u8) -> Result<(), ExpansionError> {
-        if self.bytes.get(self.index) == Some(&byte) {
-            self.index += 1;
-            Ok(())
-        } else {
-            self.error("malformed formula grouping")
-        }
-    }
-
-    fn error<T>(&self, message: &str) -> Result<T, ExpansionError> {
-        Err(ExpansionError::invalid(
-            "CHEMS-X005",
-            format!("{message} in `{}`", self.source),
-            Some(self.span),
-        ))
-    }
-}
-
-fn merge_formula(
-    target: &mut BTreeMap<String, u64>,
-    source: BTreeMap<String, u64>,
-    multiplier: u64,
-    span: ByteSpan,
-) -> Result<(), ExpansionError> {
-    for (element, count) in source {
-        let count = count.checked_mul(multiplier).ok_or_else(|| {
-            ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(span))
-        })?;
-        let entry = target.entry(element).or_insert(0);
-        *entry = entry.checked_add(count).ok_or_else(|| {
-            ExpansionError::invalid("CHEMS-X005", "formula count overflow", Some(span))
-        })?;
-    }
-    Ok(())
+    FormulaComposition::parse(source)
+        .map(|formula| {
+            formula
+                .elements()
+                .iter()
+                .map(|(element, count)| (element.as_str().to_owned(), *count))
+                .collect()
+        })
+        .map_err(|error| ExpansionError::invalid("CHEMS-X005", error.to_string(), Some(span)))
 }
 
 fn positive_u32(value: &str, span: ByteSpan, label: &str) -> Result<u32, ExpansionError> {
@@ -2354,23 +2273,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn formula_resolution_handles_groups_and_adduct_multipliers() {
-        assert_eq!(
-            parse_formula("Ca(OH)2", ByteSpan::new(0, 7)).unwrap(),
-            BTreeMap::from([
-                ("Ca".to_owned(), 1),
-                ("H".to_owned(), 2),
-                ("O".to_owned(), 2),
-            ])
-        );
-        assert_eq!(
-            parse_formula("CuSO4.5H2O", ByteSpan::new(0, 11)).unwrap(),
-            BTreeMap::from([
-                ("Cu".to_owned(), 1),
-                ("H".to_owned(), 10),
-                ("O".to_owned(), 9),
-                ("S".to_owned(), 1),
-            ])
-        );
+    fn formula_resolution_conforms_to_the_domain_parser() {
+        let span = ByteSpan::new(17, 41);
+        for source in ["H2O", "Ca(OH)2", "CuSO4.5H2O", "K4(ON(SO3)2)2"] {
+            let expected = FormulaComposition::parse(source)
+                .unwrap()
+                .elements()
+                .iter()
+                .map(|(element, count)| (element.as_str().to_owned(), *count))
+                .collect::<BTreeMap<_, _>>();
+            assert_eq!(parse_formula(source, span).unwrap(), expected);
+        }
+
+        for source in ["", "H0", "Ca(OH", "CuSO4.", "H18446744073709551616"] {
+            let expected = FormulaComposition::parse(source).unwrap_err();
+            let actual = parse_formula(source, span).unwrap_err();
+            assert_eq!(actual.class(), crate::ExpansionFailureClass::InvalidSource);
+            assert_eq!(actual.code(), "CHEMS-X005");
+            assert_eq!(actual.message(), expected.to_string());
+            assert_eq!(actual.span(), Some(span));
+        }
     }
 }

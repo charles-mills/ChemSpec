@@ -1,212 +1,225 @@
 # ChemSpec
 
-ChemSpec is a theoretical chemistry explorer. A learner composes reactants;
-an algorithmic solver predicts the outcome for the classroom reaction
-families it knows (neutralization, displacement, combustion, decomposition,
-precipitation, oxide chemistry, and more), a Lewis-structure generator
-derives every species' structure from periodic-table physics, and a
-graph-diff deriver computes the mechanism between the two validated
-endpoints. A model (Codex) is consulted only when the algorithms decline,
-and its claims cross exactly the same balancing, kernel validation, and
-animation pipeline — the model is a fallback, never a shortcut.
+ChemSpec is a chemistry exploration app built for the Education category of
+[OpenAI Build Week 2026](https://openai.devpost.com/). Learners construct a
+reaction question, follow its structural changes atom by atom, and then see a
+macroscopic 3D interpretation of the same validated outcome.
 
-The project is being built for the Education category of
-[OpenAI Build Week](https://openai.devpost.com/).
+**[Try the web demo](https://charles-mills.github.io/ChemSpec/) · [Project documentation](docs/README.md)**
 
-ChemSpec is built collaboratively. See [Contributors](CONTRIBUTORS.md) for the
-team credited from the project's Git history.
+The reviewed catalogue and algorithmic solver handle supported chemistry
+locally. When both decline, the desktop app can consult the user's signed-in
+Codex installation, then validate the proposal before it is allowed to drive a
+simulation.
 
-<img alt="image" src="https://github.com/user-attachments/assets/adbbfc91-d12c-4244-b28d-2f04f31b82e8" />
+## What ChemSpec Does
 
-## Product contract
+Chemistry equations describe inputs and outputs, but they do not make it easy
+to see which atoms persist, which relationships change, or how those changes
+relate to visible observations. ChemSpec connects those views in one guided
+experience for secondary-school learners, educators, and introductory
+chemistry students.
+
+1. **Ask:** construct reactants from the periodic table or enter a recognised
+   name or formula.
+2. **Resolve:** use a reviewed reaction or derive the outcome with the local
+   solver, falling back to Codex only when local methods decline.
+3. **Inspect:** follow stable atoms, bonds, ionic associations, electron
+   transfers, products, and observations through the structural 2D sequence.
+4. **Observe:** continue into an illustrative macroscopic 3D view compiled from
+   the same validated reaction.
+5. **Explain:** inspect the equation, products, structural derivation, and the
+   provenance of model-proposed results.
+
+Unlike a fixed collection of prerecorded animations, ChemSpec lets a learner
+pose the question. It still declines chemistry that it cannot represent or
+validate instead of turning a plausible model answer into a trusted result.
+
+## Reactions to Try
+
+These examples were checked through the same headless resolution and reaction
+path used by the application:
+
+| Reactants | Outcome | Frames |
+| --- | --- | ---: |
+| `sodium` + `water` | `2Na + 2H2O -> 2NaOH + H2` | 13 |
+| `HCl` + `NaOH` | `HCl + NaOH -> NaCl + H2O` | 8 |
+| `AgNO3` + `NaCl` | `AgNO3 + NaCl -> AgCl + NaNO3` | 7 |
+| `HCl` + `NaHCO3` | `HCl + NaHCO3 -> NaCl + H2O + CO2` | 14 |
+
+## How We Used Codex and GPT-5.6
+
+We built ChemSpec from the ground up using GPT 5.6 Sol ("Sol"). Starting the project, we began with a team-meeting discussing our intended outcome. Once agreed, we handed off to a fresh thread, describing what we wanted to achieve and the components it would require. We requested Sol first ask us everything required to close out any assumptions, after which it was ready to write the [implementation plan](docs/plans/implementation-plan.md) and specifications.
+
+Sol then worked through the stages it had specified, end-to-end.
+
+### Designing with Codex
+
+When designing or redesigning the UI, we relied on the Product Design product within Codex. A typical redesign consisted of handing Sol screenshots of the existing pages, providing our critiques, and describing the ideal outcome. Codex then used that to produce rapid visual mockups, considerably faster than using Iced's compile-and-run cycle for questions of composition, hierarchy, spacing and visual weight.
+
+Once the mockup was approved, Sol would produce native Iced components within the app. Once done, Codex would autonomously launch the app, verify the outcome against the agreed mockup, and iterate further if needed.
+
+The provider setup screen preserves this process in the repository. Its
+[visual QA record](docs/archive/qa/provider-setup/README.md) includes the reference design, implementation captures, invalid and valid input states, a
+normalized side-by-side comparison, the changes made after inspection, and the
+final result. That entire QA process was captured and recorded autonomously by
+GPT-5.6 Sol.
+
+![Provider setup reference and implementation comparison](docs/archive/qa/provider-setup/provider-setup-comparison.png)
+
+### Engineering with Codex
+
+We used repository documents as working contracts for Codex. Larger changes
+were divided into bounded tasks in the
+[implementation plan](docs/plans/implementation-plan.md), while decisions and
+failed assumptions were recorded in the
+[rebuild decision log](docs/plans/rebuild-decisions.md). Codex implemented and
+reviewed changes across the Rust workspace, ran focused verification while
+iterating, and helped us inspect the native application through dedicated
+`ChemSpec Agent Smoke` builds.
+
+This workflow is visible in the Git history as well as the documentation:
+ChemSpec has Codex-specific branches and commits for UI integration, visual
+inspection, sizing fixes, and code review. Packaged smoke checks are recorded
+for the reaction builder and representative 3D reactions rather than inferred
+from unit tests.
+
+### Codex inside ChemSpec
+
+Codex is also part of the finished application. When the reviewed catalogue
+and local reaction solver both decline, ChemSpec can ask the user's signed-in
+Codex installation for a narrow, structured reaction claim. If local
+graph-difference and reviewed-family mechanisms also decline, Codex may propose
+an atom mapping and a bounded sequence of operations over structures supplied
+by ChemSpec.
+
+Those proposals are not trusted chemistry. Codex cannot author the structures,
+coefficients, valence rules, internal identities, or validated simulation
+frames. ChemSpec resolves and balances the reaction locally, then runs any
+proposed mechanism through the same deterministic chemistry kernel used for
+offline reactions. If it cannot validate the result, it declines to animate
+it. The complete boundary is documented in the
+[agent workflow](docs/agent-workflow.md).
+
+## How ChemSpec Works
 
 ```text
-request
-  -> algorithmic solver (reaction families, confident no-reactions)
-     -> miss: reviewed catalogue fast path
-        -> miss: model returns a closed factual claim
-  -> stable species identity + exact balancing (all paths)
-  -> structure generation for every species without a reviewed graph
-  -> mechanism: graph diff between validated endpoints
-     -> miss: model proposal, validated identically
-  -> graph, charge, electron, and product validation
-  -> paired observation and structural-change frames
+reaction request
+  -> reviewed catalogue fast path
+  -> algorithmic reaction solver
+     -> miss: revalidated cache, then Codex claim
+  -> exact balancing and checked declaration
+  -> local graph-difference or reviewed-family mechanism
+     -> miss: bounded Codex mapping and operation proposal
+  -> deterministic chemistry kernel
+  -> validated renderer-independent frames
+  -> structural 2D and macroscopic 3D presentation
 ```
 
-- Formulae summarize composition; catalogue graphs define structure.
-- Shared and dative covalent bonds, ionic associations, and metallic domains
-  remain distinct; dative direction records donor-pair origin on a single bond.
-- Reviewed-family applicability is selected locally and must pass deterministic
-  validation. A model-proposed mechanism is separately disclosed and must pass
-  the identical kernel; it never becomes a reviewed catalogue rule.
-- The authored source is visible and editable.
-- The expanded atom map and structural certificate are visible and derived.
-- The validator is the only component that can construct renderer-eligible
-  chemistry.
-- The renderer visualizes validated states and never discovers outcomes.
-- Malformed, unsafe, ambiguous, or unrepresentable chemistry remains blocked
-  rather than false or guessed.
+The governing rule is simple:
 
-ChemSpec shows a representative theoretical outcome. It is not a laboratory
-instruction system, molecular-dynamics simulator, bulk solution model, or
-automatic mechanism proof.
+> Codex proposes; ChemSpec validates.
 
-## Example
+Codex cannot construct a trusted chemistry value, and the application cannot
+mark one as valid. The validator and chemistry kernel sit between every local,
+cached, or model-proposed result and the simulation. The full crate boundaries
+and contracts are documented in the [system architecture](docs/system-architecture.md).
 
-```chems
-chems 1
-use catalog ChemSpec.Theoretical@1
+## Running ChemSpec
 
-reaction LithiumAndWater where
-  reactants
-    lithium := 2 of LithiumMetal
-    water := 2 of Water
+### Web demo
 
-  products
-    lithiumHydroxide := 2 of LithiumHydroxide
-    hydrogen := 1 of Hydrogen
+Open the [ChemSpec web demo](https://charles-mills.github.io/ChemSpec/) in a
+browser with WebGPU support. The web build runs in local mode: browser
+sandboxes cannot invoke the installed Codex CLI, so catalogue and algorithmic
+outcomes remain available while live Codex fallback does not.
 
-  equation
-    2 Li[metallic] + 2 H2O[molecular]
-    -> 2 LiOH[ionic] + H2[molecular]
+### Desktop app
 
-  model
-    event := representative
-    sequence := explanatory
-
-  observe from Evidence.LithiumAndWater@1
-    gas hydrogen evolves claim R1
-    reactant lithium disappears claim R2
-
-  by
-    apply Rules.AlkaliMetalWithWater
-      metal := lithium
-      water := water
-      hydroxide := lithiumHydroxide
-      gasProduct := hydrogen
-```
-
-The reviewed rule supplies applicability, structures, deterministic instance
-expansion, complete atom mapping, exact electron allocations, and the ordered
-structural-operation template. The kernel validates the expanded result in
-full; `by apply` cannot select or omit checks.
-
-## Workspace
-
-The Rust workspace separates pure structural values, language tooling,
-catalogue data, provider output, and validation:
-
-- `chem-domain` — exact identities and structural domain values;
-- `chems-lang` — lossless `.chems 1` frontend and formatter;
-- `chem-catalogue` — immutable reviewed structures/rules and strict working
-  catalogue validation;
-- `chem-kernel` — resolution, expansion, graph validation, and artifacts;
-- `chem-presentation` — deterministic guided-scene and macroscopic-scene plans
-  compiled only from validated kernel frames;
-- `agent` — the algorithmic reaction solver, systematic naming (both
-  directions), graph-diff mechanism derivation, compact claim/mechanism
-  contracts, Codex invocation, exact outcome compilation, cache v3, and
-  product-bound provisional oxide-appearance enrichment;
-- `chems-cli` — parsing, formatting, and source/expansion inspection;
-- `chemspec-app` — native Iced composition UI plus Canvas 2D and wgpu 3D
-  renderers.
-
-The desktop application is native Rust using Iced and `wgpu`. The first live
-dynamic provider uses a Codex subscription through the local `codex` binary.
-Codex binary remains the default provider. The startup UI reserves BYOK/API as
-a possible provider-neutral backup, but it is not connected and neither a
-direct API implementation nor a hosted backend is required by the current
-dynamic reaction rebuild.
-
-Application preferences are selected on first launch and can be changed from
-the Builder settings menu. ChemSpec persists the app mode and whether chemical
-labels use formulae (`H₂O`) or deterministic names (`water`) in the operating
-system's standard per-user configuration directory. Names fall back to the
-exact formula when the chemistry engine cannot derive one. API mode remains
-visible but unavailable; settings never store API keys or other credentials.
-
-## Chemistry status
-
-Chemistry is derived programmatically, with the reviewed catalogue as a
-curated fast path rather than a boundary:
-
-- The **structure generator** builds Lewis structures from an element
-  multiset alone — octet/duet ledgers, expanded octets toward more
-  electronegative partners, formal-charge distributions, symmetric-resonance
-  delocalization (nitrate reads 4/3, benzene 3/2) — and declines honestly
-  when a formula is genuinely ambiguous.
-- The **reaction solver** covers the classroom families: acid-base (oxides,
-  hydroxides, carbonates, bicarbonates), acid + metal and the activity
-  series, single/double/halogen displacement with solubility rules, C/H/O
-  combustion, anhydride hydration and slaking, metal + water, heat and
-  electrolysis decomposition, plus confident no-reactions (noble gases,
-  metal pairs, insoluble ions). Products carry systematic names.
-- The **mechanism deriver** computes operation sequences as a graph diff
-  between validated endpoint structures; the kernel validates the result
-  identically whether it came from the deriver, a reviewed family, or a
-  model proposal.
-- The **reactant composer** accepts periodic-table drafts or typed names and
-  formulas ("copper(II) sulfate", `Mg(NO3)2`, "zinc + hydrochloric acid"),
-  and previews any compound the generator can build.
-
-Runtime model claims cannot promote themselves into the reviewed catalogue,
-and cache v3 revalidates cached outcomes for offline replay. Malformed,
-ambiguous, or unrepresentable chemistry remains blocked rather than guessed.
-
-## Development commands
+The workspace pins Rust `1.96.1`; `rustup` will select it from
+`rust-toolchain.toml`.
 
 ```sh
-cargo run -p chems-cli -- inspect source conformance/expansion/canonical-expansion-001.chems
-cargo test --workspace --all-targets
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all -- --check
+git clone https://github.com/charles-mills/ChemSpec.git
+cd ChemSpec
 cargo run -p chemspec-app
+```
 
-# Verify a reaction outcome headlessly (names or formulae), no GUI:
+With [`just`](https://github.com/casey/just) installed, the equivalent command
+is `just run`. Version tags trigger the release pipeline, which builds a
+Windows MSI, a Linux AppImage and standalone binary, and a universal macOS DMG.
+These packages are unsigned.
+
+Local chemistry does not require an account or network connection. To use the
+dynamic fallback, install the
+[Codex CLI](https://github.com/openai/codex), sign in with a ChatGPT account,
+and confirm that the session is available:
+
+```sh
+codex login
+codex login status
+```
+
+ChemSpec checks the binary, version, authentication status, and required CLI
+capabilities at startup. It does not read Codex credential files.
+
+## Headless Verification
+
+The `react` subcommand runs the same reactant resolution and reaction path as
+the GUI without opening a window. It prints the selected outcome as JSON:
+
+```sh
 cargo run -p chemspec-app -- react sodium water
 cargo run -p chemspec-app -- react HCl NaOH
 cargo run -p chemspec-app -- react --verbose sodium water
 ```
 
-`chemspec-app react <reactant> <reactant>` resolves the pair through the same
-path the app uses and prints the balanced equation, products, and frame count as
-JSON. Add `--verbose` (`-v`) to also emit the full frame artifact (`animation`)
-and its `digest`. Exit code `0` means a reaction ran, `1` means no single
-reaction, `2` means bad input.
-
-### macOS visual smoke tests
-
-Computer Use must target a fresh, uniquely identified app bundle instead of a
-raw `cargo run` process or the release-named `ChemSpec.app`. Install the same
-packager version used by the release workflow, then launch the desired view:
+`--verbose` includes the complete renderer-independent frame artifact and its
+stable digest. To run the repository's normal CI gate locally:
 
 ```sh
-cargo install cargo-packager --version 0.11.8 --locked
-just agent-smoke builder
-just agent-smoke 2d
-just agent-smoke 3d
-just agent-smoke stop
+cargo fmt --all --check
+cargo test --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The launch command rebuilds the application, recreates
-`target/agent-smoke/ChemSpec Agent Smoke.app`, verifies that its executable is
-byte-identical to the fresh debug binary, and launches that exact path as a new
-instance. Agents must use `ChemSpec Agent Smoke` as the Computer Use app name
-and verify the mode-specific window title before judging the rendered UI:
+Meaningful chemistry and simulation behavior is tested without a GPU. Native
+startup, packaging, live Codex access, and GPU rendering require their separate
+smoke checks; they are not inferred from unit tests. See the complete
+[verification strategy](docs/verification.md).
 
-- `ChemSpec Agent Smoke — Structural 2D`
-- `ChemSpec Agent Smoke — Structural 3D`
-- `ChemSpec Agent Smoke — Builder`
+## Trust, Scope, and Safety
 
-Do not target `ChemSpec` for an automated visual smoke; Computer Use may resolve
-that name to an older registered development or release bundle.
+- Exact chemistry quantities use rational and decimal representations rather
+  than binary floating point.
+- Raw or stale model output cannot enter the simulation.
+- A model-proposed mechanism must pass the same conservation and structural
+  validation as a locally derived one.
+- Unsupported, invalid, and provider-failure states remain distinct.
+- ChemSpec is an educational explanatory model, not a laboratory procedure,
+  kinetics engine, or molecular-dynamics system.
 
-## Releases
+The detailed boundaries are recorded in the [product specification](docs/product-spec.md),
+[chemistry engine](docs/chemistry-engine.md), and [safety policy](docs/safety.md).
 
-Pushing a tag in the exact form `vMAJOR.MINOR.PATCH` builds a Windows MSI, a
-Linux AppImage and standalone binary, and a universal macOS DMG. The tag must
-match `[workspace.package].version`. Packages are currently unsigned.
+## Technology
 
-## License
+- Rust 2024, pinned to Rust `1.96.1`
+- Iced `0.14.0` for the Elm-style desktop and web application
+- Iced Canvas and shader primitives for deterministic 2D and 3D presentation
+- Exact domain types, a custom `.chems 1` language, and a deterministic
+  structural validation kernel
+- The local Codex CLI for bounded dynamic reaction claims and mechanism
+  proposals
 
-ChemSpec is licensed under the [MIT License](LICENSE).
+The workspace is divided into domain, language, catalogue, kernel, agent,
+presentation, and application crates. See [crates/README.md](crates/README.md)
+for the map.
+
+## Team and License
+
+ChemSpec was built by Aryan Saini, Charles Mills, Oliver Robbins, and Patryk for
+OpenAI Build Week 2026. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for contributor
+details.
+
+ChemSpec is released under the [MIT License](LICENSE).

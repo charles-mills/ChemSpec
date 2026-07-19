@@ -230,7 +230,7 @@ fn migrated_family_executes_li_na_and_k_to_exact_concrete_final_states() {
         let evidence = fs::read(root().join(evidence_path)).unwrap();
         let expanded =
             expand_review_candidate(source_path, &source, &catalogue, &evidence).unwrap();
-        let selected = expanded.claim.rule.generalized.as_ref().unwrap();
+        let selected = expanded.claim().rule().generalized.as_ref().unwrap();
         assert_eq!(selected.parameters["member"], symbol);
         assert_eq!(selected.case_id, expansion_oracle["selected_case"]);
         assert_eq!(
@@ -238,11 +238,11 @@ fn migrated_family_executes_li_na_and_k_to_exact_concrete_final_states() {
             oracle_usize(&expansion_oracle, "equivalent_match_count")
         );
         assert_eq!(
-            expanded.operations.len(),
+            expanded.operations().len(),
             oracle_usize(&expansion_oracle, "concrete_operations")
         );
         assert_eq!(
-            expanded.mapping.entries().len(),
+            expanded.mapping().entries().len(),
             oracle_usize(&expansion_oracle, "mapping_entries")
         );
         assert_eq!(
@@ -250,18 +250,16 @@ fn migrated_family_executes_li_na_and_k_to_exact_concrete_final_states() {
             json!([metal, hydroxide])
         );
         assert!(
-            expanded.reactant_instances.values().any(|instance| instance
-                .instance
-                .structure()
-                .as_str()
-                == metal)
+            expanded
+                .reactant_instances()
+                .values()
+                .any(|instance| instance.instance.structure().as_str() == metal)
         );
         assert!(
-            expanded.product_instances.values().any(|instance| instance
-                .instance
-                .structure()
-                .as_str()
-                == hydroxide)
+            expanded
+                .product_instances()
+                .values()
+                .any(|instance| instance.instance.structure().as_str() == hydroxide)
         );
 
         let derivation = validate_review_candidate(&expanded, &catalogue).unwrap();
@@ -488,7 +486,9 @@ reaction DativeFixture where
                 && acceptor.to_string() == "acceptor[1].acceptor"
     ));
     assert_eq!(
-        expanded.product_instances["adduct[1]"].instance.structure(),
+        expanded.product_instances()["adduct[1]"]
+            .instance
+            .structure(),
         &StructureId::new("G4DativeAdduct").unwrap()
     );
 }
@@ -507,6 +507,6 @@ fn legacy_non_generalized_catalogue_still_executes_as_the_exception_path() {
             .unwrap();
     let expanded =
         expand_review_candidate("legacy-concrete.chems", &source, &catalogue, &evidence).unwrap();
-    assert!(expanded.claim.rule.generalized.is_none());
+    assert!(expanded.claim().rule().generalized.is_none());
     validate_review_candidate(&expanded, &catalogue).unwrap();
 }

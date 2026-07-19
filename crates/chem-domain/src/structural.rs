@@ -2126,12 +2126,21 @@ fn relabel_graph(
         .map(|bond| {
             let id = qualified_id(instance, bond.id())?;
             match bond.electron_origin() {
-                CovalentElectronOrigin::Shared => CovalentBond::new(
-                    id,
-                    atoms[bond.left()].clone(),
-                    atoms[bond.right()].clone(),
-                    bond.order(),
-                ),
+                CovalentElectronOrigin::Shared => match bond.delocalization() {
+                    Some(delocalization) => CovalentBond::new_delocalized(
+                        id,
+                        atoms[bond.left()].clone(),
+                        atoms[bond.right()].clone(),
+                        bond.order(),
+                        delocalization.clone(),
+                    ),
+                    None => CovalentBond::new(
+                        id,
+                        atoms[bond.left()].clone(),
+                        atoms[bond.right()].clone(),
+                        bond.order(),
+                    ),
+                },
                 CovalentElectronOrigin::Dative { donor, acceptor } => {
                     CovalentBond::new_dative(id, atoms[donor].clone(), atoms[acceptor].clone())
                 }

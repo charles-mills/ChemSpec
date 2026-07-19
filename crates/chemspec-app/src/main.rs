@@ -6,8 +6,10 @@
 //! animated capabilities cross separate deterministic validation boundaries.
 
 mod animated_clip;
+mod blocking;
 mod chemistry;
 mod composition_catalogue;
+mod dynamic_reaction;
 mod elements;
 mod fonts;
 mod gas_fluid;
@@ -30,7 +32,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Sender},
     },
 };
 
@@ -40,16 +42,16 @@ use web_time::Instant;
 
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
-    CodexProviderConfig, CompiledClaimOutcome, DynamicCachePresentation,
-    DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones,
+    CodexProviderConfig, DynamicCachePresentation, DynamicPresentationOutcome, LatencyMilestones,
     MacroscopicProcess as AgentMacroscopicProcess, OutcomeSpecies, OxideAppearanceRequest,
-    ReactantIdentityAmbiguity, ReactantInput, ReactionBuildRequest, ReactionClaim,
-    RequestIdentityResolution, TrustTier, ValidatedOxideAppearance, ValidatedStaticOutcome,
-    compile_claim_outcome_with_catalogue, enrich_static_outcome, load_dynamic_cache,
+    ReactantInput, ReactionBuildRequest, RequestIdentityResolution, TrustTier,
+    ValidatedOxideAppearance, ValidatedStaticOutcome, enrich_static_outcome,
     load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
-use chem_domain::{ContentDigest, RepresentationKind, SpeciesId};
+#[cfg(test)]
+use agent::{CompiledClaimOutcome, ProviderClaim, ReactionClaim};
+use chem_domain::{ContentDigest, RepresentationKind};
 use chem_presentation::{
     EducationalPlan, EducationalSceneKind, EffectProfile, MacroscopicColourAuthority,
     MacroscopicMaterial, MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction,
@@ -63,6 +65,13 @@ use iced::widget::{
 };
 use iced::{Center, Element, Fill, FillPortion, Length, Size, Subscription, Task, Theme};
 
+#[cfg(test)]
+use dynamic_reaction::ClaimStageResult as DynamicClaimStageResult;
+use dynamic_reaction::{
+    BuildFailure as DynamicBuildFailure, BuildStage as DynamicBuildStage,
+    BuildState as DynamicBuildState, IdentityChoice as DynamicIdentityChoice,
+    ModalKind as DynamicModalKind, RequestContext as DynamicRequestContext,
+};
 use settings::{AppMode, AppSettings, ChemicalLabels, LoadOutcome};
 use theme::{breakpoint, color, space as spacing, type_scale};
 
@@ -951,7 +960,7 @@ enum Message {
     WindowResized(Size),
     DumpFrame,
     FrameCaptured(std::path::PathBuf, iced::window::Screenshot),
-    DynamicOverlayDismissed,
+    Dynamic(dynamic_reaction::Message),
     /// Swallows clicks on the overlay panel so they miss the scrim.
     Noop,
     KeyboardEvent {
@@ -983,32 +992,12 @@ enum Message {
     Sketcher(sketcher::Message),
     BuilderPanelToggled(BuilderPanel),
     BuilderPanelClosed,
-    DynamicContextSelected(Option<DynamicRequestContext>),
-    ToggleDynamicDetails,
-    DynamicIdentitySelected {
-        reactant_index: usize,
-        species_id: SpeciesId,
-    },
-    DynamicClaimFinished {
-        run_id: u64,
-        result: Box<Result<DynamicClaimStageResult, String>>,
-    },
-    DynamicPresentationFinished {
-        run_id: u64,
-        result: Box<Result<DynamicPresentationOutcome, String>>,
-    },
     OxideAppearanceFinished {
         run_id: u64,
         request_binding: ContentDigest,
         result: Box<Result<ValidatedOxideAppearance, String>>,
     },
     RetryOxideAppearance,
-    DynamicBuildTick {
-        run_id: u64,
-    },
-    DynamicTheatreTick,
-    RegenerateDynamicReaction,
-    RetryDynamicPresentation,
     OutcomeSelected(chemistry::ReactionRequest),
     StructuralPlaybackShortcut,
     StructuralPlaybackToggled,
@@ -1057,45 +1046,6 @@ enum SettingsSaveState {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DynamicRequestContext {
-    Heat,
-    Light,
-    Electricity,
-    LimitedOxygen,
-    Catalyst,
-}
-
-impl DynamicRequestContext {
-    const ALL: [Self; 5] = [
-        Self::Heat,
-        Self::Light,
-        Self::Electricity,
-        Self::LimitedOxygen,
-        Self::Catalyst,
-    ];
-
-    const fn value(self) -> &'static str {
-        match self {
-            Self::Heat => "heat",
-            Self::Light => "light",
-            Self::Electricity => "electricity",
-            Self::LimitedOxygen => "limited oxygen",
-            Self::Catalyst => "catalyst",
-        }
-    }
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Heat => "Heat",
-            Self::Light => "Light",
-            Self::Electricity => "Electricity",
-            Self::LimitedOxygen => "Limited oxygen",
-            Self::Catalyst => "Catalyst",
-        }
-    }
-}
-
 fn builder_keyboard_message(
     screen: Screen,
     event: iced::keyboard::Event,
@@ -1122,7 +1072,9 @@ fn dynamic_modal_keyboard_message(event: iced::keyboard::Event) -> Option<Messag
     let iced::keyboard::Event::KeyPressed { key, .. } = event else {
         return None;
     };
-    (key == Key::Named(Named::Escape)).then_some(Message::DynamicOverlayDismissed)
+    (key == Key::Named(Named::Escape)).then_some(Message::Dynamic(
+        dynamic_reaction::Message::OverlayDismissed,
+    ))
 }
 
 fn settings_modal_keyboard_message(
@@ -1338,7 +1290,7 @@ fn screen_keyboard_message(
 #[derive(Debug, Clone)]
 enum RenderableFrames {
     Catalogue(chem_kernel::SimulationFrames),
-    Dynamic(chem_kernel::ValidatedDynamicFrames),
+    ReviewCandidate(chem_kernel::ValidatedReviewCandidateFrames),
 }
 
 impl Deref for RenderableFrames {
@@ -1347,36 +1299,9 @@ impl Deref for RenderableFrames {
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Catalogue(frames) => frames,
-            Self::Dynamic(frames) => frames,
+            Self::ReviewCandidate(frames) => frames,
         }
     }
-}
-
-#[derive(Debug, Clone, Default)]
-enum DynamicBuildState {
-    #[default]
-    Idle,
-    Running {
-        run_id: u64,
-        elapsed_seconds: u64,
-        stage: DynamicBuildStage,
-    },
-    Failed(String),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DynamicBuildStage {
-    Claim,
-    Presentation,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DynamicModalKind {
-    IdentityChoice,
-    StaticResult,
-    Running,
-    Failed,
-    Verdict,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1385,19 +1310,6 @@ enum BuilderOverlayKind {
     Toolbar,
     Drag,
     None,
-}
-
-#[derive(Debug, Clone)]
-struct DynamicClaimStageResult {
-    outcome: CompiledClaimOutcome,
-    presentation: Option<DynamicPresentationOutcome>,
-    latency: LatencyMilestones,
-}
-
-#[derive(Debug, Clone)]
-struct DynamicIdentityChoice {
-    request: ReactionBuildRequest,
-    ambiguity: ReactantIdentityAmbiguity,
 }
 
 #[derive(Debug)]
@@ -1447,22 +1359,8 @@ struct App {
     validated_frames: Option<RenderableFrames>,
     validated_macroscopic: Option<chem_presentation::MacroscopicReaction>,
     validated_declaration: Option<chem_domain::ReactionDeclaration>,
-    dynamic_claim: Option<ReactionClaim>,
-    dynamic_static: Option<ValidatedStaticOutcome>,
-    dynamic_presentation: Option<DynamicPresentationOutcome>,
-    dynamic_request: Option<ReactionBuildRequest>,
-    dynamic_identity_choice: Option<DynamicIdentityChoice>,
-    dynamic_context: Option<DynamicRequestContext>,
+    dynamic: dynamic_reaction::State,
     builder_panel: Option<BuilderPanel>,
-    dynamic_details_open: bool,
-    dynamic_build: DynamicBuildState,
-    dynamic_cancellation: Option<Arc<AtomicBool>>,
-    dynamic_progress: Option<CodexProgressEvent>,
-    dynamic_progress_receiver: Option<Receiver<CodexProgressEvent>>,
-    dynamic_started_at: Option<Instant>,
-    dynamic_latency: LatencyMilestones,
-    dynamic_theatre_phase: f32,
-    next_dynamic_run_id: u64,
     oxide_appearance_request: Option<OxideAppearanceRequest>,
     oxide_appearance: Option<ValidatedOxideAppearance>,
     oxide_appearance_error: Option<String>,
@@ -1476,8 +1374,6 @@ struct App {
     structural_shortcut_state: StructuralShortcutState,
     /// Interface zoom applied on top of the system scale factor.
     ui_zoom: f32,
-    /// The user closed the dynamic-build overlay; completion events reopen it.
-    dynamic_overlay_dismissed: bool,
     /// Debug harness: dump one frame to this path, then keep running.
     dump_frame_path: Option<std::path::PathBuf>,
 }
@@ -1512,22 +1408,8 @@ impl Default for App {
                 .as_ref()
                 .and_then(|run| run.macroscopic().cloned()),
             validated_declaration: trusted_run.as_ref().map(|run| run.declaration().clone()),
-            dynamic_claim: None,
-            dynamic_static: None,
-            dynamic_presentation: None,
-            dynamic_request: None,
-            dynamic_identity_choice: None,
-            dynamic_context: None,
+            dynamic: dynamic_reaction::State::default(),
             builder_panel: None,
-            dynamic_details_open: false,
-            dynamic_build: DynamicBuildState::Idle,
-            dynamic_cancellation: None,
-            dynamic_progress: None,
-            dynamic_progress_receiver: None,
-            dynamic_started_at: None,
-            dynamic_latency: LatencyMilestones::default(),
-            dynamic_theatre_phase: 0.0,
-            next_dynamic_run_id: 1,
             oxide_appearance_request: None,
             oxide_appearance: None,
             oxide_appearance_error: None,
@@ -1538,7 +1420,6 @@ impl Default for App {
             structural_error: None,
             structural_shortcut_state: StructuralShortcutState::Inactive,
             ui_zoom: 1.0,
-            dynamic_overlay_dismissed: false,
             dump_frame_path: None,
         }
     }
@@ -1725,9 +1606,9 @@ impl App {
         self.validated_frames = None;
         self.validated_macroscopic = None;
         self.validated_declaration = None;
-        self.dynamic_context = None;
-        self.dynamic_details_open = false;
-        self.dynamic_overlay_dismissed = false;
+        self.dynamic.context = None;
+        self.dynamic.details_open = false;
+        self.dynamic.overlay_dismissed = false;
         self.structural_animation = None;
         self.structural_error = None;
         self.structural_shortcut_state = StructuralShortcutState::Inactive;
@@ -1736,15 +1617,15 @@ impl App {
     }
 
     fn pending_dynamic_modal_kind(&self) -> Option<DynamicModalKind> {
-        if self.dynamic_identity_choice.is_some() {
+        if self.dynamic.identity_choice.is_some() {
             Some(DynamicModalKind::IdentityChoice)
-        } else if self.dynamic_static.is_some() {
+        } else if self.dynamic.static_outcome.is_some() {
             Some(DynamicModalKind::StaticResult)
-        } else if matches!(self.dynamic_build, DynamicBuildState::Running { .. }) {
+        } else if matches!(self.dynamic.build, DynamicBuildState::Running { .. }) {
             Some(DynamicModalKind::Running)
-        } else if matches!(self.dynamic_build, DynamicBuildState::Failed(_)) {
+        } else if matches!(self.dynamic.build, DynamicBuildState::Failed(_)) {
             Some(DynamicModalKind::Failed)
-        } else if self.dynamic_claim.is_some() {
+        } else if self.dynamic.claim.is_some() {
             Some(DynamicModalKind::Verdict)
         } else {
             None
@@ -1752,7 +1633,7 @@ impl App {
     }
 
     fn dynamic_modal_kind(&self) -> Option<DynamicModalKind> {
-        if self.dynamic_overlay_dismissed {
+        if self.dynamic.overlay_dismissed {
             None
         } else {
             self.pending_dynamic_modal_kind()
@@ -1760,7 +1641,7 @@ impl App {
     }
 
     fn open_dynamic_overlay(&mut self) {
-        self.dynamic_overlay_dismissed = false;
+        self.dynamic.overlay_dismissed = false;
         self.builder_panel = None;
         reactant_composer::set_submit_available(&mut self.reactant_composer, false);
     }
@@ -1791,7 +1672,7 @@ impl App {
             return None;
         }
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
-        if first.is_empty() && second.is_empty() && self.dynamic_static.is_none() {
+        if first.is_empty() && second.is_empty() && self.dynamic.static_outcome.is_none() {
             return None;
         }
         let formulae =
@@ -1809,10 +1690,11 @@ impl App {
         let reactants = format!("Reactants {first} + {second}");
         let static_summary = || {
             let outcome = self
-                .dynamic_static
+                .dynamic
+                .static_outcome
                 .as_ref()
                 .expect("a static-result modal retains its outcome");
-            let capability = match &self.dynamic_presentation {
+            let capability = match &self.dynamic.presentation {
                 Some(
                     DynamicPresentationOutcome::ReviewedFamily(_)
                     | DynamicPresentationOutcome::Escalated(_),
@@ -1828,7 +1710,7 @@ impl App {
                 )
             )
         };
-        let running_summary = || match &self.dynamic_build {
+        let running_summary = || match &self.dynamic.build {
             DynamicBuildState::Running { stage, .. } => match stage {
                 DynamicBuildStage::Claim => "building factual outcome",
                 DynamicBuildStage::Presentation => "building presentation",
@@ -1845,7 +1727,7 @@ impl App {
             }
             Some(DynamicModalKind::Failed) => "failure modal open".to_owned(),
             Some(DynamicModalKind::Verdict) => {
-                let verdict = self.dynamic_claim.as_ref().map_or("outcome", |claim| {
+                let verdict = self.dynamic.claim.as_ref().map_or("outcome", |claim| {
                     match claim.disposition {
                         ClaimDisposition::NoReaction => "no reaction",
                         ClaimDisposition::Ambiguous => "ambiguous outcome",
@@ -1855,8 +1737,8 @@ impl App {
                 });
                 format!("outcome modal open: {verdict}")
             }
-            None if self.dynamic_static.is_some() => static_summary(),
-            None => match &self.dynamic_build {
+            None if self.dynamic.static_outcome.is_some() => static_summary(),
+            None => match &self.dynamic.build {
                 DynamicBuildState::Idle => "idle".to_owned(),
                 DynamicBuildState::Running { .. } => running_summary().to_owned(),
                 DynamicBuildState::Failed(_) => "build failed".to_owned(),
@@ -1865,8 +1747,101 @@ impl App {
         Some(format!("{reactants}; {state}"))
     }
 
-    #[allow(clippy::too_many_lines)]
     fn update_with_task(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::Dynamic(message) => return dynamic_reaction::update(self, message),
+            Message::OxideAppearanceFinished {
+                run_id,
+                request_binding,
+                result,
+            } => {
+                if self.active_oxide_appearance_run != Some(run_id)
+                    || self
+                        .oxide_appearance_request
+                        .as_ref()
+                        .and_then(|request| request.binding_digest().ok())
+                        != Some(request_binding)
+                {
+                    return Task::none();
+                }
+                self.active_oxide_appearance_run = None;
+                self.oxide_appearance_cancellation = None;
+                match *result {
+                    Ok(appearance) => {
+                        self.oxide_appearance_error = None;
+                        self.oxide_appearance = Some(appearance);
+                        self.refresh_real_world_plan();
+                    }
+                    Err(error) => self.oxide_appearance_error = Some(error),
+                }
+            }
+            Message::RetryOxideAppearance => {
+                self.cancel_oxide_appearance_enrichment();
+                return self.start_oxide_appearance_enrichment();
+            }
+            message @ (Message::WindowResized(_)
+            | Message::DumpFrame
+            | Message::FrameCaptured(..)
+            | Message::Noop
+            | Message::KeyboardEvent { .. }
+            | Message::PointerPressed
+            | Message::BuilderInputFocusChecked { .. }) => {
+                return self.update_input_message(message);
+            }
+            Message::ReturnToBuilder => self.enter_screen(Screen::Builder),
+            Message::StartNewReaction => self.start_new_reaction(),
+            message @ (Message::ProviderSelected(_)
+            | Message::ProviderContinue
+            | Message::SettingsOpened
+            | Message::SettingsClosed
+            | Message::SettingsAppModeSelected(_)
+            | Message::SettingsChemicalLabelsSelected(_)
+            | Message::SettingsSaveRequested
+            | Message::SettingsSaveFinished { .. }) => {
+                return self.update_settings_message(message);
+            }
+            message @ (Message::PeriodicTable(_)
+            | Message::ReactantComposer(_)
+            | Message::Sketcher(_)
+            | Message::BuilderPanelToggled(_)
+            | Message::BuilderPanelClosed) => return self.update_builder_message(message),
+            #[cfg(target_arch = "wasm32")]
+            Message::DemoRepoLinkOpened => {
+                const REPO_URL: &str = "https://github.com/charles-mills/ChemSpec";
+                if let Some(window) = web_sys::window() {
+                    // Popup blockers may reject the new tab (returns None);
+                    // fall back to navigating in place so the link always works.
+                    let opened = window
+                        .open_with_url_and_target(REPO_URL, "_blank")
+                        .ok()
+                        .flatten();
+                    if opened.is_none() {
+                        let _ = window.location().set_href(REPO_URL);
+                    }
+                }
+            }
+            message @ (Message::OutcomeSelected(_)
+            | Message::StructuralPlaybackShortcut
+            | Message::StructuralPlaybackToggled
+            | Message::StructuralSpeedChanged
+            | Message::StructuralTimelineScrubbed(_)
+            | Message::StructuralRealWorldTimelineScrubbed(_)
+            | Message::StructuralChapterChanged(_)
+            | Message::StructuralSkipRequested(_)
+            | Message::StructuralRestarted
+            | Message::StructuralTick
+            | Message::StructuralDrag(_)
+            | Message::ContinueTo3d
+            | Message::ContinueToSummary
+            | Message::ReturnTo2d
+            | Message::ReturnTo3d
+            | Message::OutcomeChoiceMoved(_)
+            | Message::OutcomeChoiceConfirmed) => return self.update_structural_message(message),
+        }
+        Task::none()
+    }
+
+    fn update_input_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowResized(size) => {
                 self.ui_zoom = adaptive_zoom(size, self.ui_zoom);
@@ -1894,15 +1869,9 @@ impl App {
                     ),
                 );
             }
-            Message::DynamicOverlayDismissed => {
-                if self.dynamic_modal_kind().is_some() {
-                    self.dynamic_overlay_dismissed = true;
-                    self.sync_builder_submit_prompt();
-                }
-            }
             Message::Noop => {}
             Message::KeyboardEvent { event, status } => {
-                let message = if self.settings_dialog.is_some() {
+                let routed = if self.settings_dialog.is_some() {
                     settings_modal_keyboard_message(event, status)
                 } else {
                     match self.screen {
@@ -1931,9 +1900,9 @@ impl App {
                         }
                     }
                 };
-                if let Some(message) = message {
+                if let Some(routed) = routed {
                     self.keyboard_navigation_active = true;
-                    return self.update_with_task(message);
+                    return self.update_with_task(routed);
                 }
             }
             Message::PointerPressed => {
@@ -1956,8 +1925,13 @@ impl App {
                         .update_reactant_composer(reactant_composer::Message::NameEntryCancelled);
                 }
             }
-            Message::ReturnToBuilder => self.enter_screen(Screen::Builder),
-            Message::StartNewReaction => self.start_new_reaction(),
+            _ => unreachable!("input messages are routed by update_with_task"),
+        }
+        Task::none()
+    }
+
+    fn update_settings_message(&mut self, message: Message) -> Task<Message> {
+        match message {
             Message::ProviderSelected(provider) => {
                 if self.mode_available(provider) {
                     self.provider = Some(provider);
@@ -2022,6 +1996,13 @@ impl App {
                 settings,
                 result,
             } => self.finish_settings_save(save_id, destination, settings, result),
+            _ => unreachable!("settings messages are routed by update_with_task"),
+        }
+        Task::none()
+    }
+
+    fn update_builder_message(&mut self, message: Message) -> Task<Message> {
+        match message {
             Message::PeriodicTable(message) => {
                 if self.dynamic_modal_kind().is_some() {
                     return Task::none();
@@ -2033,9 +2014,7 @@ impl App {
                     ));
                 }
             }
-            Message::ReactantComposer(message) => {
-                return self.update_reactant_composer(message);
-            }
+            Message::ReactantComposer(message) => return self.update_reactant_composer(message),
             Message::Sketcher(message) => {
                 if self.dynamic_modal_kind().is_some() {
                     return Task::none();
@@ -2043,8 +2022,6 @@ impl App {
                 let submit = matches!(message, sketcher::Message::UseAsReactant);
                 sketcher::update(&mut self.sketcher, message);
                 if submit && let Some(sketch) = sketcher::submission(&self.sketcher) {
-                    // Filling a slot is a draft edit: it must invalidate
-                    // dynamic work exactly like typed or clicked edits do.
                     self.cancel_dynamic_work();
                     reactant_composer::set_sketched_reactant(
                         &mut self.reactant_composer,
@@ -2060,288 +2037,41 @@ impl App {
                     self.builder_panel = (self.builder_panel != Some(panel)).then_some(panel);
                 }
             }
-            #[cfg(target_arch = "wasm32")]
-            Message::DemoRepoLinkOpened => {
-                const REPO_URL: &str = "https://github.com/charles-mills/ChemSpec";
-                if let Some(window) = web_sys::window() {
-                    // Popup blockers may reject the new tab (returns None);
-                    // fall back to navigating in place so the link always works.
-                    let opened = window
-                        .open_with_url_and_target(REPO_URL, "_blank")
-                        .ok()
-                        .flatten();
-                    if opened.is_none() {
-                        let _ = window.location().set_href(REPO_URL);
-                    }
-                }
-            }
             Message::BuilderPanelClosed => self.builder_panel = None,
-            Message::DynamicContextSelected(context) => {
-                if self.dynamic_modal_kind().is_some() {
-                    return Task::none();
-                }
-                self.dynamic_context = context;
-                self.builder_panel = None;
-                self.sync_builder_submit_prompt();
+            _ => unreachable!("builder messages are routed by update_with_task"),
+        }
+        Task::none()
+    }
+
+    fn update_structural_message(&mut self, message: Message) -> Task<Message> {
+        match message {
+            message @ (Message::StructuralPlaybackShortcut
+            | Message::StructuralPlaybackToggled
+            | Message::StructuralSpeedChanged
+            | Message::StructuralTimelineScrubbed(_)
+            | Message::StructuralRealWorldTimelineScrubbed(_)
+            | Message::StructuralChapterChanged(_)
+            | Message::StructuralSkipRequested(_)
+            | Message::StructuralRestarted) => self.update_playback_message(&message),
+            message @ (Message::StructuralTick | Message::StructuralDrag(_)) => {
+                self.update_structural_effect(message)
             }
-            Message::ToggleDynamicDetails => {
-                self.dynamic_details_open = !self.dynamic_details_open;
-            }
-            Message::DynamicIdentitySelected {
-                reactant_index,
-                species_id,
-            } => {
-                let Some(choice) = self.dynamic_identity_choice.take() else {
-                    return Task::none();
-                };
-                if choice.ambiguity.reactant_index != reactant_index
-                    || !choice
-                        .ambiguity
-                        .alternatives
-                        .iter()
-                        .any(|species| species.id == species_id)
-                {
-                    self.dynamic_identity_choice = Some(choice);
-                    return Task::none();
-                }
-                let mut request = choice.request;
-                request.reactants[reactant_index].species_id = Some(species_id);
-                return self.start_dynamic_build_request(request, false);
-            }
-            Message::DynamicClaimFinished { run_id, result } => {
-                if !matches!(self.dynamic_build, DynamicBuildState::Running { run_id: current, stage: DynamicBuildStage::Claim, .. } if current == run_id)
-                {
-                    return Task::none();
-                }
-                self.open_dynamic_overlay();
-                match *result {
-                    Ok(DynamicClaimStageResult {
-                        outcome: CompiledClaimOutcome::Static(outcome),
-                        presentation,
-                        latency,
-                    }) => {
-                        self.dynamic_latency = latency;
-                        self.dynamic_claim = Some(outcome.claim().clone());
-                        self.dynamic_static = Some(outcome.clone());
-                        self.validated_macroscopic = dynamic_macroscopic_reaction(&outcome).ok();
-                        self.dynamic_presentation = None;
-                        if let Some(presentation) = presentation {
-                            self.dynamic_cancellation = None;
-                            self.dynamic_progress_receiver = None;
-                            self.finish_dynamic_presentation(presentation);
-                            return self.start_oxide_appearance_enrichment();
-                        }
-                        self.dynamic_build = DynamicBuildState::Running {
-                            run_id,
-                            elapsed_seconds: 0,
-                            stage: DynamicBuildStage::Presentation,
-                        };
-                        let request = self
-                            .dynamic_request
-                            .clone()
-                            .expect("a dynamic run retains its request");
-                        let progress = self.reset_dynamic_progress_channel();
-                        let presentation_task = Self::start_dynamic_presentation(
-                            run_id,
-                            request,
-                            ClaimMode::Fast,
-                            self.local_mode(),
-                            outcome,
-                            self.dynamic_cancellation
-                                .clone()
-                                .expect("a running build retains cancellation"),
-                            progress,
-                        );
-                        let appearance_task = self.start_oxide_appearance_enrichment();
-                        return Task::batch([presentation_task, appearance_task]);
-                    }
-                    Ok(DynamicClaimStageResult {
-                        outcome:
-                            CompiledClaimOutcome::NoReaction(claim)
-                            | CompiledClaimOutcome::Ambiguous(claim)
-                            | CompiledClaimOutcome::Unsupported(claim),
-                        presentation: _,
-                        latency,
-                    }) => {
-                        self.dynamic_latency = latency;
-                        self.dynamic_claim = Some(claim);
-                        self.dynamic_static = None;
-                        self.dynamic_presentation = None;
-                        self.validated_frames = None;
-                        self.dynamic_build = DynamicBuildState::Idle;
-                        self.dynamic_cancellation = None;
-                        self.dynamic_progress_receiver = None;
-                    }
-                    Err(error) => {
-                        self.validated_frames = None;
-                        self.dynamic_claim = None;
-                        self.dynamic_static = None;
-                        self.dynamic_presentation = None;
-                        self.dynamic_build = DynamicBuildState::Failed(error);
-                        self.dynamic_cancellation = None;
-                        self.dynamic_progress_receiver = None;
-                    }
-                }
-            }
-            Message::DynamicPresentationFinished { run_id, result } => {
-                if !matches!(self.dynamic_build, DynamicBuildState::Running { run_id: current, stage: DynamicBuildStage::Presentation, .. } if current == run_id)
-                {
-                    return Task::none();
-                }
-                self.open_dynamic_overlay();
-                match *result {
-                    Ok(presentation) => {
-                        let elapsed = self.dynamic_started_at.map_or(0, elapsed_millis);
-                        match &presentation {
-                            DynamicPresentationOutcome::ReviewedFamily(_) => {
-                                self.dynamic_latency.reviewed_animation_ms = Some(elapsed);
-                            }
-                            DynamicPresentationOutcome::Escalated(_) => {
-                                self.dynamic_latency.mechanism_ms = Some(elapsed);
-                            }
-                            DynamicPresentationOutcome::Static { .. } => {}
-                        }
-                        self.finish_dynamic_presentation(presentation);
-                        return self.start_oxide_appearance_enrichment();
-                    }
-                    Err(error) => {
-                        // Presentation enrichment cannot invalidate or discard
-                        // an already displayed static outcome.
-                        self.validated_frames = None;
-                        self.dynamic_presentation = Some(DynamicPresentationOutcome::Static {
-                            outcome: Box::new(
-                                self.dynamic_static
-                                    .clone()
-                                    .expect("presentation starts only after a static outcome"),
-                            ),
-                            diagnostic: error,
-                            retryable: true,
-                            attempts: 0,
-                        });
-                        self.dynamic_build = DynamicBuildState::Idle;
-                        self.dynamic_cancellation = None;
-                        self.dynamic_progress_receiver = None;
-                    }
-                }
-            }
-            Message::OxideAppearanceFinished {
-                run_id,
-                request_binding,
-                result,
-            } => {
-                if self.active_oxide_appearance_run != Some(run_id)
-                    || self
-                        .oxide_appearance_request
-                        .as_ref()
-                        .and_then(|request| request.binding_digest().ok())
-                        != Some(request_binding)
-                {
-                    return Task::none();
-                }
-                self.active_oxide_appearance_run = None;
-                self.oxide_appearance_cancellation = None;
-                match *result {
-                    Ok(appearance) => {
-                        self.oxide_appearance_error = None;
-                        self.oxide_appearance = Some(appearance);
-                        self.refresh_real_world_plan();
-                    }
-                    Err(error) => {
-                        self.oxide_appearance_error = Some(error);
-                    }
-                }
-            }
-            Message::RetryOxideAppearance => {
-                self.cancel_oxide_appearance_enrichment();
-                return self.start_oxide_appearance_enrichment();
-            }
-            Message::DynamicBuildTick { run_id } => {
-                let current = matches!(
-                    self.dynamic_build,
-                    DynamicBuildState::Running { run_id: current, .. } if current == run_id
-                );
-                if let DynamicBuildState::Running {
-                    run_id: current,
-                    elapsed_seconds,
-                    ..
-                } = &mut self.dynamic_build
-                    && *current == run_id
-                {
-                    *elapsed_seconds = elapsed_seconds.saturating_add(1);
-                }
-                if current {
-                    self.drain_dynamic_progress();
-                }
-            }
-            Message::DynamicTheatreTick => {
-                if matches!(
-                    self.dynamic_build,
-                    DynamicBuildState::Running {
-                        stage: DynamicBuildStage::Presentation,
-                        ..
-                    }
-                ) && self.dynamic_static.is_some()
-                {
-                    self.dynamic_theatre_phase = (self.dynamic_theatre_phase + 0.006).fract();
-                }
-            }
-            Message::RegenerateDynamicReaction => {
-                let Some(request) = self.dynamic_request.clone() else {
-                    return Task::none();
-                };
-                self.enter_screen(Screen::Builder);
-                return self.start_dynamic_build_request(request, true);
-            }
-            Message::RetryDynamicPresentation => {
-                // Re-run only the presentation enrichment (structure and
-                // mechanism escalation); the validated static outcome and its
-                // claim stay untouched.
-                if !matches!(
-                    self.dynamic_presentation,
-                    Some(DynamicPresentationOutcome::Static {
-                        retryable: true,
-                        ..
-                    })
-                ) || matches!(self.dynamic_build, DynamicBuildState::Running { .. })
-                {
-                    return Task::none();
-                }
-                let (Some(request), Some(outcome)) =
-                    (self.dynamic_request.clone(), self.dynamic_static.clone())
-                else {
-                    return Task::none();
-                };
-                let run_id = self.next_dynamic_run_id;
-                self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
-                let cancellation = Arc::new(AtomicBool::new(false));
-                self.dynamic_cancellation = Some(cancellation.clone());
-                self.dynamic_build = DynamicBuildState::Running {
-                    run_id,
-                    elapsed_seconds: 0,
-                    stage: DynamicBuildStage::Presentation,
-                };
-                self.open_dynamic_overlay();
-                let progress = self.reset_dynamic_progress_channel();
-                return Self::start_dynamic_presentation(
-                    run_id,
-                    request,
-                    ClaimMode::Fast,
-                    self.local_mode(),
-                    outcome,
-                    cancellation,
-                    progress,
-                );
-            }
-            Message::OutcomeSelected(request) => {
-                self.pending_requests.clear();
-                self.oxygen_assessment = None;
-                self.select_request(request);
-                self.open_structural_animation();
-                return self.start_oxide_appearance_enrichment();
-            }
+            message @ (Message::OutcomeSelected(_)
+            | Message::ContinueTo3d
+            | Message::ContinueToSummary
+            | Message::ReturnTo2d
+            | Message::ReturnTo3d
+            | Message::OutcomeChoiceMoved(_)
+            | Message::OutcomeChoiceConfirmed) => self.update_structural_navigation(&message),
+            _ => unreachable!("structural messages are routed by update_with_task"),
+        }
+    }
+
+    fn update_playback_message(&mut self, message: &Message) -> Task<Message> {
+        match message {
             Message::StructuralPlaybackShortcut => {
                 if self.structural_shortcut_state == StructuralShortcutState::Ready {
-                    return self.update_with_task(Message::StructuralPlaybackToggled);
+                    return self.update_playback_message(&Message::StructuralPlaybackToggled);
                 }
             }
             Message::StructuralPlaybackToggled => {
@@ -2376,25 +2106,25 @@ impl App {
                     animation.playing = false;
                     animation.settled = false;
                 }
-                self.seek_educational_timeline(u64::from(progress));
+                self.seek_educational_timeline(u64::from(*progress));
             }
             Message::StructuralRealWorldTimelineScrubbed(progress) => {
                 if let Some(animation) = &mut self.structural_animation {
                     animation.playing = false;
                 }
-                self.seek_real_world_timeline(u64::from(progress));
+                self.seek_real_world_timeline(u64::from(*progress));
             }
-            Message::StructuralChapterChanged(delta) => self.change_structural_frame(delta),
+            Message::StructuralChapterChanged(delta) => self.change_structural_frame(*delta),
             Message::StructuralSkipRequested(delta) => {
                 if self.screen == Screen::Structural2d {
-                    self.change_structural_frame(delta);
+                    self.change_structural_frame(*delta);
                 } else if self.screen == Screen::Structural3d {
                     let Some(animation) = &mut self.structural_animation else {
                         return Task::none();
                     };
                     animation.playing = false;
                     let playhead = animation.real_world_playhead_ms;
-                    let target = if delta < 0 {
+                    let target = if *delta < 0 {
                         playhead.saturating_sub(5_000)
                     } else {
                         playhead.saturating_add(5_000)
@@ -2402,6 +2132,22 @@ impl App {
                     self.seek_real_world_timeline(target);
                 }
             }
+            Message::StructuralRestarted => {
+                if let Some(animation) = &mut self.structural_animation {
+                    animation.educational_playhead_ms = 0;
+                    animation.frame_index = 0;
+                    animation.real_world_playhead_ms = 0;
+                    animation.playing = true;
+                    animation.settled = false;
+                }
+            }
+            _ => unreachable!("playback messages are routed by update_structural_message"),
+        }
+        Task::none()
+    }
+
+    fn update_structural_effect(&mut self, message: Message) -> Task<Message> {
+        match message {
             Message::StructuralTick => {
                 let frame_millis = if self.screen == Screen::Structural3d {
                     16
@@ -2444,24 +2190,25 @@ impl App {
                         structural_2d::DragEvent::Moved { cursor } => {
                             animation.physics.move_drag(cursor);
                         }
-                        structural_2d::DragEvent::Ended => {
-                            animation.physics.end_drag();
-                        }
+                        structural_2d::DragEvent::Ended => animation.physics.end_drag(),
                     }
                 }
             }
-            Message::StructuralRestarted => {
-                if let Some(animation) = &mut self.structural_animation {
-                    animation.educational_playhead_ms = 0;
-                    animation.frame_index = 0;
-                    animation.real_world_playhead_ms = 0;
-                    animation.playing = true;
-                    animation.settled = false;
-                }
+            _ => unreachable!("effect messages are routed by update_structural_message"),
+        }
+        Task::none()
+    }
+
+    fn update_structural_navigation(&mut self, message: &Message) -> Task<Message> {
+        match message {
+            Message::OutcomeSelected(request) => {
+                self.pending_requests.clear();
+                self.oxygen_assessment = None;
+                self.select_request(*request);
+                self.open_structural_animation();
+                return self.start_oxide_appearance_enrichment();
             }
             Message::ContinueTo3d => {
-                // The 3D model is always reachable from the 2D explanation;
-                // entering it restarts the macroscopic playback.
                 let Some(animation) = &mut self.structural_animation else {
                     return Task::none();
                 };
@@ -2471,8 +2218,6 @@ impl App {
                 self.enter_screen(Screen::Structural3d);
             }
             Message::ContinueToSummary => {
-                // The product summary is always reachable from the 3D model,
-                // mirroring the free 2D ⇄ 3D navigation.
                 let Some(animation) = &mut self.structural_animation else {
                     return Task::none();
                 };
@@ -2488,9 +2233,9 @@ impl App {
                 }
                 let len = self.pending_requests.len();
                 self.keyboard_outcome_index = Some(match self.keyboard_outcome_index {
-                    Some(current) if delta < 0 => current.checked_sub(1).unwrap_or(len - 1),
+                    Some(current) if *delta < 0 => current.checked_sub(1).unwrap_or(len - 1),
                     Some(current) => (current + 1) % len,
-                    None if delta < 0 => len - 1,
+                    None if *delta < 0 => len - 1,
                     None => 0,
                 });
             }
@@ -2503,8 +2248,9 @@ impl App {
                 else {
                     return Task::none();
                 };
-                return self.update_with_task(Message::OutcomeSelected(request));
+                return self.update_structural_navigation(&Message::OutcomeSelected(request));
             }
+            _ => unreachable!("navigation messages are routed by update_structural_message"),
         }
         Task::none()
     }
@@ -2515,18 +2261,19 @@ impl App {
     }
 
     fn builder_input_ready(&self) -> bool {
-        if matches!(self.dynamic_build, DynamicBuildState::Running { .. })
+        if matches!(self.dynamic.build, DynamicBuildState::Running { .. })
             || reactant_composer::editing(&self.reactant_composer).is_some()
+            || reactant_composer::roll_engaged(&self.reactant_composer)
         {
             return false;
         }
         let (first, second) = reactant_composer::reactants(&self.reactant_composer);
         reactant_composer::can_start_reaction(&self.reactant_composer)
-            || (self.dynamic_context.is_some() && (!first.is_empty() || !second.is_empty()))
+            || (self.dynamic.context.is_some() && (!first.is_empty() || !second.is_empty()))
     }
 
     fn local_solver_declines(&self) -> bool {
-        let requires_dynamic = self.dynamic_context.is_some()
+        let requires_dynamic = self.dynamic.context.is_some()
             || matches!(
                 reactant_composer::resolution(&self.reactant_composer),
                 chemistry::DraftResolution::ExplicitlyUnsupported(_)
@@ -2576,27 +2323,30 @@ impl App {
     /// stale dynamic chemistry never survives a changed question.
     fn cancel_dynamic_work(&mut self) {
         self.cancel_oxide_appearance_enrichment();
-        if let Some(cancellation) = self.dynamic_cancellation.take() {
+        if let Some(cancellation) = self.dynamic.cancellation.take() {
             cancellation.store(true, Ordering::Relaxed);
         }
-        self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
-        self.dynamic_build = DynamicBuildState::Idle;
-        self.dynamic_identity_choice = None;
-        self.dynamic_started_at = None;
-        self.dynamic_latency = LatencyMilestones::default();
-        self.dynamic_progress = None;
-        self.dynamic_progress_receiver = None;
-        if self.dynamic_static.take().is_some()
-            || self.dynamic_claim.take().is_some()
-            || self.dynamic_presentation.take().is_some()
-            || matches!(&self.validated_frames, Some(RenderableFrames::Dynamic(_)))
+        self.dynamic.next_run_id = self.dynamic.next_run_id.saturating_add(1);
+        self.dynamic.build = DynamicBuildState::Idle;
+        self.dynamic.identity_choice = None;
+        self.dynamic.started_at = None;
+        self.dynamic.latency = LatencyMilestones::default();
+        self.dynamic.progress = None;
+        self.dynamic.progress_receiver = None;
+        if self.dynamic.static_outcome.take().is_some()
+            || self.dynamic.claim.take().is_some()
+            || self.dynamic.presentation.take().is_some()
+            || matches!(
+                &self.validated_frames,
+                Some(RenderableFrames::ReviewCandidate(_))
+            )
         {
             self.validated_frames = None;
             self.validated_declaration = None;
             self.structural_animation = None;
         }
 
-        self.dynamic_request = None;
+        self.dynamic.request = None;
     }
 
     fn update_reactant_composer(&mut self, message: reactant_composer::Message) -> Task<Message> {
@@ -2610,23 +2360,29 @@ impl App {
             _ => None,
         };
         if matches!(message, reactant_composer::Message::StartReactionRequested)
-            && matches!(self.dynamic_build, DynamicBuildState::Running { .. })
+            && matches!(self.dynamic.build, DynamicBuildState::Running { .. })
         {
             return Task::none();
         }
         if !matches!(message, reactant_composer::Message::StartReactionRequested) {
-            // Presentation-only motion (ambient orbit and prompt fades) must
-            // never cancel a running build or wipe a finished result; only
-            // actual draft edits invalidate dynamic state.
+            // Presentation-only motion (ambient orbit, prompt fades, dice
+            // rolls) must never cancel a running build or wipe a finished
+            // result; only actual draft edits invalidate dynamic state.
             if message.is_presentation_only() {
+                let was_rolling = reactant_composer::roll_engaged(&self.reactant_composer);
                 reactant_composer::update(&mut self.reactant_composer, message);
+                // A finished roll has written both drafts; surface the
+                // "press space" prompt for the settled reaction.
+                if was_rolling && !reactant_composer::roll_engaged(&self.reactant_composer) {
+                    self.sync_builder_submit_prompt();
+                }
                 return Task::none();
             }
             self.cancel_dynamic_work();
             reactant_composer::update(&mut self.reactant_composer, message);
             let (first, second) = reactant_composer::reactants(&self.reactant_composer);
             if first.is_empty() && second.is_empty() {
-                self.dynamic_context = None;
+                self.dynamic.context = None;
                 if self.builder_panel == Some(BuilderPanel::Conditions) {
                     self.builder_panel = None;
                 }
@@ -2636,7 +2392,7 @@ impl App {
         }
         reactant_composer::set_submit_available(&mut self.reactant_composer, false);
         self.builder_panel = None;
-        if self.dynamic_context.is_some() {
+        if self.dynamic.context.is_some() {
             return self.start_dynamic_build();
         }
         match reactant_composer::resolution(&self.reactant_composer) {
@@ -2676,7 +2432,7 @@ impl App {
         let names = reactant_composer::draft_names(&self.reactant_composer);
         // A selected condition rides along for any reactant count; the
         // submit gate already requires one for single-reactant requests.
-        let context = self.dynamic_context;
+        let context = self.dynamic.context;
         let drafts = [(first, names[0]), (second, names[1])]
             .into_iter()
             .filter(|(atoms, _)| !atoms.is_empty());
@@ -2700,7 +2456,6 @@ impl App {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn start_dynamic_build_request(
         &mut self,
         mut request: ReactionBuildRequest,
@@ -2710,31 +2465,17 @@ impl App {
         let local = self.local_mode();
         self.open_dynamic_overlay();
         if !local && !matches!(self.provider, Some(AppMode::CodexBinary)) {
-            self.dynamic_build = DynamicBuildState::Failed(
+            self.dynamic.build = DynamicBuildState::Failed(
                 "Direct API reaction building is not available yet; choose Codex subscription."
-                    .to_owned(),
+                    .to_owned()
+                    .into(),
             );
             return Task::none();
         }
-        if let Some(cancellation) = self.dynamic_cancellation.take() {
-            cancellation.store(true, Ordering::Relaxed);
-        }
-        let run_id = self.next_dynamic_run_id;
-        self.next_dynamic_run_id = self.next_dynamic_run_id.saturating_add(1);
+        let run_id = self.dynamic.begin_run();
         self.validated_frames = None;
         self.validated_macroscopic = None;
         self.validated_declaration = None;
-        self.dynamic_claim = None;
-        self.dynamic_static = None;
-        self.dynamic_presentation = None;
-
-        self.dynamic_identity_choice = None;
-        self.dynamic_details_open = false;
-        self.dynamic_started_at = None;
-        self.dynamic_latency = LatencyMilestones::default();
-        self.dynamic_theatre_phase = 0.0;
-        self.dynamic_progress = None;
-        self.dynamic_progress_receiver = None;
         self.structural_animation = None;
         self.structural_error = None;
         let mode = ClaimMode::Fast;
@@ -2742,14 +2483,14 @@ impl App {
         let catalogue = match chemistry::trusted_catalogue() {
             Ok(catalogue) => catalogue.clone(),
             Err(error) => {
-                self.dynamic_build = DynamicBuildState::Failed(error.to_owned());
+                self.dynamic.build = DynamicBuildState::Failed(error.to_owned().into());
                 return Task::none();
             }
         };
         let identities = match reviewed_species_registry(&catalogue) {
             Ok(identities) => identities,
             Err(error) => {
-                self.dynamic_build = DynamicBuildState::Failed(error.to_string());
+                self.dynamic.build = DynamicBuildState::Failed(error.into());
                 return Task::none();
             }
         };
@@ -2766,125 +2507,47 @@ impl App {
                 }
             }
             Ok(RequestIdentityResolution::Ambiguous(ambiguity)) => {
-                self.dynamic_request = Some(request.clone());
-                self.dynamic_identity_choice = Some(DynamicIdentityChoice { request, ambiguity });
-                self.dynamic_build = DynamicBuildState::Idle;
+                self.dynamic.request = Some(request.clone());
+                self.dynamic.identity_choice = Some(DynamicIdentityChoice { request, ambiguity });
+                self.dynamic.build = DynamicBuildState::Idle;
                 return Task::none();
             }
             Err(error) => {
-                self.dynamic_request = Some(request);
-                self.dynamic_build = DynamicBuildState::Failed(error.to_string());
+                self.dynamic.request = Some(request);
+                self.dynamic.build = DynamicBuildState::Failed(error.into());
                 return Task::none();
             }
         }
-        self.dynamic_request = Some(request.clone());
-        self.dynamic_started_at = Some(Instant::now());
-        self.dynamic_latency = LatencyMilestones::default();
-        self.dynamic_build = DynamicBuildState::Running {
+        self.dynamic.request = Some(request.clone());
+        self.dynamic.started_at = Some(Instant::now());
+        self.dynamic.latency = LatencyMilestones::default();
+        self.dynamic.build = DynamicBuildState::Running {
             run_id,
             elapsed_seconds: 0,
             stage: DynamicBuildStage::Claim,
         };
         let cancellation = Arc::new(AtomicBool::new(false));
+        self.dynamic.worker_shutdown.watch(&cancellation);
         config.cancellation = Some(cancellation.clone());
         config.progress = Some(self.reset_dynamic_progress_channel());
-        self.dynamic_cancellation = Some(cancellation);
+        self.dynamic.cancellation = Some(cancellation);
         Task::perform(
-            async move {
-                let started = Instant::now();
-                let mut latency = LatencyMilestones::default();
-                let provider = CodexProvider::new(config);
-                // Local Mode never reads the cache: cached claims are model
-                // output, and Local Mode is purely programmatic.
-                if !regenerate
-                    && !local
-                    && let Some(cached) = load_dynamic_cache(
-                        provider.config().cache_directory.as_deref(),
-                        &request,
-                        mode,
-                        &identities,
-                        &catalogue,
-                    )
-                {
-                    let elapsed = elapsed_millis(started);
-                    latency.static_outcome_ms = Some(elapsed);
-                    match &cached.presentation {
-                        Some(DynamicPresentationOutcome::ReviewedFamily(_)) => {
-                            latency.reviewed_animation_ms = Some(elapsed);
-                        }
-                        Some(DynamicPresentationOutcome::Escalated(_)) => {
-                            latency.mechanism_ms = Some(elapsed);
-                        }
-                        Some(DynamicPresentationOutcome::Static { .. }) | None => {}
-                    }
-                    return Ok(DynamicClaimStageResult {
-                        outcome: cached.outcome,
-                        presentation: cached.presentation,
-                        latency,
-                    });
-                }
-                // Algorithmic solving comes first: deterministic reaction
-                // families never need the model at all.
-                let solved =
-                    agent::solve_reaction_claim_with_catalogue(&request, &identities, &catalogue);
-                let algorithmic = solved.is_some();
-                let claim = match solved {
-                    Some(claim) => claim,
-                    None if local => {
-                        return Err(
-                            "This reaction isn't supported in Local Mode — ChemSpec couldn't \
-                             derive it programmatically. Switch to an AI mode to research it."
-                                .to_owned(),
-                        );
-                    }
-                    // agent speaks std::time::Instant; this branch never runs
-                    // on wasm (Local Mode is forced there), where it would
-                    // panic.
-                    None => provider
-                        .claim_reaction_until(
-                            &request,
-                            mode,
-                            std::time::Instant::now() + FAST_CLAIM_TIMEOUT,
-                        )
-                        .map_err(|error| error.to_string())?,
-                };
-                latency.claim_ms = Some(elapsed_millis(started));
-                let outcome = compile_claim_outcome_with_catalogue(
-                    &request,
-                    claim.clone(),
-                    &identities,
-                    &catalogue,
-                )
-                .map_err(|error| error.to_string())?;
-                if matches!(outcome, CompiledClaimOutcome::Static(_)) {
-                    latency.static_outcome_ms = Some(elapsed_millis(started));
-                }
-                // Algorithmic claims are recomputed instantly; only model
-                // claims are worth caching.
-                if !algorithmic
-                    && let Some(directory) = provider.config().cache_directory.as_deref()
-                {
-                    let _ = store_dynamic_cache(
-                        directory,
-                        &request,
-                        mode,
-                        &identities,
-                        &catalogue,
-                        &claim,
-                        None,
-                        "codex_subscription",
-                        provider.model_name(),
-                    );
-                }
-                Ok(DynamicClaimStageResult {
-                    outcome,
-                    presentation: None,
-                    latency,
+            blocking::run::<_, DynamicBuildFailure, _>(move || {
+                dynamic_reaction::run_claim(dynamic_reaction::ClaimJob {
+                    request,
+                    mode,
+                    local,
+                    regenerate,
+                    config,
+                    identities,
+                    catalogue,
                 })
-            },
-            move |result| Message::DynamicClaimFinished {
-                run_id,
-                result: Box::new(result),
+            }),
+            move |result| {
+                Message::Dynamic(dynamic_reaction::Message::ClaimFinished {
+                    run_id,
+                    result: Box::new(result),
+                })
             },
         )
     }
@@ -2904,14 +2567,16 @@ impl App {
         let catalogue = match chemistry::trusted_catalogue() {
             Ok(catalogue) => catalogue.clone(),
             Err(error) => {
-                return Task::done(Message::DynamicPresentationFinished {
-                    run_id,
-                    result: Box::new(Err(error.to_owned())),
-                });
+                return Task::done(Message::Dynamic(
+                    dynamic_reaction::Message::PresentationFinished {
+                        run_id,
+                        result: Box::new(Err(error.to_owned().into())),
+                    },
+                ));
             }
         };
         Task::perform(
-            async move {
+            blocking::run::<_, DynamicBuildFailure, _>(move || {
                 if local {
                     // Reviewed-family and algorithmic mechanisms only; model
                     // escalation is explicitly unsupported, so a static
@@ -2921,7 +2586,7 @@ impl App {
                         &catalogue,
                         &mut agent::UnsupportedMechanismProvider,
                     )
-                    .map_err(|error| error.to_string())?;
+                    .map_err(DynamicBuildFailure::from)?;
                     return Ok(match presentation {
                         DynamicPresentationOutcome::Static {
                             outcome,
@@ -2938,9 +2603,9 @@ impl App {
                     });
                 }
                 let mut provider = CodexProvider::new(config);
-                let claim = outcome.claim().clone();
+                let provider_claim = outcome.provider_claim();
                 let presentation = enrich_static_outcome(outcome, &catalogue, &mut provider)
-                    .map_err(|error| error.to_string())?;
+                    .map_err(DynamicBuildFailure::from)?;
                 let recipe = match &presentation {
                     DynamicPresentationOutcome::ReviewedFamily(outcome) => {
                         Some(DynamicCachePresentation::ReviewedFamily {
@@ -2965,57 +2630,62 @@ impl App {
                         retryable: *retryable,
                     }),
                 };
-                if let (Some(recipe), Some(directory)) =
-                    (recipe, provider.config().cache_directory.as_deref())
-                {
+                if let (Some(recipe), Some(claim), Some(directory)) = (
+                    recipe,
+                    provider_claim.as_ref(),
+                    provider.config().cache_directory.as_deref(),
+                ) {
                     let identities =
-                        reviewed_species_registry(&catalogue).map_err(|error| error.to_string())?;
+                        reviewed_species_registry(&catalogue).map_err(DynamicBuildFailure::from)?;
                     let _ = store_dynamic_cache(
                         directory,
                         &request,
                         mode,
                         &identities,
                         &catalogue,
-                        &claim,
+                        claim,
                         Some(recipe),
                         "codex_subscription",
                         provider.model_name(),
                     );
                 }
                 Ok(presentation)
-            },
-            move |result| Message::DynamicPresentationFinished {
-                run_id,
-                result: Box::new(result),
+            }),
+            move |result| {
+                Message::Dynamic(dynamic_reaction::Message::PresentationFinished {
+                    run_id,
+                    result: Box::new(result),
+                })
             },
         )
     }
 
     fn finish_dynamic_presentation(&mut self, presentation: DynamicPresentationOutcome) {
-        self.dynamic_static = Some(presentation.static_outcome().clone());
+        self.dynamic.static_outcome = Some(presentation.static_outcome().clone());
         self.validated_macroscopic =
             dynamic_macroscopic_reaction(presentation.static_outcome()).ok();
+
         self.validated_declaration = Some(presentation.static_outcome().declaration().clone());
         self.validated_frames = match &presentation {
             DynamicPresentationOutcome::ReviewedFamily(outcome) => {
                 Some(RenderableFrames::Catalogue(outcome.frames().clone()))
             }
             DynamicPresentationOutcome::Escalated(outcome) => {
-                Some(RenderableFrames::Dynamic(outcome.frames().clone()))
+                Some(RenderableFrames::ReviewCandidate(outcome.frames().clone()))
             }
             DynamicPresentationOutcome::Static { .. } => None,
         };
         let animated = self.validated_frames.is_some();
-        self.dynamic_presentation = Some(presentation);
-        self.dynamic_build = DynamicBuildState::Idle;
-        self.dynamic_cancellation = None;
-        self.dynamic_progress_receiver = None;
+        self.dynamic.presentation = Some(presentation);
+        self.dynamic.build = DynamicBuildState::Idle;
+        self.dynamic.cancellation = None;
+        self.dynamic.progress_receiver = None;
         self.structural_animation = None;
         self.structural_error = None;
         // Auto-navigating into the animation replaces the overlay; a
         // static-only result surfaces it on the builder instead.
         if animated {
-            self.dynamic_overlay_dismissed = true;
+            self.dynamic.overlay_dismissed = true;
             self.open_structural_animation();
         } else {
             self.open_dynamic_overlay();
@@ -3024,22 +2694,22 @@ impl App {
 
     fn reset_dynamic_progress_channel(&mut self) -> Sender<CodexProgressEvent> {
         let (sender, receiver) = mpsc::channel();
-        self.dynamic_progress = None;
-        self.dynamic_progress_receiver = Some(receiver);
+        self.dynamic.progress = None;
+        self.dynamic.progress_receiver = Some(receiver);
         sender
     }
 
     fn drain_dynamic_progress(&mut self) {
-        let Some(receiver) = &self.dynamic_progress_receiver else {
+        let Some(receiver) = &self.dynamic.progress_receiver else {
             return;
         };
         while let Ok(event) = receiver.try_recv() {
-            self.dynamic_progress = Some(event);
+            self.dynamic.progress = Some(event);
         }
     }
 
     fn dynamic_progress_label(&self) -> Option<&'static str> {
-        self.dynamic_progress.map(|event| match event.stage {
+        self.dynamic.progress.map(|event| match event.stage {
             CodexProgressStage::Started => "preparing the virtual model",
             CodexProgressStage::Working => "working out where the electrons go",
             CodexProgressStage::SearchingSources => "checking the supporting evidence",
@@ -3061,12 +2731,12 @@ impl App {
             .as_ref()
             .and_then(|run| run.macroscopic().cloned());
         self.validated_declaration = trusted_run.as_ref().map(|run| run.declaration().clone());
-        self.dynamic_claim = None;
-        self.dynamic_static = None;
-        self.dynamic_presentation = None;
+        self.dynamic.claim = None;
+        self.dynamic.static_outcome = None;
+        self.dynamic.presentation = None;
 
-        self.dynamic_request = None;
-        self.dynamic_build = DynamicBuildState::Idle;
+        self.dynamic.request = None;
+        self.dynamic.build = DynamicBuildState::Idle;
         self.structural_animation = None;
         self.structural_error = None;
     }
@@ -3270,11 +2940,13 @@ impl App {
         };
 
         let dynamic_build = if self.screen == Screen::Builder {
-            match &self.dynamic_build {
+            match &self.dynamic.build {
                 DynamicBuildState::Running { run_id, .. } => {
                     iced::time::every(std::time::Duration::from_secs(1))
                         .with(*run_id)
-                        .map(|(run_id, _)| Message::DynamicBuildTick { run_id })
+                        .map(|(run_id, _)| {
+                            Message::Dynamic(dynamic_reaction::Message::BuildTick { run_id })
+                        })
                 }
                 DynamicBuildState::Idle | DynamicBuildState::Failed(_) => Subscription::none(),
             }
@@ -3291,16 +2963,16 @@ impl App {
         });
 
         let dynamic_theatre = if self.screen == Screen::Builder
-            && self.dynamic_static.is_some()
+            && self.dynamic.static_outcome.is_some()
             && matches!(
-                self.dynamic_build,
+                self.dynamic.build,
                 DynamicBuildState::Running {
                     stage: DynamicBuildStage::Presentation,
                     ..
                 }
             ) {
             iced::time::every(std::time::Duration::from_millis(33))
-                .map(|_| Message::DynamicTheatreTick)
+                .map(|_| Message::Dynamic(dynamic_reaction::Message::TheatreTick))
         } else {
             Subscription::none()
         };
@@ -3618,7 +3290,8 @@ impl App {
                 .ok_or_else(|| "validated frames are unavailable".to_owned())?
                 .clone();
             let required_context = self
-                .dynamic_static
+                .dynamic
+                .static_outcome
                 .as_ref()
                 .map_or_else(
                     || {
@@ -3633,7 +3306,7 @@ impl App {
                 .map_err(|error| error.to_string())?;
             let surface_oxide_colour = self.accepted_surface_oxide_colour();
             let (profile, product_preview, declaration) = if let Some(dynamic) =
-                &self.dynamic_static
+                &self.dynamic.static_outcome
             {
                 (
                     dynamic_presentation_profile(&frames, dynamic, surface_oxide_colour.clone())?,
@@ -3811,7 +3484,7 @@ impl App {
         };
         let frames = animation.frames.clone();
         let surface_oxide_colour = self.accepted_surface_oxide_colour();
-        let profile = if let Some(dynamic) = &self.dynamic_static {
+        let profile = if let Some(dynamic) = &self.dynamic.static_outcome {
             dynamic_presentation_profile(&frames, dynamic, surface_oxide_colour)
         } else {
             let mut macroscopic = self.validated_macroscopic.clone();
@@ -3971,9 +3644,9 @@ impl App {
         // Local Mode derivations are deterministic; regenerating would only
         // recompute the identical result.
         let regenerate: Element<'_, Message> =
-            if self.dynamic_request.is_some() && !self.local_mode() {
+            if self.dynamic.request.is_some() && !self.local_mode() {
                 button(text("Regenerate"))
-                    .on_press(Message::RegenerateDynamicReaction)
+                    .on_press(Message::Dynamic(dynamic_reaction::Message::Regenerate))
                     .padding([spacing::XS, spacing::SM])
                     .style(theme::secondary_button)
                     .into()
@@ -4161,9 +3834,9 @@ impl App {
         // Local Mode derivations are deterministic; regenerating would only
         // recompute the identical result.
         let regenerate: Element<'_, Message> =
-            if self.dynamic_request.is_some() && !self.local_mode() {
+            if self.dynamic.request.is_some() && !self.local_mode() {
                 button(text("Regenerate"))
-                    .on_press(Message::RegenerateDynamicReaction)
+                    .on_press(Message::Dynamic(dynamic_reaction::Message::Regenerate))
                     .padding([spacing::XS, spacing::SM])
                     .style(theme::secondary_button)
                     .into()
@@ -4445,26 +4118,24 @@ impl App {
         .into()
     }
 
-    #[allow(clippy::too_many_lines)]
     /// Trust-tier chip for the current dynamic outcome.
     fn dynamic_trust_label(&self) -> &'static str {
-        self.dynamic_static
+        self.dynamic
+            .static_outcome
             .as_ref()
             .map_or("", |outcome| match outcome.trust_tier() {
                 TrustTier::Reviewed => "REVIEWED",
-                // Local Mode claims come from the algorithmic solver, so the
-                // unreviewed tier is derived rather than model-asserted.
-                TrustTier::ModelAsserted if self.local_mode() => "DERIVED",
+                TrustTier::Derived => "DERIVED",
                 TrustTier::ModelAsserted => "MODEL ASSERTED",
             })
     }
 
     #[allow(clippy::too_many_lines)]
     fn dynamic_result_body(&self) -> Element<'_, Message> {
-        let Some(outcome) = &self.dynamic_static else {
+        let Some(outcome) = &self.dynamic.static_outcome else {
             return space().height(Length::Shrink).into();
         };
-        let presentation = match (&self.dynamic_build, &self.dynamic_presentation) {
+        let presentation = match (&self.dynamic.build, &self.dynamic.presentation) {
             (
                 DynamicBuildState::Running {
                     stage: DynamicBuildStage::Presentation,
@@ -4503,7 +4174,7 @@ impl App {
                 container(dynamic_species_theatre_card(
                     species_capability,
                     term,
-                    self.dynamic_theatre_phase,
+                    self.dynamic.theatre_phase,
                     self.settings.chemical_labels,
                 ))
                 .width(Length::Fixed(132.0)),
@@ -4527,7 +4198,7 @@ impl App {
             })
             .collect::<Vec<_>>()
             .join("  ·  ");
-        let diagnostic = match &self.dynamic_presentation {
+        let diagnostic = match &self.dynamic.presentation {
             Some(DynamicPresentationOutcome::Static { diagnostic, .. }) => {
                 Some(format!("Presentation: {diagnostic}"))
             }
@@ -4543,7 +4214,7 @@ impl App {
             );
         }
         if matches!(
-            (&self.dynamic_presentation, &self.dynamic_build),
+            (&self.dynamic.presentation, &self.dynamic.build),
             (
                 Some(DynamicPresentationOutcome::Static {
                     retryable: true,
@@ -4554,25 +4225,27 @@ impl App {
         ) {
             actions = actions.push(
                 button(text("Retry mechanism"))
-                    .on_press(Message::RetryDynamicPresentation)
+                    .on_press(Message::Dynamic(
+                        dynamic_reaction::Message::RetryPresentation,
+                    ))
                     .padding([spacing::XS, spacing::SM])
                     .style(theme::secondary_button),
             );
         }
         if let Some(diagnostic) = &diagnostic {
             actions = actions.push(
-                button(text(if self.dynamic_details_open {
+                button(text(if self.dynamic.details_open {
                     "Hide details"
                 } else {
                     "Details"
                 }))
-                .on_press(Message::ToggleDynamicDetails)
+                .on_press(Message::Dynamic(dynamic_reaction::Message::ToggleDetails))
                 .padding([spacing::XS, spacing::SM])
                 .style(theme::secondary_button),
             );
             let _ = diagnostic;
         }
-        let details: Element<'_, Message> = if self.dynamic_details_open {
+        let details: Element<'_, Message> = if self.dynamic.details_open {
             diagnostic.map_or_else(
                 || space().height(Length::Shrink).into(),
                 |diagnostic| {
@@ -4628,11 +4301,11 @@ impl App {
     }
 
     fn dynamic_verdict_body(&self) -> Element<'_, Message> {
-        let Some(claim) = &self.dynamic_claim else {
+        let Some(claim) = &self.dynamic.claim else {
             return space().height(Length::Shrink).into();
         };
         let (title, detail) = match claim.disposition {
-            ClaimDisposition::NoReaction => match &claim.no_reaction_reason {
+            ClaimDisposition::NoReaction => match claim.no_reaction_reason() {
                 Some(reason) => ("No reaction", reason.learner_explanation()),
                 None => ("No supported reaction", claim.required_context.clone()),
             },
@@ -4662,7 +4335,7 @@ impl App {
             stage,
             elapsed_seconds,
             ..
-        } = &self.dynamic_build
+        } = &self.dynamic.build
         else {
             return space().height(Length::Shrink).into();
         };
@@ -4678,7 +4351,8 @@ impl App {
             }
         };
         let reactants = self
-            .dynamic_request
+            .dynamic
+            .request
             .as_ref()
             .map_or_else(String::new, |request| {
                 request
@@ -4710,14 +4384,16 @@ impl App {
     }
 
     fn dynamic_failed_body(&self) -> Element<'_, Message> {
-        let DynamicBuildState::Failed(error) = &self.dynamic_build else {
+        let DynamicBuildState::Failed(error) = &self.dynamic.build else {
             return space().height(Length::Shrink).into();
         };
         column![
             text("Couldn\u{2019}t build this result")
                 .size(type_scale::BODY_LARGE)
                 .color(color::TEXT),
-            text(error).size(type_scale::CAPTION).color(color::MUTED),
+            text(error.to_string())
+                .size(type_scale::CAPTION)
+                .color(color::MUTED),
         ]
         .spacing(spacing::XXS)
         .into()
@@ -4727,65 +4403,7 @@ impl App {
     /// verdicts, identity choices, failures) lives here instead of inline
     /// cards that squeeze the builder.
     fn dynamic_overlay(&self, size: Size, kind: DynamicModalKind) -> Element<'_, Message> {
-        let (chip, chip_color, body) = match kind {
-            DynamicModalKind::IdentityChoice => (
-                "IDENTITY CHOICE",
-                color::WARNING,
-                self.dynamic_identity_choice_body(),
-            ),
-            DynamicModalKind::StaticResult => (
-                self.dynamic_trust_label(),
-                color::SUCCESS,
-                self.dynamic_result_body(),
-            ),
-            DynamicModalKind::Running => (
-                if self.local_mode() {
-                    "LOCAL DERIVATION"
-                } else {
-                    "CODEX RESEARCH"
-                },
-                color::ACCENT,
-                self.dynamic_running_body(),
-            ),
-            DynamicModalKind::Failed => ("BUILD FAILED", color::DANGER, self.dynamic_failed_body()),
-            DynamicModalKind::Verdict => ("OUTCOME", color::WARNING, self.dynamic_verdict_body()),
-        };
-        let mut header = row![text(chip).size(type_scale::MICRO).color(chip_color)]
-            .spacing(spacing::XS)
-            .align_y(Center);
-        if self.dynamic_static.is_some() {
-            header = header.push(
-                text("VIRTUAL MODEL")
-                    .size(type_scale::MICRO)
-                    .color(color::WARNING),
-            );
-        }
-        header = header.push(space().width(Fill)).push(
-            button(text("\u{00d7}").size(type_scale::BODY_LARGE))
-                .on_press(Message::DynamicOverlayDismissed)
-                .padding([0.0, spacing::XS])
-                .style(theme::secondary_button),
-        );
-        let panel = mouse_area(
-            container(column![header, body].spacing(spacing::SM))
-                .style(theme::overlay_panel)
-                .padding(spacing::LG)
-                .width(Length::Fixed((size.width - 32.0).min(640.0))),
-        )
-        .on_press(Message::Noop);
-        stack![
-            mouse_area(
-                container(space())
-                    .style(theme::overlay_scrim)
-                    .width(Fill)
-                    .height(Fill),
-            )
-            .on_press(Message::DynamicOverlayDismissed),
-            container(panel).center(Fill),
-        ]
-        .width(Fill)
-        .height(Fill)
-        .into()
+        dynamic_reaction::overlay(self, size, kind)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -4963,13 +4581,13 @@ impl App {
     fn dynamic_latency_summary(&self) -> String {
         let mut milestones = Vec::new();
         for (label, value) in [
-            ("claim", self.dynamic_latency.claim_ms),
-            ("static", self.dynamic_latency.static_outcome_ms),
-            ("evidence", self.dynamic_latency.evidence_ms),
-            ("mechanism", self.dynamic_latency.mechanism_ms),
+            ("claim", self.dynamic.latency.claim_ms),
+            ("static", self.dynamic.latency.static_outcome_ms),
+            ("evidence", self.dynamic.latency.evidence_ms),
+            ("mechanism", self.dynamic.latency.mechanism_ms),
             (
                 "reviewed animation",
-                self.dynamic_latency.reviewed_animation_ms,
+                self.dynamic.latency.reviewed_animation_ms,
             ),
         ] {
             if let Some(milliseconds) = value {
@@ -4984,7 +4602,7 @@ impl App {
     }
 
     fn dynamic_identity_choice_body(&self) -> Element<'_, Message> {
-        let Some(choice) = &self.dynamic_identity_choice else {
+        let Some(choice) = &self.dynamic.identity_choice else {
             return space().height(Length::Shrink).into();
         };
         let input = &choice.request.reactants[choice.ambiguity.reactant_index];
@@ -5015,10 +4633,12 @@ impl App {
                     ]
                     .spacing(spacing::XXS),
                 )
-                .on_press(Message::DynamicIdentitySelected {
-                    reactant_index: choice.ambiguity.reactant_index,
-                    species_id: species.id.clone(),
-                })
+                .on_press(Message::Dynamic(
+                    dynamic_reaction::Message::IdentitySelected {
+                        reactant_index: choice.ambiguity.reactant_index,
+                        species_id: species.id.clone(),
+                    },
+                ))
                 .style(theme::secondary_button)
                 .width(Fill),
             );
@@ -5046,8 +4666,29 @@ impl App {
 
     #[allow(clippy::too_many_lines)]
     fn builder_toolbar(&self, conditions_enabled: bool) -> Element<'_, Message> {
+        // The die tumbles through its faces while a roll spins; idle it rests
+        // on one face and a press starts a roll.
+        let spin_ticks = reactant_composer::roll_spin_ticks(&self.reactant_composer);
+        let dice = Self::toolbar_tooltip(
+            button(icons::dice(
+                spin_ticks.map_or(0, |ticks| usize::try_from(ticks / 5).unwrap_or(0)),
+                20.0,
+                if spin_ticks.is_some() {
+                    color::ACCENT
+                } else {
+                    color::TEXT_SOFT
+                },
+            ))
+            .on_press_maybe(spin_ticks.is_none().then_some(Message::ReactantComposer(
+                reactant_composer::Message::RollRequested,
+            )))
+            .padding(spacing::XS)
+            .style(theme::secondary_button),
+            "Roll a random reaction",
+        );
+
         let conditions_selected =
-            self.builder_panel == Some(BuilderPanel::Conditions) || self.dynamic_context.is_some();
+            self.builder_panel == Some(BuilderPanel::Conditions) || self.dynamic.context.is_some();
         let conditions_color = if conditions_selected {
             color::CANVAS
         } else if conditions_enabled {
@@ -5148,6 +4789,7 @@ impl App {
         row![
             demo_disclaimer,
             space().width(Fill),
+            dice,
             sketch,
             conditions,
             help,
@@ -5169,10 +4811,12 @@ impl App {
                         .size(type_scale::CAPTION)
                         .color(color::MUTED),
                     button(text("No condition").size(type_scale::BODY))
-                        .on_press(Message::DynamicContextSelected(None))
+                        .on_press(Message::Dynamic(
+                            dynamic_reaction::Message::ContextSelected(None),
+                        ))
                         .padding([spacing::XS, spacing::SM])
                         .width(Fill)
-                        .style(if self.dynamic_context.is_none() {
+                        .style(if self.dynamic.context.is_none() {
                             theme::primary_button
                         } else {
                             theme::secondary_button
@@ -5182,10 +4826,12 @@ impl App {
                 for context in DynamicRequestContext::ALL {
                     choices = choices.push(
                         button(text(context.label()).size(type_scale::BODY))
-                            .on_press(Message::DynamicContextSelected(Some(context)))
+                            .on_press(Message::Dynamic(
+                                dynamic_reaction::Message::ContextSelected(Some(context)),
+                            ))
                             .padding([spacing::XS, spacing::SM])
                             .width(Fill)
-                            .style(if self.dynamic_context == Some(context) {
+                            .style(if self.dynamic.context == Some(context) {
                                 theme::primary_button
                             } else {
                                 theme::secondary_button
@@ -5196,7 +4842,7 @@ impl App {
             }
             Some(BuilderPanel::Sketch) => {
                 let slot_available =
-                    !matches!(self.dynamic_build, DynamicBuildState::Running { .. });
+                    !matches!(self.dynamic.build, DynamicBuildState::Running { .. });
                 sketcher::view(&self.sketcher, slot_available).map(Message::Sketcher)
             }
             Some(BuilderPanel::Help) => {
@@ -5474,7 +5120,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent::compile_claim_outcome;
+    use agent::{compile_claim_outcome, compile_claim_outcome_with_catalogue};
 
     type DraftCase = (&'static str, &'static [u8], &'static [u8]);
 
@@ -5664,7 +5310,7 @@ mod tests {
             "required_context":"representative educational outcome under the reviewed standard-outcome premise",
             "observations":[], "sources":[], "ambiguity":null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -5710,7 +5356,7 @@ mod tests {
             "sources":[],
             "ambiguity":null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -5768,14 +5414,14 @@ mod tests {
                     "identity_hints": []
                 }
             ],
-            "required_context": "Representative complete surface oxidation in oxygen.",
+            "required_context": "representative theoretical oxidation outcome selected by the reviewed oxygen catalogue",
             "observations": [
                 {"predicate": "forms", "subject": "solid iron(III) oxide", "value": null}
             ],
             "sources": [],
             "ambiguity": null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -5862,11 +5508,49 @@ mod tests {
             "sources": [],
             "ambiguity": null
         });
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
         .expect("no-reaction claim")
+        .into_claim()
+    }
+
+    #[test]
+    fn dynamic_trust_label_follows_claim_provenance_not_selected_mode() {
+        let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "LithiumMetal".into(),
+                    atomic_numbers: vec![3],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "H2O".into(),
+                    atomic_numbers: vec![1, 1, 8],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let solved = agent::solve_reaction_claim(&request, &identities).expect("solved claim");
+        let CompiledClaimOutcome::Static(derived) =
+            compile_claim_outcome(&request, solved, &identities).expect("derived outcome")
+        else {
+            panic!("static derived outcome")
+        };
+        let mut app = App {
+            provider: Some(AppMode::CodexBinary),
+            ..App::default()
+        };
+        app.dynamic.static_outcome = Some(derived);
+        assert_eq!(app.dynamic_trust_label(), "DERIVED");
+
+        app.provider = Some(AppMode::Local);
+        app.dynamic.static_outcome = Some(dynamic_lithium_static());
+        assert_eq!(app.dynamic_trust_label(), "MODEL ASSERTED");
     }
 
     #[test]
@@ -5945,12 +5629,9 @@ mod tests {
     fn carbon_monoxide_product_selects_incomplete_combustion_assembly() {
         let catalogue = chemistry::trusted_catalogue().expect("trusted catalogue");
         let mut provider = agent::UnsupportedMechanismProvider;
-        let presentation = enrich_static_outcome(
-            dynamic_incomplete_methane_static(),
-            catalogue,
-            &mut provider,
-        )
-        .expect("incomplete combustion animation");
+        let incomplete = dynamic_incomplete_methane_static();
+        let presentation = enrich_static_outcome(incomplete, catalogue, &mut provider)
+            .expect("incomplete combustion animation");
         let (outcome, frames): (&ValidatedStaticOutcome, &chem_kernel::SimulationFrames) =
             match &presentation {
                 DynamicPresentationOutcome::ReviewedFamily(animated) => {
@@ -6255,16 +5936,21 @@ mod tests {
         let mut app = App {
             screen: Screen::Builder,
             provider: Some(AppMode::CodexBinary),
-            dynamic_build: DynamicBuildState::Failed("test failure".to_owned()),
-            dynamic_overlay_dismissed: false,
+            dynamic: dynamic_reaction::State {
+                build: DynamicBuildState::Failed("test failure".to_owned().into()),
+                overlay_dismissed: false,
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![12], vec![1, 1, 8]]);
         reactant_composer::set_submit_available(&mut app.reactant_composer, false);
 
-        app.update(Message::DynamicOverlayDismissed);
+        app.update(Message::Dynamic(
+            dynamic_reaction::Message::OverlayDismissed,
+        ));
 
-        assert!(app.dynamic_overlay_dismissed);
+        assert!(app.dynamic.overlay_dismissed);
         assert!(reactant_composer::submit_available(&app.reactant_composer));
     }
 
@@ -6273,7 +5959,10 @@ mod tests {
         let mut app = App {
             screen: Screen::Builder,
             builder_panel: Some(BuilderPanel::Help),
-            dynamic_build: DynamicBuildState::Failed("test failure".to_owned()),
+            dynamic: dynamic_reaction::State {
+                build: DynamicBuildState::Failed("test failure".to_owned().into()),
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![3]]);
@@ -6376,25 +6065,35 @@ mod tests {
         let mut app = App {
             screen: Screen::Builder,
             builder_panel: Some(BuilderPanel::Help),
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 9,
-                elapsed_seconds: 2,
-                stage: DynamicBuildStage::Claim,
+            dynamic: dynamic_reaction::State {
+                build: DynamicBuildState::Running {
+                    run_id: 9,
+                    elapsed_seconds: 2,
+                    stage: DynamicBuildStage::Claim,
+                },
+                overlay_dismissed: true,
+                ..dynamic_reaction::State::default()
             },
-            dynamic_overlay_dismissed: true,
             ..App::default()
         };
 
-        app.update(Message::DynamicClaimFinished {
+        let provider_error = ProviderClaim::from_json(b"{}", ClaimMode::Fast)
+            .expect_err("an empty provider claim must be rejected");
+        app.update(Message::Dynamic(dynamic_reaction::Message::ClaimFinished {
             run_id: 9,
-            result: Box::new(Err("test failure".to_owned())),
-        });
+            result: Box::new(Err(provider_error.into())),
+        }));
 
         assert!(app.builder_panel.is_none());
         assert_eq!(
             app.builder_overlay_kind(),
             BuilderOverlayKind::Dynamic(DynamicModalKind::Failed)
         );
+        let DynamicBuildState::Failed(DynamicBuildFailure::Agent(error)) = &app.dynamic.build
+        else {
+            panic!("provider errors remain typed in application state")
+        };
+        assert_eq!(error.kind(), agent::AgentErrorKind::InvalidProviderOutput);
     }
 
     #[test]
@@ -6411,7 +6110,9 @@ mod tests {
                 iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape),
                 false,
             )),
-            Some(Message::DynamicOverlayDismissed)
+            Some(Message::Dynamic(
+                dynamic_reaction::Message::OverlayDismissed
+            ))
         ));
     }
 
@@ -6419,7 +6120,10 @@ mod tests {
     fn no_reaction_modal_is_not_reported_as_idle() {
         let mut app = App {
             screen: Screen::Builder,
-            dynamic_claim: Some(no_reaction_claim()),
+            dynamic: dynamic_reaction::State {
+                claim: Some(no_reaction_claim()),
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![26], vec![3]]);
@@ -6444,16 +6148,16 @@ mod tests {
 
         assert!(
             matches!(
-                app.dynamic_build,
+                app.dynamic.build,
                 DynamicBuildState::Running { run_id: 1, .. }
             ),
             "state: {:?}, identity choice: {:?}",
-            app.dynamic_build,
-            app.dynamic_identity_choice
+            app.dynamic.build,
+            app.dynamic.identity_choice
         );
         assert!(app.validated_frames.is_none());
-        assert!(app.dynamic_request.is_some());
-        assert!(app.dynamic_identity_choice.is_none());
+        assert!(app.dynamic.request.is_some());
+        assert!(app.dynamic.identity_choice.is_none());
     }
 
     #[test]
@@ -6464,7 +6168,7 @@ mod tests {
             ..App::default()
         };
         reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![3], vec![1, 1, 8]]);
-        app.dynamic_context = Some(DynamicRequestContext::Heat);
+        app.dynamic.context = Some(DynamicRequestContext::Heat);
 
         app.update(Message::ReactantComposer(
             reactant_composer::Message::StartReactionRequested,
@@ -6472,10 +6176,10 @@ mod tests {
 
         assert_eq!(app.screen, Screen::Builder);
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running { .. }
         ));
-        let request = app.dynamic_request.as_ref().expect("conditioned request");
+        let request = app.dynamic.request.as_ref().expect("conditioned request");
         assert_eq!(request.selected_context.as_deref(), Some("heat"));
         assert_eq!(request.reactants.len(), 2);
     }
@@ -6484,7 +6188,10 @@ mod tests {
     fn conditioned_single_reactant_requests_ignore_either_empty_slot() {
         let mut app = App {
             screen: Screen::Builder,
-            dynamic_context: Some(DynamicRequestContext::Light),
+            dynamic: dynamic_reaction::State {
+                context: Some(DynamicRequestContext::Light),
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
         reactant_composer::replace_reactants(
@@ -6563,10 +6270,10 @@ mod tests {
 
         let mut app = App {
             provider: Some(AppMode::Local),
-            dynamic_context: Some(DynamicRequestContext::Electricity),
             screen: Screen::Builder,
             ..App::default()
         };
+        app.dynamic.context = Some(DynamicRequestContext::Electricity);
         reactant_composer::replace_reactants(
             &mut app.reactant_composer,
             [vec![11, 17], Vec::new()],
@@ -6670,7 +6377,7 @@ mod tests {
             reactant_composer::Message::StartReactionRequested,
         ));
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running { .. }
         ));
         app.update(Message::ReactantComposer(
@@ -6680,24 +6387,24 @@ mod tests {
             reactant_composer::Message::PromptAnimationTick,
         ));
         assert!(
-            matches!(app.dynamic_build, DynamicBuildState::Running { .. }),
+            matches!(app.dynamic.build, DynamicBuildState::Running { .. }),
             "presentation ticks must not cancel a running build"
         );
-        app.dynamic_build = DynamicBuildState::Idle;
-        app.dynamic_static = Some(dynamic_lithium_static());
+        app.dynamic.build = DynamicBuildState::Idle;
+        app.dynamic.static_outcome = Some(dynamic_lithium_static());
         app.update(Message::ReactantComposer(
             reactant_composer::Message::AnimationTick,
         ));
         assert!(
-            app.dynamic_static.is_some(),
+            app.dynamic.static_outcome.is_some(),
             "presentation ticks must not clear a finished result"
         );
-        app.dynamic_overlay_dismissed = true;
+        app.dynamic.overlay_dismissed = true;
         app.update(Message::ReactantComposer(
             reactant_composer::Message::AddElement(8),
         ));
         assert!(
-            app.dynamic_static.is_none(),
+            app.dynamic.static_outcome.is_none(),
             "a real draft edit still invalidates the result"
         );
     }
@@ -6737,7 +6444,7 @@ mod tests {
             screen: Screen::Builder,
             ..App::default()
         };
-        app.dynamic_request = Some(request);
+        app.dynamic.request = Some(request);
         app.finish_dynamic_presentation(presentation);
         assert_eq!(app.screen, Screen::Structural2d);
         assert!(app.structural_animation.is_some());
@@ -6820,10 +6527,10 @@ mod tests {
         ));
 
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running { run_id: 1, .. }
         ));
-        let request = app.dynamic_request.as_ref().expect("dynamic request");
+        let request = app.dynamic.request.as_ref().expect("dynamic request");
         assert_eq!(request.reactants.len(), 2);
         assert_eq!(request.reactants[0].display, "H₂SO₄");
         assert_eq!(request.reactants[1].display, "NaOH");
@@ -6855,7 +6562,7 @@ mod tests {
 
             let _ = app.start_dynamic_build();
 
-            let request = app.dynamic_request.as_ref().expect("captured request");
+            let request = app.dynamic.request.as_ref().expect("captured request");
             assert_eq!(
                 request.reactants[1].atomic_numbers,
                 vec![atomic_number; count],
@@ -6874,16 +6581,16 @@ mod tests {
 
         let _ = app.start_dynamic_build();
 
-        assert!(app.dynamic_identity_choice.is_none());
+        assert!(app.dynamic.identity_choice.is_none());
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running {
                 stage: DynamicBuildStage::Claim,
                 ..
             }
         ));
         assert_eq!(
-            app.dynamic_request.as_ref().expect("request").reactants[1].atomic_numbers,
+            app.dynamic.request.as_ref().expect("request").reactants[1].atomic_numbers,
             vec![1, 1]
         );
     }
@@ -7191,32 +6898,35 @@ mod tests {
         let outcome = dynamic_lithium_static();
         let mut app = App {
             validated_frames: None,
-            dynamic_request: Some(ReactionBuildRequest {
-                reactants: [
-                    ReactantInput {
-                        display: "LithiumMetal".into(),
-                        atomic_numbers: vec![3],
-                        species_id: None,
-                    },
-                    ReactantInput {
-                        display: "H2O".into(),
-                        atomic_numbers: vec![1, 1, 8],
-                        species_id: None,
-                    },
-                ]
-                .to_vec(),
-                selected_context: None,
-            }),
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 4,
-                elapsed_seconds: 2,
-                stage: DynamicBuildStage::Claim,
+            dynamic: dynamic_reaction::State {
+                request: Some(ReactionBuildRequest {
+                    reactants: [
+                        ReactantInput {
+                            display: "LithiumMetal".into(),
+                            atomic_numbers: vec![3],
+                            species_id: None,
+                        },
+                        ReactantInput {
+                            display: "H2O".into(),
+                            atomic_numbers: vec![1, 1, 8],
+                            species_id: None,
+                        },
+                    ]
+                    .to_vec(),
+                    selected_context: None,
+                }),
+                build: DynamicBuildState::Running {
+                    run_id: 4,
+                    elapsed_seconds: 2,
+                    stage: DynamicBuildStage::Claim,
+                },
+                cancellation: Some(Arc::new(AtomicBool::new(false))),
+                ..dynamic_reaction::State::default()
             },
-            dynamic_cancellation: Some(Arc::new(AtomicBool::new(false))),
             ..App::default()
         };
 
-        app.update(Message::DynamicClaimFinished {
+        app.update(Message::Dynamic(dynamic_reaction::Message::ClaimFinished {
             run_id: 4,
             result: Box::new(Ok(DynamicClaimStageResult {
                 outcome: CompiledClaimOutcome::Static(outcome),
@@ -7227,13 +6937,13 @@ mod tests {
                     ..LatencyMilestones::default()
                 },
             })),
-        });
+        }));
 
-        assert!(app.dynamic_static.is_some());
-        assert_eq!(app.dynamic_latency.static_outcome_ms, Some(1_250));
+        assert!(app.dynamic.static_outcome.is_some());
+        assert_eq!(app.dynamic.latency.static_outcome_ms, Some(1_250));
         assert!(app.validated_frames.is_none());
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running {
                 run_id: 4,
                 stage: DynamicBuildStage::Presentation,
@@ -7241,13 +6951,13 @@ mod tests {
             }
         ));
 
-        app.update(Message::DynamicClaimFinished {
+        app.update(Message::Dynamic(dynamic_reaction::Message::ClaimFinished {
             run_id: 4,
             result: Box::new(Err("duplicate completion".into())),
-        });
-        assert!(app.dynamic_static.is_some());
+        }));
+        assert!(app.dynamic.static_outcome.is_some());
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running {
                 stage: DynamicBuildStage::Presentation,
                 ..
@@ -7259,11 +6969,14 @@ mod tests {
     fn wait_as_show_motion_runs_only_while_presentation_is_pending() {
         let mut app = App {
             screen: Screen::Builder,
-            dynamic_static: Some(dynamic_lithium_static()),
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 4,
-                elapsed_seconds: 0,
-                stage: DynamicBuildStage::Presentation,
+            dynamic: dynamic_reaction::State {
+                static_outcome: Some(dynamic_lithium_static()),
+                build: DynamicBuildState::Running {
+                    run_id: 4,
+                    elapsed_seconds: 0,
+                    stage: DynamicBuildStage::Presentation,
+                },
+                ..dynamic_reaction::State::default()
             },
             ..App::default()
         };
@@ -7271,13 +6984,13 @@ mod tests {
         {
             let _view = app.dynamic_result_body();
         }
-        app.update(Message::DynamicTheatreTick);
-        assert!(app.dynamic_theatre_phase > 0.0);
+        app.update(Message::Dynamic(dynamic_reaction::Message::TheatreTick));
+        assert!(app.dynamic.theatre_phase > 0.0);
 
-        app.dynamic_build = DynamicBuildState::Idle;
-        let stopped = app.dynamic_theatre_phase;
-        app.update(Message::DynamicTheatreTick);
-        assert!((app.dynamic_theatre_phase - stopped).abs() < f32::EPSILON);
+        app.dynamic.build = DynamicBuildState::Idle;
+        let stopped = app.dynamic.theatre_phase;
+        app.update(Message::Dynamic(dynamic_reaction::Message::TheatreTick));
+        assert!((app.dynamic.theatre_phase - stopped).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -7285,43 +6998,48 @@ mod tests {
         let outcome = dynamic_lithium_static();
         let mut app = App {
             provider: Some(AppMode::CodexBinary),
-            dynamic_request: Some(ReactionBuildRequest {
-                reactants: [
-                    ReactantInput {
-                        display: "LithiumMetal".into(),
-                        atomic_numbers: vec![3],
-                        species_id: None,
-                    },
-                    ReactantInput {
-                        display: "H2O".into(),
-                        atomic_numbers: vec![1, 1, 8],
-                        species_id: None,
-                    },
-                ]
-                .to_vec(),
-                selected_context: None,
-            }),
-            dynamic_static: Some(outcome.clone()),
-            dynamic_presentation: Some(DynamicPresentationOutcome::Static {
-                outcome: Box::new(outcome),
-                diagnostic: "structure proposal remained invalid".into(),
-                retryable: true,
-                attempts: 3,
-            }),
+            dynamic: dynamic_reaction::State {
+                request: Some(ReactionBuildRequest {
+                    reactants: [
+                        ReactantInput {
+                            display: "LithiumMetal".into(),
+                            atomic_numbers: vec![3],
+                            species_id: None,
+                        },
+                        ReactantInput {
+                            display: "H2O".into(),
+                            atomic_numbers: vec![1, 1, 8],
+                            species_id: None,
+                        },
+                    ]
+                    .to_vec(),
+                    selected_context: None,
+                }),
+                static_outcome: Some(outcome.clone()),
+                presentation: Some(DynamicPresentationOutcome::Static {
+                    outcome: Box::new(outcome),
+                    diagnostic: "structure proposal remained invalid".into(),
+                    retryable: true,
+                    attempts: 3,
+                }),
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
 
-        app.update(Message::RetryDynamicPresentation);
+        app.update(Message::Dynamic(
+            dynamic_reaction::Message::RetryPresentation,
+        ));
 
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running {
                 stage: DynamicBuildStage::Presentation,
                 ..
             }
         ));
         assert!(
-            app.dynamic_static.is_some(),
+            app.dynamic.static_outcome.is_some(),
             "retry must not discard the validated static outcome"
         );
 
@@ -7329,17 +7047,22 @@ mod tests {
         let outcome = dynamic_lithium_static();
         let mut blocked = App {
             provider: Some(AppMode::CodexBinary),
-            dynamic_static: Some(outcome.clone()),
-            dynamic_presentation: Some(DynamicPresentationOutcome::Static {
-                outcome: Box::new(outcome),
-                diagnostic: "multiple reviewed families remain applicable".into(),
-                retryable: false,
-                attempts: 0,
-            }),
+            dynamic: dynamic_reaction::State {
+                static_outcome: Some(outcome.clone()),
+                presentation: Some(DynamicPresentationOutcome::Static {
+                    outcome: Box::new(outcome),
+                    diagnostic: "multiple reviewed families remain applicable".into(),
+                    retryable: false,
+                    attempts: 0,
+                }),
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
-        blocked.update(Message::RetryDynamicPresentation);
-        assert!(matches!(blocked.dynamic_build, DynamicBuildState::Idle));
+        blocked.update(Message::Dynamic(
+            dynamic_reaction::Message::RetryPresentation,
+        ));
+        assert!(matches!(blocked.dynamic.build, DynamicBuildState::Idle));
     }
 
     #[test]
@@ -7363,14 +7086,17 @@ mod tests {
         let mut app = App {
             screen: Screen::Structural2d,
             provider: Some(AppMode::CodexBinary),
-            dynamic_request: Some(request.clone()),
+            dynamic: dynamic_reaction::State {
+                request: Some(request.clone()),
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
 
-        app.update(Message::RegenerateDynamicReaction);
+        app.update(Message::Dynamic(dynamic_reaction::Message::Regenerate));
 
         assert_eq!(app.screen, Screen::Builder);
-        let rebuilt = app.dynamic_request.as_ref().expect("retained request");
+        let rebuilt = app.dynamic.request.as_ref().expect("retained request");
         assert_eq!(rebuilt.reactants[0].display, request.reactants[0].display);
         assert_eq!(
             rebuilt.reactants[0].atomic_numbers,
@@ -7383,7 +7109,7 @@ mod tests {
                 .all(|reactant| reactant.species_id.is_some())
         );
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running { run_id: 1, .. }
         ));
     }
@@ -7391,21 +7117,24 @@ mod tests {
     #[test]
     fn stale_dynamic_completion_cannot_replace_current_build() {
         let mut app = App {
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 9,
-                elapsed_seconds: 12,
-                stage: DynamicBuildStage::Claim,
+            dynamic: dynamic_reaction::State {
+                build: DynamicBuildState::Running {
+                    run_id: 9,
+                    elapsed_seconds: 12,
+                    stage: DynamicBuildStage::Claim,
+                },
+                ..dynamic_reaction::State::default()
             },
             ..App::default()
         };
 
-        app.update(Message::DynamicClaimFinished {
+        app.update(Message::Dynamic(dynamic_reaction::Message::ClaimFinished {
             run_id: 8,
-            result: Box::new(Err("stale failure".to_owned())),
-        });
+            result: Box::new(Err("stale failure".to_owned().into())),
+        }));
 
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running { run_id: 9, .. }
         ));
     }
@@ -7414,12 +7143,15 @@ mod tests {
     fn normalized_provider_progress_is_generation_scoped_and_visible() {
         let (sender, receiver) = mpsc::channel();
         let mut app = App {
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 9,
-                elapsed_seconds: 0,
-                stage: DynamicBuildStage::Claim,
+            dynamic: dynamic_reaction::State {
+                build: DynamicBuildState::Running {
+                    run_id: 9,
+                    elapsed_seconds: 0,
+                    stage: DynamicBuildStage::Claim,
+                },
+                progress_receiver: Some(receiver),
+                ..dynamic_reaction::State::default()
             },
-            dynamic_progress_receiver: Some(receiver),
             ..App::default()
         };
         sender
@@ -7429,15 +7161,19 @@ mod tests {
             })
             .expect("progress event");
 
-        app.update(Message::DynamicBuildTick { run_id: 8 });
-        assert!(app.dynamic_progress.is_none());
-        app.update(Message::DynamicBuildTick { run_id: 9 });
+        app.update(Message::Dynamic(dynamic_reaction::Message::BuildTick {
+            run_id: 8,
+        }));
+        assert!(app.dynamic.progress.is_none());
+        app.update(Message::Dynamic(dynamic_reaction::Message::BuildTick {
+            run_id: 9,
+        }));
         assert_eq!(
             app.dynamic_progress_label(),
             Some("checking the supporting evidence")
         );
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running {
                 elapsed_seconds: 1,
                 ..
@@ -7449,14 +7185,17 @@ mod tests {
     fn editing_reactants_cancels_claim_work_and_rejects_late_completion() {
         let cancellation = Arc::new(AtomicBool::new(false));
         let mut app = App {
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 9,
-                elapsed_seconds: 3,
-                stage: DynamicBuildStage::Claim,
+            dynamic: dynamic_reaction::State {
+                build: DynamicBuildState::Running {
+                    run_id: 9,
+                    elapsed_seconds: 3,
+                    stage: DynamicBuildStage::Claim,
+                },
+                overlay_dismissed: true,
+                cancellation: Some(cancellation.clone()),
+                next_run_id: 10,
+                ..dynamic_reaction::State::default()
             },
-            dynamic_overlay_dismissed: true,
-            dynamic_cancellation: Some(cancellation.clone()),
-            next_dynamic_run_id: 10,
             ..App::default()
         };
 
@@ -7465,13 +7204,25 @@ mod tests {
         ));
 
         assert!(cancellation.load(Ordering::Relaxed));
-        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
-        assert_eq!(app.next_dynamic_run_id, 11);
-        app.update(Message::DynamicClaimFinished {
+        assert!(matches!(app.dynamic.build, DynamicBuildState::Idle));
+        assert_eq!(app.dynamic.next_run_id, 11);
+        app.update(Message::Dynamic(dynamic_reaction::Message::ClaimFinished {
             run_id: 9,
             result: Box::new(Err("late completion".into())),
-        });
-        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+        }));
+        assert!(matches!(app.dynamic.build, DynamicBuildState::Idle));
+    }
+
+    #[test]
+    fn dropping_app_signals_dynamic_cancellation() {
+        let cancellation = Arc::new(AtomicBool::new(false));
+        {
+            let mut app = App::default();
+            app.dynamic.worker_shutdown.watch(&cancellation);
+            app.dynamic.cancellation = Some(cancellation.clone());
+        }
+
+        assert!(cancellation.load(Ordering::Relaxed));
     }
 
     #[test]
@@ -7479,15 +7230,18 @@ mod tests {
         let outcome = dynamic_lithium_static();
         let cancellation = Arc::new(AtomicBool::new(false));
         let mut app = App {
-            dynamic_static: Some(outcome),
             validated_frames: None,
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 4,
-                elapsed_seconds: 1,
-                stage: DynamicBuildStage::Presentation,
+            dynamic: dynamic_reaction::State {
+                static_outcome: Some(outcome),
+                build: DynamicBuildState::Running {
+                    run_id: 4,
+                    elapsed_seconds: 1,
+                    stage: DynamicBuildStage::Presentation,
+                },
+                overlay_dismissed: true,
+                cancellation: Some(cancellation.clone()),
+                ..dynamic_reaction::State::default()
             },
-            dynamic_overlay_dismissed: true,
-            dynamic_cancellation: Some(cancellation.clone()),
             ..App::default()
         };
 
@@ -7496,10 +7250,10 @@ mod tests {
         ));
 
         assert!(cancellation.load(Ordering::Relaxed));
-        assert!(app.dynamic_static.is_none());
+        assert!(app.dynamic.static_outcome.is_none());
         assert!(app.validated_frames.is_none());
-        assert!(app.dynamic_presentation.is_none());
-        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+        assert!(app.dynamic.presentation.is_none());
+        assert!(matches!(app.dynamic.build, DynamicBuildState::Idle));
     }
 
     #[test]
@@ -7543,36 +7297,41 @@ mod tests {
         let lithium_id = lithium.id.clone();
         let mut app = App {
             provider: Some(AppMode::CodexBinary),
-            dynamic_request: Some(request.clone()),
-            dynamic_identity_choice: Some(DynamicIdentityChoice {
-                request,
-                ambiguity: ReactantIdentityAmbiguity {
-                    reactant_index: 0,
-                    query: chem_domain::SpeciesQuery {
-                        name: None,
-                        formula: Some("Li".into()),
-                        charge: None,
-                        phase: None,
-                        external_identifier: None,
+            dynamic: dynamic_reaction::State {
+                request: Some(request.clone()),
+                identity_choice: Some(DynamicIdentityChoice {
+                    request,
+                    ambiguity: agent::ReactantIdentityAmbiguity {
+                        reactant_index: 0,
+                        query: chem_domain::SpeciesQuery {
+                            name: None,
+                            formula: Some("Li".into()),
+                            charge: None,
+                            phase: None,
+                            external_identifier: None,
+                        },
+                        alternatives: vec![lithium, sodium],
                     },
-                    alternatives: vec![lithium, sodium],
-                },
-            }),
+                }),
+                ..dynamic_reaction::State::default()
+            },
             ..App::default()
         };
 
-        app.update(Message::DynamicIdentitySelected {
-            reactant_index: 0,
-            species_id: lithium_id.clone(),
-        });
+        app.update(Message::Dynamic(
+            dynamic_reaction::Message::IdentitySelected {
+                reactant_index: 0,
+                species_id: lithium_id.clone(),
+            },
+        ));
 
-        assert!(app.dynamic_identity_choice.is_none());
+        assert!(app.dynamic.identity_choice.is_none());
         assert_eq!(
-            app.dynamic_request.as_ref().unwrap().reactants[0].species_id,
+            app.dynamic.request.as_ref().unwrap().reactants[0].species_id,
             Some(lithium_id)
         );
         assert!(matches!(
-            app.dynamic_build,
+            app.dynamic.build,
             DynamicBuildState::Running { .. }
         ));
     }
@@ -7905,9 +7664,7 @@ mod tests {
     #[test]
     fn validated_runtime_oxide_colour_reaches_generic_3d_plan() {
         let mut app = App::default();
-        let reaction = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
-            .expect("reviewed oxidation exists");
-        app.select_request(reaction);
+        app.finish_dynamic_presentation(dynamic_iron_oxide_presentation());
         let request = app
             .oxide_appearance_request()
             .expect("validated surface product produces a bounded request");
@@ -7944,10 +7701,7 @@ mod tests {
             codex_available: true,
             ..App::default()
         };
-        let reaction = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
-            .expect("reviewed oxidation exists");
-        app.select_request(reaction);
-        app.open_structural_animation();
+        app.finish_dynamic_presentation(dynamic_iron_oxide_presentation());
         let request = app
             .oxide_appearance_request()
             .expect("surface oxidation produces a bounded request");
@@ -7976,10 +7730,7 @@ mod tests {
     #[test]
     fn accepted_oxide_colour_replaces_the_live_plan_without_restarting_playback() {
         let mut app = App::default();
-        let reaction = chemistry::ReactionRequest::from_id("oxygen-sodium-oxygen")
-            .expect("reviewed oxidation exists");
-        app.select_request(reaction);
-        app.open_structural_animation();
+        app.finish_dynamic_presentation(dynamic_iron_oxide_presentation());
         app.seek_real_world_timeline(2_500);
         let request = app
             .oxide_appearance_request()
@@ -8428,12 +8179,15 @@ mod tests {
                 chemical_labels: ChemicalLabels::Formulae,
             },
             provider: Some(AppMode::CodexBinary),
-            dynamic_build: DynamicBuildState::Running {
-                run_id: 7,
-                elapsed_seconds: 0,
-                stage: DynamicBuildStage::Claim,
+            dynamic: dynamic_reaction::State {
+                build: DynamicBuildState::Running {
+                    run_id: 7,
+                    elapsed_seconds: 0,
+                    stage: DynamicBuildStage::Claim,
+                },
+                cancellation: Some(cancellation.clone()),
+                ..dynamic_reaction::State::default()
             },
-            dynamic_cancellation: Some(cancellation.clone()),
             ..App::default()
         };
         let saved = AppSettings {
@@ -8455,7 +8209,7 @@ mod tests {
             result: Ok(()),
         });
         assert!(cancellation.load(Ordering::Relaxed));
-        assert!(matches!(app.dynamic_build, DynamicBuildState::Idle));
+        assert!(matches!(app.dynamic.build, DynamicBuildState::Idle));
         assert_eq!(app.provider, Some(AppMode::Local));
     }
 
@@ -8585,7 +8339,7 @@ mod tests {
             sketcher::Message::Canvas(sketcher::CanvasEvent::Placed(iced::Point::new(40.0, 40.0))),
         );
         assert!(sketcher::submission(&app.sketcher).is_some());
-        app.dynamic_context = Some(DynamicRequestContext::Heat);
+        app.dynamic.context = Some(DynamicRequestContext::Heat);
         app.enter_screen(Screen::ProductSummary);
 
         app.update(Message::StartNewReaction);
@@ -8601,7 +8355,7 @@ mod tests {
         assert!(app.validated_macroscopic.is_none());
         assert!(app.structural_animation.is_none());
         assert!(app.structural_error.is_none());
-        assert!(app.dynamic_context.is_none());
+        assert!(app.dynamic.context.is_none());
         assert!(app.builder_panel.is_none());
         assert!(sketcher::submission(&app.sketcher).is_none());
         assert!(!reactant_composer::submit_available(&app.reactant_composer));

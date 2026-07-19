@@ -26,6 +26,7 @@
           {"$ref": "#/$defs/cleave_dative"},
           {"$ref": "#/$defs/form_dative"},
           {"$ref": "#/$defs/change_covalent"},
+          {"$ref": "#/$defs/change_covalent_delocalization"},
           {"$ref": "#/$defs/associate_ionic"},
           {"$ref": "#/$defs/dissociate_ionic"},
           {"$ref": "#/$defs/release_metallic"},
@@ -85,7 +86,7 @@
     "form_covalent": {
       "type": "object", "additionalProperties": false,
       "required": ["kind", "edge", "electron_contribution", "before", "after"],
-      "properties": {"kind": {"type": "string", "const": "form_covalent"}, "edge": {"$ref": "#/$defs/edge3"}, "electron_contribution": {"type": "object", "additionalProperties": false, "required": ["left", "right"], "properties": {"left": {"type": "integer", "minimum": 0, "maximum": 2}, "right": {"type": "integer", "minimum": 0, "maximum": 2}}}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+      "properties": {"kind": {"type": "string", "const": "form_covalent"}, "edge": {"$ref": "#/$defs/edge3"}, "electron_contribution": {"type": "object", "additionalProperties": false, "required": ["left", "right"], "properties": {"left": {"type": "integer", "minimum": 0, "maximum": 3}, "right": {"type": "integer", "minimum": 0, "maximum": 3}}}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
     },
     "cleave_dative": {
       "type": "object", "additionalProperties": false,
@@ -101,6 +102,24 @@
       "type": "object", "additionalProperties": false,
       "required": ["kind", "edge", "old_order", "new_order", "allocation", "before", "after"],
       "properties": {"kind": {"type": "string", "const": "change_covalent"}, "edge": {"$ref": "#/$defs/edge2"}, "old_order": {"$ref": "#/$defs/order"}, "new_order": {"$ref": "#/$defs/order"}, "allocation": {"$ref": "#/$defs/allocation"}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+    },
+    "effective_order": {
+      "type": "object", "additionalProperties": false,
+      "required": ["numerator", "denominator"],
+      "properties": {"numerator": {"type": "integer", "minimum": 1, "maximum": 255}, "denominator": {"type": "integer", "minimum": 1, "maximum": 255}}
+    },
+    "delocalization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["domain", "effective_order"],
+      "properties": {"domain": {"$ref": "#/$defs/label"}, "effective_order": {"$ref": "#/$defs/effective_order"}}
+    },
+    "nullable_delocalization": {
+      "anyOf": [{"type": "null"}, {"$ref": "#/$defs/delocalization"}]
+    },
+    "change_covalent_delocalization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "edge", "expected", "replacement"],
+      "properties": {"kind": {"type": "string", "const": "change_covalent_delocalization"}, "edge": {"$ref": "#/$defs/edge2"}, "expected": {"$ref": "#/$defs/nullable_delocalization"}, "replacement": {"$ref": "#/$defs/nullable_delocalization"}}
     },
     "associate_ionic": {
       "type": "object", "additionalProperties": false,

@@ -67,6 +67,14 @@ Every catalogue build checks:
 - declared schema compatibility;
 - compatibility with the canonical chemistry fixtures.
 
+Catalogue trust tests additionally require the exact canonical catalogue and
+external review to match independently supplied host pins. The review must
+bind the catalogue digest and exactly the complete premise and evidence-source
+sets. Mismatched pins fail with `CHEMS-C025`; malformed, partial, or
+misbound reviews fail with `CHEMS-C026`. Candidate checking cannot construct
+the trusted capability, and promotion must validate and package the review
+without choosing the runtime host pins.
+
 Dynamic claims cannot construct catalogue trust. Exact static compilation must
 prove stable request identity, formula/charge conservation, deterministic
 smallest-integer coefficients, and checked `ReactionDeclaration` construction.
@@ -139,7 +147,9 @@ Drive Iced update logic through fake providers and deterministic messages:
   dependencies in packaged-provider prompts;
 - claim/source failure and one targeted retry;
 - mechanism diagnostics and two-operation-repair limit;
-- cache-v3 offline replay and digest staleness;
+- cache-v3 offline replay, compiler-contract migration, and digest staleness;
+- exact versioned generated-species identities derived from length-prefixed
+  name and normalized formula-text fields;
 - source edits invalidating the simulation;
 - switching providers without losing the experiment;
 - stale asynchronous results being ignored.
@@ -353,21 +363,24 @@ context, unknown structure/rule/role and premise references to fail with
 `CHEMS-C024`, and duplicate contexts to fail deterministically. Generic
 phase-combination tests cover solid + gas -> gas without bubbles, gas + gas ->
 liquid without precipitate, and aqueous reactants -> solid with settling
-precipitate. Live-profile tests additionally require the reviewed hydrogen,
-oxygen, and water records to route the hydrogen-oxidation experience through
-gas reactants and a liquid product rather than its phase-unknown solid
-fallback. The compiler input contains bindings and phases but no reaction name.
+precipitate. The proposed hydrogen, oxygen, water, carbon, and carbon-dioxide
+standard-phase records remain untrusted until a separate exact-digest review is
+promoted. Live-profile tests therefore require those catalogue phases to remain
+`Unknown`; typed compiler and renderer fixtures cover the intended phase
+combinations without conferring catalogue trust. The compiler input contains
+bindings and phases but no reaction name.
 
-Exposed surface-oxidation tests additionally require lithium/oxygen and
-sodium/oxygen to reach the same typed `SurfaceOxidation` path from structural
-roles, not reaction names. The resulting plan must contain one imported metal
-asset, no vessel, no visible gas object, and one process-authorized oxidation
-effect. The embedded mesh parser checks its magic/version, exact byte length,
-finite normalized vertices, unit normals, triangular indices, and index
-bounds. Renderer tests check that the metal starts stationary on the bench and
-that missing appearance authority leaves the original metal material unchanged,
-while an accepted exact-product colour drives the seeded coating
-deterministically.
+Exposed surface-oxidation tests require validated dynamic outcomes with exact
+material phases to reach the typed `SurfaceOxidation` path from structural
+roles, not reaction names. Unreviewed static oxygen-family materials must not
+select it. Typed renderer fixtures require the resulting plan to contain one
+imported metal asset, no vessel, no visible gas object, and one
+process-authorized oxidation effect. The embedded mesh parser checks its
+magic/version, exact byte length, finite normalized vertices, unit normals,
+triangular indices, and index bounds. Renderer tests check that the metal starts
+stationary on the bench and that missing appearance authority leaves the
+original metal material unchanged, while an accepted exact-product colour
+drives the seeded coating deterministically.
 
 Flame tests additionally require deterministic faceted plume geometry, separate
 alpha body and additive core/spark batches, palette preservation, and a smooth

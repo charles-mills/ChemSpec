@@ -90,6 +90,58 @@ fn superoxide_uses_integral_electrons_with_a_three_halves_effective_bond() {
 }
 
 #[test]
+fn structure_instances_preserve_covalent_delocalization() {
+    let delocalization = CovalentDelocalization::new(
+        CovalentDelocalizationId::new("oxygen.resonance").unwrap(),
+        EffectiveBondOrder::new(3, 2).unwrap(),
+    );
+    let graph = graph(
+        vec![atom("o1", "O", -1, 6, 0), atom("o2", "O", 0, 5, 1)],
+        vec![
+            CovalentBond::new_delocalized(
+                bond_id("oo"),
+                atom_id("o1"),
+                atom_id("o2"),
+                BondOrder::Single,
+                delocalization.clone(),
+            )
+            .unwrap(),
+        ],
+        vec![],
+        vec![],
+        vec![],
+    )
+    .unwrap();
+    let definition = StructureDefinition::new(
+        StructureId::new("superoxide").unwrap(),
+        inventory(&[("O", 2)]),
+        RepresentationKind::Ion,
+        graph,
+    )
+    .unwrap();
+    let instance = StructureInstance::instantiate(
+        StructureInstanceId::new("superoxide[1]").unwrap(),
+        &definition,
+        [
+            (atom_id("o1"), atom_id("superoxide[1].o1")),
+            (atom_id("o2"), atom_id("superoxide[1].o2")),
+        ],
+    )
+    .unwrap();
+
+    assert_eq!(
+        instance
+            .graph()
+            .covalent_bonds()
+            .values()
+            .next()
+            .unwrap()
+            .delocalization(),
+        Some(&delocalization)
+    );
+}
+
+#[test]
 fn delocalisation_is_a_reversible_structural_operation() {
     let state = CovalentDelocalization::new(
         CovalentDelocalizationId::new("superoxide.resonance").unwrap(),

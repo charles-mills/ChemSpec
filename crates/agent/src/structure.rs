@@ -18,7 +18,7 @@ use chem_catalogue::{
 use chem_domain::{ContentDigest, FormulaComposition, Phase, PremiseId, SpeciesId, StructureId};
 
 use crate::{
-    AgentError, LabelledStructure, OutcomeSpecies, StructureProposalRequest,
+    AgentError, AgentErrorKind, LabelledStructure, OutcomeSpecies, StructureProposalRequest,
     StructureProposalResponse, StructureProposalSpecies, ValidatedStaticOutcome,
     claim::STRUCTURE_PROPOSAL_SCHEMA_VERSION, identity::model_proposed_species,
 };
@@ -102,6 +102,18 @@ fn missing_species(outcome: &ValidatedStaticOutcome) -> Vec<MissingSpecies> {
     missing
 }
 
+fn proposal_species(missing: &[MissingSpecies]) -> Vec<StructureProposalSpecies> {
+    missing
+        .iter()
+        .enumerate()
+        .map(|(ordinal, species)| StructureProposalSpecies {
+            id: format!("DynamicStructure{}", ordinal + 1),
+            name: species.name.clone(),
+            formula: species.formula.clone(),
+        })
+        .collect()
+}
+
 /// Builds the fixed structure-escalation request for an outcome, or `None`
 /// when every species already has a reviewed structure.
 #[must_use]
@@ -161,15 +173,7 @@ pub fn structure_proposal_request(
         .collect();
     Some(StructureProposalRequest {
         schema_version: STRUCTURE_PROPOSAL_SCHEMA_VERSION,
-        species: missing
-            .iter()
-            .enumerate()
-            .map(|(ordinal, species)| StructureProposalSpecies {
-                id: format!("DynamicStructure{}", ordinal + 1),
-                name: species.name.clone(),
-                formula: species.formula.clone(),
-            })
-            .collect(),
+        species: proposal_species(&missing),
         neutral_valence,
         supported_states,
         metallic_states,
@@ -197,17 +201,32 @@ pub fn adopt_proposed_structures(
     let missing = missing_species(outcome);
     if missing.len() != request.species.len() {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "structure adoption",
             "request does not describe this outcome's missing species",
         ));
     }
-    let premise_id = PremiseId::from_str(DYNAMIC_STRUCTURE_PREMISE)
-        .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
+    if request.species != proposal_species(&missing) {
+        return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
+            "structure adoption",
+            "request does not exactly describe this outcome's missing species",
+        ));
+    }
+    response.validate_wire()?;
+    let premise_id = PremiseId::from_str(DYNAMIC_STRUCTURE_PREMISE).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "structure adoption",
+            error,
+        )
+    })?;
     let mut proposals = BTreeMap::new();
     for structure in &response.structures {
         let (id, _) = labelled_id_formula(structure);
         if proposals.insert(id.to_owned(), structure).is_some() {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure adoption",
                 format!("duplicate proposed structure id `{id}`"),
             ));
@@ -215,6 +234,7 @@ pub fn adopt_proposed_structures(
     }
     if proposals.len() != request.species.len() {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "structure adoption",
             "the proposal must contain exactly one structure per requested species",
         ));
@@ -223,6 +243,7 @@ pub fn adopt_proposed_structures(
     for species in &request.species {
         let proposal = *proposals.get(&species.id).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure adoption",
                 format!(
                     "no proposed structure uses the requested id `{}`",
@@ -233,6 +254,7 @@ pub fn adopt_proposed_structures(
         let (_, formula) = labelled_id_formula(proposal);
         if *formula != species.formula {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure adoption",
                 format!(
                     "proposed structure `{}` must keep the requested formula `{}`",
@@ -248,16 +270,23 @@ pub fn adopt_proposed_structures(
     let mut reactants = outcome.reactants().to_vec();
     let mut products = outcome.products().to_vec();
     for (missing_species, species_request) in missing.iter().zip(&request.species) {
-        let structure_id = StructureId::from_str(&species_request.id)
-            .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
+        let structure_id = StructureId::from_str(&species_request.id).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "structure adoption",
+                error,
+            )
+        })?;
         let structure = bundle.structures().get(&structure_id).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure adoption",
                 "validated working bundle lost a proposed structure",
             )
         })?;
         if structure.graph().system_net_charge() != 0 {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure validation",
                 format!(
                     "proposed structure `{}` must be net neutral to bind the balanced product",
@@ -265,10 +294,16 @@ pub fn adopt_proposed_structures(
                 ),
             ));
         }
-        let claimed = FormulaComposition::parse(&species_request.formula)
-            .map_err(|error| AgentError::new("structure validation", error.to_string()))?;
+        let claimed = FormulaComposition::parse(&species_request.formula).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "structure validation",
+                error,
+            )
+        })?;
         if claimed.elements() != structure.formula().elements() {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "structure validation",
                 format!(
                     "proposed structure `{}` does not contain exactly the atoms of `{}`",
@@ -345,11 +380,16 @@ fn validated_working_bundle(
         digest: ContentDigest::sha256(b"uncomputed dynamic working bundle"),
         bundle: document,
     };
-    envelope.digest = envelope
-        .computed_digest()
-        .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
+    envelope.digest = envelope.computed_digest().map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "structure adoption",
+            error,
+        )
+    })?;
     ValidatedCatalogueBundle::validate(envelope).map_err(|error| {
         AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "structure validation",
             format!("proposed structure failed catalogue validation: {error}"),
         )
@@ -384,8 +424,13 @@ pub fn bundle_with_outcome_structures(
     if extra.is_empty() {
         return Ok(catalogue.clone());
     }
-    let premise_id = PremiseId::from_str(GENERATED_STRUCTURE_PREMISE)
-        .map_err(|error| AgentError::new("structure adoption", error.to_string()))?;
+    let premise_id = PremiseId::from_str(GENERATED_STRUCTURE_PREMISE).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "structure adoption",
+            error,
+        )
+    })?;
     let labelled = extra
         .iter()
         .map(|(structure, formula)| {
@@ -513,6 +558,7 @@ fn derive_provisional_structure_states(
             })
             .ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     "a provisional metallic state has no reviewed covalent anchor",
                 )
@@ -530,6 +576,7 @@ fn derive_provisional_structure_states(
             .copied()
             .ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     "reviewed metallic anchor violates its neutral-valence premise",
                 )
@@ -574,18 +621,24 @@ fn derive_component_states(
         for label in [&bond.left, &bond.right] {
             let sum = bond_sums.get_mut(label.as_str()).ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     format!("bond endpoint `{label}` is not a proposed atom"),
                 )
             })?;
             *sum = sum.checked_add(order).ok_or_else(|| {
-                AgentError::new("provisional valence", "covalent bond-order sum overflow")
+                AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
+                    "provisional valence",
+                    "covalent bond-order sum overflow",
+                )
             })?;
         }
     }
     for atom in atoms {
         if atom.unpaired_electrons > atom.non_bonding_electrons {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!(
                     "atom `{}` has more unpaired than non-bonding electrons",
@@ -595,6 +648,7 @@ fn derive_component_states(
         }
         let neutral_candidates = neutral.get(&atom.element).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("atom `{}` has no reviewed neutral valence", atom.label),
             )
@@ -606,6 +660,7 @@ fn derive_component_states(
         });
         let Some(neutral_electrons) = neutral_electrons else {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!(
                     "atom `{}` violates formal-charge identity for every reviewed neutral valence",
@@ -618,6 +673,7 @@ fn derive_component_states(
             .is_some_and(|existing| existing != neutral_electrons)
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!(
                     "proposed states require conflicting neutral valence for `{}`",
@@ -650,13 +706,19 @@ fn derive_metallic_states(
         .map(|site| (site.label.as_str(), site))
         .collect::<BTreeMap<_, _>>();
     for domain in domains {
-        let site_count = u32::try_from(domain.sites.len())
-            .map_err(|_| AgentError::new("provisional valence", "metallic site overflow"))?;
+        let site_count = u32::try_from(domain.sites.len()).map_err(|_| {
+            AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
+                "provisional valence",
+                "metallic site overflow",
+            )
+        })?;
         if site_count == 0
             || domain.delocalized_electrons == 0
             || domain.delocalized_electrons % site_count != 0
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!(
                     "metallic domain `{}` has inconsistent site electrons",
@@ -667,6 +729,7 @@ fn derive_metallic_states(
         let per_site = domain.delocalized_electrons / site_count;
         let expected_site_charge = i16::try_from(per_site).map_err(|_| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("metallic domain `{}` site charge overflow", domain.label),
             )
@@ -674,18 +737,21 @@ fn derive_metallic_states(
         for label in &domain.sites {
             let site = by_label.get(label.as_str()).ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     format!("metallic site `{label}` does not resolve"),
                 )
             })?;
             if site.non_bonding_electrons != 0 {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     format!("metallic site `{label}` must have zero local electrons"),
                 ));
             }
             if site.formal_charge != expected_site_charge {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     format!(
                         "metallic site `{label}` formal_charge must equal its {per_site} delocalized electrons"
@@ -720,8 +786,13 @@ fn structure_record(
     premise_id: &PremiseId,
 ) -> Result<StructureRecord, AgentError> {
     let structure_id = |id: &str| {
-        StructureId::from_str(id)
-            .map_err(|error| AgentError::new("structure adoption", error.to_string()))
+        StructureId::from_str(id).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "structure adoption",
+                error,
+            )
+        })
     };
     Ok(match proposal.clone() {
         LabelledStructure::Molecular {

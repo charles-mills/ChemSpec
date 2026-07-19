@@ -8,7 +8,7 @@ use std::{
 use chem_domain::ContentDigest;
 use serde::{Deserialize, Serialize};
 
-use crate::{AgentError, TrustTier};
+use crate::{AgentError, AgentErrorKind, TrustTier};
 
 pub const OXIDE_APPEARANCE_SCHEMA_VERSION: u32 = 1;
 const OXIDE_APPEARANCE_CACHE_SCHEMA_VERSION: u32 = 1;
@@ -65,13 +65,20 @@ impl OxideAppearanceRequest {
             self,
             OXIDE_APPEARANCE_SCHEMA_VERSION,
         ))
-        .map_err(|error| AgentError::new("oxide appearance request", error.to_string()))?;
+        .map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidRequest,
+                "oxide appearance request",
+                error,
+            )
+        })?;
         Ok(ContentDigest::sha256(&bytes))
     }
 
     fn validate(&self) -> Result<(), AgentError> {
         if self.schema_version != OXIDE_APPEARANCE_SCHEMA_VERSION {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidRequest,
                 "oxide appearance request",
                 "unsupported appearance schema version",
             ));
@@ -169,12 +176,18 @@ impl OxideAppearanceClaim {
     ) -> Result<ValidatedOxideAppearance, AgentError> {
         if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_APPEARANCE_BYTES {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "oxide appearance",
                 "response exceeds the 96 KiB contract limit",
             ));
         }
-        let claim: Self = serde_json::from_slice(bytes)
-            .map_err(|error| AgentError::new("oxide appearance", error.to_string()))?;
+        let claim: Self = serde_json::from_slice(bytes).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidProviderOutput,
+                "oxide appearance",
+                error,
+            )
+        })?;
         claim.validate_for(request)
     }
 
@@ -187,6 +200,7 @@ impl OxideAppearanceClaim {
             || request.schema_version != OXIDE_APPEARANCE_SCHEMA_VERSION
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "oxide appearance",
                 "unsupported appearance schema version",
             ));
@@ -197,6 +211,7 @@ impl OxideAppearanceClaim {
             || self.catalogue_digest != request.catalogue_digest
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "oxide appearance",
                 "claim is not bound to the current validated oxide product",
             ));
@@ -210,6 +225,7 @@ impl OxideAppearanceClaim {
         validate_bounded_text(&self.limitations, 3, 600, "limitations")?;
         if self.sources.is_empty() || self.sources.len() > 3 {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "oxide appearance",
                 "one to three supporting sources are required",
             ));
@@ -224,6 +240,7 @@ impl OxideAppearanceClaim {
                 || !urls.insert(source.url.as_str())
             {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "oxide appearance",
                     "sources require unique HTTPS URLs",
                 ));
@@ -339,30 +356,44 @@ pub fn store_oxide_appearance_cache(
         model: model.to_owned(),
         claim: revalidated.claim,
     };
-    let bytes = serde_json::to_vec(&envelope)
-        .map_err(|error| AgentError::new("oxide appearance cache", error.to_string()))?;
+    let bytes = serde_json::to_vec(&envelope).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidCache,
+            "oxide appearance cache",
+            error,
+        )
+    })?;
     if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_APPEARANCE_BYTES {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidCache,
             "oxide appearance cache",
             "entry exceeds the 96 KiB contract limit",
         ));
     }
-    fs::create_dir_all(directory)
-        .map_err(|error| AgentError::new("oxide appearance cache", error.to_string()))?;
+    fs::create_dir_all(directory).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "oxide appearance cache", error)
+    })?;
     let sequence = APPEARANCE_CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let temporary = directory.join(format!(
         ".oxide-appearance-{}-{sequence}.tmp",
         std::process::id()
     ));
-    fs::write(&temporary, bytes)
-        .map_err(|error| AgentError::new("oxide appearance cache", error.to_string()))?;
+    fs::write(&temporary, bytes).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "oxide appearance cache", error)
+    })?;
     replace_file(&temporary, &path)
 }
 
 fn claim_digest(claim: &OxideAppearanceClaim) -> Result<ContentDigest, AgentError> {
     serde_json::to_vec(claim)
         .map(|bytes| ContentDigest::sha256(&bytes))
-        .map_err(|error| AgentError::new("oxide appearance cache", error.to_string()))
+        .map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidCache,
+                "oxide appearance cache",
+                error,
+            )
+        })
 }
 
 fn validate_bounded_text(
@@ -374,6 +405,7 @@ fn validate_bounded_text(
     let length = value.trim().chars().count();
     if length < minimum || length > maximum {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "oxide appearance",
             format!("{field} is outside its bounded length"),
         ));
@@ -398,6 +430,7 @@ fn reject_procedural_text(value: &str) -> Result<(), AgentError> {
         .any(|marker| lowered.contains(marker))
     {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "oxide appearance",
             "procedural laboratory content is not allowed",
         ));
@@ -407,18 +440,21 @@ fn reject_procedural_text(value: &str) -> Result<(), AgentError> {
 
 #[cfg(not(target_os = "windows"))]
 fn replace_file(temporary: &Path, destination: &Path) -> Result<(), AgentError> {
-    fs::rename(temporary, destination)
-        .map_err(|error| AgentError::new("oxide appearance cache", error.to_string()))
+    fs::rename(temporary, destination).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "oxide appearance cache", error)
+    })
 }
 
 #[cfg(target_os = "windows")]
 fn replace_file(temporary: &Path, destination: &Path) -> Result<(), AgentError> {
     if destination.exists() {
-        fs::remove_file(destination)
-            .map_err(|error| AgentError::new("oxide appearance cache", error.to_string()))?;
+        fs::remove_file(destination).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::CacheIo, "oxide appearance cache", error)
+        })?;
     }
-    fs::rename(temporary, destination)
-        .map_err(|error| AgentError::new("oxide appearance cache", error.to_string()))
+    fs::rename(temporary, destination).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "oxide appearance cache", error)
+    })
 }
 
 #[cfg(test)]

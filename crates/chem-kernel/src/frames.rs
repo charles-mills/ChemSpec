@@ -417,77 +417,37 @@ pub fn generate_frames(
     project_frames(validated)
 }
 
-/// Projects an explicitly untrusted review-candidate derivation for catalogue
-/// authoring inspection or a validated dynamic reaction. The result retains
-/// `trust: review_candidate`; callers must explicitly cross
-/// [`ReviewCandidateFrameInspection::into_validated_dynamic`] before it can be
-/// presented.
+/// Projects a kernel-validated review-candidate derivation into immutable,
+/// renderer-readable frames.
+///
+/// The result retains `trust: review_candidate`. Deterministic kernel
+/// validation makes the frames safe to render, but does not imply catalogue
+/// review, host pinning, or any other provenance promotion.
 ///
 /// # Errors
 ///
 /// Returns `CHEMS-F090` when the already validated candidate derivation is
 /// internally inconsistent.
-pub fn inspect_review_candidate_frames(
+pub fn project_validated_review_candidate_frames(
     candidate: &crate::ReviewCandidateStructuralDerivation,
-) -> Result<ReviewCandidateFrameInspection, FrameError> {
-    Ok(ReviewCandidateFrameInspection {
+) -> Result<ValidatedReviewCandidateFrames, FrameError> {
+    Ok(ValidatedReviewCandidateFrames {
         frames: project_frames(candidate)?,
     })
 }
 
-/// Frame inspection for an untrusted catalogue candidate.
-///
-/// The contained artifact can be serialized for catalogue review or consumed
-/// into [`ValidatedDynamicFrames`] for runtime presentation. Neither route can
-/// change its `review_candidate` provenance into host-pinned catalogue trust.
-#[derive(Debug, Clone)]
-pub struct ReviewCandidateFrameInspection {
-    frames: SimulationFrames,
-}
-
-impl ReviewCandidateFrameInspection {
-    /// Serializes the candidate-only frame inspection. The contained artifact
-    /// retains `trust: review_candidate`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CHEMS-F090` when canonical serialization fails.
-    pub fn canonical_json(&self) -> Result<Vec<u8>, FrameError> {
-        self.frames.canonical_json()
-    }
-
-    /// Computes the digest of the candidate-only serialized inspection.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CHEMS-F090` when canonical serialization fails.
-    pub fn digest(&self) -> Result<ContentDigest, FrameError> {
-        self.frames.digest()
-    }
-
-    /// Consumes a fully inspected candidate into the distinct runtime
-    /// capability accepted for dynamic presentation.
-    #[must_use]
-    pub fn into_validated_dynamic(self) -> ValidatedDynamicFrames {
-        ValidatedDynamicFrames {
-            frames: self.frames,
-        }
-    }
-}
-
-/// Renderer-readable frames produced by deterministic validation over a
-/// runtime working catalogue.
+/// Renderer-readable frames produced from a kernel-validated review candidate.
 ///
 /// This wrapper intentionally does not expose an owned [`SimulationFrames`]
 /// conversion. The inner artifact remains tagged `review_candidate`, while
 /// dereferencing permits the presentation layer to read the same immutable
 /// frame contract used for host-pinned catalogue reactions.
 #[derive(Debug, Clone)]
-pub struct ValidatedDynamicFrames {
+pub struct ValidatedReviewCandidateFrames {
     frames: SimulationFrames,
 }
 
-impl Deref for ValidatedDynamicFrames {
+impl Deref for ValidatedReviewCandidateFrames {
     type Target = SimulationFrames;
 
     fn deref(&self) -> &Self::Target {
@@ -625,20 +585,19 @@ fn frame_bonds(state: &StructuralState) -> BTreeMap<CovalentBondId, FrameCovalen
         .graph()
         .covalent_bonds()
         .values()
-        .map(|bond| {
-            (
-                bond.id().clone(),
-                FrameCovalentEdge {
-                    id: bond.id().clone(),
-                    left: bond.left().clone(),
-                    right: bond.right().clone(),
-                    order: bond.order(),
-                    electron_origin: bond.electron_origin().clone(),
-                    delocalization: bond.delocalization().cloned(),
-                },
-            )
-        })
+        .map(|bond| (bond.id().clone(), frame_bond(bond)))
         .collect()
+}
+
+fn frame_bond(bond: &chem_domain::CovalentBond) -> FrameCovalentEdge {
+    FrameCovalentEdge {
+        id: bond.id().clone(),
+        left: bond.left().clone(),
+        right: bond.right().clone(),
+        order: bond.order(),
+        electron_origin: bond.electron_origin().clone(),
+        delocalization: bond.delocalization().cloned(),
+    }
 }
 
 fn frame_groups(state: &StructuralState) -> BTreeMap<AtomGroupId, FrameAtomGroup> {
@@ -994,12 +953,16 @@ mod tests {
     };
 
     use chem_catalogue::ValidatedCatalogueBundle;
+    use chem_domain::{
+        AtomId, BondOrder, CovalentBond, CovalentBondId, CovalentDelocalization,
+        CovalentDelocalizationId, EffectiveBondOrder,
+    };
 
     use crate::{expand_review_candidate, validate_review_candidate};
 
     use super::{
         ContentDigest, CurrentArtifactIdentity, DerivationTrust, FrameFailureClass,
-        ObservationStatus, ensure_current, project_frames,
+        ObservationStatus, ensure_current, frame_bond, project_frames,
     };
 
     fn root() -> PathBuf {
@@ -1029,6 +992,26 @@ mod tests {
 
     fn review_candidate_frames() -> super::SimulationFrames {
         project_frames(&review_candidate_derivation()).unwrap()
+    }
+
+    #[test]
+    fn resonance_annotation_reaches_the_frame_edge() {
+        let delocalization = CovalentDelocalization::new(
+            CovalentDelocalizationId::new("oxygen.resonance").unwrap(),
+            EffectiveBondOrder::new(3, 2).unwrap(),
+        );
+        let bond = CovalentBond::new_delocalized(
+            CovalentBondId::new("oxygen.oo").unwrap(),
+            AtomId::new("oxygen.o1").unwrap(),
+            AtomId::new("oxygen.o2").unwrap(),
+            BondOrder::Single,
+            delocalization.clone(),
+        )
+        .unwrap();
+
+        let edge = frame_bond(&bond);
+
+        assert_eq!(edge.delocalization, Some(delocalization));
     }
 
     fn electron_tuple(value: &serde_json::Value) -> serde_json::Value {
@@ -1427,6 +1410,17 @@ mod tests {
         );
         assert_eq!(first.digest().unwrap(), second.digest().unwrap());
         assert_eq!(first.frames().len(), 13);
+    }
+
+    #[test]
+    fn validated_review_candidate_frames_are_renderer_readable_without_trust_promotion() {
+        let projected =
+            super::project_validated_review_candidate_frames(&review_candidate_derivation())
+                .unwrap();
+        let renderer_input: &super::SimulationFrames = &projected;
+
+        assert_eq!(renderer_input.trust(), DerivationTrust::ReviewCandidate);
+        assert_eq!(renderer_input.frames().len(), 13);
     }
 
     #[test]

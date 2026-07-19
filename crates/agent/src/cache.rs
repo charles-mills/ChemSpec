@@ -13,14 +13,16 @@ use crate::claim::{
     STRUCTURE_PROPOSAL_SCHEMA_VERSION,
 };
 use crate::{
-    AgentError, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome, FamilyMatchOutcome,
-    MechanismEscalationResponse, ReactionBuildRequest, ReactionClaim, StructureProposalResponse,
-    TrustTier, compile_claim_outcome, compile_reviewed_animation, match_reviewed_family,
-    resolve_request_species, validate_escalated_response_with_structures,
+    AgentError, AgentErrorKind, ClaimMode, CompiledClaimOutcome, DynamicPresentationOutcome,
+    FamilyMatchOutcome, MechanismEscalationResponse, ProviderClaim, ReactionBuildRequest,
+    StructureProposalResponse, TrustTier, compile_claim_outcome, compile_reviewed_animation,
+    match_reviewed_family, resolve_request_species, validate_escalated_response_with_structures,
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 3;
-const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 3;
+// Version 4 migrates cache paths after generated species identities changed
+// from delimiter hashing to a versioned length-prefixed digest contract.
+const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 4;
 const MAX_CACHE_BYTES: u64 = 2 * 1024 * 1024;
 static CACHE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -61,7 +63,7 @@ struct DynamicCacheEnvelope {
     identity_snapshot: ContentDigest,
     catalogue_digest: ContentDigest,
     claim_digest: ContentDigest,
-    claim: ReactionClaim,
+    claim: ProviderClaim,
     trust_tier: TrustTier,
     presentation: Option<DynamicCachePresentation>,
 }
@@ -80,9 +82,9 @@ pub fn dynamic_cache_path(
     catalogue: &TrustedCatalogue,
 ) -> Result<PathBuf, AgentError> {
     let request_binding = request_binding(request, identities)?;
-    let identity_snapshot = identities
-        .snapshot_digest()
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    let identity_snapshot = identities.snapshot_digest().map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     let material = serde_json::to_vec(&(
         DYNAMIC_CACHE_SCHEMA_VERSION,
         DYNAMIC_COMPILER_CONTRACT_VERSION,
@@ -94,7 +96,9 @@ pub fn dynamic_cache_path(
         MECHANISM_ESCALATION_SCHEMA_VERSION,
         STRUCTURE_PROPOSAL_SCHEMA_VERSION,
     ))
-    .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    .map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     Ok(directory.join(format!(
         "{}.json",
         ContentDigest::sha256(&material).to_hex()
@@ -118,6 +122,12 @@ pub fn load_dynamic_cache(
     }
     let bytes = fs::read(path).ok()?;
     let cached: DynamicCacheEnvelope = serde_json::from_slice(&bytes).ok()?;
+    cached.claim.validate_wire().ok()?;
+    cached
+        .presentation
+        .as_ref()
+        .map_or(Ok(()), validate_cached_presentation)
+        .ok()?;
     let expected_request = request_binding(request, identities).ok()?;
     let expected_identities = identities.snapshot_digest().ok()?;
     if cached.schema_version != DYNAMIC_CACHE_SCHEMA_VERSION
@@ -172,11 +182,15 @@ pub fn store_dynamic_cache(
     mode: ClaimMode,
     identities: &SpeciesRegistry,
     catalogue: &TrustedCatalogue,
-    claim: &ReactionClaim,
+    claim: &ProviderClaim,
     presentation: Option<DynamicCachePresentation>,
     provider: &str,
     model: &str,
 ) -> Result<(), AgentError> {
+    claim.validate_wire()?;
+    if let Some(presentation) = &presentation {
+        validate_cached_presentation(presentation)?;
+    }
     // Recompile before persistence so a provider response alone can never
     // populate the cache.
     compile_claim_outcome(request, claim.clone(), identities)?;
@@ -189,59 +203,83 @@ pub fn store_dynamic_cache(
         model: model.to_owned(),
         mode,
         request_binding: request_binding(request, identities)?,
-        identity_snapshot: identities
-            .snapshot_digest()
-            .map_err(|error| AgentError::new("reaction cache", error.to_string()))?,
+        identity_snapshot: identities.snapshot_digest().map_err(|error| {
+            AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+        })?,
         catalogue_digest: catalogue.digest(),
         claim_digest: claim_digest(claim)?,
         claim: claim.clone(),
         trust_tier,
         presentation,
     };
-    let bytes = serde_json::to_vec(&envelope)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    let bytes = serde_json::to_vec(&envelope).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_CACHE_BYTES {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidCache,
             "reaction cache",
             "entry exceeds size limit",
         ));
     }
-    fs::create_dir_all(directory)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    fs::create_dir_all(directory).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "reaction cache", error)
+    })?;
     let sequence = CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let temporary = directory.join(format!(".dynamic-v3-{}-{sequence}.tmp", std::process::id()));
-    fs::write(&temporary, bytes)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    fs::write(&temporary, bytes).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::CacheIo, "reaction cache", error)
+    })?;
     atomic_replace(&temporary, &path, "reaction cache")
+}
+
+fn validate_cached_presentation(presentation: &DynamicCachePresentation) -> Result<(), AgentError> {
+    if let DynamicCachePresentation::Escalated {
+        response,
+        structures,
+    } = presentation
+    {
+        response.validate_wire()?;
+        if let Some(structures) = structures {
+            structures.validate_wire()?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(not(target_os = "windows"))]
 fn atomic_replace(
     temporary: &Path,
     destination: &Path,
-    stage: &'static str,
+    context: &'static str,
 ) -> Result<(), AgentError> {
-    fs::rename(temporary, destination).map_err(|error| AgentError::new(stage, error.to_string()))
+    fs::rename(temporary, destination)
+        .map_err(|error| AgentError::from_source(AgentErrorKind::CacheIo, context, error))
 }
 
 #[cfg(target_os = "windows")]
 fn atomic_replace(
     temporary: &Path,
     destination: &Path,
-    stage: &'static str,
+    context: &'static str,
 ) -> Result<(), AgentError> {
     if !destination.exists() {
         return fs::rename(temporary, destination)
-            .map_err(|error| AgentError::new(stage, error.to_string()));
+            .map_err(|error| AgentError::from_source(AgentErrorKind::CacheIo, context, error));
     }
     let backup = destination.with_extension(format!(
         "backup-{}",
         CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     ));
-    fs::rename(destination, &backup).map_err(|error| AgentError::new(stage, error.to_string()))?;
+    fs::rename(destination, &backup)
+        .map_err(|error| AgentError::from_source(AgentErrorKind::CacheIo, context, error))?;
     if let Err(error) = fs::rename(temporary, destination) {
         let _ = fs::rename(&backup, destination);
-        return Err(AgentError::new(stage, error.to_string()));
+        return Err(AgentError::from_source(
+            AgentErrorKind::CacheIo,
+            context,
+            error,
+        ));
     }
     let _ = fs::remove_file(backup);
     Ok(())
@@ -257,12 +295,14 @@ fn revalidate_presentation(
             let matched = match_reviewed_family(&outcome, catalogue)?;
             let FamilyMatchOutcome::Matched(family) = matched else {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidCache,
                     "reaction cache",
                     "cached reviewed family is no longer uniquely applicable",
                 ));
             };
             if family.rule_id() != &rule_id {
                 return Err(AgentError::new(
+                    AgentErrorKind::InvalidCache,
                     "reaction cache",
                     "cached reviewed family binding changed",
                 ));
@@ -310,33 +350,27 @@ fn request_binding(
             .join(" ")
             .to_lowercase()
     });
-    let bytes = serde_json::to_vec(&(ids, selected_context))
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+    let bytes = serde_json::to_vec(&(ids, selected_context)).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     Ok(ContentDigest::sha256(&bytes))
 }
 
-fn claim_digest(claim: &ReactionClaim) -> Result<ContentDigest, AgentError> {
-    let bytes = serde_json::to_vec(claim)
-        .map_err(|error| AgentError::new("reaction cache", error.to_string()))?;
+fn claim_digest(claim: &ProviderClaim) -> Result<ContentDigest, AgentError> {
+    let bytes = serde_json::to_vec(claim).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::InvalidCache, "reaction cache", error)
+    })?;
     Ok(ContentDigest::sha256(&bytes))
 }
 
 #[cfg(test)]
 mod tests {
-    use chem_catalogue::TrustedCatalogue;
     use serde_json::json;
 
     use super::*;
-    use crate::{ReactantInput, reviewed_species_registry};
-
-    fn trusted() -> TrustedCatalogue {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-        )
-        .expect("trusted catalogue")
-    }
+    use crate::{
+        ReactantInput, reviewed_species_registry, test_support::trusted_catalogue as trusted,
+    };
 
     fn request() -> ReactionBuildRequest {
         ReactionBuildRequest {
@@ -357,7 +391,7 @@ mod tests {
         }
     }
 
-    fn claim() -> ReactionClaim {
+    fn claim() -> ProviderClaim {
         let value = json!({
             "schema_version": 1,
             "disposition": "reaction",
@@ -368,7 +402,7 @@ mod tests {
             "required_context":"representative educational outcome under the reviewed standard-outcome premise",
             "observations":[], "sources":[], "ambiguity":null
         });
-        ReactionClaim::from_json(
+        ProviderClaim::from_json(
             &serde_json::to_vec(&value).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -516,8 +550,9 @@ mod tests {
         };
         let directory = std::path::Path::new("/unused/cache-binding-test");
         assert_eq!(
-            dynamic_cache_path(directory, &first, ClaimMode::Fast, &identities, &trusted),
+            dynamic_cache_path(directory, &first, ClaimMode::Fast, &identities, &trusted).unwrap(),
             dynamic_cache_path(directory, &swapped, ClaimMode::Fast, &identities, &trusted)
+                .unwrap()
         );
     }
 
@@ -560,6 +595,110 @@ mod tests {
         assert!(
             loaded.presentation.is_none(),
             "a retryable failure must relaunch presentation enrichment"
+        );
+        fs::remove_dir_all(directory).expect("cleanup");
+    }
+
+    #[test]
+    fn cache_rejects_a_digest_consistent_claim_outside_wire_limits() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let request = request();
+        let directory = std::env::temp_dir().join(format!(
+            "chemspec-cache-wire-limit-test-{}-{}",
+            std::process::id(),
+            CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        store_dynamic_cache(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &trusted,
+            &claim(),
+            None,
+            "fake",
+            "offline",
+        )
+        .expect("store valid cache entry");
+        let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
+            .expect("cache path");
+        let mut envelope: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache entry");
+        envelope["claim"]["products"][0]["name"] = json!("x".repeat(301));
+        let claim_bytes = serde_json::to_vec(&envelope["claim"]).expect("claim bytes");
+        envelope["claim_digest"] =
+            serde_json::to_value(ContentDigest::sha256(&claim_bytes)).expect("updated digest");
+        fs::write(
+            &path,
+            serde_json::to_vec(&envelope).expect("tampered cache entry"),
+        )
+        .expect("write tampered entry");
+
+        assert!(
+            load_dynamic_cache(
+                Some(&directory),
+                &request,
+                ClaimMode::Fast,
+                &identities,
+                &trusted,
+            )
+            .is_none(),
+            "a matching digest must not confer schema validity"
+        );
+        assert!(
+            path.exists(),
+            "a rejected entry remains a cache miss artifact"
+        );
+        fs::remove_dir_all(directory).expect("cleanup");
+    }
+
+    #[test]
+    fn v3_cache_rejects_provider_injected_solver_reason_without_shape_drift() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let request = request();
+        let directory = std::env::temp_dir().join(format!(
+            "chemspec-cache-provenance-test-{}-{}",
+            std::process::id(),
+            CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        store_dynamic_cache(
+            &directory,
+            &request,
+            ClaimMode::Fast,
+            &identities,
+            &trusted,
+            &claim(),
+            None,
+            "fake",
+            "offline",
+        )
+        .expect("store v3 provider claim");
+        let path = dynamic_cache_path(&directory, &request, ClaimMode::Fast, &identities, &trusted)
+            .expect("cache path");
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache JSON");
+        assert_eq!(value["schema_version"], json!(3));
+        assert_eq!(value["compiler_contract_version"], json!(4));
+        assert!(value["claim"].get("origin").is_none());
+        assert!(value["claim"].get("solver_reason").is_none());
+
+        value["claim"]["no_reaction_reason"] = json!({"below_hydrogen":{"metal":"copper"}});
+        let hostile = serde_json::to_vec(&value).expect("hostile cache JSON");
+        let error = serde_json::from_slice::<DynamicCacheEnvelope>(&hostile)
+            .expect_err("cache decoding must reject solver-only provider fields");
+        assert!(error.to_string().contains("no_reaction_reason"));
+        fs::write(&path, hostile).expect("write hostile cache entry");
+        assert!(
+            load_dynamic_cache(
+                Some(&directory),
+                &request,
+                ClaimMode::Fast,
+                &identities,
+                &trusted,
+            )
+            .is_none()
         );
         fs::remove_dir_all(directory).expect("cleanup");
     }

@@ -64,7 +64,8 @@ closed `CompleteCombustion` process described below.
 
 Macroscopic phase is now an optional schema-1 catalogue fact. It is not
 inferred from a chemical name, formula, colour, or structural representation.
-The generic record is:
+The schema shape is illustrated below. This example remains a proposal until
+its premise and catalogue mutation receive independent review:
 
 ```json
 {
@@ -394,9 +395,11 @@ selected before presentation when the validated transformation has:
 
 The classifier compares structure representations, exact element-count maps,
 roles, phases where reviewed, and validated products. It does not compare a
-reaction name, rule ID, display name, or renderer asset. Current
-lithium/oxygen and sodium/oxygen experiences—and future reactions with the same
-typed shape—therefore share one presentation path.
+reaction name, rule ID, display name, or renderer asset. Validated dynamic
+outcomes with this typed shape already share one presentation path. The
+proposed standard-phase records for the static lithium/oxygen and sodium/oxygen
+experiences remain deferred until a separate exact-digest catalogue review is
+promoted; their unknown phases cannot authorize this process in the meantime.
 
 The surface path deliberately contains no vessel and does not render dioxygen
 as a thrown object. The metal is already resting on the laboratory bench. A

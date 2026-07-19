@@ -18,15 +18,16 @@ use chem_domain::{
     RepresentationKind, SpeciesId, StructureDefinition, StructureId,
 };
 use chem_kernel::{
-    ValidatedDynamicFrames, expand_proposed_declaration, inspect_review_candidate_frames,
-    validate_review_candidate,
+    ValidatedReviewCandidateFrames, expand_proposed_declaration,
+    project_validated_review_candidate_frames, validate_review_candidate,
 };
 
 use crate::{
-    AgentError, LabelledStructure, MechanismCleavageAllocation, MechanismEscalationRequest,
-    MechanismEscalationResponse, MechanismHomolytic, MechanismOperation, MechanismSpecies,
-    OutcomeSpecies, StructureProposalRequest, StructureProposalResponse, ValidatedStaticOutcome,
-    adopt_proposed_structures, structure_proposal_request,
+    AgentError, AgentErrorKind, LabelledStructure, MechanismCleavageAllocation,
+    MechanismEscalationRequest, MechanismEscalationResponse, MechanismHomolytic,
+    MechanismOperation, MechanismSpecies, OutcomeSpecies, StructureProposalRequest,
+    StructureProposalResponse, ValidatedStaticOutcome, adopt_proposed_structures,
+    structure_proposal_request,
 };
 
 const MAX_MECHANISM_REPAIRS: usize = 2;
@@ -64,7 +65,7 @@ struct MechanismRole {
 #[derive(Debug, Clone)]
 pub struct EscalatedMechanismOutcome {
     static_outcome: ValidatedStaticOutcome,
-    frames: ValidatedDynamicFrames,
+    frames: ValidatedReviewCandidateFrames,
     repair_count: usize,
     structure_repair_count: usize,
 }
@@ -76,7 +77,7 @@ impl EscalatedMechanismOutcome {
     }
 
     #[must_use]
-    pub const fn frames(&self) -> &ValidatedDynamicFrames {
+    pub const fn frames(&self) -> &ValidatedReviewCandidateFrames {
         &self.frames
     }
 
@@ -104,6 +105,7 @@ impl EscalatedMechanismOutcome {
 #[derive(Debug, Clone)]
 pub enum MechanismEscalationOutcome {
     Animated(Box<EscalatedMechanismOutcome>),
+    Failed(AgentError),
     Unavailable {
         static_outcome: Box<ValidatedStaticOutcome>,
         attempts: usize,
@@ -140,6 +142,7 @@ pub trait MechanismProvider {
     ) -> Result<StructureProposalResponse, AgentError> {
         let _ = (request, diagnostic);
         Err(AgentError::new(
+            AgentErrorKind::UnsupportedCapability,
             "structure proposal",
             "provider does not support structure proposals",
         ))
@@ -158,6 +161,7 @@ impl MechanismProvider for UnsupportedMechanismProvider {
         _diagnostic: Option<&str>,
     ) -> Result<MechanismEscalationResponse, AgentError> {
         Err(AgentError::new(
+            AgentErrorKind::UnsupportedCapability,
             "mechanism escalation",
             "animating this mechanism is not supported without a model",
         ))
@@ -213,6 +217,7 @@ pub fn compile_mechanism_request(
             };
             let species = resolved.get(term.species()).ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::CompilationFailure,
                     "mechanism request",
                     format!(
                         "declaration species `{}` has no resolved identity",
@@ -222,6 +227,7 @@ pub fn compile_mechanism_request(
             })?;
             let structure = species.structure.as_ref().ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::CompilationFailure,
                     "mechanism request",
                     format!("species `{}` has no validated structure", term.species()),
                 )
@@ -423,8 +429,11 @@ fn propose_with_provider<P: MechanismProvider>(
         let response = match provider.propose(&context.request, diagnostic.as_deref()) {
             Ok(response) => response,
             Err(error) => {
-                diagnostic = Some(error.to_string());
-                continue;
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                    continue;
+                }
+                return MechanismEscalationOutcome::Failed(error);
             }
         };
         match compile_mechanism(&outcome, context, &response, catalogue) {
@@ -436,7 +445,13 @@ fn propose_with_provider<P: MechanismProvider>(
                     structure_repair_count,
                 }));
             }
-            Err(error) => diagnostic = Some(error.to_string()),
+            Err(error) => {
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                } else {
+                    return MechanismEscalationOutcome::Failed(error);
+                }
+            }
         }
     }
     MechanismEscalationOutcome::Unavailable {
@@ -445,6 +460,13 @@ fn propose_with_provider<P: MechanismProvider>(
         diagnostic: diagnostic.unwrap_or_else(|| "mechanism validation failed".to_owned()),
         retryable: true,
     }
+}
+
+const fn is_repairable_proposal_error(kind: AgentErrorKind) -> bool {
+    matches!(
+        kind,
+        AgentErrorKind::InvalidProviderOutput | AgentErrorKind::KernelRejection
+    )
 }
 
 /// Structure escalation: products absent from the reviewed structure library
@@ -469,8 +491,11 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
         let response = match provider.propose_structures(&request, diagnostic.as_deref()) {
             Ok(response) => response,
             Err(error) => {
-                diagnostic = Some(error.to_string());
-                continue;
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                    continue;
+                }
+                return MechanismEscalationOutcome::Failed(error);
             }
         };
         match adopt_proposed_structures(&outcome, &request, &response, catalogue) {
@@ -483,7 +508,7 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
                         &context,
                         structure_attempt,
                     ),
-                    Ok(None) | Err(_) => MechanismEscalationOutcome::Unavailable {
+                    Ok(None) => MechanismEscalationOutcome::Unavailable {
                         static_outcome: Box::new(adopted.outcome),
                         attempts: 0,
                         diagnostic:
@@ -491,9 +516,16 @@ fn derive_with_proposed_structures<P: MechanismProvider>(
                                 .to_owned(),
                         retryable: true,
                     },
+                    Err(error) => MechanismEscalationOutcome::Failed(error),
                 };
             }
-            Err(error) => diagnostic = Some(error.to_string()),
+            Err(error) => {
+                if is_repairable_proposal_error(error.kind()) {
+                    diagnostic = Some(error.to_string());
+                } else {
+                    return MechanismEscalationOutcome::Failed(error);
+                }
+            }
         }
     }
     MechanismEscalationOutcome::Unavailable {
@@ -520,6 +552,7 @@ pub fn validate_escalated_response(
     let catalogue = &augmented;
     let context = compile_mechanism_request(&outcome, catalogue)?.ok_or_else(|| {
         AgentError::new(
+            AgentErrorKind::InvalidCache,
             "mechanism cache",
             "cached escalation requires structures for every product",
         )
@@ -553,6 +586,7 @@ pub fn validate_escalated_response_with_structures(
     let catalogue = &augmented;
     let request = structure_proposal_request(&outcome, catalogue).ok_or_else(|| {
         AgentError::new(
+            AgentErrorKind::InvalidCache,
             "mechanism cache",
             "cached structure proposal does not correspond to missing products",
         )
@@ -566,19 +600,64 @@ fn compile_mechanism(
     context: &MechanismContext,
     response: &MechanismEscalationResponse,
     catalogue: &ValidatedCatalogueBundle,
-) -> Result<ValidatedDynamicFrames, AgentError> {
+) -> Result<ValidatedReviewCandidateFrames, AgentError> {
+    response.validate_wire()?;
     validate_response_labels(context, response)?;
     let provisional_bundle = provisional_mechanism_bundle(context, response, catalogue)?;
     let catalogue = provisional_bundle.as_ref().unwrap_or(catalogue);
     let premise_ids = mechanism_premises(context, catalogue)?;
     let applicability_premise = premise_ids.first().cloned().ok_or_else(|| {
-        AgentError::new("mechanism compile", "catalogue exposes no valence premise")
+        AgentError::new(
+            AgentErrorKind::CompilationFailure,
+            "mechanism compile",
+            "catalogue exposes no valence premise",
+        )
     })?;
     let role_species = context
         .roles
         .iter()
         .map(|(role, value)| (role.clone(), value.species.clone()))
         .collect::<BTreeMap<_, _>>();
+    let rule = dynamic_mechanism_rule(
+        outcome,
+        context,
+        response,
+        &premise_ids,
+        applicability_premise,
+    )?;
+    let expanded = expand_proposed_declaration(
+        &context.request.reaction_id,
+        outcome.declaration(),
+        &role_species,
+        &rule,
+        catalogue,
+    )
+    .map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::KernelRejection,
+            "mechanism expansion",
+            error,
+        )
+    })?;
+    let derivation = validate_review_candidate(&expanded, catalogue).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::KernelRejection,
+            "mechanism validation",
+            error,
+        )
+    })?;
+    project_validated_review_candidate_frames(&derivation).map_err(|error| {
+        AgentError::from_source(AgentErrorKind::KernelRejection, "mechanism frames", error)
+    })
+}
+
+fn dynamic_mechanism_rule(
+    outcome: &ValidatedStaticOutcome,
+    context: &MechanismContext,
+    response: &MechanismEscalationResponse,
+    premise_ids: &BTreeSet<PremiseId>,
+    applicability_premise: PremiseId,
+) -> Result<ReactionRuleRecord, AgentError> {
     let roles = context
         .roles
         .iter()
@@ -604,12 +683,18 @@ fn compile_mechanism(
             })
             .collect::<Vec<_>>()
     };
-    let rule = ReactionRuleRecord {
+    Ok(ReactionRuleRecord {
         id: ReactionRuleId::from_str(&format!(
             "DynamicMechanism.r{}",
             &outcome.declaration().digest().to_hex()[..24]
         ))
-        .map_err(|error| AgentError::new("mechanism compile", error.to_string()))?,
+        .map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::CompilationFailure,
+                "mechanism compile",
+                error,
+            )
+        })?,
         premise_ids: premise_ids.clone(),
         roles,
         reactant_pattern: terms(RuleSideRecord::Reactant),
@@ -637,7 +722,7 @@ fn compile_mechanism(
         operation_template: response
             .operations
             .iter()
-            .map(|operation| operation_record(operation, &premise_ids))
+            .map(|operation| operation_record(operation, premise_ids))
             .collect(),
         model_assumptions: ModelAssumptionsRecord {
             event: EventModel::Representative,
@@ -645,20 +730,7 @@ fn compile_mechanism(
             premise_ids: premise_ids.clone(),
         },
         observation_compatibility: Vec::new(),
-    };
-    let expanded = expand_proposed_declaration(
-        &context.request.reaction_id,
-        outcome.declaration(),
-        &role_species,
-        &rule,
-        catalogue,
-    )
-    .map_err(|error| AgentError::new("mechanism expansion", error.to_string()))?;
-    let derivation = validate_review_candidate(&expanded, catalogue)
-        .map_err(|error| AgentError::new("mechanism validation", error.to_string()))?;
-    Ok(inspect_review_candidate_frames(&derivation)
-        .map_err(|error| AgentError::new("mechanism frames", error.to_string()))?
-        .into_validated_dynamic())
+    })
 }
 
 #[allow(clippy::too_many_lines)]
@@ -695,18 +767,21 @@ fn provisional_mechanism_bundle(
     for (path, state) in mechanism_electron_states(response) {
         let element = context.reactant_atoms.get(path).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("operation state references unknown atom `{path}`"),
             )
         })?;
         ElectronState::new(state.0, state.1, state.2).map_err(|error| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("atom `{path}` has an invalid electron state: {error}"),
             )
         })?;
         let candidates = neutral.get(element).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("atom `{path}` has no reviewed neutral valence"),
             )
@@ -719,6 +794,7 @@ fn provisional_mechanism_bundle(
         });
         let Some((neutral_electrons, covalent_bond_order_sum)) = candidate else {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("atom `{path}` violates the reviewed formal-charge identity"),
             ));
@@ -738,6 +814,7 @@ fn provisional_mechanism_bundle(
             .is_some_and(|existing| existing != neutral_electrons)
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("operation states require conflicting neutral valence for `{element}`"),
             ));
@@ -756,6 +833,7 @@ fn provisional_mechanism_bundle(
                 .any(|metallic| metallic.element == state.element)
         }) else {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 "a provisional metallic state has no reviewed covalent anchor",
             ));
@@ -773,6 +851,7 @@ fn provisional_mechanism_bundle(
             .copied()
             .ok_or_else(|| {
                 AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "provisional valence",
                     "reviewed metallic anchor violates its neutral-valence premise",
                 )
@@ -780,8 +859,13 @@ fn provisional_mechanism_bundle(
         used_neutral.insert(reviewed_anchor.element.clone(), neutral_electrons);
         provisional.insert(reviewed_anchor.clone());
     }
-    let premise_id = PremiseId::from_str(DYNAMIC_MECHANISM_VALENCE_PREMISE)
-        .map_err(|error| AgentError::new("provisional valence", error.to_string()))?;
+    let premise_id = PremiseId::from_str(DYNAMIC_MECHANISM_VALENCE_PREMISE).map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "provisional valence",
+            error,
+        )
+    })?;
     let mut document = catalogue.document().clone();
     document.publication = PublicationKind::Working;
     let evidence = document
@@ -818,13 +902,18 @@ fn provisional_mechanism_bundle(
         digest: ContentDigest::sha256(b"uncomputed dynamic mechanism valence bundle"),
         bundle: document,
     };
-    envelope.digest = envelope
-        .computed_digest()
-        .map_err(|error| AgentError::new("provisional valence", error.to_string()))?;
+    envelope.digest = envelope.computed_digest().map_err(|error| {
+        AgentError::from_source(
+            AgentErrorKind::InvalidProviderOutput,
+            "provisional valence",
+            error,
+        )
+    })?;
     ValidatedCatalogueBundle::validate(envelope)
         .map(Some)
         .map_err(|error| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("derived operation states failed working-bundle validation: {error}"),
             )
@@ -866,18 +955,21 @@ fn derive_provisional_metallic_operation_states(
         };
         if state.site.1 != 0 {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("metallic site `{site}` must have zero local electrons in-domain"),
             ));
         }
         if share == 0 {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 format!("metallic operation on `{site}` moves no electrons"),
             ));
         }
         let element = context.reactant_atoms.get(site).ok_or_else(|| {
             AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "provisional valence",
                 "metallic operation site does not resolve",
             )
@@ -984,6 +1076,7 @@ fn mechanism_electron_states(
             }
             MechanismOperation::AssociateIonic { .. }
             | MechanismOperation::DissociateIonic { .. }
+            | MechanismOperation::ChangeCovalentDelocalization { .. }
             | MechanismOperation::AssignProduct { .. } => {}
         }
     }
@@ -1003,7 +1096,13 @@ fn mechanism_premises(
     for role in context.roles.values() {
         let closure = catalogue
             .structure_premises(&role.structure)
-            .ok_or_else(|| AgentError::new("mechanism compile", "structure premise disappeared"))?;
+            .ok_or_else(|| {
+                AgentError::new(
+                    AgentErrorKind::CompilationFailure,
+                    "mechanism compile",
+                    "structure premise disappeared",
+                )
+            })?;
         premises.extend(closure.iter().cloned());
     }
     Ok(premises)
@@ -1017,6 +1116,7 @@ fn validate_response_labels(
         || response.mapping.len() != context.product_atoms.len()
     {
         return Err(AgentError::new(
+            AgentErrorKind::InvalidProviderOutput,
             "mechanism mapping",
             "mapping must cover every reactant and product atom exactly once",
         ));
@@ -1033,6 +1133,7 @@ fn validate_response_labels(
             || !products.insert(&mapping.product)
         {
             return Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "mechanism mapping",
                 "mapping contains an unknown, duplicate, or element-changing atom label",
             ));
@@ -1054,6 +1155,7 @@ fn validate_operation_labels(
             Ok(())
         } else {
             Err(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
                 "mechanism operation",
                 format!("unknown atom label `{value}`"),
             ))
@@ -1078,7 +1180,8 @@ fn validate_operation_labels(
             atom(donor)?;
             atom(acceptor)
         }
-        MechanismOperation::ChangeCovalent { edge, .. } => {
+        MechanismOperation::ChangeCovalent { edge, .. }
+        | MechanismOperation::ChangeCovalentDelocalization { edge, .. } => {
             atom(&edge.0)?;
             atom(&edge.1)
         }
@@ -1093,6 +1196,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown ionic association `{association}`"),
                 ))
@@ -1104,6 +1208,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown metallic domain `{domain}`"),
                 ))
@@ -1115,6 +1220,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown product metallic domain `{domain}`"),
                 ))
@@ -1128,6 +1234,7 @@ fn validate_operation_labels(
                 Ok(())
             } else {
                 Err(AgentError::new(
+                    AgentErrorKind::InvalidProviderOutput,
                     "mechanism operation",
                     format!("unknown product instance `{product}`"),
                 ))
@@ -1218,6 +1325,16 @@ fn operation_record(
             allocation: cleavage(allocation),
             before: before.clone(),
             after: after.clone(),
+        },
+        MechanismOperation::ChangeCovalentDelocalization {
+            edge,
+            expected,
+            replacement,
+        } => OperationTemplateRecord::ChangeCovalentDelocalization {
+            premise_ids: premises(),
+            edge: edge.clone(),
+            expected: expected.clone(),
+            replacement: replacement.clone(),
         },
         MechanismOperation::AssociateIonic {
             label,
@@ -1460,18 +1577,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        ClaimMode, CompiledClaimOutcome, FamilyMatchOutcome, ReactantInput, ReactionBuildRequest,
-        ReactionClaim, compile_claim_outcome, match_reviewed_family, reviewed_species_registry,
+        ClaimMode, CompiledClaimOutcome, FamilyMatchOutcome, ProviderClaim, ReactantInput,
+        ReactionBuildRequest, compile_claim_outcome, match_reviewed_family,
+        reviewed_species_registry, test_support::trusted_catalogue as trusted,
     };
-
-    fn trusted() -> TrustedCatalogue {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        TrustedCatalogue::from_canonical_json(
-            &std::fs::read(root.join("catalogue/trusted/core-chemistry/catalogue.json"))
-                .expect("catalogue"),
-        )
-        .expect("trusted catalogue")
-    }
 
     fn static_outcome_for(
         trusted: &TrustedCatalogue,
@@ -1486,7 +1595,7 @@ mod tests {
             "required_context": "representative educational outcome under the reviewed standard-outcome premise",
             "observations": [], "sources": [], "ambiguity": null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1526,7 +1635,7 @@ mod tests {
             "required_context": context,
             "observations": [], "sources": [], "ambiguity": null
         });
-        let claim = ReactionClaim::from_json(
+        let claim = ProviderClaim::from_json(
             &serde_json::to_vec(&claim).expect("claim JSON"),
             ClaimMode::Fast,
         )
@@ -1643,9 +1752,13 @@ mod tests {
             diagnostic: Option<&str>,
         ) -> Result<MechanismEscalationResponse, AgentError> {
             self.diagnostics.push(diagnostic.map(str::to_owned));
-            self.responses
-                .pop_front()
-                .ok_or_else(|| AgentError::new("fake provider", "no response"))
+            self.responses.pop_front().ok_or_else(|| {
+                AgentError::new(
+                    AgentErrorKind::ProviderFailure,
+                    "fake provider",
+                    "no response",
+                )
+            })
         }
 
         fn propose_structures(
@@ -1655,9 +1768,13 @@ mod tests {
         ) -> Result<StructureProposalResponse, AgentError> {
             self.structure_diagnostics
                 .push(diagnostic.map(str::to_owned));
-            self.structure_responses
-                .pop_front()
-                .ok_or_else(|| AgentError::new("fake provider", "no structure response"))
+            self.structure_responses.pop_front().ok_or_else(|| {
+                AgentError::new(
+                    AgentErrorKind::ProviderFailure,
+                    "fake provider",
+                    "no structure response",
+                )
+            })
         }
     }
 
@@ -1675,7 +1792,68 @@ mod tests {
             _diagnostic: Option<&str>,
         ) -> Result<MechanismEscalationResponse, AgentError> {
             self.mechanism_calls += 1;
-            Err(AgentError::new("fake provider", "no response"))
+            Err(AgentError::new(
+                AgentErrorKind::ProviderFailure,
+                "fake provider",
+                "no response",
+            ))
+        }
+    }
+
+    struct ErrorProvider {
+        kind: AgentErrorKind,
+        calls: usize,
+        diagnostics: Vec<Option<String>>,
+    }
+
+    impl MechanismProvider for ErrorProvider {
+        fn propose(
+            &mut self,
+            _request: &MechanismEscalationRequest,
+            diagnostic: Option<&str>,
+        ) -> Result<MechanismEscalationResponse, AgentError> {
+            self.calls += 1;
+            self.diagnostics.push(diagnostic.map(str::to_owned));
+            Err(AgentError::new(
+                self.kind,
+                "classified provider failure",
+                "original provider message",
+            ))
+        }
+
+        fn propose_structures(
+            &mut self,
+            _request: &StructureProposalRequest,
+            diagnostic: Option<&str>,
+        ) -> Result<StructureProposalResponse, AgentError> {
+            self.calls += 1;
+            self.diagnostics.push(diagnostic.map(str::to_owned));
+            Err(AgentError::new(
+                self.kind,
+                "classified provider failure",
+                "original provider message",
+            ))
+        }
+    }
+
+    struct ErrorThenResponseProvider {
+        error: Option<AgentError>,
+        response: MechanismEscalationResponse,
+        diagnostics: Vec<Option<String>>,
+    }
+
+    impl MechanismProvider for ErrorThenResponseProvider {
+        fn propose(
+            &mut self,
+            _request: &MechanismEscalationRequest,
+            diagnostic: Option<&str>,
+        ) -> Result<MechanismEscalationResponse, AgentError> {
+            self.diagnostics.push(diagnostic.map(str::to_owned));
+            if let Some(error) = self.error.take() {
+                Err(error)
+            } else {
+                Ok(self.response.clone())
+            }
         }
     }
 
@@ -1717,6 +1895,107 @@ mod tests {
     }
 
     #[test]
+    fn operational_provider_errors_do_not_consume_repair_attempts() {
+        let trusted = trusted();
+        for kind in [
+            AgentErrorKind::Cancelled,
+            AgentErrorKind::TimedOut,
+            AgentErrorKind::UnsupportedCapability,
+            AgentErrorKind::ProviderUnavailable,
+            AgentErrorKind::ProviderFailure,
+            AgentErrorKind::CacheIo,
+            AgentErrorKind::InvalidCache,
+            AgentErrorKind::IdentityFailure,
+            AgentErrorKind::InvalidRequest,
+            AgentErrorKind::CompilationFailure,
+            AgentErrorKind::InternalFailure,
+        ] {
+            let outcome = lithium_hydroxide_outcome(&trusted);
+            let mut provider = ErrorProvider {
+                kind,
+                calls: 0,
+                diagnostics: Vec::new(),
+            };
+
+            let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+            assert_eq!(provider.calls, 1, "{kind:?}");
+            assert_eq!(provider.diagnostics, [None], "{kind:?}");
+            let MechanismEscalationOutcome::Failed(error) = result else {
+                panic!("expected typed failure for {kind:?}: {result:?}")
+            };
+            assert_eq!(error.kind(), kind);
+            assert_eq!(error.context(), "classified provider failure");
+            assert_eq!(error.message(), "original provider message");
+        }
+    }
+
+    #[test]
+    fn operational_structure_provider_errors_do_not_consume_repair_attempts() {
+        let trusted = trusted();
+        for kind in [
+            AgentErrorKind::Cancelled,
+            AgentErrorKind::TimedOut,
+            AgentErrorKind::UnsupportedCapability,
+            AgentErrorKind::ProviderUnavailable,
+            AgentErrorKind::ProviderFailure,
+            AgentErrorKind::CacheIo,
+            AgentErrorKind::InvalidCache,
+            AgentErrorKind::IdentityFailure,
+            AgentErrorKind::InvalidRequest,
+            AgentErrorKind::CompilationFailure,
+            AgentErrorKind::InternalFailure,
+        ] {
+            let outcome = ether_outcome(&trusted);
+            let mut provider = ErrorProvider {
+                kind,
+                calls: 0,
+                diagnostics: Vec::new(),
+            };
+
+            let result = derive_mechanism(outcome, &trusted, &mut provider);
+
+            assert_eq!(provider.calls, 1, "{kind:?}");
+            assert_eq!(provider.diagnostics, [None], "{kind:?}");
+            let MechanismEscalationOutcome::Failed(error) = result else {
+                panic!("expected typed structure failure for {kind:?}: {result:?}")
+            };
+            assert_eq!(error.kind(), kind);
+            assert_eq!(error.context(), "classified provider failure");
+            assert_eq!(error.message(), "original provider message");
+        }
+    }
+
+    #[test]
+    fn invalid_provider_output_error_is_repaired_with_its_diagnostic() {
+        let trusted = trusted();
+        let outcome = lithium_hydroxide_outcome(&trusted);
+        let valid = valid_response(&outcome, &trusted);
+        let mut provider = ErrorThenResponseProvider {
+            error: Some(AgentError::new(
+                AgentErrorKind::InvalidProviderOutput,
+                "mechanism response",
+                "malformed structured output",
+            )),
+            response: valid,
+            diagnostics: Vec::new(),
+        };
+
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.repair_count(), 1);
+        assert_eq!(provider.diagnostics.len(), 2);
+        assert_eq!(provider.diagnostics[0], None);
+        assert_eq!(
+            provider.diagnostics[1].as_deref(),
+            Some("mechanism response: malformed structured output")
+        );
+    }
+
+    #[test]
     fn invalid_operation_is_repaired_without_changing_the_request() {
         let trusted = trusted();
         let outcome = lithium_hydroxide_outcome(&trusted);
@@ -1738,6 +2017,71 @@ mod tests {
             provider.diagnostics[1]
                 .as_deref()
                 .is_some_and(|value| value.contains("unknown"))
+        );
+    }
+
+    #[test]
+    fn typed_provider_response_still_crosses_mechanism_wire_validation() {
+        let trusted = trusted();
+        let outcome = lithium_hydroxide_outcome(&trusted);
+        let valid = valid_response(&outcome, &trusted);
+        let mut outside_wire_contract = valid.clone();
+        outside_wire_contract.mapping[0].reactant = "x".repeat(161);
+        let mut provider = FakeProvider {
+            responses: VecDeque::from([outside_wire_contract, valid]),
+            ..FakeProvider::default()
+        };
+
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.repair_count(), 1);
+        assert_eq!(provider.diagnostics.len(), 2);
+        assert!(
+            provider.diagnostics[1]
+                .as_deref()
+                .is_some_and(|diagnostic| diagnostic.contains("160-character")),
+            "{:?}",
+            provider.diagnostics
+        );
+    }
+
+    #[test]
+    fn kernel_rejection_is_repaired_with_its_diagnostic() {
+        let trusted = trusted();
+        let outcome = lithium_hydroxide_outcome(&trusted);
+        let valid = valid_response(&outcome, &trusted);
+        let mut invalid = valid.clone();
+        let cleave = invalid
+            .operations
+            .iter_mut()
+            .find_map(|operation| match operation {
+                MechanismOperation::CleaveCovalent { edge, .. } => Some(edge),
+                _ => None,
+            })
+            .expect("reviewed mechanism has a covalent cleavage");
+        cleave.2 = BondOrderRecord::Triple;
+        let mut provider = FakeProvider {
+            responses: VecDeque::from([invalid, valid]),
+            ..FakeProvider::default()
+        };
+
+        let result = provider_loop_result(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.repair_count(), 1);
+        assert_eq!(provider.diagnostics.len(), 2);
+        assert_eq!(provider.diagnostics[0], None);
+        assert!(
+            provider.diagnostics[1]
+                .as_deref()
+                .is_some_and(|value| value.contains("mechanism expansion")),
+            "{:?}",
+            provider.diagnostics
         );
     }
 
@@ -1848,9 +2192,25 @@ mod tests {
             .iter()
             .filter(|operation| matches!(operation, MechanismOperation::FormCovalent { .. }))
             .count();
+        let delocalization_changes = response
+            .operations
+            .iter()
+            .filter(|operation| {
+                matches!(
+                    operation,
+                    MechanismOperation::ChangeCovalentDelocalization {
+                        expected: None,
+                        replacement: Some(_),
+                        ..
+                    }
+                )
+            })
+            .count();
         // Least action: only the two acid O-H bonds break, only the two
-        // water O-H bonds form. The sulfate skeleton passes through intact.
+        // water O-H bonds form. The sulfate skeleton passes through intact,
+        // then its four product resonance annotations are made explicit.
         assert_eq!((cleaves, forms), (2, 2), "ops: {:?}", response.operations);
+        assert_eq!(delocalization_changes, 4, "ops: {:?}", response.operations);
     }
 
     #[test]
@@ -2230,18 +2590,16 @@ mod tests {
         let outcome = ether_outcome(&trusted);
         let mut provider = MechanismOnlyProvider::default();
         let result = derive_mechanism(outcome, &trusted, &mut provider);
-        let MechanismEscalationOutcome::Unavailable {
-            attempts,
-            retryable,
-            diagnostic,
-            ..
-        } = result
-        else {
-            panic!("expected unavailable: {result:?}")
+        let MechanismEscalationOutcome::Failed(error) = result else {
+            panic!("expected typed capability failure: {result:?}")
         };
-        assert_eq!(attempts, MAX_STRUCTURE_REPAIRS + 1);
-        assert!(retryable, "a missing structure must remain retryable");
-        assert!(diagnostic.contains("structure proposal"));
+        assert_eq!(error.kind(), AgentErrorKind::UnsupportedCapability);
+        assert_eq!(error.context(), "structure proposal");
+        assert!(
+            error
+                .message()
+                .contains("does not support structure proposals")
+        );
         assert_eq!(
             provider.mechanism_calls, 0,
             "mechanism escalation must wait for validated structures"
@@ -2272,6 +2630,70 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["C3H8O", "C3H8O2"]
         );
+    }
+
+    fn missing_reactant_and_product_outcome(trusted: &TrustedCatalogue) -> ValidatedStaticOutcome {
+        static_outcome_for(
+            trusted,
+            [
+                ("C3H8O", vec![6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1, 1]),
+                ("O2", vec![8, 8]),
+            ],
+            &json!([
+                {"name":"propane diol","formula":"C3H8O2","phase":"liquid","identity_hints":[]}
+            ]),
+        )
+    }
+
+    fn empty_structure_response() -> StructureProposalResponse {
+        StructureProposalResponse {
+            schema_version: crate::claim::STRUCTURE_PROPOSAL_SCHEMA_VERSION,
+            structures: Vec::new(),
+        }
+    }
+
+    fn assert_request_binding_error(error: &AgentError) {
+        assert_eq!(error.kind(), AgentErrorKind::InvalidProviderOutput);
+        assert_eq!(error.context(), "structure adoption");
+        assert_eq!(
+            error.message(),
+            "request does not exactly describe this outcome's missing species"
+        );
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_cross_side_request() {
+        let trusted = trusted();
+        let outcome = missing_reactant_and_product_outcome(&trusted);
+        let mut request = structure_proposal_request(&outcome, &trusted)
+            .expect("reactant and product structure request");
+        let first_name = request.species[0].name.clone();
+        let first_formula = request.species[0].formula.clone();
+        request.species[0].name = request.species[1].name.clone();
+        request.species[0].formula = request.species[1].formula.clone();
+        request.species[1].name = first_name;
+        request.species[1].formula = first_formula;
+
+        let error =
+            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &trusted)
+                .expect_err("a product request must not occupy the reactant position");
+
+        assert_request_binding_error(&error);
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_reordered_request() {
+        let trusted = trusted();
+        let outcome = missing_reactant_and_product_outcome(&trusted);
+        let mut request = structure_proposal_request(&outcome, &trusted)
+            .expect("reactant and product structure request");
+        request.species.swap(0, 1);
+
+        let error =
+            adopt_proposed_structures(&outcome, &request, &empty_structure_response(), &trusted)
+                .expect_err("request order must retain its outcome binding");
+
+        assert_request_binding_error(&error);
     }
 
     /// Ethylene + methanol: the product C3H8O is structurally ambiguous
@@ -2331,6 +2753,58 @@ mod tests {
             .expect("structure JSON"),
         )
         .expect("structure contract")
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_wrong_request_id() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let mut request =
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        request.species[0].id = "SubstitutedStructure1".to_owned();
+        let mut response = ether_structure();
+        let LabelledStructure::Molecular { id, .. } = &mut response.structures[0] else {
+            panic!("ether fixture must be molecular")
+        };
+        id.clone_from(&request.species[0].id);
+
+        let error = adopt_proposed_structures(&outcome, &request, &response, &trusted)
+            .expect_err("a substituted request id must not bind to the outcome");
+
+        assert_request_binding_error(&error);
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_wrong_request_name() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let mut request =
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        request.species[0].name = "substituted product".to_owned();
+
+        let error = adopt_proposed_structures(&outcome, &request, &ether_structure(), &trusted)
+            .expect_err("a substituted request name must not bind to the outcome");
+
+        assert_request_binding_error(&error);
+    }
+
+    #[test]
+    fn structure_adoption_rejects_same_count_wrong_request_formula() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let mut request =
+            structure_proposal_request(&outcome, &trusted).expect("ether structure request");
+        request.species[0].formula = "H8C3O".to_owned();
+        let mut response = ether_structure();
+        let LabelledStructure::Molecular { formula, .. } = &mut response.structures[0] else {
+            panic!("ether fixture must be molecular")
+        };
+        formula.clone_from(&request.species[0].formula);
+
+        let error = adopt_proposed_structures(&outcome, &request, &response, &trusted)
+            .expect_err("a substituted request formula must not bind to the outcome");
+
+        assert_request_binding_error(&error);
     }
 
     #[test]
@@ -2405,7 +2879,8 @@ mod tests {
         };
         let error = provisional_mechanism_bundle(&context, &response, &adopted.bundle)
             .expect_err("impossible state must fail");
-        assert_eq!(error.stage(), "provisional valence");
+        assert_eq!(error.kind(), AgentErrorKind::InvalidProviderOutput);
+        assert_eq!(error.context(), "provisional valence");
         assert!(error.to_string().contains("formal-charge identity"));
     }
 
@@ -2605,5 +3080,43 @@ mod tests {
         )
         .expect("cached escalation with structures revalidates");
         assert!(!replayed.frames().frames().is_empty());
+    }
+
+    #[test]
+    fn typed_provider_response_still_crosses_structure_wire_validation() {
+        let trusted = trusted();
+        let outcome = ether_outcome(&trusted);
+        let structures = ether_structure();
+        let request =
+            crate::structure_proposal_request(&outcome, &trusted).expect("structure request");
+        let adopted = crate::adopt_proposed_structures(&outcome, &request, &structures, &trusted)
+            .expect("valid proposal");
+        let mechanism = ether_mechanism(&adopted);
+        let mut outside_wire_contract = structures.clone();
+        let LabelledStructure::Molecular { id, .. } = &mut outside_wire_contract.structures[0]
+        else {
+            panic!("ether fixture is molecular")
+        };
+        *id = "x".repeat(121);
+        let mut provider = FakeProvider {
+            responses: VecDeque::from([mechanism]),
+            structure_responses: VecDeque::from([outside_wire_contract, structures]),
+            ..FakeProvider::default()
+        };
+
+        let result = derive_mechanism(outcome, &trusted, &mut provider);
+
+        let MechanismEscalationOutcome::Animated(animated) = result else {
+            panic!("expected repaired animation: {result:?}")
+        };
+        assert_eq!(animated.structure_repair_count(), 1);
+        assert_eq!(provider.structure_diagnostics.len(), 2);
+        assert!(
+            provider.structure_diagnostics[1]
+                .as_deref()
+                .is_some_and(|diagnostic| diagnostic.contains("120-character")),
+            "{:?}",
+            provider.structure_diagnostics
+        );
     }
 }

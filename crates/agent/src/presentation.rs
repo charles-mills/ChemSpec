@@ -65,6 +65,7 @@ pub fn enrich_static_outcome<P: MechanismProvider>(
             MechanismEscalationOutcome::Animated(outcome) => {
                 Ok(DynamicPresentationOutcome::Escalated(outcome))
             }
+            MechanismEscalationOutcome::Failed(error) => Err(error),
             MechanismEscalationOutcome::Unavailable {
                 static_outcome,
                 attempts,

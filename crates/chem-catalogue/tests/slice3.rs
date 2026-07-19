@@ -1,11 +1,13 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_catalogue::{
-    CatalogueEnvelope, CatalogueErrorCode, MacroscopicMaterialContextRecord,
+    CatalogueEnvelope, CatalogueErrorCode, CatalogueTrustPolicy, MacroscopicMaterialContextRecord,
     MacroscopicMaterialRecord, ObservationCompatibilityRecord, ObservationPredicate,
     PublicationKind, ReviewStatus, ReviewerRecord, TrustedCatalogue, ValidatedCatalogueBundle,
 };
-use chem_domain::{Phase, PremiseId, ReactionRuleId, RepresentationKind, StructureId};
+use chem_domain::{
+    ContentDigest, Phase, PremiseId, ReactionRuleId, RepresentationKind, StructureId,
+};
 use serde_json::Value;
 
 fn workspace_root() -> PathBuf {
@@ -20,6 +22,17 @@ fn fixture_bytes() -> Vec<u8> {
 fn trusted_catalogue_bytes() -> Vec<u8> {
     fs::read(workspace_root().join("catalogue/trusted/core-chemistry/catalogue.json"))
         .expect("trusted generalized catalogue should be readable")
+}
+
+fn trusted_review_bytes() -> Vec<u8> {
+    fs::read(workspace_root().join("catalogue/reviews/core-chemistry.review.json"))
+        .expect("trusted generalized catalogue review should be readable")
+}
+
+fn trust_policy() -> CatalogueTrustPolicy {
+    let envelope: CatalogueEnvelope = serde_json::from_slice(&trusted_catalogue_bytes()).unwrap();
+    let review: Value = serde_json::from_slice(&trusted_review_bytes()).unwrap();
+    CatalogueTrustPolicy::new(envelope.digest, ContentDigest::of_json(&review).unwrap())
 }
 
 fn envelope() -> CatalogueEnvelope {
@@ -119,11 +132,56 @@ fn canonical_fixture_matches_schema_digest_and_closed_domain() {
 }
 
 #[test]
-fn built_in_catalogue_loads_without_any_attestation() {
-    let trusted = TrustedCatalogue::from_canonical_json(&trusted_catalogue_bytes())
-        .expect("a validated bundle needs no review ceremony");
+fn built_in_catalogue_requires_the_exact_host_pinned_review() {
+    let catalogue_bytes = trusted_catalogue_bytes();
+    let review_bytes = trusted_review_bytes();
+    let policy = trust_policy();
+    let trusted = TrustedCatalogue::from_canonical_json(&catalogue_bytes, &review_bytes, policy)
+        .expect("the exact host-pinned catalogue and review should load");
     assert_eq!(trusted.document().elements.len(), 118);
     assert_eq!(trusted.document().generalized_rules.len(), 75);
+
+    let wrong_catalogue_policy = CatalogueTrustPolicy::new(
+        ContentDigest::sha256(b"different catalogue"),
+        policy.review_digest(),
+    );
+    let wrong_catalogue = TrustedCatalogue::from_canonical_json(
+        &catalogue_bytes,
+        &review_bytes,
+        wrong_catalogue_policy,
+    )
+    .unwrap_err();
+    assert_eq!(wrong_catalogue.code(), CatalogueErrorCode::TrustMismatch);
+    assert_eq!(wrong_catalogue.diagnostic_code(), "CHEMS-C025");
+
+    let wrong_review_policy = CatalogueTrustPolicy::new(
+        policy.catalogue_digest(),
+        ContentDigest::sha256(b"different review"),
+    );
+    let wrong_review =
+        TrustedCatalogue::from_canonical_json(&catalogue_bytes, &review_bytes, wrong_review_policy)
+            .unwrap_err();
+    assert_eq!(wrong_review.code(), CatalogueErrorCode::TrustMismatch);
+    assert_eq!(wrong_review.diagnostic_code(), "CHEMS-C025");
+
+    let mut incomplete_review: Value = serde_json::from_slice(&review_bytes).unwrap();
+    incomplete_review["premises"].as_array_mut().unwrap().pop();
+    let incomplete_bytes = serde_json::to_vec(&incomplete_review).unwrap();
+    let incomplete_policy = CatalogueTrustPolicy::new(
+        policy.catalogue_digest(),
+        ContentDigest::of_json(&incomplete_review).unwrap(),
+    );
+    let incomplete_review = TrustedCatalogue::from_canonical_json(
+        &catalogue_bytes,
+        &incomplete_bytes,
+        incomplete_policy,
+    )
+    .unwrap_err();
+    assert_eq!(
+        incomplete_review.code(),
+        CatalogueErrorCode::InvalidAttestation
+    );
+    assert_eq!(incomplete_review.diagnostic_code(), "CHEMS-C026");
 }
 
 #[test]
@@ -364,13 +422,12 @@ fn semantic_mutation_changes_digest_but_record_order_does_not() {
 }
 
 #[test]
-fn corrupt_structure_is_a_typed_system_error() {
+fn corrupt_structure_has_a_typed_catalogue_error() {
     let mut value: Value = serde_json::from_slice(&fixture_bytes()).unwrap();
     value["bundle"]["structures"][1]["atoms"][0]["formal_charge"] = Value::from(1);
     let mut envelope: CatalogueEnvelope = serde_json::from_value(value).unwrap();
     envelope = rebound(envelope);
     let error = ValidatedCatalogueBundle::validate(envelope).unwrap_err();
-    assert!(error.is_system_error());
     assert!(matches!(
         error.code(),
         CatalogueErrorCode::InvalidStructure | CatalogueErrorCode::InvalidValencePremise
