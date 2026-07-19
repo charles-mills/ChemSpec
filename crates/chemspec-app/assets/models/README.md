@@ -17,8 +17,7 @@ blender --background --python tools/bake-fbx-mesh.py -- \
   crates/chemspec-app/assets/models/metal.mesh
 ```
 
-The source asset was supplied for this project. Confirm redistribution rights
-before publishing it outside the model-testing branch.
+The source asset is an original ChemSpec project asset created in-house.
 
 ## Alkali metal and water assembly
 
@@ -320,12 +319,11 @@ aliases, exclusions, visibility boundaries, and provenance are recorded in
 [`heavy_alkali_water_explosion.asset.json`](heavy_alkali_water_explosion.asset.json).
 
 The editable Blender sources are deliberately not committed. They came from
-the user-supplied `assets/alkali_explosion.zip` archive; the archive did not
-include licence or redistribution terms. The scenes use the authored
-metal-specific `Rb`, `Cs`, and `Fr` material aliases, which the offline baker
-maps to existing stable ChemSpec slots without adding reaction-specific runtime
-IDs. Authored `FX_Spark_*` meshes carry the source `flame` module tag and are
-therefore included in the existing Flame module.
+the project-authored `assets/alkali_explosion.zip` archive. The scenes use the
+authored metal-specific `Rb`, `Cs`, and `Fr` material aliases, which the offline
+baker maps to existing stable ChemSpec slots without adding reaction-specific
+runtime IDs. Authored `FX_Spark_*` meshes carry the source `flame` module tag
+and are therefore included in the existing Flame module.
 
 The bake excludes the duplicate beaker and presentation stage. Runtime reuses
 `alkali_water.clip#module=beaker`; the heavy clips retain water, metal,

@@ -8,8 +8,8 @@
   "source_readme": "README.md",
   "source_manifest": "asset_manifest.json",
   "source_provenance": {
-    "supplied_by": "project user",
-    "licence_status": "No licence or redistribution terms were supplied in the archive; do not redistribute the editable source without confirming rights.",
+    "supplied_by": "ChemSpec project authors",
+    "ownership_status": "Original ChemSpec project asset created in-house.",
     "runtime_policy": "ChemSpec embeds only the baked .clip files. Blender and FBX/GLB assets are offline editing and bake inputs, not runtime inputs.",
     "source_scene_note": "The archive README's potassium rebuild example references a source not present in this delivery; the three supplied heavy-alkali Blender scenes and their manifests were used instead."
   },

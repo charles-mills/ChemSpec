@@ -57,7 +57,7 @@ jobs:
         run: cargo install cargo-packager --version $env:CARGO_PACKAGER_VERSION --locked
 
       - name: Build MSI
-        run: cargo packager --release --packages chemspec-app --formats wix --out-dir dist
+        run: cargo packager --release --packages chemspec-app --formats wix --out-dir "${{ github.workspace }}/dist"
 
       - name: Upload MSI
         uses: actions/upload-artifact@v4
@@ -94,7 +94,7 @@ jobs:
             | base64 --decode > target/packaging/placeholder.png
 
       - name: Build AppImage
-        run: cargo packager --release --packages chemspec-app --formats appimage --out-dir dist
+        run: cargo packager --release --packages chemspec-app --formats appimage --out-dir "${{ github.workspace }}/dist"
 
       - name: Stage standalone binary
         run: install -m 755 target/release/chemspec-app dist/chemspec-app-linux-x86_64
@@ -140,7 +140,7 @@ jobs:
         run: cargo install cargo-packager --version "$CARGO_PACKAGER_VERSION" --locked
 
       - name: Build unsigned DMG
-        run: cargo packager --release --packages chemspec-app --formats dmg --out-dir dist
+        run: cargo packager --release --packages chemspec-app --formats dmg --out-dir "${{ github.workspace }}/dist"
 
       - name: Name DMG as a universal build
         shell: bash
