@@ -89,10 +89,10 @@ fn soft_threshold(colour: vec3<f32>, threshold: f32) -> vec3<f32> {
 fn bloom_downsample(input: ScreenOutput) -> @location(0) vec4<f32> {
     let texel = blit_params.texel.xy;
     // 4-tap box on bilinear taps = 16 source pixels; enough at these sizes.
-    var colour = textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, -1.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, -1.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, 1.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, 1.0)).rgb;
+    var colour = textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, -1.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, -1.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, 1.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, 1.0), 0.0).rgb;
     colour *= 0.25;
     if (blit_params.texel.z > 0.0) {
         colour = soft_threshold(colour, blit_params.texel.z);
@@ -104,15 +104,15 @@ fn bloom_downsample(input: ScreenOutput) -> @location(0) vec4<f32> {
 @fragment
 fn bloom_upsample(input: ScreenOutput) -> @location(0) vec4<f32> {
     let texel = blit_params.texel.xy;
-    var colour = textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, -1.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, -1.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, 1.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, 1.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(-2.0, 0.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(2.0, 0.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(0.0, -2.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv + texel * vec2<f32>(0.0, 2.0)).rgb;
-    colour += textureSample(source_texture, source_sampler, input.uv).rgb * 4.0;
+    var colour = textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, -1.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, -1.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(-1.0, 1.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(1.0, 1.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(-2.0, 0.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(2.0, 0.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(0.0, -2.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv + texel * vec2<f32>(0.0, 2.0), 0.0).rgb;
+    colour += textureSampleLevel(source_texture, source_sampler, input.uv, 0.0).rgb * 4.0;
     colour /= 12.0;
     return vec4<f32>(colour * blit_params.texel.w, 1.0);
 }
@@ -123,7 +123,7 @@ fn bloom_upsample(input: ScreenOutput) -> @location(0) vec4<f32> {
 // scale in pixels, w = world radius), source texture = resolved aux buffer.
 @fragment
 fn ssao_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
-    let centre = textureSample(source_texture, source_sampler, input.uv);
+    let centre = textureSampleLevel(source_texture, source_sampler, input.uv, 0.0);
     let centre_distance = centre.w;
     if (centre_distance <= 0.01) {
         return vec4<f32>(1.0);
@@ -136,7 +136,7 @@ fn ssao_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
         let angle = f32(tap) * 2.399963;
         let reach = (f32(tap) + 1.0) / 8.0;
         let offset = vec2<f32>(cos(angle), sin(angle)) * reach * radius_px * blit_params.texel.xy;
-        let sample = textureSample(source_texture, source_sampler, input.uv + offset);
+        let sample = textureSampleLevel(source_texture, source_sampler, input.uv + offset, 0.0);
         if (sample.w <= 0.01) {
             continue;
         }
@@ -258,14 +258,14 @@ fn composite_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
             uv += wave * falloff * heat.w * 0.014;
         }
     }
-    let scene = textureSample(scene_texture, composite_sampler, uv).rgb;
-    let bloom = textureSample(bloom_texture, composite_sampler, uv).rgb;
+    let scene = textureSampleLevel(scene_texture, composite_sampler, uv, 0.0).rgb;
+    let bloom = textureSampleLevel(bloom_texture, composite_sampler, uv, 0.0).rgb;
     // A camera stopping down against flame glare: the exposure dips with the
     // flame envelope and recovers as it fades. Deliberately restrained.
     let exposure = composite_params.values.x / (1.0 + composite_params.clock.y * 0.26);
     let bloom_strength = composite_params.values.y;
     // Ambient occlusion darkens the scene term only, never the bloom.
-    let ao = textureSample(ao_texture, composite_sampler, uv).r;
+    let ao = textureSampleLevel(ao_texture, composite_sampler, uv, 0.0).r;
     var colour = scene * ao;
 
     // Volumetric key-light shafts: a short march through height fog, carved
@@ -278,7 +278,7 @@ fn composite_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
             * vec4<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 0.9, 1.0);
         let origin = composite_params.ray.xyz;
         let direction = normalize(far_world.xyz / far_world.w - near_world.xyz / near_world.w);
-        let pixel_distance = textureSample(aux_texture, composite_sampler, uv).w;
+        let pixel_distance = textureSampleLevel(aux_texture, composite_sampler, uv, 0.0).w;
         let march_end = clamp(pixel_distance, 1.0, 14.0);
         let bench_top = composite_params.ray.w;
         var accumulated = 0.0;
@@ -295,16 +295,38 @@ fn composite_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
         colour += vec3<f32>(0.55, 0.63, 0.72) * shafts;
     }
 
-    // Close-up focus: tilt-shift-style softening away from frame centre.
+    // Close-up focus: tilt-shift softening away from frame centre, with a
+    // six-tap disc kernel whose highlight weighting rounds bright glints
+    // into bokeh discs instead of smearing them.
     let focus = composite_params.values.w;
     if (focus > 0.001) {
-        let blurred = textureSample(blur_texture, composite_sampler, uv).rgb;
         let centred = uv - vec2<f32>(0.5, 0.46);
         let edge = smoothstep(0.12, 0.55, dot(centred, centred) * 2.6);
-        colour = mix(colour, blurred, edge * focus);
+        let amount = edge * focus;
+        let radius = amount * 0.011;
+        var accum = vec3<f32>(0.0);
+        var weight_sum = 0.0;
+        for (var tap = 0u; tap < 6u; tap += 1u) {
+            let angle = f32(tap) * 1.0471976;
+            let offset = vec2<f32>(cos(angle), sin(angle)) * radius;
+            let tap_colour = textureSampleLevel(blur_texture, composite_sampler, uv + offset, 0.0).rgb;
+            let brightness = dot(tap_colour, vec3<f32>(0.3333));
+            let weight = 1.0 + brightness * brightness * 3.0;
+            accum += tap_colour * weight;
+            weight_sum += weight;
+        }
+        colour = mix(colour, accum / weight_sum, amount);
     }
     colour = (colour + bloom * bloom_strength) * exposure;
     colour = tonemap_pbr_neutral(max(colour, vec3<f32>(0.0)));
+    // End-card: the closing glide draws a soft vignette that frames the
+    // arrival like a title card, then holds it.
+    let endcard = composite_params.clock.w;
+    if (endcard > 0.001) {
+        let framed = input.uv - vec2<f32>(0.5, 0.47);
+        let vignette = 1.0 - smoothstep(0.32, 0.95, dot(framed, framed) * 2.2) * 0.34 * endcard;
+        colour *= vignette;
+    }
     if (composite_params.values.z > 0.5) {
         colour = pow(colour, vec3<f32>(1.0 / 2.2));
     }

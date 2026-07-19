@@ -1,10 +1,10 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use chem_catalogue::{
-    CatalogueEnvelope, CatalogueErrorCode, MacroscopicMaterialContextRecord,
-    MacroscopicMaterialRecord, ObservationCompatibilityRecord, ObservationPredicate,
-    PublicationKind, ReferenceCatalogue, ReferenceIntegrityPolicy, ReviewStatus, ReviewerRecord,
-    ValidatedCatalogueBundle,
+    CatalogueEnvelope, CatalogueErrorCode, ExplosiveWaterContactVariantRecord,
+    MacroscopicMaterialContextRecord, MacroscopicMaterialRecord, ObservationCompatibilityRecord,
+    ObservationPredicate, PublicationKind, ReferenceCatalogue, ReferenceIntegrityPolicy,
+    ReviewStatus, ReviewerRecord, ValidatedCatalogueBundle, WaterContactBehaviourRecord,
 };
 use chem_domain::{
     ContentDigest, Phase, PremiseId, ReactionRuleId, RepresentationKind, StructureId,
@@ -208,7 +208,9 @@ fn optional_macroscopic_materials_are_backward_compatible_and_role_aware() {
             context: MacroscopicMaterialContextRecord::Standard,
             phase: Phase::Solid,
             colour: None,
-            water_contact: None,
+            water_contact: Some(WaterContactBehaviourRecord::Explosive {
+                variant: ExplosiveWaterContactVariantRecord::Rubidium,
+            }),
             premise_ids: [premise.clone()].into_iter().collect(),
         },
         MacroscopicMaterialRecord {
@@ -237,9 +239,13 @@ fn optional_macroscopic_materials_are_backward_compatible_and_role_aware() {
     );
     let enriched =
         ValidatedCatalogueBundle::validate(enriched).expect("reviewed phase records validate");
+    let standard = enriched.macroscopic_material(&lithium, None).unwrap();
+    assert_eq!(standard.phase, Phase::Solid);
     assert_eq!(
-        enriched.macroscopic_material(&lithium, None).unwrap().phase,
-        Phase::Solid
+        standard.water_contact,
+        Some(WaterContactBehaviourRecord::Explosive {
+            variant: ExplosiveWaterContactVariantRecord::Rubidium,
+        })
     );
     let contextual = enriched
         .macroscopic_material(&lithium, Some((&rule, "metal")))

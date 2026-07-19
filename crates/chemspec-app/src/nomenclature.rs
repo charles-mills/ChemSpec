@@ -259,26 +259,13 @@ fn ionic_pair_name(
     agent::ion_pair_name(&cation, cation_charge, &anion_unit, anion_charge)
 }
 
-/// Plain formula fallback: carbon, hydrogen, then the rest alphabetically.
+/// Plain formula fallback in shared conventional order (`LiOH`, not `HLiO`).
 fn formula_text(counts: &BTreeMap<String, u64>) -> String {
-    let mut formula = String::new();
-    let mut append = |symbol: &str, count: u64| {
-        formula.push_str(symbol);
-        if count > 1 {
-            formula.push_str(&count.to_string());
-        }
-    };
-    for symbol in ["C", "H"] {
-        if let Some(count) = counts.get(symbol) {
-            append(symbol, *count);
-        }
-    }
-    for (symbol, count) in counts {
-        if symbol != "C" && symbol != "H" {
-            append(symbol, *count);
-        }
-    }
-    formula
+    chem_domain::conventional_formula(
+        counts
+            .iter()
+            .map(|(symbol, count)| (symbol.as_str(), *count)),
+    )
 }
 
 #[cfg(test)]

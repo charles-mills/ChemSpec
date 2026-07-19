@@ -963,6 +963,48 @@ impl StructureDefinition {
     pub const fn graph(&self) -> &StructuralGraph {
         &self.graph
     }
+
+    /// Conventional display formula. Ionic structures write their cations
+    /// first and recognise hydroxide groups (`LiOH`, `Ca(OH)2`, `NaHCO3`);
+    /// other representations use the counts-based convention. Display text
+    /// only — identity and digests use the normalized composition.
+    #[must_use]
+    pub fn conventional_formula(&self) -> String {
+        let mut cations = BTreeMap::<&str, u64>::new();
+        let mut rest = BTreeMap::<&str, u64>::new();
+        for atom in self.graph.atoms().values() {
+            let bucket = if self.representation == RepresentationKind::Ionic
+                && atom.electrons().formal_charge() > 0
+            {
+                &mut cations
+            } else {
+                &mut rest
+            };
+            *bucket.entry(atom.element().as_str()).or_insert(0) += 1;
+        }
+        if cations.is_empty() {
+            return crate::formula::conventional_formula(
+                rest.iter().map(|(symbol, count)| (*symbol, *count)),
+            );
+        }
+        let mut formula = crate::formula::conventional_formula(
+            cations.iter().map(|(symbol, count)| (*symbol, *count)),
+        );
+        let oxygen = rest.get("O").copied().unwrap_or(0);
+        if rest.len() == 2 && oxygen > 0 && rest.get("H").copied() == Some(oxygen) {
+            if oxygen == 1 {
+                formula.push_str("OH");
+            } else {
+                formula.push_str("(OH)");
+                formula.push_str(&oxygen.to_string());
+            }
+        } else {
+            formula.push_str(&crate::formula::conventional_formula(
+                rest.iter().map(|(symbol, count)| (*symbol, *count)),
+            ));
+        }
+        formula
+    }
 }
 
 /// One coefficient-expanded structure instance with globally stable atom IDs.

@@ -44,6 +44,7 @@ const MATERIAL_GLASS: u32 = 2;
 const MATERIAL_EMISSIVE: u32 = 3;
 const MATERIAL_METAL: u32 = 4;
 
+#[cfg(test)]
 fn fixed_view_direction() -> Vec3 {
     -(Quat::from_rotation_y(FIXED_CAMERA_YAW) * Quat::from_rotation_x(FIXED_CAMERA_PITCH) * Vec3::Z)
 }
@@ -168,84 +169,173 @@ fn closing_hero_blend(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
     smooth01((elapsed - (total - window)) / window)
 }
 
-/// Resolves the authored camera cue active at this moment, easing into each
-/// cue from the previous one over the first fifth of its span. Past either
-/// end of the schedule the nearest cue's pose holds — the camera never snaps
-/// to a default. The closing stretch glides into [`HERO_ARRIVAL`].
+/// Resolves the timeline's per-beat camera performance at this moment,
+/// easing into each beat's behaviour from the previous one over the first
+/// fifth of the beat. Past the schedule the final pose holds — the camera
+/// never snaps to a default. The closing stretch glides into
+/// [`HERO_ARRIVAL`] with a gentle orbit reveal.
 fn camera_cue_adjustment(plan: &ScenePlan, moment: RealWorldPosition) -> CueAdjustment {
     const TRANSITION: f32 = 0.2;
-    let position = f32::from(moment.ordinal) + moment.ordinal_progress.clamp(0.0, 1.0);
-    let index = plan
-        .camera
-        .iter()
-        .position(|cue| {
-            f32::from(cue.start_ordinal) <= position && position < f32::from(cue.end_ordinal) + 1.0
-        })
-        .or_else(|| {
-            // Off the schedule: hold the nearest cue instead of snapping.
-            plan.camera
-                .last()
-                .is_some_and(|cue| position >= f32::from(cue.end_ordinal) + 1.0)
-                .then_some(plan.camera.len().saturating_sub(1))
-                .or_else(|| (!plan.camera.is_empty()).then_some(0))
-        });
-    let Some(index) = index else {
-        return CueAdjustment::NEUTRAL.lerp(HERO_ARRIVAL, closing_hero_blend(plan, moment));
+    let beats = &plan.timeline.beats;
+    let blend = closing_hero_blend(plan, moment);
+    let Some(last_index) = beats.len().checked_sub(1) else {
+        return CueAdjustment::NEUTRAL.lerp(HERO_ARRIVAL, blend);
     };
-    let cue = &plan.camera[index];
-    let span = (f32::from(cue.end_ordinal) - f32::from(cue.start_ordinal) + 1.0).max(1.0);
-    let progress = ((position - f32::from(cue.start_ordinal)) / span).clamp(0.0, 1.0);
-    let current = behaviour_adjustment(cue.behaviour, progress);
-    let cue_pose = if progress < TRANSITION {
-        let previous = index
-            .checked_sub(1)
-            .map_or(CueAdjustment::NEUTRAL, |previous| {
-                behaviour_adjustment(plan.camera[previous].behaviour, 1.0)
-            });
-        previous.lerp(current, smooth01(progress / TRANSITION))
+    let index = moment.beat_index.min(last_index);
+    let progress = if moment.beat_index > last_index {
+        1.0
+    } else {
+        moment.beat_progress.clamp(0.0, 1.0)
+    };
+    let current = behaviour_adjustment(beats[index].camera.behaviour, progress);
+    let cue_pose = if progress < TRANSITION && index > 0 {
+        behaviour_adjustment(beats[index - 1].camera.behaviour, 1.0)
+            .lerp(current, smooth01(progress / TRANSITION))
     } else {
         current
     };
-    cue_pose.lerp(HERO_ARRIVAL, closing_hero_blend(plan, moment))
+    let mut pose = cue_pose.lerp(HERO_ARRIVAL, blend);
+    // Orbit reveal: the closing glide sweeps around the outcome before
+    // settling into the hero yaw. Zero at both ends keeps the join and the
+    // arrival exactly where the tests pin them.
+    pose.yaw_offset += blend * (1.0 - blend) * 1.35;
+    pose
 }
 
 #[derive(Debug, Clone)]
 pub struct Scene {
     plan: ScenePlan,
     moment: RealWorldPosition,
+    /// Pause-orbit: while playback is paused the user may drag to orbit the
+    /// bench; on resume the directed camera takes over again.
+    orbit_enabled: bool,
 }
 
 impl Scene {
-    pub fn new(plan: &ScenePlan, moment: RealWorldPosition) -> Self {
+    pub fn new(plan: &ScenePlan, moment: RealWorldPosition, orbit_enabled: bool) -> Self {
         Self {
             plan: plan.clone(),
             moment,
+            orbit_enabled,
         }
     }
 }
 
-/// Deliberately stateless: the macroscopic view has no orbit, pan, or zoom
-/// interaction. Vessel-size framing is derived deterministically from the plan.
+/// Interactive pause-orbit state. Playback itself stays a pure function of
+/// the playhead; this only holds the user's paused-view offsets.
 #[derive(Debug, Default)]
-pub struct FixedCameraState;
+pub struct OrbitState {
+    dragging: bool,
+    last_cursor: Option<iced::Point>,
+    yaw: f32,
+    pitch: f32,
+}
 
 impl<Message> Program<Message> for Scene {
-    type State = FixedCameraState;
+    type State = OrbitState;
     type Primitive = ScenePrimitive;
+
+    fn update(
+        &self,
+        state: &mut Self::State,
+        event: &iced::Event,
+        bounds: Rectangle,
+        cursor: iced::mouse::Cursor,
+    ) -> Option<iced::widget::Action<Message>> {
+        use iced::mouse;
+        if !self.orbit_enabled {
+            // Resuming playback hands the camera back to the director.
+            if state.dragging || state.yaw != 0.0 || state.pitch != 0.0 {
+                *state = OrbitState::default();
+                return Some(iced::widget::Action::request_redraw());
+            }
+            return None;
+        }
+        match event {
+            iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+                if cursor.is_over(bounds) =>
+            {
+                state.dragging = true;
+                state.last_cursor = cursor.position();
+                Some(iced::widget::Action::capture())
+            }
+            iced::Event::Mouse(mouse::Event::CursorMoved { .. }) if state.dragging => {
+                if let (Some(previous), Some(current)) = (state.last_cursor, cursor.position()) {
+                    state.yaw += (current.x - previous.x) * 0.008;
+                    state.pitch = (state.pitch + (current.y - previous.y) * 0.006).clamp(-0.5, 0.6);
+                }
+                state.last_cursor = cursor.position();
+                Some(iced::widget::Action::request_redraw().and_capture())
+            }
+            iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+                if state.dragging =>
+            {
+                state.dragging = false;
+                Some(iced::widget::Action::capture())
+            }
+            _ => None,
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        state: &Self::State,
+        bounds: Rectangle,
+        cursor: iced::mouse::Cursor,
+    ) -> iced::mouse::Interaction {
+        if self.orbit_enabled && cursor.is_over(bounds) {
+            if state.dragging {
+                iced::mouse::Interaction::Grabbing
+            } else {
+                iced::mouse::Interaction::Grab
+            }
+        } else {
+            iced::mouse::Interaction::default()
+        }
+    }
 
     fn draw(
         &self,
-        _state: &Self::State,
+        state: &Self::State,
         _cursor: iced::mouse::Cursor,
         _bounds: Rectangle,
     ) -> Self::Primitive {
+        let orbit = if self.orbit_enabled {
+            (state.yaw, state.pitch)
+        } else {
+            (0.0, 0.0)
+        };
         let (vertices, indices, opaque_index_count, transparent_index_count, mut gas_splats) =
-            build_scene_at(&self.plan, self.moment);
+            build_scene_at(&self.plan, self.moment, orbit);
         let camera = fixed_camera_pose(&self.plan);
         let layout = SceneLayout::resolve(&self.plan);
         let cue = camera_cue_adjustment(&self.plan, self.moment);
-        let yaw = camera.yaw + cue.yaw_offset;
-        let pitch = camera.pitch + cue.pitch_offset;
+        let time_seconds = self.plan.timeline.elapsed_ms_at(self.moment).unwrap_or(0.0) / 1000.0;
+        let final_ordinal = self
+            .plan
+            .timeline
+            .beats
+            .last()
+            .map_or(self.moment.ordinal, |beat| beat.end_ordinal);
+        let inputs = ReactionVisualInputs::from_effects(
+            &self.plan.effects,
+            self.moment.ordinal,
+            self.moment.ordinal_progress,
+            final_ordinal,
+        );
+        let post_process =
+            post_process_visual_state(&self.plan, self.moment.stage, self.moment.beat_progress);
+        // Restrained handheld shake, driven by what the chemistry is doing:
+        // pressure impulses and rolling boils nudge the camera a fraction of
+        // a degree on two incommensurate frequencies.
+        let shake = inputs
+            .pressure_impulse
+            .max(post_process.boiling * 0.5)
+            .min(1.0);
+        let shake_yaw = (time_seconds * 23.7).sin() * (time_seconds * 5.9).cos() * 0.0035 * shake;
+        let shake_pitch = (time_seconds * 19.1).sin() * 0.0028 * shake;
+        let yaw = camera.yaw + cue.yaw_offset + shake_yaw + orbit.0;
+        let pitch = (camera.pitch + cue.pitch_offset + shake_pitch + orbit.1).clamp(-1.35, -0.12);
         let focus_target = layout
             .camera_target
             .lerp(layout.reaction_point, cue.target_blend);
@@ -261,50 +351,7 @@ impl<Message> Program<Message> for Scene {
             right_depth.total_cmp(&left_depth)
         });
 
-        let time_seconds = self.plan.timeline.elapsed_ms_at(self.moment).unwrap_or(0.0) / 1000.0;
-        let (caustic, caustic_tint) = if layout.has_vessel && layout.has_liquid {
-            let tint = self
-                .plan
-                .objects
-                .iter()
-                .find(|object| object.role == SceneRole::Contents)
-                .map_or([0.36, 0.62, 0.74, 0.28], |object| {
-                    appearance_color(object.appearance)
-                });
-            // Lift the linear tint toward white: focused light stays bright
-            // even through strongly coloured solutions.
-            let linear = |value: f32| value.max(0.0).powf(2.2) * 0.5 + 0.5;
-            (
-                [
-                    layout.vessel_center.x,
-                    layout.vessel_center.z,
-                    0.92 * layout.vessel_scale.x,
-                    1.0,
-                ],
-                [
-                    linear(tint[0]),
-                    linear(tint[1]),
-                    linear(tint[2]),
-                    layout.bench_top,
-                ],
-            )
-        } else {
-            ([0.0; 4], [0.0, 0.0, 0.0, layout.bench_top])
-        };
-        let final_ordinal = self
-            .plan
-            .timeline
-            .beats
-            .last()
-            .map_or(self.moment.ordinal, |beat| beat.end_ordinal);
-        let inputs = ReactionVisualInputs::from_effects(
-            &self.plan.effects,
-            self.moment.ordinal,
-            self.moment.ordinal_progress,
-            final_ordinal,
-        );
-        let post_process =
-            post_process_visual_state(&self.plan, self.moment.stage, self.moment.beat_progress);
+        let (caustic, caustic_tint) = scene_caustics(&self.plan, layout);
         let heat_strength = inputs
             .heat_output
             .max(inputs.flame_rate * 0.85)
@@ -331,7 +378,41 @@ impl<Message> Program<Message> for Scene {
                 .gas_generation_rate
                 .max(inputs.vapour_generation_rate)
                 .max(post_process.vapour),
+            endcard: closing_hero_blend(&self.plan, self.moment),
         }
+    }
+}
+
+/// Bench caustic footprint and light tint for the standing liquid, or a
+/// disabled set when the scene has no lit basin.
+fn scene_caustics(plan: &ScenePlan, layout: SceneLayout) -> ([f32; 4], [f32; 4]) {
+    if layout.has_vessel && layout.has_liquid {
+        let tint = plan
+            .objects
+            .iter()
+            .find(|object| object.role == SceneRole::Contents)
+            .map_or([0.36, 0.62, 0.74, 0.28], |object| {
+                appearance_color(object.appearance)
+            });
+        // Lift the linear tint toward white: focused light stays bright
+        // even through strongly coloured solutions.
+        let linear = |value: f32| value.max(0.0).powf(2.2) * 0.5 + 0.5;
+        (
+            [
+                layout.vessel_center.x,
+                layout.vessel_center.z,
+                0.92 * layout.vessel_scale.x,
+                1.0,
+            ],
+            [
+                linear(tint[0]),
+                linear(tint[1]),
+                linear(tint[2]),
+                layout.bench_top,
+            ],
+        )
+    } else {
+        ([0.0; 4], [0.0, 0.0, 0.0, layout.bench_top])
     }
 }
 
@@ -656,6 +737,9 @@ pub struct ScenePrimitive {
     focus_strength: f32,
     /// 0..1 flame envelope driving the composite's exposure dip.
     flame_exposure: f32,
+    /// 0..1 closing-glide blend: the composite frames the arrival with a
+    /// gentle end-card vignette.
+    endcard: f32,
     /// 0..1 gas/vapour envelope driving the volumetric haze.
     fog_strength: f32,
 }
@@ -1968,7 +2052,7 @@ impl ScenePrimitive {
                         self.time_seconds,
                         self.flame_exposure,
                         self.fog_strength,
-                        0.0,
+                        self.endcard,
                     ],
                     ray: [eye.x, eye.y, eye.z, self.caustic_tint[3]],
                 }),
@@ -2756,12 +2840,76 @@ fn build_scene(
         MacroscopicStage::Reaction,
         progress,
         None,
+        fixed_view_direction(),
     )
+}
+
+/// A spatial callout for the active narration: while an annotation is on
+/// screen, a hairline leader with a glowing tip rises from the reaction
+/// point, anchoring the caption's words to the place they describe. The
+/// renderer stays chemistry-blind — the text itself lives in the caption
+/// panel; this only marks where.
+fn add_annotation_marker(
+    meshes: &mut SceneMeshes,
+    plan: &ScenePlan,
+    layout: SceneLayout,
+    ordinal: u16,
+    progress: f32,
+) {
+    let active = plan.annotations.iter().find(|annotation| {
+        annotation.start_ordinal <= ordinal && ordinal <= annotation.end_ordinal
+    });
+    // The marker geometry is ALWAYS emitted (invisible at alpha zero when no
+    // annotation is active): constant topology keeps per-moment meshes free
+    // of entity churn, which other scene invariants rely on.
+    let alpha = active.map_or(0.0, |annotation| {
+        let ramp_in = if ordinal == annotation.start_ordinal {
+            smooth01(progress / 0.18)
+        } else {
+            1.0
+        };
+        let ramp_out = if ordinal == annotation.end_ordinal {
+            smooth01((1.0 - progress) / 0.25)
+        } else {
+            1.0
+        };
+        ramp_in.min(ramp_out)
+    });
+    let anchor = layout.reaction_point;
+    let top = anchor + Vec3::Y * 0.34;
+    add_cylinder(
+        &mut meshes.translucent,
+        anchor + Vec3::Y * 0.06,
+        top,
+        0.003,
+        [0.55, 0.62, 0.68, 0.30 * alpha],
+    );
+    let pulse = 1.0 + (progress * std::f32::consts::TAU * 2.0).sin() * 0.14;
+    add_sphere(
+        &mut meshes.translucent,
+        top,
+        0.013 * pulse,
+        [0.62, 0.70, 0.76, 0.55 * alpha],
+        4,
+        6,
+    );
+}
+
+/// The cue-adjusted view direction at this moment (shake excluded: its
+/// fraction of a degree cannot flip triangle ordering).
+fn live_view_direction(plan: &ScenePlan, moment: RealWorldPosition, orbit: (f32, f32)) -> Vec3 {
+    let cue = camera_cue_adjustment(plan, moment);
+    -(Quat::from_rotation_y(FIXED_CAMERA_YAW + cue.yaw_offset + orbit.0)
+        * Quat::from_rotation_x(
+            (FIXED_CAMERA_PITCH + cue.pitch_offset + orbit.1).clamp(-1.35, -0.12),
+        )
+        * Vec3::Z)
 }
 
 fn build_scene_at(
     plan: &ScenePlan,
     moment: RealWorldPosition,
+    orbit: (f32, f32),
 ) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let authored_clip_progress =
         if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
@@ -2781,6 +2929,7 @@ fn build_scene_at(
         moment.stage,
         moment.beat_progress,
         Some(authored_clip_progress),
+        live_view_direction(plan, moment, orbit),
     )
 }
 
@@ -2792,9 +2941,11 @@ fn build_scene_with_stage(
     stage: MacroscopicStage,
     stage_progress: f32,
     authored_clip_progress: Option<f32>,
+    view_direction: Vec3,
 ) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let mut meshes = SceneMeshes::default();
     let layout = SceneLayout::resolve(plan);
+    add_annotation_marker(&mut meshes, plan, layout, ordinal, progress);
     let final_ordinal = plan
         .timeline
         .beats
@@ -2863,7 +3014,7 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel && object.asset == AssetProfile::ReactiveMetalWaterAssembly
@@ -2874,7 +3025,7 @@ fn build_scene_with_stage(
             layout,
             authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
         add_animated_gas_evolution_assembly(
@@ -2885,7 +3036,7 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
         add_animated_metal_displacement_assembly(
@@ -2896,7 +3047,7 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.solid_solid_synthesis.is_some() {
         add_animated_synthesis_combination_assembly(
@@ -2907,7 +3058,7 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel
@@ -2928,7 +3079,7 @@ fn build_scene_with_stage(
                 ordinal_progress: progress,
             },
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if let Some(assembly) = plan.objects.iter().find(|object| {
         object.role == SceneRole::Vessel
@@ -2944,7 +3095,7 @@ fn build_scene_with_stage(
             layout,
             authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel
@@ -2958,7 +3109,7 @@ fn build_scene_with_stage(
             ordinal,
             progress,
         );
-        return meshes.finish();
+        return meshes.finish(view_direction);
     }
     for object in &plan.objects {
         if object.visible_from_ordinal <= ordinal {
@@ -3045,7 +3196,7 @@ fn build_scene_with_stage(
             stage_progress,
         );
     }
-    meshes.finish()
+    meshes.finish(view_direction)
 }
 
 fn scene_effect_colours(plan: &ScenePlan, ordinal: u16, progress: f32) -> EffectColours {
@@ -5928,7 +6079,7 @@ struct SceneMeshes {
 }
 
 impl SceneMeshes {
-    fn finish(self) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
+    fn finish(self, view_direction: Vec3) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
         let mut vertices = Vec::with_capacity(
             self.opaque.vertices.len()
                 + self.metallic.vertices.len()
@@ -5960,6 +6111,7 @@ impl SceneMeshes {
         append_mesh(&mut vertices, &mut indices, self.glass, MATERIAL_GLASS);
         let transparent_index_count = u32::try_from(indices.len()).unwrap_or(u32::MAX);
         sort_transparent_triangles(
+            view_direction,
             &vertices,
             &mut indices[opaque_index_count as usize..transparent_index_count as usize],
         );
@@ -5994,11 +6146,11 @@ fn append_mesh(vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>, mesh: Mesh
     );
 }
 
-/// Depth-sorts alpha-blended triangles back-to-front along the fixed view
-/// axis so liquid and glass layer correctly regardless of submission order.
-/// Deterministic: stable sort over exact centroid depths.
-fn sort_transparent_triangles(vertices: &[GpuVertex], indices: &mut [u32]) {
-    let view_direction = fixed_view_direction();
+/// Depth-sorts alpha-blended triangles back-to-front along the live view
+/// axis (camera cues, orbit and all) so liquid and glass layer correctly
+/// regardless of submission order. Deterministic: stable sort over exact
+/// centroid depths.
+fn sort_transparent_triangles(view_direction: Vec3, vertices: &[GpuVertex], indices: &mut [u32]) {
     let mut triangles: Vec<(f32, [u32; 3])> = indices
         .chunks_exact(3)
         .map(|triangle| {
@@ -6131,6 +6283,7 @@ fn add_animated_explosive_metal_water_assembly(
         }
         let colour =
             explosive_metal_water_track_colour(track.colour, explosive, ordinal, ordinal_progress);
+        let track_frame = explosive_metal_water_track_frame(track.module, frame);
         let destination = match (track.pass, track.colour, track.module) {
             (_, ClipColour::Glass, _) | (_, _, ClipModule::BeakerShards) => &mut meshes.glass,
             (ClipPass::Opaque, _, _) => &mut meshes.opaque,
@@ -6141,7 +6294,7 @@ fn add_animated_explosive_metal_water_assembly(
             destination,
             clip,
             track,
-            frame,
+            track_frame,
             layout.bench_top,
             1.0,
             colour,
@@ -6150,17 +6303,31 @@ fn add_animated_explosive_metal_water_assembly(
 }
 
 fn explosive_metal_water_track_visible(module: ClipModule, frame: f32) -> bool {
-    // These source-scene modules are setup geometry before the authored
-    // contact beat. The manifest's 1–40 drop, 40–65 fireball, and 45–95
-    // steam/splash intervals remain intact; this only suppresses zero-scale
-    // source setup that the compact clip format cannot encode as visibility.
+    // The compact clip format does not encode Blender visibility, so enforce
+    // the authored source-frame windows recorded in the asset manifest. Clip
+    // frame zero corresponds to source frame one.
     match module {
+        ClipModule::Metal => frame < 39.0,
         ClipModule::BeakerShards
         | ClipModule::Explosion
         | ClipModule::Flame
-        | ClipModule::Sparks => frame >= 39.0,
-        ClipModule::Bubbles | ClipModule::Splashes | ClipModule::Vapour => frame >= 44.0,
+        | ClipModule::Sparks => (39.0..65.0).contains(&frame),
+        ClipModule::Bubbles | ClipModule::Splashes | ClipModule::Vapour => {
+            (44.0..95.0).contains(&frame)
+        }
         _ => true,
+    }
+}
+
+fn explosive_metal_water_track_frame(module: ClipModule, frame: f32) -> f32 {
+    // The source liquid is hidden at contact while dedicated explosion and
+    // splash modules take over. Preserve its last contained frame so the
+    // validated aqueous product has a stable final surface instead of the
+    // invisible source object's rapidly expanding setup mesh.
+    if module == ClipModule::Water {
+        frame.min(38.0)
+    } else {
+        frame
     }
 }
 
@@ -9017,7 +9184,7 @@ mod tests {
                 .timeline
                 .locate(playhead)
                 .expect("playhead within timeline");
-            let _ = build_scene_at(&plan, moment);
+            let _ = build_scene_at(&plan, moment, (0.0, 0.0));
         }
         eprintln!(
             "scene rebuild across playhead: avg {:?}",
@@ -9082,11 +9249,21 @@ mod tests {
         };
 
         // The glide approaches the arrival monotonically through the beat.
-        let early = camera_cue_adjustment(&plan, moment(0.0));
-        let mid = camera_cue_adjustment(&plan, moment(0.6));
+        // No cut anywhere in the closing beat: fine steps stay small.
+        let mut previous = camera_cue_adjustment(&plan, moment(0.0));
+        for step in 1..=50_u16 {
+            let pose = camera_cue_adjustment(&plan, moment(f32::from(step) / 50.0));
+            assert!(
+                (pose.distance_scale - previous.distance_scale).abs() < 0.02,
+                "distance cut at step {step}"
+            );
+            assert!(
+                (pose.yaw_offset - previous.yaw_offset).abs() < 0.06,
+                "yaw cut at step {step}"
+            );
+            previous = pose;
+        }
         let arrived = camera_cue_adjustment(&plan, moment(1.0));
-        assert!(early.distance_scale > mid.distance_scale);
-        assert!(mid.distance_scale > arrived.distance_scale);
         assert!((arrived.distance_scale - HERO_ARRIVAL.distance_scale).abs() < 1e-3);
         assert!((arrived.pitch_offset - HERO_ARRIVAL.pitch_offset).abs() < 1e-3);
 
@@ -9269,7 +9446,7 @@ mod tests {
             chemistry::Halogen::Chlorine,
         ));
         let camera = fixed_camera_pose(&plan);
-        assert_eq!(std::mem::size_of::<FixedCameraState>(), 0);
+        assert!(std::mem::size_of::<OrbitState>() > 0);
         assert!(camera.pitch < -0.5);
         assert_eq!(camera, fixed_camera_pose(&plan));
 
@@ -9601,7 +9778,7 @@ mod tests {
                         seed: 91,
                     }),
                 );
-                let (vertices, _, _, _, gas_splats) = meshes.finish();
+                let (vertices, _, _, _, gas_splats) = meshes.finish(fixed_view_direction());
                 if asset == AssetProfile::GasCloud {
                     gas_splats
                         .into_iter()
@@ -10823,7 +11000,11 @@ mod tests {
         assert!((finished.crystal_growth - 1.0).abs() < f32::EPSILON);
         assert!(finished.flame <= f32::EPSILON);
 
-        let boiling = build_scene_at(&plan, moment(MacroscopicStage::SolventBoiling, 0.58));
+        let boiling = build_scene_at(
+            &plan,
+            moment(MacroscopicStage::SolventBoiling, 0.58),
+            (0.0, 0.0),
+        );
         assert!(
             !boiling.4.is_empty(),
             "boiling solvent must emit an advected vapour volume"
@@ -10833,8 +11014,16 @@ mod tests {
             "the burner must contribute a separate emissive flame pass"
         );
 
-        let crystals = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
-        let repeated = build_scene_at(&plan, moment(MacroscopicStage::CrystalGrowth, 1.0));
+        let crystals = build_scene_at(
+            &plan,
+            moment(MacroscopicStage::CrystalGrowth, 1.0),
+            (0.0, 0.0),
+        );
+        let repeated = build_scene_at(
+            &plan,
+            moment(MacroscopicStage::CrystalGrowth, 1.0),
+            (0.0, 0.0),
+        );
         let clip = neutralisation_clip();
         let salt = clip
             .tracks
@@ -10945,14 +11134,15 @@ mod tests {
             .timeline
             .locate(start_ms + 3_000)
             .expect("midpoint is on the timeline");
-        let first_sample = build_scene_at(&plan, midpoint);
+        let first_sample = build_scene_at(&plan, midpoint, (0.0, 0.0));
         let _later_sample = build_scene_at(
             &plan,
             plan.timeline
                 .locate(start_ms + 5_000)
                 .expect("later sample is on the timeline"),
+            (0.0, 0.0),
         );
-        let repeated_midpoint = build_scene_at(&plan, midpoint);
+        let repeated_midpoint = build_scene_at(&plan, midpoint, (0.0, 0.0));
         assert_eq!(
             bytemuck::cast_slice::<GpuVertex, u8>(&first_sample.0),
             bytemuck::cast_slice::<GpuVertex, u8>(&repeated_midpoint.0)
@@ -11301,6 +11491,22 @@ mod tests {
             ClipModule::Explosion,
             39.0
         ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Explosion,
+            64.999
+        ));
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Explosion,
+            65.0
+        ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Metal,
+            38.999
+        ));
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Metal,
+            39.0
+        ));
         assert!(!explosive_metal_water_track_visible(
             ClipModule::Vapour,
             43.999
@@ -11309,6 +11515,22 @@ mod tests {
             ClipModule::Vapour,
             44.0
         ));
+        assert!(explosive_metal_water_track_visible(
+            ClipModule::Vapour,
+            94.999
+        ));
+        assert!(!explosive_metal_water_track_visible(
+            ClipModule::Vapour,
+            95.0
+        ));
+        assert!(
+            (explosive_metal_water_track_frame(ClipModule::Water, 179.0) - 38.0).abs()
+                < f32::EPSILON
+        );
+        assert!(
+            (explosive_metal_water_track_frame(ClipModule::Explosion, 179.0) - 179.0).abs()
+                < f32::EPSILON
+        );
     }
 
     #[test]
@@ -11384,9 +11606,9 @@ mod tests {
             .timeline
             .locate(plan.timeline.duration_ms() / 2)
             .expect("midpoint is on the timeline");
-        let first = build_scene_at(&plan, early);
-        let _later = build_scene_at(&plan, later);
-        let replay = build_scene_at(&plan, early);
+        let first = build_scene_at(&plan, early, (0.0, 0.0));
+        let _later = build_scene_at(&plan, later, (0.0, 0.0));
+        let replay = build_scene_at(&plan, early, (0.0, 0.0));
         assert_eq!(
             bytemuck::cast_slice::<GpuVertex, u8>(&first.0),
             bytemuck::cast_slice::<GpuVertex, u8>(&replay.0)
@@ -11499,11 +11721,11 @@ mod tests {
             .timeline
             .locate(old_reaction_duration.saturating_sub(1))
             .expect("old authored reaction endpoint");
-        let _ = build_scene_at(&old, old_end);
+        let _ = build_scene_at(&old, old_end, (0.0, 0.0));
 
         let new_start = new.timeline.locate(0).expect("new timeline starts");
-        let after_switch = build_scene_at(&new, new_start);
-        let fresh = build_scene_at(&new, new_start);
+        let after_switch = build_scene_at(&new, new_start, (0.0, 0.0));
+        let fresh = build_scene_at(&new, new_start, (0.0, 0.0));
         assert_eq!(after_switch.1, fresh.1);
         assert_eq!(after_switch.2, fresh.2);
         assert_eq!(after_switch.3, fresh.3);
@@ -11754,8 +11976,8 @@ mod tests {
             1.0,
             None,
         );
-        let (unrotated, _, _, _, _) = unrotated_meshes.finish();
-        let (rotated, _, _, _, _) = rotated_meshes.finish();
+        let (unrotated, _, _, _, _) = unrotated_meshes.finish(fixed_view_direction());
+        let (rotated, _, _, _, _) = rotated_meshes.finish(fixed_view_direction());
 
         assert_eq!(unrotated.len(), rotated.len());
         assert_ne!(
@@ -11786,7 +12008,7 @@ mod tests {
             1.0,
             None,
         );
-        let (vertices, _, opaque_indices, _, _) = meshes.finish();
+        let (vertices, _, opaque_indices, _, _) = meshes.finish(fixed_view_direction());
 
         assert!(opaque_indices > 0, "the floor remains opaque geometry");
         assert!(

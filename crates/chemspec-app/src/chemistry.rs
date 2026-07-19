@@ -1222,17 +1222,12 @@ fn catalogue_macroscopic_material(
         binding: binding.to_owned(),
         semantic_identity: resolved.name.clone(),
         structure_id: resolved.structure.to_string(),
-        formula: resolved
-            .formula
-            .iter()
-            .map(|(symbol, count)| {
-                if *count == 1 {
-                    symbol.clone()
-                } else {
-                    format!("{symbol}{count}")
-                }
-            })
-            .collect(),
+        formula: chem_domain::conventional_formula(
+            resolved
+                .formula
+                .iter()
+                .map(|(symbol, count)| (symbol.as_str(), *count)),
+        ),
         role,
         phase,
         representation: resolved.representation,
@@ -1304,7 +1299,7 @@ fn classify_catalogue_macroscopic_process(
     if classifies_validated_structural_surface_oxidation(expanded) {
         return Some(MacroscopicProcess::SurfaceOxidation);
     }
-    if let Some(variant) = classifies_explosive_metal_water(materials) {
+    if let Some(variant) = classifies_explosive_metal_water(expanded, materials) {
         return Some(MacroscopicProcess::ExplosiveMetalWater(variant));
     }
     let liquid_water = expanded
@@ -1427,6 +1422,7 @@ fn classify_catalogue_macroscopic_process(
 }
 
 fn classifies_explosive_metal_water(
+    expanded: &chem_kernel::ExpandedStructuralReaction,
     materials: &[MacroscopicMaterial],
 ) -> Option<ExplosiveMetalWaterVariant> {
     let reactants = materials
@@ -1441,7 +1437,14 @@ fn classifies_explosive_metal_water(
             if metal.phase == chem_domain::Phase::Solid
                 && metal.representation == RepresentationKind::Metallic
                 && water.phase == chem_domain::Phase::Liquid
-                && water.representation == RepresentationKind::Molecular =>
+                && water.representation == RepresentationKind::Molecular
+                && expanded
+                    .claim()
+                    .reactants()
+                    .get(&water.binding)
+                    .is_some_and(|resolved| {
+                        has_formula_counts(&resolved.formula, &[("H", 2), ("O", 1)])
+                    }) =>
         {
             metal.explosive_water_contact
         }
@@ -1449,7 +1452,14 @@ fn classifies_explosive_metal_water(
             if metal.phase == chem_domain::Phase::Solid
                 && metal.representation == RepresentationKind::Metallic
                 && water.phase == chem_domain::Phase::Liquid
-                && water.representation == RepresentationKind::Molecular =>
+                && water.representation == RepresentationKind::Molecular
+                && expanded
+                    .claim()
+                    .reactants()
+                    .get(&water.binding)
+                    .is_some_and(|resolved| {
+                        has_formula_counts(&resolved.formula, &[("H", 2), ("O", 1)])
+                    }) =>
         {
             metal.explosive_water_contact
         }
@@ -1467,6 +1477,11 @@ fn classifies_explosive_metal_water(
             && hydroxide.representation == RepresentationKind::Ionic
             && hydrogen.phase == chem_domain::Phase::Gas
             && hydrogen.representation == RepresentationKind::Molecular
+            && expanded
+                .claim()
+                .products()
+                .get(&hydrogen.binding)
+                .is_some_and(|resolved| has_formula_counts(&resolved.formula, &[("H", 2)]))
     };
     (product_layout(first, second) || product_layout(second, first)).then_some(variant)
 }
@@ -3348,18 +3363,21 @@ mod tests {
 
     #[test]
     fn reviewed_heavy_alkali_water_requests_select_exact_typed_variants() {
-        for (metal, variant) in [
+        for (metal, variant, hydroxide_formula) in [
             (
                 HeavyAlkaliMetal::Rubidium,
                 ExplosiveMetalWaterVariant::Rubidium,
+                "RbOH",
             ),
             (
                 HeavyAlkaliMetal::Caesium,
                 ExplosiveMetalWaterVariant::Caesium,
+                "CsOH",
             ),
             (
                 HeavyAlkaliMetal::Francium,
                 ExplosiveMetalWaterVariant::Francium,
+                "FrOH",
             ),
         ] {
             let request = ReactionRequest::heavy_alkali_water(metal);
@@ -3369,6 +3387,11 @@ mod tests {
                 reaction.process,
                 Some(MacroscopicProcess::ExplosiveMetalWater(variant))
             );
+            assert!(reaction.materials.iter().any(|material| {
+                material.role == MacroscopicMaterialRole::Product
+                    && material.representation == RepresentationKind::Ionic
+                    && material.formula == hydroxide_formula
+            }));
             let profile =
                 presentation_profile_with_catalogue(request, run.frames(), Some(reaction))
                     .expect("typed macroscopic process compiles");

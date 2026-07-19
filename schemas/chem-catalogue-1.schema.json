@@ -50,6 +50,15 @@
         {"type": "object", "additionalProperties": false, "required": ["kind", "rule", "role"], "properties": {"kind": {"const": "reaction_role"}, "rule": {"$ref": "#/$defs/id"}, "role": {"$ref": "#/$defs/id"}}}
       ]
     },
+    "waterContactBehaviour": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "variant"],
+      "properties": {
+        "kind": {"const": "explosive"},
+        "variant": {"enum": ["rubidium", "caesium", "francium"]}
+      }
+    },
     "macroscopicMaterial": {
       "type": "object",
       "additionalProperties": false,
@@ -64,6 +73,7 @@
           "maxItems": 3,
           "items": {"type": "integer", "minimum": 0, "maximum": 255}
         },
+        "water_contact": {"$ref": "#/$defs/waterContactBehaviour"},
         "premise_ids": {"$ref": "#/$defs/premiseIds"}
       }
     },

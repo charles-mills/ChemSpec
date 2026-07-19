@@ -326,58 +326,8 @@ fn generated_preview(atomic_numbers: &[u8]) -> Option<ReferenceCompositionPrevie
     preview_from_definition(&structure, &formula)
 }
 
-/// Formula text for a generated structure: cations first for ionic
-/// compounds, then non-O/H elements, then O, then H; molecular formulas
-/// lead with H instead (`H2O`, `HCl`, `H2SO4`).
 fn conventional_formula(structure: &StructureDefinition) -> String {
-    let graph = structure.graph();
-    let mut counts = BTreeMap::<String, u64>::new();
-    let mut cations = BTreeMap::<String, u64>::new();
-    for atom in graph.atoms().values() {
-        let element = atom.element().as_str().to_owned();
-        if structure.representation() == chem_domain::RepresentationKind::Ionic
-            && atom.electrons().formal_charge() > 0
-        {
-            *cations.entry(element).or_insert(0) += 1;
-        } else {
-            *counts.entry(element).or_insert(0) += 1;
-        }
-    }
-    let mut formula = String::new();
-    let mut append = |symbol: &str, count: u64| {
-        formula.push_str(symbol);
-        if count > 1 {
-            formula.push_str(&count.to_string());
-        }
-    };
-    for (symbol, count) in &cations {
-        append(symbol, *count);
-    }
-    // Hill-style: carbon leads organics, otherwise hydrogen acids lead
-    // with H (H2O, HCl, H2SO4).
-    if let Some(count) = counts.get("C") {
-        append("C", *count);
-    }
-    if cations.is_empty()
-        && let Some(count) = counts.get("H")
-    {
-        append("H", *count);
-    }
-    for (symbol, count) in &counts {
-        if symbol == "O" || symbol == "H" || symbol == "C" {
-            continue;
-        }
-        append(symbol, *count);
-    }
-    if let Some(count) = counts.get("O") {
-        append("O", *count);
-    }
-    if !cations.is_empty()
-        && let Some(count) = counts.get("H")
-    {
-        append("H", *count);
-    }
-    formula
+    structure.conventional_formula()
 }
 
 /// Resolves one exact structure identity from the bundled reference catalogue.

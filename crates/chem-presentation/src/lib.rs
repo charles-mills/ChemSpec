@@ -28,6 +28,7 @@ pub enum EducationalSceneKind {
 pub enum ExplanationLabelKind {
     StructuralChangeExplanation,
     ObservationExplanation,
+    CompletionNote,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,6 +201,10 @@ pub fn compile_educational_plan(
     )];
 
     let mut transition_index = 1;
+    // Stoichiometric coefficients require one validated operation per concrete
+    // atom set, but a repeated operation signature is only one teaching idea.
+    // Keep every operation in the timeline while narrating that idea once.
+    let mut narrated_operations = BTreeSet::new();
     while transition_index < sequence.len() {
         let group_start = transition_index;
         let before = &sequence[group_start - 1];
@@ -261,16 +266,12 @@ pub fn compile_educational_plan(
         // atom union remains available on the exact operation cues for
         // simultaneous animation, but is not averaged into a marker between
         // repeated reactant or product instances.
-        let mut narration = first_narration;
+        let narration = first_narration;
         let operation_count = group_end - group_start + 1;
-        if operation_count > 1 {
-            let sites = if operation_count == 2 {
-                "The same change happens in two places at once.".to_owned()
-            } else {
-                format!("The same change happens at {operation_count} places at once.")
-            };
-            narration.explanation.text = format!("{} {sites}", narration.explanation.text);
-        }
+        let narrate_operation = !matches!(
+            first_operation.operation.view(),
+            StructuralOperationView::AssignProduct { .. }
+        ) && narrated_operations.insert(signature);
         let before_digest = before.trace().state_digest;
         let grouped_pacing = u32::try_from(operation_count.saturating_sub(1))
             .unwrap_or(u32::MAX)
@@ -279,8 +280,12 @@ pub fn compile_educational_plan(
         // `explanation_duration` already includes the structural-action lead
         // in. Adding another fixed action duration here made every operation
         // scene pay for that phase twice.
-        let duration_ms =
-            explanation_duration(&narration.explanation.text).saturating_add(grouped_pacing);
+        let duration_ms = if narrate_operation {
+            explanation_duration(&narration.explanation.text)
+        } else {
+            1_600
+        }
+        .saturating_add(grouped_pacing);
         let representative_atoms = narration.explanation.target_atoms.clone();
         let operations = (group_start..=group_end)
             .map(|index| {
@@ -302,23 +307,28 @@ pub fn compile_educational_plan(
                 })
             })
             .collect::<Result<Vec<_>, PlanError>>()?;
-        scenes.push(scene(
-            EducationalSceneKind::StructuralChange,
-            before,
-            after,
-            duration_ms,
-            vec![
-                EducationalCue::EstablishFrame {
-                    frame: before_digest,
-                },
-                EducationalCue::ApplyOperations { operations },
+        let mut cues = vec![
+            EducationalCue::EstablishFrame {
+                frame: before_digest,
+            },
+            EducationalCue::ApplyOperations { operations },
+        ];
+        if narrate_operation {
+            cues.extend([
                 EducationalCue::ShowContext {
                     label: narration.context,
                 },
                 EducationalCue::ShowExplanation {
                     label: narration.explanation,
                 },
-            ],
+            ]);
+        }
+        scenes.push(scene(
+            EducationalSceneKind::StructuralChange,
+            before,
+            after,
+            duration_ms,
+            cues,
         ));
         if let Some(observed) = observation_scene(after, &representative_atoms) {
             scenes.push(observed);
@@ -329,20 +339,34 @@ pub fn compile_educational_plan(
 
     // The summary recaps every observation the reaction established, so the
     // macroscopic story stays on screen alongside the final structures.
-    let mut summary_cues = vec![EducationalCue::EstablishFrame {
-        frame: last.trace().state_digest,
-    }];
-    summary_cues.extend(last.observations().iter().map(|observation| {
+    let mut summary_cues = vec![
+        EducationalCue::EstablishFrame {
+            frame: last.trace().state_digest,
+        },
         EducationalCue::ShowContext {
             label: ContextLabel {
-                kind: ExplanationLabelKind::ObservationExplanation,
-                title: observation_title(observation.predicate).to_owned(),
-                text: observation_summary(observation.predicate, observation.value.as_deref()),
+                kind: ExplanationLabelKind::CompletionNote,
+                title: "REACTION COMPLETE".to_owned(),
+                text: "Reaction complete".to_owned(),
                 target_atoms: Vec::new(),
                 connector: false,
             },
-        }
-    }));
+        },
+    ];
+    summary_cues.extend(
+        last.observations()
+            .iter()
+            .filter(|observation| observation.predicate != ObservationPredicate::Disappears)
+            .map(|observation| EducationalCue::ShowContext {
+                label: ContextLabel {
+                    kind: ExplanationLabelKind::ObservationExplanation,
+                    title: observation_title(observation.predicate).to_owned(),
+                    text: observation_summary(observation.predicate, observation.value.as_deref()),
+                    target_atoms: Vec::new(),
+                    connector: false,
+                },
+            }),
+    );
     scenes.push(scene(
         EducationalSceneKind::Summary,
         last,
@@ -375,13 +399,15 @@ fn observation_scene(
     let observed = frame
         .observations()
         .iter()
-        .filter(|observation| observation.status == ObservationStatus::Active)
+        .filter(|observation| {
+            observation.status == ObservationStatus::Active
+                && observation.predicate != ObservationPredicate::Disappears
+        })
         .collect::<Vec<_>>();
     let first = observed.first()?;
     let digest = frame.trace().state_digest;
     let text = observation_text(first.predicate, first.value.as_deref());
     let duration_ms = explanation_duration(&text);
-    let anchored = first.predicate != ObservationPredicate::Disappears;
     let mut cues = vec![EducationalCue::EstablishFrame { frame: digest }];
     cues.extend(
         observed
@@ -395,12 +421,8 @@ fn observation_scene(
         label: ExplanationLabel {
             kind: ExplanationLabelKind::ObservationExplanation,
             text,
-            target_atoms: if anchored {
-                representative_atoms.to_vec()
-            } else {
-                Vec::new()
-            },
-            connector: anchored,
+            target_atoms: representative_atoms.to_vec(),
+            connector: true,
         },
     });
     Some(scene(
@@ -673,8 +695,7 @@ fn operation_narration(
                 atom_symbol(before, after, right),
                 bond_order_name(expected_order.order())
             ),
-            "The electrons these atoms were sharing pull out of the bond, so the atoms let go of each other."
-                .to_owned(),
+            covalent_cleavage_explanation(required_context).to_owned(),
             atom_targets([left, right]),
         ),
         StructuralOperationView::FormCovalent {
@@ -686,8 +707,7 @@ fn operation_narration(
                 atom_symbol(before, after, right),
                 bond_order_name(order.order())
             ),
-            "The two atoms now share a pair of electrons — that shared pair is the new covalent bond holding them together."
-                .to_owned(),
+            covalent_formation_explanation(order.order()),
             atom_targets([left, right]),
         ),
         StructuralOperationView::CleaveDative {
@@ -753,7 +773,7 @@ fn operation_narration(
             let target_atoms = ionic_targets(after, association.id());
             (
                 count_phrase(association.components().len(), "ion", "attract"),
-                "Opposite charges attract: these ions pull together and sit side by side without sharing any electrons."
+                "Electrostatic attraction brings these oppositely charged ions together in an ionic association."
                     .to_owned(),
                 target_atoms,
             )
@@ -762,26 +782,26 @@ fn operation_narration(
             let target_atoms = ionic_targets(before, association);
             (
                 "Ions drift apart".to_owned(),
-                "These ions stop holding on to each other and drift apart, each keeping its own charge."
+                "In aqueous solution, water molecules surround and stabilize the oppositely charged ions, allowing them to separate and move independently."
                     .to_owned(),
                 target_atoms,
             )
         }
         StructuralOperationView::ReleaseMetallic { site, .. } => (
             format!(
-                "{} leaves the electron sea",
+                "{} leaves the metallic bonding network",
                 atom_symbol(before, after, site)
             ),
-            "This atom leaves the metal's shared sea of electrons and strikes out on its own."
+            "Metallic bonding is the electrostatic attraction between positive metal ion cores and delocalised electrons. The model separates this site from that bonding network before representing electron transfer."
                 .to_owned(),
             atom_targets([site]),
         ),
         StructuralOperationView::JoinMetallic { site, .. } => (
             format!(
-                "{} joins the electron sea",
+                "{} joins the metallic bonding network",
                 atom_symbol(before, after, site)
             ),
-            "This atom joins the metal's shared sea of electrons, adding its own electrons to the pool."
+            "The metal site becomes part of a lattice in which positive ion cores are held together by attraction to delocalised electrons."
                 .to_owned(),
             atom_targets([site]),
         ),
@@ -817,9 +837,8 @@ fn operation_narration(
             }
         }
         StructuralOperationView::AssignProduct { atoms, .. } => (
-            count_phrase(atoms.len(), "atom", "regrouped"),
-            "These atoms now make up a finished product — every atom from the reactants is still here, just regrouped."
-                .to_owned(),
+            "Reaction complete".to_owned(),
+            "Reaction complete".to_owned(),
             atoms
                 .iter()
                 .map(AtomId::as_str)
@@ -850,6 +869,27 @@ fn operation_narration(
             connector,
         },
     }
+}
+
+fn covalent_cleavage_explanation(required_context: &str) -> &'static str {
+    if required_context.eq_ignore_ascii_case("electricity") {
+        "The applied potential supplies electrical energy and drives electron transfer at the electrodes. This allows the bond's electrons to rearrange so the atoms can form the product bonds."
+    } else {
+        "Breaking a covalent bond requires energy. Energy available under the reaction conditions allows the shared electron pair to redistribute as the atoms form new bonds."
+    }
+}
+
+fn covalent_formation_explanation(order: u8) -> String {
+    let pairs = match order {
+        1 => "one electron pair",
+        2 => "two electron pairs",
+        3 => "three electron pairs",
+        _ => "shared electrons",
+    };
+    format!(
+        "The atoms now share {pairs}. Electrostatic attraction between both nuclei and the shared electrons forms the {} covalent bond.",
+        bond_order_name(order)
+    )
 }
 
 fn electrolysis_transfer_text(
@@ -939,10 +979,10 @@ const fn operation_title(operation: StructuralOperationView<'_>) -> &'static str
         StructuralOperationView::ChangeCovalentDelocalization { .. } => "DELOCALISATION",
         StructuralOperationView::AssociateIonic { .. } => "IONIC ASSOCIATION",
         StructuralOperationView::DissociateIonic { .. } => "IONIC DISSOCIATION",
-        StructuralOperationView::ReleaseMetallic { .. } => "METALLIC ELECTRON RELEASE",
-        StructuralOperationView::JoinMetallic { .. } => "METALLIC DOMAIN",
+        StructuralOperationView::ReleaseMetallic { .. } => "METALLIC BONDING CHANGES",
+        StructuralOperationView::JoinMetallic { .. } => "METALLIC BONDING",
         StructuralOperationView::TransferElectron { .. } => "ELECTRON TRANSFER",
-        StructuralOperationView::AssignProduct { .. } => "PRODUCT ESTABLISHED",
+        StructuralOperationView::AssignProduct { .. } => "REACTION COMPLETE",
     }
 }
 
@@ -4561,7 +4601,51 @@ fn compile_real_world_timeline(
     if profile.explosive_metal_water.is_some() {
         fit_authored_six_second_duration(&mut beats);
     }
+    perform_default_camera(&mut beats, profile, final_ordinal);
     RealWorldTimeline { beats }
+}
+
+/// Authors the default camera performance across the timeline: establish
+/// wide, push in as the reaction takes hold, hold focus through the middle,
+/// move close for the key observation, pull back, and end on the hero shot.
+/// Beats covered by a deliberately authored profile cue (anything other than
+/// the historical full-range wide default) keep that cue.
+fn perform_default_camera(
+    beats: &mut [RealWorldBeat],
+    profile: &PresentationProfile,
+    final_ordinal: u16,
+) {
+    let authored: Vec<&CameraCue> = profile
+        .camera
+        .iter()
+        .filter(|cue| {
+            !(cue.start_ordinal == 0
+                && cue.end_ordinal == final_ordinal
+                && cue.behaviour == CameraBehaviour::WideEstablishingShot)
+        })
+        .collect();
+    let count = beats.len();
+    for (index, beat) in beats.iter_mut().enumerate() {
+        if let Some(cue) = authored.iter().find(|cue| {
+            cue.start_ordinal <= beat.start_ordinal && beat.start_ordinal <= cue.end_ordinal
+        }) {
+            beat.camera.behaviour = cue.behaviour;
+            continue;
+        }
+        beat.camera.behaviour = if index == 0 {
+            CameraBehaviour::WideEstablishingShot
+        } else if index + 1 == count {
+            CameraBehaviour::FinalHeroShot
+        } else if index == 1 {
+            CameraBehaviour::SlowPushIn
+        } else if index + 2 == count {
+            CameraBehaviour::SlowPullBack
+        } else if index == count / 2 {
+            CameraBehaviour::ObservationCloseUp
+        } else {
+            CameraBehaviour::ReactionFocus
+        };
+    }
 }
 
 fn fit_authored_six_second_duration(beats: &mut [RealWorldBeat]) {
@@ -4684,12 +4768,6 @@ fn compile_macroscopic_annotations(
             });
         }
     }
-    annotations.push(MacroscopicAnnotation {
-        start_ordinal: final_ordinal,
-        end_ordinal: final_ordinal,
-        title: "VALIDATED OUTCOME".to_owned(),
-        text: "The validated frame sequence has reached its reviewed outcome.".to_owned(),
-    });
     annotations
 }
 
@@ -4777,9 +4855,9 @@ mod tests {
         PresentationTransform, ReactionVisualInputs, SceneRole, TimelinePosition, VisualColour,
         authorize_explosive_metal_water_assembly, authorize_gas_evolution_assembly,
         authorize_metal_displacement_assembly, authorize_solid_solid_synthesis_assembly,
-        compile_real_world_timeline, effect_authorization_is_compatible,
-        electrolysis_transfer_text, macroscopic_beat_duration_ms,
-        precipitation_colours_from_materials, visual_colour,
+        compile_real_world_timeline, covalent_cleavage_explanation, covalent_formation_explanation,
+        effect_authorization_is_compatible, electrolysis_transfer_text,
+        macroscopic_beat_duration_ms, precipitation_colours_from_materials, visual_colour,
     };
 
     fn precipitation_material(
@@ -5709,6 +5787,39 @@ mod tests {
         assert!(cathode.contains("external circuit"));
         assert!(cathode.contains("not directly between these ions"));
         assert!(!cathode.contains("jumps"));
+    }
+
+    #[test]
+    fn covalent_cleavage_copy_explains_the_energy_source_and_electron_rearrangement() {
+        let ordinary = covalent_cleavage_explanation("heat");
+        assert!(ordinary.starts_with("Breaking a covalent bond requires energy."));
+        assert!(ordinary.contains("shared electron pair to redistribute"));
+        assert!(ordinary.ends_with("as the atoms form new bonds."));
+
+        let electrolysis = covalent_cleavage_explanation("electricity");
+        assert!(electrolysis.starts_with("The applied potential"));
+        assert!(electrolysis.contains("electrical energy"));
+        assert!(electrolysis.contains("electron transfer at the electrodes"));
+        assert!(electrolysis.contains("form the product bonds"));
+        assert!(!electrolysis.contains("more favourable"));
+    }
+
+    #[test]
+    fn covalent_formation_copy_matches_the_validated_bond_order() {
+        for (order, pairs, bond) in [
+            (1, "one electron pair", "single covalent bond"),
+            (2, "two electron pairs", "double covalent bond"),
+            (3, "three electron pairs", "triple covalent bond"),
+        ] {
+            let explanation = covalent_formation_explanation(order);
+            assert!(explanation.contains(pairs), "{explanation}");
+            assert!(explanation.contains(bond), "{explanation}");
+            assert!(
+                explanation.contains("Electrostatic attraction between both nuclei"),
+                "{explanation}"
+            );
+            assert!(explanation.contains("shared electrons"), "{explanation}");
+        }
     }
 
     #[test]

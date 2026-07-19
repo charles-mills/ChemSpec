@@ -419,7 +419,7 @@ mod tests {
         let request = request();
         let claim = claim();
         let directory = std::env::temp_dir().join(format!(
-            "chemspec-cache-v3-test-{}-{}",
+            "chemspec-cache-v4-test-{}-{}",
             std::process::id(),
             CACHE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));

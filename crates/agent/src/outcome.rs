@@ -8,7 +8,7 @@ use chem_domain::{
     ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
     ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry, SpeciesResolution,
     StructureDefinition, StructureId, UnbalancedReactionTerm, classify_bronsted_acid,
-    generate_structure, reaction_term, symbol_of,
+    generate_structure, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -496,6 +496,11 @@ fn compile_claim_outcome_inner(
     validate_selected_context_binding(request, &claim)?;
     let local_aqueous_electrolysis =
         request.selected_context.as_deref() == Some("electricity") && solver_authored;
+    let local_net_water_electrolysis = local_aqueous_electrolysis
+        && matches!(
+            claim.products.as_slice(),
+            [hydrogen, oxygen] if hydrogen.formula == "H2" && oxygen.formula == "O2"
+        );
     match claim.disposition {
         ClaimDisposition::NoReaction => return Ok(CompiledClaimOutcome::NoReaction(claim)),
         ClaimDisposition::Ambiguous => return Ok(CompiledClaimOutcome::Ambiguous(claim)),
@@ -587,57 +592,15 @@ fn compile_claim_outcome_inner(
                 .map(|species| OutcomeSpecies::Resolved(Box::new(species.clone())))
                 .or_else(|| generated_product(&water_claim, "H2O", Phase::Liquid))
                 .ok_or(original)?;
-            reactants.push(water);
-            match balance(&reactants) {
-                Ok(declaration) => declaration,
-                Err(_error)
-                    if products.len() == 3
-                        && claim.products[1].formula == "H2"
-                        && claim.products[2].formula == "O2"
-                        && outcome_term(&reactants[0])?.formula
-                            == outcome_term(&products[0])?.formula =>
-                {
-                    let reactant_terms = reactants
-                        .iter()
-                        .zip([1, 2])
-                        .map(|(species, coefficient)| {
-                            reaction_term(outcome_term(species)?, coefficient).map_err(|error| {
-                                AgentError::from_source(
-                                    AgentErrorKind::CompilationFailure,
-                                    "outcome balance",
-                                    error,
-                                )
-                            })
-                        })
-                        .collect::<Result<Vec<_>, AgentError>>()?;
-                    let product_terms = products
-                        .iter()
-                        .zip([1, 2, 1])
-                        .map(|(species, coefficient)| {
-                            reaction_term(outcome_term(species)?, coefficient).map_err(|error| {
-                                AgentError::from_source(
-                                    AgentErrorKind::CompilationFailure,
-                                    "outcome balance",
-                                    error,
-                                )
-                            })
-                        })
-                        .collect::<Result<Vec<_>, AgentError>>()?;
-                    ReactionDeclaration::from_balanced(
-                        reactant_terms,
-                        product_terms,
-                        claim.required_context.clone(),
-                    )
-                    .map_err(|error| {
-                        AgentError::from_source(
-                            AgentErrorKind::CompilationFailure,
-                            "outcome balance",
-                            error,
-                        )
-                    })?
-                }
-                Err(error) => return Err(error),
+            if local_net_water_electrolysis {
+                // An active-metal oxoanion electrolyte is unchanged overall.
+                // Keep it as request context and validate the net chemical
+                // change instead of inventing duplicate reactant/product terms.
+                reactants = vec![water];
+            } else {
+                reactants.push(water);
             }
+            balance(&reactants)?
         }
         Err(error) => return Err(error),
     };
@@ -806,6 +769,7 @@ fn classifies_explosive_metal_water(
         (metal_structure.representation() == RepresentationKind::Metallic
             && material(metal)?.phase == Phase::Solid
             && water_structure.representation() == RepresentationKind::Molecular
+            && inventory_has_counts(water_structure.formula(), &[("H", 2), ("O", 1)])
             && material(water)?.phase == Phase::Liquid)
             .then_some(variant)
     };
@@ -814,9 +778,16 @@ fn classifies_explosive_metal_water(
         return None;
     };
     let product_layout = |hydroxide: &OutcomeSpecies, hydrogen: &OutcomeSpecies| {
+        let OutcomeSpecies::Resolved(hydrogen_species) = hydrogen else {
+            return false;
+        };
+        let Some(hydrogen_structure) = hydrogen_species.structure.as_ref() else {
+            return false;
+        };
         hydroxide.representation() == Some(RepresentationKind::Ionic)
             && material(hydroxide).is_some_and(|record| record.phase == Phase::Aqueous)
-            && hydrogen.representation() == Some(RepresentationKind::Molecular)
+            && hydrogen_structure.representation() == RepresentationKind::Molecular
+            && inventory_has_counts(hydrogen_structure.formula(), &[("H", 2)])
             && material(hydrogen).is_some_and(|record| record.phase == Phase::Gas)
     };
     (product_layout(first, second) || product_layout(second, first)).then_some(variant)
@@ -1185,6 +1156,17 @@ fn has_counts(formula: &FormulaComposition, expected: &[(&str, u64)]) -> bool {
     formula.elements().len() == expected.len()
         && expected.iter().all(|(symbol, count)| {
             formula
+                .elements()
+                .iter()
+                .find(|(element, _)| element.as_str() == *symbol)
+                .is_some_and(|(_, actual)| actual == count)
+        })
+}
+
+fn inventory_has_counts(inventory: &ElementInventory, expected: &[(&str, u64)]) -> bool {
+    inventory.elements().len() == expected.len()
+        && expected.iter().all(|(symbol, count)| {
+            inventory
                 .elements()
                 .iter()
                 .find(|(element, _)| element.as_str() == *symbol)
@@ -2279,6 +2261,66 @@ mod tests {
         assert!(outcome.equation().starts_with("2 AgCl →"));
         assert!(!outcome.equation().to_ascii_lowercase().contains("photon"));
         assert_eq!(outcome.declaration().required_context(), "light");
+    }
+
+    #[test]
+    fn catalogue_backed_sodium_hydroxide_electrolysis_uses_the_net_water_reaction() {
+        let catalogue = reference();
+        let identities = reviewed_species_registry(&catalogue).expect("identities");
+        let mut request = ReactionBuildRequest {
+            reactants: vec![ReactantInput {
+                display: "NaOH".into(),
+                atomic_numbers: vec![11, 8, 1],
+                species_id: None,
+            }],
+            selected_context: Some("electricity".into()),
+        };
+        let RequestIdentityResolution::Resolved(resolved) =
+            resolve_request_identities_with_catalogue(&request, &identities, &catalogue)
+                .expect("identity resolution")
+        else {
+            panic!("NaOH aliases should collapse")
+        };
+        request.reactants[0].species_id = Some(resolved[0].id().clone());
+
+        let claim = crate::solve_reaction_claim_with_catalogue(&request, &identities, &catalogue)
+            .expect("aqueous NaOH electrolysis should solve locally");
+        assert_eq!(
+            claim
+                .products
+                .iter()
+                .map(|product| product.formula.as_str())
+                .collect::<Vec<_>>(),
+            ["H2", "O2"]
+        );
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome_with_catalogue(&request, claim, &identities, &catalogue)
+                .expect("catalogue-backed NaOH electrolysis should balance")
+        else {
+            panic!("NaOH electrolysis should produce a static outcome")
+        };
+
+        assert_eq!(outcome.declaration().reactants().len(), 1);
+        assert_eq!(outcome.declaration().reactants()[0].formula_text(), "H2O");
+        assert_eq!(outcome.declaration().reactants()[0].coefficient(), 2);
+        assert_eq!(
+            outcome
+                .declaration()
+                .products()
+                .iter()
+                .map(|term| (term.formula_text(), term.coefficient()))
+                .collect::<BTreeMap<_, _>>(),
+            BTreeMap::from([("H2", 2), ("O2", 1)])
+        );
+        assert!(
+            outcome
+                .declaration()
+                .products()
+                .iter()
+                .all(|term| term.formula_text() != "NaOH"),
+            "an unchanged electrolyte must not be listed as its own product"
+        );
+        assert!(outcome.species_without_structure().is_empty());
     }
 
     #[test]
