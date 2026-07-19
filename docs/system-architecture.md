@@ -264,8 +264,10 @@ Structural entry uses a typed `Inactive -> Settling -> Ready` input state. The
 settling phase advances with structural animation time, preventing queued
 submit/continue keys from mutating the newly entered screen without depending
 on wall-clock scheduling. Pointer playback explicitly arms immediately.
-Smoke-window titles are derived from the live screen at the same navigation
-boundary, not from the launch argument.
+The standard application window title is the static product name `ChemSpec`.
+Dedicated smoke-window titles are derived from the live screen at the same
+navigation boundary, not from the launch argument, so Computer Use can still
+verify the active route.
 
 ## Platform decision
 

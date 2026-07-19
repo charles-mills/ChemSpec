@@ -1639,10 +1639,10 @@ impl App {
     }
 
     fn title(&self) -> String {
-        let base = self.smoke_mode.map_or_else(
-            || "ChemSpec — reaction builder".to_owned(),
-            |_| format!("ChemSpec Agent Smoke — {}", self.screen.smoke_title()),
-        );
+        let Some(_) = self.smoke_mode else {
+            return "ChemSpec".to_owned();
+        };
+        let base = format!("ChemSpec Agent Smoke — {}", self.screen.smoke_title());
         self.builder_accessibility_summary()
             .map_or(base.clone(), |summary| format!("{base} — {summary}"))
     }
@@ -6850,7 +6850,7 @@ mod tests {
     }
 
     #[test]
-    fn native_window_title_exposes_builder_state_without_changing_initial_smoke_title() {
+    fn smoke_window_title_exposes_builder_state_without_changing_initial_title() {
         let mut app = App {
             smoke_mode: Some(SmokeMode::Builder),
             screen: Screen::Builder,
@@ -6863,6 +6863,17 @@ mod tests {
         let title = app.title();
         assert!(title.starts_with("ChemSpec Agent Smoke — Builder"));
         assert!(title.contains("Reactants Rb + H₂; idle"));
+    }
+
+    #[test]
+    fn main_window_title_stays_static_across_app_state() {
+        let mut app = App::default();
+        assert_eq!(app.title(), "ChemSpec");
+
+        reactant_composer::replace_reactants(&mut app.reactant_composer, [vec![37], vec![1]]);
+        app.screen = Screen::Structural2d;
+
+        assert_eq!(app.title(), "ChemSpec");
     }
 
     #[test]
@@ -7388,7 +7399,7 @@ mod tests {
         );
 
         let mut app = App::default();
-        assert_eq!(app.title(), "ChemSpec — reaction builder");
+        assert_eq!(app.title(), "ChemSpec");
         app.smoke_mode = Some(SmokeMode::Structural2d);
         app.screen = Screen::Structural2d;
         assert_eq!(app.title(), "ChemSpec Agent Smoke — Structural 2D");
