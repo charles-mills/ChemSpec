@@ -1144,7 +1144,7 @@ fn classify_catalogue_macroscopic_process(
     if classifies_catalogue_metal_displacement(expanded, materials) {
         return Some(MacroscopicProcess::MetalDisplacement);
     }
-    if classifies_catalogue_surface_oxidation(expanded, materials) {
+    if classifies_validated_structural_surface_oxidation(expanded) {
         return Some(MacroscopicProcess::SurfaceOxidation);
     }
     let liquid_water = expanded
@@ -1357,9 +1357,8 @@ fn catalogue_combustion_fuel_carbon_count(
     fuel.1.formula.get("C").copied()
 }
 
-fn classifies_catalogue_surface_oxidation(
+fn classifies_validated_structural_surface_oxidation(
     expanded: &chem_kernel::ExpandedStructuralReaction,
-    materials: &[MacroscopicMaterial],
 ) -> bool {
     let mut reactants = expanded.claim().reactants().iter();
     let Some(first) = reactants.next() else {
@@ -1387,30 +1386,18 @@ fn classifies_catalogue_surface_oxidation(
         .filter(|_| expanded.claim().products().len() == 1);
     surface_metal.1.representation == RepresentationKind::Metallic
         && surface_oxygen.1.representation == RepresentationKind::Molecular
-        && materials.iter().any(|material| {
-            material.binding == surface_metal.0.as_str()
-                && material.role == MacroscopicMaterialRole::Reactant
-                && matches!(
-                    material.phase,
-                    chem_domain::Phase::Solid | chem_domain::Phase::Unknown
-                )
-        })
-        && materials.iter().any(|material| {
-            material.binding == surface_oxygen.0.as_str()
-                && material.role == MacroscopicMaterialRole::Reactant
-                && material.phase == chem_domain::Phase::Gas
-        })
         && surface_product.is_some_and(|(binding, product)| {
             product.representation == RepresentationKind::Ionic
                 && product.formula.contains_key("O")
-                && materials.iter().any(|material| {
-                    material.binding == binding.as_str()
-                        && material.role == MacroscopicMaterialRole::Product
-                        && matches!(
-                            material.phase,
-                            chem_domain::Phase::Solid | chem_domain::Phase::Unknown
-                        )
-                })
+                && expanded
+                    .claim()
+                    .evidence()
+                    .observations
+                    .iter()
+                    .any(|observation| {
+                        observation.subject_binding == binding.as_str()
+                            && observation.predicate == ObservationPredicate::Forms
+                    })
         })
 }
 
@@ -1593,6 +1580,26 @@ pub fn request_for_drafts(first: &[u8], second: &[u8]) -> Option<ReactionRequest
     }
 }
 
+fn representative_oxygen_request(requests: &[ReactionRequest]) -> Option<ReactionRequest> {
+    let oxygen_requests = requests
+        .iter()
+        .copied()
+        .filter(|request| request.family() == ReactionFamily::Oxygen)
+        .collect::<Vec<_>>();
+    let [request] = oxygen_requests.as_slice() else {
+        return None;
+    };
+    requests
+        .iter()
+        .all(|candidate| {
+            matches!(
+                candidate.family(),
+                ReactionFamily::Oxygen | ReactionFamily::FixedChargeIonPair
+            )
+        })
+        .then_some(*request)
+}
+
 #[must_use]
 pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
     fn participant(atoms: &[u8]) -> Option<DraftParticipant> {
@@ -1604,6 +1611,9 @@ pub fn resolve_drafts(first: &[u8], second: &[u8]) -> DraftResolution {
     }
 
     let requests = requests_for_drafts(first, second);
+    if let Some(request) = representative_oxygen_request(&requests) {
+        return DraftResolution::Supported(request);
+    }
     if let [request] = requests.as_slice() {
         return DraftResolution::Supported(*request);
     }
@@ -2305,24 +2315,25 @@ mod tests {
     }
 
     #[test]
-    fn unreviewed_metallic_oxygen_materials_do_not_select_surface_oxidation() {
+    fn validated_metallic_oxygen_family_selects_surface_oxidation_without_phase_facts() {
         for id in ["oxygen-lithium-oxygen", "oxygen-sodium-oxygen"] {
             let request = ReactionRequest::from_id(id).expect("oxygen experience exists");
             let run = run(request).expect("oxygen experience validates");
             let reaction = run
                 .macroscopic()
                 .expect("structural oxygen fallback supplies renderer inputs");
-            assert_eq!(reaction.process, None);
+            assert_eq!(reaction.process, Some(MacroscopicProcess::SurfaceOxidation));
             let profile =
                 presentation_profile_with_catalogue(request, run.frames(), run.macroscopic())
                     .expect("surface oxidation profile compiles");
 
-            assert!(
-                profile
-                    .effects
-                    .iter()
-                    .all(|effect| effect.effect != EffectProfile::SurfaceOxidation)
-            );
+            assert!(profile.effects.iter().any(|effect| {
+                effect.effect == EffectProfile::SurfaceOxidation
+                    && effect.authorization
+                        == chem_presentation::EffectAuthorization::Process(
+                            MacroscopicProcess::SurfaceOxidation,
+                        )
+            }));
         }
     }
 
@@ -2853,6 +2864,14 @@ mod tests {
 
     #[test]
     fn registry_outcomes_are_selected_without_guessing_between_products() {
+        let DraftResolution::Supported(sodium_oxygen) = resolve_drafts(&[11], &[8, 8]) else {
+            panic!("elemental oxygen must select its representative oxidation outcome");
+        };
+        assert_eq!(sodium_oxygen.id(), "oxygen-sodium-oxygen");
+
+        let unrelated_overlap = [sodium_oxygen, ReactionRequest::DEFAULT];
+        assert_eq!(representative_oxygen_request(&unrelated_overlap), None);
+
         let magnesium_fluorine = requests_for_drafts(&[12], &[9]);
         assert_eq!(magnesium_fluorine.len(), 1);
         assert_eq!(

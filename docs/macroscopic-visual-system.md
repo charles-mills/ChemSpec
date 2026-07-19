@@ -390,16 +390,15 @@ selected before presentation when the validated transformation has:
 
 - exactly two reactants, one structurally metallic and one molecular
   dioxygen;
-- one validated ionic product containing oxygen; and
-- a `product ... forms` observation in the trusted frames.
+- exactly one validated ionic product containing oxygen; and
+- a `product ... forms` observation in the kernel-validated frames.
 
 The classifier compares structure representations, exact element-count maps,
-roles, phases where reviewed, and validated products. It does not compare a
-reaction name, rule ID, display name, or renderer asset. Validated dynamic
-outcomes with this typed shape already share one presentation path. The
-proposed standard-phase records for the static lithium/oxygen and sodium/oxygen
-experiences remain deferred until a separate exact-digest catalogue review is
-promoted; their unknown phases cannot authorize this process in the meantime.
+roles, and validated products. It does not compare a reaction name, rule ID,
+display name, renderer asset, or macroscopic phase catalogue entry. Static and
+dynamic outcomes with this typed shape therefore share one presentation path;
+unknown macroscopic phases do not suppress an otherwise validated oxidation
+transformation.
 
 The surface path deliberately contains no vessel and does not render dioxygen
 as a thrown object. The metal is already resting on the laboratory bench. A

@@ -370,17 +370,17 @@ promoted. Live-profile tests therefore require those catalogue phases to remain
 combinations without conferring catalogue trust. The compiler input contains
 bindings and phases but no reaction name.
 
-Exposed surface-oxidation tests require validated dynamic outcomes with exact
-material phases to reach the typed `SurfaceOxidation` path from structural
-roles, not reaction names. Unreviewed static oxygen-family materials must not
-select it. Typed renderer fixtures require the resulting plan to contain one
-imported metal asset, no vessel, no visible gas object, and one
-process-authorized oxidation effect. The embedded mesh parser checks its
-magic/version, exact byte length, finite normalized vertices, unit normals,
-triangular indices, and index bounds. Renderer tests check that the metal starts
-stationary on the bench and that missing appearance authority leaves the
-original metal material unchanged, while an accepted exact-product colour
-drives the seeded coating deterministically.
+Exposed surface-oxidation tests require validated static and dynamic outcomes
+to reach the typed `SurfaceOxidation` path from structural roles, exact
+dioxygen composition, and the single ionic oxygen-containing product—not from
+reaction names or macroscopic phase catalogue entries. Typed renderer fixtures
+require the resulting plan to contain one imported metal asset, no vessel, no
+visible gas object, and one process-authorized oxidation effect. The embedded
+mesh parser checks its magic/version, exact byte length, finite normalized
+vertices, unit normals, triangular indices, and index bounds. Renderer tests
+check that the metal starts stationary on the bench and that missing appearance
+authority leaves the original metal material unchanged, while an accepted
+exact-product colour drives the seeded coating deterministically.
 
 Flame tests additionally require deterministic faceted plume geometry, separate
 alpha body and additive core/spark batches, palette preservation, and a smooth
@@ -550,9 +550,12 @@ their active trusted observations, reject premature effects and mismatched
 values, and separately preserve the validated white, cream, and yellow
 silver-halide appearances through scene geometry. The alkali-water comparison
 separately verifies reviewed potassium ignition against lithium and sodium
-non-ignition without a renderer identity branch. Legacy profiles are checked
-for generic validated-progress completion and liquid profiles retain a single
-volume without transparent overdraw. The complete application-path tests cover
+non-ignition without a renderer identity branch. Elemental-oxygen resolution
+selects a unique representative oxygen-family transformation ahead of a
+generic ion-pair construction; genuinely distinct oxygen-family products still
+require learner selection. Legacy profiles are checked for generic
+validated-progress completion and liquid profiles retain a single volume
+without transparent overdraw. The complete application-path tests cover
 the original 36 independently authored request
 fixtures plus representative single- and multi-outcome registry routes. They
 require the same trusted digest to reach frames, the 2D plan, and the 3D plan
