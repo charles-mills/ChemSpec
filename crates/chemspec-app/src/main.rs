@@ -490,20 +490,23 @@ const fn builder_toolbar_panel_top(page_top: f32) -> f32 {
 }
 
 fn window_settings() -> iced::window::Settings {
-    let mut settings = iced::window::Settings {
+    let settings = iced::window::Settings {
         size: DESIGN_SIZE,
         min_size: Some(Size::new(560.0, 760.0)),
         position: iced::window::Position::Centered,
         ..iced::window::Settings::default()
     };
+
     #[cfg(target_os = "macos")]
-    {
-        settings.platform_specific = iced::window::settings::PlatformSpecific {
+    let settings = iced::window::Settings {
+        platform_specific: iced::window::settings::PlatformSpecific {
             title_hidden: true,
             titlebar_transparent: true,
             fullsize_content_view: true,
-        };
-    }
+        },
+        ..settings
+    };
+
     settings
 }
 

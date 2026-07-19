@@ -4,7 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ChemSpec</title>
-    <link data-trunk rel="rust" data-bin="chemspec-app" />
+    <!-- Keep wasm-opt aligned with rustc's wasm32-unknown-unknown default features. -->
+    <link
+      data-trunk
+      rel="rust"
+      data-bin="chemspec-app"
+      data-wasm-opt-params="--enable-multivalue --enable-mutable-globals --enable-reference-types --enable-sign-ext --enable-nontrapping-float-to-int --enable-bulk-memory"
+    />
     <style>
       html,
       body {
