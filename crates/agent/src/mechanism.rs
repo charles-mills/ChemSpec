@@ -2558,6 +2558,7 @@ mod tests {
             ("CuCl2", vec![29, 17, 17]),
             ("CuSO4", vec![29, 16, 8, 8, 8, 8]),
             ("Na2SO4", vec![11, 11, 16, 8, 8, 8, 8]),
+            ("NaOH", vec![11, 8, 1]),
         ] {
             let request = ReactionBuildRequest {
                 reactants: vec![ReactantInput {
