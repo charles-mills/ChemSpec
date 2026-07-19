@@ -17,7 +17,11 @@ homepage = "https://github.com/charles-mills/ChemSpec"
 category = "Education"
 license-file = "../../LICENSE"
 icons = [
-    "assets/app-icon/*.png",
+    "assets/app-icon/32x32.png",
+    "assets/app-icon/64x64.png",
+    "assets/app-icon/128x128.png",
+    "assets/app-icon/256x256.png",
+    "assets/app-icon/512x512.png",
     "assets/app-icon/app-icon.ico",
 ]
 binaries = [{ path = "chemspec-app", main = true }]
