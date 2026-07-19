@@ -5,6 +5,7 @@
 //! exact balancing, family selection, kernel validation, and frame projection
 //! remain local trust boundaries.
 
+mod appearance;
 mod cache;
 mod claim;
 mod codex;
@@ -25,6 +26,11 @@ use std::{error::Error, fmt, sync::Arc};
 use chem_domain::SpeciesId;
 use serde::Serialize;
 
+pub use appearance::{
+    AppearanceSource, OXIDE_APPEARANCE_SCHEMA_VERSION, OxideAppearanceClaim,
+    OxideAppearanceRequest, OxideColourFamily, ValidatedOxideAppearance,
+    load_oxide_appearance_cache, oxide_appearance_cache_path, store_oxide_appearance_cache,
+};
 pub use cache::{
     DYNAMIC_CACHE_SCHEMA_VERSION, DynamicCachePresentation, LoadedDynamicCache, dynamic_cache_path,
     load_dynamic_cache, store_dynamic_cache,
@@ -40,7 +46,7 @@ pub use claim::{
 };
 pub use codex::{
     CodexPreflight, CodexProgressEvent, CodexProgressStage, CodexProvider, CodexProviderConfig,
-    FAST_CLAIM_TIMEOUT, MECHANISM_TIMEOUT,
+    FAST_CLAIM_TIMEOUT, MECHANISM_TIMEOUT, OXIDE_APPEARANCE_TIMEOUT,
 };
 pub use family::{
     FamilyMatchOutcome, ReviewedAnimationOutcome, ReviewedFamilyMatch, compile_reviewed_animation,
@@ -60,12 +66,13 @@ pub use naming::{
     composition_from_name, compound_name, ion_pair_name, molecular_graph_name, structure_name,
 };
 pub use outcome::{
-    CompiledClaimOutcome, OutcomeSpecies, ReactantIdentityAmbiguity, RequestIdentityResolution,
-    TrustTier, ValidatedStaticOutcome, compile_claim_outcome, resolve_request_identities,
+    CompiledClaimOutcome, MacroscopicColour, MacroscopicProcess, OutcomeSpecies,
+    ReactantIdentityAmbiguity, RequestIdentityResolution, TrustTier, ValidatedStaticOutcome,
+    compile_claim_outcome, compile_claim_outcome_with_catalogue, resolve_request_identities,
     resolve_request_identities_with_catalogue, resolve_request_species,
 };
 pub use presentation::{DynamicPresentationOutcome, enrich_static_outcome};
-pub use solve::solve_reaction_claim;
+pub use solve::{solve_reaction_claim, solve_reaction_claim_with_catalogue};
 pub use structure::{
     AdoptedProposedStructures, adopt_proposed_structures, structure_proposal_request,
 };

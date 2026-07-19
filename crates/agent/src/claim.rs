@@ -137,6 +137,13 @@ impl ProviderClaim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SolvedClaim(ReactionClaim);
 
+impl SolvedClaim {
+    pub(crate) fn with_reviewed_context(mut self, required_context: &str) -> Self {
+        required_context.clone_into(&mut self.0.required_context);
+        self
+    }
+}
+
 impl std::ops::Deref for SolvedClaim {
     type Target = ReactionClaim;
 
@@ -1322,10 +1329,10 @@ fn validate_mechanism_operation(operation: &MechanismOperation) -> Result<(), Ag
         } => {
             validate_mechanism_label(&edge.0, "edge label")?;
             validate_mechanism_label(&edge.1, "edge label")?;
-            if electron_contribution.left > 2 || electron_contribution.right > 2 {
+            if electron_contribution.left > 3 || electron_contribution.right > 3 {
                 return Err(wire_bound_error(
                     "mechanism response",
-                    "covalent electron contribution exceeds 2",
+                    "covalent electron contribution exceeds the maximum bond order of 3",
                 ));
             }
             validate_binary_state(before)?;
@@ -2040,8 +2047,8 @@ mod tests {
         assert_invalid_mechanism(&invalid, "electron state");
 
         let form = json!({
-            "kind":"form_covalent", "edge":["a", "b", "single"],
-            "electron_contribution":{"left":2, "right":2},
+            "kind":"form_covalent", "edge":["a", "b", "triple"],
+            "electron_contribution":{"left":3, "right":3},
             "before":{"left":[0,0,0], "right":[0,0,0]},
             "after":{"left":[0,0,0], "right":[0,0,0]}
         });
@@ -2050,7 +2057,7 @@ mod tests {
         )
         .expect("electron contribution at bound");
         let mut invalid = mechanism_value(form);
-        invalid["operations"][0]["electron_contribution"]["left"] = json!(3);
+        invalid["operations"][0]["electron_contribution"]["left"] = json!(4);
         assert_invalid_mechanism(&invalid, "electron contribution");
 
         let association = json!({

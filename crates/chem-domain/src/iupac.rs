@@ -209,10 +209,9 @@ fn try_ketone(tail: &str, spec: &mut ChainSpec) -> Option<String> {
 fn try_polyol(tail: &str, spec: &mut ChainSpec) -> Option<String> {
     let (rest, count) = if let Some(rest) = tail.strip_suffix("diol") {
         (rest, 2)
-    } else if let Some(rest) = tail.strip_suffix("triol") {
-        (rest, 3)
     } else {
-        return None;
+        let rest = tail.strip_suffix("triol")?;
+        (rest, 3)
     };
     let rest = rest.strip_suffix('-')?;
     let split = rest

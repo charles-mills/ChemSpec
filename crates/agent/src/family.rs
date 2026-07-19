@@ -24,6 +24,10 @@ impl ReviewedFamilyMatch {
         &self.selected.rule.id
     }
 
+    pub(crate) fn required_context(&self) -> &str {
+        &self.selected.rule.applicability.required_context
+    }
+
     #[cfg(test)]
     pub(crate) const fn selected(&self) -> &ElaboratedGeneralizedRule {
         &self.selected
@@ -86,10 +90,25 @@ struct FamilyTerm {
 ///
 /// Returns a system error only if the trusted catalogue becomes internally
 /// inconsistent during elaboration.
-#[allow(clippy::too_many_lines)]
 pub fn match_reviewed_family(
     outcome: &ValidatedStaticOutcome,
     catalogue: &TrustedCatalogue,
+) -> Result<FamilyMatchOutcome, AgentError> {
+    match_reviewed_family_inner(outcome, catalogue, true)
+}
+
+pub(crate) fn match_reviewed_family_ignoring_context(
+    outcome: &ValidatedStaticOutcome,
+    catalogue: &TrustedCatalogue,
+) -> Result<FamilyMatchOutcome, AgentError> {
+    match_reviewed_family_inner(outcome, catalogue, false)
+}
+
+#[allow(clippy::too_many_lines)]
+fn match_reviewed_family_inner(
+    outcome: &ValidatedStaticOutcome,
+    catalogue: &TrustedCatalogue,
+    require_exact_context: bool,
 ) -> Result<FamilyMatchOutcome, AgentError> {
     let Some(terms) = reactant_family_terms(outcome) else {
         return Ok(FamilyMatchOutcome::NoMatch);
@@ -178,6 +197,9 @@ pub fn match_reviewed_family(
                                 error,
                             )
                         })?
+                        && (!require_exact_context
+                            || outcome.declaration().required_context()
+                                == selected.rule.applicability.required_context)
                     {
                         let mut role_species = ordered
                             .iter()
@@ -474,6 +496,53 @@ mod tests {
             animation.static_outcome().trust_tier(),
             crate::TrustTier::Reviewed
         );
+    }
+
+    #[test]
+    fn reviewed_family_rejects_a_provider_claim_with_different_context() {
+        let trusted = trusted();
+        let identities = reviewed_species_registry(&trusted).expect("identities");
+        let claim = json!({
+            "schema_version": 1,
+            "disposition": "reaction",
+            "products": [
+                {"name":"lithium hydroxide","formula":"LiOH","phase":"aqueous","identity_hints":[]},
+                {"name":"hydrogen","formula":"H2","phase":"gas","identity_hints":[]}
+            ],
+            "required_context":"an unreviewed provider condition",
+            "observations":[],"sources":[],"ambiguity":null
+        });
+        let claim =
+            ProviderClaim::from_json(&serde_json::to_vec(&claim).expect("claim"), ClaimMode::Fast)
+                .expect("claim contract");
+        let compiled = compile_claim_outcome(
+            &ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: "LithiumMetal".into(),
+                        atomic_numbers: vec![3],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "H2O".into(),
+                        atomic_numbers: vec![1, 1, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            },
+            claim,
+            &identities,
+        )
+        .expect("compiled outcome");
+        let CompiledClaimOutcome::Static(outcome) = compiled else {
+            panic!("static outcome")
+        };
+
+        assert!(matches!(
+            match_reviewed_family(&outcome, &trusted).expect("family match"),
+            FamilyMatchOutcome::NoMatch
+        ));
     }
 
     #[test]

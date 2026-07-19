@@ -86,7 +86,7 @@
     "form_covalent": {
       "type": "object", "additionalProperties": false,
       "required": ["kind", "edge", "electron_contribution", "before", "after"],
-      "properties": {"kind": {"type": "string", "const": "form_covalent"}, "edge": {"$ref": "#/$defs/edge3"}, "electron_contribution": {"type": "object", "additionalProperties": false, "required": ["left", "right"], "properties": {"left": {"type": "integer", "minimum": 0, "maximum": 2}, "right": {"type": "integer", "minimum": 0, "maximum": 2}}}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
+      "properties": {"kind": {"type": "string", "const": "form_covalent"}, "edge": {"$ref": "#/$defs/edge3"}, "electron_contribution": {"type": "object", "additionalProperties": false, "required": ["left", "right"], "properties": {"left": {"type": "integer", "minimum": 0, "maximum": 3}, "right": {"type": "integer", "minimum": 0, "maximum": 3}}}, "before": {"$ref": "#/$defs/binary"}, "after": {"$ref": "#/$defs/binary"}}
     },
     "cleave_dative": {
       "type": "object", "additionalProperties": false,

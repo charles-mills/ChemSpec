@@ -32,6 +32,7 @@ const TEXT_SOFT: Color = color::TEXT_SOFT;
 pub struct SceneContext {
     kind: EducationalSceneKind,
     equation: Option<String>,
+    electricity: bool,
 }
 
 impl SceneContext {
@@ -39,11 +40,17 @@ impl SceneContext {
         Self {
             kind,
             equation: None,
+            electricity: false,
         }
     }
 
     pub fn with_equation(mut self, equation: Option<String>) -> Self {
         self.equation = equation;
+        self
+    }
+
+    pub fn with_electricity(mut self, electricity: bool) -> Self {
+        self.electricity = electricity;
         self
     }
 }
@@ -870,6 +877,7 @@ impl canvas::Program<DragEvent> for Diagram {
                 action,
                 self.ambient_progress,
                 scale,
+                shows_transfer_motion(self.context.electricity),
             );
         }
 
@@ -899,6 +907,10 @@ impl canvas::Program<DragEvent> for Diagram {
 
         vec![frame.into_geometry()]
     }
+}
+
+const fn shows_transfer_motion(electricity: bool) -> bool {
+    !electricity
 }
 
 /// Eased structural-motion progress: a gentle lead-in, then the action
@@ -2102,6 +2114,41 @@ struct LatticeGroup {
     pairs: Vec<(usize, usize)>,
 }
 
+fn lattice_cell(index: usize, columns: usize) -> (usize, usize) {
+    let row = index / columns;
+    let along = index % columns;
+    let column = if row.is_multiple_of(2) {
+        along
+    } else {
+        columns - 1 - along
+    };
+    (row, column)
+}
+
+fn attach_unpaired_lattice_members(signs: &[i64], columns: usize, pairs: &mut Vec<(usize, usize)>) {
+    for index in 0..signs.len() {
+        if pairs
+            .iter()
+            .any(|(left, right)| *left == index || *right == index)
+        {
+            continue;
+        }
+        let (row, column) = lattice_cell(index, columns);
+        let nearest = signs
+            .iter()
+            .enumerate()
+            .filter(|(_, sign)| **sign == -signs[index])
+            .min_by_key(|(candidate, _)| {
+                let (candidate_row, candidate_column) = lattice_cell(*candidate, columns);
+                row.abs_diff(candidate_row) + column.abs_diff(candidate_column)
+            })
+            .map(|(candidate, _)| candidate);
+        if let Some(nearest) = nearest {
+            pairs.push((index, nearest));
+        }
+    }
+}
+
 fn member_component(frame: &StructuralFrame, member: (usize, usize)) -> &RenderIonicComponent {
     &frame.ionic_associations[member.0].components[member.1]
 }
@@ -2183,13 +2230,7 @@ fn lattice_groups(frame: &StructuralFrame) -> Vec<LatticeGroup> {
                     pairs.push((index, index + 1));
                 }
                 // The cell directly below, skipping row-turn duplicates.
-                let row = index / columns;
-                let along = index % columns;
-                let column = if row.is_multiple_of(2) {
-                    along
-                } else {
-                    columns - 1 - along
-                };
+                let (row, column) = lattice_cell(index, columns);
                 let below = (row + 1) * columns
                     + if (row + 1).is_multiple_of(2) {
                         column
@@ -2200,6 +2241,11 @@ fn lattice_groups(frame: &StructuralFrame) -> Vec<LatticeGroup> {
                     pairs.push((index, below));
                 }
             }
+            // Non-1:1 salts exhaust the minority sign before every majority
+            // ion has an opposite-charge grid neighbour. Attach each such
+            // leftover to its nearest opposite-charge cell so every validated
+            // component participates in the same illustrative lattice.
+            attach_unpaired_lattice_members(&signs, columns, &mut pairs);
             LatticeGroup {
                 members,
                 columns,
@@ -2440,10 +2486,14 @@ fn draw_atom_transition(
             }
             clearance
         };
+        let before_is_metallic = is_metallic_site(before, id);
+        let after_is_metallic = is_metallic_site(after, id);
         draw_charge_transition(
             frame,
             before_atom,
             after_atom,
+            before_is_metallic,
+            after_is_metallic,
             position,
             badge_clearance,
             progress,
@@ -2452,6 +2502,42 @@ fn draw_atom_transition(
             &bond_angles,
         );
     }
+}
+
+fn is_metallic_site(frame: &StructuralFrame, atom_id: &str) -> bool {
+    frame
+        .metallic_domains
+        .iter()
+        .any(|domain| domain.sites.iter().any(|site| site == atom_id))
+}
+
+fn displayed_charge(atom: Option<&AtomState>, is_metallic: bool) -> i16 {
+    if is_metallic {
+        // A metallic site's positive core is balanced by its separately
+        // rendered share of the delocalized electron domain. Presenting the
+        // core value alone as an ionic charge would mislabel a neutral metal.
+        0
+    } else {
+        atom.map_or(0, |atom| atom.formal_charge)
+    }
+}
+
+fn shows_static_lewis_electrons(element: &str) -> bool {
+    !elements::SUPPORTED.iter().any(|candidate| {
+        candidate.symbol == element && candidate.category == elements::Category::TransitionMetal
+    })
+}
+
+fn domain_shows_stationary_electrons(
+    before: &StructuralFrame,
+    after: &StructuralFrame,
+    domain: &RenderMetallicDomain,
+) -> bool {
+    domain.sites.iter().all(|site| {
+        atom(after, site)
+            .or_else(|| atom(before, site))
+            .is_none_or(|state| shows_static_lewis_electrons(&state.element))
+    })
 }
 
 /// Directions of every covalent bond touching an atom in either frame.
@@ -2544,6 +2630,12 @@ fn draw_electron_transition(
     scale: f32,
     bond_angles: &[f32],
 ) {
+    if before
+        .or(after)
+        .is_some_and(|atom| !shows_static_lewis_electrons(&atom.element))
+    {
+        return;
+    }
     let delta = electron_state_delta(before, after);
     if operation_moves_atom_electrons(operations, atom_id) {
         let before_positions = before.map_or_else(Vec::new, |atom| {
@@ -2733,6 +2825,8 @@ fn draw_charge_transition(
     frame: &mut canvas::Frame,
     before: Option<&AtomState>,
     after: Option<&AtomState>,
+    before_is_metallic: bool,
+    after_is_metallic: bool,
     center: Point,
     clearance: f32,
     progress: f32,
@@ -2758,8 +2852,8 @@ fn draw_charge_transition(
     );
     let offset = (clearance + 6.0) * scale;
     let badge = center + Vector::new(angle.cos() * offset, angle.sin() * offset);
-    let before_charge = before.map_or(0, |atom| atom.formal_charge);
-    let after_charge = after.map_or(0, |atom| atom.formal_charge);
+    let before_charge = displayed_charge(before, before_is_metallic);
+    let after_charge = displayed_charge(after, after_is_metallic);
     if before_charge == after_charge {
         draw_charge(frame, badge, after_charge, alpha, scale);
     } else {
@@ -2871,21 +2965,23 @@ fn draw_metallic_transition(
         } else {
             domain.delocalized_electrons
         };
-        for electron in 0..stationary_electrons {
-            let angle = (phase * 0.16
-                + f32::from(electron) / f32::from(stationary_electrons.max(1)))
-            .fract()
-                * std::f32::consts::TAU;
-            let electron_position =
-                center + Vector::new(angle.cos() * halo_radius, angle.sin() * halo_radius);
-            frame.fill(
-                &Path::circle(electron_position, 3.0 * scale),
-                Color::WHITE.scale_alpha(alpha * 0.94),
-            );
-            frame.fill(
-                &Path::circle(electron_position, 7.0 * scale),
-                ACCENT.scale_alpha(alpha * 0.12),
-            );
+        if domain_shows_stationary_electrons(before, after, domain) {
+            for electron in 0..stationary_electrons {
+                let angle = (phase * 0.16
+                    + f32::from(electron) / f32::from(stationary_electrons.max(1)))
+                .fract()
+                    * std::f32::consts::TAU;
+                let electron_position =
+                    center + Vector::new(angle.cos() * halo_radius, angle.sin() * halo_radius);
+                frame.fill(
+                    &Path::circle(electron_position, 3.0 * scale),
+                    Color::WHITE.scale_alpha(alpha * 0.94),
+                );
+                frame.fill(
+                    &Path::circle(electron_position, 7.0 * scale),
+                    ACCENT.scale_alpha(alpha * 0.12),
+                );
+            }
         }
     }
 }
@@ -2941,6 +3037,7 @@ fn draw_operation_motion(
     progress: f32,
     phase: f32,
     scale: f32,
+    show_transfer_motion: bool,
 ) {
     for operation in operations {
         match operation {
@@ -2949,7 +3046,7 @@ fn draw_operation_motion(
                 acceptor,
                 count,
                 ..
-            } => draw_metallic_electron_transfer(
+            } if show_transfer_motion => draw_metallic_electron_transfer(
                 frame, before, after, donor_site, acceptor, *count, positions, progress, phase,
                 scale,
             ),
@@ -2966,7 +3063,8 @@ fn draw_operation_motion(
             }
             StructuralOperation::AssociateIonic { .. }
             | StructuralOperation::AssignProduct { .. }
-            | StructuralOperation::Other { .. } => {}
+            | StructuralOperation::Other { .. }
+            | StructuralOperation::TransferMetallicElectron { .. } => {}
         }
     }
 }
@@ -2987,6 +3085,15 @@ fn draw_metallic_membership_motion(
     phase: f32,
     scale: f32,
 ) {
+    if atom(after, site)
+        .or_else(|| atom(before, site))
+        .is_some_and(|state| !shows_static_lewis_electrons(&state.element))
+    {
+        // Releasing a transition-metal site's complete bookkeeping state is
+        // not a learner-visible electron transfer. The typed transfer
+        // operation draws only the electrons that actually move in reaction.
+        return;
+    }
     let Some(site_center) = positions.get(site).copied() else {
         return;
     };
@@ -3332,10 +3439,71 @@ fn draw_observation_context(
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 /// The scene's one narration panel: the operation title as its header, the
 /// short factual line (formerly a separate floating chip) as its subtitle,
 /// and the classroom sentence as its body. One panel, one leader line.
+struct ExplanationTextLayout {
+    title_lines: Vec<String>,
+    subtitle_lines: Vec<String>,
+    body_lines: Vec<String>,
+    content_inset: f32,
+    content_width: f32,
+    title_size: f32,
+    subtitle_size: f32,
+    body_size: f32,
+    title_step: f32,
+    subtitle_step: f32,
+    body_step: f32,
+    title_top: f32,
+    subtitle_top: f32,
+    body_top: f32,
+    height: f32,
+}
+
+impl ExplanationTextLayout {
+    #[allow(clippy::cast_precision_loss)]
+    fn new(width: f32, scale: f32, title: &str, subtitle: Option<&str>, body: &str) -> Self {
+        let content_inset = 30.0 * scale;
+        let content_width = (width - content_inset * 2.0).max(96.0);
+        let title_size = 9.5 * scale;
+        let subtitle_size = 14.0 * scale;
+        let body_size = 13.5 * scale;
+        let title_lines = wrap_words(title, content_width, title_size);
+        let subtitle_lines = subtitle
+            .map(|subtitle| wrap_words(subtitle, content_width, subtitle_size))
+            .unwrap_or_default();
+        let body_lines = wrap_words(body, content_width, body_size);
+        let title_step = 14.0 * scale;
+        let subtitle_step = 20.0 * scale;
+        let body_step = 20.0 * scale;
+        let title_top = 20.0 * scale;
+        let subtitle_top = title_top + title_lines.len() as f32 * title_step + 8.0 * scale;
+        let body_top = if subtitle_lines.is_empty() {
+            title_top + title_lines.len() as f32 * title_step + 14.0 * scale
+        } else {
+            subtitle_top + subtitle_lines.len() as f32 * subtitle_step + 10.0 * scale
+        };
+        let height = body_top + body_lines.len() as f32 * body_step + 18.0 * scale;
+        Self {
+            title_lines,
+            subtitle_lines,
+            body_lines,
+            content_inset,
+            content_width,
+            title_size,
+            subtitle_size,
+            body_size,
+            title_step,
+            subtitle_step,
+            body_step,
+            title_top,
+            subtitle_top,
+            body_top,
+            height,
+        }
+    }
+}
+
 fn draw_explanation_label(
     frame: &mut canvas::Frame,
     label: &ExplanationLabel,
@@ -3348,16 +3516,23 @@ fn draw_explanation_label(
     let target = average_position(label.target_atoms.iter().map(String::as_str), positions);
     let max_width = (bounds.width - 40.0).max(240.0);
     let width = (410.0 * scale).clamp(260.0, max_width.min(460.0));
-    let lines = wrap_words(&label.text, if width > 390.0 { 47 } else { 33 });
-    let subtitle = context.map(|context| context.text.as_str());
-    let subtitle_extent = if subtitle.is_some() { 24.0 } else { 0.0 };
-    let height = (70.0 + subtitle_extent + lines.len() as f32 * 20.0) * scale;
-    let (x, base_y) = explanation_position(target, bounds, width, height);
+    let title = context.map_or_else(
+        || explanation_title(label.kind).to_owned(),
+        |context| context.title.clone(),
+    );
+    let text_layout = ExplanationTextLayout::new(
+        width,
+        scale,
+        &title,
+        context.map(|context| context.text.as_str()),
+        &label.text,
+    );
+    let (x, base_y) = explanation_position(target, bounds, width, text_layout.height);
     let enter = smoother_step(((progress - 0.04) / 0.14).clamp(0.0, 1.0));
     let alpha = enter;
     let rect = Rectangle::new(
         Point::new(x, base_y + (1.0 - enter) * 18.0 * scale),
-        Size::new(width, height),
+        Size::new(width, text_layout.height),
     );
     let accent = explanation_color(label.kind);
     draw_glass_panel(frame, rect, accent, alpha, 16.0 * scale);
@@ -3371,43 +3546,7 @@ fn draw_explanation_label(
         ),
         accent.scale_alpha(alpha),
     );
-    let title = context.map_or_else(
-        || explanation_title(label.kind).to_owned(),
-        |context| context.title.clone(),
-    );
-    frame.fill_text(canvas::Text {
-        content: title,
-        position: Point::new(rect.x + 30.0 * scale, rect.y + 22.0 * scale),
-        color: accent.scale_alpha(alpha),
-        size: iced::Pixels(9.5 * scale),
-        font: fonts::REGULAR,
-        ..canvas::Text::default()
-    });
-    if let Some(subtitle) = subtitle {
-        frame.fill_text(canvas::Text {
-            content: subtitle.to_owned(),
-            position: Point::new(rect.x + 30.0 * scale, rect.y + 44.0 * scale),
-            color: TEXT.scale_alpha(alpha),
-            size: iced::Pixels(14.0 * scale),
-            font: fonts::REGULAR,
-            ..canvas::Text::default()
-        });
-    }
-    let body_top = 50.0 + subtitle_extent;
-    let body_color = if subtitle.is_some() { TEXT_SOFT } else { TEXT };
-    for (index, line) in lines.iter().enumerate() {
-        frame.fill_text(canvas::Text {
-            content: line.clone(),
-            position: Point::new(
-                rect.x + 30.0 * scale,
-                rect.y + (body_top + index as f32 * 20.0) * scale,
-            ),
-            color: body_color.scale_alpha(alpha),
-            size: iced::Pixels(13.5 * scale),
-            font: fonts::REGULAR,
-            ..canvas::Text::default()
-        });
-    }
+    draw_explanation_text(frame, rect, &text_layout, accent, alpha, scale);
     if label.connector
         && let Some(target) = target
     {
@@ -3431,6 +3570,73 @@ fn draw_explanation_label(
             accent.scale_alpha(alpha * line_progress),
         );
     }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn draw_explanation_text(
+    frame: &mut canvas::Frame,
+    rect: Rectangle,
+    layout: &ExplanationTextLayout,
+    accent: Color,
+    alpha: f32,
+    scale: f32,
+) {
+    // Keep all narration inside the card even at compact viewport sizes or
+    // enlarged display scales. The manual line layout sizes the card, while
+    // `max_width` and the clip are final safeguards against font-metric drift.
+    let text_clip = Rectangle::new(
+        Point::new(rect.x + layout.content_inset, rect.y + 10.0 * scale),
+        Size::new(layout.content_width, (rect.height - 20.0 * scale).max(1.0)),
+    );
+    frame.with_clip(text_clip, |frame| {
+        for (index, line) in layout.title_lines.iter().enumerate() {
+            frame.fill_text(canvas::Text {
+                content: line.clone(),
+                position: Point::new(
+                    rect.x + layout.content_inset,
+                    rect.y + layout.title_top + index as f32 * layout.title_step,
+                ),
+                max_width: layout.content_width,
+                color: accent.scale_alpha(alpha),
+                size: iced::Pixels(layout.title_size),
+                font: fonts::REGULAR,
+                ..canvas::Text::default()
+            });
+        }
+        for (index, line) in layout.subtitle_lines.iter().enumerate() {
+            frame.fill_text(canvas::Text {
+                content: line.clone(),
+                position: Point::new(
+                    rect.x + layout.content_inset,
+                    rect.y + layout.subtitle_top + index as f32 * layout.subtitle_step,
+                ),
+                max_width: layout.content_width,
+                color: TEXT.scale_alpha(alpha),
+                size: iced::Pixels(layout.subtitle_size),
+                font: fonts::REGULAR,
+                ..canvas::Text::default()
+            });
+        }
+        let body_color = if layout.subtitle_lines.is_empty() {
+            TEXT
+        } else {
+            TEXT_SOFT
+        };
+        for (index, line) in layout.body_lines.iter().enumerate() {
+            frame.fill_text(canvas::Text {
+                content: line.clone(),
+                position: Point::new(
+                    rect.x + layout.content_inset,
+                    rect.y + layout.body_top + index as f32 * layout.body_step,
+                ),
+                max_width: layout.content_width,
+                color: body_color.scale_alpha(alpha),
+                size: iced::Pixels(layout.body_size),
+                font: fonts::REGULAR,
+                ..canvas::Text::default()
+            });
+        }
+    });
 }
 
 fn explanation_position(
@@ -3540,11 +3746,16 @@ const fn explanation_title(kind: ExplanationLabelKind) -> &'static str {
     }
 }
 
-fn wrap_words(text: &str, max_chars: usize) -> Vec<String> {
+fn wrap_words(text: &str, max_width: f32, font_size: f32) -> Vec<String> {
     let mut lines = Vec::new();
     let mut line = String::new();
     for word in text.split_whitespace() {
-        if !line.is_empty() && line.len() + word.len() + 1 > max_chars {
+        let candidate = if line.is_empty() {
+            word.to_owned()
+        } else {
+            format!("{line} {word}")
+        };
+        if !line.is_empty() && estimated_text_width(&candidate, font_size) > max_width {
             lines.push(std::mem::take(&mut line));
         }
         if !line.is_empty() {
@@ -3556,6 +3767,31 @@ fn wrap_words(text: &str, max_chars: usize) -> Vec<String> {
         lines.push(line);
     }
     lines
+}
+
+fn estimated_text_width(text: &str, font_size: f32) -> f32 {
+    // Approximate Inter's advances conservatively. Canvas still receives an
+    // exact `max_width`; this estimate exists to choose line breaks early
+    // enough to calculate a card height that contains the resulting lines.
+    text.chars()
+        .map(|character| {
+            let em = if character.is_whitespace() || "ilI.,'`:;!|".contains(character) {
+                0.34
+            } else if "mwMW@%&".contains(character) {
+                0.95
+            } else if character.is_ascii_uppercase() {
+                0.72
+            } else if character.is_ascii_digit() {
+                0.64
+            } else if character.is_ascii_punctuation() {
+                0.58
+            } else {
+                0.62
+            };
+            em * font_size
+        })
+        .sum::<f32>()
+        * 1.12
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -3642,6 +3878,71 @@ mod tests {
             non_bonding_electrons,
             unpaired_electrons,
         }
+    }
+
+    #[test]
+    fn metallic_site_core_charge_is_not_presented_as_an_ion() {
+        let nickel = AtomState {
+            id: "nickel".to_owned(),
+            element: "Ni".to_owned(),
+            formal_charge: 10,
+            non_bonding_electrons: 0,
+            unpaired_electrons: 0,
+        };
+        let metallic_frame = RenderFrame {
+            atoms: vec![nickel.clone()],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: vec![RenderMetallicDomain {
+                id: "nickel-domain".to_owned(),
+                sites: vec![nickel.id.clone()],
+                delocalized_electrons: 10,
+            }],
+        };
+
+        assert!(is_metallic_site(&metallic_frame, &nickel.id));
+        assert_eq!(
+            displayed_charge(Some(&nickel), is_metallic_site(&metallic_frame, &nickel.id)),
+            0
+        );
+        assert_eq!(displayed_charge(Some(&nickel), false), 10);
+
+        let nickel_ion = AtomState {
+            formal_charge: 2,
+            non_bonding_electrons: 8,
+            unpaired_electrons: 2,
+            ..nickel
+        };
+        assert_eq!(displayed_charge(Some(&nickel_ion), false), 2);
+    }
+
+    #[test]
+    fn transition_metals_omit_static_lewis_and_domain_electron_dots() {
+        let nickel = AtomState {
+            id: "nickel".to_owned(),
+            element: "Ni".to_owned(),
+            formal_charge: 10,
+            non_bonding_electrons: 0,
+            unpaired_electrons: 0,
+        };
+        let frame = RenderFrame {
+            atoms: vec![nickel.clone()],
+            covalent_bonds: Vec::new(),
+            ionic_associations: Vec::new(),
+            metallic_domains: vec![RenderMetallicDomain {
+                id: "nickel-domain".to_owned(),
+                sites: vec![nickel.id.clone()],
+                delocalized_electrons: 10,
+            }],
+        };
+
+        assert!(!shows_static_lewis_electrons("Ni"));
+        assert!(!domain_shows_stationary_electrons(
+            &frame,
+            &frame,
+            &frame.metallic_domains[0]
+        ));
+        assert!(shows_static_lewis_electrons("O"));
     }
 
     #[test]
@@ -3838,6 +4139,65 @@ mod tests {
                 "{sodium}-{chloride} gap {gap} vs Na-Na {na_gap} / Cl-Cl {cl_gap}"
             );
         }
+    }
+
+    #[test]
+    fn non_one_to_one_lattice_keeps_every_ion_in_the_product_cluster() {
+        let mut atoms = vec![ion_atom("ta1", "Ta", 5), ion_atom("ta2", "Ta", 5)];
+        atoms.extend((1..=5).map(|index| ion_atom(&format!("o{index}"), "O", -2)));
+        let frame = RenderFrame {
+            atoms,
+            covalent_bonds: Vec::new(),
+            ionic_associations: vec![RenderIonicAssociation {
+                id: "tantalum-pentoxide".to_owned(),
+                components: vec![
+                    RenderIonicComponent {
+                        atoms: vec!["ta1".to_owned()],
+                        charge: 5,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["ta2".to_owned()],
+                        charge: 5,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o1".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o2".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o3".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o4".to_owned()],
+                        charge: -2,
+                    },
+                    RenderIonicComponent {
+                        atoms: vec!["o5".to_owned()],
+                        charge: -2,
+                    },
+                ],
+            }],
+            metallic_domains: Vec::new(),
+        };
+
+        let groups = lattice_groups(&frame);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].members.len(), 7);
+        assert!(groups[0].members.iter().enumerate().all(|(index, _)| {
+            groups[0]
+                .pairs
+                .iter()
+                .any(|(left, right)| *left == index || *right == index)
+        }));
+        assert_eq!(connected_components(&frame).len(), 1);
+
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(1600.0, 900.0));
+        let positions = layout_ordered(&frame, &connected_components(&frame), bounds);
+        assert_eq!(positions.len(), 7);
     }
 
     #[test]
@@ -4427,9 +4787,35 @@ mod tests {
     #[test]
     fn word_wrapping_preserves_content() {
         let source = "A shared electron pair forms a covalent bond";
-        let lines = wrap_words(source, 18);
+        let lines = wrap_words(source, 120.0, 13.5);
         assert_eq!(lines.join(" "), source);
         assert!(lines.len() > 1);
+    }
+
+    #[test]
+    fn explanation_wrapping_respects_available_width_at_multiple_scales() {
+        let source = "The two atoms now share a pair of electrons — that shared pair is the new covalent bond holding them together.";
+        for scale in [0.72_f32, 1.0, 1.35] {
+            let panel_width = (410.0 * scale).clamp(260.0, 460.0);
+            let content_width = panel_width - 60.0 * scale;
+            let font_size = 13.5 * scale;
+            let lines = wrap_words(source, content_width, font_size);
+
+            assert_eq!(lines.join(" "), source);
+            assert!(lines.len() > 1);
+            assert!(
+                lines
+                    .iter()
+                    .all(|line| estimated_text_width(line, font_size) <= content_width),
+                "wrapped explanation exceeded {content_width}px at scale {scale}: {lines:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn electricity_suppresses_direct_interionic_electron_motion() {
+        assert!(!shows_transfer_motion(true));
+        assert!(shows_transfer_motion(false));
     }
 
     #[test]

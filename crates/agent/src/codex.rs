@@ -14,8 +14,9 @@ use std::{
 
 use crate::{
     AgentError, AgentErrorKind, ClaimMode, MechanismEscalationRequest, MechanismEscalationResponse,
-    MechanismProvider, ProviderClaim, ReactionBuildRequest, StructureProposalRequest,
-    StructureProposalResponse,
+    MechanismProvider, OxideAppearanceClaim, OxideAppearanceRequest, ProviderClaim,
+    ReactionBuildRequest, StructureProposalRequest, StructureProposalResponse,
+    ValidatedOxideAppearance,
 };
 
 const CLAIM_RESULT_SCHEMA: &str = r##"{
@@ -161,12 +162,19 @@ const CLAIM_RESULT_SCHEMA: &str = r##"{
 
 const MECHANISM_RESULT_SCHEMA: &str = include_str!("../schemas/mechanism-response.json");
 const STRUCTURE_RESULT_SCHEMA: &str = include_str!("../schemas/structure-response.json");
+const OXIDE_APPEARANCE_RESULT_SCHEMA: &str =
+    include_str!("../schemas/oxide-appearance-response.json");
 
 const CLAIM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-reaction.md");
 const MECHANISM_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-mechanism.md");
 const STRUCTURE_PROMPT_TEMPLATE: &str = include_str!("../prompts/dynamic-structure.md");
+const OXIDE_APPEARANCE_PROMPT_TEMPLATE: &str = include_str!("../prompts/oxide-appearance.md");
 pub const FAST_CLAIM_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MECHANISM_TIMEOUT: Duration = Duration::from_mins(3);
+// Appearance research includes live-source discovery and one bounded repair
+// pass. A one-minute shared deadline can expire before the validated repair
+// finishes, delaying the exact product-bound material update.
+pub const OXIDE_APPEARANCE_TIMEOUT: Duration = Duration::from_mins(3);
 const MAX_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024;
 const PREFLIGHT_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 const PREFLIGHT_TOTAL_TIMEOUT: Duration = Duration::from_secs(20);
@@ -360,6 +368,74 @@ impl CodexProvider {
             }
         }
         unreachable!("the bounded claim loop always returns")
+    }
+
+    /// Researches only the representative visible colour of one exact,
+    /// already-validated oxide product. Live search is enabled, but the
+    /// response remains a provisional model assertion and cannot modify the
+    /// trusted catalogue.
+    ///
+    /// # Errors
+    ///
+    /// Returns a preflight, invocation, schema, identity-binding, source, or
+    /// safety error. One full-result correction is allowed.
+    pub fn research_oxide_appearance(
+        &self,
+        request: &OxideAppearanceRequest,
+    ) -> Result<ValidatedOxideAppearance, AgentError> {
+        let deadline = Instant::now() + OXIDE_APPEARANCE_TIMEOUT;
+        let preflight = self.preflight_until(deadline)?;
+        if !preflight.authenticated {
+            return Err(AgentError::new(
+                AgentErrorKind::ProviderUnavailable,
+                "Codex preflight",
+                "Codex is installed but not authenticated",
+            ));
+        }
+        let temporary = TemporaryRun::create()?;
+        let schema_path = temporary.path.join("oxide-appearance.schema.json");
+        let result_path = temporary.path.join("oxide-appearance.json");
+        fs::write(&schema_path, OXIDE_APPEARANCE_RESULT_SCHEMA).map_err(|error| {
+            AgentError::from_source(AgentErrorKind::ProviderFailure, "Codex run setup", error)
+        })?;
+        let request_json = serde_json::to_string_pretty(request).map_err(|error| {
+            AgentError::from_source(
+                AgentErrorKind::InvalidRequest,
+                "oxide appearance prompt",
+                error,
+            )
+        })?;
+        let mut correction = String::new();
+        for attempt in 0..=1 {
+            let prompt = OXIDE_APPEARANCE_PROMPT_TEMPLATE
+                .replace("{{REQUEST_JSON}}", &request_json)
+                .replace("{{CORRECTION}}", &correction);
+            let bytes = self.invoke(
+                &temporary,
+                &schema_path,
+                &result_path,
+                &prompt,
+                deadline,
+                true,
+            )?;
+            match OxideAppearanceClaim::from_json_for(&bytes, request) {
+                Ok(appearance) => return Ok(appearance),
+                Err(error) if attempt == 0 => {
+                    correction = format!(
+                        "The previous complete JSON result was rejected by the local validator: \
+                         {error}. Return a fresh complete result bound exactly to the request."
+                    );
+                }
+                Err(error) => {
+                    return Err(AgentError::new(
+                        AgentErrorKind::InvalidProviderOutput,
+                        "oxide appearance retry",
+                        format!("appearance claim remained invalid after one retry; {error}"),
+                    ));
+                }
+            }
+        }
+        unreachable!("the bounded oxide appearance loop always returns")
     }
 
     /// Requests one mapping/operation proposal for an immutable, locally
@@ -1122,6 +1198,13 @@ mod tests {
                 .len(),
             13
         );
+        let appearance: serde_json::Value =
+            serde_json::from_str(OXIDE_APPEARANCE_RESULT_SCHEMA).expect("appearance schema");
+        assert_eq!(
+            appearance["properties"]["schema_version"]["const"],
+            json!(1)
+        );
+        assert_eq!(appearance["properties"]["sources"]["maxItems"], json!(3));
     }
 
     #[test]
@@ -1232,6 +1315,7 @@ mod tests {
             CLAIM_RESULT_SCHEMA,
             MECHANISM_RESULT_SCHEMA,
             STRUCTURE_RESULT_SCHEMA,
+            OXIDE_APPEARANCE_RESULT_SCHEMA,
         ] {
             assert!(!schema.contains("oneOf"), "strict mode rejects oneOf");
             assert!(

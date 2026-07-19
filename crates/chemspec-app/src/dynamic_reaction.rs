@@ -16,7 +16,7 @@ use agent::{
     AgentError, ClaimMode, CodexProgressEvent, CodexProvider, CodexProviderConfig,
     CompiledClaimOutcome, DynamicPresentationOutcome, FAST_CLAIM_TIMEOUT, LatencyMilestones,
     ReactantIdentityAmbiguity, ReactionBuildRequest, ReactionClaim, ValidatedStaticOutcome,
-    compile_claim_outcome, load_dynamic_cache, store_dynamic_cache,
+    compile_claim_outcome_with_catalogue, load_dynamic_cache, store_dynamic_cache,
 };
 use chem_catalogue::TrustedCatalogue;
 use chem_domain::{SpeciesId, SpeciesRegistry};
@@ -309,34 +309,41 @@ pub(super) fn run_claim(job: ClaimJob) -> Result<ClaimStageResult, BuildFailure>
         });
     }
     // Algorithmic solving comes first: deterministic families need no model.
-    let (outcome, provider_claim) = match agent::solve_reaction_claim(&request, &identities) {
-        Some(claim) => (
-            compile_claim_outcome(&request, claim, &identities).map_err(BuildFailure::from)?,
-            None,
-        ),
-        None if local => {
-            return Err(
-                "This reaction isn't supported in Local Mode — ChemSpec couldn't derive it \
+    let (outcome, provider_claim) =
+        match agent::solve_reaction_claim_with_catalogue(&request, &identities, &catalogue) {
+            Some(claim) => (
+                compile_claim_outcome_with_catalogue(&request, claim, &identities, &catalogue)
+                    .map_err(BuildFailure::from)?,
+                None,
+            ),
+            None if local => {
+                return Err(
+                    "This reaction isn't supported in Local Mode — ChemSpec couldn't derive it \
                  programmatically. Switch to an AI mode to research it."
-                    .to_owned()
-                    .into(),
-            );
-        }
-        // The provider uses std::time::Instant; this branch never runs on
-        // wasm, where Local Mode is forced.
-        None => {
-            let claim = provider
-                .claim_reaction_until(
+                        .to_owned()
+                        .into(),
+                );
+            }
+            // The provider uses std::time::Instant; this branch never runs on
+            // wasm, where Local Mode is forced.
+            None => {
+                let claim = provider
+                    .claim_reaction_until(
+                        &request,
+                        mode,
+                        std::time::Instant::now() + FAST_CLAIM_TIMEOUT,
+                    )
+                    .map_err(BuildFailure::from)?;
+                let outcome = compile_claim_outcome_with_catalogue(
                     &request,
-                    mode,
-                    std::time::Instant::now() + FAST_CLAIM_TIMEOUT,
+                    claim.clone(),
+                    &identities,
+                    &catalogue,
                 )
                 .map_err(BuildFailure::from)?;
-            let outcome = compile_claim_outcome(&request, claim.clone(), &identities)
-                .map_err(BuildFailure::from)?;
-            (outcome, Some(claim))
-        }
-    };
+                (outcome, Some(claim))
+            }
+        };
     latency.claim_ms = Some(elapsed_millis(started));
     if matches!(outcome, CompiledClaimOutcome::Static(_)) {
         latency.static_outcome_ms = Some(elapsed_millis(started));
@@ -554,11 +561,12 @@ fn finish_static_claim(
     app.dynamic.claim = Some(outcome.claim().clone());
     app.dynamic.static_outcome = Some(outcome.clone());
     app.dynamic.presentation = None;
+    app.validated_macroscopic = super::dynamic_macroscopic_reaction(&outcome).ok();
     if let Some(presentation) = presentation {
         app.dynamic.cancellation = None;
         app.dynamic.progress_receiver = None;
         app.finish_dynamic_presentation(presentation);
-        return Task::none();
+        return app.start_oxide_appearance_enrichment();
     }
     app.dynamic.build = BuildState::Running {
         run_id,
@@ -571,7 +579,7 @@ fn finish_static_claim(
         .clone()
         .expect("a dynamic run retains its request");
     let progress = app.reset_dynamic_progress_channel();
-    App::start_dynamic_presentation(
+    let presentation_task = App::start_dynamic_presentation(
         run_id,
         request,
         ClaimMode::Fast,
@@ -582,7 +590,8 @@ fn finish_static_claim(
             .clone()
             .expect("a running build retains cancellation"),
         progress,
-    )
+    );
+    Task::batch([presentation_task, app.start_oxide_appearance_enrichment()])
 }
 
 fn finish_presentation(

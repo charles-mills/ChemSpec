@@ -58,6 +58,12 @@
         "structure": {"$ref": "#/$defs/id"},
         "context": {"$ref": "#/$defs/macroscopicMaterialContext"},
         "phase": {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"enum": ["aqueous", "solid", "liquid", "gas"]}}},
+        "colour": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {"type": "integer", "minimum": 0, "maximum": 255}
+        },
         "premise_ids": {"$ref": "#/$defs/premiseIds"}
       }
     },

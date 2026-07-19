@@ -1,0 +1,42 @@
+{
+  "schema": "chemspec.authored-clip-asset/1",
+  "asset_id": "generic-metal-displacement",
+  "source_root": "/home/aryan/potassium_water_reaction/metal_displacement",
+  "source_manifest": "asset_manifest.json",
+  "source_blend": "source/metal_displacement_reaction.blend",
+  "source_sha256": "9eda724acbccbca880b6ab30b6ecc1bce8d7336880ae8ff38951a56214ab0d7c",
+  "interchange_main": "exports/fbx/metal_displacement_reaction_complete.fbx",
+  "interchange_parts": "exports/fbx/parts",
+  "runtime_bake_source": "source/metal_displacement_reaction.blend",
+  "runtime_clip": "metal_displacement.clip",
+  "runtime_sha256": "20688a23e3faba90494a13e62026ea4ae577db24023d54ca03163fcb806d240b",
+  "runtime_bytes": 4590072,
+  "track_count": 42,
+  "frame_start": 1,
+  "frame_end": 180,
+  "frame_count": 180,
+  "frames_per_second": 30,
+  "duration_seconds": 6,
+  "included_modules": [
+    "initial_solution",
+    "final_solution",
+    "original_metal",
+    "metal_erosion",
+    "replacement_metal_deposit",
+    "deposited_metal_flakes"
+  ],
+  "excluded_modules": ["beaker", "stage"],
+  "shared_geometry": {
+    "beaker": "alkali_water.clip#module=beaker"
+  },
+  "material_slots": {
+    "MAT_SolutionInitial": "exact initial aqueous ionic reactant binding",
+    "MAT_SolutionFinal": "exact final aqueous ionic product binding",
+    "MAT_OriginalMetal": "exact solid metallic reactant binding",
+    "MAT_DepositedMetal": "exact solid metallic product binding",
+    "MAT_MetalErosion": "neutral presentation-only pitting detail",
+    "MAT_Glass": "shared ChemSpec glass material"
+  },
+  "selection_authority": "validated solid-metal plus aqueous-ion cross-side identity exchange; gas, combustion, precipitation, and ambiguous layouts are excluded",
+  "virtual_only": true
+}

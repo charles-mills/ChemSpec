@@ -2547,7 +2547,43 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_structure_capability_returns_without_repair() {
+    fn ionic_aqueous_electrolysis_builds_complete_algorithmic_frames() {
+        let trusted = trusted();
+        let identities = chem_domain::SpeciesRegistry::default();
+        for (formula, atomic_numbers) in [
+            ("NaCl", vec![11, 17]),
+            ("CuCl2", vec![29, 17, 17]),
+            ("CuSO4", vec![29, 16, 8, 8, 8, 8]),
+            ("Na2SO4", vec![11, 11, 16, 8, 8, 8, 8]),
+        ] {
+            let request = ReactionBuildRequest {
+                reactants: vec![ReactantInput {
+                    display: formula.to_owned(),
+                    atomic_numbers,
+                    species_id: None,
+                }],
+                selected_context: Some("electricity".to_owned()),
+            };
+            let claim = crate::solve_reaction_claim(&request, &identities)
+                .expect("algorithmic electrolysis claim");
+            let CompiledClaimOutcome::Static(outcome) =
+                compile_claim_outcome(&request, claim, &identities).expect("static outcome")
+            else {
+                panic!("expected static outcome")
+            };
+            assert!(outcome.species_without_structure().is_empty(), "{formula}");
+            let mut provider = MechanismOnlyProvider::default();
+            let result = derive_mechanism(outcome, &trusted, &mut provider);
+            let MechanismEscalationOutcome::Animated(animated) = result else {
+                panic!("expected algorithmic animation for {formula}: {result:?}")
+            };
+            assert!(!animated.frames().frames().is_empty(), "{formula}");
+            assert_eq!(provider.mechanism_calls, 0, "{formula}");
+        }
+    }
+
+    #[test]
+    fn formula_only_product_escalates_structures_and_stays_retryable() {
         // C3H8O is deliberately ambiguous (1-propanol vs 2-propanol), so the
         // structure generator declines and model escalation stays necessary.
         let trusted = trusted();
