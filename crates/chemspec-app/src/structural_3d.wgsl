@@ -189,8 +189,11 @@ fn shadow_factor(world_position: vec3<f32>, normal: vec3<f32>) -> f32 {
     for (var y = -1; y <= 1; y += 1) {
         for (var x = -1; x <= 1; x += 1) {
             let tap = shadow_uv + vec2<f32>(f32(x), f32(y)) * texel;
-            solid += textureSampleCompare(shadow_map, shadow_sampler, tap, depth);
-            glass += textureSampleCompare(glass_shadow_map, shadow_sampler, tap, depth);
+            // Level variants: the implicit-derivative forms are invalid in
+            // non-uniform control flow (the early returns above), which
+            // WebGPU's Tint compiler rejects; the maps have a single mip.
+            solid += textureSampleCompareLevel(shadow_map, shadow_sampler, tap, depth);
+            glass += textureSampleCompareLevel(glass_shadow_map, shadow_sampler, tap, depth);
         }
     }
     solid /= 9.0;
@@ -492,7 +495,8 @@ fn fragment_transparent(input: VertexOutput) -> @location(0) vec4<f32> {
         let uv = input.clip_position.xy / max(camera.params.yz, vec2<f32>(1.0));
         let offset = vec2<f32>(dot(normal, screen_right), -dot(normal, screen_up)) * strength;
         let sample_uv = clamp(uv + offset, vec2<f32>(0.001), vec2<f32>(0.999));
-        let background = textureSample(background_texture, background_sampler, sample_uv).rgb;
+        let background =
+            textureSampleLevel(background_texture, background_sampler, sample_uv, 0.0).rgb;
         let tint = mix(vec3<f32>(1.0), pow(max(input.color.rgb, vec3<f32>(0.0)), vec3<f32>(2.2)), 0.45);
         let transmission_weight = (1.0 - shaded.a) * select(0.30, 0.62, input.material == MATERIAL_GLASS);
         shaded = vec4<f32>(
