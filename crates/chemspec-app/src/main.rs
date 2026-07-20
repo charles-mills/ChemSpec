@@ -945,6 +945,12 @@ fn launch_state() -> App {
                 {
                     animation.frame_index = frame_index;
                 }
+            } else if std::env::args().any(|argument| {
+                argument.starts_with("--smoke-playhead-ms=")
+                    || argument.starts_with("--smoke-playhead-frac=")
+            }) {
+                animation.educational_playhead_ms =
+                    smoke_playhead(animation.educational_plan.duration_ms());
             } else {
                 let scene_index = animation
                     .educational_plan
@@ -3843,9 +3849,10 @@ impl App {
         let action = structural_2d::scene_action(scene.kind, has_explanation, scene_progress);
         let spec = structural_2d::world_spec(before, after, action, before_homes, after_homes);
         animation.physics.step(&spec);
-        // The camera frames the whole chapter (both endpoints), retargets
-        // only when the chapter does, and glides — never chases.
-        let target = structural_2d::chapter_camera(before, after, before_homes, after_homes);
+        // The camera blends from the chapter's before-fit to its after-fit
+        // with the structural morph, and glides — never chases live physics.
+        let target =
+            structural_2d::chapter_camera(before, after, before_homes, after_homes, action);
         let camera_moved = structural_2d::ease_camera(&mut animation.camera, target);
         animation.settled = !animation.playing && !camera_moved && animation.physics.is_settled();
     }
@@ -4146,12 +4153,40 @@ impl App {
         ))
         .size(type_scale::CAPTION)
         .color(color::TEXT_SOFT);
+        // The scrubber ticks are anonymous; name the chapter the paused (or
+        // seeking) viewer is looking at, next to the timecode.
+        let chapter_title = context_labels
+            .iter()
+            .find(|label| {
+                label.kind == chem_presentation::ExplanationLabelKind::StructuralChangeExplanation
+            })
+            .map_or_else(
+                || match educational_scene.kind {
+                    chem_presentation::EducationalSceneKind::ReactantSetup => "REACTANTS".to_owned(),
+                    chem_presentation::EducationalSceneKind::StructuralChange => {
+                        "STRUCTURAL CHANGE".to_owned()
+                    }
+                    chem_presentation::EducationalSceneKind::ObservationConnection => {
+                        "OBSERVATION".to_owned()
+                    }
+                    chem_presentation::EducationalSceneKind::Summary => "SUMMARY".to_owned(),
+                },
+                |label| label.title.to_uppercase(),
+            );
+        let chapter = text(format!(
+            "{chapter_title}  ·  {}/{}",
+            timeline_position.scene_index + 1,
+            animation.educational_plan.scenes.len()
+        ))
+        .size(type_scale::CAPTION)
+        .color(color::TEXT_SOFT);
+        let status = row![chapter, elapsed].spacing(spacing::SM).align_y(Center);
         let transport: Element<'_, Message> = if compact {
             column![
                 row![playback, previous, next, speed]
                     .spacing(spacing::XS)
                     .align_y(Center),
-                row![restart, space().width(Fill), elapsed]
+                row![restart, space().width(Fill), status]
                     .spacing(spacing::XS)
                     .align_y(Center),
             ]
@@ -4165,7 +4200,7 @@ impl App {
                 restart,
                 speed,
                 space().width(Fill),
-                elapsed,
+                status,
             ]
             .spacing(spacing::XS)
             .align_y(Center)
