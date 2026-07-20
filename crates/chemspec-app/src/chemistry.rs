@@ -30,9 +30,9 @@ const CATALOGUE: &[u8] =
     include_bytes!("../../../catalogue/reference/core-chemistry/catalogue.json");
 const CATALOGUE_REVIEW: &[u8] =
     include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
-const CATALOGUE_DIGEST: &str = "369e8541babf7cb2e66fe58cb55eaa6b8674ad6b4659f3d9b3c9335a985032db";
+const CATALOGUE_DIGEST: &str = "cb51dacb986d35773a487879352a98ca478f9ba55f2755be0401c8d1b5e2d607";
 const CATALOGUE_REVIEW_DIGEST: &str =
-    "ee89227850058c1eb51c712f4cc5a009b7576f1249d7c31a59629b241d6b4dd0";
+    "3dfac8a80f8567bda87d5d082ad39a7aabc6c6e8e4ced51da86dcaf02d2cab83";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -1410,39 +1410,45 @@ fn classify_catalogue_macroscopic_process(
         return None;
     }
     let (product_binding, _) = expanded.claim().products().iter().next()?;
-    if material_has_phase(
-        product_binding,
-        MacroscopicMaterialRole::Product,
-        chem_domain::Phase::Gas,
-    ) && !has_formula_counts(&first.1.formula, &[("O", 2)])
-        && !has_formula_counts(&second.1.formula, &[("O", 2)])
-    {
-        let phases = [
-            materials
-                .iter()
-                .find(|material| {
-                    material.binding == first.0.as_str()
-                        && material.role == MacroscopicMaterialRole::Reactant
-                })?
-                .phase,
-            materials
-                .iter()
-                .find(|material| {
-                    material.binding == second.0.as_str()
-                        && material.role == MacroscopicMaterialRole::Reactant
-                })?
-                .phase,
-        ];
-        match phases {
-            [chem_domain::Phase::Solid, chem_domain::Phase::Gas]
-            | [chem_domain::Phase::Gas, chem_domain::Phase::Solid] => {
-                return Some(MacroscopicProcess::SolidGasSynthesis);
-            }
-            [chem_domain::Phase::Gas, chem_domain::Phase::Gas] => {
-                return Some(MacroscopicProcess::GasGasSynthesis);
-            }
-            _ => {}
-        }
+    let reactant_phase = |binding: &str| {
+        materials
+            .iter()
+            .find(|material| {
+                material.binding == binding && material.role == MacroscopicMaterialRole::Reactant
+            })
+            .map(|material| material.phase)
+    };
+    let product_phase = materials
+        .iter()
+        .find(|material| {
+            material.binding == product_binding.as_str()
+                && material.role == MacroscopicMaterialRole::Product
+        })?
+        .phase;
+    let first_formula: Vec<(&str, u64)> = first
+        .1
+        .formula
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str(), *count))
+        .collect();
+    let second_formula: Vec<(&str, u64)> = second
+        .1
+        .formula
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str(), *count))
+        .collect();
+    if let (Some(first_phase), Some(second_phase)) = (
+        reactant_phase(first.0.as_str()),
+        reactant_phase(second.0.as_str()),
+    ) && let Some(route) = chem_domain::classify_phase_synthesis(
+        (&first_formula, first_phase),
+        (&second_formula, second_phase),
+        product_phase,
+    ) {
+        return Some(match route {
+            chem_domain::PhaseSynthesisRoute::SolidGas => MacroscopicProcess::SolidGasSynthesis,
+            chem_domain::PhaseSynthesisRoute::GasGas => MacroscopicProcess::GasGasSynthesis,
+        });
     }
     (solid_reactants
         && material_has_phase(
@@ -2277,65 +2283,13 @@ pub fn presentation_profile(
                 ],
             )
         }
-        ReactionKind::Registry { index } => {
-            let definition = &EXPERIENCE_DEFINITIONS[index];
-            let (forms_ordinal, _) = active_observation(frames, ObservationPredicate::Forms)?;
-            let co_reactant = match definition.participants[1] {
-                ExperienceParticipantDefinition::Element(atomic_number) => {
-                    crate::elements::by_atomic_number(atomic_number)
-                        .map_or("co-reactant", |element| element.name)
-                }
-                ExperienceParticipantDefinition::Composition(formula) => formula,
-            };
-            (
-                vec![
-                    vessel(AssetProfile::Beaker),
-                    PresentationObject {
-                        id: "subject".to_owned(),
-                        asset: AssetProfile::PowderPile,
-                        semantic_identity: definition.subject_name.to_owned(),
-                        appearance: AppearanceProfile::LaboratoryNeutral,
-                        role: SceneRole::Reactant,
-                        transform: transform([-300, 250, 0], [650, 650, 650]),
-                        visible_from_ordinal: 0,
-                        observation: None,
-                        colour_transition: None,
-                    },
-                    PresentationObject {
-                        id: "co-reactant".to_owned(),
-                        asset: AssetProfile::GasCloud,
-                        semantic_identity: co_reactant.to_owned(),
-                        appearance: AppearanceProfile::LaboratoryNeutral,
-                        role: SceneRole::Reactant,
-                        transform: transform([300, 250, 0], [650, 650, 650]),
-                        visible_from_ordinal: 0,
-                        observation: None,
-                        colour_transition: None,
-                    },
-                    PresentationObject {
-                        id: "product".to_owned(),
-                        asset: if definition.family == ReactionFamily::CovalentCombination {
-                            AssetProfile::GasCloud
-                        } else {
-                            AssetProfile::CrystalCluster
-                        },
-                        semantic_identity: definition.product_name.map_or_else(
-                            || crate::nomenclature::product_names(frames),
-                            str::to_owned,
-                        ),
-                        appearance: AppearanceProfile::LaboratoryNeutral,
-                        role: SceneRole::Product,
-                        transform: transform([0, 250, 0], [750, 750, 750]),
-                        visible_from_ordinal: forms_ordinal,
-                        observation: Some(ObjectObservationBinding {
-                            predicate: ObservationPredicate::Forms,
-                            value: None,
-                        }),
-                        colour_transition: None,
-                    },
-                ],
-                Vec::new(),
-            )
+        ReactionKind::Registry { .. } => {
+            // Every registry experience carries reviewed macroscopic material
+            // records, so it always compiles through the phase-driven profile.
+            return Err(
+                "registry presentation requires current reviewed macroscopic material facts"
+                    .to_owned(),
+            );
         }
     };
 
@@ -3383,6 +3337,50 @@ mod tests {
                 .collect();
             println!("{}: {}", request.id(), materials.join(" | "));
         }
+    }
+
+    /// Every request's presentation pipeline, pinned as an explicit table.
+    ///
+    /// A missing catalogue record silently demotes a reaction from the
+    /// phase-driven compiler to an authored legacy arm (or, historically, a
+    /// generic fallback scene) — the failure mode behind H2+F2 rendering the
+    /// wrong animation. This snapshot makes any routing change loud: adding a
+    /// species or record now requires declaring which path it lands on.
+    #[test]
+    fn every_request_resolves_to_its_pinned_presentation_path() {
+        let mut actual = String::new();
+        for request in requests() {
+            let id = request.id();
+            let run = run(request).expect("every registered request validates");
+            match run.macroscopic() {
+                None => {
+                    actual.push_str(&format!("{id} | legacy-authored\n"));
+                }
+                Some(reaction) => {
+                    let profile =
+                        presentation_profile_with_catalogue(request, run.frames(), Some(reaction))
+                            .expect("phase-driven profile compiles");
+                    let vessel = profile
+                        .objects
+                        .iter()
+                        .find(|object| object.role == chem_presentation::SceneRole::Vessel)
+                        .map_or_else(|| "no-vessel".to_owned(), |object| {
+                            format!("{:?}", object.asset)
+                        });
+                    let process = reaction
+                        .process
+                        .as_ref()
+                        .map_or_else(|| "generic".to_owned(), |process| format!("{process:?}"));
+                    actual.push_str(&format!("{id} | phase-driven | {process} | {vessel}\n"));
+                }
+            }
+        }
+        let expected = include_str!("presentation_paths.snapshot");
+        assert!(
+            actual == expected,
+            "presentation-path coverage changed. If this routing change is intentional, \
+             update crates/chemspec-app/src/presentation_paths.snapshot to:\n{actual}"
+        );
     }
 
     #[test]

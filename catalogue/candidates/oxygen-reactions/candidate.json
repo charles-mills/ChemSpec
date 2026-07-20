@@ -54831,6 +54831,1224 @@
       "premise_ids": [
         "premise.material.oxygen-family.standard-phase"
       ]
+    },
+    {
+      "structure": "ElementalFluorine",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "gas"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ],
+      "colour": [
+        228,
+        232,
+        150
+      ]
+    },
+    {
+      "structure": "ElementalChlorine",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "gas"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ],
+      "colour": [
+        202,
+        220,
+        112
+      ]
+    },
+    {
+      "structure": "ElementalBromine",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "liquid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ],
+      "colour": [
+        142,
+        57,
+        47
+      ]
+    },
+    {
+      "structure": "ElementalIodine",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ],
+      "colour": [
+        62,
+        53,
+        70
+      ]
+    },
+    {
+      "structure": "ElementalNitrogen",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "gas"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "ElementalSulfur",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ],
+      "colour": [
+        232,
+        196,
+        55
+      ]
+    },
+    {
+      "structure": "ElementalPhosphorus",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ],
+      "colour": [
+        236,
+        224,
+        190
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Metal",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Fluoride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Chloride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Bromide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Iodide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Sulfide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Nitride",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "LiFixedCation1Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BeFixedCation2Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "MgFixedCation2Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CaFixedCation2Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "SrFixedCation2Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "BaFixedCation2Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "AlFixedCation3Phosphide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "NaFixedCation1NormalOxide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "KFixedCation1NormalOxide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "RbFixedCation1NormalOxide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
+    },
+    {
+      "structure": "CsFixedCation1NormalOxide",
+      "context": {
+        "kind": "standard"
+      },
+      "phase": {
+        "kind": "solid"
+      },
+      "premise_ids": [
+        "premise.material.oxygen-family.standard-phase"
+      ]
     }
   ]
 }

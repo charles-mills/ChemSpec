@@ -1,0 +1,208 @@
+alkali-water-lithium | legacy-authored
+alkali-water-sodium | legacy-authored
+alkali-water-potassium | legacy-authored
+alkali-water-rubidium | phase-driven | ExplosiveMetalWater(Rubidium) | ExplosiveMetalWaterAssembly
+alkali-water-caesium | phase-driven | ExplosiveMetalWater(Caesium) | ExplosiveMetalWaterAssembly
+alkali-water-francium | phase-driven | ExplosiveMetalWater(Francium) | ExplosiveMetalWaterAssembly
+silver-halide-precipitation-chloride | legacy-authored
+silver-halide-precipitation-bromide | legacy-authored
+silver-halide-precipitation-iodide | legacy-authored
+acid-base-lithium-chloride | legacy-authored
+acid-base-lithium-bromide | legacy-authored
+acid-base-lithium-iodide | legacy-authored
+acid-base-sodium-chloride | legacy-authored
+acid-base-sodium-bromide | legacy-authored
+acid-base-sodium-iodide | legacy-authored
+acid-base-potassium-chloride | legacy-authored
+acid-base-potassium-bromide | legacy-authored
+acid-base-potassium-iodide | legacy-authored
+acid-bicarbonate-lithium-chloride | legacy-authored
+acid-bicarbonate-lithium-bromide | legacy-authored
+acid-bicarbonate-lithium-iodide | legacy-authored
+acid-bicarbonate-sodium-chloride | legacy-authored
+acid-bicarbonate-sodium-bromide | legacy-authored
+acid-bicarbonate-sodium-iodide | legacy-authored
+acid-bicarbonate-potassium-chloride | legacy-authored
+acid-bicarbonate-potassium-bromide | legacy-authored
+acid-bicarbonate-potassium-iodide | legacy-authored
+acid-carbonate-lithium-chloride | legacy-authored
+acid-carbonate-lithium-bromide | legacy-authored
+acid-carbonate-lithium-iodide | legacy-authored
+acid-carbonate-sodium-chloride | legacy-authored
+acid-carbonate-sodium-bromide | legacy-authored
+acid-carbonate-sodium-iodide | legacy-authored
+acid-carbonate-potassium-chloride | legacy-authored
+acid-carbonate-potassium-bromide | legacy-authored
+acid-carbonate-potassium-iodide | legacy-authored
+halogen-displacement-chlorine-bromide | legacy-authored
+halogen-displacement-chlorine-iodide | legacy-authored
+halogen-displacement-bromine-iodide | legacy-authored
+oxygen-hydrogen-oxygen | phase-driven | generic | Beaker
+oxygen-lithium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-beryllium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-boron-oxygen | phase-driven | generic | Beaker
+oxygen-carbon-oxygen | phase-driven | SolidGasSynthesis | SolidGasSynthesisAssembly
+oxygen-sodium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-magnesium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-aluminium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-silicon-oxygen | phase-driven | generic | Beaker
+oxygen-phosphorus-oxygen | phase-driven | generic | Beaker
+oxygen-sulfur-oxygen | phase-driven | SolidGasSynthesis | SolidGasSynthesisAssembly
+oxygen-potassium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-calcium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-rubidium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-strontium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-caesium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-barium-oxygen | phase-driven | SurfaceOxidation | no-vessel
+oxygen-sc-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-y-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-ti-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-ti-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-ti-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-zr-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-hf-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-v-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-v-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-v-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-nb-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-v-oxide-5-5-o5 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-nb-oxide-5-5-o5 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-ta-oxide-5-5-o5 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-cr-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-cr-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-cr-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-mo-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-w-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-mn-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-mn-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-mn-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-tc-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-re-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-mn-oxide-2-3-3-o4 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-fe-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-fe-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-fe-oxide-2-3-3-o4 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-ru-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-os-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-co-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-co-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-rh-oxide-3-3-o3 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-co-oxide-2-3-3-o4 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-rh-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-ir-oxide-4-o2 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-ni-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-pd-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-cu-oxide-1-1-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-cu-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-zn-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-cd-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-hg-oxide-2-o1 | phase-driven | SurfaceOxidation | no-vessel
+oxygen-cr-oxide-6-o3 | phase-driven | generic | Beaker
+oxygen-mo-oxide-6-o3 | phase-driven | generic | Beaker
+oxygen-w-oxide-6-o3 | phase-driven | generic | Beaker
+oxygen-mn-oxide-7-7-o7 | phase-driven | generic | Beaker
+oxygen-tc-oxide-7-7-o7 | phase-driven | generic | Beaker
+oxygen-re-oxide-7-7-o7 | phase-driven | generic | Beaker
+oxygen-ru-oxide-8-o4 | phase-driven | generic | Beaker
+oxygen-os-oxide-8-o4 | phase-driven | generic | Beaker
+ionpair-li-f | phase-driven | generic | Beaker
+ionpair-na-f | phase-driven | generic | Beaker
+ionpair-k-f | phase-driven | generic | Beaker
+ionpair-rb-f | phase-driven | generic | Beaker
+ionpair-cs-f | phase-driven | generic | Beaker
+ionpair-be-f | phase-driven | generic | Beaker
+ionpair-mg-f | phase-driven | generic | Beaker
+ionpair-ca-f | phase-driven | generic | Beaker
+ionpair-sr-f | phase-driven | generic | Beaker
+ionpair-ba-f | phase-driven | generic | Beaker
+ionpair-al-f | phase-driven | generic | Beaker
+ionpair-li-cl | phase-driven | generic | Beaker
+ionpair-na-cl | phase-driven | generic | Beaker
+ionpair-k-cl | phase-driven | generic | Beaker
+ionpair-rb-cl | phase-driven | generic | Beaker
+ionpair-cs-cl | phase-driven | generic | Beaker
+ionpair-be-cl | phase-driven | generic | Beaker
+ionpair-mg-cl | phase-driven | generic | Beaker
+ionpair-ca-cl | phase-driven | generic | Beaker
+ionpair-sr-cl | phase-driven | generic | Beaker
+ionpair-ba-cl | phase-driven | generic | Beaker
+ionpair-al-cl | phase-driven | generic | Beaker
+ionpair-li-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-na-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-k-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-rb-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-cs-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-be-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-mg-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-ca-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-sr-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-ba-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-al-br | phase-driven | generic | AqueousPrecipitationAssembly
+ionpair-li-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-na-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-k-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-rb-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-cs-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-be-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-mg-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-ca-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-sr-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-ba-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-al-i | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-li-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-na-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-k-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-rb-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-cs-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-be-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-mg-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-ca-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-sr-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-ba-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-al-s | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-li-n | phase-driven | generic | Beaker
+ionpair-na-n | phase-driven | generic | Beaker
+ionpair-k-n | phase-driven | generic | Beaker
+ionpair-rb-n | phase-driven | generic | Beaker
+ionpair-cs-n | phase-driven | generic | Beaker
+ionpair-be-n | phase-driven | generic | Beaker
+ionpair-mg-n | phase-driven | generic | Beaker
+ionpair-ca-n | phase-driven | generic | Beaker
+ionpair-sr-n | phase-driven | generic | Beaker
+ionpair-ba-n | phase-driven | generic | Beaker
+ionpair-al-n | phase-driven | generic | Beaker
+ionpair-li-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-na-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-k-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-rb-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-cs-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-be-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-mg-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-ca-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-sr-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-ba-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-al-p | phase-driven | SolidSolidSynthesis | SolidSolidSynthesisAssembly
+ionpair-na-o | phase-driven | SurfaceOxidation | no-vessel
+ionpair-k-o | phase-driven | SurfaceOxidation | no-vessel
+ionpair-rb-o | phase-driven | SurfaceOxidation | no-vessel
+ionpair-cs-o | phase-driven | SurfaceOxidation | no-vessel
+covalent-cl-f-clf | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-br-f-brf | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-i-f-if | phase-driven | SolidGasSynthesis | SolidGasSynthesisAssembly
+covalent-br-cl-brcl | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-i-cl-icl | phase-driven | generic | Beaker
+covalent-i-br-ibr | phase-driven | generic | AqueousPrecipitationAssembly
+covalent-cl-f-clf3 | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-br-f-brf3 | phase-driven | generic | Beaker
+covalent-i-f-if3 | phase-driven | generic | Beaker
+covalent-i-cl-icl3 | phase-driven | generic | Beaker
+covalent-cl-f-clf5 | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-br-f-brf5 | phase-driven | generic | Beaker
+covalent-i-f-if5 | phase-driven | generic | Beaker
+covalent-i-f-if7 | phase-driven | SolidGasSynthesis | SolidGasSynthesisAssembly
+covalent-h-f-hf | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-h-cl-hcl | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-h-br-hbr | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-h-i-hi | phase-driven | SolidGasSynthesis | SolidGasSynthesisAssembly
+covalent-h-n-nh3 | phase-driven | GasGasSynthesis | GasGasSynthesisAssembly
+covalent-h-s-h2s | phase-driven | SolidGasSynthesis | SolidGasSynthesisAssembly

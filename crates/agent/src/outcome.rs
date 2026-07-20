@@ -772,16 +772,11 @@ fn classify_macroscopic_process(
     if classifies_solid_solid_synthesis(reactants, products, reactant_macroscopic_phases, claim) {
         return Some(MacroscopicProcess::SolidSolidSynthesis);
     }
-    // Hydrogen/oxygen burning is intentionally not represented by the
-    // concentration-chamber synthesis asset. Other oxygen-containing
-    // gas/gas combinations remain eligible after the more specific
-    // combustion and surface-oxidation classifiers above have declined.
-    if (is_dioxygen(first) && is_dihydrogen(second))
-        || (is_dioxygen(second) && is_dihydrogen(first))
-    {
-        return None;
-    }
+    // The shared chem-domain core owns the hydrogen/oxygen carve-out and the
+    // phase table, so this classifier cannot drift from the static one.
     classifies_phase_synthesis(
+        first,
+        second,
         reactants,
         products,
         reactant_macroscopic_phases,
@@ -838,10 +833,6 @@ fn classifies_combustion(
         (claim.products.len() == 2 && has_carbon_dioxide && has_water_vapour)
             .then_some(MacroscopicProcess::CompleteCombustion)
     }
-}
-
-fn is_dihydrogen(term: &ReactionTerm) -> bool {
-    has_counts(term.formula(), &[("H", 2)])
 }
 
 fn classifies_explosive_metal_water(
@@ -937,6 +928,8 @@ fn classifies_solid_solid_synthesis(
 }
 
 fn classifies_phase_synthesis(
+    first_term: &chem_domain::ReactionTerm,
+    second_term: &chem_domain::ReactionTerm,
     reactants: &[OutcomeSpecies],
     products: &[OutcomeSpecies],
     reactant_macroscopic_phases: &BTreeMap<SpeciesId, Phase>,
@@ -962,13 +955,33 @@ fn classifies_phase_synthesis(
         .get(product.id())
         .copied()
         .unwrap_or_else(|| product.phase());
-    phase_synthesis_process([reactant_phase(first), reactant_phase(second)], {
-        let claimed = claim_phase(claim_product.phase);
-        if claimed == Phase::Unknown {
-            product_phase
-        } else {
-            claimed
-        }
+    let first_formula: Vec<(&str, u64)> = first_term
+        .formula()
+        .elements()
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str(), *count))
+        .collect();
+    let second_formula: Vec<(&str, u64)> = second_term
+        .formula()
+        .elements()
+        .iter()
+        .map(|(symbol, count)| (symbol.as_str(), *count))
+        .collect();
+    let route = chem_domain::classify_phase_synthesis(
+        (&first_formula, reactant_phase(first)),
+        (&second_formula, reactant_phase(second)),
+        {
+            let claimed = claim_phase(claim_product.phase);
+            if claimed == Phase::Unknown {
+                product_phase
+            } else {
+                claimed
+            }
+        },
+    )?;
+    Some(match route {
+        chem_domain::PhaseSynthesisRoute::SolidGas => MacroscopicProcess::SolidGasSynthesis,
+        chem_domain::PhaseSynthesisRoute::GasGas => MacroscopicProcess::GasGasSynthesis,
     })
 }
 
@@ -986,22 +999,6 @@ fn resolved_macroscopic_phase(
     catalogue?
         .macroscopic_material(structure.id(), None)
         .map(|material| material.phase)
-}
-
-fn phase_synthesis_process(
-    reactant_phases: [Phase; 2],
-    product_phase: Phase,
-) -> Option<MacroscopicProcess> {
-    if product_phase != Phase::Gas {
-        return None;
-    }
-    match reactant_phases {
-        [Phase::Solid, Phase::Gas] | [Phase::Gas, Phase::Solid] => {
-            Some(MacroscopicProcess::SolidGasSynthesis)
-        }
-        [Phase::Gas, Phase::Gas] => Some(MacroscopicProcess::GasGasSynthesis),
-        _ => None,
-    }
 }
 
 fn solid_synthesis_reactant_phase(species: &OutcomeSpecies) -> Option<Phase> {
@@ -2058,24 +2055,39 @@ mod tests {
 
     #[test]
     fn phase_synthesis_requires_exact_supported_typed_layouts() {
+        let sulfur: &[(&str, u64)] = &[("S", 8)];
+        let hydrogen: &[(&str, u64)] = &[("H", 2)];
+        let oxygen: &[(&str, u64)] = &[("O", 2)];
+        let classify = |first, second, product| {
+            chem_domain::classify_phase_synthesis(first, second, product)
+        };
         assert_eq!(
-            phase_synthesis_process([Phase::Solid, Phase::Gas], Phase::Gas),
-            Some(MacroscopicProcess::SolidGasSynthesis)
+            classify((sulfur, Phase::Solid), (oxygen, Phase::Gas), Phase::Gas),
+            Some(chem_domain::PhaseSynthesisRoute::SolidGas)
         );
         assert_eq!(
-            phase_synthesis_process([Phase::Gas, Phase::Solid], Phase::Gas),
-            Some(MacroscopicProcess::SolidGasSynthesis)
+            classify((oxygen, Phase::Gas), (sulfur, Phase::Solid), Phase::Gas),
+            Some(chem_domain::PhaseSynthesisRoute::SolidGas)
         );
         assert_eq!(
-            phase_synthesis_process([Phase::Gas, Phase::Gas], Phase::Gas),
-            Some(MacroscopicProcess::GasGasSynthesis)
+            classify((hydrogen, Phase::Gas), (sulfur, Phase::Gas), Phase::Gas),
+            Some(chem_domain::PhaseSynthesisRoute::GasGas)
         );
         assert_eq!(
-            phase_synthesis_process([Phase::Unknown, Phase::Gas], Phase::Gas),
+            classify((sulfur, Phase::Unknown), (oxygen, Phase::Gas), Phase::Gas),
             None
         );
         assert_eq!(
-            phase_synthesis_process([Phase::Gas, Phase::Gas], Phase::Liquid),
+            classify((hydrogen, Phase::Gas), (sulfur, Phase::Gas), Phase::Liquid),
+            None
+        );
+        // Hydrogen/oxygen burning stays out of the chamber in either order.
+        assert_eq!(
+            classify((hydrogen, Phase::Gas), (oxygen, Phase::Gas), Phase::Gas),
+            None
+        );
+        assert_eq!(
+            classify((oxygen, Phase::Gas), (hydrogen, Phase::Gas), Phase::Gas),
             None
         );
     }

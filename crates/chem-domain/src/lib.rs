@@ -19,8 +19,8 @@ pub use acidity::{BronstedAcidProfile, ProtonDonorSite, classify_bronsted_acid};
 pub use cip::{StereoDescriptor, stereocentre_descriptor};
 pub use formula::{
     Charge, ChargeSign, Count, Element, ElementId, ElementRegistry, ElementSymbol, FormulaError,
-    FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, StaticElementRegistry,
-    conventional_formula,
+    FormulaPart, FormulaSegment, FormulaSyntax, NormalizedFormula, Phase, PhaseSynthesisRoute,
+    StaticElementRegistry, classify_phase_synthesis, conventional_formula,
 };
 pub use generate::{
     activity_rank, anion_valence_charge, aqueous_cation_charge, common_cation_charge,

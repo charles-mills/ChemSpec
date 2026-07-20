@@ -9355,20 +9355,25 @@ mod tests {
     }
 
     #[test]
-    fn registry_reactants_are_replaced_by_the_final_3d_product() {
-        // ICl stays on the legacy registry scene: its solid product keeps it
-        // out of the gas-product-only phase-synthesis chamber.
+    fn registry_reactants_are_consumed_by_the_final_3d_product() {
+        // ICl's solid product keeps it out of the gas-product-only synthesis
+        // chamber, so it exercises the generic phase-driven scene: reactant
+        // consumption rides the observation-backed shrinkage effect.
         let request = chemistry::ReactionRequest::from_id("covalent-i-cl-icl")
             .expect("reviewed ICl request exists");
         let plan = plan_for(request);
         let final_ordinal = plan.timeline.beats.last().unwrap().end_ordinal;
 
-        let reactant = plan
-            .objects
-            .iter()
-            .find(|object| object.role == SceneRole::Reactant)
-            .expect("registry profile has reactants");
-        assert!(object_replacement_scale(&plan, reactant, final_ordinal, 1.0) <= f32::EPSILON);
+        assert!(
+            plan.effects
+                .iter()
+                .any(|effect| effect.effect == EffectProfile::ObjectShrinkage),
+            "the disappears observation must authorize reactant consumption"
+        );
+        assert!(
+            object_scale_from_effects(&plan, SceneRole::Reactant, final_ordinal, 1.0)
+                <= f32::EPSILON
+        );
     }
 
     #[test]
