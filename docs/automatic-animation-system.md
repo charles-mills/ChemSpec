@@ -222,7 +222,8 @@ uses a stable object-ID seed for controlled low-poly variation, so meshes do not
 change shape as the playhead advances.
 
 The default lighting combines ambient, key, fill, hemispheric, and rim terms so
-clear glass, liquid, reactants, and effects remain readable. Three-dimensional
+clear glass, liquid, reactants, and effects remain readable without cast
+shadows. Planar and environment reflections remain visible. Three-dimensional
 playback advances continuously through the complete scene plan; play/pause,
 restart, timeline, and speed are presentation controls rather than manual
 chemistry-stage gates. Orbit, pan, zoom, shake, and cinematic camera motion are

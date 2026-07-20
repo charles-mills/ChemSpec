@@ -3,15 +3,14 @@
 // Geometry carries a per-vertex material id assigned by bucket at upload:
 // 0 dielectric, 1 liquid/translucent, 2 glass, 3 emissive, 4 metal.
 // Output is linear HDR (unclamped); bloom + tonemapping happen in
-// structural_3d_post.wgsl. Lighting is a key/fill directional rig with a
-// PCF-shadowed key, GGX specular, hemisphere ambient, and a procedural
-// studio environment for fresnel reflections. The transparent pass renders
+// structural_3d_post.wgsl. Lighting is a shadow-free key/fill directional rig
+// with GGX specular, hemisphere ambient, and a procedural studio environment
+// for fresnel reflections. The transparent pass renders
 // after the opaque scene has been resolved, so glass and liquid refract a
 // real background image.
 
 struct Camera {
     view_projection: mat4x4<f32>,
-    light_view_projection: mat4x4<f32>,
     key_direction: vec4<f32>,
     fill_direction: vec4<f32>,
     camera_position: vec4<f32>,
@@ -25,10 +24,6 @@ struct Camera {
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
-@group(0) @binding(1)
-var shadow_map: texture_depth_2d;
-@group(0) @binding(2)
-var shadow_sampler: sampler_comparison;
 // The scene mirrored across the bench plane, resolved half-res; bench
 // pixels sample it for exact planar reflections. In the reflection pass
 // itself this binds a dummy texture (bench pixels are discarded there).
@@ -36,10 +31,6 @@ var shadow_sampler: sampler_comparison;
 var reflection_texture: texture_2d<f32>;
 @group(0) @binding(4)
 var reflection_sampler: sampler;
-// Glass and liquid casters live in their own map: they transmit most light,
-// so their shadow only mildly attenuates the key instead of blocking it.
-@group(0) @binding(5)
-var glass_shadow_map: texture_depth_2d;
 
 // Bound only for the transparent pass: the resolved opaque scene.
 @group(1) @binding(0)
@@ -60,7 +51,7 @@ const FILL_INTENSITY: f32 = 0.62;
 const SKY_AMBIENT: vec3<f32> = vec3<f32>(0.30, 0.36, 0.46);
 const GROUND_AMBIENT: vec3<f32> = vec3<f32>(0.20, 0.17, 0.14);
 const EMISSIVE_BOOST: f32 = 2.3;
-// Shadowless backlight separating silhouettes from the dark backdrop.
+// Backlight separating silhouettes from the dark backdrop.
 const KICK_DIRECTION: vec3<f32> = vec3<f32>(0.60, -0.42, -0.68);
 const KICK_COLOUR: vec3<f32> = vec3<f32>(0.62, 0.78, 1.0);
 
@@ -106,29 +97,6 @@ fn vertex(input: VertexInput) -> VertexOutput {
     output.world_position = input.position;
     output.material = input.material;
     return output;
-}
-
-struct ShadowVertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) alpha: f32,
-};
-
-@vertex
-fn shadow_vertex(input: VertexInput) -> ShadowVertexOutput {
-    var output: ShadowVertexOutput;
-    output.clip_position = camera.light_view_projection * vec4<f32>(input.position, 1.0);
-    output.alpha = input.color.a;
-    return output;
-}
-
-@fragment
-fn shadow_fragment(input: ShadowVertexOutput) {
-    // Depth-only rasterisation is alpha-blind, so near-invisible casters
-    // (faded props, schlieren wisps at alpha ~0.02) would scribble shadows
-    // onto the bench. Substantial glass/liquid still attenuates the key.
-    if (input.alpha < 0.10) {
-        discard;
-    }
 }
 
 @vertex
@@ -184,43 +152,6 @@ fn gas_vertex(
     output.density = input.density;
     output.layering = input.layering;
     return output;
-}
-
-fn shadow_factor(world_position: vec3<f32>, normal: vec3<f32>, glass_share: f32) -> f32 {
-    let key = normalize(-camera.key_direction.xyz);
-    // Slope-scaled normal offset keeps contact points grounded without acne.
-    let offset_world = world_position + normal * 0.035;
-    let light_clip = camera.light_view_projection * vec4<f32>(offset_world, 1.0);
-    let light_ndc = light_clip.xyz / light_clip.w;
-    let shadow_uv = vec2<f32>(light_ndc.x * 0.5 + 0.5, 0.5 - light_ndc.y * 0.5);
-    if (shadow_uv.x < 0.0 || shadow_uv.x > 1.0 || shadow_uv.y < 0.0 || shadow_uv.y > 1.0) {
-        return 1.0;
-    }
-    let depth = light_ndc.z;
-    if (depth <= 0.0 || depth >= 1.0) {
-        return 1.0;
-    }
-    // Wide taps for a soft penumbra.
-    let texel = 1.8 / 2048.0;
-    var solid = 0.0;
-    var glass = 0.0;
-    for (var y = -1; y <= 1; y += 1) {
-        for (var x = -1; x <= 1; x += 1) {
-            let tap = shadow_uv + vec2<f32>(f32(x), f32(y)) * texel;
-            // Level variants: the implicit-derivative forms are invalid in
-            // non-uniform control flow (the early returns above), which
-            // WebGPU's Tint compiler rejects; the maps have a single mip.
-            solid += textureSampleCompareLevel(shadow_map, shadow_sampler, tap, depth);
-            glass += textureSampleCompareLevel(glass_shadow_map, shadow_sampler, tap, depth);
-        }
-    }
-    solid /= 9.0;
-    glass /= 9.0;
-    // Solid casters block the key; glassware only takes ~30% of it.
-    let visibility = solid * mix(1.0, glass, glass_share);
-    // Never fully black: the fill and ambient rig still reaches shadowed area.
-    let facing = clamp(dot(normal, key), 0.0, 1.0);
-    return mix(1.0, visibility, facing * 0.9 + 0.1);
 }
 
 // Procedural "studio" environment: warm ground bounce, cool sky, and a bright
@@ -357,15 +288,7 @@ fn shade_surface(input: VertexOutput) -> vec4<f32> {
         albedo *= 1.0 - grid * 0.05;
     }
 
-    // Liquid and glass surfaces must not receive the glassware light map:
-    // it is their own silhouette, and self-comparison on curved walls reads
-    // as vertical acne stripes. The map exists so glassware dims the bench.
-    var glass_share = 0.30;
-    if (input.material == MATERIAL_LIQUID || input.material == MATERIAL_GLASS) {
-        glass_share = 0.0;
-    }
-    let shadow = shadow_factor(input.world_position, normal, glass_share);
-    let key_radiance = KEY_COLOUR * KEY_INTENSITY * shadow;
+    let key_radiance = KEY_COLOUR * KEY_INTENSITY;
     let fill_radiance = FILL_COLOUR * FILL_INTENSITY;
 
     let n_dot_key = max(dot(normal, key), 0.0);
@@ -427,8 +350,7 @@ fn shade_surface(input: VertexOutput) -> vec4<f32> {
         * kick_strength;
 
     // Caustics: light focused through the liquid dances on the bench inside
-    // and around the vessel footprint, brightest where direct key light is
-    // blocked (that is exactly where the focused light lands).
+    // and around the vessel footprint.
     if (input.material == MATERIAL_DIELECTRIC
         && camera.caustic.w > 0.001
         && normal.y > 0.85)
@@ -440,12 +362,10 @@ fn shade_surface(input: VertexOutput) -> vec4<f32> {
         let footprint = 1.0 - smoothstep(camera.caustic.z * 0.50, camera.caustic.z * 1.18, planar);
         if (height_band * footprint > 0.001) {
             let web = caustic_pattern(input.world_position.xz, camera.params.x);
-            let occlusion_boost = 1.25 - shadow * 0.55;
             radiance += camera.caustic_tint.rgb
                 * web
                 * footprint
                 * height_band
-                * occlusion_boost
                 * camera.caustic.w
                 * 0.62;
         }
@@ -487,7 +407,7 @@ struct GbufferOutput {
 };
 
 // Opaque-pass variant that also writes the world normal and camera distance
-// for ambient occlusion and the volumetric march.
+// used to bound the volumetric march.
 @fragment
 fn fragment_gbuffer(input: VertexOutput) -> GbufferOutput {
     var output: GbufferOutput;
@@ -604,11 +524,7 @@ fn gas_fragment(input: GasOutput) -> @location(0) vec4<f32> {
     let key = normalize(-camera.key_direction.xyz);
     let forward_scatter = pow(max(dot(view_direction, key), 0.0), 3.0);
     let self_transmittance = exp(-min(input.density, 1.8) * 0.72);
-    // The shadow map carves light shafts through the plume: gas above the rim
-    // catches full key light while gas behind the vessel sits in its shadow.
-    let shafts = shadow_factor(input.world_position, vec3<f32>(0.0, 1.0, 0.0), 0.30);
-    let illumination = (0.52 + self_transmittance * 0.40 + forward_scatter * 0.34)
-        * (0.58 + shafts * 0.42);
+    let illumination = 0.52 + self_transmittance * 0.40 + forward_scatter * 0.34;
     let in_scatter = vec3<f32>(0.16, 0.20, 0.22)
         * (0.18 + forward_scatter * 0.22)
         * gaussian;

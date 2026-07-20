@@ -27,12 +27,11 @@ const MAX_VERTICES: u64 = 32_768;
 const MAX_INDICES: u64 = 98_304;
 const MAX_GAS_SPLATS: u64 = 4_096;
 
-/// The single fixed presentation pose shared by the camera, the transparent
-/// triangle sort, and the shadow-frustum fit. Phase-4 camera cues will replace
-/// these constants with authored choreography.
+/// The single fixed presentation pose shared by the camera and transparent
+/// triangle sort. Phase-4 camera cues will replace these constants with
+/// authored choreography.
 const FIXED_CAMERA_YAW: f32 = -0.72;
 const FIXED_CAMERA_PITCH: f32 = -0.70;
-const SHADOW_MAP_SIZE: u32 = 2_048;
 const MSAA_SAMPLE_COUNT: u32 = 4;
 const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
@@ -370,7 +369,6 @@ impl<Message> Program<Message> for Scene {
             gas_splats,
             yaw,
             pitch,
-            view_height: camera.view_height,
             focus_target,
             camera_distance,
             time_seconds,
@@ -566,7 +564,6 @@ struct GasSplat {
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct CameraUniform {
     view_projection: [[f32; 4]; 4],
-    light_view_projection: [[f32; 4]; 4],
     key_direction: [f32; 4],
     fill_direction: [f32; 4],
     camera_position: [f32; 4],
@@ -594,7 +591,6 @@ struct BlitParams {
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct CompositeParams {
     inv_view_projection: [[f32; 4]; 4],
-    light_view_projection: [[f32; 4]; 4],
     values: [f32; 4],
     heat: [f32; 4],
     clock: [f32; 4],
@@ -615,7 +611,6 @@ pub struct ScenePrimitive {
     gas_splats: Vec<GasSplat>,
     yaw: f32,
     pitch: f32,
-    view_height: f32,
     focus_target: Vec3,
     /// Eye distance from the focus target; camera cues animate it.
     camera_distance: f32,
@@ -645,11 +640,9 @@ pub struct ScenePipeline {
     transparent_pipeline: wgpu::RenderPipeline,
     additive_pipeline: wgpu::RenderPipeline,
     gas_pipeline: wgpu::RenderPipeline,
-    shadow_pipeline: wgpu::RenderPipeline,
     panel_pipeline: wgpu::RenderPipeline,
     bloom_down_pipeline: wgpu::RenderPipeline,
     bloom_up_pipeline: wgpu::RenderPipeline,
-    ssao_pipeline: wgpu::RenderPipeline,
     composite_pipeline: wgpu::RenderPipeline,
     scene_layout: wgpu::BindGroupLayout,
     bloom_layout: wgpu::BindGroupLayout,
@@ -663,14 +656,8 @@ pub struct ScenePipeline {
     reflection_bind_group: wgpu::BindGroup,
     reflection_uniform: wgpu::Buffer,
     opaque_reflect_pipeline: wgpu::RenderPipeline,
-    shadow_bind_group: wgpu::BindGroup,
     panel_bind_group: wgpu::BindGroup,
     linear_sampler: wgpu::Sampler,
-    shadow_sampler: wgpu::Sampler,
-    _shadow_texture: wgpu::Texture,
-    shadow_view: wgpu::TextureView,
-    _glass_shadow_texture: wgpu::Texture,
-    glass_shadow_view: wgpu::TextureView,
     targets: Option<SizedTargets>,
     opaque_index_count: u32,
     transparent_index_count: u32,
@@ -711,14 +698,6 @@ struct SizedTargets {
     aux_msaa_view: wgpu::TextureView,
     _aux_resolve: wgpu::Texture,
     aux_resolve_view: wgpu::TextureView,
-    _ao: wgpu::Texture,
-    ao_view: wgpu::TextureView,
-    ao_bind_group: wgpu::BindGroup,
-    _ao_params: wgpu::Buffer,
-    _ao_blur: wgpu::Texture,
-    ao_blur_view: wgpu::TextureView,
-    ao_blur_bind_group: wgpu::BindGroup,
-    _ao_blur_params: wgpu::Buffer,
     bloom_levels: Vec<BloomLevel>,
     composite_bind_group: wgpu::BindGroup,
     composite_uniform: wgpu::Buffer,
@@ -759,22 +738,6 @@ impl shader::Pipeline for ScenePipeline {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
@@ -790,30 +753,7 @@ impl shader::Pipeline for ScenePipeline {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
             ],
-        });
-        let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("chemspec structural 3d shadow layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
         });
         let panel_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("chemspec structural 3d panel layout"),
@@ -866,24 +806,7 @@ impl shader::Pipeline for ScenePipeline {
                 texture_entry(9),
                 sampler_entry(10),
                 texture_entry(11),
-                texture_entry(12),
                 texture_entry(13),
-                wgpu::BindGroupLayoutEntry {
-                    binding: 14,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 15,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-                    count: None,
-                },
             ],
         });
         let background_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -916,46 +839,6 @@ impl shader::Pipeline for ScenePipeline {
             }),
         );
 
-        let glass_shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("chemspec structural 3d glass shadow map"),
-            size: wgpu::Extent3d {
-                width: SHADOW_MAP_SIZE,
-                height: SHADOW_MAP_SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let glass_shadow_view =
-            glass_shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("chemspec structural 3d shadow map"),
-            size: wgpu::Extent3d {
-                width: SHADOW_MAP_SIZE,
-                height: SHADOW_MAP_SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let shadow_view = shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("chemspec structural 3d shadow sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            compare: Some(wgpu::CompareFunction::LessEqual),
-            ..wgpu::SamplerDescriptor::default()
-        });
         let linear_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("chemspec structural 3d linear sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -998,14 +881,6 @@ impl shader::Pipeline for ScenePipeline {
                     resource: reflection_uniform.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&shadow_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&shadow_sampler),
-                },
-                wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::TextureView(&dummy_reflection_view),
                 },
@@ -1013,19 +888,7 @@ impl shader::Pipeline for ScenePipeline {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&linear_sampler),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&glass_shadow_view),
-                },
             ],
-        });
-        let shadow_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("chemspec structural 3d shadow group"),
-            layout: &shadow_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
         });
         let panel_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("chemspec structural 3d panel group"),
@@ -1212,50 +1075,6 @@ impl shader::Pipeline for ScenePipeline {
             cache: None,
         });
 
-        let shadow_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("chemspec structural 3d shadow pipeline layout"),
-                bind_group_layouts: &[&shadow_layout],
-                push_constant_ranges: &[],
-            });
-        let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("chemspec structural 3d shadow pipeline"),
-            layout: Some(&shadow_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("shadow_vertex"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: std::slice::from_ref(&vertex_layout),
-            },
-            // Depth-only, but a fragment stage discards near-invisible
-            // casters so alpha-faded props stop shadowing the bench.
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("shadow_fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: Some(wgpu::Face::Back),
-                ..wgpu::PrimitiveState::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState {
-                    constant: 2,
-                    slope_scale: 2.0,
-                    clamp: 0.0,
-                },
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-
         let panel_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("chemspec structural 3d panel pipeline layout"),
@@ -1360,13 +1179,6 @@ impl shader::Pipeline for ScenePipeline {
                 alpha: wgpu::BlendComponent::OVER,
             }),
         );
-        let ssao_pipeline = create_post_pipeline(
-            "chemspec structural 3d ssao",
-            &bloom_layout,
-            "ssao_fragment",
-            HDR_FORMAT,
-            None,
-        );
         let composite_pipeline = create_post_pipeline(
             "chemspec structural 3d composite",
             &composite_layout,
@@ -1380,11 +1192,9 @@ impl shader::Pipeline for ScenePipeline {
             transparent_pipeline,
             additive_pipeline,
             gas_pipeline,
-            shadow_pipeline,
             panel_pipeline,
             bloom_down_pipeline,
             bloom_up_pipeline,
-            ssao_pipeline,
             composite_pipeline,
             scene_layout,
             bloom_layout,
@@ -1413,14 +1223,8 @@ impl shader::Pipeline for ScenePipeline {
             reflection_bind_group,
             reflection_uniform,
             opaque_reflect_pipeline,
-            shadow_bind_group,
             panel_bind_group,
             linear_sampler,
-            shadow_sampler,
-            _shadow_texture: shadow_texture,
-            shadow_view,
-            _glass_shadow_texture: glass_shadow_texture,
-            glass_shadow_view,
             targets: None,
             opaque_index_count: 0,
             transparent_index_count: 0,
@@ -1543,24 +1347,12 @@ impl ScenePipeline {
                     resource: self.uniform_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&self.shadow_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.shadow_sampler),
-                },
-                wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::TextureView(&reflection_resolve_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&self.glass_shadow_view),
                 },
             ],
         }));
@@ -1689,8 +1481,8 @@ impl ScenePipeline {
         let blur_quarter_params = create_blit_params(half_size, 0.0, 1.0);
         let blur_quarter_bind_group = create_blit_group(&blur_quarter_params, &blur_half_view);
 
-        // Aux (normal + camera distance) buffer alongside the HDR scene, and
-        // the half-res ambient-occlusion chain computed from it.
+        // Aux (normal + camera distance) buffer alongside the HDR scene. The
+        // composite uses its distance channel to bound the height-fog march.
         let aux_msaa = create_target(
             "chemspec structural 3d aux msaa",
             full,
@@ -1700,43 +1492,6 @@ impl ScenePipeline {
         let aux_msaa_view = aux_msaa.create_view(&wgpu::TextureViewDescriptor::default());
         let aux_resolve = create_target("chemspec structural 3d aux resolve", full, HDR_FORMAT, 1);
         let aux_resolve_view = aux_resolve.create_view(&wgpu::TextureViewDescriptor::default());
-        let ao = create_target(
-            "chemspec structural 3d ao",
-            extent(half_size[0], half_size[1]),
-            HDR_FORMAT,
-            1,
-        );
-        let ao_view = ao.create_view(&wgpu::TextureViewDescriptor::default());
-        let ao_blur = create_target(
-            "chemspec structural 3d ao blur",
-            extent(half_size[0], half_size[1]),
-            HDR_FORMAT,
-            1,
-        );
-        let ao_blur_view = ao_blur.create_view(&wgpu::TextureViewDescriptor::default());
-        // texel.z = projection scale in pixels, texel.w = AO world radius.
-        let ao_params = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("chemspec structural 3d ao params"),
-            size: std::mem::size_of::<BlitParams>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        queue.write_buffer(
-            &ao_params,
-            0,
-            bytemuck::bytes_of(&BlitParams {
-                texel: [
-                    1.0 / size[0].max(1) as f32,
-                    1.0 / size[1].max(1) as f32,
-                    size[1] as f32 * 2.1,
-                    0.35,
-                ],
-            }),
-        );
-        let ao_bind_group = create_blit_group(&ao_params, &aux_resolve_view);
-        let ao_blur_params = create_blit_params(half_size, 0.0, 1.0);
-        let ao_blur_bind_group = create_blit_group(&ao_blur_params, &ao_view);
-
         let composite_uniform = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("chemspec structural 3d composite params"),
             size: std::mem::size_of::<CompositeParams>() as u64,
@@ -1748,7 +1503,6 @@ impl ScenePipeline {
             0,
             bytemuck::bytes_of(&CompositeParams {
                 inv_view_projection: Mat4::IDENTITY.to_cols_array_2d(),
-                light_view_projection: Mat4::IDENTITY.to_cols_array_2d(),
                 values: [
                     COMPOSITE_EXPOSURE,
                     COMPOSITE_BLOOM_STRENGTH,
@@ -1785,20 +1539,8 @@ impl ScenePipeline {
                     resource: wgpu::BindingResource::TextureView(&blur_quarter_view),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 12,
-                    resource: wgpu::BindingResource::TextureView(&ao_blur_view),
-                },
-                wgpu::BindGroupEntry {
                     binding: 13,
                     resource: wgpu::BindingResource::TextureView(&aux_resolve_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 14,
-                    resource: wgpu::BindingResource::TextureView(&self.shadow_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 15,
-                    resource: wgpu::BindingResource::Sampler(&self.shadow_sampler),
                 },
             ],
         });
@@ -1832,14 +1574,6 @@ impl ScenePipeline {
             aux_msaa_view,
             _aux_resolve: aux_resolve,
             aux_resolve_view,
-            _ao: ao,
-            ao_view,
-            ao_bind_group,
-            _ao_params: ao_params,
-            _ao_blur: ao_blur,
-            ao_blur_view,
-            ao_blur_bind_group,
-            _ao_blur_params: ao_blur_params,
             bloom_levels,
             composite_bind_group,
             composite_uniform,
@@ -1857,7 +1591,7 @@ impl ScenePrimitive {
         queue: &wgpu::Queue,
         width: u32,
         height: u32,
-    ) -> (Mat4, Mat4, Vec3) {
+    ) -> (Mat4, Vec3) {
         let aspect = width as f32 / height.max(1) as f32;
         let reaction_target = self.focus_target;
         let pitch = self.pitch.clamp(-1.18, -0.22);
@@ -1870,21 +1604,9 @@ impl ScenePrimitive {
         // frames exactly the old orthographic view height at the target.
         let projection = Mat4::perspective_rh(0.468, aspect, 0.3, 60.0);
         let key_direction = Vec3::new(-0.55, -0.88, -0.48).normalize();
-        let shadow_radius = (self.view_height * 0.95).max(3.0);
-        let light_eye = reaction_target - key_direction * 14.0;
-        let light_view = Mat4::look_at_rh(light_eye, reaction_target, Vec3::Y);
-        let light_projection = Mat4::orthographic_rh(
-            -shadow_radius,
-            shadow_radius,
-            -shadow_radius,
-            shadow_radius,
-            0.5,
-            30.0,
-        );
         let view_projection = projection * view;
         let uniform = CameraUniform {
             view_projection: view_projection.to_cols_array_2d(),
-            light_view_projection: (light_projection * light_view).to_cols_array_2d(),
             key_direction: [key_direction.x, key_direction.y, key_direction.z, 0.0],
             fill_direction: [0.70, -0.45, 0.55, 0.0],
             camera_position: [eye.x, eye.y, eye.z, 1.0],
@@ -1911,7 +1633,7 @@ impl ScenePrimitive {
             0,
             bytemuck::bytes_of(&reflection),
         );
-        (view_projection, light_projection * light_view, eye)
+        (view_projection, eye)
     }
 
     /// Projects the heat column into uv space and uploads the composite
@@ -1921,7 +1643,6 @@ impl ScenePrimitive {
         pipeline: &ScenePipeline,
         queue: &wgpu::Queue,
         view_projection: Mat4,
-        light_view_projection: Mat4,
         eye: Vec3,
     ) {
         let heat_centre = Vec3::new(self.heat[0], self.heat[1], self.heat[2]);
@@ -1942,7 +1663,6 @@ impl ScenePrimitive {
                 0,
                 bytemuck::bytes_of(&CompositeParams {
                     inv_view_projection: view_projection.inverse().to_cols_array_2d(),
-                    light_view_projection: light_view_projection.to_cols_array_2d(),
                     values: [
                         COMPOSITE_EXPOSURE,
                         COMPOSITE_BLOOM_STRENGTH,
@@ -2031,9 +1751,8 @@ impl shader::Primitive for ScenePrimitive {
             .transparent_index_count
             .clamp(pipeline.opaque_index_count, pipeline.index_count);
 
-        let (view_projection, light_view_projection, eye) =
-            self.write_camera_uniform(pipeline, queue, width, height);
-        self.write_composite_uniform(pipeline, queue, view_projection, light_view_projection, eye);
+        let (view_projection, eye) = self.write_camera_uniform(pipeline, queue, width, height);
+        self.write_composite_uniform(pipeline, queue, view_projection, eye);
     }
 
     #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
@@ -2065,61 +1784,6 @@ impl shader::Primitive for ScenePrimitive {
         let scissor_height = scissor_bottom.saturating_sub(scissor_y);
         if scissor_width == 0 || scissor_height == 0 {
             return;
-        }
-
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("chemspec structural 3d shadow pass"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &pipeline.shadow_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            // Solid casters only: glassware goes to its own light map.
-            if pipeline.opaque_index_count > 0 {
-                pass.set_pipeline(&pipeline.shadow_pipeline);
-                pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
-            }
-        }
-
-        // Glass and liquid transmit most light, so their casters render into
-        // a second map that only mildly attenuates the key.
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("chemspec structural 3d glass shadow pass"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &pipeline.glass_shadow_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            if pipeline.opaque_index_count < pipeline.transparent_index_count {
-                pass.set_pipeline(&pipeline.shadow_pipeline);
-                pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(
-                    pipeline.opaque_index_count..pipeline.transparent_index_count,
-                    0,
-                    0..1,
-                );
-            }
         }
 
         // Mirrored scene, half res: the bench samples this for its planar
@@ -2342,39 +2006,6 @@ impl shader::Primitive for ScenePrimitive {
                 occlusion_query_set: None,
             });
             pass.set_pipeline(&pipeline.bloom_down_pipeline);
-            pass.set_bind_group(0, bind_group, &[]);
-            pass.draw(0..3, 0..1);
-        }
-
-        // Half-res ambient occlusion from the aux buffer, then one blur tap.
-        for (view, bind_group, pipeline_ref) in [
-            (
-                &targets.ao_view,
-                &targets.ao_bind_group,
-                &pipeline.ssao_pipeline,
-            ),
-            (
-                &targets.ao_blur_view,
-                &targets.ao_blur_bind_group,
-                &pipeline.bloom_down_pipeline,
-            ),
-        ] {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("chemspec structural 3d ao pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(pipeline_ref);
             pass.set_bind_group(0, bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
@@ -3969,9 +3600,8 @@ fn instantiate_asset(
     let gas_start = meshes.gas.len();
     match scene_registry::asset_geometry(asset) {
         AssetGeometry::Bench => {
-            // Contact shading under the vessel comes from the shadow map now;
-            // the old baked shadow disc is gone. The bench gets its own
-            // studio-surface grey so shadows have something to read against.
+            // The old baked contact disc is gone. The bench keeps its own
+            // studio-surface grey so reflected geometry remains legible.
             add_box(
                 &mut meshes.opaque,
                 position,
@@ -10655,5 +10285,3 @@ mod tests {
         );
     }
 }
-
-

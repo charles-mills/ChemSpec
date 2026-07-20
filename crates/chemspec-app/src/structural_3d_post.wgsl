@@ -117,46 +117,10 @@ fn bloom_upsample(input: ScreenOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(colour * blit_params.texel.w, 1.0);
 }
 
-// ---- Ambient occlusion -----------------------------------------------------
-
-// Reuses the blit bindings: params (texel.xy = aux texel, z = projection
-// scale in pixels, w = world radius), source texture = resolved aux buffer.
-@fragment
-fn ssao_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
-    let centre = textureSampleLevel(source_texture, source_sampler, input.uv, 0.0);
-    let centre_distance = centre.w;
-    if (centre_distance <= 0.01) {
-        return vec4<f32>(1.0);
-    }
-    let normal = normalize(centre.xyz);
-    // Screen-space sample radius shrinks with distance.
-    let radius_px = clamp(blit_params.texel.z * blit_params.texel.w / centre_distance, 2.0, 28.0);
-    var occlusion = 0.0;
-    for (var tap = 0u; tap < 8u; tap += 1u) {
-        let angle = f32(tap) * 2.399963;
-        let reach = (f32(tap) + 1.0) / 8.0;
-        let offset = vec2<f32>(cos(angle), sin(angle)) * reach * radius_px * blit_params.texel.xy;
-        let sample = textureSampleLevel(source_texture, source_sampler, input.uv + offset, 0.0);
-        if (sample.w <= 0.01) {
-            continue;
-        }
-        let delta = centre_distance - sample.w;
-        // Occluders sit closer to the camera; a range check rejects distant
-        // silhouettes so edges do not halo.
-        let ranged = 1.0 - smoothstep(0.10, 0.45, abs(delta));
-        occlusion += step(0.015, delta) * ranged;
-    }
-    let strength = clamp(occlusion / 8.0, 0.0, 1.0);
-    // Flat upward surfaces keep more ambient than crevices.
-    let ao = 1.0 - strength * (0.55 + 0.20 * (1.0 - normal.y));
-    return vec4<f32>(ao, ao, ao, 1.0);
-}
-
 // ---- Composite -------------------------------------------------------------
 
 struct CompositeParams {
     inv_view_projection: mat4x4<f32>,
-    light_view_projection: mat4x4<f32>,
     // x: exposure, y: bloom strength, z: 1 when the target surface is
     // non-sRGB and the shader must gamma-encode, w: focus-blur strength.
     values: vec4<f32>,
@@ -179,25 +143,8 @@ var bloom_texture: texture_2d<f32>;
 var composite_sampler: sampler;
 @group(0) @binding(11)
 var blur_texture: texture_2d<f32>;
-@group(0) @binding(12)
-var ao_texture: texture_2d<f32>;
 @group(0) @binding(13)
 var aux_texture: texture_2d<f32>;
-@group(0) @binding(14)
-var composite_shadow_map: texture_depth_2d;
-@group(0) @binding(15)
-var composite_shadow_sampler: sampler_comparison;
-
-// One shadow visibility tap along the volumetric march.
-fn shaft_visibility(world: vec3<f32>) -> f32 {
-    let clip = composite_params.light_view_projection * vec4<f32>(world, 1.0);
-    let ndc = clip.xyz / max(clip.w, 1e-4);
-    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || ndc.z <= 0.0 || ndc.z >= 1.0) {
-        return 1.0;
-    }
-    return textureSampleCompareLevel(composite_shadow_map, composite_shadow_sampler, uv, ndc.z);
-}
 
 // Khronos PBR Neutral: preserves saturated educational colours far better
 // than filmic curves while still compressing HDR highlights.
@@ -268,12 +215,10 @@ fn composite_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
     // flame envelope and recovers as it fades. Deliberately restrained.
     let exposure = composite_params.values.x / (1.0 + composite_params.clock.y * 0.26);
     let bloom_strength = composite_params.values.y;
-    // Ambient occlusion darkens the scene term only, never the bloom.
-    let ao = textureSampleLevel(ao_texture, composite_sampler, uv, 0.0).r;
-    var colour = scene * ao;
+    var colour = scene;
 
-    // Volumetric key-light shafts: a short march through height fog, carved
-    // by the shadow map, appearing only while gas or vapour is active.
+    // A short march through height fog, appearing only while gas or vapour is
+    // active. It remains evenly lit because the scene has no cast shadows.
     let fog_strength = composite_params.clock.z;
     if (fog_strength > 0.01) {
         let near_world = composite_params.inv_view_projection
@@ -293,7 +238,7 @@ fn composite_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
             let height = world.y - bench_top;
             // A thin haze layer hugging the bench, fading by two units up.
             let density = clamp(1.0 - height * 0.5, 0.0, 1.0) * step(0.0, height);
-            accumulated += shaft_visibility(world) * density;
+            accumulated += density;
         }
         let shafts = accumulated / 10.0 * fog_strength * 0.30;
         colour += vec3<f32>(0.55, 0.63, 0.72) * shafts;
@@ -334,7 +279,7 @@ fn composite_fragment(input: ScreenOutput) -> @location(0) vec4<f32> {
     if (composite_params.values.z > 0.5) {
         colour = pow(colour, vec3<f32>(1.0 / 2.2));
     }
-    // Photographic grain at the edge of perception, heavier in the shadows,
+    // Photographic grain at the edge of perception, heavier in darker tones,
     // plus dither to break gradient banding before 8-bit quantization.
     let luminance = dot(colour, vec3<f32>(0.299, 0.587, 0.114));
     let grain_seed = input.clip_position.xy

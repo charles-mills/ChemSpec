@@ -74,10 +74,6 @@ fn add_powder_heap(
             let reach = Vec3::new(position.x - origin.x, 0.0, position.z - origin.z).length();
             colour = mix_color(colour, product, smooth01((front_radius - reach) / 0.07));
         }
-        // Per-grain self-shadow: crevice grains sit darker, so the heap
-        // reads as matte powder instead of key-light-washed white facets.
-        let shade = 0.45 + seeded_unit(seed, index, 464) * 0.55;
-        let colour = [colour[0] * shade, colour[1] * shade, colour[2] * shade, colour[3]];
         let size = grain * (0.7 + seeded_unit(seed, index, 462) * 0.6) * presence;
         add_shard(
             mesh,

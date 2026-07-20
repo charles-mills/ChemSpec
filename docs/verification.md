@@ -523,9 +523,10 @@ observations, never internal IDs or renderer-authored chemistry wording.
 Live vessel checks additionally require a fixed camera pitch above the rim,
 a grounded vessel, liquid contained below its rim, a visible liquid top
 surface and meniscus, connected cloud-like gas without a visible bead field,
-readable key/fill lighting, automatic progression without stage-button
-input, stable geometry while seeking, and macroscopic effects whose presence is
-authorized by the reviewed scene plan.
+readable key/fill lighting without cast shadows, retained planar and environment
+reflections, automatic progression without stage-button input, stable geometry
+while seeking, and macroscopic effects whose presence is authorized by the
+reviewed scene plan.
 
 Post-simulation product-record tests require the macroscopic timeline to reach
 its exact end before navigation unlocks. They compile products only from final
