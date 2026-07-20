@@ -108,9 +108,27 @@ fn vertex(input: VertexInput) -> VertexOutput {
     return output;
 }
 
+struct ShadowVertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) alpha: f32,
+};
+
 @vertex
-fn shadow_vertex(input: VertexInput) -> @builtin(position) vec4<f32> {
-    return camera.light_view_projection * vec4<f32>(input.position, 1.0);
+fn shadow_vertex(input: VertexInput) -> ShadowVertexOutput {
+    var output: ShadowVertexOutput;
+    output.clip_position = camera.light_view_projection * vec4<f32>(input.position, 1.0);
+    output.alpha = input.color.a;
+    return output;
+}
+
+@fragment
+fn shadow_fragment(input: ShadowVertexOutput) {
+    // Depth-only rasterisation is alpha-blind, so near-invisible casters
+    // (faded props, schlieren wisps at alpha ~0.02) would scribble shadows
+    // onto the bench. Substantial glass/liquid still attenuates the key.
+    if (input.alpha < 0.10) {
+        discard;
+    }
 }
 
 @vertex
@@ -441,15 +459,19 @@ fn shade_surface(input: VertexOutput) -> vec4<f32> {
     }
 
     var alpha = input.color.a;
+    // Authored alpha is the choreography's only hide mechanism (props fade
+    // in/out via vertex alpha), so the fresnel presence terms must scale
+    // with it — otherwise faded-out geometry keeps its edge glow.
+    let authored = smoothstep(0.0, 0.12, input.color.a);
     if (input.material == MATERIAL_GLASS) {
         // Glass keeps its authored transmission tint but gains fresnel-driven
         // edge presence so silhouettes read against any backdrop.
         let edge = pow(1.0 - n_dot_v, 2.0);
-        alpha = clamp(alpha + edge * 0.28 + length(fresnel) * 0.10, 0.0, 1.0);
+        alpha = clamp(alpha + (edge * 0.28 + length(fresnel) * 0.10) * authored, 0.0, 1.0);
     }
     if (input.material == MATERIAL_LIQUID) {
         let edge = pow(1.0 - n_dot_v, 3.0);
-        alpha = clamp(alpha + edge * 0.12, 0.0, 1.0);
+        alpha = clamp(alpha + edge * 0.12 * authored, 0.0, 1.0);
     }
     return vec4<f32>(radiance, alpha);
 }
@@ -505,7 +527,12 @@ fn fragment_transparent(input: VertexOutput) -> @location(0) vec4<f32> {
         let background =
             textureSampleLevel(background_texture, background_sampler, sample_uv, 0.0).rgb;
         let tint = mix(vec3<f32>(1.0), pow(max(input.color.rgb, vec3<f32>(0.0)), vec3<f32>(2.2)), 0.45);
-        let transmission_weight = (1.0 - shaded.a) * select(0.30, 0.62, input.material == MATERIAL_GLASS);
+        // Same gate as the fresnel terms: refraction weight grows as authored
+        // alpha shrinks, which without the gate makes faded-out props MORE
+        // visible the harder the choreography tries to hide them.
+        let transmission_weight = (1.0 - shaded.a)
+            * select(0.30, 0.62, input.material == MATERIAL_GLASS)
+            * smoothstep(0.0, 0.12, input.color.a);
         shaded = vec4<f32>(
             shaded.rgb + background * tint * transmission_weight,
             clamp(shaded.a + transmission_weight * 0.35, 0.0, 1.0),

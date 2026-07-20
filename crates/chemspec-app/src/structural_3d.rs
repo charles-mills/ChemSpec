@@ -1227,7 +1227,14 @@ impl shader::Pipeline for ScenePipeline {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 buffers: std::slice::from_ref(&vertex_layout),
             },
-            fragment: None,
+            // Depth-only, but a fragment stage discards near-invisible
+            // casters so alpha-faded props stop shadowing the bench.
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("shadow_fragment"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[],
+            }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 cull_mode: Some(wgpu::Face::Back),
@@ -2755,8 +2762,14 @@ fn build_scene_at(
     moment: RealWorldPosition,
     orbit: (f32, f32),
 ) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
-    let authored_clip_progress =
-        if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
+    let authored_clip_progress = if plan.explosive_metal_water.is_some() {
+            // The detonation choreography carries its own authored pacing
+            // (contact at frame 39/179) on the wall-clock timeline — the
+            // gas-evolution remap below would postpone contact to the
+            // gas-generation ordinal while blast_camera_shake stays on the
+            // wall clock, splitting the scene across two clocks.
+            plan.timeline.normalized_progress_at(moment)
+        } else if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
             gas_evolution_clip_progress(plan, moment)
         } else if moment.stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
             authored_reaction_clip_progress(plan, moment)
