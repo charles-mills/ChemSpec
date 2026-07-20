@@ -1526,6 +1526,12 @@ pub enum AssetProfile {
     /// Authored granular reactants, mixing tool, optional warm reaction front,
     /// ceramic vessel, and persistent solid product.
     SolidSolidSynthesisAssembly,
+    /// Authored sealed chamber for one typed solid plus one typed gaseous
+    /// reactant combining into one gaseous product.
+    SolidGasSynthesisAssembly,
+    /// Authored sealed chamber for two typed gaseous reactants combining into
+    /// one gaseous product.
+    GasGasSynthesisAssembly,
     Beaker,
     TestTube,
     ConicalFlask,
@@ -1685,6 +1691,24 @@ pub struct MetalDisplacementVisualProfile {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SolidSolidSynthesisVisualProfile {
     pub formation_ordinal: u16,
+    pub reactant_a: BoundVisualColour,
+    pub reactant_b: BoundVisualColour,
+    pub product: BoundVisualColour,
+    pub show_reaction_front: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhaseSynthesisVariant {
+    SolidGas,
+    GasGas,
+}
+
+/// Exact validated material bindings for sealed-chamber phase synthesis.
+/// Gas geometry is a translucent concentration cue, not smoke or molecules.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhaseSynthesisVisualProfile {
+    pub formation_ordinal: u16,
+    pub variant: PhaseSynthesisVariant,
     pub reactant_a: BoundVisualColour,
     pub reactant_b: BoundVisualColour,
     pub product: BoundVisualColour,
@@ -2024,6 +2048,9 @@ pub struct PresentationProfile {
     /// Exact solid reactant and product bindings for an authorized generic
     /// combination assembly.
     pub solid_solid_synthesis: Option<SolidSolidSynthesisVisualProfile>,
+    /// Exact phase and colour bindings for an authorized solid-gas or gas-gas
+    /// synthesis assembly.
+    pub phase_synthesis: Option<PhaseSynthesisVisualProfile>,
     /// Exact bindings and reviewed authored variant for the high-energy
     /// metal/water category.
     pub explosive_metal_water: Option<ExplosiveMetalWaterVisualProfile>,
@@ -2121,6 +2148,11 @@ pub enum MacroscopicProcess {
     ExplosiveMetalWater(ExplosiveMetalWaterVariant),
     /// Exactly two solid reactants combine into one solid chemical product.
     SolidSolidSynthesis,
+    /// Exactly one solid and one gaseous reactant combine into one gaseous
+    /// product.
+    SolidGasSynthesis,
+    /// Exactly two gaseous reactants combine into one gaseous product.
+    GasGasSynthesis,
     CompleteCombustion,
     /// Validated combustion whose exact gaseous products include carbon
     /// monoxide. The renderer does not infer this from a species name.
@@ -2243,6 +2275,8 @@ pub fn compile_phase_driven_profile(
             | MacroscopicProcess::MetalDisplacement
             | MacroscopicProcess::ExplosiveMetalWater(_)
             | MacroscopicProcess::SolidSolidSynthesis
+            | MacroscopicProcess::SolidGasSynthesis
+            | MacroscopicProcess::GasGasSynthesis
             | MacroscopicProcess::SolventEvaporationCrystallization
             | MacroscopicProcess::SurfaceOxidation,
         )
@@ -2756,6 +2790,21 @@ pub fn compile_phase_driven_profile(
         }
     }
     if let Some(
+        process @ (MacroscopicProcess::SolidGasSynthesis | MacroscopicProcess::GasGasSynthesis),
+    ) = reaction.process
+    {
+        let formation_ordinal =
+            first_product_assignment_ordinal(frames).unwrap_or_else(|| final_ordinal.min(1));
+        push_process_effect(
+            &mut effects,
+            EffectProfile::ReactionActivity,
+            process,
+            formation_ordinal,
+            final_ordinal,
+            reaction.intensity,
+        );
+    }
+    if let Some(
         process @ (MacroscopicProcess::CompleteCombustion
         | MacroscopicProcess::IncompleteCombustion),
     ) = reaction.process
@@ -2823,6 +2872,7 @@ pub fn compile_phase_driven_profile(
         gas_evolution: None,
         metal_displacement: None,
         solid_solid_synthesis: None,
+        phase_synthesis: None,
         explosive_metal_water: None,
         post_process: (reaction.process
             == Some(MacroscopicProcess::SolventEvaporationCrystallization))
@@ -2835,6 +2885,7 @@ pub fn compile_phase_driven_profile(
     authorize_gas_evolution_assembly(&mut profile, reaction, &active);
     authorize_metal_displacement_assembly(&mut profile, reaction, &active);
     authorize_solid_solid_synthesis_assembly(&mut profile, reaction, &active);
+    authorize_phase_synthesis_assembly(&mut profile, reaction, &active);
     Ok(profile)
 }
 
@@ -2955,6 +3006,11 @@ const COLOURLESS_LIQUID: VisualColour = VisualColour {
     red: 0xd8,
     green: 0xe3,
     blue: 0xe8,
+};
+const COLOURLESS_GAS: VisualColour = VisualColour {
+    red: 0xe1,
+    green: 0xeb,
+    blue: 0xef,
 };
 const OFF_WHITE_PRECIPITATE: VisualColour = VisualColour {
     red: 0xeb,
@@ -3803,6 +3859,112 @@ fn authorize_solid_solid_synthesis_assembly(
     });
 }
 
+fn authorize_phase_synthesis_assembly(
+    profile: &mut PresentationProfile,
+    reaction: &MacroscopicReaction,
+    active: &ActiveObservations,
+) {
+    let (variant, process) = match reaction.process {
+        Some(process @ MacroscopicProcess::SolidGasSynthesis) => {
+            (PhaseSynthesisVariant::SolidGas, process)
+        }
+        Some(process @ MacroscopicProcess::GasGasSynthesis) => {
+            (PhaseSynthesisVariant::GasGas, process)
+        }
+        _ => return,
+    };
+    if profile.precipitation.is_some()
+        || profile.gas_evolution.is_some()
+        || profile.metal_displacement.is_some()
+        || profile.solid_solid_synthesis.is_some()
+    {
+        return;
+    }
+    let reactants = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Reactant)
+        .collect::<Vec<_>>();
+    let [first, second] = reactants.as_slice() else {
+        return;
+    };
+    let (reactant_a, reactant_b) = match (variant, first.phase, second.phase) {
+        (PhaseSynthesisVariant::SolidGas, Phase::Solid, Phase::Gas)
+        | (PhaseSynthesisVariant::GasGas, Phase::Gas, Phase::Gas) => (*first, *second),
+        (PhaseSynthesisVariant::SolidGas, Phase::Gas, Phase::Solid) => (*second, *first),
+        _ => return,
+    };
+    let products = reaction
+        .materials
+        .iter()
+        .filter(|material| material.role == MacroscopicMaterialRole::Product)
+        .collect::<Vec<_>>();
+    let [product] = products.as_slice() else {
+        return;
+    };
+    if product.phase != Phase::Gas {
+        return;
+    }
+    let formation_observation = active
+        .get(&(product.binding.clone(), ObservationPredicate::Forms))
+        .map(|(ordinal, _)| *ordinal);
+    let formation_process = profile.effects.iter().find_map(|effect| {
+        (effect.effect == EffectProfile::ReactionActivity
+            && effect.trigger == ObservationPredicate::Forms
+            && effect.authorization == EffectAuthorization::Process(process))
+        .then_some(effect.start_ordinal)
+    });
+    let Some(formation_ordinal) = formation_observation.or(formation_process) else {
+        return;
+    };
+    let colour_for = |material: &MacroscopicMaterial, fallback| {
+        let base_colour = material.colour.unwrap_or(fallback);
+        let exact = active
+            .get(&(material.binding.clone(), ObservationPredicate::Colour))
+            .and_then(|(ordinal, value)| {
+                value
+                    .as_deref()
+                    .and_then(visual_colour)
+                    .map(|colour| (*ordinal, colour))
+            });
+        BoundVisualColour {
+            binding: material.binding.clone(),
+            base_colour,
+            colour: exact.map_or(base_colour, |(_, colour)| colour),
+            transition_ordinal: exact.map(|(ordinal, _)| ordinal),
+        }
+    };
+    let Some(vessel) = profile
+        .objects
+        .iter_mut()
+        .find(|object| object.role == SceneRole::Vessel)
+    else {
+        return;
+    };
+    vessel.asset = match variant {
+        PhaseSynthesisVariant::SolidGas => AssetProfile::SolidGasSynthesisAssembly,
+        PhaseSynthesisVariant::GasGas => AssetProfile::GasGasSynthesisAssembly,
+    };
+    profile.phase_synthesis = Some(PhaseSynthesisVisualProfile {
+        formation_ordinal,
+        variant,
+        reactant_a: colour_for(
+            reactant_a,
+            if reactant_a.phase == Phase::Gas {
+                COLOURLESS_GAS
+            } else {
+                OFF_WHITE_PRECIPITATE
+            },
+        ),
+        reactant_b: colour_for(reactant_b, COLOURLESS_GAS),
+        product: colour_for(product, COLOURLESS_GAS),
+        show_reaction_front: profile.effects.iter().any(|effect| {
+            effect.effect == EffectProfile::ReactionActivity
+                && effect.authorization == EffectAuthorization::Process(process)
+        }),
+    });
+}
+
 type ActiveObservationKey = (String, ObservationPredicate);
 type ActiveObservationValue = (u16, Option<String>);
 type ActiveObservations = BTreeMap<ActiveObservationKey, ActiveObservationValue>;
@@ -4244,6 +4406,7 @@ pub struct ScenePlan {
     pub gas_evolution: Option<GasEvolutionVisualProfile>,
     pub metal_displacement: Option<MetalDisplacementVisualProfile>,
     pub solid_solid_synthesis: Option<SolidSolidSynthesisVisualProfile>,
+    pub phase_synthesis: Option<PhaseSynthesisVisualProfile>,
     pub explosive_metal_water: Option<ExplosiveMetalWaterVisualProfile>,
     pub equation: String,
     pub annotations: Vec<MacroscopicAnnotation>,
@@ -4302,6 +4465,7 @@ pub fn compile_real_world_plan(
         gas_evolution: profile.gas_evolution.clone(),
         metal_displacement: profile.metal_displacement.clone(),
         solid_solid_synthesis: profile.solid_solid_synthesis.clone(),
+        phase_synthesis: profile.phase_synthesis.clone(),
         explosive_metal_water: profile.explosive_metal_water.clone(),
         equation: profile.equation.clone(),
         annotations,
@@ -4353,6 +4517,7 @@ fn validate_real_world_profile(
     validate_metal_displacement_profile(profile, active_observations)?;
     validate_solid_solid_synthesis_profile(profile, active_observations)?;
     validate_explosive_metal_water_profile(profile, active_observations)?;
+    validate_phase_synthesis_profile(profile, active_observations)?;
     if profile.objects.iter().any(|object| {
         (object.role == SceneRole::Product
             && object.observation.is_none()
@@ -4806,6 +4971,85 @@ fn validate_explosive_metal_water_profile(
     Ok(())
 }
 
+fn validate_phase_synthesis_profile(
+    profile: &PresentationProfile,
+    active_observations: &[(u16, &FrameObservation)],
+) -> Result<(), PlanError> {
+    let selected_variant = profile.objects.iter().find_map(|object| {
+        (object.role == SceneRole::Vessel)
+            .then_some(object.asset)
+            .and_then(|asset| match asset {
+                AssetProfile::SolidGasSynthesisAssembly => Some(PhaseSynthesisVariant::SolidGas),
+                AssetProfile::GasGasSynthesisAssembly => Some(PhaseSynthesisVariant::GasGas),
+                _ => None,
+            })
+    });
+    let Some(synthesis) = &profile.phase_synthesis else {
+        return if selected_variant.is_some() {
+            Err(PlanError::InvalidPhaseSynthesisProfile)
+        } else {
+            Ok(())
+        };
+    };
+    if selected_variant != Some(synthesis.variant)
+        || profile.precipitation.is_some()
+        || profile.gas_evolution.is_some()
+        || profile.metal_displacement.is_some()
+        || profile.solid_solid_synthesis.is_some()
+    {
+        return Err(PlanError::InvalidPhaseSynthesisProfile);
+    }
+    let process = match synthesis.variant {
+        PhaseSynthesisVariant::SolidGas => MacroscopicProcess::SolidGasSynthesis,
+        PhaseSynthesisVariant::GasGas => MacroscopicProcess::GasGasSynthesis,
+    };
+    let exact_product_forms = active_observations.iter().any(|(ordinal, observation)| {
+        *ordinal == synthesis.formation_ordinal
+            && observation.predicate == ObservationPredicate::Forms
+            && observation.subject_binding == synthesis.product.binding
+    });
+    let process_authorized = profile.effects.iter().any(|effect| {
+        effect.effect == EffectProfile::ReactionActivity
+            && effect.trigger == ObservationPredicate::Forms
+            && effect.start_ordinal == synthesis.formation_ordinal
+            && effect.authorization == EffectAuthorization::Process(process)
+    });
+    let bindings = [
+        synthesis.reactant_a.binding.as_str(),
+        synthesis.reactant_b.binding.as_str(),
+        synthesis.product.binding.as_str(),
+    ];
+    let bindings_are_distinct = bindings
+        .iter()
+        .enumerate()
+        .all(|(index, binding)| !bindings[..index].contains(binding));
+    let exact_colours_match = [
+        &synthesis.reactant_a,
+        &synthesis.reactant_b,
+        &synthesis.product,
+    ]
+    .into_iter()
+    .all(|bound| {
+        active_observations
+            .iter()
+            .find(|(_, observation)| {
+                observation.predicate == ObservationPredicate::Colour
+                    && observation.subject_binding == bound.binding
+            })
+            .is_none_or(|(ordinal, observation)| {
+                observation.value.as_deref().and_then(visual_colour) == Some(bound.colour)
+                    && bound.transition_ordinal == Some(*ordinal)
+            })
+    });
+    if !(exact_product_forms || process_authorized)
+        || !bindings_are_distinct
+        || !exact_colours_match
+    {
+        return Err(PlanError::InvalidPhaseSynthesisProfile);
+    }
+    Ok(())
+}
+
 fn effect_authorization_is_compatible(
     effect: EffectProfile,
     predicate: ObservationPredicate,
@@ -4839,6 +5083,9 @@ fn effect_authorization_is_compatible(
             ) | (
                 MacroscopicProcess::SolidSolidSynthesis,
                 EffectProfile::SolidFormation | EffectProfile::ReactionActivity
+            ) | (
+                MacroscopicProcess::SolidGasSynthesis | MacroscopicProcess::GasGasSynthesis,
+                EffectProfile::ReactionActivity
             ) | (
                 MacroscopicProcess::ExplosiveMetalWater(_),
                 EffectProfile::FlameEmitter(FlamePalette::Natural)
@@ -4942,6 +5189,8 @@ fn object_observation_is_compatible(object: &PresentationObject) -> bool {
         | AssetProfile::AqueousPrecipitationAssembly
         | AssetProfile::MetalDisplacementAssembly
         | AssetProfile::SolidSolidSynthesisAssembly
+        | AssetProfile::SolidGasSynthesisAssembly
+        | AssetProfile::GasGasSynthesisAssembly
         | AssetProfile::Beaker
         | AssetProfile::TestTube
         | AssetProfile::ConicalFlask
@@ -5055,6 +5304,9 @@ fn compile_real_world_timeline(
         fit_authored_six_second_duration(&mut beats);
     }
     if profile.solid_solid_synthesis.is_some() {
+        fit_authored_six_second_duration(&mut beats);
+    }
+    if profile.phase_synthesis.is_some() {
         fit_authored_six_second_duration(&mut beats);
     }
     if profile.explosive_metal_water.is_some() {
@@ -5244,6 +5496,7 @@ pub enum PlanError {
     InvalidGasEvolutionProfile,
     InvalidMetalDisplacementProfile,
     InvalidSolidSolidSynthesisProfile,
+    InvalidPhaseSynthesisProfile,
     InvalidExplosiveMetalWaterProfile,
     PresentationRange,
     Digest,
@@ -5285,6 +5538,9 @@ impl fmt::Display for PlanError {
             Self::InvalidSolidSolidSynthesisProfile => formatter.write_str(
                 "solid-solid synthesis assembly lacks exactly two solid reactants, one solid product, or validated formation and colour bindings",
             ),
+            Self::InvalidPhaseSynthesisProfile => formatter.write_str(
+                "phase-synthesis assembly lacks the exact typed reactants, gaseous product, formation, or colour bindings",
+            ),
             Self::InvalidExplosiveMetalWaterProfile => formatter.write_str(
                 "high-energy metal/water assembly lacks exact reviewed variant, phase layout, effect, or material bindings",
             ),
@@ -5309,10 +5565,11 @@ mod tests {
         AppearanceProfile, AssetProfile, EducationalPlan, EducationalScene, EducationalSceneKind,
         EffectAuthorization, EffectIntensity, EffectProfile, FlamePalette, MacroscopicMaterial,
         MacroscopicMaterialRole, MacroscopicProcess, MacroscopicReaction, MacroscopicStage,
-        ObjectObservationBinding, PresentationEffect, PresentationObject, PresentationProfile,
-        PresentationTransform, ReactionVisualInputs, SceneRole, TimelinePosition, VisualColour,
-        authorize_explosive_metal_water_assembly, authorize_gas_evolution_assembly,
-        authorize_metal_displacement_assembly, authorize_solid_solid_synthesis_assembly,
+        ObjectObservationBinding, PhaseSynthesisVariant, PresentationEffect, PresentationObject,
+        PresentationProfile, PresentationTransform, ReactionVisualInputs, SceneRole,
+        TimelinePosition, VisualColour, authorize_explosive_metal_water_assembly,
+        authorize_gas_evolution_assembly, authorize_metal_displacement_assembly,
+        authorize_phase_synthesis_assembly, authorize_solid_solid_synthesis_assembly,
         compile_real_world_timeline, covalent_cleavage_explanation, covalent_formation_explanation,
         effect_authorization_is_compatible, electrolysis_transfer_text,
         macroscopic_beat_duration_ms, precipitation_colours_from_materials,
@@ -5428,6 +5685,7 @@ mod tests {
             gas_evolution: None,
             metal_displacement: None,
             solid_solid_synthesis: None,
+            phase_synthesis: None,
             explosive_metal_water: None,
             post_process: None,
             equation: "validated equation".to_owned(),
@@ -5469,6 +5727,20 @@ mod tests {
             fuel_carbon_count: None,
             surface_oxide_colour: None,
         }
+    }
+
+    fn phase_synthesis_profile(process: MacroscopicProcess) -> PresentationProfile {
+        let mut profile = gas_evolution_profile(ObservationPredicate::Forms);
+        profile.effects = vec![PresentationEffect {
+            effect: EffectProfile::ReactionActivity,
+            trigger: ObservationPredicate::Forms,
+            authorization: EffectAuthorization::Process(process),
+            intensity: EffectIntensity::Moderate,
+            start_ordinal: 4,
+            end_ordinal: 6,
+            surface_oxide_colour: None,
+        }];
+        profile
     }
 
     fn gas_observations() -> BTreeMap<(String, ObservationPredicate), (u16, Option<String>)> {
@@ -5557,6 +5829,7 @@ mod tests {
             gas_evolution: None,
             metal_displacement: None,
             solid_solid_synthesis: None,
+            phase_synthesis: None,
             explosive_metal_water: None,
             post_process: None,
             equation: "validated equation".to_owned(),
@@ -5746,6 +6019,7 @@ mod tests {
             gas_evolution: None,
             metal_displacement: None,
             solid_solid_synthesis: None,
+            phase_synthesis: None,
             explosive_metal_water: None,
             post_process: None,
             equation: "validated equation".to_owned(),
@@ -5884,6 +6158,121 @@ mod tests {
         assert_eq!(synthesis.reactant_b.colour, super::OFF_WHITE_PRECIPITATE);
         assert_eq!(synthesis.product.colour, super::NEUTRAL_DEPOSITED_METAL);
         assert!(synthesis.show_reaction_front);
+    }
+
+    #[test]
+    fn phase_synthesis_selects_solid_gas_in_either_reactant_order_and_binds_colours() {
+        let gas = VisualColour {
+            red: 0xd7,
+            green: 0xe6,
+            blue: 0xef,
+        };
+        let solid = VisualColour {
+            red: 0x84,
+            green: 0x61,
+            blue: 0x2e,
+        };
+        let product = VisualColour {
+            red: 0xc8,
+            green: 0xd1,
+            blue: 0x71,
+        };
+        for (phases, colours) in [
+            (
+                (Phase::Solid, Phase::Gas),
+                [Some(solid), Some(gas), Some(product)],
+            ),
+            (
+                (Phase::Gas, Phase::Solid),
+                [Some(gas), Some(solid), Some(product)],
+            ),
+        ] {
+            let reaction = gas_reaction(
+                phases.0,
+                phases.1,
+                Some(MacroscopicProcess::SolidGasSynthesis),
+                colours,
+            );
+            let mut profile = phase_synthesis_profile(MacroscopicProcess::SolidGasSynthesis);
+            authorize_phase_synthesis_assembly(&mut profile, &reaction, &BTreeMap::new());
+            let visual = profile
+                .phase_synthesis
+                .expect("typed solid-gas layout selects the sealed chamber");
+            assert_eq!(visual.variant, PhaseSynthesisVariant::SolidGas);
+            assert_eq!(visual.reactant_a.colour, solid);
+            assert_eq!(visual.reactant_b.colour, gas);
+            assert_eq!(visual.product.colour, product);
+            assert!(
+                profile
+                    .objects
+                    .iter()
+                    .any(|object| { object.asset == AssetProfile::SolidGasSynthesisAssembly })
+            );
+        }
+    }
+
+    #[test]
+    fn phase_synthesis_selects_gas_gas_but_rejects_unknown_or_combustion_layouts() {
+        let reaction = gas_reaction(
+            Phase::Gas,
+            Phase::Gas,
+            Some(MacroscopicProcess::GasGasSynthesis),
+            [None, None, None],
+        );
+        let mut profile = phase_synthesis_profile(MacroscopicProcess::GasGasSynthesis);
+        authorize_phase_synthesis_assembly(&mut profile, &reaction, &BTreeMap::new());
+        let visual = profile
+            .phase_synthesis
+            .as_ref()
+            .expect("two typed gases select gas-gas synthesis");
+        assert_eq!(visual.variant, PhaseSynthesisVariant::GasGas);
+        assert_eq!(visual.reactant_a.binding, "first-reactant");
+        assert_eq!(visual.reactant_b.binding, "second-reactant");
+        assert_eq!(visual.product.colour, super::COLOURLESS_GAS);
+        assert_eq!(
+            compile_real_world_timeline(&profile, 6).duration_ms(),
+            9_600
+        );
+
+        let brown = VisualColour {
+            red: 0x8b,
+            green: 0x5f,
+            blue: 0x43,
+        };
+        let active = BTreeMap::from([(
+            ("gas-product".to_owned(), ObservationPredicate::Colour),
+            (5, Some("Brown".to_owned())),
+        )]);
+        let mut coloured_profile = phase_synthesis_profile(MacroscopicProcess::GasGasSynthesis);
+        authorize_phase_synthesis_assembly(&mut coloured_profile, &reaction, &active);
+        let coloured_product = &coloured_profile
+            .phase_synthesis
+            .as_ref()
+            .expect("typed synthesis remains selected")
+            .product;
+        assert_eq!(coloured_product.base_colour, super::COLOURLESS_GAS);
+        assert_eq!(coloured_product.colour, brown);
+        assert_eq!(coloured_product.transition_ordinal, Some(5));
+
+        let unknown = gas_reaction(
+            Phase::Unknown,
+            Phase::Gas,
+            Some(MacroscopicProcess::SolidGasSynthesis),
+            [None, None, None],
+        );
+        let mut fallback = phase_synthesis_profile(MacroscopicProcess::SolidGasSynthesis);
+        authorize_phase_synthesis_assembly(&mut fallback, &unknown, &BTreeMap::new());
+        assert!(fallback.phase_synthesis.is_none());
+
+        let combustion = gas_reaction(
+            Phase::Gas,
+            Phase::Gas,
+            Some(MacroscopicProcess::CompleteCombustion),
+            [None, None, None],
+        );
+        let mut priority = phase_synthesis_profile(MacroscopicProcess::CompleteCombustion);
+        authorize_phase_synthesis_assembly(&mut priority, &combustion, &BTreeMap::new());
+        assert!(priority.phase_synthesis.is_none());
     }
 
     #[test]
@@ -6425,6 +6814,7 @@ mod tests {
             gas_evolution: None,
             metal_displacement: None,
             solid_solid_synthesis: None,
+            phase_synthesis: None,
             explosive_metal_water: None,
             post_process: Some(MacroscopicProcess::SolventEvaporationCrystallization),
             equation: "validated reaction".to_owned(),

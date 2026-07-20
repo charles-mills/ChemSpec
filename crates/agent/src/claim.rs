@@ -52,6 +52,13 @@ pub enum ClaimMode {
 pub struct ReactionClaim {
     pub schema_version: u32,
     pub disposition: ClaimDisposition,
+    /// Physical phases of the requested reactants in exact request order.
+    ///
+    /// The default preserves decoding of claims produced before this
+    /// reaction-scoped phase fact was added. New provider claims are required
+    /// to populate it by the provider JSON schema.
+    #[serde(default)]
+    pub reactant_phases: Vec<ClaimPhase>,
     pub products: Vec<ClaimProduct>,
     pub required_context: String,
     pub observations: Vec<ClaimObservation>,
@@ -369,6 +376,7 @@ impl ReactionClaim {
         SolvedClaim(Self {
             schema_version: REACTION_CLAIM_SCHEMA_VERSION,
             disposition,
+            reactant_phases: Vec::new(),
             products,
             required_context,
             observations,
@@ -455,6 +463,12 @@ impl ReactionClaim {
     }
 
     fn validate_fields(&self) -> Result<(), AgentError> {
+        require_max_len(
+            self.reactant_phases.len(),
+            2,
+            "reactant phases",
+            "reaction claim",
+        )?;
         require_max_len(
             self.products.len(),
             MAX_CLAIM_PRODUCTS,

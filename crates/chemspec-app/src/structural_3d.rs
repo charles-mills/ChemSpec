@@ -10,7 +10,8 @@ use bytemuck::{Pod, Zeroable};
 use chem_catalogue::ObservationPredicate;
 use chem_presentation::{
     AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, ExplosiveMetalWaterVariant,
-    FlamePalette, GasEvolutionVariant, MacroscopicStage, PresentationColourTransition,
+    FlamePalette, GasEvolutionVariant, MacroscopicStage, PhaseSynthesisVariant,
+    PresentationColourTransition,
     PresentationEffect, PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole,
     VisualColour,
 };
@@ -456,6 +457,7 @@ mod explosion;
 mod gas_evolution;
 mod neutralisation;
 mod precipitation;
+mod phase_synthesis;
 mod synthesis;
 
 const METAL_MESH_BYTES: &[u8] = include_bytes!("../assets/models/metal.mesh");
@@ -2063,17 +2065,28 @@ impl SceneLayout {
                     | AssetProfile::AqueousPrecipitationAssembly
                     | AssetProfile::MetalDisplacementAssembly
                     | AssetProfile::SolidSolidSynthesisAssembly
+                    | AssetProfile::SolidGasSynthesisAssembly
+                    | AssetProfile::GasGasSynthesisAssembly
             )
         }) {
             let vessel_center = Vec3::new(0.0, bench_top + 0.90, 0.0);
             let liquid_center = Vec3::new(0.0, bench_top + 0.81, 0.0);
             let liquid_surface = bench_top + 1.543;
+            // The sealed gas chambers hold no standing liquid: without this
+            // the bench renders a light-through-liquid caustic footprint
+            // around a vessel that contains only gas.
+            let dry_chamber = vessel.is_some_and(|object| {
+                matches!(
+                    object.asset,
+                    AssetProfile::SolidGasSynthesisAssembly | AssetProfile::GasGasSynthesisAssembly
+                )
+            });
             return Self {
                 bench_top,
                 has_vessel: true,
                 vessel_center,
                 vessel_scale: Vec3::new(0.99, 0.90, 0.99),
-                has_liquid: true,
+                has_liquid: !dry_chamber,
                 liquid_center,
                 liquid_surface,
                 reaction_point: Vec3::new(0.0, liquid_surface + 0.045, 0.0),
@@ -2540,6 +2553,17 @@ fn build_scene_with_stage(
     }
     if stage == MacroscopicStage::Reaction && plan.solid_solid_synthesis.is_some() {
         synthesis::add_synthesis_assembly(
+            &mut meshes,
+            plan,
+            layout,
+            authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
+            ordinal,
+            progress,
+        );
+        return meshes.finish(view_direction);
+    }
+    if stage == MacroscopicStage::Reaction && plan.phase_synthesis.is_some() {
+        phase_synthesis::add_phase_synthesis_assembly(
             &mut meshes,
             plan,
             layout,
@@ -3457,6 +3481,8 @@ fn apply_asset_colour_transition(
             | AssetProfile::AqueousPrecipitationAssembly
             | AssetProfile::MetalDisplacementAssembly
             | AssetProfile::SolidSolidSynthesisAssembly
+            | AssetProfile::SolidGasSynthesisAssembly
+            | AssetProfile::GasGasSynthesisAssembly
             | AssetProfile::Beaker
             | AssetProfile::TestTube
             | AssetProfile::ConicalFlask

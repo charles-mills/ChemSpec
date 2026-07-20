@@ -21,9 +21,9 @@ use crate::{
 };
 
 pub const DYNAMIC_CACHE_SCHEMA_VERSION: u32 = 4;
-// Version 5 requires catalogue-aware compilation on every cache load/store
-// so reviewed macroscopic capabilities cannot go stale.
-const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 5;
+// Version 6 recompiles cached claims across the phase-aware synthesis
+// boundary so researched reactant phases reach classification.
+const DYNAMIC_COMPILER_CONTRACT_VERSION: u32 = 6;
 const MAX_CACHE_BYTES: u64 = 2 * 1024 * 1024;
 static CACHE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -714,7 +714,7 @@ mod tests {
         let mut value: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("cache bytes")).expect("cache JSON");
         assert_eq!(value["schema_version"], json!(4));
-        assert_eq!(value["compiler_contract_version"], json!(5));
+        assert_eq!(value["compiler_contract_version"], json!(6));
         assert!(value["claim"].get("origin").is_none());
         assert!(value["claim"].get("solver_reason").is_none());
 

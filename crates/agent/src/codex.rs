@@ -24,7 +24,7 @@ const CLAIM_RESULT_SCHEMA: &str = r##"{
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version", "disposition", "products", "required_context",
+    "schema_version", "disposition", "reactant_phases", "products", "required_context",
     "observations", "sources", "ambiguity"
   ],
   "properties": {
@@ -32,6 +32,15 @@ const CLAIM_RESULT_SCHEMA: &str = r##"{
     "disposition": {
       "type": "string",
       "enum": ["reaction", "no_reaction", "ambiguous", "unsupported"]
+    },
+    "reactant_phases": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["aqueous", "solid", "liquid", "gas", "unknown"]
+      },
+      "minItems": 1,
+      "maxItems": 2
     },
     "products": {
       "type": "array",
@@ -1182,6 +1191,16 @@ mod tests {
     fn result_schema_is_valid_json() {
         let schema: serde_json::Value = serde_json::from_str(CLAIM_RESULT_SCHEMA).expect("schema");
         assert_eq!(schema["properties"]["schema_version"]["const"], json!(1));
+        assert!(
+            schema["required"]
+                .as_array()
+                .expect("required fields")
+                .contains(&json!("reactant_phases"))
+        );
+        assert_eq!(
+            schema["properties"]["reactant_phases"]["maxItems"],
+            json!(2)
+        );
         assert_eq!(schema["properties"]["sources"]["maxItems"], json!(4));
         assert!(
             CLAIM_RESULT_SCHEMA.len() < 12_000,
@@ -1233,6 +1252,8 @@ mod tests {
         assert!(prompt.contains("Do not output any of those"));
         assert!(prompt.contains("Use model knowledge only"));
         assert!(prompt.contains("do not return `ambiguous` solely because quantities were"));
+        assert!(prompt.contains("characteristic visible bulk colour"));
+        assert!(prompt.contains("Rgb.HexRRGGBB"));
         assert!(!prompt.contains("{{"));
         for forbidden in [
             "release_metallic",

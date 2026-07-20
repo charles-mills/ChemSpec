@@ -46,6 +46,10 @@ Return one JSON object and no prose or Markdown. It has exactly these fields:
 
 - `schema_version`: integer `1`.
 - `disposition`: `reaction`, `no_reaction`, `ambiguous`, or `unsupported`.
+- `reactant_phases`: exactly one physical phase for each requested reactant,
+  in the same order as the request. Use `aqueous`, `solid`, `liquid`, `gas`,
+  or `unknown`; do not guess when the ordinary reaction context does not
+  determine a phase.
 - `products`: product records. Each has exactly `name`, `formula`, `phase`,
   and `identity_hints`. Phase is `aqueous`, `solid`, `liquid`, `gas`, or
   `unknown`. Each identity hint has exactly `kind` and `value`; allowed kinds
@@ -57,7 +61,13 @@ Return one JSON object and no prose or Markdown. It has exactly these fields:
 - `required_context`: one short, non-procedural context or limitation.
 - `observations`: records with exactly `predicate`, `subject`, and `value`.
   Predicate is `evolves`, `disappears`, `forms`, or `colour`. `value` is a
-  string only for `colour` and is otherwise `null`.
+  string only for `colour` and is otherwise `null`. When a reactant or product
+  has a characteristic visible bulk colour in the stated phase, include a
+  `colour` observation for that exact species. Use exactly one of `Colourless`,
+  `White`, `Cream`, `Yellow`, `Amber`, `Orange`, `Red`, `Crimson`, `Pink`,
+  `Purple`, `Violet`, `Blue`, `Cyan`, `Green`, `Olive`, `Brown`, `Grey`,
+  `Black`, or an exact `Rgb.HexRRGGBB` value. Do not invent a colour for a
+  colourless species or use descriptive text outside this closed palette.
 - `sources`: direct-source records with exactly `id`, `title`, `publisher`,
   `url`, `supporting_excerpt`, and `supports`. `supports` uses only
   `products`, `required_context`, `observations`, and `no_reaction`.

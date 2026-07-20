@@ -1,5 +1,5 @@
 {
-  "digest": "fd85900c31e81d17c6654e4405f2de7f18c5a9d047142b6df259e07b95a710e8",
+  "digest": "227314d3ef8d59ac82d0662019b32001f9ce0be64668a07254d0cb3f49053b90",
   "bundle": {
     "schema_version": 1,
     "name": "ChemSpec.Theoretical",
@@ -275,6 +275,19 @@
         "statement": "Each recorded oxygen-family species is presented in its ambient standard-state phase: gases O2, H2, CO2, and SO2; liquids H2O and Mn2O7; all other recorded elemental subjects and oxides as solids.",
         "evidence": [
           "evidence.nist.webbook.standard-phases"
+        ],
+        "review": {
+          "status": "provisional",
+          "reviewers": []
+        },
+        "rule_version": "1"
+      },
+      {
+        "id": "premise.material.phase-synthesis.standard-states",
+        "statement": "For the phase-qualified synthesis profiles, molecular hydrogen, chlorine, nitrogen, hydrogen chloride, hydrogen iodide, ammonia, and hydrogen sulfide are gaseous at ordinary presentation conditions, while molecular iodine and cyclic S8 sulfur are solid. The reviewed hydrogen-halide combination presents bromine in its reacting vapour phase and hydrogen bromide as its gaseous product. Chlorine has a pale yellow-green bulk-gas cue, bromine vapour a dark red-brown cue, iodine a dark grey-violet solid cue, and sulfur a yellow solid cue; substances without a reviewed visible colour remain colourless. These presentation states and representative sRGB values do not assert concentration, kinetics, or equilibrium.",
+        "evidence": [
+          "evidence.openstax.hydrogen-compounds",
+          "evidence.openstax.interhalogens"
         ],
         "review": {
           "status": "provisional",
@@ -70744,6 +70757,164 @@
       }
     ],
     "macroscopic_materials": [
+      {
+        "structure": "Chlorine",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "colour": [
+          202,
+          220,
+          112
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "Iodine",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "colour": [
+          62,
+          53,
+          70
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "CovalentNitrogen",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "CovalentSulfur",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "solid"
+        },
+        "colour": [
+          232,
+          196,
+          55
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "HydrogenChloride",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "HydrogenIodide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "Ammonia",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "HydrogenSulfide",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "Hydrogen",
+        "context": {
+          "kind": "reaction_role",
+          "rule": "Rules.HydrogenHalideCombination",
+          "role": "hydrogen"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "Bromine",
+        "context": {
+          "kind": "reaction_role",
+          "rule": "Rules.HydrogenHalideCombination",
+          "role": "halogen"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "colour": [
+          142,
+          57,
+          47
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "HydrogenBromide",
+        "context": {
+          "kind": "reaction_role",
+          "rule": "Rules.HydrogenHalideCombination",
+          "role": "compound"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
       {
         "structure": "Oxygen",
         "context": {

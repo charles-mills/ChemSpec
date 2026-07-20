@@ -726,6 +726,8 @@ fn dynamic_macroscopic_reaction(
             })
         }
         AgentMacroscopicProcess::SolidSolidSynthesis => MacroscopicProcess::SolidSolidSynthesis,
+        AgentMacroscopicProcess::SolidGasSynthesis => MacroscopicProcess::SolidGasSynthesis,
+        AgentMacroscopicProcess::GasGasSynthesis => MacroscopicProcess::GasGasSynthesis,
         AgentMacroscopicProcess::CompleteCombustion => MacroscopicProcess::CompleteCombustion,
         AgentMacroscopicProcess::IncompleteCombustion => MacroscopicProcess::IncompleteCombustion,
         AgentMacroscopicProcess::SolventEvaporationCrystallization => {
@@ -773,10 +775,14 @@ fn dynamic_macroscopic_material(
         structure_id: structure.id().to_string(),
         formula: resolved.formula_text.clone(),
         role,
-        phase: reviewed_material.map_or_else(
-            || outcome.macroscopic_phase(species),
-            |material| material.phase,
-        ),
+        // The reaction-aware phase stays authoritative (dissolved acid reads
+        // aqueous, not the bottled standard state); the reviewed record only
+        // fills in what the outcome leaves unknown.
+        phase: match outcome.macroscopic_phase(species) {
+            chem_domain::Phase::Unknown => reviewed_material
+                .map_or(chem_domain::Phase::Unknown, |material| material.phase),
+            phase => phase,
+        },
         representation: species.representation()?,
         colour,
         explosive_water_contact: reviewed_material
@@ -6007,6 +6013,67 @@ mod tests {
         );
         compile_real_world_plan(frames, &profile)
             .expect("typed process effects cross macroscopic plan validation");
+    }
+
+    #[test]
+    fn researched_uncatalogued_phases_reach_generic_animation_handoff() {
+        let catalogue = chemistry::reference_catalogue().expect("reference catalogue");
+        let identities = reviewed_species_registry(catalogue).expect("identities");
+        let request = ReactionBuildRequest {
+            reactants: vec![
+                ReactantInput {
+                    display: "H2".into(),
+                    atomic_numbers: vec![1, 1],
+                    species_id: None,
+                },
+                ReactantInput {
+                    display: "F2".into(),
+                    atomic_numbers: vec![9, 9],
+                    species_id: None,
+                },
+            ],
+            selected_context: None,
+        };
+        let claim = ProviderClaim::from_json(
+            &serde_json::to_vec(&serde_json::json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "reactant_phases": ["gas", "gas"],
+                "products": [{
+                    "name": "hydrogen fluoride",
+                    "formula": "HF",
+                    "phase": "gas",
+                    "identity_hints": []
+                }],
+                "required_context": "ordinary gas-phase combination",
+                "observations": [{
+                    "predicate": "forms",
+                    "subject": "hydrogen fluoride",
+                    "value": null
+                }],
+                "sources": [],
+                "ambiguity": null
+            }))
+            .expect("claim JSON"),
+            ClaimMode::Fast,
+        )
+        .expect("provider claim");
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome_with_catalogue(&request, claim, &identities, catalogue)
+                .expect("researched outcome compiles")
+        else {
+            panic!("expected static outcome");
+        };
+
+        let reaction =
+            dynamic_macroscopic_reaction(&outcome).expect("renderer-readable dynamic reaction");
+        assert_eq!(reaction.process, Some(MacroscopicProcess::GasGasSynthesis));
+        assert!(
+            reaction
+                .materials
+                .iter()
+                .all(|material| material.phase == chem_domain::Phase::Gas)
+        );
     }
 
     #[test]

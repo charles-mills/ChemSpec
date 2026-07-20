@@ -535,6 +535,11 @@ The cached envelope stores:
 
 Every load decodes and revalidates request binding, evidence snapshot integrity,
 balance, catalogue dependencies, and any animation artefacts before presentation.
+Reaction claims also carry a bounded, request-ordered reactant-phase vector.
+The compiler validates its cardinality, lets reviewed catalogue phase data take
+precedence, and retains the resulting macroscopic phase facts for generic
+animation classification. Cached claims must be recompiled with the governing
+catalogue rather than through the catalogue-free compatibility entry point.
 Cache lookup precedes Codex preflight so an existing result remains usable
 offline. **Regenerate** bypasses the entry and replaces it only after the new
 result crosses the same gates. A failed regeneration preserves the prior valid

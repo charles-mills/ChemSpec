@@ -855,6 +855,61 @@ two-solid-to-one-solid reaction therefore requires validated chemistry data, not
 a renderer branch. Reactions with extra or unknown-phase reactants keep the
 fallback instead of hiding chemically important material.
 
+Phase-aware synthesis extends that route with two sealed-chamber layouts.
+Exactly one typed solid plus one typed gas producing one typed gas selects the
+solid-gas assembly; exactly two typed gases producing one typed gas selects the
+gas-gas assembly. Solid-gas binding is independent of equation order, while the
+two gas reactants retain their deterministic validated order. Combustion, surface
+oxidation, aqueous/solid-liquid gas evolution, precipitation, metal
+displacement, and neutralisation remain higher-priority classifications.
+
+Both phase-synthesis assemblies are procedural: a glass chamber sealed onto a
+matte housing plate, with a relief valve and one colour-banded inlet port per
+gaseous reactant. Gas bodies render as volumetric concentration cues inside
+the chamber — not smoke, bubbles, molecule models, or released plumes — and a
+cue's opacity tracks how visibly coloured the real gas is, so colourless
+hydrogen stays nearly invisible while chlorine or bromine vapour reads
+clearly. The sealed chamber suppresses the room-level height fog and the
+bench's liquid caustic footprint, which depict escaping gas and standing
+liquid that this scene does not contain. Exact reaction-scoped catalogue RGB
+values bind the chemical slots; absent gas colour uses a pale highly
+transparent fallback, while the glass, housing, and optional warm reaction
+front remain presentation materials.
+
+The solid-gas assembly stages the solid reactant as a faceted grain heap on
+the chamber floor that is consumed toward a residue as conversion advances,
+ringed by an ember reaction front where the profile authorizes one. Reviewed
+visible colours currently distinguish iodine, sulfur, and chlorine, while
+hydrogen, nitrogen, hydrogen halides, ammonia, and hydrogen sulfide
+deliberately retain the nearly colourless gas fallback rather than receiving
+invented educational colours.
+
+The `.chems 1` format is unchanged. Molecular representation does not establish
+gas phase: a current or future reaction activates these assemblies only when its
+validated outcome, promoted catalogue material records, or a newly researched
+reaction claim carries the required reaction-scoped typed phases. Dynamic
+claims provide one reactant phase per exact request identity; the compiler
+checks request order and count, prefers reviewed catalogue phase authority,
+and stores the checked result in the same macroscopic phase map consumed by
+static reactions. Promoted standard-state records now route the exact
+hydrogen/chlorine, hydrogen/iodine, hydrogen/sulfur, and nitrogen/hydrogen
+fixtures through their gas-gas or solid-gas assemblies. Dynamic outcomes use
+the same structure-keyed lookup before chemistry classifies their macroscopic
+process; an absent or ambiguous reactant phase still retains the fallback.
+Cached claims are recompiled through this catalogue-aware boundary, and cache
+contract changes invalidate older entries rather than replaying a stale
+fallback classification.
+
+The hydrogen/bromine reviewed fixture uses reaction-role material authority:
+bromine is presented as red-brown reacting vapour and hydrogen bromide as a
+colourless gaseous product, so the local path selects the gas-gas assembly
+without mislabelling ambient liquid bromine as its standard state. For
+researched reactions, the compact claim requests a colour observation whenever
+the exact phase has a characteristic visible bulk colour. Values are restricted
+to the renderer's closed named palette or `Rgb.HexRRGGBB`; the product slot
+transitions at the validated observation ordinal, while absent colour facts
+retain the conservative colourless-gas fallback.
+
 A genuinely new visual phenomenon should be added vertically:
 
 1. define a general `EffectProfile` variant and normalized dynamics;

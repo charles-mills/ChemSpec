@@ -49,7 +49,7 @@ fn ignition_point(floor_y: f32) -> Vec3 {
 /// given, each grain the sweep has passed converts to the product colour —
 /// the burn leaves dark product behind it, grain by grain.
 #[allow(clippy::too_many_arguments)]
-fn add_powder_heap(
+pub(super) fn add_powder_heap(
     mesh: &mut Mesh,
     centre: Vec3,
     spread: f32,
