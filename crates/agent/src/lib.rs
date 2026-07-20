@@ -29,7 +29,8 @@ use serde::Serialize;
 pub use appearance::{
     AppearanceSource, OXIDE_APPEARANCE_SCHEMA_VERSION, OxideAppearanceClaim,
     OxideAppearanceRequest, OxideColourFamily, ValidatedOxideAppearance,
-    load_oxide_appearance_cache, oxide_appearance_cache_path, store_oxide_appearance_cache,
+    baseline_oxide_colour_family, load_oxide_appearance_cache, oxide_appearance_cache_path,
+    store_oxide_appearance_cache,
 };
 pub use cache::{
     DYNAMIC_CACHE_SCHEMA_VERSION, DynamicCachePresentation, LoadedDynamicCache, dynamic_cache_path,

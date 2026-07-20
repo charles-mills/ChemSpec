@@ -1,5 +1,5 @@
 {
-  "digest": "227314d3ef8d59ac82d0662019b32001f9ce0be64668a07254d0cb3f49053b90",
+  "digest": "369e8541babf7cb2e66fe58cb55eaa6b8674ad6b4659f3d9b3c9335a985032db",
   "bundle": {
     "schema_version": 1,
     "name": "ChemSpec.Theoretical",
@@ -70907,6 +70907,136 @@
           "kind": "reaction_role",
           "rule": "Rules.HydrogenHalideCombination",
           "role": "compound"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "Fluorine",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "colour": [
+          228,
+          232,
+          150
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "HydrogenFluoride",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "Bromine",
+        "context": {
+          "kind": "reaction_role",
+          "rule": "Rules.Interhalogen1Combination",
+          "role": "central"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "colour": [
+          142,
+          57,
+          47
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "InterhalogenClF",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "InterhalogenClF3",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "InterhalogenClF5",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "InterhalogenBrCl",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "colour": [
+          205,
+          160,
+          80
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "InterhalogenBrF",
+        "context": {
+          "kind": "standard"
+        },
+        "phase": {
+          "kind": "gas"
+        },
+        "colour": [
+          180,
+          110,
+          70
+        ],
+        "premise_ids": [
+          "premise.material.phase-synthesis.standard-states"
+        ]
+      },
+      {
+        "structure": "InterhalogenIF7",
+        "context": {
+          "kind": "standard"
         },
         "phase": {
           "kind": "gas"

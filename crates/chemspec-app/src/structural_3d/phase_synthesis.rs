@@ -42,7 +42,7 @@ fn approach(progress: f32) -> f32 {
 /// (chlorine, bromine vapour, nitrogen dioxide) carry full weight.
 fn colour_visibility(colour: [f32; 4]) -> f32 {
     let chroma = colour[0].max(colour[1]).max(colour[2]) - colour[0].min(colour[1]).min(colour[2]);
-    0.30 + 0.70 * smooth01(chroma / 0.22)
+    0.45 + 0.55 * smooth01(chroma / 0.22)
 }
 
 fn bound_rgba(
@@ -277,9 +277,9 @@ pub(super) fn add_phase_synthesis_assembly(
     let active = activity(progress);
     let floor_y = layout.bench_top + PLATE_HEIGHT;
     let gas_centre_y = floor_y + CHAMBER_HEIGHT * 0.52;
-    let reactant_a = bound_rgba(&synthesis.reactant_a, 0.40, ordinal, ordinal_progress);
-    let reactant_b = bound_rgba(&synthesis.reactant_b, 0.40, ordinal, ordinal_progress);
-    let product = bound_rgba(&synthesis.product, 0.34, ordinal, ordinal_progress);
+    let reactant_a = bound_rgba(&synthesis.reactant_a, 0.55, ordinal, ordinal_progress);
+    let reactant_b = bound_rgba(&synthesis.reactant_b, 0.55, ordinal, ordinal_progress);
+    let product = bound_rgba(&synthesis.product, 0.50, ordinal, ordinal_progress);
     let inlet_colours: &[[f32; 4]] = match synthesis.variant {
         PhaseSynthesisVariant::SolidGas => &[reactant_b],
         PhaseSynthesisVariant::GasGas => &[reactant_a, reactant_b],
@@ -313,10 +313,7 @@ pub(super) fn add_phase_synthesis_assembly(
                     &mut meshes.gas,
                     Vec3::new(0.0, gas_centre_y, 0.0),
                     Vec3::new(0.40, 0.50, 0.40),
-                    alpha(
-                        reactant_b,
-                        reactant_b[3] * colour_visibility(reactant_b) * (1.0 - converted).max(0.05),
-                    ),
+                    alpha(reactant_b, reactant_b[3] * (1.0 - converted).max(0.05)),
                     seed.rotate_left(11),
                     phase,
                     reactant_density,
@@ -345,10 +342,7 @@ pub(super) fn add_phase_synthesis_assembly(
                     &mut meshes.gas,
                     Vec3::new(side * drift, gas_centre_y, 0.0),
                     Vec3::new(0.32, 0.48, 0.36),
-                    alpha(
-                        colour,
-                        colour[3] * colour_visibility(colour) * (1.0 - converted).max(0.05),
-                    ),
+                    alpha(colour, colour[3] * (1.0 - converted).max(0.05)),
                     seed.rotate_left(channel),
                     phase,
                     reactant_density * colour_visibility(colour),
@@ -371,10 +365,7 @@ pub(super) fn add_phase_synthesis_assembly(
             &mut meshes.gas,
             Vec3::new(0.0, gas_centre_y, 0.0),
             Vec3::new(0.40, 0.52, 0.40),
-            alpha(
-                product,
-                product[3] * colour_visibility(product) * converted.max(0.05),
-            ),
+            alpha(product, product[3] * converted.max(0.05)),
             seed.rotate_left(19),
             phase,
             product_density,

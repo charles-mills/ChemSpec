@@ -42,18 +42,18 @@ use std::sync::{
 // and performance.now() on the web.
 use web_time::Instant;
 
+#[cfg(test)]
+use agent::ReactionClaim;
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, DynamicCachePresentation, DynamicPresentationOutcome, LatencyMilestones,
     MacroscopicProcess as AgentMacroscopicProcess, OutcomeProvenance, OutcomeSpecies,
     OxideAppearanceRequest, ReactantInput, ReactionBuildRequest, RequestIdentityResolution,
-    ValidatedOxideAppearance, ValidatedStaticOutcome, enrich_static_outcome,
-    load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
+    ValidatedOxideAppearance, ValidatedStaticOutcome, baseline_oxide_colour_family,
+    enrich_static_outcome, load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
 use agent::{CompiledClaimOutcome, ProviderClaim, compile_claim_outcome};
-#[cfg(test)]
-use agent::ReactionClaim;
 use chem_domain::{ContentDigest, RepresentationKind};
 use chem_presentation::{
     EducationalPlan, EducationalSceneKind, EffectProfile, ExplosiveMetalWaterVariant,
@@ -925,6 +925,9 @@ fn launch_state() -> App {
                     }
                 }
             }
+            // Synchronous colour tiers (baseline/cache) apply in smoke dumps
+            // too; the returned research task is dropped deliberately.
+            let _ = app.start_oxide_appearance_enrichment();
             app.open_structural_animation();
         }
         let three_dimensional = smoke_mode == SmokeMode::Structural3d;
@@ -2039,7 +2042,11 @@ impl App {
             }
             Message::RetryOxideAppearance => {
                 self.cancel_oxide_appearance_enrichment();
-                return self.start_oxide_appearance_enrichment();
+                let enrichment = self.start_oxide_appearance_enrichment();
+                // A synchronous cache or baseline hit produces no finish
+                // message, so fold it into the live plan here.
+                self.refresh_real_world_plan();
+                return enrichment;
             }
             message @ (Message::WindowResized(_)
             | Message::DumpFrame
@@ -2581,8 +2588,11 @@ impl App {
                 self.pending_requests.clear();
                 self.oxygen_assessment = None;
                 self.select_request(*request);
+                // Enrichment first: synchronously resolved colours (baseline
+                // or cache) must be visible in the animation's first plan.
+                let enrichment = self.start_oxide_appearance_enrichment();
                 self.open_structural_animation();
-                return self.start_oxide_appearance_enrichment();
+                return enrichment;
             }
             Message::ContinueTo3d => {
                 let Some(animation) = &mut self.structural_animation else {
@@ -3142,13 +3152,30 @@ impl App {
         }
         self.cancel_oxide_appearance_enrichment();
         self.oxide_appearance_request = Some(request.clone());
+        // Deterministic tiers first: a previously validated cached claim or
+        // the reviewed baseline family resolves synchronously, so the colour
+        // is already present when the first plan is built — no research
+        // round-trip racing a six-second animation.
+        if let Some(cached) = load_oxide_appearance_cache(
+            CodexProviderConfig::from_environment()
+                .cache_directory
+                .as_deref(),
+            &request,
+        ) {
+            self.oxide_appearance = Some(cached);
+            return Task::none();
+        }
         if self.provider != Some(AppMode::CodexBinary) {
-            self.oxide_appearance_error = Some(
-                "A reviewed oxide colour is not available. Runtime colour research requires \
-                 Codex mode; the surface keeps its original metal colour until validated appearance \
-                 data is available."
-                    .to_owned(),
-            );
+            // Without runtime research the baseline family is final; only
+            // uncovered formulas surface the capability notice.
+            if baseline_oxide_colour_family(&request.product_formula).is_none() {
+                self.oxide_appearance_error = Some(
+                    "A reviewed oxide colour is not available. Runtime colour research requires \
+                     Codex mode; the surface keeps its original metal colour until validated \
+                     appearance data is available."
+                        .to_owned(),
+                );
+            }
             return Task::none();
         }
         if !self.codex_available {
@@ -3214,8 +3241,12 @@ impl App {
 
     fn accepted_surface_oxide_colour(&self) -> Option<SurfaceOxideColour> {
         let request = self.oxide_appearance_request.as_ref()?;
-        let appearance = self.oxide_appearance.as_ref()?;
-        let [red, green, blue] = appearance.colour_family().srgb();
+        let family = self
+            .oxide_appearance
+            .as_ref()
+            .map(ValidatedOxideAppearance::colour_family)
+            .or_else(|| baseline_oxide_colour_family(&request.product_formula))?;
+        let [red, green, blue] = family.srgb();
         Some(SurfaceOxideColour {
             product_binding: request.product_binding.clone(),
             target: VisualColour { red, green, blue },
@@ -4354,6 +4385,17 @@ impl App {
                         .into()
                 } else if self.oxide_appearance.is_some() {
                     text("OXIDE COLOUR · VALIDATED RUNTIME APPEARANCE APPLIED")
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT)
+                        .into()
+                } else if self
+                    .oxide_appearance_request
+                    .as_ref()
+                    .is_some_and(|request| {
+                        baseline_oxide_colour_family(&request.product_formula).is_some()
+                    })
+                {
+                    text("OXIDE COLOUR · REFERENCE BASELINE APPLIED")
                         .size(type_scale::MICRO)
                         .color(color::ACCENT)
                         .into()
@@ -6795,8 +6837,12 @@ mod tests {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert!(labels.iter().any(|text| text.starts_with("Anode:")));
-        assert!(labels.iter().any(|text| text.starts_with("Cathode:")));
+        assert!(
+            labels
+                .iter()
+                .any(|text| text.starts_with("Anode:") && text.contains("Cathode:")),
+            "electrolysis transfer copy merges anode and cathode into one label"
+        );
         assert!(
             labels
                 .iter()

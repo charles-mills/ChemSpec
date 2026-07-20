@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "review.ai.core-chemistry",
-  "catalogue_digest": "227314d3ef8d59ac82d0662019b32001f9ce0be64668a07254d0cb3f49053b90",
+  "catalogue_digest": "369e8541babf7cb2e66fe58cb55eaa6b8674ad6b4659f3d9b3c9335a985032db",
   "reviewer": "OpenAI Codex (AI)",
   "reviewed_on": "2026-07-20",
   "scope": "The exact generated ChemSpec catalogue containing 118 element identity records; the structures, templates, applications, premises, generalized rules, and reviewed macroscopic material records for 39 established finite bindings across alkali-metal/water (including the bounded Rb, Cs, and project-authorised Fr water-contact variants), silver-halide precipitation, strong-acid neutralization, acid-carbonate and acid-bicarbonate gas evolution, and aqueous halogen displacement; 68 representative element/oxygen structural experiences; 81 fixed-charge main-group binary ionic experiences covering Group 1, Group 2, and aluminium cations with halide, oxide, sulfide, nitride, and phosphide anions; and 20 finite covalent-combination outcomes covering hydrogen halides, ammonia, hydrogen sulfide, and reviewed interhalogens, including the reviewed standard-state phase and visible-colour material records for the phase-qualified synthesis presentations.",

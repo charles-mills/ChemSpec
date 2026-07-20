@@ -136,6 +136,33 @@ impl OxideColourFamily {
     }
 }
 
+/// Deterministic colour families for well-established common oxides, keyed
+/// by conventional formula. This is the first appearance tier: it resolves
+/// synchronously before any cached or researched claim, so the colour is
+/// present in the first rendered plan. Formulas absent here fall through to
+/// the cache and the bounded runtime research path; ambiguous or
+/// polymorph-dependent colours are deliberately omitted.
+#[must_use]
+pub fn baseline_oxide_colour_family(formula: &str) -> Option<OxideColourFamily> {
+    Some(match formula {
+        "Li2O" | "Na2O" | "BeO" | "MgO" | "CaO" | "SrO" | "BaO" | "Al2O3" | "ZnO" | "TiO2"
+        | "ZrO2" | "HfO2" | "SiO2" | "B2O3" | "Sc2O3" | "Y2O3" | "Nb2O5" | "Ta2O5" | "MoO3"
+        | "Li2O2" => OxideColourFamily::White,
+        "K2O" | "Na2O2" | "OsO4" => OxideColourFamily::PaleYellow,
+        "Rb2O" | "WO3" | "RuO4" | "Re2O7" => OxideColourFamily::Yellow,
+        "Cs2O" | "KO2" | "RbO2" | "CsO2" | "V2O5" => OxideColourFamily::Orange,
+        "Cu2O" | "HgO" => OxideColourFamily::Red,
+        "Fe2O3" => OxideColourFamily::RedBrown,
+        "CdO" => OxideColourFamily::Brown,
+        "Ag2O" => OxideColourFamily::DarkBrown,
+        "Cr2O3" | "NiO" | "CoO" | "MnO" => OxideColourFamily::Green,
+        "Ti2O3" => OxideColourFamily::Purple,
+        "FeO" | "Fe3O4" | "CuO" | "MnO2" | "Mn2O3" | "Mn3O4" | "Co3O4" | "PdO" | "V2O3"
+        | "RuO2" | "IrO2" => OxideColourFamily::Black,
+        _ => return None,
+    })
+}
+
 /// One source location returned by the live-search provider.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -560,5 +587,22 @@ mod tests {
         fs::write(path, serde_json::to_vec(&envelope).expect("tampered JSON")).expect("tamper");
         assert!(load_oxide_appearance_cache(Some(&directory), &request).is_none());
         let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn baseline_families_cover_common_oxides_and_reject_unknowns() {
+        assert_eq!(
+            super::baseline_oxide_colour_family("Fe2O3"),
+            Some(OxideColourFamily::RedBrown)
+        );
+        assert_eq!(
+            super::baseline_oxide_colour_family("MgO"),
+            Some(OxideColourFamily::White)
+        );
+        assert_eq!(
+            super::baseline_oxide_colour_family("CuO"),
+            Some(OxideColourFamily::Black)
+        );
+        assert_eq!(super::baseline_oxide_colour_family("XyO9"), None);
     }
 }

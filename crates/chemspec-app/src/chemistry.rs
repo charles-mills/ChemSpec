@@ -30,9 +30,9 @@ const CATALOGUE: &[u8] =
     include_bytes!("../../../catalogue/reference/core-chemistry/catalogue.json");
 const CATALOGUE_REVIEW: &[u8] =
     include_bytes!("../../../catalogue/reviews/core-chemistry.review.json");
-const CATALOGUE_DIGEST: &str = "227314d3ef8d59ac82d0662019b32001f9ce0be64668a07254d0cb3f49053b90";
+const CATALOGUE_DIGEST: &str = "369e8541babf7cb2e66fe58cb55eaa6b8674ad6b4659f3d9b3c9335a985032db";
 const CATALOGUE_REVIEW_DIGEST: &str =
-    "5cd66bc1a6f0ebdf8e42ea7238faf4c34b23c9254531deb724af55944104ce2a";
+    "ee89227850058c1eb51c712f4cc5a009b7576f1249d7c31a59629b241d6b4dd0";
 
 const ALKALI_WATER_EVIDENCE: &[u8] =
     include_bytes!("../../../catalogue/candidates/periodic-table-and-alkali-water/evidence.json");
@@ -2674,6 +2674,26 @@ mod tests {
                 "covalent-h-n-nh3",
                 chem_presentation::PhaseSynthesisVariant::GasGas,
                 AssetProfile::GasGasSynthesisAssembly,
+            ),
+            (
+                "covalent-h-f-hf",
+                chem_presentation::PhaseSynthesisVariant::GasGas,
+                AssetProfile::GasGasSynthesisAssembly,
+            ),
+            (
+                "covalent-cl-f-clf",
+                chem_presentation::PhaseSynthesisVariant::GasGas,
+                AssetProfile::GasGasSynthesisAssembly,
+            ),
+            (
+                "covalent-br-cl-brcl",
+                chem_presentation::PhaseSynthesisVariant::GasGas,
+                AssetProfile::GasGasSynthesisAssembly,
+            ),
+            (
+                "covalent-i-f-if7",
+                chem_presentation::PhaseSynthesisVariant::SolidGas,
+                AssetProfile::SolidGasSynthesisAssembly,
             ),
         ] {
             let request = ReactionRequest::from_id(id).expect("registered example exists");

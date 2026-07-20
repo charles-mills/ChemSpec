@@ -2049,6 +2049,7 @@ struct SceneLayout {
 }
 
 impl SceneLayout {
+    #[allow(clippy::too_many_lines)]
     fn resolve(plan: &ScenePlan) -> Self {
         let bench_top = -0.76;
         let vessel = plan
@@ -2081,6 +2082,9 @@ impl SceneLayout {
                     AssetProfile::SolidGasSynthesisAssembly | AssetProfile::GasGasSynthesisAssembly
                 )
             });
+            // The dry chamber is far shorter than the liquid assemblies:
+            // the shared target height would frame its lid, not its content.
+            let target_height = bench_top + if dry_chamber { 0.65 } else { 1.10 };
             return Self {
                 bench_top,
                 has_vessel: true,
@@ -2090,7 +2094,7 @@ impl SceneLayout {
                 liquid_center,
                 liquid_surface,
                 reaction_point: Vec3::new(0.0, liquid_surface + 0.045, 0.0),
-                camera_target: Vec3::new(0.0, bench_top + 1.10, 0.0),
+                camera_target: Vec3::new(0.0, target_height, 0.0),
             };
         }
         let vessel_scale = vessel.map_or(Vec3::ONE, |object| transform_scale(&object.transform));
@@ -2875,6 +2879,22 @@ fn fixed_camera_pose(plan: &ScenePlan) -> FixedCameraPose {
             yaw: -0.72,
             pitch: -0.70,
             view_height: (5.0 + (extent - 1.1) * 2.0).clamp(4.6, 5.8),
+        };
+    }
+    // The phase-synthesis chamber is far shorter than the liquid
+    // assemblies: frame it close with a shallower look-down so the gas
+    // body fills the view instead of the bench around it.
+    if plan.objects.iter().any(|object| {
+        object.role == SceneRole::Vessel
+            && matches!(
+                object.asset,
+                AssetProfile::SolidGasSynthesisAssembly | AssetProfile::GasGasSynthesisAssembly
+            )
+    }) {
+        return FixedCameraPose {
+            yaw: -0.72,
+            pitch: -0.44,
+            view_height: 3.0,
         };
     }
     let vessel_scale = plan
@@ -9336,8 +9356,10 @@ mod tests {
 
     #[test]
     fn registry_reactants_are_replaced_by_the_final_3d_product() {
-        let request = chemistry::ReactionRequest::from_id("covalent-i-f-if7")
-            .expect("reviewed IF7 request exists");
+        // ICl stays on the legacy registry scene: its solid product keeps it
+        // out of the gas-product-only phase-synthesis chamber.
+        let request = chemistry::ReactionRequest::from_id("covalent-i-cl-icl")
+            .expect("reviewed ICl request exists");
         let plan = plan_for(request);
         let final_ordinal = plan.timeline.beats.last().unwrap().end_ordinal;
 
