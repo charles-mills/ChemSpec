@@ -1,5 +1,8 @@
 # ChemSpec
 
+[![CI](https://github.com/charles-mills/ChemSpec/actions/workflows/ci.yml/badge.svg)](https://github.com/charles-mills/ChemSpec/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 ChemSpec is a chemistry exploration app built for the Education category of [OpenAI Build Week 2026](https://openai.devpost.com/). Learners construct a reaction question, follow its structural changes atom by atom, and then see a human-level 3D interpretation of the same outcome.
 
 **[Try the web demo](https://charles-mills.github.io/ChemSpec/) · [Project documentation](docs/)**
@@ -7,8 +10,8 @@ ChemSpec is a chemistry exploration app built for the Education category of [Ope
 It uses three paths for resolving chemistry:
 
 - **Tier A:** Catalogued reactions, available ~instantly.
-- **Tier B:** Families of reactions that are aglorithmically solved, available in 0-3 seconds.
-- **Tier C:** Reactions not supported by Tiers A or B, which are deferred to Codex; if valid, the reaction is available within 10-60 seconds.
+- **Tier B:** Families of reactions that are algorithmically solved, available in 0-3 seconds.
+- **Tier C:** Reactions not supported by Tiers A or B, which are deferred to Codex; if successful, the reaction is available within 10-60 seconds.
 
 ## What ChemSpec Does
 
@@ -27,12 +30,12 @@ Chemistry equations describe inputs and outputs, but they do not make it easy to
 reaction request
   -> reviewed catalogue fast path
   -> algorithmic reaction solver
-     -> miss: revalidated cache, then Codex claim
+     -> miss: rechecked cache, then Codex claim
   -> exact balancing and checked declaration
   -> local graph-difference or reviewed-family mechanism
      -> miss: bounded Codex mapping and operation proposal
   -> deterministic chemistry kernel
-  -> validated renderer-independent frames
+  -> renderer-independent frames
   -> structural 2D and macroscopic 3D presentation
 ```
 
@@ -78,7 +81,7 @@ When designing or redesigning the UI, we relied on the Product Design product wi
 
 Once the mockup was approved, Sol would produce native Iced components within the app. Once done, Codex would autonomously launch the app, verify the outcome against the agreed mockup, and iterate further if needed.
 
-The provider setup screen preserves this process in the repository. Its [visual QA record](docs/archive/qa/provider-setup/README.md) includes the initial reference design, implementation captures, invalid and valid input states, a normalised side-by-side comparison, the changes made after inspection, and the final result. That entire QA process was captured and recorded autonomously by GPT-5.6 Sol.
+The provider setup screen preserves this process in the repository. Its [visual QA record](docs/archive/qa/provider-setup/README.md) includes the initial reference design, implementation captures, error and accepted input states, a normalised side-by-side comparison, the changes made after inspection, and the final result. That entire QA process was captured and recorded autonomously by GPT-5.6 Sol.
 
 ### Engineering with Codex
 
@@ -101,16 +104,14 @@ from unit tests.
 
 Codex is also part of the finished application. When the reviewed catalogue and local reaction solver both decline, ChemSpec can ask the user's signed-in Codex installation for a narrow, structured reaction claim. If local graph-difference and reviewed-family mechanisms also decline, Codex may propose an atom mapping and a bounded sequence of operations over structures supplied by ChemSpec.
 
-Those proposals are not validated chemistry. Codex cannot author the structures, coefficients, valence rules, internal identities, or validate
-d simulation frames. ChemSpec resolves and balances the reaction locally, then runs any proposed mechanism through the same deterministic chemistry kernel used for offline reactions. If it cannot validate the result, it declines to animate it. The complete boundary is documented in the [agent workflow](docs/agent-workflow.md).
-## Running ChemSpec
+Those proposals are not finished chemistry: Codex cannot author the structures, coefficients, valence rules, internal identities, or simulation frames. ChemSpec resolves and balances the reaction locally, then runs any proposed mechanism through the same deterministic chemistry kernel used for offline reactions. If the kernel rejects the result, ChemSpec declines to animate it. The complete boundary is documented in the [agent workflow](docs/agent-workflow.md).
 
 ## Trust, Scope, and Safety
 
 - Exact chemistry quantities use rational and decimal representations rather than binary floating point.
 - Raw or stale model output cannot enter the simulation.
 - A model-proposed mechanism must pass the same conservation and structural validation as a locally derived one.
-- Unsupported, invalid, and provider-failure states remain distinct.
+- Unsupported, rejected, and provider-failure states remain distinct.
 - ChemSpec is an educational explanatory model, not a laboratory procedure, kinetics engine, or molecular-dynamics system.
 
 The detailed boundaries are recorded in the [product specification](docs/product-spec.md), [chemistry engine](docs/chemistry-engine.md), and [safety policy](docs/safety.md).
