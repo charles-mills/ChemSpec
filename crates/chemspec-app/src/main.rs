@@ -46,8 +46,9 @@ use agent::{
     load_oxide_appearance_cache, resolve_request_identities_with_catalogue,
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
+use agent::{CompiledClaimOutcome, ProviderClaim, compile_claim_outcome};
 #[cfg(test)]
-use agent::{CompiledClaimOutcome, ProviderClaim, ReactionClaim};
+use agent::ReactionClaim;
 use chem_domain::{ContentDigest, RepresentationKind};
 use chem_presentation::{
     EducationalPlan, EducationalSceneKind, EffectProfile, ExplosiveMetalWaterVariant,
@@ -867,17 +868,31 @@ fn launch_state() -> App {
             app.enter_screen(Screen::Builder);
             return app;
         }
-        if let Some(request) = smoke_request {
-            match request {
-                Ok(request) => app.select_request(request),
+        let smoke_dynamic = std::env::args()
+            .find_map(|argument| argument.strip_prefix("--smoke-dynamic=").map(ToOwned::to_owned));
+        if let Some(fixture) = smoke_dynamic {
+            match smoke_dynamic_presentation(&fixture) {
+                // Installs the outcome and opens the structural animation.
+                Ok(presentation) => app.finish_dynamic_presentation(presentation),
                 Err(error) => {
                     app.enter_screen(Screen::Builder);
                     app.structural_error = Some(error);
                     return app;
                 }
             }
+        } else {
+            if let Some(request) = smoke_request {
+                match request {
+                    Ok(request) => app.select_request(request),
+                    Err(error) => {
+                        app.enter_screen(Screen::Builder);
+                        app.structural_error = Some(error);
+                        return app;
+                    }
+                }
+            }
+            app.open_structural_animation();
         }
-        app.open_structural_animation();
         let three_dimensional = smoke_mode == SmokeMode::Structural3d;
         // Optional exact playhead for frame-dump verification of a specific
         // moment (e.g. mid-pour), instead of the default two-thirds seek.
@@ -943,6 +958,109 @@ fn launch_state() -> App {
         app.enter_screen(Screen::Builder);
     }
     app
+}
+
+/// Deterministic offline fixtures for scenes that only dynamic
+/// (provider-path) reactions reach, so their renderers can be frame-dump
+/// verified like the request-backed scenes:
+/// `--structural-3d-smoke --smoke-dynamic=<fixture>`.
+fn smoke_dynamic_presentation(fixture: &str) -> Result<DynamicPresentationOutcome, String> {
+    let catalogue = chemistry::reference_catalogue().map_err(ToString::to_string)?;
+    let identities =
+        reviewed_species_registry(catalogue).map_err(|error| format!("{error:?}"))?;
+    let request = |selected_context: Option<String>| ReactionBuildRequest {
+        reactants: vec![
+            ReactantInput {
+                display: "CH4".into(),
+                atomic_numbers: vec![6, 1, 1, 1, 1],
+                species_id: None,
+            },
+            ReactantInput {
+                display: "O2".into(),
+                atomic_numbers: vec![8, 8],
+                species_id: None,
+            },
+        ],
+        selected_context,
+    };
+    let compiled = match fixture {
+        "combustion-methane" => {
+            let claim = serde_json::json!({
+                "schema_version": 1,
+                "disposition": "reaction",
+                "products": [
+                    {"name":"carbon dioxide","formula":"CO2","phase":"gas","identity_hints":[]},
+                    {"name":"water","formula":"H2O","phase":"gas","identity_hints":[]}
+                ],
+                "required_context":"complete combustion in oxygen",
+                "observations":[
+                    {"predicate":"forms","subject":"carbon dioxide and water vapour","value":null}
+                ],
+                "sources":[],
+                "ambiguity":null
+            });
+            let claim = ProviderClaim::from_json(
+                &serde_json::to_vec(&claim).map_err(|error| error.to_string())?,
+                ClaimMode::Fast,
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            compile_claim_outcome(&request(None), claim, &identities)
+        }
+        "combustion-methane-incomplete" => {
+            let request = request(Some("limited oxygen".to_owned()));
+            let claim = agent::solve_reaction_claim(&request, &identities)
+                .ok_or("limited-oxygen methane combustion does not solve")?;
+            compile_claim_outcome(&request, claim, &identities)
+        }
+        "displacement-zinc-copper" => {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: "Zn".into(),
+                        atomic_numbers: vec![30],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "CuSO4".into(),
+                        atomic_numbers: vec![29, 16, 8, 8, 8, 8],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = agent::solve_reaction_claim(&request, &identities)
+                .ok_or("zinc-copper displacement does not solve")?;
+            compile_claim_outcome(&request, claim, &identities)
+        }
+        "synthesis-iron-sulfur" => {
+            let request = ReactionBuildRequest {
+                reactants: vec![
+                    ReactantInput {
+                        display: "Fe".into(),
+                        atomic_numbers: vec![26],
+                        species_id: None,
+                    },
+                    ReactantInput {
+                        display: "S".into(),
+                        atomic_numbers: vec![16],
+                        species_id: None,
+                    },
+                ],
+                selected_context: None,
+            };
+            let claim = agent::solve_reaction_claim(&request, &identities)
+                .ok_or("iron-sulfur synthesis does not solve")?;
+            compile_claim_outcome(&request, claim, &identities)
+        }
+        _ => return Err(format!("unsupported dynamic smoke fixture `{fixture}`")),
+    };
+    let CompiledClaimOutcome::Static(outcome) =
+        compiled.map_err(|error| format!("{error:?}"))?
+    else {
+        return Err("dynamic smoke fixture must compile to a static outcome".to_owned());
+    };
+    let mut provider = agent::UnsupportedMechanismProvider;
+    enrich_static_outcome(outcome, catalogue, &mut provider).map_err(|error| format!("{error:?}"))
 }
 
 fn smoke_request_from_argument(

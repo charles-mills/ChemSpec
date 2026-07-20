@@ -168,7 +168,7 @@ fn gas_vertex(
     return output;
 }
 
-fn shadow_factor(world_position: vec3<f32>, normal: vec3<f32>) -> f32 {
+fn shadow_factor(world_position: vec3<f32>, normal: vec3<f32>, glass_share: f32) -> f32 {
     let key = normalize(-camera.key_direction.xyz);
     // Slope-scaled normal offset keeps contact points grounded without acne.
     let offset_world = world_position + normal * 0.035;
@@ -199,7 +199,7 @@ fn shadow_factor(world_position: vec3<f32>, normal: vec3<f32>) -> f32 {
     solid /= 9.0;
     glass /= 9.0;
     // Solid casters block the key; glassware only takes ~30% of it.
-    let visibility = solid * mix(1.0, glass, 0.30);
+    let visibility = solid * mix(1.0, glass, glass_share);
     // Never fully black: the fill and ambient rig still reaches shadowed area.
     let facing = clamp(dot(normal, key), 0.0, 1.0);
     return mix(1.0, visibility, facing * 0.9 + 0.1);
@@ -339,7 +339,14 @@ fn shade_surface(input: VertexOutput) -> vec4<f32> {
         albedo *= 1.0 - grid * 0.05;
     }
 
-    let shadow = shadow_factor(input.world_position, normal);
+    // Liquid and glass surfaces must not receive the glassware light map:
+    // it is their own silhouette, and self-comparison on curved walls reads
+    // as vertical acne stripes. The map exists so glassware dims the bench.
+    var glass_share = 0.30;
+    if (input.material == MATERIAL_LIQUID || input.material == MATERIAL_GLASS) {
+        glass_share = 0.0;
+    }
+    let shadow = shadow_factor(input.world_position, normal, glass_share);
     let key_radiance = KEY_COLOUR * KEY_INTENSITY * shadow;
     let fill_radiance = FILL_COLOUR * FILL_INTENSITY;
 
@@ -572,7 +579,7 @@ fn gas_fragment(input: GasOutput) -> @location(0) vec4<f32> {
     let self_transmittance = exp(-min(input.density, 1.8) * 0.72);
     // The shadow map carves light shafts through the plume: gas above the rim
     // catches full key light while gas behind the vessel sits in its shadow.
-    let shafts = shadow_factor(input.world_position, vec3<f32>(0.0, 1.0, 0.0));
+    let shafts = shadow_factor(input.world_position, vec3<f32>(0.0, 1.0, 0.0), 0.30);
     let illumination = (0.52 + self_transmittance * 0.40 + forward_scatter * 0.34)
         * (0.58 + shafts * 0.42);
     let in_scatter = vec3<f32>(0.16, 0.20, 0.22)
