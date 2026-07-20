@@ -27,6 +27,16 @@ chemistry or catalogue content. The application labels its authority
 `ModelAsserted`, prefers reviewed catalogue colour, and retains a neutral-grey
 fallback on every failure.
 
+The final product record may also request one presentation-only reaction
+context note. Codex receives the validated display equation and answers only
+what temperature, pressure, or catalyst context is required and whether the
+reaction occurs in industry or the environment (including why an industrial
+use exists). The answer is limited to two or three short paragraphs and is
+explicitly prohibited from supplying a step-by-step procedure, quantities,
+apparatus, optimization, procurement, purification, collection, or safety-
+control bypasses. This note is not chemistry authority and cannot modify the
+reaction, frames, catalogue, or validation state. Local mode never invokes it.
+
 ## Progressive result path
 
 ```text

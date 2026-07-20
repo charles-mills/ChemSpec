@@ -532,15 +532,19 @@ Post-simulation product-record tests require the macroscopic timeline to reach
 its exact end before navigation unlocks. They compile products only from final
 trusted membership, group duplicate instances deterministically, preserve
 covalent bond orders and ionic distinction, use exact decimal element masses,
-and reconstruct the same 3D layout and typewriter state for the same elapsed
-time. Responsive composition tests must build the split desktop and stacked
-compact views without hiding either the model or the property table. The
-macroscopic environment test additionally proves the floor remains while no
-rear wall geometry is emitted.
+and render the final trusted frame through the same structural 2D renderer used
+by the molecular simulation. Tests verify every product disclosure starts
+closed, toggles independently, and displays all property text immediately.
+They also verify Local mode returns the explicit More info unavailable state,
+Codex completions are generation-scoped, and provider output is limited to two
+or three paragraphs. Responsive composition tests must build the split desktop
+and stacked compact views without hiding either the model or the property list.
+The macroscopic environment test additionally proves the floor remains while
+no rear wall geometry is emitted.
 
-Product geometry tests require distinct covalent components to remain spatially
-legible, ionic components to remain separated without invented bonds, and
-lone-pair-bearing two-bond centres to produce a deterministic bent geometry.
+Final product geometry inherits the structural renderer's existing covalent,
+ionic, metallic, charge, electron, and deterministic layout tests rather than
+maintaining a second product-only geometry implementation.
 
 Stage 1 composer tests cover progressive formula construction (`C` → `CO` →
 `CO₂`), independent reactant slots, undo/clear/swap behavior, unrecognised

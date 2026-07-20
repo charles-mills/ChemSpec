@@ -226,38 +226,15 @@ fn format_media_time(milliseconds: u64) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
 }
 
-fn typewriter_value(value: &str, line: usize, elapsed_ms: u64) -> (String, bool, bool) {
-    const INTRO_DELAY_MS: u64 = 520;
-    const LINE_STAGGER_MS: u64 = 330;
-    const CHARACTER_MS: u64 = 24;
-    let start = INTRO_DELAY_MS.saturating_add(
-        u64::try_from(line)
-            .unwrap_or(u64::MAX)
-            .saturating_mul(LINE_STAGGER_MS),
-    );
-    if elapsed_ms < start {
-        return (String::new(), false, false);
-    }
-    let visible =
-        usize::try_from(elapsed_ms.saturating_sub(start) / CHARACTER_MS).unwrap_or(usize::MAX);
-    let total = value.chars().count();
-    let complete = visible >= total;
-    let mut rendered = value.chars().take(visible).collect::<String>();
-    if !complete && (elapsed_ms / 260).is_multiple_of(2) {
-        rendered.push('▌');
-    }
-    (rendered, true, complete)
-}
-
 #[allow(clippy::too_many_lines)]
 fn product_properties_view(
     summary: &product_summary::SummaryData,
-    elapsed_ms: u64,
     labels: ChemicalLabels,
     compact: bool,
     dense: bool,
+    open_products: &std::collections::BTreeSet<usize>,
+    more_info: &MoreInfoState,
 ) -> Element<'static, Message> {
-    let pulse = (elapsed_ms / 420).is_multiple_of(2);
     let panel_spacing = if dense { spacing::XS } else { spacing::SM };
     let row_padding = if dense {
         [spacing::XXS, spacing::XS]
@@ -280,17 +257,6 @@ fn product_properties_view(
                     .color(color::TEXT),
             ]
             .spacing(spacing::XXS),
-            space().width(Fill),
-            row![
-                text(if pulse { "●" } else { "○" })
-                    .size(type_scale::CAPTION)
-                    .color(color::ACCENT),
-                text("READING")
-                    .size(type_scale::MICRO)
-                    .color(color::TEXT_SOFT),
-            ]
-            .spacing(spacing::XXS)
-            .align_y(Center),
         ]
         .align_y(Center),
         rule::horizontal(1).style(theme::soft_rule),
@@ -299,75 +265,56 @@ fn product_properties_view(
             .color(color::TEXT_SOFT),
     ]
     .spacing(panel_spacing);
-    let mut line = 0_usize;
-    for product in &summary.products {
-        let product_start =
-            260_u64.saturating_add(u64::try_from(line).unwrap_or(u64::MAX).saturating_mul(330));
-        let product_visible = elapsed_ms >= product_start;
-        let heading = container(
+    for (index, product) in summary.products.iter().enumerate() {
+        let open = open_products.contains(&index);
+        let heading = button(
             row![
                 column![
                     text(product.primary_label(labels))
                         .size(type_scale::BODY_LARGE)
                         .font(fonts::SEMIBOLD)
-                        .color(if product_visible {
-                            color::TEXT
-                        } else {
-                            color::FAINT
-                        }),
-                    text(if product_visible {
-                        product.classification
-                    } else {
-                        "Awaiting validated structure…"
-                    })
-                    .size(type_scale::MICRO)
-                    .color(if product_visible {
-                        color::ACCENT
-                    } else {
-                        color::MUTED
-                    }),
+                        .color(color::TEXT),
+                    text(product.classification)
+                        .size(type_scale::MICRO)
+                        .color(color::ACCENT),
                 ]
                 .spacing(spacing::XXS)
                 .width(Fill),
+                text(if open {
+                    "Hide details  ⌃"
+                } else {
+                    "Show details  ⌄"
+                })
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT),
             ]
             .spacing(panel_spacing)
             .align_y(Center),
         )
-        .style(theme::summary_product_heading)
+        .on_press(Message::ProductDetailsToggled(index))
+        .style(theme::secondary_button)
+        .width(Fill)
         .padding(row_padding);
         content = content.push(heading);
+        if !open {
+            continue;
+        }
         for (label, value) in product.property_rows() {
-            let (typed, started, complete) = typewriter_value(&value, line, elapsed_ms);
-            let active = started && !complete;
             let label = text(label)
                 .size(if dense {
                     type_scale::MICRO
                 } else {
                     type_scale::CAPTION
                 })
-                .color(if started {
-                    color::TEXT_SOFT
-                } else {
-                    color::MUTED
-                });
-            let value = text(if started { typed } else { "—".to_owned() })
+                .color(color::TEXT_SOFT);
+            let value = text(value)
                 .size(if dense {
                     type_scale::CAPTION
                 } else {
                     type_scale::BODY
                 })
-                .font(if active {
-                    fonts::MEDIUM
-                } else {
-                    fonts::REGULAR
-                })
-                .color(if active {
-                    color::ACCENT_HOVER
-                } else if complete {
-                    color::TEXT
-                } else {
-                    color::FAINT
-                });
+                .font(fonts::REGULAR)
+                .color(color::TEXT);
             let row_content: Element<'static, Message> = if compact {
                 column![label, value]
                     .spacing(spacing::XXS)
@@ -384,26 +331,73 @@ fn product_properties_view(
                 .into()
             };
             let row = container(row_content)
-                .style(move |_| theme::summary_property_row(started, active))
+                .style(move |_| theme::summary_property_row(true, false))
                 .padding(row_padding);
             content = content.push(row);
-            line += 1;
         }
     }
+    let more_info_button = button(text(match more_info {
+        MoreInfoState::Loading { .. } => "Asking Codex…",
+        MoreInfoState::Ready(_) => "Refresh more info",
+        MoreInfoState::Idle | MoreInfoState::Unavailable(_) | MoreInfoState::Failed(_) => {
+            "More info"
+        }
+    }))
+    .on_press_maybe(
+        (!matches!(more_info, MoreInfoState::Loading { .. }))
+            .then_some(Message::ReactionMoreInfoRequested),
+    )
+    .padding([spacing::XS, spacing::SM])
+    .style(theme::primary_button);
+    let more_info_status: Element<'static, Message> = match more_info {
+        MoreInfoState::Idle => {
+            text("Ask Codex about required conditions and where this reaction occurs.")
+                .size(type_scale::CAPTION)
+                .color(color::TEXT_SOFT)
+                .into()
+        }
+        MoreInfoState::Loading { .. } => text("Codex is preparing a brief explanation…")
+            .size(type_scale::CAPTION)
+            .color(color::ACCENT)
+            .into(),
+        MoreInfoState::Ready(answer) => text(answer.clone())
+            .size(type_scale::BODY)
+            .color(color::TEXT)
+            .width(Fill)
+            .into(),
+        MoreInfoState::Unavailable(message) | MoreInfoState::Failed(message) => {
+            text(message.clone())
+                .size(type_scale::CAPTION)
+                .color(color::WARNING)
+                .width(Fill)
+                .into()
+        }
+    };
+    content = content.push(rule::horizontal(1).style(theme::soft_rule));
     content = content.push(
         container(
-            row![
-                text("VALIDATION BOUNDARY")
-                    .size(type_scale::MICRO)
-                    .color(color::SUCCESS),
-                space().width(Fill),
-                text("DETERMINISTIC · OFFLINE")
-                    .size(type_scale::MICRO)
-                    .color(color::TEXT_SOFT),
+            column![
+                row![
+                    column![
+                        text("CODEX · REACTION CONTEXT")
+                            .size(type_scale::MICRO)
+                            .color(color::ACCENT),
+                        text("Conditions and real-world occurrence")
+                            .size(type_scale::BODY_LARGE)
+                            .font(fonts::SEMIBOLD)
+                            .color(color::TEXT),
+                    ]
+                    .spacing(spacing::XXS),
+                    space().width(Fill),
+                    more_info_button,
+                ]
+                .spacing(spacing::SM)
+                .align_y(Center),
+                more_info_status,
             ]
-            .align_y(Center),
+            .spacing(spacing::SM),
         )
-        .style(theme::summary_trust_strip)
+        .style(theme::summary_more_info_panel)
         .padding(row_padding),
     );
     let content: Element<'static, Message> = if compact {
@@ -939,9 +933,13 @@ fn launch_state() -> App {
             app.open_structural_animation();
         }
         let three_dimensional = smoke_mode == SmokeMode::Structural3d;
+        let macroscopic_or_summary = matches!(
+            smoke_mode,
+            SmokeMode::Structural3d | SmokeMode::ProductSummary
+        );
         if let Some(animation) = &mut app.structural_animation {
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
-            if three_dimensional && !smoke_from_start {
+            if macroscopic_or_summary && !smoke_from_start {
                 let plan = &animation.real_world_plan;
                 animation.real_world_playhead_ms = smoke_playhead(plan.timeline.duration_ms());
                 if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
@@ -981,10 +979,11 @@ fn launch_state() -> App {
         if three_dimensional {
             arm_hero_export(&mut app);
         }
-        app.enter_screen(if three_dimensional {
-            Screen::Structural3d
-        } else {
-            Screen::Structural2d
+        app.enter_screen(match smoke_mode {
+            SmokeMode::Builder => Screen::Builder,
+            SmokeMode::Structural2d => Screen::Structural2d,
+            SmokeMode::Structural3d => Screen::Structural3d,
+            SmokeMode::ProductSummary => Screen::ProductSummary,
         });
         // Smoke launch has no preceding key event to consume.
         app.structural_shortcut_state = StructuralShortcutState::Ready;
@@ -1131,7 +1130,7 @@ fn validate_structural_smoke_arguments<'a>(
     let structural_smoke = arguments.iter().any(|argument| {
         matches!(
             SmokeMode::from_argument(argument),
-            Some(SmokeMode::Structural2d | SmokeMode::Structural3d)
+            Some(SmokeMode::Structural2d | SmokeMode::Structural3d | SmokeMode::ProductSummary)
         )
     });
     if !structural_smoke {
@@ -1172,6 +1171,7 @@ enum SmokeMode {
     Builder,
     Structural2d,
     Structural3d,
+    ProductSummary,
 }
 
 impl SmokeMode {
@@ -1180,6 +1180,7 @@ impl SmokeMode {
             "--builder-smoke" => Some(Self::Builder),
             "--structural-2d-smoke" | "--lithium-2d-smoke" => Some(Self::Structural2d),
             "--structural-3d-smoke" | "--lithium-3d-smoke" => Some(Self::Structural3d),
+            "--product-summary-smoke" => Some(Self::ProductSummary),
             _ => None,
         }
     }
@@ -1287,6 +1288,12 @@ enum Message {
         result: Box<Result<ValidatedOxideAppearance, String>>,
     },
     RetryOxideAppearance,
+    ProductDetailsToggled(usize),
+    ReactionMoreInfoRequested,
+    ReactionMoreInfoFinished {
+        request_id: u64,
+        result: Result<String, String>,
+    },
     OutcomeSelected(chemistry::ReactionRequest),
     StructuralPlaybackShortcut,
     StructuralPlaybackToggled,
@@ -1578,6 +1585,18 @@ fn screen_keyboard_message(
 
 type RenderableFrames = chem_kernel::SimulationFrames;
 
+#[derive(Debug, Clone, Default)]
+enum MoreInfoState {
+    #[default]
+    Idle,
+    Unavailable(String),
+    Loading {
+        request_id: u64,
+    },
+    Ready(String),
+    Failed(String),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BuilderOverlayKind {
     Dynamic(DynamicModalKind),
@@ -1596,7 +1615,6 @@ struct StructuralAnimation {
     educational_playhead_ms: u64,
     frame_index: usize,
     real_world_playhead_ms: u64,
-    summary_elapsed_ms: u64,
     playing: bool,
     playback_speed: PlaybackSpeed,
     physics: structural_physics::Simulation,
@@ -1644,6 +1662,9 @@ struct App {
     oxide_appearance_cancellation: Option<Arc<AtomicBool>>,
     active_oxide_appearance_run: Option<u64>,
     next_oxide_appearance_run_id: u64,
+    open_product_details: std::collections::BTreeSet<usize>,
+    reaction_more_info: MoreInfoState,
+    next_more_info_request_id: u64,
     structural_animation: Option<StructuralAnimation>,
     structural_error: Option<String>,
     /// A structural destination settles through animation time before keyboard
@@ -1692,6 +1713,9 @@ impl Default for App {
             oxide_appearance_cancellation: None,
             active_oxide_appearance_run: None,
             next_oxide_appearance_run_id: 1,
+            open_product_details: std::collections::BTreeSet::new(),
+            reaction_more_info: MoreInfoState::Idle,
+            next_more_info_request_id: 1,
             structural_animation: None,
             structural_error: None,
             structural_shortcut_state: StructuralShortcutState::Inactive,
@@ -1812,6 +1836,9 @@ impl App {
                 let mode_changed = self.provider != Some(settings.app_mode);
                 if mode_changed {
                     self.cancel_dynamic_work();
+                    self.next_more_info_request_id =
+                        self.next_more_info_request_id.saturating_add(1);
+                    self.reaction_more_info = MoreInfoState::Idle;
                 }
                 self.settings = settings;
                 self.provider = Some(settings.app_mode);
@@ -1848,6 +1875,45 @@ impl App {
     /// model-facing copy, and anything only a model could do is unsupported.
     fn local_mode(&self) -> bool {
         self.provider == Some(AppMode::Local)
+    }
+
+    fn request_reaction_more_info(&mut self) -> Task<Message> {
+        if self.local_mode() {
+            self.reaction_more_info = MoreInfoState::Unavailable(
+                "More info isn’t available in Local mode. Switch to Codex mode in Settings to use this feature."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        if self.provider != Some(AppMode::CodexBinary) || !self.codex_available {
+            self.reaction_more_info = MoreInfoState::Unavailable(
+                "More info isn’t available because Codex is not installed and authenticated."
+                    .to_owned(),
+            );
+            return Task::none();
+        }
+        let Some(animation) = &self.structural_animation else {
+            self.reaction_more_info = MoreInfoState::Failed(
+                "The validated reaction is unavailable for this request.".to_owned(),
+            );
+            return Task::none();
+        };
+        let reaction = nomenclature::display_declaration(
+            &animation.declaration,
+            self.settings.chemical_labels,
+        );
+        let request_id = self.next_more_info_request_id;
+        self.next_more_info_request_id = self.next_more_info_request_id.saturating_add(1);
+        self.reaction_more_info = MoreInfoState::Loading { request_id };
+        let config = CodexProviderConfig::from_environment();
+        Task::perform(
+            blocking::run(move || {
+                CodexProvider::new(config)
+                    .reaction_more_info(&reaction)
+                    .map_err(|error| error.to_string())
+            }),
+            move |result| Message::ReactionMoreInfoFinished { request_id, result },
+        )
     }
 
     /// The only runtime boundary for changing product screens. It reconciles
@@ -1888,6 +1954,8 @@ impl App {
         self.dynamic.overlay_dismissed = false;
         self.structural_animation = None;
         self.structural_error = None;
+        self.open_product_details.clear();
+        self.reaction_more_info = MoreInfoState::Idle;
         self.structural_shortcut_state = StructuralShortcutState::Inactive;
         self.keyboard_navigation_active = false;
         self.enter_screen(Screen::Builder);
@@ -2060,6 +2128,11 @@ impl App {
                 self.refresh_real_world_plan();
                 return enrichment;
             }
+            message @ (Message::ProductDetailsToggled(_)
+            | Message::ReactionMoreInfoRequested
+            | Message::ReactionMoreInfoFinished { .. }) => {
+                return self.update_product_summary_message(message);
+            }
             message @ (Message::WindowResized(_)
             | Message::DumpFrame
             | Message::FrameCaptured(..)
@@ -2120,6 +2193,35 @@ impl App {
             | Message::ReturnTo3d
             | Message::OutcomeChoiceMoved(_)
             | Message::OutcomeChoiceConfirmed) => return self.update_structural_message(message),
+        }
+        Task::none()
+    }
+
+    fn update_product_summary_message(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::ProductDetailsToggled(index) => {
+                if !self.open_product_details.remove(&index) {
+                    self.open_product_details.insert(index);
+                }
+            }
+            Message::ReactionMoreInfoRequested => return self.request_reaction_more_info(),
+            Message::ReactionMoreInfoFinished { request_id, result } => {
+                if !matches!(
+                    self.reaction_more_info,
+                    MoreInfoState::Loading {
+                        request_id: active
+                    } if active == request_id
+                ) {
+                    return Task::none();
+                }
+                self.reaction_more_info = match result {
+                    Ok(answer) => MoreInfoState::Ready(answer),
+                    Err(error) => MoreInfoState::Failed(format!(
+                        "More info could not be loaded from Codex: {error}"
+                    )),
+                };
+            }
+            _ => unreachable!("product summary messages are routed by update_with_task"),
         }
         Task::none()
     }
@@ -2545,12 +2647,7 @@ impl App {
                                 animation.playing,
                             )
                         });
-                if self.screen == Screen::ProductSummary {
-                    if let Some(animation) = &mut self.structural_animation {
-                        animation.summary_elapsed_ms =
-                            animation.summary_elapsed_ms.saturating_add(33);
-                    }
-                } else if self.screen == Screen::Structural3d {
+                if self.screen == Screen::Structural3d {
                     let now = Instant::now();
                     let measured =
                         self.structural_animation
@@ -2619,8 +2716,9 @@ impl App {
                 let Some(animation) = &mut self.structural_animation else {
                     return Task::none();
                 };
-                animation.summary_elapsed_ms = 0;
                 animation.playing = false;
+                self.open_product_details.clear();
+                self.reaction_more_info = MoreInfoState::Idle;
                 self.enter_screen(Screen::ProductSummary);
             }
             Message::ReturnTo2d => self.enter_screen(Screen::Structural2d),
@@ -3350,8 +3448,6 @@ impl App {
                 .is_none_or(|animation| animation.playing || !animation.settled)
         {
             iced::time::every(std::time::Duration::from_millis(33)).map(|_| Message::StructuralTick)
-        } else if self.screen == Screen::ProductSummary {
-            iced::time::every(theme::motion::TICK).map(|_| Message::StructuralTick)
         } else {
             Subscription::none()
         };
@@ -3760,7 +3856,6 @@ impl App {
                 educational_playhead_ms: 0,
                 frame_index: 0,
                 real_world_playhead_ms: 0,
-                summary_elapsed_ms: 0,
                 playing: true,
                 playback_speed: PlaybackSpeed::Normal,
                 physics: structural_physics::Simulation::default(),
@@ -5371,7 +5466,12 @@ impl App {
         };
         let compact = size.width < 1_080.0;
         let dense = size.height < 820.0 || size.width < 1_280.0;
-        let elapsed_ms = animation.summary_elapsed_ms;
+        let Some(final_frame) = animation.frames.frames().last() else {
+            return Self::structural_unavailable_view("The final product frame is unavailable");
+        };
+        let Some(final_homes) = animation.home_timeline.last() else {
+            return Self::structural_unavailable_view("The final product layout is unavailable");
+        };
         let back = button(text("← Macroscopic view"))
             .on_press(Message::ReturnTo3d)
             .padding([spacing::XS, spacing::SM])
@@ -5419,14 +5519,42 @@ impl App {
         .spacing(spacing::SM)
         .align_y(Center);
 
-        let three_dimensional = container(
+        let equation = nomenclature::display_declaration(
+            &animation.declaration,
+            self.settings.chemical_labels,
+        );
+        let product_diagram = structural_2d::Diagram::new(
+            final_frame,
+            final_frame,
+            &[],
+            &[],
+            1.0,
+            None,
+            &[],
+            structural_2d::SceneContext::new(EducationalSceneKind::Summary, 0, 1)
+                .with_equation(Some(equation)),
+            1.0,
+            final_homes.clone(),
+            structural_2d::chapter_camera(final_frame, final_frame, final_homes, final_homes),
+        )
+        .static_view();
+        let product_canvas: Element<'_, structural_2d::DragEvent> = canvas(product_diagram)
+            .width(Fill)
+            .height(if compact {
+                Length::Fixed((size.height * 0.48).clamp(300.0, 480.0))
+            } else {
+                Fill
+            })
+            .into();
+        let product_canvas = product_canvas.map(|_| Message::Noop);
+        let two_dimensional = container(
             column![
                 row![
                     column![
-                        text("PRODUCT SPACE")
+                        text("FINAL MOLECULAR VIEW")
                             .size(type_scale::MICRO)
                             .color(color::SELECTION),
-                        text("Rotating 3D products")
+                        text("Products in structural 2D")
                             .size(type_scale::BODY_LARGE)
                             .font(fonts::SEMIBOLD)
                             .color(color::TEXT),
@@ -5435,24 +5563,14 @@ impl App {
                     space().width(Fill),
                     row![
                         text("●").size(type_scale::MICRO).color(color::ACCENT),
-                        text("LIVE · 360°")
+                        text("VALIDATED FINAL FRAME")
                             .size(type_scale::MICRO)
                             .color(color::TEXT_SOFT),
                     ]
                     .spacing(spacing::XXS),
                 ]
                 .align_y(Center),
-                canvas(product_summary::Product3dScene::new(
-                    summary.clone(),
-                    elapsed_ms,
-                    self.settings.chemical_labels,
-                ))
-                .width(Fill)
-                .height(if compact {
-                    Length::Fixed((size.height * 0.48).clamp(300.0, 480.0))
-                } else {
-                    Fill
-                }),
+                product_canvas,
             ]
             .spacing(spacing::XS),
         )
@@ -5463,19 +5581,20 @@ impl App {
 
         let properties = product_properties_view(
             &summary,
-            elapsed_ms,
             self.settings.chemical_labels,
             compact,
             dense,
+            &self.open_product_details,
+            &self.reaction_more_info,
         );
         let body: Element<'_, Message> = if compact {
-            scrollable(column![three_dimensional, properties].spacing(spacing::SM))
+            scrollable(column![two_dimensional, properties].spacing(spacing::SM))
                 .width(Fill)
                 .height(Fill)
                 .into()
         } else {
             row![
-                container(three_dimensional)
+                container(two_dimensional)
                     .width(FillPortion(1))
                     .height(Fill),
                 container(properties).width(FillPortion(1)).height(Fill),
@@ -5487,7 +5606,7 @@ impl App {
         let footer_help = if self.keyboard_navigation_active {
             "Esc / ← macroscopic view · N build another reaction"
         } else {
-            "Representative explanatory geometry · validated composition and relationships"
+            "Structural 2D uses the validated final frame from the molecular simulation"
         };
 
         container(
@@ -8973,7 +9092,7 @@ mod tests {
     }
 
     #[test]
-    fn product_summary_is_always_reachable_and_animates_from_zero() {
+    fn product_summary_is_reachable_and_reveals_details_on_demand() {
         let mut app = App::default();
         app.update(Message::ContinueToSummary);
         assert_eq!(
@@ -8986,24 +9105,53 @@ mod tests {
         app.screen = Screen::Structural3d;
         app.update(Message::ContinueToSummary);
         assert_eq!(app.screen, Screen::ProductSummary);
-        assert_eq!(
-            app.structural_animation
-                .as_ref()
-                .expect("animation remains available")
-                .summary_elapsed_ms,
-            0
-        );
-
-        app.update(Message::StructuralTick);
-        assert_eq!(
-            app.structural_animation
-                .as_ref()
-                .expect("animation remains available")
-                .summary_elapsed_ms,
-            33
-        );
+        assert!(app.open_product_details.is_empty());
+        app.update(Message::ProductDetailsToggled(0));
+        assert!(app.open_product_details.contains(&0));
+        app.update(Message::ProductDetailsToggled(0));
+        assert!(!app.open_product_details.contains(&0));
         app.update(Message::ReturnTo3d);
         assert_eq!(app.screen, Screen::Structural3d);
+    }
+
+    #[test]
+    fn product_more_info_explains_that_local_mode_is_unavailable() {
+        let mut app = App::default();
+        app.open_structural_animation();
+        app.screen = Screen::ProductSummary;
+
+        app.update(Message::ReactionMoreInfoRequested);
+
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Unavailable(ref message) if message.contains("Local mode")
+        ));
+    }
+
+    #[test]
+    fn product_more_info_ignores_stale_codex_completions() {
+        let mut app = App {
+            reaction_more_info: MoreInfoState::Loading { request_id: 8 },
+            ..App::default()
+        };
+
+        app.update(Message::ReactionMoreInfoFinished {
+            request_id: 7,
+            result: Ok("Old answer".to_owned()),
+        });
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Loading { request_id: 8 }
+        ));
+
+        app.update(Message::ReactionMoreInfoFinished {
+            request_id: 8,
+            result: Ok("Current answer".to_owned()),
+        });
+        assert!(matches!(
+            app.reaction_more_info,
+            MoreInfoState::Ready(ref answer) if answer == "Current answer"
+        ));
     }
 
     #[test]
