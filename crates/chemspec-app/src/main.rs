@@ -5535,7 +5535,7 @@ impl App {
                 .with_equation(Some(equation)),
             1.0,
             final_homes.clone(),
-            structural_2d::chapter_camera(final_frame, final_frame, final_homes, final_homes),
+            structural_2d::chapter_camera(final_frame, final_frame, final_homes, final_homes, 1.0),
         )
         .static_view();
         let product_canvas: Element<'_, structural_2d::DragEvent> = canvas(product_diagram)

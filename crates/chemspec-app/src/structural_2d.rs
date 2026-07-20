@@ -3004,29 +3004,6 @@ fn atom_bond_angles(
     angles
 }
 
-<<<<<<< HEAD
-/// Darkens (factor < 1) or lightens a colour toward white (factor > 1).
-fn shade(color: Color, factor: f32) -> Color {
-    if factor <= 1.0 {
-        Color::from_rgba(
-            color.r * factor,
-            color.g * factor,
-            color.b * factor,
-            color.a,
-        )
-    } else {
-        let lift = factor - 1.0;
-        Color::from_rgba(
-            color.r + (1.0 - color.r) * lift,
-            color.g + (1.0 - color.g) * lift,
-            color.b + (1.0 - color.b) * lift,
-            color.a,
-        )
-    }
-}
-
-=======
->>>>>>> 02b036f (molecularfixes)
 fn draw_atom_shell(
     frame: &mut canvas::Frame,
     atom: &AtomState,
@@ -4596,12 +4573,7 @@ mod tests {
             metallic_domains: Vec::new(),
         };
         assert_eq!(
-            polyatomic_charge_anchor(
-                &["c", "o1", "o2", "o3"],
-                &carbonate,
-                &carbonate,
-                -2,
-            ),
+            polyatomic_charge_anchor(&["c", "o1", "o2", "o3"], &carbonate, &carbonate, -2,),
             Some("o2"),
             "carbonate must keep its net badge on one stable negative oxygen"
         );
