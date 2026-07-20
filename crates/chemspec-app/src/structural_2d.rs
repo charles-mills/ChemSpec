@@ -533,29 +533,48 @@ fn camera_transform(bounds: Rectangle, camera: Rectangle) -> (f32, Vector) {
     (fit, offset)
 }
 
-/// Camera rectangle framing everything one scene touches: the union of the
-/// before and after home layouts — never the live physics positions, so
-/// user drags and mid-scene motion cannot make the camera chase. Padded,
-/// with a zoom ceiling so scale changes stay gentle.
+/// Camera rectangle for one scene: the before-layout fit blended toward the
+/// after-layout fit by the scene's structural progress — home layouts only,
+/// never the live physics positions, so user drags and mid-scene jitter
+/// cannot make the camera chase. Union framing left every travelling scene
+/// swimming in dead space; the blend keeps the subject filling the shot.
 #[must_use]
 pub fn chapter_camera(
     before: &SimulationFrame,
     after: &SimulationFrame,
     before_homes: &BTreeMap<String, Point>,
     after_homes: &BTreeMap<String, Point>,
+    progress: f32,
 ) -> Rectangle {
     let before_frame = RenderFrame::from(before);
     let after_frame = RenderFrame::from(after);
-    let bounds = virtual_rectangle();
     let mut elements = BTreeMap::new();
     for atom in before_frame.atoms.iter().chain(&after_frame.atoms) {
         elements.insert(atom.id.clone(), atom.element.clone());
     }
+    let start = homes_camera(before_homes, &elements);
+    let end = homes_camera(after_homes, &elements);
+    let blend = progress.clamp(0.0, 1.0);
+    Rectangle::new(
+        Point::new(
+            start.x + (end.x - start.x) * blend,
+            start.y + (end.y - start.y) * blend,
+        ),
+        Size::new(
+            start.width + (end.width - start.width) * blend,
+            start.height + (end.height - start.height) * blend,
+        ),
+    )
+}
+
+/// Padded fit of one home layout, clamped into the virtual world.
+fn homes_camera(homes: &BTreeMap<String, Point>, elements: &BTreeMap<String, String>) -> Rectangle {
+    let bounds = virtual_rectangle();
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
     let mut max_x = f32::NEG_INFINITY;
     let mut max_y = f32::NEG_INFINITY;
-    for (id, point) in before_homes.iter().chain(after_homes.iter()) {
+    for (id, point) in homes {
         let radius = elements
             .get(id)
             .map_or(24.0, |element| atom_visual_radius(element));
@@ -984,6 +1003,13 @@ impl canvas::Program<DragEvent> for Diagram {
             );
         }
 
+        if matches!(
+            self.context.kind,
+            EducationalSceneKind::ReactantSetup | EducationalSceneKind::Summary
+        ) {
+            draw_component_captions(&mut frame, &self.after, &positions, self.progress, scale);
+        }
+
         draw_observation_context(
             &mut frame,
             &self.context_labels,
@@ -1014,6 +1040,81 @@ impl canvas::Program<DragEvent> for Diagram {
 
 const fn shows_transfer_motion(electricity: bool) -> bool {
     !electricity
+}
+
+/// Formula caption beneath every settled component, tying the particulate
+/// picture back to the symbolic equation (`H₂`, `LiOH`, `AgCl`). Drawn only
+/// in the bookend scenes, where nothing is mid-flight.
+fn draw_component_captions(
+    frame: &mut canvas::Frame,
+    state: &StructuralFrame,
+    positions: &BTreeMap<String, Point>,
+    progress: f32,
+    scale: f32,
+) {
+    let alpha = smoother_step(((progress - 0.08) / 0.18).clamp(0.0, 1.0)) * 0.85;
+    if alpha <= 0.0 {
+        return;
+    }
+    let ionic_members: BTreeSet<&str> = state
+        .ionic_associations
+        .iter()
+        .flat_map(|association| &association.components)
+        .flat_map(|component| &component.atoms)
+        .map(String::as_str)
+        .collect();
+    for component in connected_components(state) {
+        let mut counts: BTreeMap<&str, u64> = BTreeMap::new();
+        let mut min_x = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for id in &component {
+            let (Some(atom), Some(position)) = (atom(state, id), positions.get(id)) else {
+                continue;
+            };
+            *counts.entry(atom.element.as_str()).or_default() += 1;
+            let radius = atom_visual_radius(&atom.element) * scale;
+            min_x = min_x.min(position.x - radius);
+            max_x = max_x.max(position.x + radius);
+            max_y = max_y.max(position.y + radius);
+        }
+        if counts.is_empty() || !max_y.is_finite() {
+            continue;
+        }
+        // Ionic lattices caption as the formula unit (Li₂O₂H₂ → LiOH);
+        // covalent molecules keep their exact counts (H₂O₂ stays H₂O₂).
+        if component
+            .iter()
+            .any(|id| ionic_members.contains(id.as_str()))
+        {
+            let divisor = counts.values().copied().fold(0, gcd);
+            if divisor > 1 {
+                for count in counts.values_mut() {
+                    *count /= divisor;
+                }
+            }
+        }
+        let formula = chem_domain::conventional_formula(
+            counts.iter().map(|(symbol, count)| (*symbol, *count)),
+        );
+        frame.fill_text(canvas::Text {
+            content: crate::nomenclature::display_formula(&formula),
+            position: Point::new(f32::midpoint(min_x, max_x), max_y + 14.0 * scale),
+            color: TEXT_SOFT.scale_alpha(alpha),
+            size: iced::Pixels(15.0 * scale),
+            align_x: iced::alignment::Horizontal::Center.into(),
+            align_y: iced::alignment::Vertical::Top,
+            font: fonts::REGULAR,
+            ..canvas::Text::default()
+        });
+    }
+}
+
+fn gcd(mut left: u64, mut right: u64) -> u64 {
+    while right != 0 {
+        (left, right) = (right, left % right);
+    }
+    left
 }
 
 /// Eased structural-motion progress: a gentle lead-in, then the action
@@ -1295,12 +1396,10 @@ fn component_slots(component_count: usize, bounds: Rectangle) -> Vec<Point> {
         return Vec::new();
     }
     let compact = bounds.width < 720.0;
-    let columns = if compact {
-        component_count.min(2)
-    } else {
-        component_count.min(3)
-    }
-    .max(1);
+    // Square-ish grid: 4 components seat 2×2, not 3+1 with a dead corner.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let balanced = (component_count as f32).sqrt().ceil() as usize;
+    let columns = balanced.min(if compact { 2 } else { 3 }).max(1);
     let rows = component_count.div_ceil(columns).max(1);
     let safe_left = if compact { 74.0 } else { 120.0 };
     let safe_right = safe_left;
@@ -1315,8 +1414,15 @@ fn component_slots(component_count: usize, bounds: Rectangle) -> Vec<Point> {
         .map(|index| {
             let column = index % columns;
             let row = index / columns;
+            // An incomplete final row sits centered, not flush-left.
+            let row_items = if row + 1 == rows && !component_count.is_multiple_of(columns) {
+                component_count % columns
+            } else {
+                columns
+            };
+            let row_inset = (columns - row_items) as f32 * cell_width * 0.5;
             Point::new(
-                safe_left + cell_width * (column as f32 + 0.5),
+                safe_left + row_inset + cell_width * (column as f32 + 0.5),
                 safe_top + cell_height * (row as f32 + 0.5),
             )
         })
@@ -2044,6 +2150,7 @@ fn lerp_point(start: Point, end: Point, progress: f32) -> Point {
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn draw_relationship_transition(
     frame: &mut canvas::Frame,
     before: &StructuralFrame,
@@ -2132,6 +2239,14 @@ fn draw_relationship_transition(
             if reveal <= 0.0 {
                 continue;
             }
+            let ion_clearance = |member: (usize, usize)| {
+                let component = member_component(&union_frame, member);
+                ionic_anchor_id(component, &union_frame)
+                    .and_then(|anchor| atom(&union_frame, anchor))
+                    .map_or(24.0, |state| atom_visual_radius(&state.element))
+                    + 8.0
+            };
+            let (left_clearance, right_clearance) = (ion_clearance(left), ion_clearance(right));
             let (Some(left), Some(right)) = (
                 ionic_component_position(
                     member_component(&union_frame, left),
@@ -2146,7 +2261,15 @@ fn draw_relationship_transition(
             ) else {
                 continue;
             };
-            draw_ionic(frame, left, right, reveal, opacity, scale);
+            draw_ionic(
+                frame,
+                left,
+                right,
+                (left_clearance, right_clearance),
+                reveal,
+                opacity,
+                scale,
+            );
         }
     }
 }
@@ -2449,14 +2572,29 @@ fn draw_covalent(
     for offset in offsets {
         let visible_start = lerp_point(midpoint, start, reveal);
         let visible_end = lerp_point(midpoint, end, reveal);
+        let stick = Path::line(
+            visible_start + perpendicular * *offset * scale,
+            visible_end + perpendicular * *offset * scale,
+        );
+        // A dark underlay keeps the stick crisp where it crosses discs,
+        // rings, or a sibling bond.
         frame.stroke(
-            &Path::line(
-                visible_start + perpendicular * *offset * scale,
-                visible_end + perpendicular * *offset * scale,
-            ),
-            Stroke::default()
-                .with_color(chemistry_color::COVALENT.scale_alpha(alpha * 0.96))
-                .with_width(2.8 * scale),
+            &stick,
+            Stroke {
+                line_cap: canvas::stroke::LineCap::Round,
+                ..Stroke::default()
+                    .with_color(CANVAS.scale_alpha(alpha * 0.55))
+                    .with_width(5.2 * scale)
+            },
+        );
+        frame.stroke(
+            &stick,
+            Stroke {
+                line_cap: canvas::stroke::LineCap::Round,
+                ..Stroke::default()
+                    .with_color(chemistry_color::COVALENT.scale_alpha(alpha * 0.96))
+                    .with_width(3.0 * scale)
+            },
         );
         if show_electrons && electron_alpha > 0.0 {
             let electron_center = midpoint + perpendicular * *offset * scale;
@@ -2476,29 +2614,40 @@ fn draw_ionic(
     frame: &mut canvas::Frame,
     left: Point,
     right: Point,
+    clearance: (f32, f32),
     reveal: f32,
     opacity: f32,
     scale: f32,
 ) {
-    let delta = right - left;
-    // Dot count follows the world-space link length so long attractions
+    // Dots span only the visible gap between the ion discs: large ions
+    // (Ag, Cl) used to swallow most of the centre-to-centre run, leaving
+    // the association nearly invisible.
+    let span = vector_magnitude(right - left);
+    let gap = span - (clearance.0 + clearance.1) * scale;
+    if span <= 1.0 || gap <= 4.0 * scale {
+        return;
+    }
+    let direction = (right - left) * (1.0 / span);
+    let start = left + direction * (clearance.0 * scale);
+    let delta = direction * gap;
+    // Dot count follows the world-space gap length so long attractions
     // don't stretch a fixed dot budget into sparse crumbs.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let count = (vector_magnitude(delta) / (16.0 * scale.max(0.01))) as u8;
-    let count = count.clamp(4, 24);
+    let count = (gap / (16.0 * scale.max(0.01))) as u8;
+    let count = count.clamp(3, 24);
     for step in 1..=count {
         let t = f32::from(step) / f32::from(count + 1);
         if t > reveal {
             continue;
         }
         frame.fill(
-            &Path::circle(left + delta * t, 1.8 * scale),
-            IONIC.scale_alpha(opacity * (0.48 + t * 0.38)),
+            &Path::circle(start + delta * t, 2.4 * scale),
+            IONIC.scale_alpha(opacity * (0.6 + t * 0.32)),
         );
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn draw_atom_transition(
     frame: &mut canvas::Frame,
     before: &StructuralFrame,
@@ -2522,6 +2671,12 @@ fn draw_atom_transition(
         .iter()
         .map(|atom| (atom.id.as_str(), atom))
         .collect::<BTreeMap<_, _>>();
+    let covalently_bonded = |frame: &StructuralFrame, id: &str| {
+        frame
+            .covalent_bonds
+            .iter()
+            .any(|bond| bond.left == id || bond.right == id)
+    };
     for id in before_atoms
         .keys()
         .chain(after_atoms.keys())
@@ -2533,8 +2688,10 @@ fn draw_atom_transition(
         };
         let before_atom = before_atoms.get(id).copied();
         let after_atom = after_atoms.get(id).copied();
+        // Bystanders recede but stay clearly readable: 0.60 sent settled
+        // products (formed H₂) ghost-grey for entire scenes.
         let focus_opacity = if focus_active && !active.is_empty() && !active.contains(id) {
-            0.60
+            0.75
         } else {
             1.0
         };
@@ -2591,19 +2748,163 @@ fn draw_atom_transition(
         };
         let before_is_metallic = is_metallic_site(before, id);
         let after_is_metallic = is_metallic_site(after, id);
-        draw_charge_transition(
-            frame,
-            before_atom,
-            after_atom,
-            before_is_metallic,
-            after_is_metallic,
-            position,
-            badge_clearance,
-            progress,
-            alpha,
-            scale,
-            &bond_angles,
-        );
+        // An atom inside a molecule or polyatomic ion keeps its formal
+        // charge private — the ion wears one net badge instead (below).
+        // The per-atom badge still appears for the beat that changes it.
+        let static_member_charge = covalently_bonded(before, id)
+            && covalently_bonded(after, id)
+            && displayed_charge(before_atom, before_is_metallic)
+                == displayed_charge(after_atom, after_is_metallic);
+        if !static_member_charge {
+            draw_charge_transition(
+                frame,
+                before_atom,
+                after_atom,
+                before_is_metallic,
+                after_is_metallic,
+                position,
+                badge_clearance,
+                progress,
+                alpha,
+                scale,
+                &bond_angles,
+            );
+        }
+    }
+    draw_polyatomic_net_charges(
+        frame,
+        before,
+        after,
+        positions,
+        active,
+        progress,
+        opacity,
+        focus_active,
+        scale,
+    );
+}
+
+/// One net-charge badge per covalently-connected component (union of both
+/// frames' bonds), seated off the component's outermost atom in its largest
+/// bond-free gap. Per-atom formal charges inside these components stay
+/// hidden while static, so NO₃⁻ reads as one −1 ion, not three badges.
+#[allow(clippy::too_many_arguments)]
+fn draw_polyatomic_net_charges(
+    frame: &mut canvas::Frame,
+    before: &StructuralFrame,
+    after: &StructuralFrame,
+    positions: &BTreeMap<String, Point>,
+    active: &BTreeSet<&str>,
+    progress: f32,
+    opacity: f32,
+    focus_active: bool,
+    scale: f32,
+) {
+    let mut adjacency: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for bond in before.covalent_bonds.iter().chain(&after.covalent_bonds) {
+        adjacency
+            .entry(bond.left.as_str())
+            .or_default()
+            .insert(bond.right.as_str());
+        adjacency
+            .entry(bond.right.as_str())
+            .or_default()
+            .insert(bond.left.as_str());
+    }
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+    for start in adjacency.keys().copied().collect::<Vec<_>>() {
+        if seen.contains(start) {
+            continue;
+        }
+        let mut queue = VecDeque::from([start]);
+        let mut members = Vec::new();
+        seen.insert(start);
+        while let Some(id) = queue.pop_front() {
+            members.push(id);
+            for neighbour in adjacency.get(id).into_iter().flatten() {
+                if seen.insert(neighbour) {
+                    queue.push_back(neighbour);
+                }
+            }
+        }
+        let net = |frame: &StructuralFrame| {
+            members
+                .iter()
+                .map(|id| {
+                    i32::from(displayed_charge(
+                        atom(frame, id),
+                        is_metallic_site(frame, id),
+                    ))
+                })
+                .sum::<i32>()
+        };
+        let before_net = i16::try_from(net(before)).unwrap_or(0);
+        let after_net = i16::try_from(net(after)).unwrap_or(0);
+        if before_net == 0 && after_net == 0 {
+            continue;
+        }
+        // Members mid-animation (charge changing, or only just bonding into
+        // the component) still wear their own badge; a net badge would
+        // double-report the same charge.
+        let settled = members.iter().all(|id| {
+            displayed_charge(atom(before, id), is_metallic_site(before, id))
+                == displayed_charge(atom(after, id), is_metallic_site(after, id))
+                && [before, after].into_iter().all(|frame| {
+                    frame
+                        .covalent_bonds
+                        .iter()
+                        .any(|bond| bond.left == *id || bond.right == *id)
+                })
+        });
+        if !settled {
+            continue;
+        }
+        // The badge belongs on the atom that actually carries the charge
+        // (OH⁻ reads as H⁻ if it lands on the hydrogen); geometry only
+        // breaks ties between equally-charged candidates.
+        let Some((anchor, anchor_position)) = members
+            .iter()
+            .filter_map(|id| positions.get(*id).map(|point| (*id, *point)))
+            .max_by(|left, right| {
+                let magnitude = |id: &str| {
+                    atom(after, id)
+                        .or_else(|| atom(before, id))
+                        .map_or(0, |state| state.formal_charge.unsigned_abs())
+                };
+                magnitude(left.0)
+                    .cmp(&magnitude(right.0))
+                    .then_with(|| (left.1.x - left.1.y).total_cmp(&(right.1.x - right.1.y)))
+            })
+        else {
+            continue;
+        };
+        let focus_opacity = if focus_active
+            && !active.is_empty()
+            && members.iter().all(|id| !active.contains(id))
+        {
+            0.75
+        } else {
+            1.0
+        };
+        let radius = atom(after, anchor)
+            .or_else(|| atom(before, anchor))
+            .map_or(24.0, |state| atom_visual_radius(&state.element));
+        let bond_angles = atom_bond_angles(anchor, before, after, positions, anchor_position);
+        let gaps = angular_gaps(&bond_angles);
+        let angle = gaps
+            .first()
+            .map_or(-std::f32::consts::FRAC_PI_4, |(start, span)| {
+                start + span * 0.5
+            });
+        let offset = (radius * 1.12 + 16.0) * scale;
+        let badge = anchor_position + Vector::new(angle.cos() * offset, angle.sin() * offset);
+        let alpha = opacity * focus_opacity;
+        if before_net == after_net {
+            draw_charge(frame, badge, after_net, alpha, scale);
+        } else {
+            draw_charge(frame, badge, before_net, alpha * (1.0 - progress), scale);
+            draw_charge(frame, badge, after_net, alpha * progress, scale);
+        }
     }
 }
 
@@ -2670,6 +2971,21 @@ fn atom_bond_angles(
     angles
 }
 
+/// Darkens (factor < 1) or lightens a colour toward white (factor > 1).
+fn shade(color: Color, factor: f32) -> Color {
+    if factor <= 1.0 {
+        Color::from_rgba(color.r * factor, color.g * factor, color.b * factor, color.a)
+    } else {
+        let lift = factor - 1.0;
+        Color::from_rgba(
+            color.r + (1.0 - color.r) * lift,
+            color.g + (1.0 - color.g) * lift,
+            color.b + (1.0 - color.b) * lift,
+            color.a,
+        )
+    }
+}
+
 fn draw_atom_shell(
     frame: &mut canvas::Frame,
     atom: &AtomState,
@@ -2680,12 +2996,15 @@ fn draw_atom_shell(
     scale: f32,
 ) {
     let radius = atom_visual_radius(&atom.element) * (if active { 1.12 } else { 1.0 }) * scale;
+    let fill = element_color(&atom.element);
     let pulse = 0.5 + 0.5 * (phase * std::f32::consts::TAU * 3.0).sin();
-    frame.fill(
-        &Path::circle(center, radius + (10.0 + pulse * 4.0) * scale),
-        element_color(&atom.element).scale_alpha(alpha * if active { 0.13 } else { 0.05 }),
-    );
+    // Only the atoms doing something wear a glow; the old always-on aura
+    // read as a muddy charcoal blob behind every atom.
     if active {
+        frame.fill(
+            &Path::circle(center, radius + (10.0 + pulse * 4.0) * scale),
+            fill.scale_alpha(alpha * 0.12),
+        );
         frame.stroke(
             &Path::circle(center, radius + 7.0 * scale),
             Stroke::default()
@@ -2694,27 +3013,43 @@ fn draw_atom_shell(
         );
     }
     frame.fill(
-        &Path::circle(center + Vector::new(0.0, 3.0 * scale), radius + 2.0 * scale),
-        color::SHADOW.scale_alpha(alpha * 0.24),
+        &Path::circle(center + Vector::new(0.0, 2.5 * scale), radius + 1.0 * scale),
+        color::SHADOW.scale_alpha(alpha * 0.30),
     );
-    frame.fill(
-        &Path::circle(center, radius),
-        element_color(&atom.element).scale_alpha(alpha),
-    );
+    frame.fill(&Path::circle(center, radius), fill.scale_alpha(alpha));
+    // Crisp tonal rim + a soft upper glint give the disc definition
+    // without pretending to be a 3D sphere.
     frame.stroke(
         &Path::circle(center, radius),
         Stroke::default()
-            .with_color(Color::WHITE.scale_alpha(alpha * 0.26))
-            .with_width(scale),
+            .with_color(shade(fill, 0.55).scale_alpha(alpha * 0.95))
+            .with_width(1.6 * scale),
+    );
+    let glint = Path::new(|builder| {
+        builder.arc(canvas::path::Arc {
+            center,
+            radius: radius - 3.0 * scale,
+            start_angle: iced::Radians(-2.6),
+            end_angle: iced::Radians(-0.55),
+        });
+    });
+    frame.stroke(
+        &glint,
+        Stroke {
+            line_cap: canvas::stroke::LineCap::Round,
+            ..Stroke::default()
+                .with_color(Color::WHITE.scale_alpha(alpha * 0.30))
+                .with_width(2.0 * scale)
+        },
     );
     frame.fill_text(canvas::Text {
         content: atom.element.clone(),
         position: center,
-        color: color::CANVAS.scale_alpha(alpha),
-        size: iced::Pixels(15.0 * scale),
+        color: shade(fill, 0.22).scale_alpha(alpha),
+        size: iced::Pixels(14.5 * scale),
         align_x: iced::alignment::Horizontal::Center.into(),
         align_y: iced::alignment::Vertical::Center,
-        font: fonts::REGULAR,
+        font: fonts::SEMIBOLD,
         ..canvas::Text::default()
     });
 }
@@ -2920,9 +3255,14 @@ fn electron_domain_occupancies(count: u8, unpaired: u8) -> Vec<u8> {
 }
 
 fn draw_electron_dot(frame: &mut canvas::Frame, position: Point, alpha: f32, scale: f32) {
+    // The dark seat keeps lone pairs legible over bright discs and rims.
+    frame.fill(
+        &Path::circle(position, 2.9 * scale),
+        CANVAS.scale_alpha(alpha * 0.65),
+    );
     frame.fill(
         &Path::circle(position, 2.0 * scale),
-        Color::WHITE.scale_alpha(alpha * 0.92),
+        Color::WHITE.scale_alpha(alpha * 0.95),
     );
 }
 
@@ -3145,7 +3485,23 @@ fn draw_operation_motion(
     scale: f32,
     show_transfer_motion: bool,
 ) {
-    for operation in operations {
+    // Midpoint of every covalent site this beat, so twin sites (both O–H
+    // bonds of 2 H₂O breaking at once) can arc away from each other
+    // instead of tangling in the middle.
+    let covalent_centers: Vec<Option<Point>> = operations
+        .iter()
+        .map(|operation| match operation {
+            StructuralOperation::CleaveCovalent { left, right, .. }
+            | StructuralOperation::FormCovalent { left, right, .. } => {
+                match (positions.get(left), positions.get(right)) {
+                    (Some(left), Some(right)) => Some(lerp_point(*left, *right, 0.5)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect();
+    for (index, operation) in operations.iter().enumerate() {
         match operation {
             StructuralOperation::ProtonTransfer {
                 hydrogen, acceptor, ..
@@ -3168,7 +3524,27 @@ fn draw_operation_motion(
             ),
             operation @ (StructuralOperation::CleaveCovalent { .. }
             | StructuralOperation::FormCovalent { .. }) => {
-                draw_covalent_electron_motion(frame, operation, positions, progress, phase, scale);
+                let siblings: Vec<Point> = covalent_centers
+                    .iter()
+                    .enumerate()
+                    .filter(|(other, _)| *other != index)
+                    .filter_map(|(_, center)| *center)
+                    .collect();
+                #[allow(clippy::cast_precision_loss)]
+                let away_from = (!siblings.is_empty()).then(|| {
+                    let sum = siblings
+                        .iter()
+                        .fold(Vector::new(0.0, 0.0), |sum, point| {
+                            sum + Vector::new(point.x, point.y)
+                        });
+                    Point::new(
+                        sum.x / siblings.len() as f32,
+                        sum.y / siblings.len() as f32,
+                    )
+                });
+                draw_covalent_electron_motion(
+                    frame, operation, positions, away_from, progress, phase, scale,
+                );
             }
             StructuralOperation::AssociateIonic { .. }
             | StructuralOperation::AssignProduct { .. }
@@ -3299,6 +3675,7 @@ fn draw_covalent_electron_motion(
     frame: &mut canvas::Frame,
     operation: &StructuralOperation,
     positions: &BTreeMap<String, Point>,
+    away_from: Option<Point>,
     progress: f32,
     phase: f32,
     scale: f32,
@@ -3387,7 +3764,22 @@ fn draw_covalent_electron_motion(
     debug_assert_eq!(sources.len(), usize::from(order) * 2);
     debug_assert_eq!(sources.len(), targets.len());
     for (index, (source, target)) in sources.into_iter().zip(targets).enumerate() {
-        let bend = if index.is_multiple_of(2) { -8.0 } else { 8.0 };
+        // With a sibling site active, both of this route's electrons bow to
+        // the side facing away from it (staggered so they stay distinct);
+        // alone, they split across the route as before.
+        let bend = away_from.map_or_else(
+            || if index.is_multiple_of(2) { -8.0 } else { 8.0 },
+            |other| {
+                let direction = target - source;
+                let magnitude = vector_magnitude(direction).max(1.0);
+                let perpendicular = Vector::new(-direction.y, direction.x) * (1.0 / magnitude);
+                let midpoint = lerp_point(source, target, 0.5);
+                let toward_other = other - midpoint;
+                let side = perpendicular.x * toward_other.x + perpendicular.y * toward_other.y;
+                let magnitude = if index.is_multiple_of(2) { 8.0 } else { 15.0 };
+                if side > 0.0 { -magnitude } else { magnitude }
+            },
+        );
         draw_electron_route(frame, source, target, progress, bend, scale);
     }
 }
@@ -3676,7 +4068,7 @@ fn draw_explanation_label(
         context.map(|context| context.text.as_str()),
         &label.text,
     );
-    let (x, base_y) = explanation_position(target, bounds, width, text_layout.height);
+    let (x, base_y) = explanation_position(target, bounds, width, text_layout.height, positions);
     let enter = smoother_step(((progress - 0.04) / 0.14).clamp(0.0, 1.0));
     let alpha = enter;
     let rect = Rectangle::new(
@@ -3698,6 +4090,8 @@ fn draw_explanation_label(
     draw_explanation_text(frame, rect, &text_layout, accent, alpha, scale);
     if label.connector
         && let Some(target) = target
+        // A card seated beside its subject needs no leader line.
+        && vector_magnitude(target - nearest_edge_point(rect, target)) > 110.0 * scale
     {
         let start = nearest_edge_point(rect, target);
         let line_progress = smoother_step(((progress - 0.12) / 0.24).clamp(0.0, 1.0));
@@ -3793,32 +4187,39 @@ fn explanation_position(
     bounds: Rectangle,
     width: f32,
     height: f32,
+    positions: &BTreeMap<String, Point>,
 ) -> (f32, f32) {
     let horizontal_margin = 22.0;
-    // The card shares its subject's half of the canvas (vertically opposite
-    // so it never covers it): the leader line stays short instead of
-    // slicing corner to corner.
-    let x = target.map_or((bounds.width - width) * 0.5, |point| {
-        if point.x < bounds.width * 0.5 {
-            horizontal_margin
-        } else {
-            bounds.width - width - horizontal_margin
+    let left = horizontal_margin;
+    let right = (bounds.width - width - horizontal_margin).max(horizontal_margin);
+    let top = 76.0;
+    let bottom = (bounds.height - height - 68.0).max(76.0);
+    // Of the four corner seats, take the one covering the fewest atoms;
+    // among equally-empty seats, sit closest to the subject so the leader
+    // line stays short (or vanishes entirely).
+    let mut best = (left, bottom);
+    let mut best_key = (usize::MAX, f32::INFINITY);
+    for (x, y) in [(left, top), (right, top), (left, bottom), (right, bottom)] {
+        // Inflated by a typical atom radius so a card flush against a
+        // molecule still counts as covering it.
+        let clearance = 46.0;
+        let covered = positions
+            .values()
+            .filter(|point| {
+                point.x > x - clearance
+                    && point.x < x + width + clearance
+                    && point.y > y - clearance
+                    && point.y < y + height + clearance
+            })
+            .count();
+        let center = Point::new(x + width * 0.5, y + height * 0.5);
+        let closeness = target.map_or(0.0, |point| vector_magnitude(point - center));
+        if (covered, closeness) < best_key {
+            best_key = (covered, closeness);
+            best = (x, y);
         }
-    });
-    let y = target.map_or(bounds.height * 0.62, |point| {
-        if point.y > bounds.height * 0.52 {
-            76.0
-        } else {
-            bounds.height - height - 68.0
-        }
-    });
-    (
-        x.clamp(
-            horizontal_margin,
-            (bounds.width - width - horizontal_margin).max(horizontal_margin),
-        ),
-        y.clamp(70.0, (bounds.height - height - 60.0).max(70.0)),
-    )
+    }
+    best
 }
 
 fn nearest_edge_point(rect: Rectangle, target: Point) -> Point {

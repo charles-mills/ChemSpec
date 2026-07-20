@@ -1978,19 +1978,55 @@ MACROSCOPIC_SOLID = [
 ]
 
 
-def macroscopic_material(structure, phase):
-    return {
+def macroscopic_material(structure, phase, colour=None):
+    record = {
         "structure": structure,
         "context": {"kind": "standard"},
         "phase": {"kind": phase},
         "premise_ids": ["premise.material.oxygen-family.standard-phase"],
     }
+    if colour is not None:
+        record["colour"] = colour
+    return record
+
+
+# Ion-pair anion sources at ambient standard state; colours mirror the
+# reviewed values the covalent-combinations package uses for the same
+# elements.  "Oxygen" already carries a record above.
+ION_ANION_SOURCE_MATERIALS = {
+    "ElementalFluorine": ("gas", [228, 232, 150]),
+    "ElementalChlorine": ("gas", [202, 220, 112]),
+    "ElementalBromine": ("liquid", [142, 57, 47]),
+    "ElementalIodine": ("solid", [62, 53, 70]),
+    "ElementalNitrogen": ("gas", None),
+    "ElementalSulfur": ("solid", [232, 196, 55]),
+    "ElementalPhosphorus": ("solid", [236, 224, 190]),
+}
+
+
+def ion_pair_macroscopic_materials():
+    records = []
+    seen = set()
+
+    def add(structure, phase, colour=None):
+        if structure in seen:
+            return
+        seen.add(structure)
+        records.append(macroscopic_material(structure, phase, colour))
+
+    for source_id, (phase, colour) in ION_ANION_SOURCE_MATERIALS.items():
+        add(source_id, phase, colour)
+    for experience in ion_pair_experiences:
+        add(experience["subject_structure"], "solid")
+        add(experience["product_structure"], "solid")
+    return records
 
 
 macroscopic_materials = (
     [macroscopic_material(s, "gas") for s in MACROSCOPIC_GAS]
     + [macroscopic_material(s, "liquid") for s in MACROSCOPIC_LIQUID]
     + [macroscopic_material(s, "solid") for s in MACROSCOPIC_SOLID]
+    + ion_pair_macroscopic_materials()
 )
 
 candidate = {

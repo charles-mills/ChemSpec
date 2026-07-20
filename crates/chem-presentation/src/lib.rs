@@ -1450,7 +1450,12 @@ fn observation_text(predicate: ObservationPredicate, value: Option<&str>) -> Str
         }
         ObservationPredicate::Colour => value.map_or_else(
             || "You would see the mixture change colour as this product forms.".to_owned(),
-            |colour| format!("You would see the mixture turn {colour} as this product forms."),
+            |colour| {
+                format!(
+                    "You would see the mixture turn {} as this product forms.",
+                    colour.to_lowercase()
+                )
+            },
         ),
     }
 }
@@ -1474,7 +1479,7 @@ fn observation_summary(predicate: ObservationPredicate, value: Option<&str>) -> 
         ObservationPredicate::Forms => "A new product appears".to_owned(),
         ObservationPredicate::Colour => value.map_or_else(
             || "The mixture changes colour".to_owned(),
-            |colour| format!("The mixture turns {colour}"),
+            |colour| format!("The mixture turns {}", colour.to_lowercase()),
         ),
     }
 }

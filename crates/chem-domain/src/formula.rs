@@ -448,6 +448,49 @@ pub enum Phase {
     Unknown,
 }
 
+/// One reviewed route through the sealed phase-synthesis chamber.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhaseSynthesisRoute {
+    SolidGas,
+    GasGas,
+}
+
+/// Classifies a two-reactant synthesis of one gaseous product by reviewed
+/// phases. This is the single shared core for the static catalogue classifier
+/// and the dynamic outcome classifier, so the two paths cannot drift.
+///
+/// Hydrogen/oxygen burning is intentionally not represented by the
+/// concentration-chamber synthesis asset; every other oxygen-containing
+/// combination stays eligible once the more specific combustion and
+/// surface-oxidation classifiers have declined.
+#[must_use]
+pub fn classify_phase_synthesis(
+    first: (&[(&str, u64)], Phase),
+    second: (&[(&str, u64)], Phase),
+    product_phase: Phase,
+) -> Option<PhaseSynthesisRoute> {
+    let exactly = |formula: &[(&str, u64)], symbol: &str, count: u64| {
+        formula.len() == 1 && formula[0] == (symbol, count)
+    };
+    let dioxygen = |formula| exactly(formula, "O", 2);
+    let dihydrogen = |formula| exactly(formula, "H", 2);
+    if (dioxygen(first.0) && dihydrogen(second.0))
+        || (dioxygen(second.0) && dihydrogen(first.0))
+    {
+        return None;
+    }
+    if product_phase != Phase::Gas {
+        return None;
+    }
+    match [first.1, second.1] {
+        [Phase::Solid, Phase::Gas] | [Phase::Gas, Phase::Solid] => {
+            Some(PhaseSynthesisRoute::SolidGas)
+        }
+        [Phase::Gas, Phase::Gas] => Some(PhaseSynthesisRoute::GasGas),
+        _ => None,
+    }
+}
+
 /// IUPAC element sequence for formula writing (Red Book Table VI), most
 /// electropositive first: the earlier element is written first (`NaCl`,
 /// `SO2`, `Cl2O`, `OF2`). Symbols outside the sequence sort after it,
