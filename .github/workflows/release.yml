@@ -52,6 +52,9 @@ jobs:
       - name: Build release binary
         run: cargo build -p chemspec-app --release --locked
 
+      - name: Verify Windows GUI subsystem
+        run: cargo test -p chemspec-app --release --test windows_subsystem_guard --locked
+
       - name: Install cargo-packager
         shell: pwsh
         run: cargo install cargo-packager --version $env:CARGO_PACKAGER_VERSION --locked

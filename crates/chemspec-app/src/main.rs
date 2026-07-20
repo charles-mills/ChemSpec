@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 //! `ChemSpec` application shell and reaction-builder entry (`U-101`, `U-106`–`U-112`).
 //!
 //! Opens on the Stage 1 builder: the learner's question, composed from two

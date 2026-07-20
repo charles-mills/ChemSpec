@@ -589,6 +589,10 @@ Platform-specific smoke checks cover:
 - packaged application startup;
 - GPU renderer initialization or a clear unsupported-adapter error.
 
+The Windows release gate inspects the built application's PE header before
+packaging and requires the Windows GUI subsystem. Debug builds retain the
+console subsystem for local diagnostics and headless `react` verification.
+
 The packaged macOS `ChemSpec Agent Smoke` bundle was checked in Structural 3D
 mode on 2026-07-15 with one supported representative from every family:
 
