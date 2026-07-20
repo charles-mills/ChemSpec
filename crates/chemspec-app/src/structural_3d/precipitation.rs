@@ -192,15 +192,16 @@ pub(super) fn add_precipitation_assembly(
     );
     // The mixing zone sits where the stream lands while the pour runs, and
     // relaxes to the basin centre once mixing is general.
-    let mix_centre = pour
-        .filter(|pour| pour.flow > 0.05)
-        .map_or(state.surface_centre + Vec3::Y * receiving_lift, |pour| {
+    let mix_centre = pour.filter(|pour| pour.flow > 0.05).map_or(
+        state.surface_centre + Vec3::Y * receiving_lift,
+        |pour| {
             Vec3::new(
                 pour.lip.x + pour.downhill.x * 0.12,
                 state.surface_centre.y + receiving_lift,
                 pour.lip.z + pour.downhill.z * 0.12,
             )
-        });
+        },
+    );
     let cloud_colour = precipitation_track_colour(
         ClipColour::PrecipitateCloud,
         precipitation,

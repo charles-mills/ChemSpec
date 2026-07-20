@@ -54,9 +54,8 @@ fn add_bevelled_strip(mesh: &mut Mesh, frame: &StripFrame, colour: [f32; 4]) {
     const BEVEL: f32 = 0.05;
     let half_w = STRIP_WIDTH * 0.5;
     let half_t = STRIP_THICKNESS * 0.5;
-    let corner = |v: f32, w: f32, t: f32| {
-        frame.base + frame.along * v + frame.across * w + frame.normal * t
-    };
+    let corner =
+        |v: f32, w: f32, t: f32| frame.base + frame.along * v + frame.across * w + frame.normal * t;
     let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
     // Three rings of four corners: foot, bevel start, and the inset top.
     let rings: [(f32, f32, f32); 3] = [
@@ -67,8 +66,8 @@ fn add_bevelled_strip(mesh: &mut Mesh, frame: &StripFrame, colour: [f32; 4]) {
     for (v, w, t) in rings {
         for (cw, ct) in [(-w, -t), (w, -t), (w, t), (-w, t)] {
             let position = corner(v, cw, ct);
-            let outward = (frame.across * cw.signum() + frame.normal * ct.signum())
-                .normalize_or_zero();
+            let outward =
+                (frame.across * cw.signum() + frame.normal * ct.signum()).normalize_or_zero();
             mesh.vertices.push(Vertex {
                 position: position.to_array(),
                 normal: outward.to_array(),
@@ -87,7 +86,8 @@ fn add_bevelled_strip(mesh: &mut Mesh, frame: &StripFrame, colour: [f32; 4]) {
     }
     // Top cap and foot cap.
     let top = base_vertex + 8;
-    mesh.indices.extend_from_slice(&[top, top + 1, top + 2, top, top + 2, top + 3]);
+    mesh.indices
+        .extend_from_slice(&[top, top + 1, top + 2, top, top + 2, top + 3]);
     mesh.indices.extend_from_slice(&[
         base_vertex,
         base_vertex + 2,
@@ -157,27 +157,31 @@ fn add_deposit_crust(
         let patch = nub % PATCHES;
         // Patches nucleate staggered, each at its own waterline spot.
         let patch_start = seeded_unit(seed, patch, 421) * 0.35;
-        let patch_growth = ((growth - patch_start) / (1.0 - patch_start).max(0.2))
-            .clamp(0.0, 1.0);
+        let patch_growth = ((growth - patch_start) / (1.0 - patch_start).max(0.2)).clamp(0.0, 1.0);
         let patch_w = (seeded_unit(seed, patch, 422) - 0.5) * STRIP_WIDTH * 0.7;
         let patch_front = seeded_unit(seed, patch, 423) > 0.4;
         let patch_top = surface_v - 0.05 - seeded_unit(seed, patch, 424) * 0.06;
         // Each nub sits somewhere in its patch's downward-growing footprint.
-        let v = patch_top
-            - seeded_unit(seed, nub, 425) * (surface_v - 0.14) * 0.75 * patch_growth;
+        let v = patch_top - seeded_unit(seed, nub, 425) * (surface_v - 0.14) * 0.75 * patch_growth;
         let w = patch_w
-            + (seeded_unit(seed, nub, 426) - 0.5)
-                * STRIP_WIDTH
-                * (0.16 + 0.24 * patch_growth);
+            + (seeded_unit(seed, nub, 426) - 0.5) * STRIP_WIDTH * (0.16 + 0.24 * patch_growth);
         let position = strip_point(frame, v.max(0.05), w, patch_front);
         let stagger = seeded_unit(seed, nub, 427);
         let local = ((patch_growth - stagger * 0.3) / 0.7).clamp(0.0, 1.0);
         let size = (0.024 + seeded_unit(seed, nub, 428) * 0.028) * local;
-        add_sphere(&mut meshes.opaque, position, size.max(0.000_5), colour, 4, 6);
+        add_sphere(
+            &mut meshes.opaque,
+            position,
+            size.max(0.000_5),
+            colour,
+            4,
+            6,
+        );
         if nub % 4 == 0 {
             add_sphere(
                 &mut meshes.emissive,
-                position + frame.normal * (if patch_front { 0.006 } else { -0.006 })
+                position
+                    + frame.normal * (if patch_front { 0.006 } else { -0.006 })
                     + Vec3::Y * (size * 0.3),
                 (size * 0.4).max(0.000_5),
                 deposit_highlight_colour(colour),
@@ -271,7 +275,11 @@ pub(super) fn add_displacement_assembly(
     };
     let frame = strip_frame(layout.bench_top);
     let surface_v = waterline_v(&frame, surface_y);
-    add_bevelled_strip(&mut meshes.opaque, &frame, colour(ClipColour::OriginalMetal));
+    add_bevelled_strip(
+        &mut meshes.opaque,
+        &frame,
+        colour(ClipColour::OriginalMetal),
+    );
     let growth = deposit_growth(progress);
     add_erosion_pits(
         &mut meshes.opaque,

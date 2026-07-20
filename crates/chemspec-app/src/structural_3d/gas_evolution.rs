@@ -84,15 +84,21 @@ fn add_rising_bubbles(
 /// The solid reactant: a seeded pile of faceted chips on the basin floor
 /// that erodes as the reaction consumes it (never below a stub, so the
 /// scene keeps its topology).
-fn add_reactant_pile(mesh: &mut Mesh, floor_centre: Vec3, colour: [f32; 4], consumed: f32, seed: u64) {
+fn add_reactant_pile(
+    mesh: &mut Mesh,
+    floor_centre: Vec3,
+    colour: [f32; 4],
+    consumed: f32,
+    seed: u64,
+) {
     const CHIPS: u32 = 9;
     let erosion = 1.0 - consumed.clamp(0.0, 1.0) * 0.62;
     for chip in 0..CHIPS {
         let angle = f32::from(u16::try_from(chip).unwrap_or(0)) * 2.399_963 + seed_phase(seed, 341);
         let radial = seeded_unit(seed, chip, 342).sqrt() * 0.24;
         let size = (0.045 + seeded_unit(seed, chip, 343) * 0.035) * erosion;
-        let centre = floor_centre
-            + Vec3::new(angle.cos() * radial, size * 0.55, angle.sin() * radial);
+        let centre =
+            floor_centre + Vec3::new(angle.cos() * radial, size * 0.55, angle.sin() * radial);
         add_shard(
             mesh,
             centre,
@@ -147,10 +153,18 @@ pub(super) fn add_gas_evolution_assembly(
         std::cmp::Ordering::Equal => normalized_exponential_response(ordinal_progress, 3.4),
         std::cmp::Ordering::Greater => 1.0,
     };
-    let bubble_colour =
-        gas_evolution_track_colour(ClipColour::GasBubble, gas_evolution, ordinal, ordinal_progress);
-    let cloud_colour =
-        gas_evolution_track_colour(ClipColour::GasCloud, gas_evolution, ordinal, ordinal_progress);
+    let bubble_colour = gas_evolution_track_colour(
+        ClipColour::GasBubble,
+        gas_evolution,
+        ordinal,
+        ordinal_progress,
+    );
+    let cloud_colour = gas_evolution_track_colour(
+        ClipColour::GasCloud,
+        gas_evolution,
+        ordinal,
+        ordinal_progress,
+    );
     let floor_centre = Vec3::new(0.0, state.floor_y, 0.0);
     if gas_evolution.variant == GasEvolutionVariant::SolidLiquid {
         // CO2 nucleates on the solid and rises; the surface agitation from
@@ -239,7 +253,13 @@ pub(super) fn add_gas_evolution_assembly(
             ordinal,
             ordinal_progress,
         );
-        add_reactant_pile(&mut meshes.opaque, floor_centre, solid_colour, progress, seed.rotate_left(7));
+        add_reactant_pile(
+            &mut meshes.opaque,
+            floor_centre,
+            solid_colour,
+            progress,
+            seed.rotate_left(7),
+        );
     }
     if let Some(pour) = pour {
         add_pouring_vessel_glass(&mut meshes.glass, &pour);

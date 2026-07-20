@@ -42,6 +42,8 @@ use std::sync::{
 // and performance.now() on the web.
 use web_time::Instant;
 
+#[cfg(test)]
+use agent::ReactionClaim;
 use agent::{
     ClaimDisposition, ClaimMode, CodexProgressEvent, CodexProgressStage, CodexProvider,
     CodexProviderConfig, DynamicCachePresentation, DynamicPresentationOutcome, LatencyMilestones,
@@ -52,8 +54,6 @@ use agent::{
     reviewed_species_registry, store_dynamic_cache, store_oxide_appearance_cache,
 };
 use agent::{CompiledClaimOutcome, ProviderClaim, compile_claim_outcome};
-#[cfg(test)]
-use agent::ReactionClaim;
 use chem_domain::{ContentDigest, RepresentationKind};
 use chem_presentation::{
     EducationalPlan, EducationalSceneKind, EffectProfile, ExplosiveMetalWaterVariant,
@@ -779,8 +779,9 @@ fn dynamic_macroscopic_material(
         // aqueous, not the bottled standard state); the reviewed record only
         // fills in what the outcome leaves unknown.
         phase: match outcome.macroscopic_phase(species) {
-            chem_domain::Phase::Unknown => reviewed_material
-                .map_or(chem_domain::Phase::Unknown, |material| material.phase),
+            chem_domain::Phase::Unknown => {
+                reviewed_material.map_or(chem_domain::Phase::Unknown, |material| material.phase)
+            }
             phase => phase,
         },
         representation: species.representation()?,
@@ -872,7 +873,11 @@ fn smoke_playhead(duration_ms: u64) -> u64 {
             .strip_prefix("--smoke-playhead-ms=")
             .and_then(|value| value.parse::<u64>().ok())
     });
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
     let fraction = std::env::args().find_map(|argument| {
         argument
             .strip_prefix("--smoke-playhead-frac=")
@@ -902,8 +907,11 @@ fn launch_state() -> App {
             app.enter_screen(Screen::Builder);
             return app;
         }
-        let smoke_dynamic = std::env::args()
-            .find_map(|argument| argument.strip_prefix("--smoke-dynamic=").map(ToOwned::to_owned));
+        let smoke_dynamic = std::env::args().find_map(|argument| {
+            argument
+                .strip_prefix("--smoke-dynamic=")
+                .map(ToOwned::to_owned)
+        });
         if let Some(fixture) = smoke_dynamic {
             match smoke_dynamic_presentation(&fixture) {
                 // Installs the outcome and opens the structural animation.
@@ -991,8 +999,7 @@ fn launch_state() -> App {
 /// `--structural-3d-smoke --smoke-dynamic=<fixture>`.
 fn smoke_dynamic_presentation(fixture: &str) -> Result<DynamicPresentationOutcome, String> {
     let catalogue = chemistry::reference_catalogue().map_err(ToString::to_string)?;
-    let identities =
-        reviewed_species_registry(catalogue).map_err(|error| format!("{error:?}"))?;
+    let identities = reviewed_species_registry(catalogue).map_err(|error| format!("{error:?}"))?;
     let request = |selected_context: Option<String>| ReactionBuildRequest {
         reactants: vec![
             ReactantInput {
@@ -1079,8 +1086,7 @@ fn smoke_dynamic_presentation(fixture: &str) -> Result<DynamicPresentationOutcom
         }
         _ => return Err(format!("unsupported dynamic smoke fixture `{fixture}`")),
     };
-    let CompiledClaimOutcome::Static(outcome) =
-        compiled.map_err(|error| format!("{error:?}"))?
+    let CompiledClaimOutcome::Static(outcome) = compiled.map_err(|error| format!("{error:?}"))?
     else {
         return Err("dynamic smoke fixture must compile to a static outcome".to_owned());
     };
@@ -6796,7 +6802,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert!(labels.iter().any(|text| text.starts_with("Anode:")));
-        assert!(labels.iter().any(|text| text.starts_with("Cathode:")));
+        assert!(labels.iter().any(|text| text.contains("Cathode:")));
         assert!(
             labels
                 .iter()

@@ -42,8 +42,7 @@ fn blast_age(progress: f32) -> f32 {
 
 /// Surface churn and spray, alive from contact well into the aftermath.
 fn churn(progress: f32) -> f32 {
-    smooth01((progress - CONTACT) / 0.03)
-        * (1.0 - smooth01((progress - CHURN_END + 0.1) / 0.25))
+    smooth01((progress - CONTACT) / 0.03) * (1.0 - smooth01((progress - CHURN_END + 0.1) / 0.25))
 }
 
 /// Steam rises hard after the blast and thins out late.
@@ -55,10 +54,12 @@ fn steam(progress: f32) -> f32 {
 /// other scene and every other moment. Consumed by the renderer's handheld
 /// shake so the detonation physically rattles the framing.
 pub(super) fn blast_camera_shake(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
-    plan.explosive_metal_water.as_ref().map_or(0.0, |explosive| {
-        let progress = plan.timeline.normalized_progress_at(moment);
-        blast(progress) * variant_intensity(explosive.variant)
-    })
+    plan.explosive_metal_water
+        .as_ref()
+        .map_or(0.0, |explosive| {
+            let progress = plan.timeline.normalized_progress_at(moment);
+            blast(progress) * variant_intensity(explosive.variant)
+        })
 }
 
 /// How far the thrown water has left the basin after the blast: the level
@@ -146,7 +147,10 @@ fn add_fireball(
             &mut meshes.translucent,
             position,
             size.max(0.000_5),
-            alpha(flame.body_low, (0.5 * presence * (1.0 - age * 0.7)).max(0.02)),
+            alpha(
+                flame.body_low,
+                (0.5 * presence * (1.0 - age * 0.7)).max(0.02),
+            ),
             4,
             7,
         );
@@ -183,11 +187,7 @@ fn add_glass_chips(
             1.1 + seeded_unit(seed, chip, 493) * 0.9,
             angle.sin() * (0.5 + seeded_unit(seed, chip, 494) * 0.7),
         ) * intensity;
-        let start = Vec3::new(
-            angle.cos() * 0.9,
-            bench_top + 1.70,
-            angle.sin() * 0.9,
-        );
+        let start = Vec3::new(angle.cos() * 0.9, bench_top + 1.70, angle.sin() * 0.9);
         let time = age * 1.1;
         let position = start + launch * time - Vec3::Y * (4.4 * time * time * 0.5);
         let spin = Quat::from_rotation_y(time * 9.0 + seed_phase(seed, 495 + chip))
@@ -208,13 +208,7 @@ fn add_glass_chips(
 /// Molten metal droplets hurled out of the fireball, each dragging a short
 /// emissive trail of cooling beads behind its arc. Fixed population: eight
 /// arcs of four beads, all floored outside the blast.
-fn add_molten_ejecta(
-    mesh: &mut Mesh,
-    impact: Vec3,
-    progress: f32,
-    intensity: f32,
-    seed: u64,
-) {
+fn add_molten_ejecta(mesh: &mut Mesh, impact: Vec3, progress: f32, intensity: f32, seed: u64) {
     const EJECTA: u32 = 8;
     const BEADS: u32 = 4;
     let flame = flame_colours(FlamePalette::Natural);
@@ -256,13 +250,7 @@ fn add_molten_ejecta(
 /// The crack web: jagged fracture lines spreading down the glass from the
 /// rim once the blast hits, and staying. Fixed population; segments grow in
 /// quick succession so the web visibly propagates.
-fn add_glass_cracks(
-    mesh: &mut Mesh,
-    bench_top: f32,
-    progress: f32,
-    intensity: f32,
-    seed: u64,
-) {
+fn add_glass_cracks(mesh: &mut Mesh, bench_top: f32, progress: f32, intensity: f32, seed: u64) {
     const CRACKS: u32 = 7;
     const SEGMENTS: u32 = 3;
     const WALL_RADIUS: f32 = 0.945;
@@ -279,9 +267,7 @@ fn add_glass_cracks(
         let mut drift = angle;
         for segment in 0..SEGMENTS {
             let index = crack * SEGMENTS + segment;
-            let grow = smooth01(
-                (progress - CONTACT - 0.006 * (segment + 1) as f32) / 0.018,
-            );
+            let grow = smooth01((progress - CONTACT - 0.006 * (segment + 1) as f32) / 0.018);
             let length = reach * (0.8 + seeded_unit(seed, index, 523) * 0.5) * grow;
             let lean = (seeded_unit(seed, index, 524) - 0.5) * 0.35;
             drift += lean;
@@ -339,9 +325,7 @@ fn add_blast_crown(
                 velocity * time - 4.4 * time * time * 0.5,
                 angle.sin() * velocity * time * 0.7,
             );
-        let size = (0.014 + seeded_unit(seed, droplet, 507) * 0.012)
-            * presence
-            * (1.0 - age * 0.5);
+        let size = (0.014 + seeded_unit(seed, droplet, 507) * 0.012) * presence * (1.0 - age * 0.5);
         add_sphere(
             mesh,
             position,
@@ -424,7 +408,15 @@ pub(super) fn add_explosive_metal_water_assembly(
         colour(ClipColour::ReactiveMetal),
         seed,
     );
-    add_fireball(meshes, impact + Vec3::Y * 0.06, presence, age, intensity, phase, seed);
+    add_fireball(
+        meshes,
+        impact + Vec3::Y * 0.06,
+        presence,
+        age,
+        intensity,
+        phase,
+        seed,
+    );
     add_shock_ring(&mut meshes.translucent, impact, age, presence, intensity);
     add_glass_chips(
         &mut meshes.glass,

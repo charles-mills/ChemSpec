@@ -60,11 +60,7 @@ fn bound_rgba(
 /// steel clamp bands, a relief valve with a handwheel, and one flanged
 /// inlet port per gaseous reactant with a colour band naming its gas.
 #[allow(clippy::too_many_lines)]
-fn add_reaction_chamber(
-    meshes: &mut SceneMeshes,
-    bench_top: f32,
-    inlet_colours: &[[f32; 4]],
-) {
+fn add_reaction_chamber(meshes: &mut SceneMeshes, bench_top: f32, inlet_colours: &[[f32; 4]]) {
     const RIM_GLASS: [f32; 4] = [0.80, 0.93, 1.0, 0.42];
     let plate_top = bench_top + PLATE_HEIGHT;
     add_cylinder(
@@ -96,7 +92,12 @@ fn add_reaction_chamber(
         CHAMBER_RADIUS,
         GLASS,
     );
-    add_disc(&mut meshes.glass, Vec3::new(0.0, lid_y, 0.0), CHAMBER_RADIUS, GLASS);
+    add_disc(
+        &mut meshes.glass,
+        Vec3::new(0.0, lid_y, 0.0),
+        CHAMBER_RADIUS,
+        GLASS,
+    );
     // Bright glass lips where the shell meets the lid and the plate: the
     // same rim-highlight language as the shared laboratory beaker.
     add_ring(

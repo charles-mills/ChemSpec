@@ -96,10 +96,8 @@ pub(super) fn add_neutralisation_assembly(
         add_stirring_apparatus(meshes, animated, pose, stir, seed, colours.liquid);
         // Schlieren where the two solutions fold together, fading once the
         // stirrer's window is past.
-        let past_mixing = (f32::from(ordinal) + ordinal_progress
-            - f32::from(mixing.end_ordinal)
-            - 1.0)
-            .max(0.0);
+        let past_mixing =
+            (f32::from(ordinal) + ordinal_progress - f32::from(mixing.end_ordinal) - 1.0).max(0.0);
         let mixing_life = smooth01((stir - 0.05) / 0.15) * (1.0 - smooth01(past_mixing / 1.5));
         add_schlieren_swirls(
             &mut meshes.translucent,
@@ -120,8 +118,8 @@ pub(super) fn add_neutralisation_assembly(
             frame / 30.0 * 2.0,
             seed.rotate_left(11),
         );
-        let warm_mist = smooth01((stir - 0.35) / 0.4)
-            * (1.0 - smooth01(post_process.boiling / 0.3));
+        let warm_mist =
+            smooth01((stir - 0.35) / 0.4) * (1.0 - smooth01(post_process.boiling / 0.3));
         add_condensation_mist(
             &mut meshes.translucent,
             Vec3::ZERO,

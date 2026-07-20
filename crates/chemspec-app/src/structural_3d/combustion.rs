@@ -167,7 +167,13 @@ fn add_hover_stand(mesh: &mut Mesh, bench_top: f32) {
     const METAL: [f32; 4] = [0.20, 0.24, 0.28, 1.0];
     let foot = Vec3::new(1.42, bench_top, 0.30);
     add_disc(mesh, foot + Vec3::Y * 0.02, 0.17, [0.15, 0.18, 0.22, 1.0]);
-    add_cylinder(mesh, foot + Vec3::Y * 0.02, foot + Vec3::Y * 1.88, 0.024, METAL);
+    add_cylinder(
+        mesh,
+        foot + Vec3::Y * 0.02,
+        foot + Vec3::Y * 1.88,
+        0.024,
+        METAL,
+    );
     // The arm reaches to the clamp ring at the beaker's edge, not across it.
     let clamp_y = bench_top + HOVER_TOP - 0.05;
     let toward = Vec3::new(-foot.x, 0.0, -foot.z).normalize_or_zero();
@@ -252,7 +258,15 @@ pub(super) fn add_combustion_assembly(
     let strength = flame_strength(progress);
     let flame_source = state.surface_centre + Vec3::Y * 0.02;
     if incomplete {
-        add_surface_flame(meshes, FlamePalette::Natural, flame_source, strength, 1.6, phase, seed);
+        add_surface_flame(
+            meshes,
+            FlamePalette::Natural,
+            flame_source,
+            strength,
+            1.6,
+            phase,
+            seed,
+        );
     } else {
         // A clean burn is premixed: two steady cones, restrained flicker.
         add_premixed_flame(meshes, flame_source, strength, phase);
