@@ -71,9 +71,23 @@ observation predicate selects gas-evolution, consumption, product-formation, or
 colour wording. Introductory and summary copy remains generic unless the pinned
 presentation profile supplies learner-facing display text.
 
+For an ordinary `TransferElectron` operation, the targeted context line names
+the donor, receiver, and exact electron count. Its shared explanation states
+that the transfer makes the products more stable overall and that the giver
+becomes more positive while the receiver becomes more negative. Electrolysis
+uses one `ELECTROLYSIS · ELECTRON FLOW` heading followed by a single body of
+anode, cathode, and external-circuit text; it does not split the first electrode
+sentence into a differently styled subtitle. Electrical work remains part of
+its context-specific explanation.
+
 `CleaveCovalent` explains that bond breaking requires energy and that energy
 available under the reaction conditions permits the shared electron pair to
 redistribute as the atoms form new bonds.
+When the validated local structure instead proves cleavage of a protonated
+carbonate C–O group, the narration identifies the coupled reorganization: the
+remaining C–O bond strengthens, proton transfer makes water, and stable carbon
+dioxide and water form. This specialization is selected from the trusted atom
+and bond graph rather than a reaction name or display equation.
 Under an exact `electricity` context, the wording instead identifies the applied
 potential and electrode electron transfer; it does not imply that a stable bond
 breaks spontaneously or that electrolysis products are favourable without
@@ -97,6 +111,16 @@ not expose charge-reconciliation bookkeeping as a literal standalone jump.
 Radical, photochemical, and electrochemical contexts, hydrogen-to-hydrogen
 bonding, and sequences that fail the structural proof retain their ordinary
 typed operation narration.
+
+When that proven proton transfer ends in only water and an oppositely charged
+ionic salt product, the final molecular summary derives the cation and anion
+labels from the validated ionic components and points back to their atoms. It
+explains that the ions are spectators which tend to remain separate in aqueous
+solution, and that evaporation followed by crystallisation is what allows the
+ions to form a salt. The planner does not select this explanation from a
+reaction name: any additional non-water molecular product, such as carbon
+dioxide in acid-carbonate gas evolution, prevents the neutralisation-specific
+tip from appearing.
 
 The planner emits completed typed labels such as `ContextLabel` and
 `ExplanationLabel`. A label carries its semantic kind, already composed title

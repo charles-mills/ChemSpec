@@ -3567,7 +3567,7 @@ fn draw_observation_context(
             Point::new(x, bounds.height - 52.0 * scale),
             Size::new(width, 30.0 * scale),
         );
-        draw_glass_panel(frame, rect, IONIC, reveal, 15.0 * scale);
+        draw_glass_panel(frame, rect, IONIC, reveal, 15.0 * scale, true);
         frame.fill(
             &Path::circle(
                 Point::new(rect.x + 13.0 * scale, rect.center_y()),
@@ -3684,7 +3684,7 @@ fn draw_explanation_label(
         Size::new(width, text_layout.height),
     );
     let accent = explanation_color(label.kind);
-    draw_glass_panel(frame, rect, accent, alpha, 16.0 * scale);
+    draw_glass_panel(frame, rect, accent, alpha, 16.0 * scale, false);
     frame.fill(
         &rounded_rectangle(
             Rectangle::new(
@@ -3849,6 +3849,7 @@ fn draw_glass_panel(
     accent: Color,
     alpha: f32,
     radius: f32,
+    top_highlight: bool,
 ) {
     frame.fill(
         &rounded_rectangle(
@@ -3868,13 +3869,15 @@ fn draw_glass_panel(
             .with_color(accent.scale_alpha(alpha * 0.42))
             .with_width(1.0),
     );
-    frame.fill(
-        &rounded_rectangle(
-            Rectangle::new(rect.position(), Size::new(rect.width, rect.height * 0.45)),
-            radius,
-        ),
-        Color::WHITE.scale_alpha(alpha * 0.018),
-    );
+    if top_highlight {
+        frame.fill(
+            &rounded_rectangle(
+                Rectangle::new(rect.position(), Size::new(rect.width, rect.height * 0.45)),
+                radius,
+            ),
+            Color::WHITE.scale_alpha(alpha * 0.018),
+        );
+    }
 }
 
 fn rounded_rectangle(rect: Rectangle, radius: f32) -> Path {

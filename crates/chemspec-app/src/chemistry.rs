@@ -3509,6 +3509,31 @@ mod tests {
     }
 
     #[test]
+    fn hydrogen_halogen_synthesis_is_not_presented_as_proton_transfer() {
+        for (symbol, atomic_number) in [("F", 9), ("Cl", 17), ("Br", 35), ("I", 53)] {
+            let requests = requests_for_drafts(&[1, 1], &[atomic_number, atomic_number]);
+            let [request] = requests.as_slice() else {
+                panic!("H2 + {symbol}2 must select one reviewed outcome");
+            };
+            let run = run(*request).expect("reviewed hydrogen halide synthesis validates");
+            let plan = chem_presentation::compile_educational_plan(
+                run.frames(),
+                run.declaration().required_context(),
+            )
+            .expect("educational plan compiles");
+            assert!(
+                plan.scenes.iter().flat_map(|scene| &scene.cues).all(|cue| {
+                    !matches!(
+                        cue,
+                        chem_presentation::EducationalCue::InterpretProtonTransfer { .. }
+                    )
+                }),
+                "H2 + {symbol}2 must retain bond-cleavage and bond-formation narration"
+            );
+        }
+    }
+
+    #[test]
     fn precipitation_profiles_preserve_each_validated_precipitate_colour() {
         for (halogen, expected) in [
             (Halogen::Chlorine, "White"),

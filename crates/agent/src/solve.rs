@@ -194,7 +194,8 @@ fn solve_context_sensitive_families(
     context: Option<&str>,
 ) -> Option<Verdict> {
     reactants
-        .solve_either_order_with_context(context, solve_alcohol_oxidation)
+        .solve_either_order_with_context(context, solve_acid_metal)
+        .or_else(|| reactants.solve_either_order_with_context(context, solve_alcohol_oxidation))
         .or_else(|| reactants.solve_either_order_with_context(context, solve_incomplete_combustion))
         .or_else(|| reactants.solve_either_order_with_context(context, solve_ester_hydrolysis))
         .or_else(|| reactants.solve_either_order_with_context(context, solve_substitution))
@@ -207,7 +208,6 @@ fn solve_symmetric_binary_families(reactants: BinaryReactants<'_>) -> Option<Ver
     reactants
         .solve_either_order(solve_acid_base)
         .or_else(|| reactants.solve_either_order(solve_acid_sulfide))
-        .or_else(|| reactants.solve_either_order(solve_acid_metal))
         .or_else(|| reactants.solve_either_order(solve_combustion))
         .or_else(|| reactants.solve_either_order(solve_hydrohalogenation))
         .or_else(|| reactants.solve_either_order(solve_alkene_addition))
@@ -289,18 +289,134 @@ fn solve_acid_base(acid: &StructureDefinition, base: &StructureDefinition) -> Op
     })
 }
 
-/// Acid + elemental metal: salt + hydrogen above the hydrogen pivot in the
-/// activity series, a confident no-reaction below it. Dilute acids are
-/// mild oxidants: variable-charge metals only reach their mild aqueous
-/// state (Fe + 2HCl → `FeCl2`, never `FeCl3`).
-fn solve_acid_metal(acid: &StructureDefinition, metal: &StructureDefinition) -> Option<Verdict> {
+#[derive(Clone, Copy)]
+struct AcidReductionProduct {
+    elements: &'static [(&'static str, u64)],
+    phase: ClaimPhase,
+}
+
+const NITRIC_OXIDE: AcidReductionProduct = AcidReductionProduct {
+    elements: &[("N", 1), ("O", 1)],
+    phase: ClaimPhase::Gas,
+};
+const NITROGEN_DIOXIDE: AcidReductionProduct = AcidReductionProduct {
+    elements: &[("N", 1), ("O", 2)],
+    phase: ClaimPhase::Gas,
+};
+const SULFUR_DIOXIDE: AcidReductionProduct = AcidReductionProduct {
+    elements: &[("S", 1), ("O", 2)],
+    phase: ClaimPhase::Gas,
+};
+
+#[derive(Clone, Copy)]
+enum AcidMetalRegime {
+    ProtonReduction,
+    OxoanionReduction(AcidReductionProduct),
+    Decline,
+}
+
+fn counts_match(counts: &BTreeMap<String, u64>, expected: &[(&str, u64)]) -> bool {
+    counts.len() == expected.len()
+        && expected
+            .iter()
+            .all(|(symbol, count)| counts.get(*symbol) == Some(count))
+}
+
+fn context_contains(context: Option<&str>, word: &str) -> bool {
+    context.is_some_and(|context| context.split_whitespace().any(|part| part == word))
+}
+
+/// Selects the electron acceptor for a structurally identified acid.
+///
+/// Profiles are keyed by conjugate-anion composition, never by an acid name
+/// or a particular metal/acid pair. Ordinary nitrate and sulfate salts cannot
+/// enter this family because the caller has already proved a molecular acid.
+fn acid_metal_regime(
+    conjugate_anion: &BTreeMap<String, u64>,
+    metal: &str,
+    context: Option<&str>,
+) -> AcidMetalRegime {
+    let concentrated = context_contains(context, "concentrated");
+    let very_dilute = context_contains(context, "very") && context_contains(context, "dilute");
+    let heated = context.is_some_and(|context| {
+        context
+            .split_whitespace()
+            .any(|part| matches!(part, "hot" | "heated" | "heating"))
+    });
+
+    if counts_match(conjugate_anion, &[("N", 1), ("O", 3)]) {
+        // Very dilute nitric acid is the narrow classroom exception where Mg
+        // and Mn may reduce protons to hydrogen instead of reducing nitrate.
+        if very_dilute && matches!(metal, "Mg" | "Mn") {
+            return AcidMetalRegime::ProtonReduction;
+        }
+        // Concentrated nitric acid passivates these metals. Until passivation
+        // has its own typed no-reaction reason, decline rather than inventing
+        // hydrogen or nitrogen-oxide products.
+        if concentrated && matches!(metal, "Al" | "Cr" | "Fe") {
+            return AcidMetalRegime::Decline;
+        }
+        // Gold, platinum, and tin require chemistry outside this nitrate-salt
+        // family (resistance to nitric acid or hydrated oxide products).
+        if matches!(metal, "Au" | "Pt" | "Sn") {
+            return AcidMetalRegime::Decline;
+        }
+        return AcidMetalRegime::OxoanionReduction(if concentrated {
+            NITROGEN_DIOXIDE
+        } else {
+            NITRIC_OXIDE
+        });
+    }
+
+    if counts_match(conjugate_anion, &[("O", 4), ("S", 1)]) {
+        if !concentrated {
+            return AcidMetalRegime::ProtonReduction;
+        }
+        if heated && matches!(metal, "Cu" | "Ag" | "Hg") {
+            return AcidMetalRegime::OxoanionReduction(SULFUR_DIOXIDE);
+        }
+        // Concentrated sulfuric acid has metal- and temperature-dependent
+        // reduction endpoints. Do not let an unsupported case fall through to
+        // the dilute-acid hydrogen rule.
+        return AcidMetalRegime::Decline;
+    }
+
+    // Chloric and perchloric acid are condition-sensitive oxidizers. They do
+    // not yet have a deterministic reduction endpoint in this closed world,
+    // so concentrated requests must not masquerade as ordinary displacement.
+    if concentrated
+        && (counts_match(conjugate_anion, &[("Cl", 1), ("O", 3)])
+            || counts_match(conjugate_anion, &[("Cl", 1), ("O", 4)]))
+    {
+        return AcidMetalRegime::Decline;
+    }
+
+    AcidMetalRegime::ProtonReduction
+}
+
+/// Acid + elemental metal. A structurally classified oxidizing oxoanion is
+/// reduced to its representative molecular product; otherwise a metal above
+/// hydrogen reduces protons to hydrogen. Variable-charge metals reach their
+/// common state against an oxidizing acid and their mild aqueous state against
+/// proton reduction.
+fn solve_acid_metal(
+    acid: &StructureDefinition,
+    metal: &StructureDefinition,
+    context: Option<&str>,
+) -> Option<Verdict> {
     let donors = acid_donor_count(acid)?;
     if metal.representation() != RepresentationKind::Metallic {
         return None;
     }
     let (element, _) = single_element(metal)?;
-    let charge = chem_domain::aqueous_cation_charge(element.as_str())?;
-    if !chem_domain::displaces_hydrogen_from_acids(element.as_str())? {
+    let conjugate_anion = conjugate_anion(acid, donors)?;
+    let regime = acid_metal_regime(&conjugate_anion, element.as_str(), context);
+    if matches!(regime, AcidMetalRegime::Decline) {
+        return None;
+    }
+    if matches!(regime, AcidMetalRegime::ProtonReduction)
+        && !chem_domain::displaces_hydrogen_from_acids(element.as_str())?
+    {
         return Some(Verdict {
             reason: Some(NoReactionReason::BelowHydrogen {
                 metal: display_name(element.as_str()),
@@ -309,8 +425,56 @@ fn solve_acid_metal(acid: &StructureDefinition, metal: &StructureDefinition) -> 
             observations: Vec::new(),
         });
     }
+    let charge = match regime {
+        AcidMetalRegime::ProtonReduction => chem_domain::aqueous_cation_charge(element.as_str())?,
+        AcidMetalRegime::OxoanionReduction(_) => {
+            chem_domain::common_cation_charge(element.as_str())?
+        }
+        AcidMetalRegime::Decline => unreachable!("declining regimes return above"),
+    };
     let cation = element.as_str().to_owned();
     let salt = conjugate_salt(acid, donors, &cation, u64::try_from(charge).ok()?)?;
+    if let AcidMetalRegime::OxoanionReduction(reduction) = regime {
+        let reduced_counts = reduction
+            .elements
+            .iter()
+            .map(|(symbol, count)| ((*symbol).to_owned(), *count))
+            .collect::<BTreeMap<_, _>>();
+        let mut salt_product =
+            product_from_counts(&salt, Some((&cation, u64::try_from(charge).ok()?)));
+        let cation_charge = u64::try_from(charge).ok()?;
+        let shared = gcd(cation_charge, donors);
+        let anion_multiplicity = cation_charge / shared;
+        if anion_multiplicity > 1 && conjugate_anion.values().sum::<u64>() > 1 {
+            salt_product.formula = repeated_ion_formula(
+                &cation,
+                donors / shared,
+                &conjugate_anion,
+                anion_multiplicity,
+            );
+        }
+        salt_product.phase = ClaimPhase::Aqueous;
+        let mut reduced_product = product_from_counts(&reduced_counts, None);
+        reduced_product.phase = reduction.phase;
+        return Some(Verdict {
+            reason: None,
+            products: vec![
+                salt_product,
+                reduced_product.clone(),
+                ClaimProduct {
+                    name: "Water".to_owned(),
+                    formula: "H2O".to_owned(),
+                    phase: ClaimPhase::Liquid,
+                    identity_hints: Vec::new(),
+                },
+            ],
+            observations: vec![ClaimObservation {
+                predicate: ClaimObservationPredicate::Evolves,
+                subject: format!("{} gas", reduced_product.name),
+                value: None,
+            }],
+        });
+    }
     Some(Verdict {
         reason: None,
         products: vec![
@@ -1749,29 +1913,8 @@ fn exchanged_salt(
     }
     let mut product = product_from_counts(&counts, Some((cation, cation_charge)));
     if anion_multiplicity > 1 && anion.anion.values().sum::<u64>() > 1 {
-        // Repeated polyatomic units read conventionally: Mg(NO3)2, Cu(OH)2.
-        let mut unit = String::new();
-        let mut append = |symbol: &str, count: u64| {
-            unit.push_str(symbol);
-            if count > 1 {
-                unit.push_str(&count.to_string());
-            }
-        };
-        for (symbol, count) in &anion.anion {
-            if symbol != "O" && symbol != "H" {
-                append(symbol, *count);
-            }
-        }
-        for tail in ["O", "H"] {
-            if let Some(count) = anion.anion.get(tail) {
-                append(tail, *count);
-            }
-        }
-        let mut formula = cation.to_owned();
-        if cation_count > 1 {
-            formula.push_str(&cation_count.to_string());
-        }
-        product.formula = format!("{formula}({unit}){anion_multiplicity}");
+        product.formula =
+            repeated_ion_formula(cation, cation_count, &anion.anion, anion_multiplicity);
     }
     product.phase = match soluble {
         Some(true) => ClaimPhase::Aqueous,
@@ -1779,6 +1922,37 @@ fn exchanged_salt(
         None => ClaimPhase::Unknown,
     };
     product
+}
+
+/// Conventional formula text for a salt containing repeated polyatomic ions.
+fn repeated_ion_formula(
+    cation: &str,
+    cation_count: u64,
+    anion: &BTreeMap<String, u64>,
+    anion_multiplicity: u64,
+) -> String {
+    let mut unit = String::new();
+    let mut append = |symbol: &str, count: u64| {
+        unit.push_str(symbol);
+        if count > 1 {
+            unit.push_str(&count.to_string());
+        }
+    };
+    for (symbol, count) in anion {
+        if symbol != "O" && symbol != "H" {
+            append(symbol, *count);
+        }
+    }
+    for tail in ["O", "H"] {
+        if let Some(count) = anion.get(tail) {
+            append(tail, *count);
+        }
+    }
+    let mut formula = cation.to_owned();
+    if cation_count > 1 {
+        formula.push_str(&cation_count.to_string());
+    }
+    format!("{formula}({unit}){anion_multiplicity}")
 }
 
 /// Elemental metal + dissolved salt of a less active metal: the activity
@@ -2205,6 +2379,104 @@ mod tests {
             Some(crate::MacroscopicProcess::GasEvolutionSolidLiquid),
             "a gas product must take priority over metal displacement"
         );
+    }
+
+    #[test]
+    fn nitric_acid_oxidizes_chromium_and_generates_viewable_products() {
+        let request = request(&[("Cr", &[24]), ("HNO₃", &[1, 7, 8, 8, 8])]);
+        let registry = SpeciesRegistry::default();
+        let claim = solve_reaction_claim(&request, &registry).expect("solved");
+        let products = claim
+            .products
+            .iter()
+            .map(|product| (product.formula.as_str(), product.name.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            products,
+            [
+                ("Cr(NO3)3", "chromium(III) nitrate"),
+                ("NO", "nitrogen monoxide"),
+                ("H2O", "Water"),
+            ]
+        );
+        assert!(claim.products.iter().all(|product| product.formula != "H2"));
+
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&request, claim, &registry).expect("balanced outcome")
+        else {
+            panic!("expected static outcome");
+        };
+        assert_eq!(outcome.equation(), "Cr + 4 HNO3 → 2 H2O + Cr(NO3)3 + NO");
+        assert!(
+            outcome.species_without_structure().is_empty(),
+            "the molecular viewer needs every product structure: {:?}",
+            outcome.species_without_structure()
+        );
+        let OutcomeSpecies::Resolved(chromium_nitrate) = &outcome.products()[0] else {
+            panic!("chromium nitrate must be structurally resolved");
+        };
+        let salt = ionic_salt(
+            chromium_nitrate
+                .structure
+                .as_ref()
+                .expect("chromium nitrate structure"),
+        )
+        .expect("ionic chromium nitrate");
+        assert_eq!((salt.cation.as_str(), salt.cation_charge), ("Cr", 3));
+
+        let OutcomeSpecies::Resolved(nitric_oxide) = &outcome.products()[1] else {
+            panic!("nitric oxide must be structurally resolved");
+        };
+        assert_eq!(
+            nitric_oxide
+                .structure
+                .as_ref()
+                .expect("nitric oxide structure")
+                .graph()
+                .atoms()
+                .values()
+                .map(|atom| atom.electrons().unpaired_electrons())
+                .sum::<u8>(),
+            1
+        );
+    }
+
+    #[test]
+    fn oxidizing_acid_family_is_structural_and_condition_aware() {
+        let registry = SpeciesRegistry::default();
+
+        let concentrated_nitric = ReactionBuildRequest {
+            selected_context: Some("concentrated".to_owned()),
+            ..request(&[("Cu", &[29]), ("HNO₃", &[1, 7, 8, 8, 8])])
+        };
+        let claim = solve_reaction_claim(&concentrated_nitric, &registry).expect("solved");
+        assert_eq!(claim.products[0].formula, "Cu(NO3)2");
+        assert_eq!(claim.products[1].formula, "NO2");
+        assert!(claim.products.iter().all(|product| product.formula != "H2"));
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&concentrated_nitric, claim, &registry)
+                .expect("balanced outcome")
+        else {
+            panic!("expected static outcome");
+        };
+        assert!(outcome.species_without_structure().is_empty());
+
+        let hot_concentrated_sulfuric = ReactionBuildRequest {
+            selected_context: Some("hot concentrated".to_owned()),
+            ..request(&[("Cu", &[29]), ("H₂SO₄", &[1, 1, 16, 8, 8, 8, 8])])
+        };
+        let claim = solve_reaction_claim(&hot_concentrated_sulfuric, &registry).expect("solved");
+        assert_eq!(claim.products[0].formula, "CuSO4");
+        assert_eq!(claim.products[1].formula, "SO2");
+        assert!(claim.products.iter().all(|product| product.formula != "H2"));
+        let CompiledClaimOutcome::Static(outcome) =
+            compile_claim_outcome(&hot_concentrated_sulfuric, claim, &registry)
+                .expect("balanced outcome")
+        else {
+            panic!("expected static outcome");
+        };
+        assert_eq!(outcome.equation(), "2 H2SO4 + Cu → 2 H2O + CuSO4 + SO2");
+        assert!(outcome.species_without_structure().is_empty());
     }
 
     #[test]
