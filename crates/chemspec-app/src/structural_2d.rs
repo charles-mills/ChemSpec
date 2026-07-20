@@ -2974,7 +2974,12 @@ fn atom_bond_angles(
 /// Darkens (factor < 1) or lightens a colour toward white (factor > 1).
 fn shade(color: Color, factor: f32) -> Color {
     if factor <= 1.0 {
-        Color::from_rgba(color.r * factor, color.g * factor, color.b * factor, color.a)
+        Color::from_rgba(
+            color.r * factor,
+            color.g * factor,
+            color.b * factor,
+            color.a,
+        )
     } else {
         let lift = factor - 1.0;
         Color::from_rgba(
@@ -3532,15 +3537,10 @@ fn draw_operation_motion(
                     .collect();
                 #[allow(clippy::cast_precision_loss)]
                 let away_from = (!siblings.is_empty()).then(|| {
-                    let sum = siblings
-                        .iter()
-                        .fold(Vector::new(0.0, 0.0), |sum, point| {
-                            sum + Vector::new(point.x, point.y)
-                        });
-                    Point::new(
-                        sum.x / siblings.len() as f32,
-                        sum.y / siblings.len() as f32,
-                    )
+                    let sum = siblings.iter().fold(Vector::new(0.0, 0.0), |sum, point| {
+                        sum + Vector::new(point.x, point.y)
+                    });
+                    Point::new(sum.x / siblings.len() as f32, sum.y / siblings.len() as f32)
                 });
                 draw_covalent_electron_motion(
                     frame, operation, positions, away_from, progress, phase, scale,

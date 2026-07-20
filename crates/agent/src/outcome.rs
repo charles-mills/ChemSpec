@@ -5,10 +5,10 @@ use chem_catalogue::{
 };
 use chem_domain::{
     BronstedAcidProfile, Charge, ContentDigest, ElementInventory, ElementSymbol,
-    ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, ReactionTerm,
-    RepresentationKind, ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery,
-    SpeciesRegistry, SpeciesResolution, StructureDefinition, StructureId, UnbalancedReactionTerm,
-    classify_bronsted_acid, generate_structure, symbol_of,
+    ExternalIdentifier, FormulaComposition, Phase, ReactionDeclaration, RepresentationKind,
+    ResolvedSpecies, SpeciesAmbiguity, SpeciesId, SpeciesQuery, SpeciesRegistry, SpeciesResolution,
+    StructureDefinition, StructureId, UnbalancedReactionTerm, classify_bronsted_acid,
+    generate_structure, symbol_of,
 };
 use num_bigint::BigUint;
 
@@ -2058,9 +2058,8 @@ mod tests {
         let sulfur: &[(&str, u64)] = &[("S", 8)];
         let hydrogen: &[(&str, u64)] = &[("H", 2)];
         let oxygen: &[(&str, u64)] = &[("O", 2)];
-        let classify = |first, second, product| {
-            chem_domain::classify_phase_synthesis(first, second, product)
-        };
+        let classify =
+            |first, second, product| chem_domain::classify_phase_synthesis(first, second, product);
         assert_eq!(
             classify((sulfur, Phase::Solid), (oxygen, Phase::Gas), Phase::Gas),
             Some(chem_domain::PhaseSynthesisRoute::SolidGas)

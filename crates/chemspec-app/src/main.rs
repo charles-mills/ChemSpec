@@ -4168,7 +4168,9 @@ impl App {
             })
             .map_or_else(
                 || match educational_scene.kind {
-                    chem_presentation::EducationalSceneKind::ReactantSetup => "REACTANTS".to_owned(),
+                    chem_presentation::EducationalSceneKind::ReactantSetup => {
+                        "REACTANTS".to_owned()
+                    }
                     chem_presentation::EducationalSceneKind::StructuralChange => {
                         "STRUCTURAL CHANGE".to_owned()
                     }

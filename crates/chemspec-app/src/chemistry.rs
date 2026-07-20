@@ -2353,6 +2353,8 @@ fn active_observation(
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
+
     use super::*;
     use chem_domain::{Phase, RepresentationKind};
 
@@ -3354,7 +3356,8 @@ mod tests {
             let run = run(request).expect("every registered request validates");
             match run.macroscopic() {
                 None => {
-                    actual.push_str(&format!("{id} | legacy-authored\n"));
+                    writeln!(&mut actual, "{id} | legacy-authored")
+                        .expect("writing to a String cannot fail");
                 }
                 Some(reaction) => {
                     let profile =
@@ -3364,14 +3367,16 @@ mod tests {
                         .objects
                         .iter()
                         .find(|object| object.role == chem_presentation::SceneRole::Vessel)
-                        .map_or_else(|| "no-vessel".to_owned(), |object| {
-                            format!("{:?}", object.asset)
-                        });
+                        .map_or_else(
+                            || "no-vessel".to_owned(),
+                            |object| format!("{:?}", object.asset),
+                        );
                     let process = reaction
                         .process
                         .as_ref()
                         .map_or_else(|| "generic".to_owned(), |process| format!("{process:?}"));
-                    actual.push_str(&format!("{id} | phase-driven | {process} | {vessel}\n"));
+                    writeln!(&mut actual, "{id} | phase-driven | {process} | {vessel}")
+                        .expect("writing to a String cannot fail");
                 }
             }
         }

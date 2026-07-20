@@ -474,9 +474,7 @@ pub fn classify_phase_synthesis(
     };
     let dioxygen = |formula| exactly(formula, "O", 2);
     let dihydrogen = |formula| exactly(formula, "H", 2);
-    if (dioxygen(first.0) && dihydrogen(second.0))
-        || (dioxygen(second.0) && dihydrogen(first.0))
-    {
+    if (dioxygen(first.0) && dihydrogen(second.0)) || (dioxygen(second.0) && dihydrogen(first.0)) {
         return None;
     }
     if product_phase != Phase::Gas {
