@@ -92,9 +92,11 @@ fn add_precipitate_cloud(
     }
 }
 
-/// Fixed-population product flecks raining out of the cloud. Each fleck
-/// cycles from the mixing depth to the floor, swelling in from nothing at
-/// the top of its cycle and vanishing at the bottom, so the population is
+/// Fixed-population product flecks sinking out of the cloud — not a uniform
+/// rain but streamers: each fleck belongs to one of a few slowly-wandering
+/// curtain columns, the way settling precipitate actually channels. Each
+/// fleck cycles from the mixing depth to the floor, swelling in from nothing
+/// at the top of its cycle and vanishing at the bottom, so the population is
 /// constant while material visibly sinks.
 fn add_falling_flecks(
     mesh: &mut Mesh,
@@ -104,34 +106,51 @@ fn add_falling_flecks(
     phase: f32,
     seed: u64,
 ) {
+    const STREAMERS: u32 = 6;
     const FLECKS: u32 = 40;
     for fleck in 0..FLECKS {
+        let streamer = fleck % STREAMERS;
+        let column_angle = seeded_unit(seed, streamer, 367) * std::f32::consts::TAU;
+        let column_radial = (0.12 + seeded_unit(seed, streamer, 368) * 0.55) * state.radius;
+        let sway = curl_like_flow(phase * 0.35, seed, streamer) * 0.07;
         let rate = 0.22 + seeded_unit(seed, fleck, 361) * 0.24;
         let age = (phase * rate + seeded_unit(seed, fleck, 362)).fract();
-        let angle = seeded_unit(seed, fleck, 363) * std::f32::consts::TAU;
-        let radial = seeded_unit(seed, fleck, 364).sqrt() * state.radius * 0.66;
+        let scatter_angle = seeded_unit(seed, fleck, 363) * std::f32::consts::TAU;
+        let scatter = seeded_unit(seed, fleck, 364).sqrt() * 0.07;
         let start_y = state.surface_centre.y - 0.14 - seeded_unit(seed, fleck, 365) * 0.16;
         let fall = age.powf(1.35);
-        let drift = curl_like_flow(phase * 0.8, seed, fleck) * 0.03 * age;
+        let drift = curl_like_flow(phase * 0.8, seed, fleck) * 0.02 * age;
         let position = Vec3::new(
-            state.surface_centre.x + angle.cos() * radial + drift.x,
+            state.surface_centre.x
+                + column_angle.cos() * column_radial
+                + scatter_angle.cos() * scatter
+                + sway.x
+                + drift.x,
             start_y + (state.floor_y + 0.03 - start_y) * fall,
-            state.surface_centre.z + angle.sin() * radial + drift.z,
+            state.surface_centre.z
+                + column_angle.sin() * column_radial
+                + scatter_angle.sin() * scatter
+                + sway.z
+                + drift.z,
         );
-        let size = (0.016 + seeded_unit(seed, fleck, 366) * 0.020)
+        let size = (0.014 + seeded_unit(seed, fleck, 366) * 0.018)
             * (std::f32::consts::PI * age).sin().max(0.0).sqrt()
             * presence;
+        // Elongated: a falling streak, not a tumbling grain.
         add_shard(
             mesh,
             position,
-            Vec3::splat(size.max(0.000_5)),
-            Quat::from_rotation_y(angle + age * 2.4),
+            Vec3::new(size * 0.7, size * 1.9, size * 0.7).max(Vec3::splat(0.000_5)),
+            Quat::from_rotation_y(scatter_angle + age * 2.4),
             colour,
             seed.wrapping_add(u64::from(fleck)),
         );
     }
 }
 
+// A linear choreography list; splitting it would scatter one scene's
+// reading order.
+#[allow(clippy::too_many_lines)]
 pub(super) fn add_precipitation_assembly(
     meshes: &mut SceneMeshes,
     plan: &ScenePlan,
@@ -210,7 +229,12 @@ pub(super) fn add_precipitation_assembly(
         phase,
         seed.rotate_left(15),
     );
-    // The formed product settles into a growing mound on the floor.
+    // The formed product settles into a growing mound on the floor. Its
+    // exposed surface ages toward neutral grey under the key light late in
+    // the scene — a restrained presentation tint layered over (and always
+    // subordinate to) the reviewed product colour.
+    let aging = 0.22 * smooth01((progress - 0.55) / 0.35);
+    let aged_colour = mix_color(solid_colour, [0.42, 0.41, 0.44, solid_colour[3]], aging);
     let (_, _, growth) =
         bound_colour_endpoints(&precipitation.precipitate, 1.0, ordinal, ordinal_progress);
     add_sediment_mound(
@@ -219,8 +243,18 @@ pub(super) fn add_precipitation_assembly(
         state.radius,
         growth * mound_settle(progress),
         0.30,
-        solid_colour,
+        aged_colour,
         seed.rotate_left(27),
+    );
+    // Once the pour has landed its charge, faint schlieren swirls mark the
+    // two solutions still mixing, fading as they homogenize.
+    add_schlieren_swirls(
+        &mut meshes.translucent,
+        state.surface_centre + Vec3::Y * receiving_lift,
+        state.radius,
+        smooth01((frame - 56.0) / 10.0) * (1.0 - smooth01((frame - 115.0) / 40.0)),
+        phase,
+        seed.rotate_left(21),
     );
     if let Some(pour) = pour {
         add_pouring_vessel_glass(&mut meshes.glass, &pour);

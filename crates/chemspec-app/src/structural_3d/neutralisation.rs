@@ -17,6 +17,9 @@ const BASIN_LEVEL: f32 = 1.53;
 /// The virtual 30 fps frame count the authored 240-frame pacing used.
 const FRAMES: u16 = 240;
 
+// A linear choreography list; splitting it would scatter one scene's
+// reading order.
+#[allow(clippy::too_many_lines)]
 pub(super) fn add_neutralisation_assembly(
     meshes: &mut SceneMeshes,
     moment: NeutralisationAssemblyMoment<'_>,
@@ -91,6 +94,43 @@ pub(super) fn add_neutralisation_assembly(
             colours.liquid,
         );
         add_stirring_apparatus(meshes, animated, pose, stir, seed, colours.liquid);
+        // Schlieren where the two solutions fold together, fading once the
+        // stirrer's window is past.
+        let past_mixing = (f32::from(ordinal) + ordinal_progress
+            - f32::from(mixing.end_ordinal)
+            - 1.0)
+            .max(0.0);
+        let mixing_life = smooth01((stir - 0.05) / 0.15) * (1.0 - smooth01(past_mixing / 1.5));
+        add_schlieren_swirls(
+            &mut meshes.translucent,
+            Vec3::new(0.0, animated.liquid_surface, 0.0),
+            0.88,
+            mixing_life,
+            frame / 30.0 * 2.0,
+            seed.rotate_left(7),
+        );
+        // The neutralisation is exothermic: warm haze wisps rise off the
+        // mixture, and the warmth mists the upper glass early — clearing
+        // once the boil takes over and drives the glass hot.
+        add_rising_plume(
+            &mut meshes.translucent,
+            Vec3::new(0.0, animated.liquid_surface, 0.0),
+            mixing_life * 0.35,
+            [0.90, 0.93, 0.95, 0.16],
+            frame / 30.0 * 2.0,
+            seed.rotate_left(11),
+        );
+        let warm_mist = smooth01((stir - 0.35) / 0.4)
+            * (1.0 - smooth01(post_process.boiling / 0.3));
+        add_condensation_mist(
+            &mut meshes.translucent,
+            Vec3::ZERO,
+            0.925,
+            animated.liquid_surface + 0.14,
+            layout.bench_top + 1.72 + post_process.lift,
+            warm_mist,
+            seed.rotate_left(15),
+        );
     }
     add_neutralisation_supplemental_reactants(meshes, moment, vessel_motion);
     add_neutralisation_reaction_gas(meshes, moment, vessel_motion);

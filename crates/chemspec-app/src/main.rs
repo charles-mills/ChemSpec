@@ -851,6 +851,29 @@ fn arm_hero_export(app: &mut App) {
     }
 }
 
+/// Playhead for a 3D smoke launch: `--smoke-playhead-ms=` exact moment, else
+/// `--smoke-playhead-frac=` fraction of the timeline (so scripts can seek the
+/// same relative moment across scenes whose durations differ), else the
+/// default two-thirds seek.
+fn smoke_playhead(duration_ms: u64) -> u64 {
+    let exact = std::env::args().find_map(|argument| {
+        argument
+            .strip_prefix("--smoke-playhead-ms=")
+            .and_then(|value| value.parse::<u64>().ok())
+    });
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let fraction = std::env::args().find_map(|argument| {
+        argument
+            .strip_prefix("--smoke-playhead-frac=")
+            .and_then(|value| value.parse::<f64>().ok())
+            .map(|fraction| (duration_ms as f64 * fraction.clamp(0.0, 1.0)).round() as u64)
+    });
+    exact
+        .or(fraction)
+        .unwrap_or_else(|| duration_ms.saturating_mul(2) / 3)
+        .min(duration_ms)
+}
+
 fn launch_state() -> App {
     let mut app = App {
         dump_frame_path: std::env::args()
@@ -894,20 +917,11 @@ fn launch_state() -> App {
             app.open_structural_animation();
         }
         let three_dimensional = smoke_mode == SmokeMode::Structural3d;
-        // Optional exact playhead for frame-dump verification of a specific
-        // moment (e.g. mid-pour), instead of the default two-thirds seek.
-        let smoke_playhead_ms = std::env::args().find_map(|argument| {
-            argument
-                .strip_prefix("--smoke-playhead-ms=")
-                .and_then(|value| value.parse::<u64>().ok())
-        });
         if let Some(animation) = &mut app.structural_animation {
             animation.frame_index = 1.min(animation.frames.frames().len().saturating_sub(1));
             if three_dimensional && !smoke_from_start {
                 let plan = &animation.real_world_plan;
-                animation.real_world_playhead_ms = smoke_playhead_ms
-                    .unwrap_or_else(|| plan.timeline.duration_ms().saturating_mul(2) / 3)
-                    .min(plan.timeline.duration_ms());
+                animation.real_world_playhead_ms = smoke_playhead(plan.timeline.duration_ms());
                 if let Some(position) = plan.timeline.locate(animation.real_world_playhead_ms)
                     && let Some(frame_index) = animation
                         .frames

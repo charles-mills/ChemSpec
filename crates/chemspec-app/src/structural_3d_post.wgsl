@@ -201,9 +201,13 @@ fn shaft_visibility(world: vec3<f32>) -> f32 {
 
 // Khronos PBR Neutral: preserves saturated educational colours far better
 // than filmic curves while still compressing HDR highlights.
+// The shoulder starts well below the spec's 0.76: the key + fill push
+// diffuse whites past 1.0, and with the spec knee everything from 1.5-3.0
+// landed in 0.94-0.98 — flat white. The earlier, longer shoulder keeps
+// gradation in bright liquids and glassware.
 fn tonemap_pbr_neutral(colour: vec3<f32>) -> vec3<f32> {
-    let start_compression = 0.8 - 0.04;
-    let desaturation = 0.15;
+    let start_compression = 0.50;
+    let desaturation = 0.08;
     let x = min(colour.r, min(colour.g, colour.b));
     var offset = 0.04;
     if (x < 0.08) {

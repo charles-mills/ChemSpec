@@ -104,6 +104,9 @@ fn add_reactant_pile(mesh: &mut Mesh, floor_centre: Vec3, colour: [f32; 4], cons
     }
 }
 
+// A linear choreography list; splitting it would scatter one scene's
+// reading order.
+#[allow(clippy::too_many_lines)]
 pub(super) fn add_gas_evolution_assembly(
     meshes: &mut SceneMeshes,
     plan: &ScenePlan,
@@ -171,6 +174,63 @@ pub(super) fn add_gas_evolution_assembly(
         cloud_colour,
         phase,
         seed.rotate_left(3),
+    );
+    // The evolved gas is denser than the air above it: it pools in the
+    // headspace as a stratified layer, then spills over the rim and puddles
+    // on the bench beside the beaker.
+    let surface_y = state.surface_centre.y + receiving_lift;
+    if fizz > 0.001 {
+        add_gas_density_field(
+            &mut meshes.gas,
+            Vec3::new(0.0, surface_y + 0.46, 0.0),
+            Vec3::new(0.74, 0.44, 0.74),
+            alpha(cloud_colour, 0.34 * fizz),
+            seed.rotate_left(11),
+            phase,
+            fizz,
+            GasFlowControls::retained_product(
+                fizz,
+                0.22,
+                0.0,
+                0.08,
+                smooth01((frame - 40.0) / 70.0),
+                seed.rotate_left(11),
+            ),
+        );
+        let spill = smooth01((frame - 75.0) / 40.0) * fizz;
+        let spill_angle = seed_phase(seed, 91);
+        if spill > 0.001 {
+            add_gas_density_field(
+                &mut meshes.gas,
+                Vec3::new(
+                    spill_angle.cos() * 1.08,
+                    layout.bench_top + 0.10,
+                    spill_angle.sin() * 1.08,
+                ),
+                Vec3::new(0.62, 0.13, 0.62),
+                alpha(cloud_colour, 0.30 * spill),
+                seed.rotate_left(23),
+                phase,
+                spill,
+                GasFlowControls::retained_product(
+                    spill * 0.9,
+                    0.10,
+                    0.0,
+                    0.0,
+                    0.9,
+                    seed.rotate_left(23),
+                ),
+            );
+        }
+    }
+    // Post-pour schlieren: the added solution still mixing into the acid.
+    add_schlieren_swirls(
+        &mut meshes.translucent,
+        state.surface_centre + Vec3::Y * receiving_lift,
+        BASIN_RADIUS,
+        smooth01((frame - 78.0) / 10.0) * (1.0 - smooth01((frame - 140.0) / 35.0)),
+        phase,
+        seed.rotate_left(27),
     );
     if gas_evolution.variant == GasEvolutionVariant::SolidLiquid {
         let solid_colour = gas_evolution_track_colour(

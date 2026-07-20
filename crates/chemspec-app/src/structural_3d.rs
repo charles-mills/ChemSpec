@@ -332,8 +332,13 @@ impl<Message> Program<Message> for Scene {
             .pressure_impulse
             .max(post_process.boiling * 0.5)
             .min(1.0);
-        let shake_yaw = (time_seconds * 23.7).sin() * (time_seconds * 5.9).cos() * 0.0035 * shake;
-        let shake_pitch = (time_seconds * 19.1).sin() * 0.0028 * shake;
+        // The detonation adds a much harder, faster kick on top — scaled by
+        // the blast envelope and the metal's intensity, gone with the blast.
+        let blast_kick = explosion::blast_camera_shake(&self.plan, self.moment).min(2.0);
+        let shake_yaw = (time_seconds * 23.7).sin() * (time_seconds * 5.9).cos() * 0.0035 * shake
+            + (time_seconds * 61.3).sin() * (time_seconds * 13.7).cos() * 0.0075 * blast_kick;
+        let shake_pitch = (time_seconds * 19.1).sin() * 0.0028 * shake
+            + (time_seconds * 53.9).sin() * 0.0060 * blast_kick;
         let yaw = camera.yaw + cue.yaw_offset + shake_yaw + orbit.0;
         let pitch = (camera.pitch + cue.pitch_offset + shake_pitch + orbit.1).clamp(-1.35, -0.12);
         let focus_target = layout
@@ -2734,57 +2739,6 @@ fn build_scene(
     )
 }
 
-/// A spatial callout for the active narration: while an annotation is on
-/// screen, a hairline leader with a glowing tip rises from the reaction
-/// point, anchoring the caption's words to the place they describe. The
-/// renderer stays chemistry-blind — the text itself lives in the caption
-/// panel; this only marks where.
-fn add_annotation_marker(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    ordinal: u16,
-    progress: f32,
-) {
-    let active = plan.annotations.iter().find(|annotation| {
-        annotation.start_ordinal <= ordinal && ordinal <= annotation.end_ordinal
-    });
-    // The marker geometry is ALWAYS emitted (invisible at alpha zero when no
-    // annotation is active): constant topology keeps per-moment meshes free
-    // of entity churn, which other scene invariants rely on.
-    let alpha = active.map_or(0.0, |annotation| {
-        let ramp_in = if ordinal == annotation.start_ordinal {
-            smooth01(progress / 0.18)
-        } else {
-            1.0
-        };
-        let ramp_out = if ordinal == annotation.end_ordinal {
-            smooth01((1.0 - progress) / 0.25)
-        } else {
-            1.0
-        };
-        ramp_in.min(ramp_out)
-    });
-    let anchor = layout.reaction_point;
-    let top = anchor + Vec3::Y * 0.34;
-    add_cylinder(
-        &mut meshes.translucent,
-        anchor + Vec3::Y * 0.06,
-        top,
-        0.003,
-        [0.55, 0.62, 0.68, 0.30 * alpha],
-    );
-    let pulse = 1.0 + (progress * std::f32::consts::TAU * 2.0).sin() * 0.14;
-    add_sphere(
-        &mut meshes.translucent,
-        top,
-        0.013 * pulse,
-        [0.62, 0.70, 0.76, 0.55 * alpha],
-        4,
-        6,
-    );
-}
-
 /// The cue-adjusted view direction at this moment (shake excluded: its
 /// fraction of a degree cannot flip triangle ordering).
 fn live_view_direction(plan: &ScenePlan, moment: RealWorldPosition, orbit: (f32, f32)) -> Vec3 {
@@ -2834,8 +2788,9 @@ fn build_scene_with_stage(
     view_direction: Vec3,
 ) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let mut meshes = SceneMeshes::default();
+    // Scene invariant: per-plan topology is CONSTANT — entities never appear
+    // or disappear across (ordinal, progress); only sizes/positions animate.
     let layout = SceneLayout::resolve(plan);
-    add_annotation_marker(&mut meshes, plan, layout, ordinal, progress);
     let final_ordinal = plan
         .timeline
         .beats
@@ -4540,9 +4495,16 @@ fn add_evaporation_crystallization_process(
         );
     }
     if state.crystal_growth > 0.002 {
+        // Crystals rest on the vessel's actual interior floor — the same
+        // place the shrinking pool bottoms out — riding the heating lift,
+        // so they never hang where an old liquid level used to be.
         add_crystallizing_salt(
             &mut meshes.opaque,
-            layout,
+            Vec3::new(
+                layout.vessel_center.x,
+                layout.bench_top + state.lift + 0.125,
+                layout.vessel_center.z,
+            ),
             state.crystal_growth,
             seed.rotate_left(37),
             colours.solid,
@@ -4561,11 +4523,17 @@ fn add_heating_rig(
     if reveal <= 0.002 {
         return;
     }
+    // Entrance choreography: the rig slides in from the wings at full size
+    // while the vessel lifts to make room, settling under it — instead of
+    // inflating out of the bench.
+    let entrance = smooth01(reveal / 0.55);
+    let slide_angle = seed_phase(seed, 152);
+    let slide = Vec3::new(slide_angle.cos(), 0.0, slide_angle.sin()) * (1.7 * (1.0 - entrance));
     let centre = Vec3::new(
         layout.vessel_center.x,
         layout.bench_top,
         layout.vessel_center.z,
-    );
+    ) + slide;
     let vessel_bottom = layout.bench_top + state.lift;
     let support_y = vessel_bottom - 0.035;
     let metal = [0.20, 0.24, 0.28, 1.0];
@@ -4573,14 +4541,14 @@ fn add_heating_rig(
     add_cylinder(
         &mut meshes.opaque,
         centre + Vec3::Y * 0.018,
-        centre + Vec3::Y * (0.105 * reveal),
-        0.13 * reveal,
+        centre + Vec3::Y * 0.105,
+        0.13,
         burner,
     );
     add_ring(
         &mut meshes.opaque,
         Vec3::new(centre.x, support_y, centre.z),
-        0.57 * reveal,
+        0.57,
         0.022,
         metal,
     );
@@ -4588,9 +4556,9 @@ fn add_heating_rig(
         let angle = std::f32::consts::TAU * f32::from(leg) / 3.0 + seed_phase(seed, 151) * 0.04;
         let foot = centre + Vec3::new(angle.cos() * 0.48, 0.025, angle.sin() * 0.48);
         let top = Vec3::new(
-            centre.x + angle.cos() * 0.50 * reveal,
+            centre.x + angle.cos() * 0.50,
             support_y,
-            centre.z + angle.sin() * 0.50 * reveal,
+            centre.z + angle.sin() * 0.50,
         );
         add_cylinder(&mut meshes.opaque, foot, top, 0.016, metal);
     }
@@ -4696,17 +4664,12 @@ fn add_nucleate_boiling(
 
 fn add_crystallizing_salt(
     mesh: &mut Mesh,
-    layout: SceneLayout,
+    floor: Vec3,
     progress: f32,
     seed: u64,
     colour: [f32; 4],
 ) {
     let progress = progress.clamp(0.0, 1.0);
-    let floor = Vec3::new(
-        layout.vessel_center.x,
-        layout.bench_top + stateful_vessel_floor_offset(layout) + 0.035,
-        layout.vessel_center.z,
-    );
     let crystal_colour = mix_color(colour, [0.93, 0.95, 0.92, 1.0], 0.42);
     for index in 0..48_u32 {
         let birth = seeded_unit(seed, index, 171) * 0.72;
@@ -4727,27 +4690,22 @@ fn add_crystallizing_salt(
                 size * 0.34 + tier,
                 angle.sin() * radial,
             );
-        let axis = Vec3::new(
-            seeded_unit(seed, index, 175) - 0.5,
-            0.65 + seeded_unit(seed, index, 176) * 0.35,
-            seeded_unit(seed, index, 177) - 0.5,
-        )
-        .normalize_or_zero();
-        let rotation =
-            Quat::from_axis_angle(axis, seeded_unit(seed, index, 178) * std::f32::consts::TAU);
+        // Cubic habit: the alkali halides this pipeline crystallises are all
+        // rock-salt cubes, so each crystal is an even cube resting near-flat
+        // on a face — random yaw, only a small settle tilt.
+        let rotation = Quat::from_rotation_y(
+            seeded_unit(seed, index, 178) * std::f32::consts::TAU,
+        ) * Quat::from_rotation_x((seeded_unit(seed, index, 175) - 0.5) * 0.22)
+            * Quat::from_rotation_z((seeded_unit(seed, index, 177) - 0.5) * 0.22);
         add_shard(
             mesh,
             point,
-            Vec3::new(size * 0.86, size * 0.82, size * 0.78),
+            Vec3::splat(size * 0.84),
             rotation,
             crystal_colour,
             shard_seed,
         );
     }
-}
-
-fn stateful_vessel_floor_offset(layout: SceneLayout) -> f32 {
-    (layout.vessel_center.y - (layout.bench_top + 0.605)).max(0.0)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -6494,10 +6452,12 @@ fn synthesis_combination_track_colour(
 }
 
 fn deposit_highlight_colour(colour: [f32; 4]) -> [f32; 4] {
+    // A warm metallic glint: the lift is strongest in red and weakest in
+    // blue, so fresh deposit sparkles hot instead of washing to white.
     [
-        colour[0] + (1.0 - colour[0]) * 0.28,
-        colour[1] + (1.0 - colour[1]) * 0.28,
-        colour[2] + (1.0 - colour[2]) * 0.28,
+        colour[0] + (1.0 - colour[0]) * 0.50,
+        colour[1] + (1.0 - colour[1]) * 0.26,
+        colour[2] + (1.0 - colour[2]) * 0.08,
         0.24,
     ]
 }
@@ -6839,6 +6799,92 @@ fn add_surface_flame(
     }
 }
 
+/// A shallow tapered ceramic dish, opaque, sitting on the bench. Shared by
+/// the solids and combustion scenes; `radius`/`height` set the footprint.
+#[allow(clippy::cast_precision_loss)]
+fn add_ceramic_dish(mesh: &mut Mesh, bench_top: f32, radius: f32, height: f32, colour: [f32; 4]) {
+    const SEGMENTS: u32 = 28;
+    let dimmed = [colour[0] * 0.66, colour[1] * 0.64, colour[2] * 0.62, 1.0];
+    let inner_colour = [colour[0] * 0.55, colour[1] * 0.54, colour[2] * 0.52, 1.0];
+    let floor_y = height * 0.31;
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    // Profile rings: outer base -> outer rim -> inner rim -> inner floor.
+    let profile: [(f32, f32, [f32; 4], f32); 4] = [
+        (radius * 0.70, height * 0.08, dimmed, -0.6),
+        (radius, height, dimmed, 0.35),
+        (radius * 0.93, height - 0.012, inner_colour, 0.7),
+        (radius * 0.62, floor_y, inner_colour, 0.55),
+    ];
+    for (ring_radius, ring_height, ring_colour, normal_y) in profile {
+        for segment in 0..=SEGMENTS {
+            let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+            let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
+            let normal = (radial * (1.0 - normal_y.abs()) + Vec3::Y * normal_y).normalize_or_zero();
+            mesh.vertices.push(Vertex {
+                position: (radial * ring_radius + Vec3::new(0.0, bench_top + ring_height, 0.0))
+                    .to_array(),
+                normal: normal.to_array(),
+                color: ring_colour,
+            });
+        }
+    }
+    for ring in 0..3_u32 {
+        for segment in 0..SEGMENTS {
+            let a = base_vertex + ring * (SEGMENTS + 1) + segment;
+            let b = a + SEGMENTS + 1;
+            mesh.indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+        }
+    }
+    // Inner floor fan.
+    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: [0.0, bench_top + floor_y, 0.0],
+        normal: Vec3::Y.to_array(),
+        color: inner_colour,
+    });
+    let floor_ring_start = base_vertex + 3 * (SEGMENTS + 1);
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            centre_vertex,
+            floor_ring_start + segment + 1,
+            floor_ring_start + segment,
+        ]);
+    }
+}
+
+/// Fixed-population condensation mist beading on a cool wall band: every
+/// droplet is always emitted, its size scaled by `mist`, so the topology
+/// never churns while the fogging fades in and out.
+fn add_condensation_mist(
+    mesh: &mut Mesh,
+    centre: Vec3,
+    wall_radius: f32,
+    band_bottom: f32,
+    band_top: f32,
+    mist: f32,
+    seed: u64,
+) {
+    const DROPLETS: u32 = 30;
+    for droplet in 0..DROPLETS {
+        let angle = seeded_unit(seed, droplet, 541) * std::f32::consts::TAU;
+        let height = band_bottom
+            + seeded_unit(seed, droplet, 542) * (band_top - band_bottom).max(0.01);
+        let size = (0.006 + seeded_unit(seed, droplet, 543) * 0.008) * mist;
+        add_sphere(
+            mesh,
+            Vec3::new(
+                centre.x + angle.cos() * wall_radius,
+                height,
+                centre.z + angle.sin() * wall_radius,
+            ),
+            size.max(0.000_5),
+            [0.88, 0.94, 0.97, 0.42],
+            3,
+            5,
+        );
+    }
+}
+
 /// Fixed-population gas puffs drifting up from `surface` and thinning out.
 fn add_rising_plume(
     mesh: &mut Mesh,
@@ -7124,6 +7170,10 @@ fn build_scheduled_pour_table(schedule: &PourSchedule) -> PourTable {
 #[allow(clippy::cast_precision_loss)]
 fn add_pouring_vessel_glass(mesh: &mut Mesh, state: &PourState) {
     const SEGMENTS: u32 = 24;
+    // Subdivided rows: tall translucent wall quads sort per-triangle against
+    // the surfaces behind them and paint picket-shaped wedges (the same
+    // failure the beaker wall had); short rows keep centroid ordering stable.
+    const ROWS: u32 = 10;
     const GLASS: [f32; 4] = [0.62, 0.84, 0.94, 0.22];
     const RIM: [f32; 4] = [0.66, 0.86, 0.95, 0.30];
     let axis = state.axis;
@@ -7138,22 +7188,24 @@ fn add_pouring_vessel_glass(mesh: &mut Mesh, state: &PourState) {
     for segment in 0..=SEGMENTS {
         let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
         let radial = e1 * angle.cos() + e2 * angle.sin();
-        for (level, colour) in [
-            (state.base, GLASS),
-            (top - axis * (state.height * 0.06), GLASS),
-            (top, RIM),
-        ] {
+        for row in 0..=ROWS {
+            let level = state.base + axis * (state.height * 0.94 * row as f32 / ROWS as f32);
             mesh.vertices.push(Vertex {
                 position: (level + radial * state.radius).to_array(),
                 normal: radial.to_array(),
-                color: colour,
+                color: GLASS,
             });
         }
+        mesh.vertices.push(Vertex {
+            position: (top + radial * state.radius).to_array(),
+            normal: radial.to_array(),
+            color: RIM,
+        });
     }
     for segment in 0..SEGMENTS {
-        let column = base_vertex + segment * 3;
-        let next = base_vertex + (segment + 1) * 3;
-        for level in 0..2 {
+        let column = base_vertex + segment * (ROWS + 2);
+        let next = base_vertex + (segment + 1) * (ROWS + 2);
+        for level in 0..=ROWS {
             let (a, b, c, d) = (column + level, next + level, column + level + 1, next + level + 1);
             mesh.indices.extend_from_slice(&[a, c, b, b, c, d]);
         }
@@ -7380,6 +7432,9 @@ struct LiquidState {
 #[allow(clippy::cast_precision_loss)]
 fn add_vessel_liquid(mesh: &mut Mesh, state: &PourState, colour: [f32; 4]) {
     const SEGMENTS: u32 = 20;
+    // Subdivided rows for the same reason as the vessel glass: one tall
+    // translucent band sort-flaps against the base disc behind it.
+    const ROWS: u32 = 6;
     if state.fraction <= 0.03 || state.height <= 0.01 {
         return;
     }
@@ -7402,24 +7457,23 @@ fn add_vessel_liquid(mesh: &mut Mesh, state: &PourState, colour: [f32; 4]) {
         let along = ((state.plane_y - bottom.y) / axis_y).clamp(0.015, state.height * 0.96);
         let top = bottom + axis * along;
         tops.push(top);
-        mesh.vertices.push(Vertex {
-            position: bottom.to_array(),
-            normal: radial.to_array(),
-            color: liquid_colour,
-        });
-        mesh.vertices.push(Vertex {
-            position: top.to_array(),
-            normal: radial.to_array(),
-            color: liquid_colour,
-        });
+        for row in 0..=ROWS {
+            mesh.vertices.push(Vertex {
+                position: bottom.lerp(top, row as f32 / ROWS as f32).to_array(),
+                normal: radial.to_array(),
+                color: liquid_colour,
+            });
+        }
     }
     for segment in 0..SEGMENTS {
         let next = (segment + 1) % SEGMENTS;
-        let b0 = base_vertex + segment * 2;
-        let t0 = b0 + 1;
-        let b1 = base_vertex + next * 2;
-        let t1 = b1 + 1;
-        mesh.indices.extend_from_slice(&[b0, t0, b1, b1, t0, t1]);
+        let column = base_vertex + segment * (ROWS + 1);
+        let neighbour = base_vertex + next * (ROWS + 1);
+        for row in 0..ROWS {
+            let (b0, t0, b1, t1) =
+                (column + row, column + row + 1, neighbour + row, neighbour + row + 1);
+            mesh.indices.extend_from_slice(&[b0, t0, b1, b1, t0, t1]);
+        }
     }
     // Level surface fan.
     let surface_centre = tops.iter().copied().sum::<Vec3>() / tops.len() as f32;
@@ -7581,23 +7635,68 @@ fn add_pour_stream(
         }
     }
     // Splash effects appear only once the falling front has reached the
-    // receiving liquid; before that, the stream ends in a rounded head.
+    // receiving liquid; before that, surface tension gathers the leading
+    // edge into a teardrop head, fatter than the necked stream behind it.
     if landed {
         add_pour_impact(meshes, anchors, phase, seed);
     } else {
+        let bright = [
+            colour[0] * 0.6 + 0.4,
+            colour[1] * 0.6 + 0.4,
+            colour[2] * 0.6 + 0.4,
+            (colour[3] + 0.35).min(0.9),
+        ];
+        let head = curve(front);
+        add_sphere(&mut meshes.translucent, head, base_radius * 2.2, bright, 4, 6);
         add_sphere(
             &mut meshes.translucent,
-            curve(front),
-            base_radius * 1.6,
-            [
-                colour[0] * 0.6 + 0.4,
-                colour[1] * 0.6 + 0.4,
-                colour[2] * 0.6 + 0.4,
-                (colour[3] + 0.35).min(0.9),
-            ],
+            head.lerp(curve((front - 0.07).max(0.0)), 0.55),
+            base_radius * 1.45,
+            bright,
             4,
             6,
         );
+    }
+}
+
+/// Faint refractive swirls left behind once a pour has mixed: ribbons of
+/// slightly lightened liquid circling the mixing region below the surface,
+/// fading as the solutions homogenize. Fixed population; sizes floored.
+#[allow(clippy::cast_precision_loss)]
+fn add_schlieren_swirls(
+    mesh: &mut Mesh,
+    centre: Vec3,
+    radius: f32,
+    strength: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const RIBBONS: u32 = 4;
+    const KNOTS: u32 = 6;
+    const SHEEN: [f32; 4] = [0.92, 0.96, 1.0, 0.15];
+    for ribbon in 0..RIBBONS {
+        let spin = if ribbon % 2 == 0 { 0.24 } else { -0.19 };
+        let base_angle = seeded_unit(seed, ribbon, 531) * std::f32::consts::TAU + phase * spin;
+        let band = radius * (0.22 + seeded_unit(seed, ribbon, 532) * 0.5);
+        let depth = 0.05 + seeded_unit(seed, ribbon, 533) * 0.15;
+        for knot in 0..KNOTS {
+            let t = knot as f32 / (KNOTS - 1) as f32;
+            let angle = base_angle + t * 1.7;
+            let position = Vec3::new(
+                centre.x + angle.cos() * band * (1.0 - t * 0.18),
+                centre.y - depth - t * 0.06,
+                centre.z + angle.sin() * band * (1.0 - t * 0.18),
+            );
+            let size = (0.030 + 0.022 * (std::f32::consts::PI * t).sin()) * strength;
+            add_sphere(
+                mesh,
+                position,
+                size.max(0.000_5),
+                alpha(SHEEN, SHEEN[3] * strength * (1.0 - t * 0.45)),
+                4,
+                6,
+            );
+        }
     }
 }
 
@@ -7947,6 +8046,72 @@ mod tests {
         .expect("validated observations select a presentation profile");
         compile_real_world_plan(run.frames(), &profile)
             .expect("plan compiles from validated frames")
+    }
+
+    /// Two builds of the same (plan, moment) must agree to the byte: scenes
+    /// are pure functions of the playhead, with no hidden clock or RNG.
+    fn assert_scene_rebuild_is_byte_identical(plan: &ScenePlan, label: &str) {
+        let duration = plan.timeline.duration_ms();
+        for quarter in 1..4_u64 {
+            let moment = plan
+                .timeline
+                .locate(duration * quarter / 4)
+                .expect("playhead within timeline");
+            let first = build_scene_at(plan, moment, (0.0, 0.0));
+            let second = build_scene_at(plan, moment, (0.0, 0.0));
+            assert!(
+                bytemuck::cast_slice::<GpuVertex, u8>(&first.0)
+                    == bytemuck::cast_slice::<GpuVertex, u8>(&second.0),
+                "{label} q{quarter}: vertices differ between identical builds"
+            );
+            assert!(
+                first.1 == second.1,
+                "{label} q{quarter}: indices differ between identical builds"
+            );
+            assert!(
+                (first.2, first.3) == (second.2, second.3),
+                "{label} q{quarter}: mesh bucket boundaries differ"
+            );
+            assert!(
+                bytemuck::cast_slice::<GasSplat, u8>(&first.4)
+                    == bytemuck::cast_slice::<GasSplat, u8>(&second.4),
+                "{label} q{quarter}: gas splats differ between identical builds"
+            );
+        }
+    }
+
+    #[test]
+    fn every_request_backed_scene_is_a_pure_function_of_its_playhead() {
+        for request in chemistry::ReactionRequest::ALL {
+            let plan = plan_for(request);
+            assert_scene_rebuild_is_byte_identical(&plan, &request.id());
+        }
+    }
+
+    #[test]
+    fn every_dynamic_fixture_scene_is_a_pure_function_of_its_playhead() {
+        for fixture in [
+            "combustion-methane",
+            "combustion-methane-incomplete",
+            "displacement-zinc-copper",
+            "synthesis-iron-sulfur",
+        ] {
+            let outcome =
+                crate::smoke_dynamic_presentation(fixture).expect("smoke fixture compiles");
+            let frames = match &outcome {
+                crate::DynamicPresentationOutcome::ReviewedFamily(outcome) => outcome.frames(),
+                crate::DynamicPresentationOutcome::Escalated(outcome) => outcome.frames(),
+                crate::DynamicPresentationOutcome::Static { .. } => {
+                    panic!("{fixture}: smoke fixture must yield an animation")
+                }
+            };
+            let profile =
+                crate::dynamic_presentation_profile(frames, outcome.static_outcome(), None)
+                    .expect("smoke fixture profile compiles");
+            let plan = compile_real_world_plan(frames, &profile)
+                .expect("smoke fixture plan compiles");
+            assert_scene_rebuild_is_byte_identical(&plan, fixture);
+        }
     }
 
     #[test]
@@ -8955,10 +9120,36 @@ mod tests {
                     .iter()
                     .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly);
             if uses_authored_gas_assembly {
-                assert!(
-                    scene.4.is_empty(),
-                    "an authored gas assembly must not be overlaid with procedural gas"
-                );
+                // The assembly owns its gas look: the generic overlay must
+                // not run on top of it. Gas-evolution scenes emit their own
+                // dense-product haze splats (developed by late reaction —
+                // at generation onset the fluid volume is still empty); the
+                // alkali assembly (which wins the dispatch when both are
+                // present) emits none.
+                let routes_to_alkali = plan
+                    .objects
+                    .iter()
+                    .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly);
+                if plan.gas_evolution.is_some() && !routes_to_alkali {
+                    let late = build_scene_with_stage(
+                        &plan,
+                        final_ordinal,
+                        0.9,
+                        MacroscopicStage::Reaction,
+                        0.9,
+                        Some(0.85),
+                        fixed_view_direction(),
+                    );
+                    assert!(
+                        !late.4.is_empty(),
+                        "the gas-evolution assembly supplies its own dense-gas haze"
+                    );
+                } else {
+                    assert!(
+                        scene.4.is_empty(),
+                        "an authored gas assembly must not be overlaid with procedural gas"
+                    );
+                }
                 assert!(
                     scene.0.len() > 1_000,
                     "the authored reaction should supply its own visible geometry"
@@ -9758,7 +9949,14 @@ mod tests {
         );
         let salt_extent = |growth: f32| {
             let mut mesh = Mesh::default();
-            add_crystallizing_salt(&mut mesh, SceneLayout::resolve(&plan), growth, 7, [1.0; 4]);
+            let layout = SceneLayout::resolve(&plan);
+            add_crystallizing_salt(
+                &mut mesh,
+                Vec3::new(layout.vessel_center.x, layout.bench_top + 0.125, layout.vessel_center.z),
+                growth,
+                7,
+                [1.0; 4],
+            );
             mesh.vertices
                 .iter()
                 .map(|vertex| vertex.position[1])
@@ -10444,4 +10642,5 @@ mod tests {
         );
     }
 }
+
 

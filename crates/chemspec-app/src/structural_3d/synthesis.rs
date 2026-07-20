@@ -15,67 +15,39 @@ const DISH_HEIGHT: f32 = 0.13;
 /// Reactant pile offsets either side of the dish centre.
 const PILE_OFFSET: f32 = 0.17;
 
-/// How far the two reactant piles have merged into the product.
+/// How far the two reactant piles have merged into one mixed pile.
 fn combination(progress: f32) -> f32 {
-    smooth01((progress - 0.18) / 0.62)
+    smooth01((progress - 0.16) / 0.34)
 }
 
-/// Reaction-front glow: builds after mixing starts, gone once combined.
-fn front_presence(progress: f32) -> f32 {
-    smooth01((progress - 0.22) / 0.16) * (1.0 - smooth01((progress - 0.72) / 0.2))
+/// The rod tip heats to ignition while it rests against the mixed pile.
+fn tip_glow(progress: f32) -> f32 {
+    smooth01((progress - 0.48) / 0.10) * (1.0 - smooth01((progress - 0.74) / 0.10))
 }
 
-/// A shallow tapered ceramic dish, opaque, sitting on the bench.
-fn add_ceramic_dish(mesh: &mut Mesh, bench_top: f32, colour: [f32; 4]) {
-    const SEGMENTS: u32 = 28;
-    let dimmed = [colour[0] * 0.66, colour[1] * 0.64, colour[2] * 0.62, 1.0];
-    let inner_colour = [colour[0] * 0.55, colour[1] * 0.54, colour[2] * 0.52, 1.0];
-    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-    // Profile rings: outer base -> outer rim -> inner rim -> inner floor.
-    let profile: [(f32, f32, [f32; 4], f32); 4] = [
-        (DISH_RADIUS * 0.70, 0.010, dimmed, -0.6),
-        (DISH_RADIUS, DISH_HEIGHT, dimmed, 0.35),
-        (DISH_RADIUS * 0.93, DISH_HEIGHT - 0.012, inner_colour, 0.7),
-        (DISH_RADIUS * 0.62, 0.040, inner_colour, 0.55),
-    ];
-    for (radius, height, ring_colour, normal_y) in profile {
-        for segment in 0..=SEGMENTS {
-            let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
-            let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
-            let normal = (radial * (1.0 - normal_y.abs()) + Vec3::Y * normal_y).normalize_or_zero();
-            mesh.vertices.push(Vertex {
-                position: (radial * radius + Vec3::new(0.0, bench_top + height, 0.0)).to_array(),
-                normal: normal.to_array(),
-                color: ring_colour,
-            });
-        }
-    }
-    for ring in 0..3_u32 {
-        for segment in 0..SEGMENTS {
-            let a = base_vertex + ring * (SEGMENTS + 1) + segment;
-            let b = a + SEGMENTS + 1;
-            mesh.indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
-        }
-    }
-    // Inner floor fan.
-    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-    mesh.vertices.push(Vertex {
-        position: [0.0, bench_top + 0.040, 0.0],
-        normal: Vec3::Y.to_array(),
-        color: inner_colour,
-    });
-    let floor_ring_start = base_vertex + 3 * (SEGMENTS + 1);
-    for segment in 0..SEGMENTS {
-        mesh.indices.extend_from_slice(&[
-            centre_vertex,
-            floor_ring_start + segment + 1,
-            floor_ring_start + segment,
-        ]);
-    }
+/// How far the reaction front has swept from the ignition point.
+fn front_radius(progress: f32) -> f32 {
+    smooth01((progress - 0.58) / 0.32) * 0.85
+}
+
+/// The burning front line itself: lit while the sweep crosses the pile.
+fn front_line(progress: f32) -> f32 {
+    smooth01((progress - 0.58) / 0.05) * (1.0 - smooth01((progress - 0.88) / 0.08))
+}
+
+/// Where the rod tip ignites the pile: on the pile's edge, under the rod's
+/// resting position.
+fn ignition_point(floor_y: f32) -> Vec3 {
+    let toward = Vec3::new(DISH_RADIUS * 0.62, 0.0, -DISH_RADIUS * 0.30).normalize_or_zero();
+    Vec3::new(0.0, floor_y, 0.0) + toward * 0.30
 }
 
 /// A heap of powder grains: a golden-angle spiral of faceted shards piled
 /// into a low mound. `presence` scales grain size only, so topology holds.
+/// Grains alternate between the two `colours` (pass the same twice for a
+/// single-species pile); if a `front` (origin, radius, product colour) is
+/// given, each grain the sweep has passed converts to the product colour —
+/// the burn leaves dark product behind it, grain by grain.
 #[allow(clippy::too_many_arguments)]
 fn add_powder_heap(
     mesh: &mut Mesh,
@@ -83,7 +55,8 @@ fn add_powder_heap(
     spread: f32,
     grain: f32,
     presence: f32,
-    colour: [f32; 4],
+    colours: [[f32; 4]; 2],
+    front: Option<(Vec3, f32, [f32; 4])>,
     count: u32,
     seed: u64,
 ) {
@@ -96,6 +69,15 @@ fn add_powder_heap(
                 (1.0 - radius * radius) * spread * 0.42 * presence,
                 angle.sin() * radius * spread,
             );
+        let mut colour = colours[(index % 2) as usize];
+        if let Some((origin, front_radius, product)) = front {
+            let reach = Vec3::new(position.x - origin.x, 0.0, position.z - origin.z).length();
+            colour = mix_color(colour, product, smooth01((front_radius - reach) / 0.07));
+        }
+        // Per-grain self-shadow: crevice grains sit darker, so the heap
+        // reads as matte powder instead of key-light-washed white facets.
+        let shade = 0.45 + seeded_unit(seed, index, 464) * 0.55;
+        let colour = [colour[0] * shade, colour[1] * shade, colour[2] * shade, colour[3]];
         let size = grain * (0.7 + seeded_unit(seed, index, 462) * 0.6) * presence;
         add_shard(
             mesh,
@@ -110,9 +92,17 @@ fn add_powder_heap(
 }
 
 /// The mixing rod: enters, works the piles in a slow orbit while they
-/// combine, then rests against the rim. Always emitted.
-fn add_mixing_rod(mesh: &mut Mesh, bench_top: f32, progress: f32, colour: [f32; 4], seed: u64) {
-    let working = smooth01((progress - 0.10) / 0.08) * (1.0 - smooth01((progress - 0.66) / 0.12));
+/// combine, then rests against the pile's edge — where its tip heats to a
+/// glow and lights the mixture.
+fn add_mixing_rod(
+    meshes: &mut SceneMeshes,
+    bench_top: f32,
+    progress: f32,
+    colour: [f32; 4],
+    ignites: bool,
+    seed: u64,
+) {
+    let working = smooth01((progress - 0.10) / 0.08) * (1.0 - smooth01((progress - 0.50) / 0.10));
     let orbit = progress * 9.0 + seed_phase(seed, 441);
     let reach = 0.20 * working;
     let tip = Vec3::new(
@@ -124,31 +114,53 @@ fn add_mixing_rod(mesh: &mut Mesh, bench_top: f32, progress: f32, colour: [f32; 
     let blend = working;
     let tip = rest_tip.lerp(tip, blend);
     let top = tip + Vec3::new(0.34 - 0.16 * blend, 0.98, 0.30 - 0.24 * blend);
-    add_cylinder(mesh, tip, top, 0.026, colour);
-    add_sphere(mesh, tip, 0.032, colour, 4, 6);
+    add_cylinder(&mut meshes.opaque, tip, top, 0.026, colour);
+    add_sphere(&mut meshes.opaque, tip, 0.032, colour, 4, 6);
+    // The resting tip glows toward ignition, then hands over to the front.
+    // Gated on the per-plan front authorization, so topology holds and a
+    // frontless plan never invents an igniter.
+    if ignites {
+        let glow = tip_glow(progress);
+        add_sphere(
+            &mut meshes.emissive,
+            tip,
+            (0.045 * glow).max(0.000_5),
+            [1.0, 0.42, 0.10, 0.65 * glow.max(0.02)],
+            4,
+            6,
+        );
+    }
 }
 
-/// Emissive glow beads tracing the boundary where the powders react.
+/// The burning front line: emissive beads strung along the arc the sweep
+/// has reached, with smoke curling up and sparks spitting from the line —
+/// dark converted product behind, unburned mixture ahead.
 fn add_reaction_front(
     meshes: &mut SceneMeshes,
-    bench_top: f32,
+    origin: Vec3,
+    radius: f32,
     presence: f32,
     phase: f32,
     seed: u64,
 ) {
     const BEADS: u32 = 14;
+    const SMOKE: u32 = 6;
     const FRONT_COLOUR: [f32; 4] = [1.0, 0.22, 0.035, 0.58];
+    // Presence fades any bead whose arc position has left the pile.
+    let on_pile = |position: Vec3| {
+        1.0 - smooth01(
+            (Vec3::new(position.x, 0.0, position.z).length() - 0.36) / 0.08,
+        )
+    };
     for bead in 0..BEADS {
-        let angle = std::f32::consts::TAU * bead as f32 / BEADS as f32
-            + (phase * 0.4 + seeded_unit(seed, bead, 451)).sin() * 0.2;
-        let radial = 0.16 + seeded_unit(seed, bead, 452) * 0.10;
+        let angle = seeded_unit(seed, bead, 451) * std::f32::consts::TAU
+            + (phase * 0.4 + seeded_unit(seed, bead, 456)).sin() * 0.12;
+        let position = origin
+            + Vec3::new(angle.cos(), 0.0, angle.sin()) * radius
+            + Vec3::Y * (0.012 + seeded_unit(seed, bead, 454) * 0.03);
         let pulse = 0.6 + 0.4 * (phase * 2.2 + seeded_unit(seed, bead, 453) * 6.0).sin();
-        let position = Vec3::new(
-            angle.cos() * radial,
-            bench_top + 0.075 + seeded_unit(seed, bead, 454) * 0.05,
-            angle.sin() * radial,
-        );
-        let size = (0.014 + seeded_unit(seed, bead, 455) * 0.014) * presence * pulse;
+        let size =
+            (0.014 + seeded_unit(seed, bead, 455) * 0.014) * presence * pulse * on_pile(position);
         add_sphere(
             &mut meshes.emissive,
             position,
@@ -158,10 +170,30 @@ fn add_reaction_front(
             5,
         );
     }
+    // Thin smoke rising off the burn line.
+    for puff in 0..SMOKE {
+        let angle = seeded_unit(seed, puff, 457) * std::f32::consts::TAU;
+        let anchor = origin + Vec3::new(angle.cos(), 0.0, angle.sin()) * radius;
+        let age = (phase * (0.5 + seeded_unit(seed, puff, 458) * 0.4)
+            + seeded_unit(seed, puff, 459))
+        .fract();
+        let size = (0.030 + 0.05 * age) * presence * on_pile(anchor);
+        add_sphere(
+            &mut meshes.translucent,
+            anchor + Vec3::Y * (0.03 + age * 0.30),
+            size.max(0.000_5),
+            [0.62, 0.60, 0.58, 0.30 * (1.0 - age * 0.8) * presence],
+            4,
+            6,
+        );
+    }
+    // Sparks spit from a point that runs along the line as it burns.
+    let spit_angle = phase * 0.35 + seed_phase(seed, 460);
+    let spit = origin + Vec3::new(spit_angle.cos(), 0.0, spit_angle.sin()) * radius;
     add_ignition_sparks(
         &mut meshes.emissive,
-        Vec3::new(0.0, bench_top + 0.09, 0.0),
-        presence * 0.7,
+        spit + Vec3::Y * 0.03,
+        presence * 0.8 * on_pile(spit),
         phase,
         seed.rotate_left(5),
     );
@@ -186,18 +218,36 @@ pub(super) fn add_synthesis_assembly(
         let bound =
             synthesis_combination_track_colour(clip_colour, synthesis, ordinal, ordinal_progress);
         // Matte powder reads darker than the fired dish it sits in.
-        [bound[0] * 0.78, bound[1] * 0.78, bound[2] * 0.78, bound[3]]
+        [bound[0] * 0.62, bound[1] * 0.62, bound[2] * 0.62, bound[3]]
     };
     add_ceramic_dish(
         &mut meshes.opaque,
         layout.bench_top,
+        DISH_RADIUS,
+        DISH_HEIGHT,
         colour(ClipColour::ReactionVessel),
     );
     let merge = combination(progress);
     let floor_y = layout.bench_top + 0.075;
-    // The two powder charges slide together and shrink as the product takes
-    // over: faceted shard heaps, so the piles read as matte grains rather
-    // than washed-out smooth domes.
+    let reactant_a = colour(ClipColour::ReactantA);
+    let reactant_b = colour(ClipColour::ReactantB);
+    let product = colour(ClipColour::SynthesisProduct);
+    // With an authorized front the burn sweeps out from the ignition point;
+    // without one the conversion is a quiet uniform darkening from the
+    // pile's own centre.
+    let ignition = ignition_point(floor_y);
+    let front = if synthesis.show_reaction_front {
+        (ignition, front_radius(progress), product)
+    } else {
+        (
+            Vec3::new(0.0, floor_y, 0.0),
+            smooth01((progress - 0.55) / 0.30) * 2.0,
+            product,
+        )
+    };
+    // The two powder charges slide together into one salt-and-pepper pile:
+    // faceted shard heaps, so the piles read as matte grains rather than
+    // washed-out smooth domes.
     let approach = PILE_OFFSET * (1.0 - merge * 0.72);
     add_powder_heap(
         &mut meshes.opaque,
@@ -205,7 +255,8 @@ pub(super) fn add_synthesis_assembly(
         0.24,
         0.055,
         (1.0 - merge).max(0.04),
-        colour(ClipColour::ReactantA),
+        [reactant_a, reactant_a],
+        Some(front),
         16,
         seed.rotate_left(3),
     );
@@ -215,34 +266,40 @@ pub(super) fn add_synthesis_assembly(
         0.24,
         0.055,
         (1.0 - merge).max(0.04),
-        colour(ClipColour::ReactantB),
+        [reactant_b, reactant_b],
+        Some(front),
         16,
         seed.rotate_left(7),
     );
+    // The mixed pile: alternating grains of the two reactants, converted to
+    // dark product grain-by-grain as the front passes.
     add_powder_heap(
         &mut meshes.opaque,
         Vec3::new(0.0, floor_y, 0.0),
         0.34,
         0.062,
         merge.max(0.02),
-        colour(ClipColour::SynthesisProduct),
+        [reactant_a, reactant_b],
+        Some(front),
         26,
         seed.rotate_left(11),
     );
     if synthesis.show_reaction_front {
         add_reaction_front(
             meshes,
-            layout.bench_top,
-            front_presence(progress),
+            ignition,
+            front_radius(progress),
+            front_line(progress),
             phase,
             seed.rotate_left(15),
         );
     }
     add_mixing_rod(
-        &mut meshes.opaque,
+        meshes,
         layout.bench_top,
         progress,
         colour(ClipColour::MixingTool),
+        synthesis.show_reaction_front,
         seed,
     );
 }

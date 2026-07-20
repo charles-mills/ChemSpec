@@ -51,6 +51,22 @@ fn steam(progress: f32) -> f32 {
     smooth01((progress - CONTACT - 0.01) / 0.05) * (1.0 - smooth01((progress - 0.78) / 0.2))
 }
 
+/// Intensity-scaled camera kick through the blast window; zero for every
+/// other scene and every other moment. Consumed by the renderer's handheld
+/// shake so the detonation physically rattles the framing.
+pub(super) fn blast_camera_shake(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
+    plan.explosive_metal_water.as_ref().map_or(0.0, |explosive| {
+        let progress = plan.timeline.normalized_progress_at(moment);
+        blast(progress) * variant_intensity(explosive.variant)
+    })
+}
+
+/// How far the thrown water has left the basin after the blast: the level
+/// drops over the churn window and stays down.
+fn level_drop(progress: f32, intensity: f32) -> f32 {
+    smooth01((progress - CONTACT) / 0.10) * 0.09 * intensity
+}
+
 /// The falling lump: a heavy drop straight into the basin, gone at contact.
 fn add_falling_lump(
     mesh: &mut Mesh,
@@ -189,6 +205,97 @@ fn add_glass_chips(
     let _ = impact;
 }
 
+/// Molten metal droplets hurled out of the fireball, each dragging a short
+/// emissive trail of cooling beads behind its arc. Fixed population: eight
+/// arcs of four beads, all floored outside the blast.
+fn add_molten_ejecta(
+    mesh: &mut Mesh,
+    impact: Vec3,
+    progress: f32,
+    intensity: f32,
+    seed: u64,
+) {
+    const EJECTA: u32 = 8;
+    const BEADS: u32 = 4;
+    let flame = flame_colours(FlamePalette::Natural);
+    let flight = ((progress - CONTACT) / 0.16).clamp(0.0, 1.0);
+    let presence =
+        smooth01((progress - CONTACT) / 0.012) * (1.0 - smooth01((flight - 0.78) / 0.22));
+    for arc in 0..EJECTA {
+        let angle = seeded_unit(seed, arc, 511) * std::f32::consts::TAU;
+        let out = (0.9 + seeded_unit(seed, arc, 512) * 1.1) * intensity;
+        let up = (1.5 + seeded_unit(seed, arc, 513) * 1.3) * intensity;
+        let heat = seeded_unit(seed, arc, 514);
+        for bead in 0..BEADS {
+            // The head leads; each bead behind it re-evaluates the same arc
+            // slightly earlier, tracing the trail along the true path.
+            let time = (flight - f32::from(u16::try_from(bead).unwrap_or(0)) * 0.03).max(0.0);
+            let position = impact
+                + Vec3::new(
+                    angle.cos() * out * time * 0.55,
+                    up * time - 4.4 * time * time * 0.5,
+                    angle.sin() * out * time * 0.55,
+                );
+            let fade = 1.0 - bead as f32 / BEADS as f32;
+            let size = (0.016 + heat * 0.014) * (0.5 + 0.5 * fade) * presence;
+            add_sphere(
+                mesh,
+                position,
+                size.max(0.000_5),
+                alpha(
+                    mix_color(flame.core, flame.body_high, (1.0 - fade) * 0.8),
+                    (0.85 * presence * fade).max(0.02),
+                ),
+                3,
+                5,
+            );
+        }
+    }
+}
+
+/// The crack web: jagged fracture lines spreading down the glass from the
+/// rim once the blast hits, and staying. Fixed population; segments grow in
+/// quick succession so the web visibly propagates.
+fn add_glass_cracks(
+    mesh: &mut Mesh,
+    bench_top: f32,
+    progress: f32,
+    intensity: f32,
+    seed: u64,
+) {
+    const CRACKS: u32 = 7;
+    const SEGMENTS: u32 = 3;
+    const WALL_RADIUS: f32 = 0.945;
+    for crack in 0..CRACKS {
+        let angle = seeded_unit(seed, crack, 521) * std::f32::consts::TAU;
+        let reach = (0.14 + seeded_unit(seed, crack, 522) * 0.12) * intensity.min(1.6);
+        // A connected polyline walking down the wall with angular drift:
+        // each grown segment is a thin cylinder from the previous node.
+        let mut node = Vec3::new(
+            angle.cos() * WALL_RADIUS,
+            bench_top + 1.74,
+            angle.sin() * WALL_RADIUS,
+        );
+        let mut drift = angle;
+        for segment in 0..SEGMENTS {
+            let index = crack * SEGMENTS + segment;
+            let grow = smooth01(
+                (progress - CONTACT - 0.006 * (segment + 1) as f32) / 0.018,
+            );
+            let length = reach * (0.8 + seeded_unit(seed, index, 523) * 0.5) * grow;
+            let lean = (seeded_unit(seed, index, 524) - 0.5) * 0.35;
+            drift += lean;
+            let next = Vec3::new(
+                drift.cos() * WALL_RADIUS,
+                node.y - length,
+                drift.sin() * WALL_RADIUS,
+            );
+            add_cylinder(mesh, node, next, 0.005, [0.90, 0.96, 1.0, 0.60]);
+            node = next;
+        }
+    }
+}
+
 /// The crown of water hurled upward at contact: tall spikes and a ring of
 /// ballistic droplets, all scaled by the blast.
 fn add_blast_crown(
@@ -205,16 +312,18 @@ fn add_blast_crown(
     for spike in 0..SPIKES {
         let angle = std::f32::consts::TAU * spike as f32 / SPIKES as f32
             + seeded_unit(seed, spike, 501) * 0.4;
-        let radial = 0.12 + seeded_unit(seed, spike, 502) * 0.16;
+        // The harder the metal goes, the wider the crown throws.
+        let radial = (0.12 + seeded_unit(seed, spike, 502) * 0.16) * (0.65 + intensity * 0.35);
         let height = (0.5 + seeded_unit(seed, spike, 503) * 0.5)
             * intensity
             * presence
             * (std::f32::consts::PI * age.min(0.9)).sin();
         let base = impact + Vec3::new(angle.cos() * radial, 0.0, angle.sin() * radial);
+        let girth = 0.022 * (0.80 + intensity * 0.20);
         add_shard(
             mesh,
             base + Vec3::Y * (height * 0.5),
-            Vec3::new(0.022, height.max(0.001) * 0.5, 0.022),
+            Vec3::new(girth, height.max(0.001) * 0.5, girth),
             Quat::from_rotation_y(angle) * Quat::from_rotation_z(0.16),
             alpha(colour, 0.62),
             seed.wrapping_add(u64::from(spike)),
@@ -244,6 +353,9 @@ fn add_blast_crown(
     }
 }
 
+// A linear choreography list: splitting it would only scatter the reading
+// order of one continuous scene.
+#[allow(clippy::too_many_lines)]
 pub(super) fn add_explosive_metal_water_assembly(
     meshes: &mut SceneMeshes,
     plan: &ScenePlan,
@@ -264,8 +376,14 @@ pub(super) fn add_explosive_metal_water_assembly(
         explosive_metal_water_track_colour(clip_colour, explosive, ordinal, ordinal_progress)
     };
     add_assembly_beaker(&mut meshes.glass, layout.bench_top, Vec3::ZERO);
-    let surface = Vec3::new(0.0, layout.bench_top + BASIN_LEVEL, 0.0);
-    let impact = surface;
+    // The blast throws a share of the water clean out of the basin: the
+    // level drops through the churn and stays down, leaving a high-water
+    // mark ring where it stood. The impact stays at the original level —
+    // that is where the lump met the water.
+    let original_surface = Vec3::new(0.0, layout.bench_top + BASIN_LEVEL, 0.0);
+    let drop = level_drop(progress, intensity);
+    let surface = original_surface - Vec3::Y * drop;
+    let impact = original_surface;
     let presence = blast(progress);
     let age = blast_age(progress);
     let churning = churn(progress);
@@ -288,6 +406,15 @@ pub(super) fn add_explosive_metal_water_assembly(
         0.3 + churning * 0.6,
         phase,
         seed,
+    );
+    // High-water mark: a faint film ring at the original level, revealed as
+    // the water beneath it recedes.
+    add_ring(
+        &mut meshes.translucent,
+        original_surface + Vec3::Y * 0.004,
+        0.925,
+        0.008,
+        [0.88, 0.93, 0.96, (0.50 * smooth01(drop / 0.05)).max(0.02)],
     );
     add_falling_lump(
         &mut meshes.opaque,
@@ -323,6 +450,20 @@ pub(super) fn add_explosive_metal_water_assembly(
         presence * intensity,
         phase,
         seed.rotate_left(13),
+    );
+    add_molten_ejecta(
+        &mut meshes.emissive,
+        impact + Vec3::Y * 0.05,
+        progress,
+        intensity,
+        seed.rotate_left(15),
+    );
+    add_glass_cracks(
+        &mut meshes.glass,
+        layout.bench_top,
+        progress,
+        intensity,
+        seed.rotate_left(19),
     );
     // The steam column: a strong rising plume plus fizz around the surface.
     add_rising_plume(

@@ -30,13 +30,18 @@ struct AlkaliPellet {
     contact: f32,
 }
 
+/// Where the dropped pellet meets the water, on the basin surface.
+fn alkali_entry(seed: u64, surface: Vec3) -> Vec3 {
+    let entry_angle = seed_phase(seed, 71);
+    surface + Vec3::new(entry_angle.cos(), 0.0, entry_angle.sin()) * (ALKALI_BASIN_RADIUS * 0.22)
+}
+
 /// Deterministic pellet choreography: a short gravity drop onto the water,
 /// then a wandering skitter that sweeps around the basin — faster laps for
 /// livelier metals — while the lump shrinks away to nothing.
 fn alkali_pellet(progress: f32, activity: f32, seed: u64, surface: Vec3) -> AlkaliPellet {
     let entry_angle = seed_phase(seed, 71);
-    let entry = surface
-        + Vec3::new(entry_angle.cos(), 0.0, entry_angle.sin()) * (ALKALI_BASIN_RADIUS * 0.22);
+    let entry = alkali_entry(seed, surface);
     if progress < ALKALI_DROP_END {
         let fall = (progress / ALKALI_DROP_END).max(0.0);
         return AlkaliPellet {
@@ -67,19 +72,112 @@ fn alkali_pellet(progress: f32, activity: f32, seed: u64, surface: Vec3) -> Alka
 
 /// An irregular rounded lump riding half-proud of the water line: overlapping
 /// squashed spheres read as soft freshly-cut metal rather than a crystal.
+/// `melt` morphs it into a single glossy bead — the reaction heat melts the
+/// livelier metals, whose lumps draw into a shining ball as they skitter —
+/// by pulling the bulges inside the main sphere and lighting a hot glint.
 /// Always emitted; the radius carries the consumption down to nothing.
-fn add_alkali_pellet_lump(mesh: &mut Mesh, pellet: &AlkaliPellet, seed: u64) {
+fn add_alkali_pellet_lump(
+    meshes: &mut SceneMeshes,
+    pellet: &AlkaliPellet,
+    melt: f32,
+    can_melt: bool,
+    seed: u64,
+) {
     const METAL: [f32; 4] = [0.88, 0.90, 0.92, 1.0];
+    const MOLTEN: [f32; 4] = [0.96, 0.94, 0.90, 1.0];
     let size = (0.14 * pellet.remaining.sqrt()).max(0.000_5);
     let centre = pellet.position + Vec3::Y * (size * 0.35);
-    add_sphere(mesh, centre, size, METAL, 5, 8);
+    let skin = mix_color(METAL, MOLTEN, melt);
+    add_sphere(&mut meshes.opaque, centre, size, skin, 5, 8);
+    // Molten surface tension swallows the ragged bulges into the bead.
     let bulge = Vec3::new(
         (seed_phase(seed, 74) + pellet.position.x * 2.4).sin(),
         0.3,
         (seed_phase(seed, 75) + pellet.position.z * 1.7).cos(),
-    ) * (size * 0.55);
-    add_sphere(mesh, centre + bulge, size * 0.62, METAL, 5, 8);
-    add_sphere(mesh, centre - bulge * 0.7, size * 0.5, METAL, 4, 7);
+    ) * (size * 0.55 * (1.0 - melt));
+    add_sphere(&mut meshes.opaque, centre + bulge, size * (0.62 + 0.2 * melt), skin, 5, 8);
+    add_sphere(&mut meshes.opaque, centre - bulge * 0.7, size * (0.5 + 0.3 * melt), skin, 4, 7);
+    // The glossy highlight: a hot glint riding the bead's crown. Emitted
+    // only for plans whose metal can melt at all (a per-plan constant, so
+    // topology holds) — a placid metal's scene stays free of emissive
+    // geometry it would never light.
+    if can_melt {
+        add_sphere(
+            &mut meshes.emissive,
+            centre + Vec3::Y * (size * 0.62),
+            (size * 0.30 * melt * pellet.contact).max(0.000_5),
+            [1.0, 0.66, 0.34, 0.55 * melt],
+            4,
+            6,
+        );
+    }
+}
+
+/// Hydrogen bubbles lingering along the pellet's wake: the choreography is a
+/// pure function of progress, so each trail bubble re-evaluates it at a
+/// lagged playhead and sits where the pellet actually passed. Fixed
+/// population; presence collapses to the floor size while the pellet is
+/// airborne or spent.
+fn add_pellet_wake_trail(
+    mesh: &mut Mesh,
+    progress: f32,
+    activity: f32,
+    seed: u64,
+    surface: Vec3,
+    phase: f32,
+) {
+    const TRAIL: u32 = 10;
+    for step in 0..TRAIL {
+        let lag = (step + 1) as f32 * 0.014;
+        let past = alkali_pellet((progress - lag).max(0.0), activity, seed, surface);
+        let fade = 1.0 - step as f32 / TRAIL as f32;
+        let presence = past.contact * past.remaining * activity * fade;
+        let jitter = Vec3::new(
+            seeded_unit(seed, step, 311) - 0.5,
+            0.0,
+            seeded_unit(seed, step, 312) - 0.5,
+        ) * 0.05;
+        let pop = (std::f32::consts::PI
+            * (phase * (1.1 + seeded_unit(seed, step, 313)) + seeded_unit(seed, step, 314))
+                .fract())
+        .sin()
+        .max(0.0);
+        add_sphere(
+            mesh,
+            Vec3::new(past.position.x, surface.y, past.position.z)
+                + jitter
+                + Vec3::Y * (lag * 0.4),
+            (0.016 * pop * presence).max(0.000_5),
+            [0.86, 0.95, 0.99, 0.36],
+            4,
+            6,
+        );
+    }
+}
+
+/// The entry splash: a crown of droplets thrown up as the pellet strikes the
+/// water, arcing out ballistically and gone within a beat. Fixed population;
+/// outside the splash window every droplet renders at the floor size.
+fn add_entry_splash(mesh: &mut Mesh, entry: Vec3, progress: f32, seed: u64) {
+    const DROPLETS: u32 = 9;
+    // Ballistic age through the splash, and an envelope that lifts on
+    // contact and dies as the crown falls back.
+    let age = ((progress - ALKALI_DROP_END) / 0.06).clamp(0.0, 1.0);
+    let presence = smooth01((progress - ALKALI_DROP_END) / 0.008)
+        * (1.0 - smooth01((progress - ALKALI_DROP_END - 0.018) / 0.05));
+    for droplet in 0..DROPLETS {
+        let angle = std::f32::consts::TAU * droplet as f32 / DROPLETS as f32
+            + seeded_unit(seed, droplet, 321) * 0.5;
+        let launch = 0.5 + seeded_unit(seed, droplet, 322) * 0.5;
+        let radial = 0.06 + age * launch * 0.45;
+        let height = age * launch * 0.85 - age * age * 0.95;
+        let position = entry
+            + Vec3::new(angle.cos() * radial, height.max(0.0) + 0.012, angle.sin() * radial);
+        let size = (0.014 + seeded_unit(seed, droplet, 323) * 0.014)
+            * presence
+            * (std::f32::consts::PI * age.min(0.95)).sin().max(0.25);
+        add_sphere(mesh, position, size.max(0.000_5), [0.80, 0.90, 0.96, 0.68], 4, 6);
+    }
 }
 
 /// Fixed-population hydrogen fizz around the reacting lump. Every bubble is
@@ -148,6 +246,20 @@ pub(super) fn add_alkali_water_assembly(
         phase,
         seed.rotate_left(5),
     );
+    add_pellet_wake_trail(
+        &mut meshes.translucent,
+        progress,
+        style.activity,
+        seed,
+        surface_centre,
+        phase,
+    );
+    add_entry_splash(
+        &mut meshes.translucent,
+        alkali_entry(seed, surface_centre),
+        progress,
+        seed.rotate_left(9),
+    );
     if let Some(palette) = style.flame {
         add_surface_flame(
             meshes,
@@ -159,7 +271,12 @@ pub(super) fn add_alkali_water_assembly(
             seed.rotate_left(11),
         );
     }
-    add_alkali_pellet_lump(&mut meshes.opaque, &pellet, seed);
+    // Reaction heat melts the livelier metals into a glossy rolling bead;
+    // the placid one keeps its ragged freshly-cut shape. Capacity is a
+    // per-plan constant, so the glint's presence never churns topology.
+    let melt_capacity = smooth01((style.activity - 0.45) / 0.2);
+    let melt = melt_capacity * smooth01((progress - ALKALI_DROP_END) / 0.06);
+    add_alkali_pellet_lump(meshes, &pellet, melt, melt_capacity > 0.0, seed);
     // Steam fogs the glass; a seeded constant population keeps topology fixed.
     add_glass_condensation(
         &mut meshes.translucent,
