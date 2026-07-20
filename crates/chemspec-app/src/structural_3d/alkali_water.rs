@@ -50,8 +50,7 @@ fn alkali_pellet(progress: f32, activity: f32, seed: u64, surface: Vec3) -> Alka
             contact: 0.0,
         };
     }
-    let life =
-        ((progress - ALKALI_DROP_END) / (ALKALI_CONSUMED - ALKALI_DROP_END)).clamp(0.0, 1.0);
+    let life = ((progress - ALKALI_DROP_END) / (ALKALI_CONSUMED - ALKALI_DROP_END)).clamp(0.0, 1.0);
     let laps = 1.4 + activity * 2.2;
     let angle = entry_angle
         + life * laps * std::f32::consts::TAU
@@ -95,8 +94,22 @@ fn add_alkali_pellet_lump(
         0.3,
         (seed_phase(seed, 75) + pellet.position.z * 1.7).cos(),
     ) * (size * 0.55 * (1.0 - melt));
-    add_sphere(&mut meshes.opaque, centre + bulge, size * (0.62 + 0.2 * melt), skin, 5, 8);
-    add_sphere(&mut meshes.opaque, centre - bulge * 0.7, size * (0.5 + 0.3 * melt), skin, 4, 7);
+    add_sphere(
+        &mut meshes.opaque,
+        centre + bulge,
+        size * (0.62 + 0.2 * melt),
+        skin,
+        5,
+        8,
+    );
+    add_sphere(
+        &mut meshes.opaque,
+        centre - bulge * 0.7,
+        size * (0.5 + 0.3 * melt),
+        skin,
+        4,
+        7,
+    );
     // The glossy highlight: a hot glint riding the bead's crown. Emitted
     // only for plans whose metal can melt at all (a per-plan constant, so
     // topology holds) — a placid metal's scene stays free of emissive
@@ -144,9 +157,7 @@ fn add_pellet_wake_trail(
         .max(0.0);
         add_sphere(
             mesh,
-            Vec3::new(past.position.x, surface.y, past.position.z)
-                + jitter
-                + Vec3::Y * (lag * 0.4),
+            Vec3::new(past.position.x, surface.y, past.position.z) + jitter + Vec3::Y * (lag * 0.4),
             (0.016 * pop * presence).max(0.000_5),
             [0.86, 0.95, 0.99, 0.36],
             4,
@@ -172,11 +183,22 @@ fn add_entry_splash(mesh: &mut Mesh, entry: Vec3, progress: f32, seed: u64) {
         let radial = 0.06 + age * launch * 0.45;
         let height = age * launch * 0.85 - age * age * 0.95;
         let position = entry
-            + Vec3::new(angle.cos() * radial, height.max(0.0) + 0.012, angle.sin() * radial);
+            + Vec3::new(
+                angle.cos() * radial,
+                height.max(0.0) + 0.012,
+                angle.sin() * radial,
+            );
         let size = (0.014 + seeded_unit(seed, droplet, 323) * 0.014)
             * presence
             * (std::f32::consts::PI * age.min(0.95)).sin().max(0.25);
-        add_sphere(mesh, position, size.max(0.000_5), [0.80, 0.90, 0.96, 0.68], 4, 6);
+        add_sphere(
+            mesh,
+            position,
+            size.max(0.000_5),
+            [0.80, 0.90, 0.96, 0.68],
+            4,
+            6,
+        );
     }
 }
 
@@ -188,8 +210,7 @@ pub(super) fn add_alkali_fizz(mesh: &mut Mesh, centre: Vec3, strength: f32, phas
     for bubble in 0..BUBBLES {
         let rate = 0.9 + seeded_unit(seed, bubble, 301) * 1.4;
         let age = (phase * rate + seeded_unit(seed, bubble, 302)).fract();
-        let angle =
-            seeded_unit(seed, bubble, 303) * std::f32::consts::TAU + phase * 0.3;
+        let angle = seeded_unit(seed, bubble, 303) * std::f32::consts::TAU + phase * 0.3;
         let radial = 0.05 + seeded_unit(seed, bubble, 304).sqrt() * 0.24;
         let pop = (std::f32::consts::PI * age).sin().max(0.0);
         add_sphere(

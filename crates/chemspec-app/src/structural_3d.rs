@@ -11,9 +11,8 @@ use chem_catalogue::ObservationPredicate;
 use chem_presentation::{
     AppearanceProfile, AssetProfile, EffectIntensity, EffectProfile, ExplosiveMetalWaterVariant,
     FlamePalette, GasEvolutionVariant, MacroscopicStage, PhaseSynthesisVariant,
-    PresentationColourTransition,
-    PresentationEffect, PresentationObject, PresentationTransform, ReactionVisualInputs, SceneRole,
-    VisualColour,
+    PresentationColourTransition, PresentationEffect, PresentationObject, PresentationTransform,
+    ReactionVisualInputs, SceneRole, VisualColour,
 };
 use chem_presentation::{RealWorldPosition, ScenePlan};
 use glam::{EulerRot, Mat4, Quat, Vec3};
@@ -456,8 +455,8 @@ mod displacement;
 mod explosion;
 mod gas_evolution;
 mod neutralisation;
-mod precipitation;
 mod phase_synthesis;
+mod precipitation;
 mod synthesis;
 
 const METAL_MESH_BYTES: &[u8] = include_bytes!("../assets/models/metal.mesh");
@@ -2411,22 +2410,22 @@ fn build_scene_at(
     orbit: (f32, f32),
 ) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let authored_clip_progress = if plan.explosive_metal_water.is_some() {
-            // The detonation choreography carries its own authored pacing
-            // (contact at frame 39/179) on the wall-clock timeline — the
-            // gas-evolution remap below would postpone contact to the
-            // gas-generation ordinal while blast_camera_shake stays on the
-            // wall clock, splitting the scene across two clocks.
-            plan.timeline.normalized_progress_at(moment)
-        } else if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
-            gas_evolution_clip_progress(plan, moment)
-        } else if moment.stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
-            authored_reaction_clip_progress(plan, moment)
-        } else {
-            plan.precipitation.as_ref().map_or_else(
-                || plan.timeline.normalized_progress_at(moment),
-                |_| precipitation_clip_progress(plan, moment),
-            )
-        };
+        // The detonation choreography carries its own authored pacing
+        // (contact at frame 39/179) on the wall-clock timeline — the
+        // gas-evolution remap below would postpone contact to the
+        // gas-generation ordinal while blast_camera_shake stays on the
+        // wall clock, splitting the scene across two clocks.
+        plan.timeline.normalized_progress_at(moment)
+    } else if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
+        gas_evolution_clip_progress(plan, moment)
+    } else if moment.stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
+        authored_reaction_clip_progress(plan, moment)
+    } else {
+        plan.precipitation.as_ref().map_or_else(
+            || plan.timeline.normalized_progress_at(moment),
+            |_| precipitation_clip_progress(plan, moment),
+        )
+    };
     build_scene_with_stage(
         plan,
         moment.ordinal,
@@ -4382,9 +4381,8 @@ fn add_crystallizing_salt(
         // Cubic habit: the alkali halides this pipeline crystallises are all
         // rock-salt cubes, so each crystal is an even cube resting near-flat
         // on a face — random yaw, only a small settle tilt.
-        let rotation = Quat::from_rotation_y(
-            seeded_unit(seed, index, 178) * std::f32::consts::TAU,
-        ) * Quat::from_rotation_x((seeded_unit(seed, index, 175) - 0.5) * 0.22)
+        let rotation = Quat::from_rotation_y(seeded_unit(seed, index, 178) * std::f32::consts::TAU)
+            * Quat::from_rotation_x((seeded_unit(seed, index, 175) - 0.5) * 0.22)
             * Quat::from_rotation_z((seeded_unit(seed, index, 177) - 0.5) * 0.22);
         add_shard(
             mesh,
@@ -5740,7 +5738,6 @@ fn animated_alkali_water_style(plan: &ScenePlan) -> AnimatedAlkaliWaterStyle {
     AnimatedAlkaliWaterStyle { activity, flame }
 }
 
-
 fn explosive_metal_water_track_colour(
     colour: ClipColour,
     explosive: &chem_presentation::ExplosiveMetalWaterVisualProfile,
@@ -6453,14 +6450,18 @@ fn add_surface_flame(
         let angle = seeded_unit(seed, lobe, 313) * std::f32::consts::TAU;
         let radial = seeded_unit(seed, lobe, 314).sqrt() * 0.05 * scale;
         let sway = curl_like_flow(phase * 1.6, seed, lobe) * 0.05 * age;
-        let base =
-            source + Vec3::new(angle.cos() * radial, age * 0.10 * scale, angle.sin() * radial) + sway;
+        let base = source
+            + Vec3::new(
+                angle.cos() * radial,
+                age * 0.10 * scale,
+                angle.sin() * radial,
+            )
+            + sway;
         // Floors keep every lobe past add_flame_lobe's degenerate-geometry
         // early-outs even at zero strength: constant topology, invisible size.
-        let height = ((0.12 + seeded_unit(seed, lobe, 315) * 0.18)
-            * (0.6 + 0.4 * flare)
-            * strength)
-            .max(0.02);
+        let height =
+            ((0.12 + seeded_unit(seed, lobe, 315) * 0.18) * (0.6 + 0.4 * flare) * strength)
+                .max(0.02);
         let width = ((0.032 + seeded_unit(seed, lobe, 316) * 0.030) * flare.max(0.05) * strength)
             .max(0.002);
         let tip = base + Vec3::Y * height;
@@ -6521,7 +6522,8 @@ fn add_ceramic_dish(mesh: &mut Mesh, bench_top: f32, radius: f32, height: f32, c
         for segment in 0..SEGMENTS {
             let a = base_vertex + ring * (SEGMENTS + 1) + segment;
             let b = a + SEGMENTS + 1;
-            mesh.indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+            mesh.indices
+                .extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
         }
     }
     // Inner floor fan.
@@ -6556,8 +6558,8 @@ fn add_condensation_mist(
     const DROPLETS: u32 = 30;
     for droplet in 0..DROPLETS {
         let angle = seeded_unit(seed, droplet, 541) * std::f32::consts::TAU;
-        let height = band_bottom
-            + seeded_unit(seed, droplet, 542) * (band_top - band_bottom).max(0.01);
+        let height =
+            band_bottom + seeded_unit(seed, droplet, 542) * (band_top - band_bottom).max(0.01);
         let size = (0.006 + seeded_unit(seed, droplet, 543) * 0.008) * mist;
         add_sphere(
             mesh,
@@ -6591,7 +6593,11 @@ fn add_rising_plume(
         let radial = seeded_unit(seed, puff, 334).sqrt() * 0.34;
         let drift = curl_like_flow(phase * 0.7, seed, puff) * 0.10 * age;
         let position = surface
-            + Vec3::new(angle.cos() * radial, 0.04 + age * 0.58, angle.sin() * radial)
+            + Vec3::new(
+                angle.cos() * radial,
+                0.04 + age * 0.58,
+                angle.sin() * radial,
+            )
             + Vec3::new(drift.x, 0.0, drift.z);
         let size = (0.038 + 0.068 * age) * strength;
         let fade = alpha(colour, colour[3] * (1.0 - age) * strength);
@@ -6895,7 +6901,12 @@ fn add_pouring_vessel_glass(mesh: &mut Mesh, state: &PourState) {
         let column = base_vertex + segment * (ROWS + 2);
         let next = base_vertex + (segment + 1) * (ROWS + 2);
         for level in 0..=ROWS {
-            let (a, b, c, d) = (column + level, next + level, column + level + 1, next + level + 1);
+            let (a, b, c, d) = (
+                column + level,
+                next + level,
+                column + level + 1,
+                next + level + 1,
+            );
             mesh.indices.extend_from_slice(&[a, c, b, b, c, d]);
         }
     }
@@ -7102,7 +7113,6 @@ fn bound_colour_endpoints(
     (base, target, amount)
 }
 
-
 /// World-space standing-liquid state at a fractional clip frame.
 #[derive(Debug, Clone, Copy)]
 struct LiquidState {
@@ -7159,8 +7169,12 @@ fn add_vessel_liquid(mesh: &mut Mesh, state: &PourState, colour: [f32; 4]) {
         let column = base_vertex + segment * (ROWS + 1);
         let neighbour = base_vertex + next * (ROWS + 1);
         for row in 0..ROWS {
-            let (b0, t0, b1, t1) =
-                (column + row, column + row + 1, neighbour + row, neighbour + row + 1);
+            let (b0, t0, b1, t1) = (
+                column + row,
+                column + row + 1,
+                neighbour + row,
+                neighbour + row + 1,
+            );
             mesh.indices.extend_from_slice(&[b0, t0, b1, b1, t0, t1]);
         }
     }
@@ -7336,7 +7350,14 @@ fn add_pour_stream(
             (colour[3] + 0.35).min(0.9),
         ];
         let head = curve(front);
-        add_sphere(&mut meshes.translucent, head, base_radius * 2.2, bright, 4, 6);
+        add_sphere(
+            &mut meshes.translucent,
+            head,
+            base_radius * 2.2,
+            bright,
+            4,
+            6,
+        );
         add_sphere(
             &mut meshes.translucent,
             head.lerp(curve((front - 0.07).max(0.0)), 0.55),
@@ -7797,8 +7818,8 @@ mod tests {
             let profile =
                 crate::dynamic_presentation_profile(frames, outcome.static_outcome(), None)
                     .expect("smoke fixture profile compiles");
-            let plan = compile_real_world_plan(frames, &profile)
-                .expect("smoke fixture plan compiles");
+            let plan =
+                compile_real_world_plan(frames, &profile).expect("smoke fixture plan compiles");
             assert_scene_rebuild_is_byte_identical(&plan, fixture);
         }
     }
@@ -9648,7 +9669,11 @@ mod tests {
             let layout = SceneLayout::resolve(&plan);
             add_crystallizing_salt(
                 &mut mesh,
-                Vec3::new(layout.vessel_center.x, layout.bench_top + 0.125, layout.vessel_center.z),
+                Vec3::new(
+                    layout.vessel_center.x,
+                    layout.bench_top + 0.125,
+                    layout.vessel_center.z,
+                ),
                 growth,
                 7,
                 [1.0; 4],

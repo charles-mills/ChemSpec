@@ -144,9 +144,7 @@ fn add_reaction_front(
     const FRONT_COLOUR: [f32; 4] = [1.0, 0.22, 0.035, 0.58];
     // Presence fades any bead whose arc position has left the pile.
     let on_pile = |position: Vec3| {
-        1.0 - smooth01(
-            (Vec3::new(position.x, 0.0, position.z).length() - 0.36) / 0.08,
-        )
+        1.0 - smooth01((Vec3::new(position.x, 0.0, position.z).length() - 0.36) / 0.08)
     };
     for bead in 0..BEADS {
         let angle = seeded_unit(seed, bead, 451) * std::f32::consts::TAU
