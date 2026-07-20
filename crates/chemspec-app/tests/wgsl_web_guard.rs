@@ -10,15 +10,11 @@
 //! If a future shader genuinely needs implicit LOD, hoist the sample out of
 //! non-uniform control flow and relax this test for that one call site.
 
+const SCENE_SHADER: &str = include_str!("../src/structural_3d.wgsl");
+const POST_SHADER: &str = include_str!("../src/structural_3d_post.wgsl");
 const SHADERS: [(&str, &str); 2] = [
-    (
-        "structural_3d.wgsl",
-        include_str!("../src/structural_3d.wgsl"),
-    ),
-    (
-        "structural_3d_post.wgsl",
-        include_str!("../src/structural_3d_post.wgsl"),
-    ),
+    ("structural_3d.wgsl", SCENE_SHADER),
+    ("structural_3d_post.wgsl", POST_SHADER),
 ];
 
 const BANNED: [&str; 6] = [
@@ -45,4 +41,20 @@ fn shaders_avoid_implicit_derivative_sampling() {
             }
         }
     }
+}
+
+#[test]
+fn structural_scene_is_shadow_free_but_keeps_reflections() {
+    let renderer = include_str!("../src/structural_3d.rs");
+
+    assert!(!SCENE_SHADER.contains("shadow_map"));
+    assert!(!POST_SHADER.contains("shadow_map"));
+    assert!(!POST_SHADER.contains("ssao"));
+    assert!(!renderer.contains("shadow pass"));
+    assert!(!renderer.contains("shadow_pipeline"));
+    assert!(!renderer.contains("ao pass"));
+
+    assert!(SCENE_SHADER.contains("textureSampleLevel(reflection_texture"));
+    assert!(renderer.contains("reflection pass"));
+    assert!(renderer.contains("reflected opaque pipeline"));
 }

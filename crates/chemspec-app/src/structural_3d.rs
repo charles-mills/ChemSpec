@@ -19,7 +19,7 @@ use glam::{EulerRot, Mat4, Quat, Vec3};
 use iced::widget::shader::{self, Program};
 use iced::{Rectangle, wgpu};
 
-use crate::animated_clip::{AnimatedClip, ClipColour, ClipModule, ClipPass, ClipTrack, ClipVertex};
+use crate::animated_clip::ClipColour;
 use crate::gas_fluid::{GasFlowControls, GasFluidVolume};
 use crate::scene_registry::{self, AssetGeometry, EffectDynamics, EffectGeometry};
 
@@ -27,12 +27,11 @@ const MAX_VERTICES: u64 = 32_768;
 const MAX_INDICES: u64 = 98_304;
 const MAX_GAS_SPLATS: u64 = 4_096;
 
-/// The single fixed presentation pose shared by the camera, the transparent
-/// triangle sort, and the shadow-frustum fit. Phase-4 camera cues will replace
-/// these constants with authored choreography.
+/// The single fixed presentation pose shared by the camera and transparent
+/// triangle sort. Phase-4 camera cues will replace these constants with
+/// authored choreography.
 const FIXED_CAMERA_YAW: f32 = -0.72;
 const FIXED_CAMERA_PITCH: f32 = -0.70;
-const SHADOW_MAP_SIZE: u32 = 2_048;
 const MSAA_SAMPLE_COUNT: u32 = 4;
 const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
@@ -332,8 +331,13 @@ impl<Message> Program<Message> for Scene {
             .pressure_impulse
             .max(post_process.boiling * 0.5)
             .min(1.0);
-        let shake_yaw = (time_seconds * 23.7).sin() * (time_seconds * 5.9).cos() * 0.0035 * shake;
-        let shake_pitch = (time_seconds * 19.1).sin() * 0.0028 * shake;
+        // The detonation adds a much harder, faster kick on top — scaled by
+        // the blast envelope and the metal's intensity, gone with the blast.
+        let blast_kick = explosion::blast_camera_shake(&self.plan, self.moment).min(2.0);
+        let shake_yaw = (time_seconds * 23.7).sin() * (time_seconds * 5.9).cos() * 0.0035 * shake
+            + (time_seconds * 61.3).sin() * (time_seconds * 13.7).cos() * 0.0075 * blast_kick;
+        let shake_pitch = (time_seconds * 19.1).sin() * 0.0028 * shake
+            + (time_seconds * 53.9).sin() * 0.0060 * blast_kick;
         let yaw = camera.yaw + cue.yaw_offset + shake_yaw + orbit.0;
         let pitch = (camera.pitch + cue.pitch_offset + shake_pitch + orbit.1).clamp(-1.35, -0.12);
         let focus_target = layout
@@ -365,7 +369,6 @@ impl<Message> Program<Message> for Scene {
             gas_splats,
             yaw,
             pitch,
-            view_height: camera.view_height,
             focus_target,
             camera_distance,
             time_seconds,
@@ -446,135 +449,25 @@ struct EmbeddedMesh {
     indices: Box<[u32]>,
 }
 
+mod alkali_water;
+mod combustion;
+mod displacement;
+mod explosion;
+mod gas_evolution;
+mod neutralisation;
+mod precipitation;
+mod synthesis;
+
 const METAL_MESH_BYTES: &[u8] = include_bytes!("../assets/models/metal.mesh");
 const EMBEDDED_MESH_MAGIC: &[u8; 8] = b"CMSHMESH";
 const EMBEDDED_MESH_VERSION: u32 = 1;
 static METAL_MESH: OnceLock<EmbeddedMesh> = OnceLock::new();
-const ALKALI_WATER_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/alkali_water.clip");
-static ALKALI_WATER_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const NEUTRALISATION_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/neutralisation.clip");
-static NEUTRALISATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const COMPLETE_COMBUSTION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/complete_combustion.clip");
-static COMPLETE_COMBUSTION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const INCOMPLETE_COMBUSTION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/incomplete_combustion.clip");
-static INCOMPLETE_COMBUSTION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const PRECIPITATION_CLIP_BYTES: &[u8] = include_bytes!("../assets/models/precipitation.clip");
-static PRECIPITATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const GAS_EVOLUTION_LIQUID_LIQUID_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/gas_evolution_liquid_liquid.clip");
-static GAS_EVOLUTION_LIQUID_LIQUID_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const GAS_EVOLUTION_SOLID_LIQUID_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/gas_evolution_solid_liquid.clip");
-static GAS_EVOLUTION_SOLID_LIQUID_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const METAL_DISPLACEMENT_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/metal_displacement.clip");
-static METAL_DISPLACEMENT_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const SYNTHESIS_COMBINATION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/synthesis_combination.clip");
-static SYNTHESIS_COMBINATION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const RUBIDIUM_WATER_EXPLOSION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/rubidium_water_explosion.clip");
-static RUBIDIUM_WATER_EXPLOSION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const CAESIUM_WATER_EXPLOSION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/caesium_water_explosion.clip");
-static CAESIUM_WATER_EXPLOSION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
-const FRANCIUM_WATER_EXPLOSION_CLIP_BYTES: &[u8] =
-    include_bytes!("../assets/models/francium_water_explosion.clip");
-static FRANCIUM_WATER_EXPLOSION_CLIP: OnceLock<AnimatedClip> = OnceLock::new();
 
 fn embedded_metal_mesh() -> &'static EmbeddedMesh {
     METAL_MESH.get_or_init(|| {
         parse_embedded_mesh(METAL_MESH_BYTES)
             .unwrap_or_else(|error| panic!("embedded metal mesh is invalid: {error}"))
     })
-}
-
-fn alkali_water_clip() -> &'static AnimatedClip {
-    ALKALI_WATER_CLIP.get_or_init(|| {
-        AnimatedClip::parse(ALKALI_WATER_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded alkali-water clip is invalid: {error}"))
-    })
-}
-
-fn neutralisation_clip() -> &'static AnimatedClip {
-    NEUTRALISATION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(NEUTRALISATION_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded neutralisation clip is invalid: {error}"))
-    })
-}
-
-fn complete_combustion_clip() -> &'static AnimatedClip {
-    COMPLETE_COMBUSTION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(COMPLETE_COMBUSTION_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded complete-combustion clip is invalid: {error}"))
-    })
-}
-
-fn incomplete_combustion_clip() -> &'static AnimatedClip {
-    INCOMPLETE_COMBUSTION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(INCOMPLETE_COMBUSTION_CLIP_BYTES).unwrap_or_else(|error| {
-            panic!("embedded incomplete-combustion clip is invalid: {error}")
-        })
-    })
-}
-
-fn precipitation_clip() -> &'static AnimatedClip {
-    PRECIPITATION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(PRECIPITATION_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded precipitation clip is invalid: {error}"))
-    })
-}
-
-fn gas_evolution_clip(variant: GasEvolutionVariant) -> &'static AnimatedClip {
-    match variant {
-        GasEvolutionVariant::LiquidLiquid => GAS_EVOLUTION_LIQUID_LIQUID_CLIP.get_or_init(|| {
-            AnimatedClip::parse(GAS_EVOLUTION_LIQUID_LIQUID_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded liquid-liquid gas-evolution clip is invalid: {error}")
-            })
-        }),
-        GasEvolutionVariant::SolidLiquid => GAS_EVOLUTION_SOLID_LIQUID_CLIP.get_or_init(|| {
-            AnimatedClip::parse(GAS_EVOLUTION_SOLID_LIQUID_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded solid-liquid gas-evolution clip is invalid: {error}")
-            })
-        }),
-    }
-}
-
-fn metal_displacement_clip() -> &'static AnimatedClip {
-    METAL_DISPLACEMENT_CLIP.get_or_init(|| {
-        AnimatedClip::parse(METAL_DISPLACEMENT_CLIP_BYTES)
-            .unwrap_or_else(|error| panic!("embedded metal-displacement clip is invalid: {error}"))
-    })
-}
-
-fn synthesis_combination_clip() -> &'static AnimatedClip {
-    SYNTHESIS_COMBINATION_CLIP.get_or_init(|| {
-        AnimatedClip::parse(SYNTHESIS_COMBINATION_CLIP_BYTES).unwrap_or_else(|error| {
-            panic!("embedded synthesis-combination clip is invalid: {error}")
-        })
-    })
-}
-
-fn explosive_metal_water_clip(variant: ExplosiveMetalWaterVariant) -> &'static AnimatedClip {
-    match variant {
-        ExplosiveMetalWaterVariant::Rubidium => RUBIDIUM_WATER_EXPLOSION_CLIP.get_or_init(|| {
-            AnimatedClip::parse(RUBIDIUM_WATER_EXPLOSION_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded rubidium water-explosion clip is invalid: {error}")
-            })
-        }),
-        ExplosiveMetalWaterVariant::Caesium => CAESIUM_WATER_EXPLOSION_CLIP.get_or_init(|| {
-            AnimatedClip::parse(CAESIUM_WATER_EXPLOSION_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded caesium water-explosion clip is invalid: {error}")
-            })
-        }),
-        ExplosiveMetalWaterVariant::Francium => FRANCIUM_WATER_EXPLOSION_CLIP.get_or_init(|| {
-            AnimatedClip::parse(FRANCIUM_WATER_EXPLOSION_CLIP_BYTES).unwrap_or_else(|error| {
-                panic!("embedded francium water-explosion clip is invalid: {error}")
-            })
-        }),
-    }
 }
 
 fn parse_embedded_mesh(bytes: &[u8]) -> Result<EmbeddedMesh, &'static str> {
@@ -671,7 +564,6 @@ struct GasSplat {
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct CameraUniform {
     view_projection: [[f32; 4]; 4],
-    light_view_projection: [[f32; 4]; 4],
     key_direction: [f32; 4],
     fill_direction: [f32; 4],
     camera_position: [f32; 4],
@@ -699,7 +591,6 @@ struct BlitParams {
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct CompositeParams {
     inv_view_projection: [[f32; 4]; 4],
-    light_view_projection: [[f32; 4]; 4],
     values: [f32; 4],
     heat: [f32; 4],
     clock: [f32; 4],
@@ -720,7 +611,6 @@ pub struct ScenePrimitive {
     gas_splats: Vec<GasSplat>,
     yaw: f32,
     pitch: f32,
-    view_height: f32,
     focus_target: Vec3,
     /// Eye distance from the focus target; camera cues animate it.
     camera_distance: f32,
@@ -750,11 +640,9 @@ pub struct ScenePipeline {
     transparent_pipeline: wgpu::RenderPipeline,
     additive_pipeline: wgpu::RenderPipeline,
     gas_pipeline: wgpu::RenderPipeline,
-    shadow_pipeline: wgpu::RenderPipeline,
     panel_pipeline: wgpu::RenderPipeline,
     bloom_down_pipeline: wgpu::RenderPipeline,
     bloom_up_pipeline: wgpu::RenderPipeline,
-    ssao_pipeline: wgpu::RenderPipeline,
     composite_pipeline: wgpu::RenderPipeline,
     scene_layout: wgpu::BindGroupLayout,
     bloom_layout: wgpu::BindGroupLayout,
@@ -768,14 +656,8 @@ pub struct ScenePipeline {
     reflection_bind_group: wgpu::BindGroup,
     reflection_uniform: wgpu::Buffer,
     opaque_reflect_pipeline: wgpu::RenderPipeline,
-    shadow_bind_group: wgpu::BindGroup,
     panel_bind_group: wgpu::BindGroup,
     linear_sampler: wgpu::Sampler,
-    shadow_sampler: wgpu::Sampler,
-    _shadow_texture: wgpu::Texture,
-    shadow_view: wgpu::TextureView,
-    _glass_shadow_texture: wgpu::Texture,
-    glass_shadow_view: wgpu::TextureView,
     targets: Option<SizedTargets>,
     opaque_index_count: u32,
     transparent_index_count: u32,
@@ -816,14 +698,6 @@ struct SizedTargets {
     aux_msaa_view: wgpu::TextureView,
     _aux_resolve: wgpu::Texture,
     aux_resolve_view: wgpu::TextureView,
-    _ao: wgpu::Texture,
-    ao_view: wgpu::TextureView,
-    ao_bind_group: wgpu::BindGroup,
-    _ao_params: wgpu::Buffer,
-    _ao_blur: wgpu::Texture,
-    ao_blur_view: wgpu::TextureView,
-    ao_blur_bind_group: wgpu::BindGroup,
-    _ao_blur_params: wgpu::Buffer,
     bloom_levels: Vec<BloomLevel>,
     composite_bind_group: wgpu::BindGroup,
     composite_uniform: wgpu::Buffer,
@@ -864,22 +738,6 @@ impl shader::Pipeline for ScenePipeline {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
@@ -895,30 +753,7 @@ impl shader::Pipeline for ScenePipeline {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
             ],
-        });
-        let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("chemspec structural 3d shadow layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
         });
         let panel_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("chemspec structural 3d panel layout"),
@@ -971,24 +806,7 @@ impl shader::Pipeline for ScenePipeline {
                 texture_entry(9),
                 sampler_entry(10),
                 texture_entry(11),
-                texture_entry(12),
                 texture_entry(13),
-                wgpu::BindGroupLayoutEntry {
-                    binding: 14,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 15,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-                    count: None,
-                },
             ],
         });
         let background_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -1021,46 +839,6 @@ impl shader::Pipeline for ScenePipeline {
             }),
         );
 
-        let glass_shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("chemspec structural 3d glass shadow map"),
-            size: wgpu::Extent3d {
-                width: SHADOW_MAP_SIZE,
-                height: SHADOW_MAP_SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let glass_shadow_view =
-            glass_shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("chemspec structural 3d shadow map"),
-            size: wgpu::Extent3d {
-                width: SHADOW_MAP_SIZE,
-                height: SHADOW_MAP_SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let shadow_view = shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("chemspec structural 3d shadow sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            compare: Some(wgpu::CompareFunction::LessEqual),
-            ..wgpu::SamplerDescriptor::default()
-        });
         let linear_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("chemspec structural 3d linear sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -1103,14 +881,6 @@ impl shader::Pipeline for ScenePipeline {
                     resource: reflection_uniform.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&shadow_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&shadow_sampler),
-                },
-                wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::TextureView(&dummy_reflection_view),
                 },
@@ -1118,19 +888,7 @@ impl shader::Pipeline for ScenePipeline {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&linear_sampler),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&glass_shadow_view),
-                },
             ],
-        });
-        let shadow_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("chemspec structural 3d shadow group"),
-            layout: &shadow_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
         });
         let panel_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("chemspec structural 3d panel group"),
@@ -1317,43 +1075,6 @@ impl shader::Pipeline for ScenePipeline {
             cache: None,
         });
 
-        let shadow_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("chemspec structural 3d shadow pipeline layout"),
-                bind_group_layouts: &[&shadow_layout],
-                push_constant_ranges: &[],
-            });
-        let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("chemspec structural 3d shadow pipeline"),
-            layout: Some(&shadow_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("shadow_vertex"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: std::slice::from_ref(&vertex_layout),
-            },
-            fragment: None,
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: Some(wgpu::Face::Back),
-                ..wgpu::PrimitiveState::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState {
-                    constant: 2,
-                    slope_scale: 2.0,
-                    clamp: 0.0,
-                },
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-
         let panel_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("chemspec structural 3d panel pipeline layout"),
@@ -1458,13 +1179,6 @@ impl shader::Pipeline for ScenePipeline {
                 alpha: wgpu::BlendComponent::OVER,
             }),
         );
-        let ssao_pipeline = create_post_pipeline(
-            "chemspec structural 3d ssao",
-            &bloom_layout,
-            "ssao_fragment",
-            HDR_FORMAT,
-            None,
-        );
         let composite_pipeline = create_post_pipeline(
             "chemspec structural 3d composite",
             &composite_layout,
@@ -1478,11 +1192,9 @@ impl shader::Pipeline for ScenePipeline {
             transparent_pipeline,
             additive_pipeline,
             gas_pipeline,
-            shadow_pipeline,
             panel_pipeline,
             bloom_down_pipeline,
             bloom_up_pipeline,
-            ssao_pipeline,
             composite_pipeline,
             scene_layout,
             bloom_layout,
@@ -1511,14 +1223,8 @@ impl shader::Pipeline for ScenePipeline {
             reflection_bind_group,
             reflection_uniform,
             opaque_reflect_pipeline,
-            shadow_bind_group,
             panel_bind_group,
             linear_sampler,
-            shadow_sampler,
-            _shadow_texture: shadow_texture,
-            shadow_view,
-            _glass_shadow_texture: glass_shadow_texture,
-            glass_shadow_view,
             targets: None,
             opaque_index_count: 0,
             transparent_index_count: 0,
@@ -1641,24 +1347,12 @@ impl ScenePipeline {
                     resource: self.uniform_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&self.shadow_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.shadow_sampler),
-                },
-                wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::TextureView(&reflection_resolve_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&self.glass_shadow_view),
                 },
             ],
         }));
@@ -1787,8 +1481,8 @@ impl ScenePipeline {
         let blur_quarter_params = create_blit_params(half_size, 0.0, 1.0);
         let blur_quarter_bind_group = create_blit_group(&blur_quarter_params, &blur_half_view);
 
-        // Aux (normal + camera distance) buffer alongside the HDR scene, and
-        // the half-res ambient-occlusion chain computed from it.
+        // Aux (normal + camera distance) buffer alongside the HDR scene. The
+        // composite uses its distance channel to bound the height-fog march.
         let aux_msaa = create_target(
             "chemspec structural 3d aux msaa",
             full,
@@ -1798,43 +1492,6 @@ impl ScenePipeline {
         let aux_msaa_view = aux_msaa.create_view(&wgpu::TextureViewDescriptor::default());
         let aux_resolve = create_target("chemspec structural 3d aux resolve", full, HDR_FORMAT, 1);
         let aux_resolve_view = aux_resolve.create_view(&wgpu::TextureViewDescriptor::default());
-        let ao = create_target(
-            "chemspec structural 3d ao",
-            extent(half_size[0], half_size[1]),
-            HDR_FORMAT,
-            1,
-        );
-        let ao_view = ao.create_view(&wgpu::TextureViewDescriptor::default());
-        let ao_blur = create_target(
-            "chemspec structural 3d ao blur",
-            extent(half_size[0], half_size[1]),
-            HDR_FORMAT,
-            1,
-        );
-        let ao_blur_view = ao_blur.create_view(&wgpu::TextureViewDescriptor::default());
-        // texel.z = projection scale in pixels, texel.w = AO world radius.
-        let ao_params = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("chemspec structural 3d ao params"),
-            size: std::mem::size_of::<BlitParams>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        queue.write_buffer(
-            &ao_params,
-            0,
-            bytemuck::bytes_of(&BlitParams {
-                texel: [
-                    1.0 / size[0].max(1) as f32,
-                    1.0 / size[1].max(1) as f32,
-                    size[1] as f32 * 2.1,
-                    0.35,
-                ],
-            }),
-        );
-        let ao_bind_group = create_blit_group(&ao_params, &aux_resolve_view);
-        let ao_blur_params = create_blit_params(half_size, 0.0, 1.0);
-        let ao_blur_bind_group = create_blit_group(&ao_blur_params, &ao_view);
-
         let composite_uniform = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("chemspec structural 3d composite params"),
             size: std::mem::size_of::<CompositeParams>() as u64,
@@ -1846,7 +1503,6 @@ impl ScenePipeline {
             0,
             bytemuck::bytes_of(&CompositeParams {
                 inv_view_projection: Mat4::IDENTITY.to_cols_array_2d(),
-                light_view_projection: Mat4::IDENTITY.to_cols_array_2d(),
                 values: [
                     COMPOSITE_EXPOSURE,
                     COMPOSITE_BLOOM_STRENGTH,
@@ -1883,20 +1539,8 @@ impl ScenePipeline {
                     resource: wgpu::BindingResource::TextureView(&blur_quarter_view),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 12,
-                    resource: wgpu::BindingResource::TextureView(&ao_blur_view),
-                },
-                wgpu::BindGroupEntry {
                     binding: 13,
                     resource: wgpu::BindingResource::TextureView(&aux_resolve_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 14,
-                    resource: wgpu::BindingResource::TextureView(&self.shadow_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 15,
-                    resource: wgpu::BindingResource::Sampler(&self.shadow_sampler),
                 },
             ],
         });
@@ -1930,14 +1574,6 @@ impl ScenePipeline {
             aux_msaa_view,
             _aux_resolve: aux_resolve,
             aux_resolve_view,
-            _ao: ao,
-            ao_view,
-            ao_bind_group,
-            _ao_params: ao_params,
-            _ao_blur: ao_blur,
-            ao_blur_view,
-            ao_blur_bind_group,
-            _ao_blur_params: ao_blur_params,
             bloom_levels,
             composite_bind_group,
             composite_uniform,
@@ -1955,7 +1591,7 @@ impl ScenePrimitive {
         queue: &wgpu::Queue,
         width: u32,
         height: u32,
-    ) -> (Mat4, Mat4, Vec3) {
+    ) -> (Mat4, Vec3) {
         let aspect = width as f32 / height.max(1) as f32;
         let reaction_target = self.focus_target;
         let pitch = self.pitch.clamp(-1.18, -0.22);
@@ -1968,21 +1604,9 @@ impl ScenePrimitive {
         // frames exactly the old orthographic view height at the target.
         let projection = Mat4::perspective_rh(0.468, aspect, 0.3, 60.0);
         let key_direction = Vec3::new(-0.55, -0.88, -0.48).normalize();
-        let shadow_radius = (self.view_height * 0.95).max(3.0);
-        let light_eye = reaction_target - key_direction * 14.0;
-        let light_view = Mat4::look_at_rh(light_eye, reaction_target, Vec3::Y);
-        let light_projection = Mat4::orthographic_rh(
-            -shadow_radius,
-            shadow_radius,
-            -shadow_radius,
-            shadow_radius,
-            0.5,
-            30.0,
-        );
         let view_projection = projection * view;
         let uniform = CameraUniform {
             view_projection: view_projection.to_cols_array_2d(),
-            light_view_projection: (light_projection * light_view).to_cols_array_2d(),
             key_direction: [key_direction.x, key_direction.y, key_direction.z, 0.0],
             fill_direction: [0.70, -0.45, 0.55, 0.0],
             camera_position: [eye.x, eye.y, eye.z, 1.0],
@@ -2009,7 +1633,7 @@ impl ScenePrimitive {
             0,
             bytemuck::bytes_of(&reflection),
         );
-        (view_projection, light_projection * light_view, eye)
+        (view_projection, eye)
     }
 
     /// Projects the heat column into uv space and uploads the composite
@@ -2019,7 +1643,6 @@ impl ScenePrimitive {
         pipeline: &ScenePipeline,
         queue: &wgpu::Queue,
         view_projection: Mat4,
-        light_view_projection: Mat4,
         eye: Vec3,
     ) {
         let heat_centre = Vec3::new(self.heat[0], self.heat[1], self.heat[2]);
@@ -2040,7 +1663,6 @@ impl ScenePrimitive {
                 0,
                 bytemuck::bytes_of(&CompositeParams {
                     inv_view_projection: view_projection.inverse().to_cols_array_2d(),
-                    light_view_projection: light_view_projection.to_cols_array_2d(),
                     values: [
                         COMPOSITE_EXPOSURE,
                         COMPOSITE_BLOOM_STRENGTH,
@@ -2129,9 +1751,8 @@ impl shader::Primitive for ScenePrimitive {
             .transparent_index_count
             .clamp(pipeline.opaque_index_count, pipeline.index_count);
 
-        let (view_projection, light_view_projection, eye) =
-            self.write_camera_uniform(pipeline, queue, width, height);
-        self.write_composite_uniform(pipeline, queue, view_projection, light_view_projection, eye);
+        let (view_projection, eye) = self.write_camera_uniform(pipeline, queue, width, height);
+        self.write_composite_uniform(pipeline, queue, view_projection, eye);
     }
 
     #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
@@ -2163,61 +1784,6 @@ impl shader::Primitive for ScenePrimitive {
         let scissor_height = scissor_bottom.saturating_sub(scissor_y);
         if scissor_width == 0 || scissor_height == 0 {
             return;
-        }
-
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("chemspec structural 3d shadow pass"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &pipeline.shadow_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            // Solid casters only: glassware goes to its own light map.
-            if pipeline.opaque_index_count > 0 {
-                pass.set_pipeline(&pipeline.shadow_pipeline);
-                pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..pipeline.opaque_index_count, 0, 0..1);
-            }
-        }
-
-        // Glass and liquid transmit most light, so their casters render into
-        // a second map that only mildly attenuates the key.
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("chemspec structural 3d glass shadow pass"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &pipeline.glass_shadow_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            if pipeline.opaque_index_count < pipeline.transparent_index_count {
-                pass.set_pipeline(&pipeline.shadow_pipeline);
-                pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_index_buffer(pipeline.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(
-                    pipeline.opaque_index_count..pipeline.transparent_index_count,
-                    0,
-                    0..1,
-                );
-            }
         }
 
         // Mirrored scene, half res: the bench samples this for its planar
@@ -2440,39 +2006,6 @@ impl shader::Primitive for ScenePrimitive {
                 occlusion_query_set: None,
             });
             pass.set_pipeline(&pipeline.bloom_down_pipeline);
-            pass.set_bind_group(0, bind_group, &[]);
-            pass.draw(0..3, 0..1);
-        }
-
-        // Half-res ambient occlusion from the aux buffer, then one blur tap.
-        for (view, bind_group, pipeline_ref) in [
-            (
-                &targets.ao_view,
-                &targets.ao_bind_group,
-                &pipeline.ssao_pipeline,
-            ),
-            (
-                &targets.ao_blur_view,
-                &targets.ao_blur_bind_group,
-                &pipeline.bloom_down_pipeline,
-            ),
-        ] {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("chemspec structural 3d ao pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(pipeline_ref);
             pass.set_bind_group(0, bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
@@ -2844,57 +2377,6 @@ fn build_scene(
     )
 }
 
-/// A spatial callout for the active narration: while an annotation is on
-/// screen, a hairline leader with a glowing tip rises from the reaction
-/// point, anchoring the caption's words to the place they describe. The
-/// renderer stays chemistry-blind — the text itself lives in the caption
-/// panel; this only marks where.
-fn add_annotation_marker(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    ordinal: u16,
-    progress: f32,
-) {
-    let active = plan.annotations.iter().find(|annotation| {
-        annotation.start_ordinal <= ordinal && ordinal <= annotation.end_ordinal
-    });
-    // The marker geometry is ALWAYS emitted (invisible at alpha zero when no
-    // annotation is active): constant topology keeps per-moment meshes free
-    // of entity churn, which other scene invariants rely on.
-    let alpha = active.map_or(0.0, |annotation| {
-        let ramp_in = if ordinal == annotation.start_ordinal {
-            smooth01(progress / 0.18)
-        } else {
-            1.0
-        };
-        let ramp_out = if ordinal == annotation.end_ordinal {
-            smooth01((1.0 - progress) / 0.25)
-        } else {
-            1.0
-        };
-        ramp_in.min(ramp_out)
-    });
-    let anchor = layout.reaction_point;
-    let top = anchor + Vec3::Y * 0.34;
-    add_cylinder(
-        &mut meshes.translucent,
-        anchor + Vec3::Y * 0.06,
-        top,
-        0.003,
-        [0.55, 0.62, 0.68, 0.30 * alpha],
-    );
-    let pulse = 1.0 + (progress * std::f32::consts::TAU * 2.0).sin() * 0.14;
-    add_sphere(
-        &mut meshes.translucent,
-        top,
-        0.013 * pulse,
-        [0.62, 0.70, 0.76, 0.55 * alpha],
-        4,
-        6,
-    );
-}
-
 /// The cue-adjusted view direction at this moment (shake excluded: its
 /// fraction of a degree cannot flip triangle ordering).
 fn live_view_direction(plan: &ScenePlan, moment: RealWorldPosition, orbit: (f32, f32)) -> Vec3 {
@@ -2911,8 +2393,14 @@ fn build_scene_at(
     moment: RealWorldPosition,
     orbit: (f32, f32),
 ) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
-    let authored_clip_progress =
-        if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
+    let authored_clip_progress = if plan.explosive_metal_water.is_some() {
+            // The detonation choreography carries its own authored pacing
+            // (contact at frame 39/179) on the wall-clock timeline — the
+            // gas-evolution remap below would postpone contact to the
+            // gas-generation ordinal while blast_camera_shake stays on the
+            // wall clock, splitting the scene across two clocks.
+            plan.timeline.normalized_progress_at(moment)
+        } else if moment.stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
             gas_evolution_clip_progress(plan, moment)
         } else if moment.stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
             authored_reaction_clip_progress(plan, moment)
@@ -2944,8 +2432,9 @@ fn build_scene_with_stage(
     view_direction: Vec3,
 ) -> (Vec<GpuVertex>, Vec<u32>, u32, u32, Vec<GasSplat>) {
     let mut meshes = SceneMeshes::default();
+    // Scene invariant: per-plan topology is CONSTANT — entities never appear
+    // or disappear across (ordinal, progress); only sizes/positions animate.
     let layout = SceneLayout::resolve(plan);
-    add_annotation_marker(&mut meshes, plan, layout, ordinal, progress);
     let final_ordinal = plan
         .timeline
         .beats
@@ -3006,7 +2495,7 @@ fn build_scene_with_stage(
         object.role == SceneRole::Vessel
             && object.asset == AssetProfile::ExplosiveMetalWaterAssembly
     }) {
-        add_animated_explosive_metal_water_assembly(
+        explosion::add_explosive_metal_water_assembly(
             &mut meshes,
             plan,
             layout,
@@ -3019,7 +2508,7 @@ fn build_scene_with_stage(
     if plan.objects.iter().any(|object| {
         object.role == SceneRole::Vessel && object.asset == AssetProfile::ReactiveMetalWaterAssembly
     }) {
-        add_animated_alkali_water_assembly(
+        alkali_water::add_alkali_water_assembly(
             &mut meshes,
             plan,
             layout,
@@ -3028,7 +2517,7 @@ fn build_scene_with_stage(
         return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.gas_evolution.is_some() {
-        add_animated_gas_evolution_assembly(
+        gas_evolution::add_gas_evolution_assembly(
             &mut meshes,
             plan,
             layout,
@@ -3039,7 +2528,7 @@ fn build_scene_with_stage(
         return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.metal_displacement.is_some() {
-        add_animated_metal_displacement_assembly(
+        displacement::add_displacement_assembly(
             &mut meshes,
             plan,
             layout,
@@ -3050,7 +2539,7 @@ fn build_scene_with_stage(
         return meshes.finish(view_direction);
     }
     if stage == MacroscopicStage::Reaction && plan.solid_solid_synthesis.is_some() {
-        add_animated_synthesis_combination_assembly(
+        synthesis::add_synthesis_assembly(
             &mut meshes,
             plan,
             layout,
@@ -3064,11 +2553,12 @@ fn build_scene_with_stage(
         object.role == SceneRole::Vessel
             && object.asset == AssetProfile::NeutralisationEvaporationAssembly
     }) {
-        add_animated_neutralisation_assembly(
+        neutralisation::add_neutralisation_assembly(
             &mut meshes,
             NeutralisationAssemblyMoment {
                 plan,
                 layout,
+                stage,
                 progress: authored_clip_progress.unwrap_or(visual_inputs.reaction_progress),
                 post_process,
                 stage_progress,
@@ -3089,7 +2579,7 @@ fn build_scene_with_stage(
                     | AssetProfile::IncompleteCombustionAssembly
             )
     }) {
-        add_animated_combustion_assembly(
+        combustion::add_combustion_assembly(
             &mut meshes,
             assembly,
             layout,
@@ -3101,7 +2591,7 @@ fn build_scene_with_stage(
         object.role == SceneRole::Vessel
             && object.asset == AssetProfile::AqueousPrecipitationAssembly
     }) {
-        add_animated_precipitation_assembly(
+        precipitation::add_precipitation_assembly(
             &mut meshes,
             plan,
             layout,
@@ -4110,9 +3600,8 @@ fn instantiate_asset(
     let gas_start = meshes.gas.len();
     match scene_registry::asset_geometry(asset) {
         AssetGeometry::Bench => {
-            // Contact shading under the vessel comes from the shadow map now;
-            // the old baked shadow disc is gone. The bench gets its own
-            // studio-surface grey so shadows have something to read against.
+            // The old baked contact disc is gone. The bench keeps its own
+            // studio-surface grey so reflected geometry remains legible.
             add_box(
                 &mut meshes.opaque,
                 position,
@@ -4649,9 +4138,16 @@ fn add_evaporation_crystallization_process(
         );
     }
     if state.crystal_growth > 0.002 {
+        // Crystals rest on the vessel's actual interior floor — the same
+        // place the shrinking pool bottoms out — riding the heating lift,
+        // so they never hang where an old liquid level used to be.
         add_crystallizing_salt(
             &mut meshes.opaque,
-            layout,
+            Vec3::new(
+                layout.vessel_center.x,
+                layout.bench_top + state.lift + 0.125,
+                layout.vessel_center.z,
+            ),
             state.crystal_growth,
             seed.rotate_left(37),
             colours.solid,
@@ -4670,11 +4166,17 @@ fn add_heating_rig(
     if reveal <= 0.002 {
         return;
     }
+    // Entrance choreography: the rig slides in from the wings at full size
+    // while the vessel lifts to make room, settling under it — instead of
+    // inflating out of the bench.
+    let entrance = smooth01(reveal / 0.55);
+    let slide_angle = seed_phase(seed, 152);
+    let slide = Vec3::new(slide_angle.cos(), 0.0, slide_angle.sin()) * (1.7 * (1.0 - entrance));
     let centre = Vec3::new(
         layout.vessel_center.x,
         layout.bench_top,
         layout.vessel_center.z,
-    );
+    ) + slide;
     let vessel_bottom = layout.bench_top + state.lift;
     let support_y = vessel_bottom - 0.035;
     let metal = [0.20, 0.24, 0.28, 1.0];
@@ -4682,14 +4184,14 @@ fn add_heating_rig(
     add_cylinder(
         &mut meshes.opaque,
         centre + Vec3::Y * 0.018,
-        centre + Vec3::Y * (0.105 * reveal),
-        0.13 * reveal,
+        centre + Vec3::Y * 0.105,
+        0.13,
         burner,
     );
     add_ring(
         &mut meshes.opaque,
         Vec3::new(centre.x, support_y, centre.z),
-        0.57 * reveal,
+        0.57,
         0.022,
         metal,
     );
@@ -4697,9 +4199,9 @@ fn add_heating_rig(
         let angle = std::f32::consts::TAU * f32::from(leg) / 3.0 + seed_phase(seed, 151) * 0.04;
         let foot = centre + Vec3::new(angle.cos() * 0.48, 0.025, angle.sin() * 0.48);
         let top = Vec3::new(
-            centre.x + angle.cos() * 0.50 * reveal,
+            centre.x + angle.cos() * 0.50,
             support_y,
-            centre.z + angle.sin() * 0.50 * reveal,
+            centre.z + angle.sin() * 0.50,
         );
         add_cylinder(&mut meshes.opaque, foot, top, 0.016, metal);
     }
@@ -4805,17 +4307,12 @@ fn add_nucleate_boiling(
 
 fn add_crystallizing_salt(
     mesh: &mut Mesh,
-    layout: SceneLayout,
+    floor: Vec3,
     progress: f32,
     seed: u64,
     colour: [f32; 4],
 ) {
     let progress = progress.clamp(0.0, 1.0);
-    let floor = Vec3::new(
-        layout.vessel_center.x,
-        layout.bench_top + stateful_vessel_floor_offset(layout) + 0.035,
-        layout.vessel_center.z,
-    );
     let crystal_colour = mix_color(colour, [0.93, 0.95, 0.92, 1.0], 0.42);
     for index in 0..48_u32 {
         let birth = seeded_unit(seed, index, 171) * 0.72;
@@ -4836,27 +4333,22 @@ fn add_crystallizing_salt(
                 size * 0.34 + tier,
                 angle.sin() * radial,
             );
-        let axis = Vec3::new(
-            seeded_unit(seed, index, 175) - 0.5,
-            0.65 + seeded_unit(seed, index, 176) * 0.35,
-            seeded_unit(seed, index, 177) - 0.5,
-        )
-        .normalize_or_zero();
-        let rotation =
-            Quat::from_axis_angle(axis, seeded_unit(seed, index, 178) * std::f32::consts::TAU);
+        // Cubic habit: the alkali halides this pipeline crystallises are all
+        // rock-salt cubes, so each crystal is an even cube resting near-flat
+        // on a face — random yaw, only a small settle tilt.
+        let rotation = Quat::from_rotation_y(
+            seeded_unit(seed, index, 178) * std::f32::consts::TAU,
+        ) * Quat::from_rotation_x((seeded_unit(seed, index, 175) - 0.5) * 0.22)
+            * Quat::from_rotation_z((seeded_unit(seed, index, 177) - 0.5) * 0.22);
         add_shard(
             mesh,
             point,
-            Vec3::new(size * 0.86, size * 0.82, size * 0.78),
+            Vec3::splat(size * 0.84),
             rotation,
             crystal_colour,
             shard_seed,
         );
     }
-}
-
-fn stateful_vessel_floor_offset(layout: SceneLayout) -> f32 {
-    (layout.vessel_center.y - (layout.bench_top + 0.605)).max(0.0)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -5381,11 +4873,13 @@ fn add_bubble_streams(mesh: &mut Mesh, agitation: &SurfaceAgitation, phase: f32,
 /// Precipitate accumulating on the basin floor: a noise-bumped radial mound
 /// that grows with formation progress instead of appearing fully formed.
 #[allow(clippy::cast_precision_loss)]
+#[allow(clippy::too_many_arguments)]
 fn add_sediment_mound(
     mesh: &mut Mesh,
     floor_centre: Vec3,
     radius: f32,
     growth: f32,
+    peak: f32,
     colour: [f32; 4],
     seed: u64,
 ) {
@@ -5394,7 +4888,7 @@ fn add_sediment_mound(
     if growth <= 0.01 {
         return;
     }
-    let peak = 0.085 * growth;
+    let peak = peak * growth;
     let footprint = radius * (0.45 + growth * 0.3);
     let height = |radial: f32, angle: f32| {
         let falloff = (1.0 - radial * radial).max(0.0).powf(1.4);
@@ -5810,7 +5304,9 @@ fn add_stirring_apparatus(
         6,
     );
 
-    if pose.activity > 0.001 {
+    // Always emitted with activity-scaled alpha: assemblies that keep the
+    // stirrer resident rely on constant topology across ordinals.
+    {
         let wake_center = Vec3::new(pose.lower.x, layout.liquid_surface + 0.015, pose.lower.z);
         for ring in 0..3_u8 {
             let ring_index = u32::from(ring);
@@ -5835,7 +5331,7 @@ fn add_stirring_apparatus(
     let film = (std::f32::consts::PI * withdrawal).sin().max(0.0)
         * (1.0 - pose.submerged)
         * pose.visibility;
-    if film > 0.001 {
+    {
         add_sphere(
             &mut meshes.translucent,
             pose.lower - axis * 0.012,
@@ -6198,138 +5694,6 @@ fn animated_alkali_water_style(plan: &ScenePlan) -> AnimatedAlkaliWaterStyle {
     AnimatedAlkaliWaterStyle { activity, flame }
 }
 
-fn add_animated_alkali_water_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-) {
-    let clip = alkali_water_clip();
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    let style = animated_alkali_water_style(plan);
-    let seed = plan_seed(plan);
-    for (track_index, track) in clip.tracks.iter().enumerate() {
-        if liquid_track_is_replaced(clip, track_index)
-            || !animated_track_enabled(track, track_index, style, seed)
-        {
-            continue;
-        }
-        let colour = animated_track_colour(track.colour, style);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            style.activity,
-            colour,
-        );
-    }
-    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
-        add_contained_liquid(
-            &mut meshes.translucent,
-            state.surface_centre,
-            state.floor_y,
-            state.radius,
-            animated_track_colour(state.colour, style),
-            style.activity,
-            frame / 30.0 * 2.0,
-            seed,
-        );
-        // The evolving hydrogen collects a foam collar at the glass; the
-        // authored splash props already pop where the metal darts.
-        add_foam_ring(
-            &mut meshes.translucent,
-            state.surface_centre,
-            state.radius,
-            style.activity * 0.7,
-            frame / 30.0 * 2.0,
-            seed,
-        );
-    }
-}
-
-fn add_animated_explosive_metal_water_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let explosive = plan
-        .explosive_metal_water
-        .as_ref()
-        .expect("validated high-energy metal/water assembly has material bindings");
-    let clip = explosive_metal_water_clip(explosive.variant);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
-    );
-    for track in &clip.tracks {
-        if !explosive_metal_water_track_visible(track.module, frame) {
-            continue;
-        }
-        let colour =
-            explosive_metal_water_track_colour(track.colour, explosive, ordinal, ordinal_progress);
-        let track_frame = explosive_metal_water_track_frame(track.module, frame);
-        let destination = match (track.pass, track.colour, track.module) {
-            (_, ClipColour::Glass, _) | (_, _, ClipModule::BeakerShards) => &mut meshes.glass,
-            (ClipPass::Opaque, _, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            track_frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-}
-
-fn explosive_metal_water_track_visible(module: ClipModule, frame: f32) -> bool {
-    // The compact clip format does not encode Blender visibility, so enforce
-    // the authored source-frame windows recorded in the asset manifest. Clip
-    // frame zero corresponds to source frame one.
-    match module {
-        ClipModule::Metal => frame < 39.0,
-        ClipModule::BeakerShards
-        | ClipModule::Explosion
-        | ClipModule::Flame
-        | ClipModule::Sparks => (39.0..65.0).contains(&frame),
-        ClipModule::Bubbles | ClipModule::Splashes | ClipModule::Vapour => {
-            (44.0..95.0).contains(&frame)
-        }
-        _ => true,
-    }
-}
-
-fn explosive_metal_water_track_frame(module: ClipModule, frame: f32) -> f32 {
-    // The source liquid is hidden at contact while dedicated explosion and
-    // splash modules take over. Preserve its last contained frame so the
-    // validated aqueous product has a stable final surface instead of the
-    // invisible source object's rapidly expanding setup mesh.
-    if module == ClipModule::Water {
-        frame.min(38.0)
-    } else {
-        frame
-    }
-}
 
 fn explosive_metal_water_track_colour(
     colour: ClipColour,
@@ -6456,6 +5820,7 @@ fn add_neutralisation_liquid(
 struct NeutralisationAssemblyMoment<'a> {
     plan: &'a ScenePlan,
     layout: SceneLayout,
+    stage: MacroscopicStage,
     progress: f32,
     post_process: PostProcessVisualState,
     stage_progress: f32,
@@ -6464,156 +5829,6 @@ struct NeutralisationAssemblyMoment<'a> {
     effect_colours: EffectColours,
     ordinal: u16,
     ordinal_progress: f32,
-}
-
-fn add_animated_neutralisation_assembly(
-    meshes: &mut SceneMeshes,
-    moment: NeutralisationAssemblyMoment<'_>,
-) {
-    let NeutralisationAssemblyMoment {
-        plan,
-        layout,
-        progress,
-        post_process,
-        stage_progress,
-        seed,
-        visual_inputs,
-        effect_colours,
-        ..
-    } = moment;
-    let clip = neutralisation_clip();
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    let vessel_motion = neutralisation_vessel_motion(clip, frame);
-    let colours = neutralisation_colours(plan, effect_colours, frame);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        vessel_motion,
-    );
-    for (track_index, track) in clip.tracks.iter().enumerate() {
-        if track.module == ClipModule::VesselAnchor || liquid_track_is_replaced(clip, track_index) {
-            continue;
-        }
-        let colour = neutralisation_track_colour(track.colour, colours);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
-        add_neutralisation_liquid(
-            meshes,
-            &state,
-            NeutralisationLiquidLife {
-                bench_top: layout.bench_top,
-                vessel_motion,
-                liquid_colour: neutralisation_track_colour(state.colour, colours),
-                surface_colour: colours.liquid,
-                turbulence: visual_inputs.liquid_turbulence,
-                boiling: post_process.boiling,
-                vapour: post_process.vapour,
-            },
-            frame / 30.0 * 2.0,
-            seed,
-        );
-    }
-    add_neutralisation_supplemental_reactants(meshes, moment, vessel_motion);
-    add_neutralisation_reaction_gas(meshes, moment, vessel_motion);
-    if post_process.vapour > 0.002 {
-        let centre = Vec3::new(
-            layout.vessel_center.x,
-            layout.liquid_surface + vessel_motion.y * 0.45 + 0.30,
-            layout.vessel_center.z,
-        );
-        add_gas_density_field(
-            &mut meshes.gas,
-            centre,
-            Vec3::new(0.46, 0.74, 0.46),
-            [0.88, 0.92, 0.93, 0.34 * post_process.vapour],
-            seed.rotate_left(23),
-            stage_progress * 4.2,
-            post_process.vapour,
-            GasFlowControls::escaping(
-                post_process.vapour,
-                0.48 + post_process.boiling * 0.34,
-                0.92,
-                seed.rotate_left(23),
-            ),
-        );
-    }
-}
-
-fn add_animated_combustion_assembly(
-    meshes: &mut SceneMeshes,
-    assembly: &PresentationObject,
-    layout: SceneLayout,
-    progress: f32,
-) {
-    let incomplete = assembly.asset == AssetProfile::IncompleteCombustionAssembly;
-    let clip = if incomplete {
-        incomplete_combustion_clip()
-    } else {
-        complete_combustion_clip()
-    };
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
-    );
-    let mut fuel = appearance_color(assembly.appearance);
-    fuel[3] = 0.32;
-    for (track_index, track) in clip.tracks.iter().enumerate() {
-        if liquid_track_is_replaced(clip, track_index) {
-            continue;
-        }
-        let colour = combustion_track_colour(track.colour, fuel, incomplete);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
-        // A gentle simmer; the flame's drama lives in the emissive tracks.
-        add_contained_liquid(
-            &mut meshes.translucent,
-            state.surface_centre,
-            state.floor_y,
-            state.radius,
-            combustion_track_colour(state.colour, fuel, incomplete),
-            0.22,
-            frame / 30.0 * 2.0,
-            0x00C0_FFEE,
-        );
-        // Burned-away fuel leaves its receding waterline on the glass.
-        add_high_water_mark(&mut meshes.translucent, &state, 0.0);
-    }
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -6632,116 +5847,6 @@ fn precipitation_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f
     };
     let elapsed_ms = plan.timeline.elapsed_ms_at(moment).unwrap_or(0.0);
     ((elapsed_ms - start_ms as f32) / DURATION_MS).clamp(0.0, 1.0)
-}
-
-fn add_animated_precipitation_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let precipitation = plan
-        .precipitation
-        .as_ref()
-        .expect("validated precipitation assembly has material bindings");
-    let clip = precipitation_clip();
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
-    );
-    let pour = pour_state(clip, frame, layout.bench_top);
-    let receiving_lift = pour.map_or(0.0, |state| state.poured * 0.055);
-    for (track_index, track) in clip.tracks.iter().enumerate() {
-        // The baked stream props are replaced by the state-driven pour below.
-        if track.module == ClipModule::PouringVessel && track.colour == ClipColour::LiquidAdded {
-            continue;
-        }
-        if liquid_track_is_replaced(clip, track_index) {
-            continue;
-        }
-        let colour =
-            precipitation_track_colour(track.colour, precipitation, ordinal, ordinal_progress);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-    let liquid = liquid_state(clip, frame, layout.bench_top);
-    if let Some(state) = liquid {
-        // Conservation made visible: the poured volume raises the level, the
-        // falling stream stirs the surface, and the mixed colour spreads
-        // from where the stream lands.
-        add_receiving_liquid(
-            meshes,
-            &state,
-            pour.as_ref(),
-            receiving_lift,
-            bound_colour_endpoints(
-                &precipitation.initial_liquid,
-                0.34,
-                ordinal,
-                ordinal_progress,
-            ),
-            frame / 30.0 * 2.0,
-            plan_seed(plan),
-        );
-        // The formed precipitate settles into a growing mound on the floor.
-        let (_, _, growth) =
-            bound_colour_endpoints(&precipitation.precipitate, 1.0, ordinal, ordinal_progress);
-        add_sediment_mound(
-            &mut meshes.opaque,
-            Vec3::new(
-                state.surface_centre.x,
-                state.floor_y + 0.004,
-                state.surface_centre.z,
-            ),
-            state.radius,
-            growth,
-            precipitation_track_colour(
-                ClipColour::Precipitate,
-                precipitation,
-                ordinal,
-                ordinal_progress,
-            ),
-            plan_seed(plan).rotate_left(27),
-        );
-    }
-    if let Some(state) = pour {
-        let colour = precipitation_track_colour(
-            ClipColour::LiquidAdded,
-            precipitation,
-            ordinal,
-            ordinal_progress,
-        );
-        let receiving_surface =
-            liquid.map_or(layout.liquid_surface, |liquid| liquid.surface_centre.y);
-        add_state_driven_pour(
-            meshes,
-            &state,
-            colour,
-            receiving_surface + receiving_lift,
-            progress * 9.6,
-            plan_seed(plan),
-        );
-    }
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -6801,7 +5906,7 @@ fn add_gas_evolution_liquid(
     // where the stream lands.
     let endpoints = bound_colour_endpoints(
         &gas_evolution.initial_reactant,
-        0.34,
+        0.42,
         ordinal,
         ordinal_progress,
     );
@@ -6826,7 +5931,7 @@ fn add_gas_evolution_liquid(
         meshes,
         &SurfaceAgitation {
             surface_centre: surface,
-            floor_y: state.floor_y,
+            floor_y: (surface.y - 0.18).max(state.floor_y),
             radius: state.radius,
             intensity: fizz,
             centre_bias: 0.35,
@@ -6847,90 +5952,6 @@ fn add_gas_evolution_liquid(
     }
 }
 
-fn add_animated_gas_evolution_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let gas_evolution = plan
-        .gas_evolution
-        .as_ref()
-        .expect("validated gas-evolution assembly has material bindings");
-    let clip = gas_evolution_clip(gas_evolution.variant);
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
-    );
-    let pour = pour_state(clip, frame, layout.bench_top);
-    let receiving_lift = pour.map_or(0.0, |state| state.poured * 0.055);
-    for (track_index, track) in clip.tracks.iter().enumerate() {
-        // The baked stream props are replaced by the state-driven pour below.
-        if track.module == ClipModule::PouringVessel && track.colour == ClipColour::LiquidAdded {
-            continue;
-        }
-        if liquid_track_is_replaced(clip, track_index) {
-            continue;
-        }
-        let colour =
-            gas_evolution_track_colour(track.colour, gas_evolution, ordinal, ordinal_progress);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
-    }
-    let liquid = liquid_state(clip, frame, layout.bench_top);
-    if let Some(state) = liquid {
-        add_gas_evolution_liquid(
-            meshes,
-            plan,
-            gas_evolution,
-            &state,
-            pour.as_ref(),
-            receiving_lift,
-            frame,
-            ordinal,
-            ordinal_progress,
-        );
-    }
-    if let Some(state) = pour {
-        let colour = gas_evolution_track_colour(
-            ClipColour::LiquidAdded,
-            gas_evolution,
-            ordinal,
-            ordinal_progress,
-        );
-        let receiving_surface =
-            liquid.map_or(layout.liquid_surface, |liquid| liquid.surface_centre.y);
-        add_state_driven_pour(
-            meshes,
-            &state,
-            colour,
-            receiving_surface + receiving_lift,
-            progress * 9.6,
-            plan_seed(plan),
-        );
-    }
-}
-
 #[allow(clippy::cast_precision_loss)]
 fn authored_reaction_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) -> f32 {
     let reaction_duration = plan
@@ -6945,105 +5966,6 @@ fn authored_reaction_clip_progress(plan: &ScenePlan, moment: RealWorldPosition) 
         return 0.0;
     }
     (plan.timeline.elapsed_ms_at(moment).unwrap_or(0.0) / reaction_duration).clamp(0.0, 1.0)
-}
-
-fn add_animated_metal_displacement_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let displacement = plan
-        .metal_displacement
-        .as_ref()
-        .expect("validated metal-displacement assembly has material bindings");
-    let clip = metal_displacement_clip();
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    append_shared_beaker(
-        &mut meshes.glass,
-        alkali_water_clip(),
-        layout.bench_top,
-        Vec3::ZERO,
-    );
-    for (track_index, track) in clip.tracks.iter().enumerate() {
-        if !metal_displacement_track_visible(track.module, frame)
-            || liquid_track_is_replaced(clip, track_index)
-        {
-            continue;
-        }
-        // The authored basin-filling FinalSolution column is replaced by the
-        // dye front below; its small swirl props still render.
-        if track.module == ClipModule::FinalSolution && track.vertex_count >= 96 {
-            continue;
-        }
-        let colour =
-            metal_displacement_track_colour(track.colour, displacement, ordinal, ordinal_progress);
-        let destination = match (track.pass, track.colour) {
-            (_, ClipColour::Glass) => &mut meshes.glass,
-            (ClipPass::Opaque, _) => &mut meshes.opaque,
-            (ClipPass::Translucent, _) => &mut meshes.translucent,
-            (ClipPass::Emissive, _) => &mut meshes.emissive,
-        };
-        let deposited = matches!(
-            track.module,
-            ClipModule::MetalDeposit | ClipModule::MetalFlakes
-        );
-        if deposited {
-            append_animated_track_adjusted(
-                destination,
-                clip,
-                track,
-                frame,
-                layout.bench_top,
-                1.0,
-                colour,
-                1.16,
-                0.012,
-            );
-            append_animated_track_adjusted(
-                &mut meshes.emissive,
-                clip,
-                track,
-                frame,
-                layout.bench_top,
-                1.0,
-                deposit_highlight_colour(colour),
-                1.22,
-                0.026,
-            );
-        } else {
-            append_animated_track(
-                destination,
-                clip,
-                track,
-                frame,
-                layout.bench_top,
-                1.0,
-                colour,
-            );
-        }
-    }
-    if let Some(state) = liquid_state(clip, frame, layout.bench_top) {
-        let final_colour = metal_displacement_track_colour(
-            ClipColour::SolutionFinal,
-            displacement,
-            ordinal,
-            ordinal_progress,
-        );
-        add_displacement_solution(
-            meshes,
-            &state,
-            metal_displacement_track_colour(state.colour, displacement, ordinal, ordinal_progress),
-            final_colour,
-            progress,
-            frame / 30.0 * 2.0,
-            plan_seed(plan),
-        );
-    }
 }
 
 /// The standing solution with the final-solution colour diffusing out from
@@ -7084,19 +6006,8 @@ fn add_displacement_solution(
             target: final_colour,
             amount: progress,
             reach: (state.radius * 2.0).hypot(state.surface_centre.y - state.floor_y),
-            seed: seed ^ 0x0064_7965,
         },
     );
-}
-
-fn metal_displacement_track_visible(module: ClipModule, frame: f32) -> bool {
-    const DEPOSIT_START_FRAME: f32 = 53.0;
-    const FLAKE_START_FRAME: f32 = 103.0;
-    match module {
-        ClipModule::MetalDeposit => frame >= DEPOSIT_START_FRAME,
-        ClipModule::MetalFlakes => frame >= FLAKE_START_FRAME,
-        _ => true,
-    }
 }
 
 fn metal_displacement_track_colour(
@@ -7138,45 +6049,6 @@ fn metal_displacement_track_colour(
         ClipColour::MetalErosion => [0.12, 0.13, 0.14, 1.0],
         ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
         _ => [0.76, 0.78, 0.80, 1.0],
-    }
-}
-
-fn add_animated_synthesis_combination_assembly(
-    meshes: &mut SceneMeshes,
-    plan: &ScenePlan,
-    layout: SceneLayout,
-    progress: f32,
-    ordinal: u16,
-    ordinal_progress: f32,
-) {
-    let synthesis = plan
-        .solid_solid_synthesis
-        .as_ref()
-        .expect("validated solid-solid synthesis assembly has material bindings");
-    let clip = synthesis_combination_clip();
-    debug_assert_eq!(clip.frame_count, 180);
-    debug_assert_eq!(clip.frames_per_second, 30);
-    let frame = clip.frame_at_progress(progress);
-    for track in &clip.tracks {
-        if track.module == ClipModule::SynthesisReactionFront && !synthesis.show_reaction_front {
-            continue;
-        }
-        let colour =
-            synthesis_combination_track_colour(track.colour, synthesis, ordinal, ordinal_progress);
-        let destination = match track.pass {
-            ClipPass::Opaque => &mut meshes.opaque,
-            ClipPass::Translucent => &mut meshes.translucent,
-            ClipPass::Emissive => &mut meshes.emissive,
-        };
-        append_animated_track(
-            destination,
-            clip,
-            track,
-            frame,
-            layout.bench_top,
-            1.0,
-            colour,
-        );
     }
 }
 
@@ -7223,10 +6095,12 @@ fn synthesis_combination_track_colour(
 }
 
 fn deposit_highlight_colour(colour: [f32; 4]) -> [f32; 4] {
+    // A warm metallic glint: the lift is strongest in red and weakest in
+    // blue, so fresh deposit sparkles hot instead of washing to white.
     [
-        colour[0] + (1.0 - colour[0]) * 0.28,
-        colour[1] + (1.0 - colour[1]) * 0.28,
-        colour[2] + (1.0 - colour[2]) * 0.28,
+        colour[0] + (1.0 - colour[0]) * 0.50,
+        colour[1] + (1.0 - colour[1]) * 0.26,
+        colour[2] + (1.0 - colour[2]) * 0.08,
         0.24,
     ]
 }
@@ -7511,46 +6385,233 @@ fn add_neutralisation_reaction_gas(
     }
 }
 
-fn neutralisation_vessel_motion(clip: &AnimatedClip, frame: f32) -> Vec3 {
-    let anchor = clip
-        .tracks
-        .iter()
-        .find(|track| track.module == ClipModule::VesselAnchor)
-        .expect("validated neutralisation clip has a vessel anchor");
-    clip.sample(anchor, 0, frame).position - clip.sample(anchor, 0, 0.0).position
+/// Fixed-lobe surface flame: constant topology, lobe sizes breathing
+/// through seeded cycles, scaling with `strength` and overall `scale`.
+#[allow(clippy::too_many_arguments)]
+fn add_surface_flame(
+    meshes: &mut SceneMeshes,
+    palette: FlamePalette,
+    source: Vec3,
+    strength: f32,
+    scale: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const LOBES: u32 = 8;
+    let strength = strength * scale;
+    let colours = flame_colours(palette);
+    for lobe in 0..LOBES {
+        let rate = 1.1 + seeded_unit(seed, lobe, 311) * 0.9;
+        let age = (phase * rate + seeded_unit(seed, lobe, 312)).fract();
+        let flare = (std::f32::consts::PI * age).sin().max(0.0);
+        let angle = seeded_unit(seed, lobe, 313) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, lobe, 314).sqrt() * 0.05 * scale;
+        let sway = curl_like_flow(phase * 1.6, seed, lobe) * 0.05 * age;
+        let base =
+            source + Vec3::new(angle.cos() * radial, age * 0.10 * scale, angle.sin() * radial) + sway;
+        // Floors keep every lobe past add_flame_lobe's degenerate-geometry
+        // early-outs even at zero strength: constant topology, invisible size.
+        let height = ((0.12 + seeded_unit(seed, lobe, 315) * 0.18)
+            * (0.6 + 0.4 * flare)
+            * strength)
+            .max(0.02);
+        let width = ((0.032 + seeded_unit(seed, lobe, 316) * 0.030) * flare.max(0.05) * strength)
+            .max(0.002);
+        let tip = base + Vec3::Y * height;
+        let body = mix_color(
+            colours.body_low,
+            colours.body_high,
+            seeded_unit(seed, lobe, 317),
+        );
+        add_flame_lobe(
+            &mut meshes.translucent,
+            base,
+            tip,
+            width,
+            alpha(body, (flare * strength.min(1.0)).max(0.02)),
+        );
+        if lobe % 2 == 0 {
+            add_flame_lobe(
+                &mut meshes.emissive,
+                base + Vec3::Y * 0.006,
+                base.lerp(tip, 0.62),
+                (width * 0.45).max(0.002),
+                alpha(colours.core, (flare * strength.min(1.0) * 0.8).max(0.02)),
+            );
+        }
+    }
 }
 
-fn append_shared_beaker(
-    mesh: &mut Mesh,
-    shared_clip: &AnimatedClip,
-    bench_top: f32,
-    vessel_motion: Vec3,
-) {
-    const MODEL_SCALE: f32 = 0.45;
-    for track in shared_clip
-        .tracks
-        .iter()
-        .filter(|track| track.module == ClipModule::Beaker)
-    {
-        let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-        mesh.vertices.reserve(track.vertex_count);
-        mesh.indices.reserve(track.indices.len());
-        for vertex_index in 0..track.vertex_count {
-            let vertex = shared_clip.sample(track, vertex_index, 0.0);
+/// A shallow tapered ceramic dish, opaque, sitting on the bench. Shared by
+/// the solids and combustion scenes; `radius`/`height` set the footprint.
+#[allow(clippy::cast_precision_loss)]
+fn add_ceramic_dish(mesh: &mut Mesh, bench_top: f32, radius: f32, height: f32, colour: [f32; 4]) {
+    const SEGMENTS: u32 = 28;
+    let dimmed = [colour[0] * 0.66, colour[1] * 0.64, colour[2] * 0.62, 1.0];
+    let inner_colour = [colour[0] * 0.55, colour[1] * 0.54, colour[2] * 0.52, 1.0];
+    let floor_y = height * 0.31;
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    // Profile rings: outer base -> outer rim -> inner rim -> inner floor.
+    let profile: [(f32, f32, [f32; 4], f32); 4] = [
+        (radius * 0.70, height * 0.08, dimmed, -0.6),
+        (radius, height, dimmed, 0.35),
+        (radius * 0.93, height - 0.012, inner_colour, 0.7),
+        (radius * 0.62, floor_y, inner_colour, 0.55),
+    ];
+    for (ring_radius, ring_height, ring_colour, normal_y) in profile {
+        for segment in 0..=SEGMENTS {
+            let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+            let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
+            let normal = (radial * (1.0 - normal_y.abs()) + Vec3::Y * normal_y).normalize_or_zero();
             mesh.vertices.push(Vertex {
-                position: ((vertex.position + vessel_motion) * MODEL_SCALE + Vec3::Y * bench_top)
+                position: (radial * ring_radius + Vec3::new(0.0, bench_top + ring_height, 0.0))
                     .to_array(),
-                normal: vertex.normal.to_array(),
-                color: [0.62, 0.84, 0.94, 0.22],
+                normal: normal.to_array(),
+                color: ring_colour,
             });
         }
-        mesh.indices.extend(
-            track
-                .indices
-                .iter()
-                .map(|index| index.saturating_add(vertex_offset)),
+    }
+    for ring in 0..3_u32 {
+        for segment in 0..SEGMENTS {
+            let a = base_vertex + ring * (SEGMENTS + 1) + segment;
+            let b = a + SEGMENTS + 1;
+            mesh.indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+        }
+    }
+    // Inner floor fan.
+    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    mesh.vertices.push(Vertex {
+        position: [0.0, bench_top + floor_y, 0.0],
+        normal: Vec3::Y.to_array(),
+        color: inner_colour,
+    });
+    let floor_ring_start = base_vertex + 3 * (SEGMENTS + 1);
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            centre_vertex,
+            floor_ring_start + segment + 1,
+            floor_ring_start + segment,
+        ]);
+    }
+}
+
+/// Fixed-population condensation mist beading on a cool wall band: every
+/// droplet is always emitted, its size scaled by `mist`, so the topology
+/// never churns while the fogging fades in and out.
+fn add_condensation_mist(
+    mesh: &mut Mesh,
+    centre: Vec3,
+    wall_radius: f32,
+    band_bottom: f32,
+    band_top: f32,
+    mist: f32,
+    seed: u64,
+) {
+    const DROPLETS: u32 = 30;
+    for droplet in 0..DROPLETS {
+        let angle = seeded_unit(seed, droplet, 541) * std::f32::consts::TAU;
+        let height = band_bottom
+            + seeded_unit(seed, droplet, 542) * (band_top - band_bottom).max(0.01);
+        let size = (0.006 + seeded_unit(seed, droplet, 543) * 0.008) * mist;
+        add_sphere(
+            mesh,
+            Vec3::new(
+                centre.x + angle.cos() * wall_radius,
+                height,
+                centre.z + angle.sin() * wall_radius,
+            ),
+            size.max(0.000_5),
+            [0.88, 0.94, 0.97, 0.42],
+            3,
+            5,
         );
     }
+}
+
+/// Fixed-population gas puffs drifting up from `surface` and thinning out.
+fn add_rising_plume(
+    mesh: &mut Mesh,
+    surface: Vec3,
+    strength: f32,
+    colour: [f32; 4],
+    phase: f32,
+    seed: u64,
+) {
+    const PUFFS: u32 = 12;
+    for puff in 0..PUFFS {
+        let rate = 0.35 + seeded_unit(seed, puff, 331) * 0.4;
+        let age = (phase * rate + seeded_unit(seed, puff, 332)).fract();
+        let angle = seeded_unit(seed, puff, 333) * std::f32::consts::TAU;
+        let radial = seeded_unit(seed, puff, 334).sqrt() * 0.34;
+        let drift = curl_like_flow(phase * 0.7, seed, puff) * 0.10 * age;
+        let position = surface
+            + Vec3::new(angle.cos() * radial, 0.04 + age * 0.58, angle.sin() * radial)
+            + Vec3::new(drift.x, 0.0, drift.z);
+        let size = (0.038 + 0.068 * age) * strength;
+        let fade = alpha(colour, colour[3] * (1.0 - age) * strength);
+        add_sphere(mesh, position, size.max(0.000_5), fade, 4, 7);
+    }
+}
+
+/// Fixed-population ignition sparks darting up around a flame source.
+fn add_ignition_sparks(mesh: &mut Mesh, source: Vec3, strength: f32, phase: f32, seed: u64) {
+    const SPARKS: u32 = 10;
+    for spark in 0..SPARKS {
+        let rate = 1.4 + seeded_unit(seed, spark, 371) * 1.3;
+        let age = (phase * rate + seeded_unit(seed, spark, 372)).fract();
+        let angle = seeded_unit(seed, spark, 373) * std::f32::consts::TAU;
+        let radial = age * (0.08 + seeded_unit(seed, spark, 374) * 0.16);
+        let position = source
+            + Vec3::new(
+                angle.cos() * radial,
+                0.03 + age * (0.16 + seeded_unit(seed, spark, 375) * 0.14),
+                angle.sin() * radial,
+            );
+        let size = (0.006 + seeded_unit(seed, spark, 376) * 0.006) * (1.0 - age) * strength;
+        add_sphere(
+            mesh,
+            position,
+            size.max(0.000_5),
+            [1.0, 0.72, 0.12, 0.94 * (1.0 - age).max(0.05)],
+            3,
+            5,
+        );
+    }
+}
+
+/// The procedural laboratory beaker every reaction assembly shares.
+/// `vessel_motion` stays in clip-model units so assemblies that ride an
+/// authored lift keep their amplitude.
+fn add_assembly_beaker(mesh: &mut Mesh, bench_top: f32, vessel_motion: Vec3) {
+    const MODEL_SCALE: f32 = 0.45;
+    const GLASS: [f32; 4] = [0.62, 0.84, 0.94, 0.22];
+    const RADIUS: f32 = 0.94;
+    let motion = vessel_motion * MODEL_SCALE;
+    let bottom = Vec3::new(motion.x, bench_top + 0.02 + motion.y, motion.z);
+    let top = Vec3::new(motion.x, bench_top + 1.80 + motion.y, motion.z);
+    add_cylinder_wall(mesh, bottom, top, RADIUS, GLASS);
+    add_ring(mesh, top, RADIUS, 0.022, [0.62, 0.84, 0.94, 0.24]);
+    add_ring(
+        mesh,
+        bottom + Vec3::Y * 0.012,
+        RADIUS * 0.985,
+        0.020,
+        [0.52, 0.76, 0.88, 0.16],
+    );
+    add_disc(
+        mesh,
+        bottom + Vec3::Y * 0.016,
+        RADIUS * 0.97,
+        [0.48, 0.72, 0.84, 0.10],
+    );
+    add_sphere(
+        mesh,
+        top + Vec3::new(RADIUS * 0.93, 0.02, 0.0),
+        0.05,
+        GLASS,
+        4,
+        6,
+    );
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -7650,351 +6711,6 @@ fn neutralisation_track_colour(colour: ClipColour, colours: NeutralisationColour
     }
 }
 
-fn animated_track_enabled(
-    track: &ClipTrack,
-    track_index: usize,
-    style: AnimatedAlkaliWaterStyle,
-    seed: u64,
-) -> bool {
-    if track.module == ClipModule::Flame {
-        return style.flame.is_some();
-    }
-    let retention = match track.module {
-        ClipModule::Bubbles => style.activity,
-        ClipModule::Splashes => ((style.activity - 0.18) / 0.82).clamp(0.18, 1.0),
-        ClipModule::Vapour => (style.activity * 0.86).clamp(0.28, 1.0),
-        ClipModule::Water if track.colour == ClipColour::WaterHighlight => {
-            (0.34 + style.activity * 0.66).clamp(0.0, 1.0)
-        }
-        ClipModule::Beaker | ClipModule::Water | ClipModule::Metal => 1.0,
-        ClipModule::BeakerShards
-        | ClipModule::Explosion
-        | ClipModule::Mixing
-        | ClipModule::Salt
-        | ClipModule::Stirrer
-        | ClipModule::VesselAnchor
-        | ClipModule::Sparks
-        | ClipModule::Plume
-        | ClipModule::Soot
-        | ClipModule::PrecipitateCloud
-        | ClipModule::FallingPrecipitate
-        | ClipModule::PouringVessel
-        | ClipModule::Sediment
-        | ClipModule::SurfaceBursts
-        | ClipModule::SolidReactant
-        | ClipModule::InitialSolution
-        | ClipModule::FinalSolution
-        | ClipModule::OriginalMetal
-        | ClipModule::MetalErosion
-        | ClipModule::MetalDeposit
-        | ClipModule::MetalFlakes
-        | ClipModule::SynthesisReactantA
-        | ClipModule::SynthesisReactantB
-        | ClipModule::SynthesisProduct
-        | ClipModule::SynthesisReactionFront
-        | ClipModule::SynthesisVessel
-        | ClipModule::SynthesisMixingTool => 0.0,
-        ClipModule::Flame => unreachable!("flame handled above"),
-    };
-    let index = u32::try_from(track_index).unwrap_or(u32::MAX);
-    seeded_unit(seed, index, 211) <= retention
-}
-
-fn animated_track_colour(colour: ClipColour, style: AnimatedAlkaliWaterStyle) -> [f32; 4] {
-    let flame = flame_colours(style.flame.unwrap_or(FlamePalette::Natural));
-    match colour {
-        ClipColour::Glass => [0.62, 0.84, 0.94, 0.22],
-        ClipColour::Water => [0.34, 0.64, 0.80, 0.34],
-        ClipColour::WaterHighlight => [0.72, 0.90, 0.98, 0.46],
-        ClipColour::ReactiveMetal => [0.88, 0.90, 0.92, 1.0],
-        ClipColour::FlameOuter => flame.body_high,
-        ClipColour::FlameInner => flame.body_low,
-        ClipColour::FlameCore => flame.core,
-        ClipColour::FizzBubble | ClipColour::GasBubble => [0.80, 0.94, 1.0, 0.30 * style.activity],
-        ClipColour::Vapour => [0.84, 0.88, 0.92, 0.13 + style.activity * 0.06],
-        ClipColour::MixtureA
-        | ClipColour::MixtureB
-        | ClipColour::SaltResidue
-        | ClipColour::LiquidInitial
-        | ClipColour::LiquidAdded
-        | ClipColour::PrecipitateCloud
-        | ClipColour::Precipitate
-        | ClipColour::SolidReactant
-        | ClipColour::SolutionInitial
-        | ClipColour::SolutionFinal
-        | ClipColour::OriginalMetal
-        | ClipColour::DepositedMetal
-        | ClipColour::MetalErosion
-        | ClipColour::ReactantA
-        | ClipColour::ReactantB
-        | ClipColour::SynthesisProduct
-        | ClipColour::ReactionFront
-        | ClipColour::ReactionVessel
-        | ClipColour::MixingTool => [0.82, 0.86, 0.88, 0.20],
-        ClipColour::Fuel => [0.88, 0.82, 0.54, 0.30],
-        ClipColour::IgnitionSpark => [1.0, 0.72, 0.12, 0.94],
-        ClipColour::ProductPlume | ClipColour::GasCloud => [0.86, 0.90, 0.92, 0.16],
-        ClipColour::CombustionSmoke => [0.10, 0.105, 0.11, 0.46],
-        ClipColour::Soot => [0.055, 0.050, 0.047, 0.96],
-        ClipColour::SootDeposit => [0.075, 0.068, 0.062, 0.48],
-    }
-}
-
-/// Full eigendecomposition of a symmetric 3x3 matrix via deterministic
-/// cyclic Jacobi rotations. Returns (eigenvalues, eigenvectors).
-#[allow(clippy::many_single_char_names, clippy::needless_range_loop)]
-fn symmetric_eigen_3x3(matrix: [[f32; 3]; 3]) -> ([f32; 3], [Vec3; 3]) {
-    let mut a = matrix;
-    let mut v = [[0.0_f32; 3]; 3];
-    for (index, row) in v.iter_mut().enumerate() {
-        row[index] = 1.0;
-    }
-    for _ in 0..16 {
-        let (mut p, mut q, mut largest) = (0, 1, a[0][1].abs());
-        for (row, col) in [(0, 2), (1, 2)] {
-            if a[row][col].abs() > largest {
-                largest = a[row][col].abs();
-                p = row;
-                q = col;
-            }
-        }
-        if largest < 1e-10 {
-            break;
-        }
-        let theta = 0.5 * (a[q][q] - a[p][p]) / a[p][q];
-        let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
-        let c = 1.0 / (t * t + 1.0).sqrt();
-        let s = t * c;
-        for k in 0..3 {
-            let akp = a[k][p];
-            let akq = a[k][q];
-            a[k][p] = c * akp - s * akq;
-            a[k][q] = s * akp + c * akq;
-        }
-        for k in 0..3 {
-            let apk = a[p][k];
-            let aqk = a[q][k];
-            a[p][k] = c * apk - s * aqk;
-            a[q][k] = s * apk + c * aqk;
-        }
-        for row in &mut v {
-            let vp = row[p];
-            let vq = row[q];
-            row[p] = c * vp - s * vq;
-            row[q] = s * vp + c * vq;
-        }
-    }
-    (
-        [a[0][0], a[1][1], a[2][2]],
-        [
-            Vec3::new(v[0][0], v[1][0], v[2][0]),
-            Vec3::new(v[0][1], v[1][1], v[2][1]),
-            Vec3::new(v[0][2], v[1][2], v[2][2]),
-        ],
-    )
-}
-
-/// Orthonormal frame from three rigidly-moving anchor vertices, plus the
-/// anchor triangle perimeter (detects the scale-to-zero used to hide the
-/// vessel outside its window).
-fn anchor_frame(
-    clip: &AnimatedClip,
-    track: &ClipTrack,
-    anchors: [usize; 3],
-    frame: f32,
-) -> (glam::Mat3, Vec3, f32) {
-    let p0 = clip.sample(track, anchors[0], frame).position;
-    let p1 = clip.sample(track, anchors[1], frame).position;
-    let p2 = clip.sample(track, anchors[2], frame).position;
-    let e1 = (p1 - p0).normalize_or_zero();
-    let raw2 = p2 - p0;
-    let e2 = (raw2 - e1 * e1.dot(raw2)).normalize_or_zero();
-    let e3 = e1.cross(e2);
-    let perimeter = (p1 - p0).length() + (p2 - p1).length() + (p0 - p2).length();
-    (glam::Mat3::from_cols(e1, e2, e3), p0, perimeter)
-}
-
-/// Where the authored stream prop leaves the vessel, and at which frame it
-/// is tallest — used once, to orient the recovered axis out of the opening.
-fn authored_spout_hint(clip: &AnimatedClip) -> Option<(Vec3, f32)> {
-    let prop = clip.tracks.iter().find(|track| {
-        track.module == ClipModule::PouringVessel
-            && track.colour == ClipColour::LiquidAdded
-            && track.vertex_count >= 24
-    })?;
-    let mut prop_frame = 0.0_f32;
-    let mut best_height = -1.0_f32;
-    for frame in 0..clip.frame_count {
-        let frame = f32::from(frame);
-        let mut low = f32::MAX;
-        let mut high = f32::MIN;
-        for vertex_index in 0..prop.vertex_count {
-            let y = clip.sample(prop, vertex_index, frame).position.y;
-            low = low.min(y);
-            high = high.max(y);
-        }
-        if high - low > best_height {
-            best_height = high - low;
-            prop_frame = frame;
-        }
-    }
-    let mut prop_high = f32::MIN;
-    for vertex_index in 0..prop.vertex_count {
-        prop_high = prop_high.max(clip.sample(prop, vertex_index, prop_frame).position.y);
-    }
-    let mut spout = Vec3::ZERO;
-    let mut spout_weight = 0.0_f32;
-    for vertex_index in 0..prop.vertex_count {
-        let position = clip.sample(prop, vertex_index, prop_frame).position;
-        if position.y > prop_high - best_height * 0.25 {
-            spout += position;
-            spout_weight += 1.0;
-        }
-    }
-    Some((spout / spout_weight.max(1.0), prop_frame))
-}
-
-/// Reference-frame description of the rigid pouring vessel: its axis of
-/// revolution (from the inertia tensor: a body of revolution has two equal
-/// principal moments, the odd one out is the axis), cylinder extents, and
-/// three anchor vertices that track its rigid motion exactly.
-#[derive(Debug)]
-struct PourRig {
-    glass_track: usize,
-    anchors: [usize; 3],
-    reference_perimeter: f32,
-    axis_local: Vec3,
-    base_local: Vec3,
-    height: f32,
-    radius: f32,
-}
-
-/// Three deterministic, well-separated anchor vertices: the farthest point
-/// from the centroid, the farthest from that, and the farthest off their line.
-fn select_rig_anchors(points: &[Vec3], centroid: Vec3) -> [usize; 3] {
-    let far = |from: Vec3| {
-        let mut best = 0;
-        let mut best_distance = -1.0_f32;
-        for (index, point) in points.iter().enumerate() {
-            let distance = (*point - from).length_squared();
-            if distance > best_distance {
-                best_distance = distance;
-                best = index;
-            }
-        }
-        best
-    };
-    let first = far(centroid);
-    let second = far(points[first]);
-    let line = (points[second] - points[first]).normalize_or_zero();
-    let mut third = 0;
-    let mut best_off_line = -1.0_f32;
-    for (index, point) in points.iter().enumerate() {
-        let offset = *point - points[first];
-        let off_line = (offset - line * line.dot(offset)).length_squared();
-        if off_line > best_off_line {
-            best_off_line = off_line;
-            third = index;
-        }
-    }
-    [first, second, third]
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn build_pour_rig(clip: &AnimatedClip) -> Option<PourRig> {
-    let (glass_track, glass) = clip.tracks.iter().enumerate().find(|(_, track)| {
-        track.module == ClipModule::PouringVessel && track.colour == ClipColour::Glass
-    })?;
-    // Reference frame: where the vessel is largest (fully formed).
-    let mut reference = 0.0_f32;
-    let mut best_extent = 0.0_f32;
-    for frame in 0..clip.frame_count {
-        let frame = f32::from(frame);
-        let mut low = Vec3::splat(f32::MAX);
-        let mut high = Vec3::splat(f32::MIN);
-        for vertex_index in 0..glass.vertex_count {
-            let position = clip.sample(glass, vertex_index, frame).position;
-            low = low.min(position);
-            high = high.max(position);
-        }
-        let extent = (high - low).length();
-        if extent > best_extent {
-            best_extent = extent;
-            reference = frame;
-        }
-    }
-    let points: Vec<Vec3> = (0..glass.vertex_count)
-        .map(|vertex_index| clip.sample(glass, vertex_index, reference).position)
-        .collect();
-    let centroid = points.iter().copied().sum::<Vec3>() / points.len() as f32;
-    let mut covariance = [[0.0_f32; 3]; 3];
-    for point in &points {
-        let d = (*point - centroid).to_array();
-        for (row, d_row) in d.iter().enumerate() {
-            for (col, d_col) in d.iter().enumerate() {
-                covariance[row][col] += d_row * d_col;
-            }
-        }
-    }
-    let (values, vectors) = symmetric_eigen_3x3(covariance);
-    // Odd one out: the eigenvalue farthest from both others marks the axis.
-    let mut axis_index = 0;
-    let mut best_separation = -1.0_f32;
-    for candidate in 0..3 {
-        let separation = (0..3)
-            .filter(|&other| other != candidate)
-            .map(|other| (values[candidate] - values[other]).abs())
-            .fold(f32::MAX, f32::min);
-        if separation > best_separation {
-            best_separation = separation;
-            axis_index = candidate;
-        }
-    }
-    let mut axis = vectors[axis_index].normalize_or_zero();
-    if axis.length_squared() < 0.5 {
-        return None;
-    }
-    let anchors = select_rig_anchors(&points, centroid);
-    let (basis, origin, reference_perimeter) = anchor_frame(clip, glass, anchors, reference);
-    if reference_perimeter < 1e-3 {
-        return None;
-    }
-    // Open end: toward the authored stream's spout (one discrete bit of
-    // prop data; all continuous state comes from the glass geometry).
-    let (spout, spout_frame) = authored_spout_hint(clip)?;
-    let (spout_basis, spout_origin, spout_perimeter) =
-        anchor_frame(clip, glass, anchors, spout_frame);
-    if spout_perimeter > 1e-3 {
-        let spout_local = spout_basis.transpose() * (spout - spout_origin);
-        let centroid_local = basis.transpose() * (centroid - origin);
-        if (spout_local - centroid_local).dot(basis.transpose() * axis) < 0.0 {
-            axis = -axis;
-        }
-    }
-    let axis_local = basis.transpose() * axis;
-    let centroid_local = basis.transpose() * (centroid - origin);
-    let mut min_projection = f32::MAX;
-    let mut max_projection = f32::MIN;
-    let mut radius = 0.0_f32;
-    for point in &points {
-        let local = basis.transpose() * (*point - origin);
-        let projection = (local - centroid_local).dot(axis_local);
-        min_projection = min_projection.min(projection);
-        max_projection = max_projection.max(projection);
-        let radial = (local - centroid_local) - axis_local * projection;
-        radius = radius.max(radial.length());
-    }
-    Some(PourRig {
-        glass_track,
-        anchors,
-        reference_perimeter,
-        axis_local,
-        base_local: centroid_local + axis_local * min_projection,
-        height: max_projection - min_projection,
-        radius: radius * 0.94,
-    })
-}
-
 /// Physical pour state for one clip frame, in clip space.
 #[derive(Debug, Clone, Copy)]
 struct PourFrameState {
@@ -8022,56 +6738,51 @@ struct PourTable {
 /// How full the pouring vessel starts, as a fraction of its height.
 const POUR_INITIAL_FILL: f32 = 0.62;
 
-/// Integrates the pour across the clip: each frame recovers the rigid
-/// vessel pose from the glass anchors, places the contained liquid as a
-/// horizontal plane holding the remaining volume, and spills through the
-/// lip with a weir-style flow law whenever that plane sits above it.
-/// ponytail: slab volume model for the tilted cylinder (plane offset scales
-/// with the vertical axis component); exact integral if metering ever matters.
-fn build_pour_table(clip: &AnimatedClip) -> Option<PourTable> {
+/// Frame windows for an authored pour: (start, end) pairs in virtual
+/// 30 fps clip frames.
+struct PourSchedule {
+    approach: (f32, f32),
+    tilt_in: (f32, f32),
+    tilt_out: (f32, f32),
+    retreat: (f32, f32),
+}
+
+/// Authored pose of the pouring vessel at a virtual clip frame, in model
+/// units: hover in from rest, tip over the beaker rim, hold the pour, right
+/// itself, and retreat to rest.
+fn scheduled_pour_pose(schedule: &PourSchedule, frame: f32) -> (Vec3, Vec3) {
+    let ramp = |(start, end): (f32, f32)| smooth01((frame - start) / (end - start));
+    let tilt = (ramp(schedule.tilt_in) - ramp(schedule.tilt_out)).max(0.0) * 1.22;
+    let axis = Vec3::new(-tilt.sin(), tilt.cos(), 0.0);
+    let toward = ramp(schedule.approach) - ramp(schedule.retreat);
+    let base = Vec3::new(2.90 - 0.40 * toward, 4.95 - 0.15 * toward, 0.0);
+    (base, axis)
+}
+
+/// The same weir-law integration the baked clips went through, run over an
+/// authored pose schedule: the visible pour follows from choreography alone.
+fn build_scheduled_pour_table(schedule: &PourSchedule) -> PourTable {
     const FLOW_GAIN: f32 = 1.4;
     const FRAME_DT: f32 = 1.0 / 30.0;
-    let rig = build_pour_rig(clip)?;
-    let glass = &clip.tracks[rig.glass_track];
+    const RADIUS: f32 = 0.75;
+    const HEIGHT: f32 = 1.55;
+    const FRAMES: u16 = 180;
     let mut fraction = POUR_INITIAL_FILL;
-    let mut frames = Vec::with_capacity(usize::from(clip.frame_count));
+    let mut frames = Vec::with_capacity(usize::from(FRAMES));
     let mut first_flow = None;
-    for frame in 0..clip.frame_count {
-        let frame_f = f32::from(frame);
-        let (basis, origin, perimeter) = anchor_frame(clip, glass, rig.anchors, frame_f);
-        let scale = perimeter / rig.reference_perimeter;
-        if !(0.5..=2.0).contains(&scale) {
-            frames.push(PourFrameState {
-                present: false,
-                base: Vec3::ZERO,
-                axis: Vec3::Y,
-                radius: 0.0,
-                height: 0.0,
-                lip: Vec3::ZERO,
-                downhill: Vec3::X,
-                plane_y: 0.0,
-                flow: 0.0,
-                fraction,
-                poured: (POUR_INITIAL_FILL - fraction) / POUR_INITIAL_FILL,
-            });
-            continue;
-        }
-        let axis = (basis * rig.axis_local).normalize_or_zero();
-        let base = origin + basis * (rig.base_local * scale);
-        let height = rig.height * scale;
-        let radius = rig.radius * scale;
-        let rim_centre = base + axis * height;
+    for frame in 0..FRAMES {
+        let (base, axis) = scheduled_pour_pose(schedule, f32::from(frame));
+        let rim_centre = base + axis * HEIGHT;
         let downhill = (Vec3::NEG_Y - axis * Vec3::NEG_Y.dot(axis)).normalize_or_zero();
         let tilted = downhill.length_squared() > 0.5;
         let lip = if tilted {
-            rim_centre + downhill * radius
+            rim_centre + downhill * RADIUS
         } else {
             rim_centre
         };
-        let plane_y = base.y + fraction * height * axis.y.clamp(0.15, 1.0);
-        let submergence = plane_y - lip.y;
+        let plane_y = base.y + fraction * HEIGHT * axis.y.clamp(0.15, 1.0);
         let flow_raw = if tilted && fraction > 0.02 {
-            submergence.max(0.0).powf(1.5) * FLOW_GAIN
+            (plane_y - lip.y).max(0.0).powf(1.5) * FLOW_GAIN
         } else {
             0.0
         };
@@ -8084,8 +6795,8 @@ fn build_pour_table(clip: &AnimatedClip) -> Option<PourTable> {
             present: true,
             base,
             axis,
-            radius,
-            height,
+            radius: RADIUS,
+            height: HEIGHT,
             lip,
             downhill: if tilted { downhill } else { Vec3::X },
             plane_y,
@@ -8094,24 +6805,78 @@ fn build_pour_table(clip: &AnimatedClip) -> Option<PourTable> {
             poured: (POUR_INITIAL_FILL - fraction) / POUR_INITIAL_FILL,
         });
     }
-    Some(PourTable { frames, first_flow })
+    PourTable { frames, first_flow }
 }
 
-type PourTableCache = std::sync::Mutex<Vec<(usize, Option<&'static PourTable>)>>;
-
-fn pour_table_for(clip: &'static AnimatedClip) -> Option<&'static PourTable> {
-    static TABLES: OnceLock<PourTableCache> = OnceLock::new();
-    let key = std::ptr::from_ref(clip) as usize;
-    let mut tables = TABLES
-        .get_or_init(|| std::sync::Mutex::new(Vec::new()))
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some((_, table)) = tables.iter().find(|(cached, _)| *cached == key) {
-        return *table;
+/// The small pouring vessel's glass: a basis-aware open cylinder with a
+/// brighter rim band and a base disc, valid at any tilt.
+#[allow(clippy::cast_precision_loss)]
+fn add_pouring_vessel_glass(mesh: &mut Mesh, state: &PourState) {
+    const SEGMENTS: u32 = 24;
+    // Subdivided rows: tall translucent wall quads sort per-triangle against
+    // the surfaces behind them and paint picket-shaped wedges (the same
+    // failure the beaker wall had); short rows keep centroid ordering stable.
+    const ROWS: u32 = 10;
+    const GLASS: [f32; 4] = [0.62, 0.84, 0.94, 0.22];
+    const RIM: [f32; 4] = [0.66, 0.86, 0.95, 0.30];
+    let axis = state.axis;
+    let mut e1 = axis.cross(Vec3::Y);
+    if e1.length_squared() < 1e-4 {
+        e1 = axis.cross(Vec3::X);
     }
-    let table = build_pour_table(clip).map(|table| &*Box::leak(Box::new(table)));
-    tables.push((key, table));
-    table
+    let e1 = e1.normalize_or_zero();
+    let e2 = axis.cross(e1).normalize_or_zero();
+    let top = state.base + axis * state.height;
+    let base_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    for segment in 0..=SEGMENTS {
+        let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+        let radial = e1 * angle.cos() + e2 * angle.sin();
+        for row in 0..=ROWS {
+            let level = state.base + axis * (state.height * 0.94 * row as f32 / ROWS as f32);
+            mesh.vertices.push(Vertex {
+                position: (level + radial * state.radius).to_array(),
+                normal: radial.to_array(),
+                color: GLASS,
+            });
+        }
+        mesh.vertices.push(Vertex {
+            position: (top + radial * state.radius).to_array(),
+            normal: radial.to_array(),
+            color: RIM,
+        });
+    }
+    for segment in 0..SEGMENTS {
+        let column = base_vertex + segment * (ROWS + 2);
+        let next = base_vertex + (segment + 1) * (ROWS + 2);
+        for level in 0..=ROWS {
+            let (a, b, c, d) = (column + level, next + level, column + level + 1, next + level + 1);
+            mesh.indices.extend_from_slice(&[a, c, b, b, c, d]);
+        }
+    }
+    // Base disc fan.
+    let centre_vertex = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
+    let floor_colour = [0.48, 0.72, 0.84, 0.14];
+    mesh.vertices.push(Vertex {
+        position: (state.base + axis * 0.01).to_array(),
+        normal: axis.to_array(),
+        color: floor_colour,
+    });
+    for segment in 0..=SEGMENTS {
+        let angle = std::f32::consts::TAU * segment as f32 / SEGMENTS as f32;
+        let radial = e1 * angle.cos() + e2 * angle.sin();
+        mesh.vertices.push(Vertex {
+            position: (state.base + axis * 0.01 + radial * (state.radius * 0.96)).to_array(),
+            normal: axis.to_array(),
+            color: floor_colour,
+        });
+    }
+    for segment in 0..SEGMENTS {
+        mesh.indices.extend_from_slice(&[
+            centre_vertex,
+            centre_vertex + 1 + segment,
+            centre_vertex + 2 + segment,
+        ]);
+    }
 }
 
 /// World-space pour state at a fractional clip frame.
@@ -8131,15 +6896,14 @@ struct PourState {
     flow_elapsed: f32,
 }
 
-// Frame indices are bounded by the 180-frame clip, so the casts are exact.
+// Frame indices are bounded by the 180-frame tables, so the casts are exact.
 #[allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss
 )]
-fn pour_state(clip: &'static AnimatedClip, frame: f32, bench_top: f32) -> Option<PourState> {
+fn pour_state_from(table: &PourTable, frame: f32, bench_top: f32) -> Option<PourState> {
     const MODEL_SCALE: f32 = 0.45;
-    let table = pour_table_for(clip)?;
     let floor = (frame.floor().max(0.0) as usize).min(table.frames.len() - 1);
     let ceil = (floor + 1).min(table.frames.len() - 1);
     let blend = (frame - floor as f32).clamp(0.0, 1.0);
@@ -8193,7 +6957,6 @@ struct LiquidDye {
     amount: f32,
     /// Farthest basin point from the source, for front normalization.
     reach: f32,
-    seed: u64,
 }
 
 /// Recolours the contained-liquid vertices appended after `start`: a
@@ -8204,15 +6967,12 @@ fn apply_liquid_dye(mesh: &mut Mesh, start: usize, dye: &LiquidDye) {
         return;
     }
     let front = dye.amount.powf(0.65) * dye.reach * 1.18;
-    let softness = (dye.reach * 0.22).max(0.05);
+    // A smooth front, no per-vertex jitter: the tall two-row wall quads turn
+    // any jittered coverage into tapered wedge artifacts under interpolation.
+    let softness = (dye.reach * 0.30).max(0.05);
     for vertex in &mut mesh.vertices[start..] {
         let position = Vec3::from_array(vertex.position);
-        let position_seed = dye.seed
-            ^ u64::from(position.x.to_bits()).rotate_left(7)
-            ^ u64::from(position.y.to_bits()).rotate_left(23)
-            ^ u64::from(position.z.to_bits()).rotate_left(41);
-        let wobble = (seeded_unit(position_seed, 0, 119) - 0.5) * softness * 1.6;
-        let distance = position.distance(dye.source) + wobble;
+        let distance = position.distance(dye.source);
         let coverage = smooth01((front - distance) / softness + 0.5);
         vertex.color = mix_color(
             vertex.color,
@@ -8261,7 +7021,6 @@ fn add_receiving_liquid(
             target,
             amount,
             reach: (state.radius * 2.0).hypot(state.surface_centre.y - state.floor_y),
-            seed: seed ^ 0x0064_7965,
         },
     );
 }
@@ -8297,123 +7056,6 @@ fn bound_colour_endpoints(
     (base, target, amount)
 }
 
-/// State recovered from a clip's authored standing liquid: the basin the
-/// liquid occupies plus the per-frame free-surface level. At render time the
-/// authored body and surface meshes are replaced by the contained-liquid
-/// primitive driven from this table, so the level is a real scalar the scene
-/// can move (pours raise it, burns lower it) instead of baked geometry.
-#[derive(Debug)]
-struct LiquidTable {
-    /// Clip tracks the primitive replaces (skipped by the renderer).
-    track_indices: Vec<usize>,
-    radius: f32,
-    floor_y: f32,
-    colour: ClipColour,
-    /// Per-frame surface centre `[x, level, z]` in model units.
-    frames: Vec<Vec3>,
-}
-
-// Vertex and frame counts are bounded by the 180-frame clips, so the casts
-// are exact.
-#[allow(clippy::cast_precision_loss)]
-fn build_liquid_table(clip: &AnimatedClip) -> Option<LiquidTable> {
-    // The authored basin spans the shared beaker's full interior; liquid
-    // props (ripple rings, droplets) are an order of magnitude smaller.
-    const MIN_BASIN_EXTENT: f32 = 1.5;
-    // A basin track thinner than this is the free-surface sheet.
-    const SHEET_THICKNESS: f32 = 0.2;
-    // The shared beaker's inner floor, for clips that author only a surface
-    // sheet; matches the body floor in every clip that has one.
-    const FLOOR_FALLBACK: f32 = 0.19;
-    let track_bounds = |track: &ClipTrack| {
-        let mut min = Vec3::splat(f32::MAX);
-        let mut max = Vec3::splat(f32::MIN);
-        for vertex_index in 0..track.vertex_count {
-            let position = clip.sample(track, vertex_index, 0.0).position;
-            min = min.min(position);
-            max = max.max(position);
-        }
-        (min, max)
-    };
-    let mut bodies: Vec<usize> = Vec::new();
-    let mut surface: Option<usize> = None;
-    let mut floor_y: Option<f32> = None;
-    let mut radius = 0.0_f32;
-    for (index, track) in clip.tracks.iter().enumerate() {
-        if track.pass != ClipPass::Translucent
-            || !matches!(
-                track.module,
-                ClipModule::Water | ClipModule::InitialSolution
-            )
-        {
-            continue;
-        }
-        let (min, max) = track_bounds(track);
-        let extent = (max.x - min.x).max(max.z - min.z) * 0.5;
-        if extent < MIN_BASIN_EXTENT {
-            continue;
-        }
-        radius = radius.max(extent);
-        if max.y - min.y < SHEET_THICKNESS {
-            surface = Some(index);
-        } else {
-            floor_y = Some(floor_y.map_or(min.y, |floor: f32| floor.min(min.y)));
-            bodies.push(index);
-        }
-    }
-    let representative = *bodies.first().or(surface.as_ref())?;
-    let floor_y = floor_y.unwrap_or(FLOOR_FALLBACK);
-    let frames = (0..clip.frame_count)
-        .map(|frame| {
-            let frame = f32::from(frame);
-            if let Some(surface_index) = surface {
-                // The sheet's mean position tracks both the level and any
-                // authored vessel motion.
-                let track = &clip.tracks[surface_index];
-                let sum = (0..track.vertex_count).fold(Vec3::ZERO, |sum, vertex_index| {
-                    sum + clip.sample(track, vertex_index, frame).position
-                });
-                sum / track.vertex_count.max(1) as f32
-            } else {
-                let track = &clip.tracks[representative];
-                let top = (0..track.vertex_count).fold(f32::MIN, |top, vertex_index| {
-                    top.max(clip.sample(track, vertex_index, frame).position.y)
-                });
-                Vec3::new(0.0, top, 0.0)
-            }
-        })
-        .collect();
-    let mut track_indices = bodies;
-    track_indices.extend(surface);
-    Some(LiquidTable {
-        colour: clip.tracks[representative].colour,
-        track_indices,
-        radius,
-        floor_y,
-        frames,
-    })
-}
-
-type LiquidTableCache = std::sync::Mutex<Vec<(usize, Option<&'static LiquidTable>)>>;
-
-fn liquid_table_for(clip: &'static AnimatedClip) -> Option<&'static LiquidTable> {
-    static TABLES: OnceLock<LiquidTableCache> = OnceLock::new();
-    let key = std::ptr::from_ref(clip) as usize;
-    let mut tables = TABLES
-        .get_or_init(|| std::sync::Mutex::new(Vec::new()))
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some((_, table)) = tables.iter().find(|(cached, _)| *cached == key) {
-        return *table;
-    }
-    let table = build_liquid_table(clip).map(|table| &*Box::leak(Box::new(table)));
-    tables.push((key, table));
-    table
-}
-
-fn liquid_track_is_replaced(clip: &'static AnimatedClip, track_index: usize) -> bool {
-    liquid_table_for(clip).is_some_and(|table| table.track_indices.contains(&track_index))
-}
 
 /// World-space standing-liquid state at a fractional clip frame.
 #[derive(Debug, Clone, Copy)]
@@ -8427,34 +7069,15 @@ struct LiquidState {
     initial_level_y: f32,
 }
 
-// Frame indices are bounded by the 180-frame clip, so the casts are exact.
-#[allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
-fn liquid_state(clip: &'static AnimatedClip, frame: f32, bench_top: f32) -> Option<LiquidState> {
-    const MODEL_SCALE: f32 = 0.45;
-    let table = liquid_table_for(clip)?;
-    let floor = (frame.floor().max(0.0) as usize).min(table.frames.len() - 1);
-    let ceil = (floor + 1).min(table.frames.len() - 1);
-    let blend = (frame - floor as f32).clamp(0.0, 1.0);
-    let centre = table.frames[floor].lerp(table.frames[ceil], blend);
-    Some(LiquidState {
-        surface_centre: centre * MODEL_SCALE + Vec3::Y * bench_top,
-        floor_y: table.floor_y * MODEL_SCALE + bench_top,
-        radius: table.radius * MODEL_SCALE,
-        colour: table.colour,
-        initial_level_y: table.frames[0].y * MODEL_SCALE + bench_top,
-    })
-}
-
 /// The liquid inside the pouring vessel: a cylinder clipped by the
 /// horizontal liquid plane, so the surface stays level and creeps toward
 /// the lip as the vessel tips.
 #[allow(clippy::cast_precision_loss)]
 fn add_vessel_liquid(mesh: &mut Mesh, state: &PourState, colour: [f32; 4]) {
     const SEGMENTS: u32 = 20;
+    // Subdivided rows for the same reason as the vessel glass: one tall
+    // translucent band sort-flaps against the base disc behind it.
+    const ROWS: u32 = 6;
     if state.fraction <= 0.03 || state.height <= 0.01 {
         return;
     }
@@ -8477,24 +7100,23 @@ fn add_vessel_liquid(mesh: &mut Mesh, state: &PourState, colour: [f32; 4]) {
         let along = ((state.plane_y - bottom.y) / axis_y).clamp(0.015, state.height * 0.96);
         let top = bottom + axis * along;
         tops.push(top);
-        mesh.vertices.push(Vertex {
-            position: bottom.to_array(),
-            normal: radial.to_array(),
-            color: liquid_colour,
-        });
-        mesh.vertices.push(Vertex {
-            position: top.to_array(),
-            normal: radial.to_array(),
-            color: liquid_colour,
-        });
+        for row in 0..=ROWS {
+            mesh.vertices.push(Vertex {
+                position: bottom.lerp(top, row as f32 / ROWS as f32).to_array(),
+                normal: radial.to_array(),
+                color: liquid_colour,
+            });
+        }
     }
     for segment in 0..SEGMENTS {
         let next = (segment + 1) % SEGMENTS;
-        let b0 = base_vertex + segment * 2;
-        let t0 = b0 + 1;
-        let b1 = base_vertex + next * 2;
-        let t1 = b1 + 1;
-        mesh.indices.extend_from_slice(&[b0, t0, b1, b1, t0, t1]);
+        let column = base_vertex + segment * (ROWS + 1);
+        let neighbour = base_vertex + next * (ROWS + 1);
+        for row in 0..ROWS {
+            let (b0, t0, b1, t1) =
+                (column + row, column + row + 1, neighbour + row, neighbour + row + 1);
+            mesh.indices.extend_from_slice(&[b0, t0, b1, b1, t0, t1]);
+        }
     }
     // Level surface fan.
     let surface_centre = tops.iter().copied().sum::<Vec3>() / tops.len() as f32;
@@ -8656,23 +7278,68 @@ fn add_pour_stream(
         }
     }
     // Splash effects appear only once the falling front has reached the
-    // receiving liquid; before that, the stream ends in a rounded head.
+    // receiving liquid; before that, surface tension gathers the leading
+    // edge into a teardrop head, fatter than the necked stream behind it.
     if landed {
         add_pour_impact(meshes, anchors, phase, seed);
     } else {
+        let bright = [
+            colour[0] * 0.6 + 0.4,
+            colour[1] * 0.6 + 0.4,
+            colour[2] * 0.6 + 0.4,
+            (colour[3] + 0.35).min(0.9),
+        ];
+        let head = curve(front);
+        add_sphere(&mut meshes.translucent, head, base_radius * 2.2, bright, 4, 6);
         add_sphere(
             &mut meshes.translucent,
-            curve(front),
-            base_radius * 1.6,
-            [
-                colour[0] * 0.6 + 0.4,
-                colour[1] * 0.6 + 0.4,
-                colour[2] * 0.6 + 0.4,
-                (colour[3] + 0.35).min(0.9),
-            ],
+            head.lerp(curve((front - 0.07).max(0.0)), 0.55),
+            base_radius * 1.45,
+            bright,
             4,
             6,
         );
+    }
+}
+
+/// Faint refractive swirls left behind once a pour has mixed: ribbons of
+/// slightly lightened liquid circling the mixing region below the surface,
+/// fading as the solutions homogenize. Fixed population; sizes floored.
+#[allow(clippy::cast_precision_loss)]
+fn add_schlieren_swirls(
+    mesh: &mut Mesh,
+    centre: Vec3,
+    radius: f32,
+    strength: f32,
+    phase: f32,
+    seed: u64,
+) {
+    const RIBBONS: u32 = 4;
+    const KNOTS: u32 = 6;
+    const SHEEN: [f32; 4] = [0.92, 0.96, 1.0, 0.15];
+    for ribbon in 0..RIBBONS {
+        let spin = if ribbon % 2 == 0 { 0.24 } else { -0.19 };
+        let base_angle = seeded_unit(seed, ribbon, 531) * std::f32::consts::TAU + phase * spin;
+        let band = radius * (0.22 + seeded_unit(seed, ribbon, 532) * 0.5);
+        let depth = 0.05 + seeded_unit(seed, ribbon, 533) * 0.15;
+        for knot in 0..KNOTS {
+            let t = knot as f32 / (KNOTS - 1) as f32;
+            let angle = base_angle + t * 1.7;
+            let position = Vec3::new(
+                centre.x + angle.cos() * band * (1.0 - t * 0.18),
+                centre.y - depth - t * 0.06,
+                centre.z + angle.sin() * band * (1.0 - t * 0.18),
+            );
+            let size = (0.030 + 0.022 * (std::f32::consts::PI * t).sin()) * strength;
+            add_sphere(
+                mesh,
+                position,
+                size.max(0.000_5),
+                alpha(SHEEN, SHEEN[3] * strength * (1.0 - t * 0.45)),
+                4,
+                6,
+            );
+        }
     }
 }
 
@@ -8723,158 +7390,6 @@ fn add_pour_impact(meshes: &mut SceneMeshes, anchors: PourAnchors, phase: f32, s
             5,
         );
     }
-}
-
-/// The baked clips store i8-quantized normals whose stepping bands under
-/// glossy shading; recompute smooth area-weighted normals from the actual
-/// triangle geometry instead. Authored hard edges survive because they are
-/// modelled with duplicated vertices; degenerate (hidden) frames fall back
-/// to the sampled normals.
-fn smooth_track_normals(positions: &[Vec3], indices: &[u32], fallbacks: &[Vec3]) -> Vec<Vec3> {
-    let mut normals = vec![Vec3::ZERO; positions.len()];
-    for triangle in indices.chunks_exact(3) {
-        let [i0, i1, i2] = [
-            triangle[0] as usize,
-            triangle[1] as usize,
-            triangle[2] as usize,
-        ];
-        let face = (positions[i1] - positions[i0]).cross(positions[i2] - positions[i0]);
-        normals[i0] += face;
-        normals[i1] += face;
-        normals[i2] += face;
-    }
-    normals
-        .iter()
-        .zip(fallbacks)
-        .map(|(normal, fallback)| {
-            let smoothed = normal.normalize_or_zero();
-            if smoothed.length_squared() < 0.5 {
-                *fallback
-            } else {
-                smoothed
-            }
-        })
-        .collect()
-}
-
-fn append_animated_track(
-    mesh: &mut Mesh,
-    clip: &AnimatedClip,
-    track: &ClipTrack,
-    frame: f32,
-    bench_top: f32,
-    activity: f32,
-    colour: [f32; 4],
-) {
-    append_animated_track_adjusted(
-        mesh, clip, track, frame, bench_top, activity, colour, 1.0, 0.0,
-    );
-}
-
-#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
-fn append_animated_track_adjusted(
-    mesh: &mut Mesh,
-    clip: &AnimatedClip,
-    track: &ClipTrack,
-    frame: f32,
-    bench_top: f32,
-    activity: f32,
-    colour: [f32; 4],
-    local_scale: f32,
-    normal_offset: f32,
-) {
-    const MODEL_SCALE: f32 = 0.45;
-    let centre = if (local_scale - 1.0).abs() <= f32::EPSILON {
-        Vec3::ZERO
-    } else {
-        (0..track.vertex_count).fold(Vec3::ZERO, |sum, vertex_index| {
-            sum + clip.sample(track, vertex_index, frame).position
-        }) / track.vertex_count.max(1) as f32
-    };
-    let vertex_offset = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-    mesh.vertices.reserve(track.vertex_count);
-    mesh.indices.reserve(track.indices.len());
-    let mut positions = Vec::with_capacity(track.vertex_count);
-    let mut fallback_normals = Vec::with_capacity(track.vertex_count);
-    for vertex_index in 0..track.vertex_count {
-        let current = clip.sample(track, vertex_index, frame);
-        let initial = if matches!(track.module, ClipModule::Water | ClipModule::Metal) {
-            clip.sample(track, vertex_index, 0.0)
-        } else {
-            current
-        };
-        let ClipVertex {
-            mut position,
-            normal,
-        } = current;
-        match track.module {
-            ClipModule::Water => {
-                position = initial.position.lerp(position, 0.28 + activity * 0.72);
-            }
-            ClipModule::Metal => {
-                position.x = initial.position.x + (position.x - initial.position.x) * activity;
-                position.z = initial.position.z + (position.z - initial.position.z) * activity;
-            }
-            ClipModule::Beaker
-            | ClipModule::BeakerShards
-            | ClipModule::Explosion
-            | ClipModule::Flame
-            | ClipModule::Bubbles
-            | ClipModule::Splashes
-            | ClipModule::Vapour
-            | ClipModule::Mixing
-            | ClipModule::Salt
-            | ClipModule::Stirrer
-            | ClipModule::Sparks
-            | ClipModule::Plume
-            | ClipModule::Soot
-            | ClipModule::PrecipitateCloud
-            | ClipModule::FallingPrecipitate
-            | ClipModule::PouringVessel
-            | ClipModule::Sediment
-            | ClipModule::SurfaceBursts
-            | ClipModule::SolidReactant
-            | ClipModule::InitialSolution
-            | ClipModule::FinalSolution
-            | ClipModule::OriginalMetal
-            | ClipModule::MetalErosion
-            | ClipModule::MetalDeposit
-            | ClipModule::MetalFlakes
-            | ClipModule::SynthesisReactantA
-            | ClipModule::SynthesisReactantB
-            | ClipModule::SynthesisProduct
-            | ClipModule::SynthesisReactionFront
-            | ClipModule::SynthesisVessel
-            | ClipModule::SynthesisMixingTool => {}
-            ClipModule::VesselAnchor => {
-                unreachable!("anchor tracks are not renderable geometry");
-            }
-        }
-        if (local_scale - 1.0).abs() > f32::EPSILON {
-            position = centre + (position - centre) * local_scale;
-        }
-        positions.push(position);
-        fallback_normals.push(normal);
-    }
-    let normals = smooth_track_normals(&positions, &track.indices, &fallback_normals);
-    for ((position, normal), _) in positions
-        .iter()
-        .zip(normals.iter())
-        .zip(fallback_normals.iter())
-    {
-        let displaced = *position + *normal * normal_offset;
-        mesh.vertices.push(Vertex {
-            position: (displaced * MODEL_SCALE + Vec3::Y * bench_top).to_array(),
-            normal: normal.to_array(),
-            color: colour,
-        });
-    }
-    mesh.indices.extend(
-        track
-            .indices
-            .iter()
-            .map(|index| index.saturating_add(vertex_offset)),
-    );
 }
 
 fn add_imported_metal(mesh: &mut Mesh, base_center: Vec3, scale: Vec3, color: [f32; 4]) {
@@ -8981,9 +7496,14 @@ fn add_cylinder(mesh: &mut Mesh, start: Vec3, end: Vec3, radius: f32, color: [f3
 }
 
 fn add_cylinder_wall(mesh: &mut Mesh, bottom: Vec3, top: Vec3, radius: f32, color: [f32; 4]) {
+    // Multiple rows keep the translucent sort coherent: tall wall triangles
+    // span such a depth range that centroid ordering against horizontal
+    // surfaces behind them flips per-triangle, blending wedge artifacts.
     const SIDES: u16 = 32;
+    const ROWS: u16 = 12;
     let base = u32::try_from(mesh.vertices.len()).unwrap_or(u32::MAX);
-    for level in [bottom, top] {
+    for row in 0..=ROWS {
+        let level = bottom.lerp(top, f32::from(row) / f32::from(ROWS));
         for side in 0..=SIDES {
             let angle = std::f32::consts::TAU * f32::from(side) / f32::from(SIDES);
             let normal = Vec3::new(angle.cos(), 0.0, angle.sin());
@@ -8994,11 +7514,13 @@ fn add_cylinder_wall(mesh: &mut Mesh, bottom: Vec3, top: Vec3, radius: f32, colo
             });
         }
     }
-    for side in 0..SIDES {
-        let lower = base + u32::from(side);
-        let upper = base + u32::from(SIDES) + 1 + u32::from(side);
-        mesh.indices
-            .extend_from_slice(&[lower, upper, lower + 1, lower + 1, upper, upper + 1]);
+    for row in 0..ROWS {
+        for side in 0..SIDES {
+            let lower = base + u32::from(row) * (u32::from(SIDES) + 1) + u32::from(side);
+            let upper = lower + u32::from(SIDES) + 1;
+            mesh.indices
+                .extend_from_slice(&[lower, upper, lower + 1, lower + 1, upper, upper + 1]);
+        }
     }
 }
 
@@ -9169,6 +7691,72 @@ mod tests {
             .expect("plan compiles from validated frames")
     }
 
+    /// Two builds of the same (plan, moment) must agree to the byte: scenes
+    /// are pure functions of the playhead, with no hidden clock or RNG.
+    fn assert_scene_rebuild_is_byte_identical(plan: &ScenePlan, label: &str) {
+        let duration = plan.timeline.duration_ms();
+        for quarter in 1..4_u64 {
+            let moment = plan
+                .timeline
+                .locate(duration * quarter / 4)
+                .expect("playhead within timeline");
+            let first = build_scene_at(plan, moment, (0.0, 0.0));
+            let second = build_scene_at(plan, moment, (0.0, 0.0));
+            assert!(
+                bytemuck::cast_slice::<GpuVertex, u8>(&first.0)
+                    == bytemuck::cast_slice::<GpuVertex, u8>(&second.0),
+                "{label} q{quarter}: vertices differ between identical builds"
+            );
+            assert!(
+                first.1 == second.1,
+                "{label} q{quarter}: indices differ between identical builds"
+            );
+            assert!(
+                (first.2, first.3) == (second.2, second.3),
+                "{label} q{quarter}: mesh bucket boundaries differ"
+            );
+            assert!(
+                bytemuck::cast_slice::<GasSplat, u8>(&first.4)
+                    == bytemuck::cast_slice::<GasSplat, u8>(&second.4),
+                "{label} q{quarter}: gas splats differ between identical builds"
+            );
+        }
+    }
+
+    #[test]
+    fn every_request_backed_scene_is_a_pure_function_of_its_playhead() {
+        for request in chemistry::ReactionRequest::ALL {
+            let plan = plan_for(request);
+            assert_scene_rebuild_is_byte_identical(&plan, &request.id());
+        }
+    }
+
+    #[test]
+    fn every_dynamic_fixture_scene_is_a_pure_function_of_its_playhead() {
+        for fixture in [
+            "combustion-methane",
+            "combustion-methane-incomplete",
+            "displacement-zinc-copper",
+            "synthesis-iron-sulfur",
+        ] {
+            let outcome =
+                crate::smoke_dynamic_presentation(fixture).expect("smoke fixture compiles");
+            let frames = match &outcome {
+                crate::DynamicPresentationOutcome::ReviewedFamily(outcome) => outcome.frames(),
+                crate::DynamicPresentationOutcome::Escalated(outcome) => outcome.frames(),
+                crate::DynamicPresentationOutcome::Static { .. } => {
+                    panic!("{fixture}: smoke fixture must yield an animation")
+                }
+            };
+            let profile =
+                crate::dynamic_presentation_profile(frames, outcome.static_outcome(), None)
+                    .expect("smoke fixture profile compiles");
+            let plan = compile_real_world_plan(frames, &profile)
+                .expect("smoke fixture plan compiles");
+            assert_scene_rebuild_is_byte_identical(&plan, fixture);
+        }
+    }
+
     #[test]
     #[ignore = "manual perf probe: cargo test -p chemspec-app -- --ignored --nocapture bench_scene"]
     fn bench_scene_rebuild() {
@@ -9194,11 +7782,10 @@ mod tests {
 
     #[test]
     fn pour_tables_spill_only_when_tilted_and_conserve_volume() {
-        for clip in [
-            precipitation_clip(),
-            gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
+        for table in [
+            gas_evolution::procedural_pour_table(),
+            precipitation::procedural_pour_table(),
         ] {
-            let table = pour_table_for(clip).expect("pouring clips build a pour table");
             let mut previous_fraction = POUR_INITIAL_FILL;
             let mut saw_flow = false;
             for state in &table.frames {
@@ -9283,52 +7870,6 @@ mod tests {
         assert!((boundary.distance_scale - held.distance_scale).abs() < 5e-3);
         assert!((boundary.pitch_offset - held.pitch_offset).abs() < 5e-3);
         assert!((held.distance_scale - HERO_ARRIVAL.distance_scale).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn liquid_tables_recover_the_authored_basins() {
-        let expectations: [(&AnimatedClip, std::ops::Range<f32>); 8] = [
-            (alkali_water_clip(), 3.38..3.48),
-            (neutralisation_clip(), 3.38..3.44),
-            (complete_combustion_clip(), 2.48..2.54),
-            (incomplete_combustion_clip(), 2.48..2.54),
-            (precipitation_clip(), 2.28..2.35),
-            (
-                gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
-                2.28..2.35,
-            ),
-            (
-                gas_evolution_clip(GasEvolutionVariant::SolidLiquid),
-                2.48..2.54,
-            ),
-            (metal_displacement_clip(), 2.48..2.54),
-        ];
-        for (clip, expected_level) in expectations {
-            let table = liquid_table_for(clip).expect("clip stands liquid in the beaker");
-            assert!(
-                (1.8..=2.2).contains(&table.radius),
-                "basin radius {} spans the beaker interior",
-                table.radius
-            );
-            assert!(
-                (0.1..=0.3).contains(&table.floor_y),
-                "basin floor {} sits on the beaker bottom",
-                table.floor_y
-            );
-            let level = table.frames[0].y;
-            assert!(
-                expected_level.contains(&level),
-                "frame-0 level {level} outside {expected_level:?}"
-            );
-            assert!(
-                !table.track_indices.is_empty(),
-                "the primitive replaces at least one authored track"
-            );
-        }
-        assert!(
-            liquid_table_for(synthesis_combination_clip()).is_none(),
-            "clips without a standing basin get no synthetic liquid"
-        );
     }
 
     fn test_material(
@@ -10222,10 +8763,36 @@ mod tests {
                     .iter()
                     .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly);
             if uses_authored_gas_assembly {
-                assert!(
-                    scene.4.is_empty(),
-                    "an authored gas assembly must not be overlaid with procedural gas"
-                );
+                // The assembly owns its gas look: the generic overlay must
+                // not run on top of it. Gas-evolution scenes emit their own
+                // dense-product haze splats (developed by late reaction —
+                // at generation onset the fluid volume is still empty); the
+                // alkali assembly (which wins the dispatch when both are
+                // present) emits none.
+                let routes_to_alkali = plan
+                    .objects
+                    .iter()
+                    .any(|object| object.asset == AssetProfile::ReactiveMetalWaterAssembly);
+                if plan.gas_evolution.is_some() && !routes_to_alkali {
+                    let late = build_scene_with_stage(
+                        &plan,
+                        final_ordinal,
+                        0.9,
+                        MacroscopicStage::Reaction,
+                        0.9,
+                        Some(0.85),
+                        fixed_view_direction(),
+                    );
+                    assert!(
+                        !late.4.is_empty(),
+                        "the gas-evolution assembly supplies its own dense-gas haze"
+                    );
+                } else {
+                    assert!(
+                        scene.4.is_empty(),
+                        "an authored gas assembly must not be overlaid with procedural gas"
+                    );
+                }
                 assert!(
                     scene.0.len() > 1_000,
                     "the authored reaction should supply its own visible geometry"
@@ -10786,7 +9353,6 @@ mod tests {
     fn authored_clip_advances_uniformly_across_chemistry_beat_boundaries() {
         let plan = canonical_plan();
         let duration = plan.timeline.duration_ms();
-        let clip = alkali_water_clip();
         let frames = (0..=4_u64)
             .map(|quarter| {
                 let elapsed = duration.saturating_mul(quarter) / 4;
@@ -10794,7 +9360,7 @@ mod tests {
                     .timeline
                     .locate(elapsed)
                     .expect("quarter-time sample exists");
-                clip.frame_at_progress(plan.timeline.normalized_progress_at(moment))
+                plan.timeline.normalized_progress_at(moment) * 179.0
             })
             .collect::<Vec<_>>();
         let deltas = frames
@@ -11024,23 +9590,24 @@ mod tests {
             moment(MacroscopicStage::CrystalGrowth, 1.0),
             (0.0, 0.0),
         );
-        let clip = neutralisation_clip();
-        let salt = clip
-            .tracks
-            .iter()
-            .find(|track| track.module == ClipModule::Salt)
-            .expect("authored clip contains salt residue");
-        let early_size = clip
-            .sample(salt, 0, 170.0)
-            .position
-            .distance(clip.sample(salt, 1, 170.0).position);
-        let final_size = clip
-            .sample(salt, 0, 231.0)
-            .position
-            .distance(clip.sample(salt, 1, 231.0).position);
+        let salt_extent = |growth: f32| {
+            let mut mesh = Mesh::default();
+            let layout = SceneLayout::resolve(&plan);
+            add_crystallizing_salt(
+                &mut mesh,
+                Vec3::new(layout.vessel_center.x, layout.bench_top + 0.125, layout.vessel_center.z),
+                growth,
+                7,
+                [1.0; 4],
+            );
+            mesh.vertices
+                .iter()
+                .map(|vertex| vertex.position[1])
+                .fold(f32::MIN, f32::max)
+        };
         assert!(
-            final_size > early_size * 4.0,
-            "faceted salt residue must grow from the authored nucleation scale"
+            salt_extent(1.0) > salt_extent(0.24) + 0.01,
+            "faceted salt residue must grow from its nucleation scale"
         );
         assert_ne!(
             bytemuck::cast_slice::<GpuVertex, u8>(&crystals.0),
@@ -11064,23 +9631,24 @@ mod tests {
                 && object.asset == AssetProfile::NeutralisationEvaporationAssembly
         }));
 
-        let clip = neutralisation_clip();
-        let lifted_motion = neutralisation_vessel_motion(clip, 139.0);
-        assert!(lifted_motion.y > 0.5);
-        let mut shared_beaker = Mesh::default();
-        append_shared_beaker(
-            &mut shared_beaker,
-            alkali_water_clip(),
-            -0.76,
-            lifted_motion,
+        let lifted = post_process_visual_state(&plan, MacroscopicStage::SolventBoiling, 0.5);
+        assert!(lifted.active && lifted.lift > 0.2);
+        let lifted_motion = Vec3::Y * (lifted.lift / 0.45);
+        let mut lifted_beaker = Mesh::default();
+        add_assembly_beaker(&mut lifted_beaker, -0.76, lifted_motion);
+        let mut resting_beaker = Mesh::default();
+        add_assembly_beaker(&mut resting_beaker, -0.76, Vec3::ZERO);
+        let min_y = |mesh: &Mesh| {
+            mesh.vertices
+                .iter()
+                .map(|vertex| vertex.position[1])
+                .fold(f32::INFINITY, f32::min)
+        };
+        assert_eq!(lifted_beaker.vertices.len(), resting_beaker.vertices.len());
+        assert!(
+            min_y(&lifted_beaker) > min_y(&resting_beaker) + 0.2,
+            "the beaker must ride the authored vessel lift"
         );
-        let expected_vertices = alkali_water_clip()
-            .tracks
-            .iter()
-            .filter(|track| track.module == ClipModule::Beaker)
-            .map(|track| track.vertex_count)
-            .sum::<usize>();
-        assert_eq!(shared_beaker.vertices.len(), expected_vertices);
 
         let neutralisation_colours =
             neutralisation_colours(&plan, scene_effect_colours(&plan, 0, 0.0), 0.0);
@@ -11094,21 +9662,6 @@ mod tests {
                 "the heating flame should be orange rather than lilac: {colour:?}"
             );
         }
-        let potassium_flame = animated_track_colour(
-            ClipColour::FlameOuter,
-            AnimatedAlkaliWaterStyle {
-                activity: 1.0,
-                flame: Some(FlamePalette::Lilac),
-            },
-        );
-        let expected_lilac = flame_colours(FlamePalette::Lilac).body_high;
-        assert!(
-            potassium_flame
-                .iter()
-                .zip(expected_lilac)
-                .all(|(actual, expected)| (actual - expected).abs() <= f32::EPSILON),
-            "neutralisation styling must not recolour potassium ignition"
-        );
     }
 
     #[test]
@@ -11149,46 +9702,10 @@ mod tests {
         );
         assert_eq!(first_sample.1, repeated_midpoint.1);
 
-        let clip = precipitation_clip();
-        let surface_area = |module| {
-            clip.tracks
-                .iter()
-                .filter(|track| track.module == module)
-                .flat_map(|track| {
-                    track.indices.chunks_exact(3).map(move |triangle| {
-                        let a = clip
-                            .sample(
-                                track,
-                                usize::try_from(triangle[0]).expect("vertex index"),
-                                179.0,
-                            )
-                            .position;
-                        let b = clip
-                            .sample(
-                                track,
-                                usize::try_from(triangle[1]).expect("vertex index"),
-                                179.0,
-                            )
-                            .position;
-                        let c = clip
-                            .sample(
-                                track,
-                                usize::try_from(triangle[2]).expect("vertex index"),
-                                179.0,
-                            )
-                            .position;
-                        (b - a).cross(c - a).length() * 0.5
-                    })
-                })
-                .sum::<f32>()
-        };
-        let cloud_area = surface_area(ClipModule::PrecipitateCloud);
-        let fragments_area = surface_area(ClipModule::FallingPrecipitate);
-        let sediment_area = surface_area(ClipModule::Sediment);
-        assert!(cloud_area < 0.001);
-        assert!(fragments_area < 0.001);
+        assert!(precipitation::cloud_presence(1.0) < 0.001);
+        assert!(precipitation::fleck_presence(1.0) < 0.001);
         assert!(
-            sediment_area > 1.0,
+            precipitation::mound_settle(1.0) > 0.99,
             "the settled sediment must remain as visible geometry"
         );
     }
@@ -11280,256 +9797,6 @@ mod tests {
                 .iter()
                 .zip([0.12, 0.13, 0.14, 1.0])
                 .all(|(actual, expected)| (actual - expected).abs() < f32::EPSILON)
-        );
-    }
-
-    #[test]
-    fn synthesis_combination_clip_is_complete_deterministic_and_colour_bound() {
-        let clip = synthesis_combination_clip();
-        assert_eq!(clip.frame_count, 180);
-        assert_eq!(clip.frames_per_second, 30);
-        assert_eq!(clip.tracks.len(), 29);
-        for module in [
-            ClipModule::SynthesisReactantA,
-            ClipModule::SynthesisReactantB,
-            ClipModule::SynthesisProduct,
-            ClipModule::SynthesisReactionFront,
-            ClipModule::SynthesisVessel,
-            ClipModule::SynthesisMixingTool,
-        ] {
-            assert!(clip.tracks.iter().any(|track| track.module == module));
-        }
-        let track = clip.tracks.first().expect("clip has tracks");
-        let first = clip.sample(track, 0, 91.375);
-        let repeated = clip.sample(track, 0, 91.375);
-        assert_eq!(first.position, repeated.position);
-        assert_eq!(first.normal, repeated.normal);
-
-        let bound =
-            |binding: &str, [red, green, blue]: [u8; 3]| chem_presentation::BoundVisualColour {
-                binding: binding.to_owned(),
-                base_colour: VisualColour { red, green, blue },
-                colour: VisualColour { red, green, blue },
-                transition_ordinal: None,
-            };
-        let visual = chem_presentation::SolidSolidSynthesisVisualProfile {
-            formation_ordinal: 3,
-            reactant_a: bound("a", [0x80, 0x84, 0x88]),
-            reactant_b: bound("b", [0xe4, 0xc1, 0x32]),
-            product: bound("product", [0x35, 0x38, 0x3b]),
-            show_reaction_front: true,
-        };
-        assert_eq!(
-            synthesis_combination_track_colour(ClipColour::ReactantA, &visual, u16::MAX, 1.0)[..3],
-            [
-                f32::from(0x80_u8) / 255.0,
-                f32::from(0x84_u8) / 255.0,
-                f32::from(0x88_u8) / 255.0
-            ]
-        );
-        assert_eq!(
-            synthesis_combination_track_colour(
-                ClipColour::SynthesisProduct,
-                &visual,
-                u16::MAX,
-                1.0,
-            )[..3],
-            [
-                f32::from(0x35_u8) / 255.0,
-                f32::from(0x38_u8) / 255.0,
-                f32::from(0x3b_u8) / 255.0
-            ]
-        );
-    }
-
-    #[test]
-    fn deposit_readability_layer_expands_the_authored_silhouette_deterministically() {
-        let clip = metal_displacement_clip();
-        let track = clip
-            .tracks
-            .iter()
-            .find(|track| track.module == ClipModule::MetalDeposit)
-            .expect("deposit track exists");
-        let frame = clip.frame_at_progress(1.0);
-        let mut authored = Mesh::default();
-        append_animated_track(
-            &mut authored,
-            clip,
-            track,
-            frame,
-            0.0,
-            1.0,
-            [0.72, 0.42, 0.28, 1.0],
-        );
-        let mut emphasized = Mesh::default();
-        append_animated_track_adjusted(
-            &mut emphasized,
-            clip,
-            track,
-            frame,
-            0.0,
-            1.0,
-            [0.72, 0.42, 0.28, 1.0],
-            1.16,
-            0.012,
-        );
-        let extent = |mesh: &Mesh| {
-            let (minimum, maximum) = mesh.vertices.iter().fold(
-                (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
-                |(minimum, maximum), vertex| {
-                    let position = Vec3::from_array(vertex.position);
-                    (minimum.min(position), maximum.max(position))
-                },
-            );
-            maximum - minimum
-        };
-        let authored_extent = extent(&authored);
-        let emphasized_extent = extent(&emphasized);
-        assert!(emphasized_extent.length() > authored_extent.length() * 1.10);
-
-        let mut replay = Mesh::default();
-        append_animated_track_adjusted(
-            &mut replay,
-            clip,
-            track,
-            frame,
-            0.0,
-            1.0,
-            [0.72, 0.42, 0.28, 1.0],
-            1.16,
-            0.012,
-        );
-        assert_eq!(
-            bytemuck::cast_slice::<Vertex, u8>(&emphasized.vertices),
-            bytemuck::cast_slice::<Vertex, u8>(&replay.vertices)
-        );
-        assert_eq!(emphasized.indices, replay.indices);
-    }
-
-    #[test]
-    fn deposit_and_flake_tracks_stay_hidden_until_their_authored_start_frames() {
-        assert!(!metal_displacement_track_visible(
-            ClipModule::MetalDeposit,
-            52.999
-        ));
-        assert!(metal_displacement_track_visible(
-            ClipModule::MetalDeposit,
-            53.0
-        ));
-        assert!(!metal_displacement_track_visible(
-            ClipModule::MetalFlakes,
-            102.999
-        ));
-        assert!(metal_displacement_track_visible(
-            ClipModule::MetalFlakes,
-            103.0
-        ));
-        assert!(metal_displacement_track_visible(
-            ClipModule::OriginalMetal,
-            0.0
-        ));
-    }
-
-    #[test]
-    fn heavy_alkali_clips_preserve_the_authored_contract_and_shared_beaker_boundary() {
-        for (variant, bytes) in [
-            (
-                ExplosiveMetalWaterVariant::Rubidium,
-                RUBIDIUM_WATER_EXPLOSION_CLIP_BYTES,
-            ),
-            (
-                ExplosiveMetalWaterVariant::Caesium,
-                CAESIUM_WATER_EXPLOSION_CLIP_BYTES,
-            ),
-            (
-                ExplosiveMetalWaterVariant::Francium,
-                FRANCIUM_WATER_EXPLOSION_CLIP_BYTES,
-            ),
-        ] {
-            let clip = AnimatedClip::parse(bytes).expect("embedded heavy-alkali clip parses");
-            assert_eq!(clip.frame_count, 180, "{variant:?}");
-            assert_eq!(clip.frames_per_second, 30, "{variant:?}");
-            assert_eq!(clip.tracks.len(), 185, "{variant:?}");
-            for module in [
-                ClipModule::Water,
-                ClipModule::Metal,
-                ClipModule::Flame,
-                ClipModule::Bubbles,
-                ClipModule::Splashes,
-                ClipModule::Vapour,
-                ClipModule::BeakerShards,
-                ClipModule::Explosion,
-            ] {
-                assert!(
-                    clip.tracks.iter().any(|track| track.module == module),
-                    "{variant:?} is missing {module:?}"
-                );
-            }
-            assert!(
-                clip.tracks
-                    .iter()
-                    .all(|track| track.module != ClipModule::Beaker),
-                "{variant:?} must reuse the shared beaker instead of baking a duplicate"
-            );
-            let track = clip
-                .tracks
-                .iter()
-                .find(|track| track.module == ClipModule::Metal)
-                .expect("clip has animated metal geometry");
-            let first = clip.sample(track, 0, 93.375);
-            let after_seek = clip.sample(track, 0, 8.25);
-            let replay = clip.sample(track, 0, 93.375);
-            assert_eq!(first.position, replay.position, "{variant:?}");
-            assert_eq!(first.normal, replay.normal, "{variant:?}");
-            assert_ne!(first.position, after_seek.position, "{variant:?}");
-        }
-        assert!(!explosive_metal_water_track_visible(
-            ClipModule::Explosion,
-            38.999
-        ));
-        assert!(explosive_metal_water_track_visible(
-            ClipModule::Explosion,
-            39.0
-        ));
-        assert!(explosive_metal_water_track_visible(
-            ClipModule::Explosion,
-            64.999
-        ));
-        assert!(!explosive_metal_water_track_visible(
-            ClipModule::Explosion,
-            65.0
-        ));
-        assert!(explosive_metal_water_track_visible(
-            ClipModule::Metal,
-            38.999
-        ));
-        assert!(!explosive_metal_water_track_visible(
-            ClipModule::Metal,
-            39.0
-        ));
-        assert!(!explosive_metal_water_track_visible(
-            ClipModule::Vapour,
-            43.999
-        ));
-        assert!(explosive_metal_water_track_visible(
-            ClipModule::Vapour,
-            44.0
-        ));
-        assert!(explosive_metal_water_track_visible(
-            ClipModule::Vapour,
-            94.999
-        ));
-        assert!(!explosive_metal_water_track_visible(
-            ClipModule::Vapour,
-            95.0
-        ));
-        assert!(
-            (explosive_metal_water_track_frame(ClipModule::Water, 179.0) - 38.0).abs()
-                < f32::EPSILON
-        );
-        assert!(
-            (explosive_metal_water_track_frame(ClipModule::Explosion, 179.0) - 179.0).abs()
-                < f32::EPSILON
         );
     }
 
@@ -11664,6 +9931,39 @@ mod tests {
     }
 
     #[test]
+    fn gas_evolution_variants_swap_pour_vessel_for_reactant_pile() {
+        let mut plan = plan_for(chemistry::ReactionRequest::acid_bicarbonate_gas_evolution(
+            chemistry::AlkaliMetal::Sodium,
+            chemistry::Halogen::Chlorine,
+        ));
+        let layout = SceneLayout::resolve(&plan);
+        let ordinal = plan
+            .gas_evolution
+            .as_ref()
+            .expect("gas evolution profile exists")
+            .generation_ordinal;
+        let build = |plan: &ScenePlan| {
+            let mut meshes = SceneMeshes::default();
+            gas_evolution::add_gas_evolution_assembly(&mut meshes, plan, layout, 0.5, ordinal, 0.5);
+            meshes
+        };
+        let liquid_liquid = build(&plan);
+        plan.gas_evolution
+            .as_mut()
+            .expect("gas evolution profile exists")
+            .variant = GasEvolutionVariant::SolidLiquid;
+        let solid_liquid = build(&plan);
+        assert!(
+            solid_liquid.opaque.vertices.len() > liquid_liquid.opaque.vertices.len(),
+            "the solid variant adds the faceted reactant pile"
+        );
+        assert!(
+            liquid_liquid.glass.vertices.len() > solid_liquid.glass.vertices.len(),
+            "the liquid variant adds the pouring vessel"
+        );
+    }
+
+    #[test]
     fn reviewed_bicarbonate_gas_evolution_selects_liquid_liquid_clip() {
         let request = chemistry::ReactionRequest::acid_bicarbonate_gas_evolution(
             chemistry::AlkaliMetal::Sodium,
@@ -11739,15 +10039,7 @@ mod tests {
 
     #[test]
     fn gas_evolution_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_gas_evolution_assembly")
-            .expect("gas-evolution renderer exists");
-        let end = source[start..]
-            .find("fn precipitation_track_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/gas_evolution.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -11765,15 +10057,7 @@ mod tests {
 
     #[test]
     fn precipitation_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_precipitation_assembly")
-            .expect("precipitation renderer exists");
-        let end = source[start..]
-            .find("fn combustion_track_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/precipitation.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -11792,15 +10076,7 @@ mod tests {
 
     #[test]
     fn metal_displacement_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_metal_displacement_assembly")
-            .expect("metal-displacement renderer exists");
-        let end = source[start..]
-            .find("fn gas_evolution_track_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/displacement.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -11819,15 +10095,7 @@ mod tests {
 
     #[test]
     fn synthesis_renderer_contains_no_reaction_or_species_identity_branch() {
-        let source = include_str!("structural_3d.rs");
-        let start = source
-            .find("fn add_animated_synthesis_combination_assembly")
-            .expect("synthesis renderer exists");
-        let end = source[start..]
-            .find("fn deposit_highlight_colour")
-            .map(|offset| start + offset)
-            .expect("renderer function boundary exists");
-        let renderer = &source[start..end];
+        let renderer = include_str!("structural_3d/synthesis.rs");
         for forbidden in [
             "ReactionRequest",
             "reaction_name",
@@ -12015,104 +10283,5 @@ mod tests {
             vertices.iter().all(|vertex| vertex.position[1] < 0.0),
             "the environment must not add a vertical wall above the floor"
         );
-    }
-}
-
-#[cfg(test)]
-mod clip_inventory {
-    use super::*;
-
-    #[test]
-    #[ignore = "diagnostic: prints per-frame liquid level per clip"]
-    fn print_liquid_levels() {
-        let clips: [(&str, &AnimatedClip); 8] = [
-            ("alkali", alkali_water_clip()),
-            ("neutralisation", neutralisation_clip()),
-            ("combustion-complete", complete_combustion_clip()),
-            ("combustion-incomplete", incomplete_combustion_clip()),
-            ("precipitation", precipitation_clip()),
-            (
-                "gas-liquid-liquid",
-                gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
-            ),
-            (
-                "gas-solid-liquid",
-                gas_evolution_clip(GasEvolutionVariant::SolidLiquid),
-            ),
-            ("displacement", metal_displacement_clip()),
-        ];
-        for (name, clip) in clips {
-            let Some(table) = liquid_table_for(clip) else {
-                println!("{name}: no table");
-                continue;
-            };
-            let levels: Vec<String> = table
-                .frames
-                .iter()
-                .step_by(20)
-                .map(|frame| format!("{:.3}", frame.y))
-                .collect();
-            println!(
-                "{name}: radius {:.2} floor {:.2} levels {}",
-                table.radius,
-                table.floor_y,
-                levels.join(" ")
-            );
-            if name == "neutralisation" {
-                let motions: Vec<String> = (0_u8..12)
-                    .map(|step| {
-                        let motion = neutralisation_vessel_motion(clip, f32::from(step * 20));
-                        format!("{:.3}", motion.y)
-                    })
-                    .collect();
-                println!("  vessel motion y {}", motions.join(" "));
-            }
-        }
-    }
-
-    #[test]
-    #[ignore = "diagnostic: prints track inventory per embedded clip"]
-    fn print_clip_tracks() {
-        let clips: [(&str, &AnimatedClip); 8] = [
-            ("alkali", alkali_water_clip()),
-            ("neutralisation", neutralisation_clip()),
-            ("combustion-complete", complete_combustion_clip()),
-            ("combustion-incomplete", incomplete_combustion_clip()),
-            ("precipitation", precipitation_clip()),
-            (
-                "gas-liquid-liquid",
-                gas_evolution_clip(GasEvolutionVariant::LiquidLiquid),
-            ),
-            (
-                "gas-solid-liquid",
-                gas_evolution_clip(GasEvolutionVariant::SolidLiquid),
-            ),
-            ("displacement", metal_displacement_clip()),
-        ];
-        for (name, clip) in clips {
-            println!("== {name} ==");
-            for track in &clip.tracks {
-                let mut min = Vec3::splat(f32::MAX);
-                let mut max = Vec3::splat(f32::MIN);
-                for vertex_index in 0..track.vertex_count {
-                    let v = clip.sample(track, vertex_index, 0.0);
-                    min = min.min(v.position);
-                    max = max.max(v.position);
-                }
-                println!(
-                    "  {:?} {:?} {:?} verts={} bounds=({:.3},{:.3},{:.3})..({:.3},{:.3},{:.3})",
-                    track.module,
-                    track.colour,
-                    track.pass,
-                    track.vertex_count,
-                    min.x,
-                    min.y,
-                    min.z,
-                    max.x,
-                    max.y,
-                    max.z
-                );
-            }
-        }
     }
 }
